@@ -1,0 +1,20 @@
+# LF everywhere, in the repository and in the working tree.
+# Windows is a development platform for this project, not a target.
+* text=auto eol=lf
+
+# Binary assets — never transformed.
+# Character cards carry their JSON in PNG text chunks (see docs/02-data-model.md
+# §5.2), so any line-ending or encoding pass over a .png corrupts the card.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+
+# Project export formats — zip containers.
+*.sepack  binary
+*.seactor binary
