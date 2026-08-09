@@ -4,7 +4,9 @@
 
 These are working documents for a clean-sheet engine that takes the *feature
 territory* of Aventuras, Marinara Engine and SillyTavern without inheriting
-their accumulated structure. They are deliberately **not comprehensive**. They
+their accumulated structure. Infinite Worlds — closed-source, and in the same
+genre as the Adventure mode — is a fourth reference, surveyed in
+[09](09-infinite-worlds.md). They are deliberately **not comprehensive**. They
 record an initial set of positions on where StoryEngine should *diverge* from
 the obvious approach — "port the three feature sets into one server" — and they
 leave large areas untouched on purpose.
@@ -26,6 +28,7 @@ and also flagged inline as **[OPEN]**.
 | [06-open-questions.md](06-open-questions.md) | Decisions needed before implementation planning |
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework and library recommendations with reasoning |
 | [08-triage.md](08-triage.md) | Per-subsystem verdicts on the three sources: adopt, port, rebuild, discard, buy |
+| [09-infinite-worlds.md](09-infinite-worlds.md) | A fourth reference, and the authored-rules tier it exposes as missing |
 
 ## The four commitments these documents are built around
 

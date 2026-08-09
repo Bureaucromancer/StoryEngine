@@ -31,9 +31,14 @@ after outside contributions arrive that means tracking down every contributor.
 Lean: accept that extensions are AGPL (costs nothing, matches ecosystem norms),
 but decide it deliberately. *[08 §1.1, 03 §9]*
 
-**A2. Can a package ship code?** If a package may bundle a mode or extension
-implementation, importing a package becomes a code-execution decision. Lean:
-declare dependencies only at 1.0. *[02 §7]*
+**A2. Can a package ship code? — SHARPENED by [09 §2.1](09-infinite-worlds.md):
+packages may ship *rules*, never *code*.** Declarative rules are terms in a
+closed vocabulary our evaluator interprets, so importing one grants no capability
+the importer lacks — which is what makes shared content far more expressive
+without touching A1's execution question. Still open: bundling an actual mode or
+extension implementation remains a no for 1.0, and the rule vocabulary needs
+versioning so a package authored against v2 fails legibly on a v1 host.
+*[02 §7, 09 §2]*
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
@@ -145,6 +150,29 @@ attach. *[03 §8]*
 **C4. Turn job durability across server restart.** Proposed 1.0 answer: not
 resumed, but recorded as failed with blocks intact so it can be re-run rather
 than lost. *[04 §2]*
+
+**C5. Steps that suspend for player input.** [09 §4.2](09-infinite-worlds.md):
+Infinite Worlds can present a choice or request free text mid-turn and store the
+answer. Our `StepDefinition` cannot — a turn runs to completion. Proposed: a
+step may return a *suspend* outcome carrying an input request; the turn job
+parks, the event stream publishes it, the answer arrives as an intent, the turn
+resumes. Fits the server-authoritative model well, but it makes turn jobs
+long-lived and interacts with C4. *[03 §6, 09 §4.2]*
+
+**C6. One expression language for both templates and rules.**
+[09 §6](09-infinite-worlds.md): Infinite Worlds ran on purely declarative
+triggers for years and then added an expression language. Assume we will need
+one, and make it the same language used for block rendering (Liquid is proposed)
+rather than growing a second. Open: whether Liquid is actually a good fit for
+rule *conditions*, and what query surface collection-valued channels need.
+*[03 §5, 07]*
+
+**C7. Authored rules — the vocabulary itself.** [09 §3](09-infinite-worlds.md)
+proposes taking Infinite Worlds' trigger vocabulary close to wholesale as a
+starting point. Open: which conditions and effects make the 1.0 cut, how the
+vocabulary is versioned, and whether AI-evaluated fuzzy conditions ship at all
+(IW caps them at ten per world and warns they produce false positives).
+*[09 §2, §3]*
 
 ---
 

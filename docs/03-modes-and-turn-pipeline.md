@@ -155,6 +155,33 @@ The properties that make this worth doing:
 Channel values keyed by definition id, never by display name, so renaming is free
 — stolen directly from Aventuras' `RuntimeVarsMap`.
 
+### 4.1 Channels should be author-declarable, not only mode-declared
+
+Added after surveying Infinite Worlds ([09](09-infinite-worlds.md)), which is
+the strongest evidence for this whole section — and which shows it is currently
+under-specified here.
+
+As written above, a `ChannelDefinition` has an `owner: ModeId | ExtensionId`, so
+new state requires code. Infinite Worlds lets *world authors* declare tracked
+variables and write declarative rules over them, shipped as data inside the
+world, and its community used that to build weather engines, loot generators,
+class trees, quest state machines and dating sims with no engine involvement.
+
+So there is a **third extensibility tier** between "engine feature" and "code
+extension": authored rules. Concretely:
+
+- `owner` may be a package, not just a mode or extension.
+- Packages and settings carry a `rules` collection — declarative
+  condition/effect pairs over channels, evaluated as an end-of-turn step, with
+  effects applied through the same path model-proposed updates use and recorded
+  in the turn record like everything else.
+- Rules are **data, not code**: terms in a closed vocabulary our evaluator
+  interprets. That is what makes them safe to import, and it sharpens
+  [06 A2](06-open-questions.md) to "packages may ship rules, never code."
+
+The rule vocabulary itself is [06 C7](06-open-questions.md);
+[09 §3](09-infinite-worlds.md) proposes a starting point.
+
 **[OPEN]** Channel schema migration when a mode updates and an in-flight session
 has old state. Needs a versioning story before anything ships; a `migrate`
 function on the definition is the obvious answer and the obvious maintenance
@@ -213,6 +240,20 @@ interface StepDefinition {
   failure: "abort" | "warn" | "ignore"
 }
 ```
+
+Two additions from [09](09-infinite-worlds.md), both recorded as open questions
+rather than folded in above:
+
+- **Evaluate before narrating.** Infinite Worlds splits its instructions into
+  evaluation (what happens), description (how it reads) and summary. Evaluation
+  runs *before* narration and constrains it — which is how mechanics get teeth
+  instead of the narrator deciding outcomes while writing prose. Structurally
+  distinct from Aventuras' post-hoc classification, and both are worth having:
+  `assemble → evaluate → narrate → extract`. Expressible today as a `generate`
+  step feeding the main call; worth naming as a pattern.
+- **Steps cannot suspend for input, and should be able to.** Nothing here can
+  pause mid-turn to ask the player a question and resume with the answer. See
+  [06 C5](06-open-questions.md).
 
 **This unifies "agent" and "pipeline stage".** Marinara's agents — Narrative
 Director, Prose Guardian, Echo Chamber, tracker agents, Music DJ — are all steps
