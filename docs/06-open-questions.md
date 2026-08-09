@@ -7,20 +7,29 @@ one document. Ordered by how expensive they are to answer late.
 
 ## A. Decide before writing code
 
-**A0. The licence. Highest priority in these documents.** All three sources are
-AGPL-3.0 ([08 §1](08-triage.md)). If StoryEngine is AGPL, code may be lifted and
-§13's network clause applies to LAN users (met by a source link in the UI). If
-StoryEngine is to be permissive, *nothing* may be lifted and every verdict in
-[08](08-triage.md) collapses to rebuild. Practically irreversible once AGPL code
-lands. Mitigating fact: the honest lift list is a few hundred lines
-([08 §2](08-triage.md)), so choosing permissive costs far less than the size of
-the source repos suggests. Decide alongside A6/A7.
+**A0. The licence. — RESOLVED 2026-08-09: AGPL-3.0.** Matches all three sources;
+`LICENSE` is in the repository root. Lifting code from the sources is permitted
+with notices preserved, §13 obliges us to offer source to LAN users
+([04 §5](04-server-multiuser-deployment.md)), dependencies must be
+AGPL-compatible, and user content is unaffected. See [08 §1](08-triage.md).
+Spawns A1b, below.
 
 **A1. Extension execution model.** In-process modules (simple, every installed
 extension is fully trusted) or sandboxed workers with message passing (safer,
 much more work, constrains the API shape)? Given LAN multi-user with a shared
 library and admin-only installation, in-process may be acceptable — but this is
 close to unretrofittable. *[03 §9]*
+
+**A1b. May extensions be non-AGPL? Decide before the first outside pull
+request.** Now that A0 is settled, the execution model in A1 is also a licensing
+choice. In-process ESM extensions sharing our address space are conventionally a
+single combined work, so they would have to be AGPL too; an out-of-process
+message API makes the independent-work argument much stronger. The third option
+— in-process plus an explicit linking exception — **must be taken at the
+outset**, because an exception can only be granted by the copyright holders, and
+after outside contributions arrive that means tracking down every contributor.
+Lean: accept that extensions are AGPL (costs nothing, matches ecosystem norms),
+but decide it deliberately. *[08 §1.1, 03 §9]*
 
 **A2. Can a package ship code?** If a package may bundle a mode or extension
 implementation, importing a package becomes a code-execution decision. Lean:

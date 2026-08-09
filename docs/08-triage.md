@@ -6,7 +6,73 @@ document is about what to *do* with it.
 
 ---
 
-## 1. The license gate — decide this before anything else
+## 1. The license gate — DECIDED: StoryEngine is AGPL-3.0
+
+**Decision (2026-08-09): StoryEngine is licensed AGPL-3.0**, matching all three
+sources. `LICENSE` in the repository root is the verbatim FSF text. The rest of
+this section records what that settles and what it newly raises.
+
+**Settled:**
+
+- **Code may be lifted from any of the three**, licence-wise. The ADOPT verdicts
+  in §5 are live. Attribution and the original copyright notices must be
+  preserved on anything taken.
+- **AGPL §13 applies to us.** StoryEngine is a multi-user server reached over a
+  network, which is precisely the case §13 exists for: users interacting with it
+  remotely must be offered the corresponding source. In practice a "Source" link
+  in the UI footer resolving to the repository, plus the ability to serve the
+  exact running version. **This is a 1.0 requirement, not a nicety** — see
+  [04 §6](04-server-multiuser-deployment.md).
+- **Dependencies must be AGPL-compatible.** Permissive licences (MIT, Apache-2.0,
+  BSD, ISC) are fine and cover everything on the BUY list in §7. Watch for
+  SSPL, BUSL, "source-available", and non-commercial terms, which are not.
+- **User content is not affected.** Actors, settings, lorebooks, packages and
+  sessions are data produced *by* the program, not derivative works *of* it.
+  Nobody's characters become AGPL by being authored in StoryEngine. Worth saying
+  plainly somewhere user-facing, because this is a common and reasonable worry.
+
+**Newly raised, and time-sensitive — see §1.1.**
+
+### 1.1 AGPL and the extension model
+
+The licence decision reaches into [06 A1](06-open-questions.md) (extension
+execution model), which had been framed as purely a safety-and-simplicity
+question. It is now also a licensing question, and the two answers interact.
+
+If extensions load **in-process** as ESM modules sharing our address space and
+calling our API directly, the conventional reading — and certainly the FSF's —
+is that they form a single combined work, so **every extension must also be
+AGPL-3.0**. If extensions run **out-of-process** behind an arms-length message
+API, the argument that they are independent works is much stronger.
+
+Three viable positions:
+
+1. **In-process, extensions are AGPL.** Simplest to build, keeps the ecosystem
+   open by construction, and is a defensible values position for a self-hosted
+   tool. Cost: nobody can ship a proprietary mode. For this project that is
+   plausibly a feature.
+2. **Out-of-process/sandboxed.** Extensions may be licensed freely. Costs real
+   engineering — and it happens to be the same boundary that answers the safety
+   question, so the two motivations reinforce.
+3. **In-process with an explicit linking exception** in our licence, granting
+   permission to combine with independently-licensed extensions.
+
+**Why this is time-sensitive.** Option 3 must be adopted *at the outset*. A
+licence exception can only be added by the copyright holders, so once the
+project accepts outside contributions, adding one later requires tracking down
+and getting agreement from every contributor. Whatever the answer, it is much
+cheaper now than in a year.
+
+Current lean: **option 1**, on the grounds that it costs nothing, matches the
+ecosystem's norms, and the extensions most worth having are the ones people
+share anyway. But it should be a decision rather than a default, and it should
+be made before the first outside pull request.
+
+---
+
+## 1.2 Background: what the licences were
+
+Retained because it explains why the verdicts below are shaped as they are.
 
 **All three sources are AGPL-3.0.**
 
@@ -16,26 +82,18 @@ document is about what to *do* with it.
 | Aventuras | AGPL-3.0 | — |
 | Marinara Engine | AGPL-3.0 | Separate trademark/branding policy (`TRADEMARKS.md`) |
 
-This is the gating decision because it is **practically irreversible**: once
-AGPL code is in the tree, relicensing means rewriting the affected parts and
-proving you did. It is much cheaper to decide now than to discover it later.
+Matching them was the decision with the fewest consequences, and it is
+effectively one-way in any case: once AGPL code is in the tree, moving to a
+permissive licence would mean rewriting the affected parts and proving you did.
 
-What follows from each choice:
+Marinara's separate trademark policy is worth one note: it governs the *name*
+and branding, not the code, and it explicitly permits truthful descriptive
+references. Nothing in this project needs Marinara's marks, so it only matters
+if StoryEngine ever describes itself in terms of them.
 
-**If StoryEngine is AGPL-3.0.** Lifting code becomes an ordinary engineering
-question. Note that AGPL §13 — the network clause — applies to a multi-user LAN
-server: users interacting with it over a network must be offered the
-corresponding source. In practice that is a link in the UI footer, but it is a
-real obligation and it should be met deliberately rather than accidentally. This
-is the path of least resistance, matches the ecosystem, and is the most likely
-right answer for a self-hosted tool of this kind.
-
-**If StoryEngine is MIT/Apache/anything permissive.** Then **nothing** may be
-lifted from any of the three, and every verdict below collapses to "rebuild" or
-"discard". This is more viable than it sounds — see §2.
-
-**What is not restricted either way.** Copyright covers expression, not
-interoperability. These are all fair game regardless of licence:
+**What was never restricted, regardless of licence.** Copyright covers
+expression, not interoperability. These would have been fair game even under a
+permissive licence, and they are where most of the value sits:
 
 - **File and data formats** — Character Card V2/V3, the `chara`/`ccv3` PNG chunk
   convention, CHARX, ST's World Info JSON, ST's chat JSONL, lorebook exports.
@@ -48,12 +106,8 @@ interoperability. These are all fair game regardless of licence:
   [03](03-modes-and-turn-pipeline.md).
 
 The practical consequence: **the specification is free, the implementation is
-not.** Most of the value in these three codebases is specification.
-
-**Recommendation:** pick the licence in the same week you pick the stack, and
-until it is picked, treat every verdict below as "rebuild" and take only
-behaviour from the sources. **[OPEN]** — the single highest-priority question in
-this document.
+not.** Most of the value in these three codebases is specification — which is
+why §2 argues the licence question turned out to be low-stakes either way.
 
 ---
 
@@ -84,8 +138,10 @@ Nearly a million lines, and very little of it is usefully liftable — because
 
 The pieces that *are* cleanly liftable are small, self-contained utilities — and
 being small, they are also the cheapest to rewrite. That is an unusual and
-convenient alignment: **the licence question turns out to be low-stakes in
-practice**, because the honest lift list is a few hundred lines.
+convenient alignment: **the licence question was low-stakes either way**,
+because the honest lift list is a few hundred lines. Going AGPL (§1) makes those
+few hundred lines available; it did not unlock a shortcut of any consequence,
+and no plan below should be built on the assumption that it did.
 
 ---
 

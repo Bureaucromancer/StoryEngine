@@ -196,7 +196,33 @@ should be a thin client pointing at a server, not a second copy of the engine.
 
 ---
 
-## 5. Multiplayer, and why `participants` is a list now
+## 5. Licence obligations that are actually features
+
+StoryEngine is AGPL-3.0 ([08 §1](08-triage.md)), and §13 — the network clause —
+applies squarely to a multi-user server reached over a LAN: people interacting
+with it remotely must be offered the corresponding source for the version they
+are interacting with.
+
+This is small, and it is a 1.0 requirement rather than a later tidy-up:
+
+- A **Source** link in the UI, visible to every logged-in user, not buried in an
+  admin screen.
+- It must resolve to **the version actually running**, which means the build
+  embeds its commit hash and the link is version-aware. A link to `main` is not
+  strictly compliant when the operator is running a patched build — and the
+  patched-build case is exactly the one §13 exists for.
+- An **About** surface showing version, commit, licence, and the dependency
+  licence manifest. Cheap to generate at build time and independently useful for
+  bug reports.
+
+Worth stating clearly in the same surface: **user content is not covered.**
+Actors, settings, lorebooks, packages and sessions are data the program
+produces, not derivative works of it. Nobody's characters become AGPL by being
+authored here.
+
+---
+
+## 6. Multiplayer, and why `participants` is a list now
 
 Two people in the same session — one narrating, two personas, or a "GM plus
 players" arrangement — is a genuinely attractive feature and explicitly **not a
