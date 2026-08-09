@@ -7,6 +7,15 @@ one document. Ordered by how expensive they are to answer late.
 
 ## A. Decide before writing code
 
+**A0. The licence. Highest priority in these documents.** All three sources are
+AGPL-3.0 ([08 §1](08-triage.md)). If StoryEngine is AGPL, code may be lifted and
+§13's network clause applies to LAN users (met by a source link in the UI). If
+StoryEngine is to be permissive, *nothing* may be lifted and every verdict in
+[08](08-triage.md) collapses to rebuild. Practically irreversible once AGPL code
+lands. Mitigating fact: the honest lift list is a few hundred lines
+([08 §2](08-triage.md)), so choosing permissive costs far less than the size of
+the source repos suggests. Decide alongside A6/A7.
+
 **A1. Extension execution model.** In-process modules (simple, every installed
 extension is fully trusted) or sandboxed workers with message passing (safer,
 much more work, constrains the API shape)? Given LAN multi-user with a shared

@@ -25,6 +25,7 @@ and also flagged inline as **[OPEN]**.
 | [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client stance, library and workbench surfaces, file access as a permission |
 | [06-open-questions.md](06-open-questions.md) | Decisions needed before implementation planning |
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework and library recommendations with reasoning |
+| [08-triage.md](08-triage.md) | Per-subsystem verdicts on the three sources: adopt, port, rebuild, discard, buy |
 
 ## The four commitments these documents are built around
 
