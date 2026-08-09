@@ -18,18 +18,20 @@ Spawns A1b, below.
 extension is fully trusted) or sandboxed workers with message passing (safer,
 much more work, constrains the API shape)? Given LAN multi-user with a shared
 library and admin-only installation, in-process may be acceptable — but this is
-close to unretrofittable. *[03 §9]*
+close to unretrofittable. **Narrowed by A1b**: this is now purely a technical
+question again. Decide it on blast radius, API ergonomics and how much a
+misbehaving extension can cost other users — the licensing dimension is gone,
+and in-process is licence-viable. *[03 §9]*
 
-**A1b. May extensions be non-AGPL? Decide before the first outside pull
-request.** Now that A0 is settled, the execution model in A1 is also a licensing
-choice. In-process ESM extensions sharing our address space are conventionally a
-single combined work, so they would have to be AGPL too; an out-of-process
-message API makes the independent-work argument much stronger. The third option
-— in-process plus an explicit linking exception — **must be taken at the
-outset**, because an exception can only be granted by the copyright holders, and
-after outside contributions arrive that means tracking down every contributor.
-Lean: accept that extensions are AGPL (costs nothing, matches ecosystem norms),
-but decide it deliberately. *[08 §1.1, 03 §9]*
+**A1b. May extensions be non-AGPL? — RESOLVED 2026-08-09: no. Extensions and
+modes are AGPL-3.0, with no linking exception.** The friction of requiring
+copyleft from extension authors is smaller and more recoverable than the damage
+of a copyleft project being seen to close things down. Consequences: no
+exception means no decide-before-first-PR deadline; the SDK package must itself
+be AGPL for this to hold; extension manifests should carry a declared licence
+field for legibility. Content — including packages and their authored rules —
+is explicitly *not* covered and stays the author's own. See
+[08 §1.1–1.2](08-triage.md).
 
 **A2. Can a package ship code? — SHARPENED by [09 §2.1](09-infinite-worlds.md):
 packages may ship *rules*, never *code*.** Declarative rules are terms in a

@@ -240,8 +240,14 @@ packages/
   modes/adventure/ ⎭
 ```
 
-The last part is the important one and it is a **discipline mechanism, not
-organisation**. [03 §2](03-modes-and-turn-pipeline.md) claims the built-in modes
+**`sdk` is AGPL-3.0, like everything else, and that is deliberate rather than
+incidental.** Extensions import it, which is what makes them combined works and
+what makes [08 §1.1](08-triage.md)'s decision hold. Publishing it under a
+permissive licence "to be friendly to extension authors" would quietly reverse
+that decision, so it is worth a comment in the package manifest saying why.
+
+The modes arrangement is the other important part, and it is a **discipline
+mechanism, not organisation**. [03 §2](03-modes-and-turn-pipeline.md) claims the built-in modes
 must be implemented only through the public mode contract, or "modes as
 extensions" is aspirational. Putting them in separate packages that depend on
 `sdk` and *not* on `server` turns that claim into a build error. It is the

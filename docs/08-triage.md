@@ -33,40 +33,62 @@ this section records what that settles and what it newly raises.
 
 **Newly raised, and time-sensitive — see §1.1.**
 
-### 1.1 AGPL and the extension model
+### 1.1 Extensions are AGPL too — DECIDED
 
-The licence decision reaches into [06 A1](06-open-questions.md) (extension
-execution model), which had been framed as purely a safety-and-simplicity
-question. It is now also a licensing question, and the two answers interact.
+**Decision (2026-08-09): code extensions and modes must be AGPL-3.0. No linking
+exception.**
 
-If extensions load **in-process** as ESM modules sharing our address space and
-calling our API directly, the conventional reading — and certainly the FSF's —
-is that they form a single combined work, so **every extension must also be
-AGPL-3.0**. If extensions run **out-of-process** behind an arms-length message
-API, the argument that they are independent works is much stronger.
+The reasoning is about community dynamics rather than law: the friction of
+telling extension authors they must be copyleft is smaller and more recoverable
+than the damage done when a copyleft project is perceived to be closing things
+down. That failure mode is well-attested in this ecosystem and it is not worth
+courting to enable a proprietary-extension case nobody has asked for.
 
-Three viable positions:
+**What this settles:**
 
-1. **In-process, extensions are AGPL.** Simplest to build, keeps the ecosystem
-   open by construction, and is a defensible values position for a self-hosted
-   tool. Cost: nobody can ship a proprietary mode. For this project that is
-   plausibly a feature.
-2. **Out-of-process/sandboxed.** Extensions may be licensed freely. Costs real
-   engineering — and it happens to be the same boundary that answers the safety
-   question, so the two motivations reinforce.
-3. **In-process with an explicit linking exception** in our licence, granting
-   permission to combine with independently-licensed extensions.
+- **No linking exception, so no deadline.** An exception can only be granted by
+  the copyright holders, which made it a decide-before-the-first-outside-PR
+  question. Declining it removes that time bomb entirely.
+- **[06 A1](06-open-questions.md) is now purely technical again.** The extension
+  execution model — in-process modules versus sandboxed workers — was carrying a
+  licensing dimension it no longer has. Decide it on safety, blast radius and
+  API ergonomics alone. In-process is licence-viable, which is the simpler
+  starting point.
+- **The SDK package must itself be AGPL**, deliberately. This is the mechanism
+  by which the decision actually holds: extensions import `sdk`, so `sdk`'s
+  licence is what makes them combined works. Publishing it permissively "to be
+  friendly" would quietly undo the decision. See [07 §10](07-tech-stack.md).
+- **Extension manifests should declare a licence field**, surfaced by the
+  installer. Not enforcement — legibility. It makes the expectation visible at
+  the point of authoring and lets a user see what they are installing.
 
-**Why this is time-sensitive.** Option 3 must be adopted *at the outset*. A
-licence exception can only be added by the copyright holders, so once the
-project accepts outside contributions, adding one later requires tracking down
-and getting agreement from every contributor. Whatever the answer, it is much
-cheaper now than in a year.
+### 1.2 The line that must stay crisp: code is AGPL, content is not
 
-Current lean: **option 1**, on the grounds that it costs nothing, matches the
-ecosystem's norms, and the extensions most worth having are the ones people
-share anyway. But it should be a decision rather than a default, and it should
-be made before the first outside pull request.
+This decision makes one distinction load-bearing, and getting it wrong would
+produce exactly the perception the decision exists to avoid.
+
+| Kind | Licence |
+|---|---|
+| Code extensions and modes (import the SDK, run in our process) | **AGPL-3.0, required** |
+| Actors, lorebooks, settings, presets, sessions | **The author's own. Any licence, including none.** |
+| Packages — including their **authored rules** ([09 §2](09-infinite-worlds.md)) | **The author's own.** |
+
+Rules are the case worth being explicit about, because they *look* like code.
+They are not: a rule is a term in a closed vocabulary that our evaluator
+interprets, no different in kind from a lorebook entry's activation settings. A
+package full of rules is authored content and its author licenses it however
+they like — or not at all.
+
+This has a pleasant consequence. The authored-rules tier is not merely an
+expressiveness feature, it is also **the escape hatch for anyone who wants to
+ship something they control**: build it as a package of rules and content rather
+than as a code extension, and the copyleft question never arises. That makes
+[09](09-infinite-worlds.md)'s third tier more valuable under this decision than
+it was before it, and it is worth saying so publicly rather than leaving people
+to discover it.
+
+Both halves of the table belong somewhere user-facing — the About surface in
+[04 §5](04-server-multiuser-deployment.md) is the natural home.
 
 ---
 

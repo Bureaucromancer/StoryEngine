@@ -215,10 +215,20 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
   licence manifest. Cheap to generate at build time and independently useful for
   bug reports.
 
-Worth stating clearly in the same surface: **user content is not covered.**
-Actors, settings, lorebooks, packages and sessions are data the program
-produces, not derivative works of it. Nobody's characters become AGPL by being
-authored here.
+The same surface should state the licence boundary plainly, because the
+project asks copyleft of one category and nothing of the other
+([08 §1.2](08-triage.md)):
+
+- **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
+  process.
+- **Content is the author's own** — actors, settings, lorebooks, presets,
+  sessions, and packages including their authored rules. These are data the
+  program produces, not derivative works of it. Nobody's characters become AGPL
+  by being authored here, and a package of rules can be licensed however its
+  author likes, or not at all.
+
+Saying both halves clearly and in the same place is the cheapest available
+defence against the misreading that copyleft is creeping into people's stories.
 
 ---
 
