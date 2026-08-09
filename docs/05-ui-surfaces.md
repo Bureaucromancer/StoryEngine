@@ -1,0 +1,258 @@
+# 05 — UI surfaces
+
+**Status: proposal.**
+
+---
+
+## 1. The client stance: web, and only web
+
+**StoryEngine is a web application.** The browser is not *a* client, it is *the*
+client. There is no desktop app, no Electron shell, no Tauri build, no native
+mobile app, and no plan for any.
+
+This is a stronger position than any of the three sources takes — Aventuras is a
+Tauri desktop app, Marinara ships a launcher `.exe` plus Docker plus an Android
+build, SillyTavern is a local server people reach in a browser but whose docs
+treat that as a local-first arrangement. Hedging across shells is a real tax:
+it forces filesystem access through an abstraction that has to work in three
+environments, it doubles the packaging surface, and it makes the multi-user
+server the *secondary* configuration in a product where it should be the only one.
+
+What follows from this:
+
+- **Responsive from day one**, because a phone browser is a real client. But
+  "responsive and genuinely usable on a phone" is the 1.0 bar, not "designed
+  phone-first". A *truly* mobile-optimised layout — different navigation model,
+  different play surface, thumb-reachable controls — is a later, separate
+  project, and it is a mode of the same web app, not a different artefact.
+  (This is a deliberate softening of Marinara's "mobile is a first-class play
+  surface" principle. Marinara is right for Marinara; a LAN server whose primary
+  users are on laptops has different priorities at 1.0.)
+- **No offline story.** No service worker, no local cache-as-database, no sync.
+  The server is on your LAN; if you can't reach it there is nothing to do.
+  This removes an entire class of state-reconciliation problems.
+- **Nothing is installed on the client.** Bookmark a URL. That is the whole
+  install experience for everyone who isn't the person running the server.
+
+The one legitimate secondary interface is **direct file access to the data
+directory** — which is not a client at all, it's the storage design working as
+intended. See §4.
+
+---
+
+## 2. Three peer surfaces
+
+| Surface | What it is |
+|---|---|
+| **Play** | The three modes' chat/scene/adventure views |
+| **Library** | Actors, lorebooks, settings, packages, presets — browse, edit, organise, import, export |
+| **Workbench** | What the engine sent, why, what it cost, and what to change |
+
+"Peer" is a design-process claim as much as a layout one: Library and Workbench
+get designed in the same pass as Play, not retrofitted once Play works. Both of
+the source projects that have workbench-ish features arrived at them as debug
+panels (Marinara's Injections tab is gated behind Debug mode; Aventuras'
+`retrievalSnapshot` is annotated "Diagnostic only — nothing reads it back"), and
+that origin shows.
+
+---
+
+## 3. Workbench
+
+The turn record ([02 §8](02-data-model.md)) is designed to be displayed. The
+workbench is its viewer and editor, and because the record is complete and
+persistent, the workbench is a *reader*, not a second implementation of the
+assembler. That is the whole trick.
+
+What it shows for any turn, current or historical:
+
+- **The block list**, in order, each with source, inclusion reason in plain
+  language ("keyword match: *cathedral*", "sticky, 2 messages remaining", "party
+  location == Rain City"), token cost, and included/dropped with the rule
+  responsible. Marinara's `LorebookActivationSource` and its budget skip-reason
+  reporting already produce most of this data
+  ([02 §3.1–3.2](02-data-model.md)); the workbench is where it stops being an
+  amber notice in a popover and becomes the primary view.
+- **The budget verdict** — what the ceiling was, what was spent, what got
+  dropped and what would drop next. "What is about to fall out of context"
+  should be answerable *before* it happens.
+- **The calls** — one per model call, with parameters, model, and the actual
+  messages. Multiple calls for `per-actor` dispatch and for steps.
+- **The effects** — proposed channel changes, which applied, which failed
+  validation, which were overridden by an engine-computed rule.
+- **Cost** — tokens and wall time, itemised by call, so "agents cost extra" is a
+  number rather than a documentation note.
+
+What it lets you do:
+
+- **Edit a block and re-run.** Marinara already does the important half of this:
+  editing a saved agent snippet "changes only what is used when you regenerate
+  that same reply. It does not change the reply already on screen." That
+  separation is correct and should be preserved.
+- **Diff two turns**, or the same turn before and after a preset change. The
+  cheapest possible answer to "it got worse and I don't know what I changed".
+- **Promote a dry run.** Assemble without sending, inspect, adjust, then send.
+- **Keyword test, generalised.** Marinara's keyword-test panel — paste sample
+  text, see which entries would fire — is excellent and currently applies to one
+  lorebook's keyword rules only. As a workbench feature over the whole assembly,
+  against a real session's channel state, it covers every activation source.
+
+**[OPEN]** How much belongs in the play surface as a persistent affordance versus
+a separate view. Something minimal and always visible — a context-fill meter,
+clickable through to the full record — is probably right. A full workbench panel
+beside every message is not.
+
+---
+
+## 4. File access as a permission level
+
+The requirement, restated: since the data directory is the system of record and
+is human-navigable by design ([02 §5](02-data-model.md)), a user with an account
+on the server but no shell on the box should be able to reach their own files
+*through the web UI*.
+
+### 4.1 Why this fits rather than fights the architecture
+
+It looks like a scary feature and mostly isn't, because of a decision already
+made elsewhere: **the SQLite index is derived and rebuilt from a filesystem
+watcher.**
+
+That means a hand-edited file is not a special case. It is the same code path as
+any other write — something changed on disk, the watcher notices, the object is
+re-parsed and re-indexed. There is no "the UI wrote it so it's trusted / the user
+wrote it so it's suspect" distinction, because the UI's writes go to disk and get
+picked up the same way. A file browser is a view onto the truth rather than a
+back door around it.
+
+The corollary is that the feature is nearly free *if* the watcher path is correct,
+and impossible to add safely if it isn't. Which makes it a useful design forcing
+function even before it ships: **if hand-editing a file on disk doesn't work,
+the storage design has already failed** on its own terms.
+
+### 4.2 The permission
+
+```ts
+type FileAccess = "none" | "read" | "write"
+```
+
+Per account, admin-granted, default `none`. Scoped roots, resolved and enforced
+server-side:
+
+| Root | `read` | `write` |
+|---|---|---|
+| `/data/users/<own handle>/` | yes | yes |
+| `/data/library/` | yes | gated separately — it is shared with everyone |
+| `/data/users/<other>/` | never | never |
+| `/data/config.yaml`, `/data/index/` | never | never |
+
+`library` write deserves its own flag: a shared library on a family server is
+exactly the place where a stray drag-and-drop is someone else's problem.
+
+### 4.3 What it is, concretely
+
+A file manager: tree, upload, download, rename, move, delete, and a text editor
+for the JSON/YAML kinds with schema validation on save. Plus — the actually
+useful part — **download a folder as a zip** and **upload a zip into place**,
+which is the drag-and-drop export/import story working through a browser for
+people who can't reach the disk directly.
+
+Notably *not*: executing anything, following symlinks out of the roots, or
+touching binary card payloads with a text editor (offer download/replace
+instead).
+
+### 4.4 What it costs
+
+Honest accounting, because the user is right that this is a pain:
+
+- **Path handling is where this class of feature always breaks.** Every path
+  must be resolved to a real path and re-checked against the allowed roots after
+  resolution, symlinks that escape rejected, and `..` handled by resolution
+  rather than by string inspection. Windows adds ADS, reserved device names, and
+  case-insensitivity to the list. This is well-understood but unforgiving, and it
+  wants one audited helper that every route uses rather than per-route checks.
+- **Users will break things.** A malformed lorebook, a card PNG with a corrupt
+  chunk, a deleted folder a session was seeded from. The answer is that
+  validation failures are *visible and inert*: the object appears in the library
+  flagged invalid with the parse error shown, and nothing crashes, hides it, or
+  silently rewrites it. That behaviour is needed anyway for hand-edited-on-disk
+  files and for imports, so the file browser doesn't create the requirement.
+- **Upload is an attack surface** even among trusted users: size limits, no
+  archive traversal on zip extraction (`zip-slip`), no execute bits, and content
+  sniffing rather than trusting extensions.
+- **It is not a 1.0 feature.** Recommendation: define the permission field and
+  the scoped-root helper in the initial auth work so the shape exists, ship
+  read-only download-and-zip early because it is cheap and immediately useful,
+  and defer write and the text editor to 1.x.
+
+**[OPEN]** Whether `write` should require re-entering the password, the way
+admin actions sometimes do. Probably overkill given the threat model in
+[04 §3.1](04-server-multiuser-deployment.md), but worth one conversation.
+
+---
+
+## 5. Library
+
+Browse, search, tag, folder, favourite, filter, bulk select, import, export,
+duplicate. All three sources converged on roughly this and there is no reason to
+be inventive.
+
+Where it should differ:
+
+- **One library surface for all shareable kinds**, with a kind filter — not five
+  panels behind five buttons. Objects link across kinds constantly and the
+  cross-links should be navigable inline.
+- **Links are visible and bidirectional.** From a lorebook: which settings,
+  actors and packages reference this. From an actor: which lorebooks it links.
+  Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
+- **The disk layout is legible.** Since the folder *is* the object, show the path
+  and — for users with file access — link straight into the file browser at that
+  location. This is a rare case where exposing the storage mechanism is the
+  feature: it is how a user learns that drag-and-drop export works at all.
+- **Import is a review step, not a modal that dumps.** Show what was recognised,
+  what went to `compat`, what resolved, what dangled, and let the user fix it
+  before committing.
+
+---
+
+## 6. Setup flows
+
+Both sources use wizards and both wizards are good. Worth taking:
+
+- **From Aventuras:** the seed → AI expand → edit → accept loop for setting
+  creation, including `useSettingAsIs()` — the escape hatch that skips expansion
+  entirely. The expansion is an assist, not the path.
+- **From Marinara:** every step but the first has a working default, and the
+  wizard is skippable into the settings drawer. "Only the connection is
+  required" is the right bar.
+- **From Marinara:** the immutable setup snapshot, so a good combination can be
+  shared *after* playing rather than by remembering to record it beforehand. Here
+  it is stronger, because the snapshot is a real Package
+  ([02 §7](02-data-model.md)) rather than a text file.
+
+Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
+([03 §2](03-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
+extension mode gets a first-class setup flow without writing UI. Aventuras' pack
+`CustomVariable` — typed, enum options, required flag, defaults, sort order, help
+text — is a working precedent and close to the right vocabulary.
+
+---
+
+## 7. Extension-contributed UI
+
+Resolved here because it is what decouples the frontend framework choice from
+everything else (see [07 §6](07-tech-stack.md)).
+
+**Extensions do not ship UI components.** They declare widgets from a versioned
+vocabulary that the host renders: HUD widgets, side panels, message decorations,
+input-bar actions, setup form fields, library columns. Marinara's HUD widget
+specs and Aventuras' `RuntimeVariable` display metadata (colour, icon, pinned,
+min/max) are both evidence that the declarative vocabulary covers the real cases.
+
+This buys three things: extensions cannot break the app's rendering, the
+frontend framework stays a reversible decision, and an extension written today
+still works after a framework upgrade.
+
+**[OPEN]** The escape hatch for an extension that genuinely needs custom
+rendering — a map, a card table, a graph. Sandboxed iframe with a narrow
+postMessage API is the obvious answer and it is a real chunk of work. Deferring
+is fine; pretending the vocabulary will cover everything forever is not.
