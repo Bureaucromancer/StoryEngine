@@ -29,6 +29,7 @@ and also flagged inline as **[OPEN]**.
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework and library recommendations with reasoning |
 | [08-triage.md](08-triage.md) | Per-subsystem verdicts on the three sources: adopt, port, rebuild, discard, buy |
 | [09-infinite-worlds.md](09-infinite-worlds.md) | A fourth reference, and the authored-rules tier it exposes as missing |
+| [10-branching.md](10-branching.md) | Branch anywhere, any time: the effect log makes it a pointer, and summaries survive |
 
 ## The four commitments these documents are built around
 

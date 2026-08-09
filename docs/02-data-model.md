@@ -662,7 +662,7 @@ interface Session {
   lore: Ref<Lorebook>[]
 
   channels: Record<ChannelId, ChannelState>
-  branches: Branch[]
+  branches: Branch[]              // see [10](10-branching.md) — tiny records, no copies
   currentBranchId: BranchId
 }
 ```
@@ -713,6 +713,13 @@ record complete and permanent buys, from one decision:
 - the prompt workbench in [05](05-ui-surfaces.md), which is otherwise a
   reimplementation of the assembler
 - reproducible bug reports that don't require the reporter's library
+
+There is a fifth consequence that only became visible later, and it is the one
+with the sharpest test attached: **`effects` being complete and reversible is
+what makes branching a pointer rather than a copy** ([10 §2](10-branching.md)).
+Any change that makes state at turn N unreconstructible from the log breaks
+branch-anywhere, which is a much more concrete failure than "undo would be
+nice".
 
 *Cost:* turn records are big — plausibly 10–100× the message text. This is the
 main argument for JSONL segments (§5.5) and for a retention policy.

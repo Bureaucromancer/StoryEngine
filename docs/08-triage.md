@@ -192,7 +192,7 @@ and no plan below should be built on the assumption that it did.
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](02-data-model.md). Four scoped changes only. |
 | Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
-| Branching (COW + tombstones) | Aventuras `Branch`/`overridesId`/`deleted` | **PORT** | Best-in-class among the three; nothing comparable elsewhere. |
+| Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [10 §8](10-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
 | `PersistentRetryState` | Aventuras | **DISCARD** | Hand-maintained undo snapshot; replaced by reversible effects. |
 | Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](01-source-survey.md). |
 | `GameSetupConfig` | Marinara | **REBUILD** | ~70 fields mixing narrative and production. |
