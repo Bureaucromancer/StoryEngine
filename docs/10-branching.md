@@ -222,6 +222,11 @@ inline affordance on the node, with the full tree behind a deliberate action.
 Retention is [06 C9](06-open-questions.md); the storage argument for keeping
 everything is strong, so the question is really about presentation.
 
+That "deliberate action" is the branch tree visualiser, specified as a post-1.0
+item in [11 §1](11-roadmap.md). It is pure addition — everything it draws is
+already recorded — with one obligation on 1.0: turn storage must tolerate
+removal, so pruning is possible later without a migration.
+
 ---
 
 ## 7. Edges worth naming

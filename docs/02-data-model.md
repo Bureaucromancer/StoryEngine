@@ -536,6 +536,12 @@ growing document on every turn, and it makes the turn log rsync/backup-friendly.
 (thousands). Alternatives: chunked append-only JSONL segments (say 200 turns per
 file), which trades random access for file count. Lean: JSONL segments.
 
+Whichever is chosen, **turn storage must tolerate removal** — a tombstone the
+reader skips, plus a compaction pass. No UI needs it at 1.0, but pruning a
+branch subtree ([11 §1.4](11-roadmap.md)) does, and retrofitting deletion into a
+format that assumed pure append is a migration rather than a feature. Cheap up
+front, unpleasant later.
+
 ---
 
 ## 6. Openings
