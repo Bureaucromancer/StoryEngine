@@ -47,9 +47,15 @@ service, no network dependency, every draw recorded in the turn's effects.**
 Nothing else draws — not steps, modes, the rules evaluator, or extensions.
 `node:crypto` under the hood with an injectable generator for tests; the API
 must be complete enough (dice notation, weighted pick, chance) that nobody is
-tempted to bypass it. Specified in [07 §12](07-tech-stack.md). One follow-on
-remains open: whether an ordinary swipe defaults to replaying the recorded draw
-tape (same outcome, new prose) or drawing fresh — see [07 §12.5](07-tech-stack.md).
+tempted to bypass it. Specified in [07 §12](07-tech-stack.md).
+
+**Follow-on also resolved: rewrite and reroll are separate operations, and
+rewrite is the default.** An ordinary swipe replays the recorded draw tape —
+same mechanical outcome, different prose — and drawing fresh is a deliberate
+second action, so swiping past a failed check cannot be save-scumming by
+accident. Draws are keyed by site rather than position so replay survives a
+divergent execution path. Still open, and minor: whether a session may flip the
+default. See [07 §12.5–12.6](07-tech-stack.md).
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural

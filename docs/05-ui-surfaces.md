@@ -88,7 +88,10 @@ What it lets you do:
 - **Edit a block and re-run.** Marinara already does the important half of this:
   editing a saved agent snippet "changes only what is used when you regenerate
   that same reply. It does not change the reply already on screen." That
-  separation is correct and should be preserved.
+  separation is correct and should be preserved. Re-running follows the same
+  rewrite/reroll distinction as an ordinary swipe
+  ([07 §12.5](07-tech-stack.md)) and defaults to **rewrite** — editing a block
+  is changing the input, not asking for different luck.
 - **Diff two turns**, or the same turn before and after a preset change. The
   cheapest possible answer to "it got worse and I don't know what I changed".
 - **Promote a dry run.** Assemble without sending, inspect, adjust, then send.

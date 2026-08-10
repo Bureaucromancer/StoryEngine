@@ -333,28 +333,57 @@ normally.
   reproduce its behaviour. That check belongs in the extension test kit, and it
   is a better guarantee than a rule nobody can enforce.
 
-### 12.5 The recorded tape, and a feature that falls out of it
+### 12.5 Rewrite and reroll — DECIDED
 
-Because every draw is recorded in order, a turn carries a **tape** of the values
-it consumed. The service can therefore be run in replay mode: consume recorded
-values in sequence, drawing fresh only when the tape is exhausted.
+Because every draw is recorded, a turn carries a **tape** of the values it
+consumed, and the service can run in replay mode against it. That makes two
+operations expressible where the sources have one, and both ship:
 
-That is worth having for its own sake, and it also turns an accidental problem
-into a deliberate choice. Regenerating a turn currently means re-rolling, which
-quietly makes swiping a save-scum: fail a check, swipe, succeed. Two distinct
-operations become expressible instead ([10 §6](10-branching.md)):
+| | What it does | Default |
+|---|---|---|
+| **Rewrite** | Replay the tape. Same mechanical outcome, different prose. | **Yes** — the ordinary swipe |
+| **Reroll** | Fresh draws. New outcome. | Explicit second action |
 
-- **Reroll the writing** — replay the tape, keep the mechanical outcome, get
-  different prose.
-- **Reroll everything** — fresh draws, new outcome.
+**Rewrite is the default.** "I didn't like how that was written" is by far the
+more common intent, and making the other one deliberate is what stops swiping
+from being save-scumming by accident: fail a check, swipe, succeed. Both
+operations are legitimate — the point is that the user should be choosing, not
+discovering.
 
-Both are legitimate; conflating them is not. Offering them separately is
-honest about which one the user is asking for, and it costs nothing beyond
-recording the draws we already had to record.
+### 12.6 What the tape covers, and how it is keyed
 
-**[OPEN]** Which is the default for an ordinary swipe. Lean: reroll the writing,
-since "I didn't like how that was written" is the far more common intent, with
-re-rolling outcomes an explicit second action.
+**Everything drawn during the turn**, not only the obvious dice: engine-computed
+channel effects, rules evaluation (`triggerOnRandomChance`), stochastic lorebook
+entry activation (Marinara's per-entry `probability`,
+[02 §3.1](02-data-model.md)), and extension draws. A rewrite therefore
+reproduces the same assembled context as well as the same outcome, which gives
+the honest and predictable definition: *same setup, same result, different
+words*.
+
+**Not covered: the model's own sampling.** That belongs to the provider, and it
+is precisely the source of the new prose. A consequence worth stating plainly —
+at temperature 0 a rewrite returns approximately the same text. That is correct
+behaviour, not a bug.
+
+**Key draws by site, never by position.** A positional tape — "the fifth draw" —
+desynchronises the moment a rewrite takes a slightly different execution path,
+and then a value drawn for a lore probability gets handed to a skill check. Each
+draw should carry a stable key (step or rule id, plus a purpose and an index
+within that site), and replay should look up by key, drawing fresh on a miss.
+
+This costs nothing and buys two things beyond robustness: partial replay is
+well-defined when a path genuinely differs, and the turn record becomes legible
+in the workbench — `skill-check:persuasion d20 → 7` rather than an anonymous
+list of numbers. The record should also mark which draws were replayed and which
+were fresh, so a rewrite that partially diverged says so.
+
+**Surface it only when it exists.** In a mode that consumed no draws, rewrite
+and reroll are the same operation, and the second affordance should not appear.
+No dice, no distinction, no clutter.
+
+**[OPEN]** Whether a session can flip the default — some users will want reroll
+and will find the extra click tiresome. A per-session setting is cheap; the
+default stays rewrite.
 
 ---
 
