@@ -215,6 +215,11 @@ What this buys, beyond one mechanism instead of two:
   sibling's is handled correctly with no special case, because each node owns
   its own effects. The sources' swipe arrays cannot express this at all — which
   is why swiping in a game-like mode tends to corrupt tracked state in practice.
+- **Rerolling prose and rerolling outcomes become separable.** Each node records
+  the random draws it consumed ([07 §12.5](07-tech-stack.md)), so a sibling can
+  either replay that tape — same mechanical result, different writing — or draw
+  fresh. Without the distinction, swiping past a failed check is save-scumming
+  by accident; with it, the user is choosing. **[OPEN]** which is the default.
 
 The cost is UI, not storage. A long session accumulates many unnamed siblings,
 so the history view must default to the selected path and surface siblings as an

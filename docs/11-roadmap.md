@@ -357,21 +357,19 @@ pots and multi-way all-ins are where the complexity actually lives. Heads-up
 first, or fixed-limit, is a reasonable first cut — the point is the seams, not
 completeness.
 
-### 3.5 One constraint this puts on core: seeded randomness
+### 3.5 One constraint this puts on core: randomness
 
-Both extensions roll dice, in the general sense, and that has a core
-implication worth recording now.
+Both extensions roll dice, in the general sense, which forced a core decision —
+now settled in [07 §12](07-tech-stack.md).
 
-Randomness must come from a **core-provided, seeded source, and every draw must
-be recorded in the turn's effects** ([02 §8](02-data-model.md)). Replay works
-because it replays *effects* rather than re-running generation
-([10 §2](10-branching.md)), so a roll recorded as an effect reconstructs
-correctly on any branch. A step that calls `Math.random()` directly and does not
-record the result breaks that quietly — state at turn N stops being a function
-of the log, which is the one invariant branching depends on.
+There is **one canonical RNG service**, server-local, with no network
+dependency, and every draw is recorded in the turn's effects. Extensions receive
+it through the capability API and must not find their own: replay works by
+replaying *effects* rather than re-running generation
+([10 §2](10-branching.md)), so an unrecorded draw quietly breaks the invariant
+branching depends on.
 
-So the capability API should expose randomness and *not* leave extensions to
-find their own, and the effect record needs somewhere to put the draw. Small,
-and much cheaper to establish before two first-party extensions and an
-authored-rules vocabulary (`<<1d20>>`, [09 §3](09-infinite-worlds.md)) all grow
-their own habits.
+For extension authors specifically, the useful part is that this is
+**self-policing under test**: an extension using its own randomness will fail a
+replay-determinism check, because replaying its recorded effects will not
+reproduce its behaviour. Use the provided source and that check passes for free.

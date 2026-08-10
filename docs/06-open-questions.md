@@ -42,13 +42,14 @@ extension implementation remains a no for 1.0, and the rule vocabulary needs
 versioning so a package authored against v2 fails legibly on a v1 host.
 *[02 §7, 09 §2]*
 
-**A2b. Seeded randomness in the capability API.** [11 §3.5](11-roadmap.md): any
-step that draws a random number must take it from a core-provided source and
-record the draw in the turn's effects, or state at turn N stops being a function
-of the effect log — the one invariant branching depends on
-([10 §2](10-branching.md)). Cheap to establish now; awkward once two first-party
-extensions and the `<<1d20>>` rule syntax have each grown their own habits.
-*[11 §3.5, 02 §8]*
+**A2b. Randomness. — RESOLVED 2026-08-09: one canonical server-local RNG
+service, no network dependency, every draw recorded in the turn's effects.**
+Nothing else draws — not steps, modes, the rules evaluator, or extensions.
+`node:crypto` under the hood with an injectable generator for tests; the API
+must be complete enough (dice notation, weighted pick, chance) that nobody is
+tempted to bypass it. Specified in [07 §12](07-tech-stack.md). One follow-on
+remains open: whether an ordinary swipe defaults to replaying the recorded draw
+tape (same outcome, new prose) or drawing fresh — see [07 §12.5](07-tech-stack.md).
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural

@@ -270,7 +270,95 @@ cheapest possible enforcement of the design's central bet.
 
 ---
 
-## 12. Summary
+## 12. Randomness: one canonical source
+
+**Decision: the server provides a single RNG service. Nothing else draws random
+numbers — not steps, not modes, not the rules evaluator, not extensions. It is
+server-local and has no network dependency of any kind.**
+
+Implementation is deliberately unremarkable; the constraints are the point.
+
+### 12.1 Why singular is a correctness property
+
+Not tidiness. Three things depend on it:
+
+- **Replay and branching.** Every draw is recorded in the turn's effects
+  ([02 §8](02-data-model.md)), because state at turn N must remain a pure
+  function of the effect log ([10 §2](10-branching.md)). A caller that draws
+  its own number without recording it breaks that invariant silently, and the
+  symptom appears much later as a branch that reconstructs wrong.
+- **Auditability.** In a mode with dice, "was that roll fair?" is a question
+  players genuinely ask. One source, every draw logged, visible in the turn
+  record, is a complete answer.
+- **Testability.** One seam to inject a deterministic generator through.
+
+### 12.2 The API has to be complete, or it will be bypassed
+
+If the service does not offer what a caller needs, they will reach for
+`Math.random()` and the invariant is gone. Completeness is therefore a
+correctness requirement, not a convenience. It should cover at least:
+
+`int(min, max)` · `float()` · `bool()` · `chance(p)` · `pick(items)` ·
+`weightedPick(items)` · `shuffle(items)` · `dice(notation)`
+
+`dice` and `chance` are not speculative: the authored-rules vocabulary already
+needs `<<1d20>>` and `triggerOnRandomChance`
+([09 §3](09-infinite-worlds.md)), and both first-party reference extensions
+need dice ([11 §3.4](11-roadmap.md)). `weightedPick` covers loot-table shapes,
+which is where people would otherwise improvise.
+
+### 12.3 Implementation
+
+**`node:crypto`.** `randomInt` and `randomBytes` — standard library, no
+dependency, no network, and `randomInt` is uniform rather than modulo-biased.
+The naive `Math.floor(Math.random() * n)` is subtly non-uniform, which is
+exactly the sort of thing that goes unnoticed in a dice system for years.
+
+The service takes its underlying generator by injection, so tests supply a
+deterministic PRNG and fixtures roll predictably. No third-party dependency is
+needed for any of this.
+
+**Explicitly not:** any remote entropy service, any provider-side randomness,
+anything requiring connectivity. A LAN server with no internet must roll dice
+normally.
+
+### 12.4 Enforcement
+
+- A lint rule banning `Math.random` and direct `node:crypto` random calls
+  outside the service. Cheap, and catches the common case in our own code.
+- For in-process extensions the lint rule does not apply, so the honest position
+  is that this is discipline rather than enforcement — **except** that it is
+  self-policing under test: an extension using unrecorded randomness will fail a
+  replay-determinism check, because replaying its recorded effects will not
+  reproduce its behaviour. That check belongs in the extension test kit, and it
+  is a better guarantee than a rule nobody can enforce.
+
+### 12.5 The recorded tape, and a feature that falls out of it
+
+Because every draw is recorded in order, a turn carries a **tape** of the values
+it consumed. The service can therefore be run in replay mode: consume recorded
+values in sequence, drawing fresh only when the tape is exhausted.
+
+That is worth having for its own sake, and it also turns an accidental problem
+into a deliberate choice. Regenerating a turn currently means re-rolling, which
+quietly makes swiping a save-scum: fail a check, swipe, succeed. Two distinct
+operations become expressible instead ([10 §6](10-branching.md)):
+
+- **Reroll the writing** — replay the tape, keep the mechanical outcome, get
+  different prose.
+- **Reroll everything** — fresh draws, new outcome.
+
+Both are legitimate; conflating them is not. Offering them separately is
+honest about which one the user is asking for, and it costs nothing beyond
+recording the draws we already had to record.
+
+**[OPEN]** Which is the default for an ordinary swipe. Lean: reroll the writing,
+since "I didn't like how that was written" is the far more common intent, with
+re-rolling outcomes an explicit second action.
+
+---
+
+## 13. Summary
 
 | Layer | Recommendation | Main alternative |
 |---|---|---|
@@ -283,4 +371,5 @@ cheapest possible enforcement of the design's central bet.
 | Index | SQLite via `node:sqlite`, FTS5 | `better-sqlite3` |
 | Realtime | SSE | WebSockets |
 | Auth | `node:crypto` scrypt, signed cookies | any auth framework |
+| Randomness | one core service over `node:crypto`, every draw recorded | callers rolling their own |
 | Repo | pnpm workspaces, modes as SDK consumers | single package |
