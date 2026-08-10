@@ -181,23 +181,24 @@ channel-state snapshots a derived cache so branch creation stays O(1) and
 materialisation stays bounded. Open: the interval, and whether old snapshots are
 evicted. Needs a default, cheap to tune later. *[10 §4]*
 
-**C9. Unnamed-branch retention.** [10 §6](10-branching.md) proposes that swipes
-*are* branches, which makes discarded swipes permanently recoverable — something
-none of the sources offers. Storage cost is trivial; the question is UI, since a
-long session accumulates many unnamed siblings. Prune action, retention policy,
-or keep everything with a strong default filter? *[10 §6]*
+**C9. Unnamed-sibling retention.** [10 §6](10-branching.md) is now **decided**:
+swipes and branches are one mechanism, so discarded swipes are permanently
+recoverable — something none of the sources offers. What remains open is
+presentation, not storage: a long session accumulates many unnamed siblings, and
+the history view must not become a tree browser by default. Inline
+sibling affordance on the node, full tree behind a deliberate action, prune
+available. *[10 §6]*
 
 **C10. Cross-branch merge.** Out of scope for 1.0. Recorded only to confirm
 nothing in [10](10-branching.md) precludes it — merging is a question about
 reconciling two effect sequences, which the log makes expressible even if it is
 not easy. *[10 §9]*
 
-**C11. Branch anchor within a multi-message turn.** [10 §7](10-branching.md)
-proposes anchoring at turn boundaries, so branching from a message inside a
-`per-actor` turn forks *before* that turn and pre-fills the input. Worth
-confirming against real use. Related: a single "branch here" gesture is
-ambiguous between "redo this turn" and "continue differently after it", and both
-should probably be offered. *[10 §7]*
+**C11. Branch anchor within a multi-message turn. — RESOLVED** by the turn tree
+in [10 §3](10-branching.md). A turn is one node however many messages it emits,
+so branching from any of them is an operation on that node. The related
+ambiguity also resolves cleanly rather than needing a convention: *redo* adds a
+sibling, *continue differently* adds a child. Both are offered explicitly.
 
 ---
 

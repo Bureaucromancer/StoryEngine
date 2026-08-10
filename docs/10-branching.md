@@ -57,30 +57,69 @@ So branching is not a feature to build so much as a property to not break:
 
 ---
 
-## 3. The branch object
+## 3. The session is a tree of turns
+
+**Decision: swipes and branches are one mechanism.** Working that through
+invalidated the first sketch of this section, which modelled a branch as a
+`Branch` record carrying a `forkTurnIndex`, with turns identified by
+`(branchId, index)`. That model breaks under heavy swiping, and the reason is
+worth recording because it is not obvious.
+
+**The wandering-trunk problem.** Under `forkTurnIndex`, the first attempt at a
+turn lives on the parent branch and every swipe creates a child. Take the good
+third swipe and continue, and your story is now on that child. Do it again
+twenty turns later and you are two deep. Over a long session the actual
+storyline migrates through hundreds of branch records; "trunk" stops meaning
+anything, reading history walks a chain hundreds of records deep, and the first
+attempt at every turn is privileged for no reason other than being first. The
+model imported a linear-log assumption that swiping does not respect.
+
+The fix is to drop the linear log. **A session is a tree of turns.**
 
 ```ts
-interface Branch {
-  id: BranchId
+interface Turn {
+  id: TurnId                     // stable, opaque, immutable
   sessionId: SessionId
-  parentBranchId: BranchId | null   // null = trunk
-  forkTurnIndex: number             // this branch's turns start here
-  name: string | null               // null = unnamed (see §6)
-  createdAt: string
+  parentTurnId: TurnId | null    // null = first turn
+  // … input, request, output, effects, cost — as [02 §8]
+}
+
+interface BranchRef {            // a *name*, nothing more
+  id: BranchRefId
+  name: string
+  headTurnId: TurnId
 }
 ```
 
-That is the whole write on branch creation — a few dozen bytes. No checkpoint,
-no entity copies, no tombstones, no `snapshotComplete`.
+That is the entire model. There is no `Branch` entity owning turns, no
+`forkTurnIndex`, no parent-branch chain.
 
-**Reading a branch's history** walks the parent chain: turns `< forkTurnIndex`
-come from the parent (recursively), turns `>= forkTurnIndex` from this branch.
-Turns before the fork are *not copied* — they are the same turns, shared, and
-that sharing is what §5 exploits.
+- **Continue** = append a child to the current node.
+- **Swipe / regenerate** = append *another* child to the same parent.
+- **Branch from an old message** = append another child to that old node.
 
-**Turn identity.** A turn is `(branchId, index)`. Pre-fork turns keep their
-original branch id, so a turn is written exactly once and read from many
-branches.
+Those are the same operation. The distinction between a swipe and a branch is
+presentational — a swipe is a sibling you are comparing right now, a branch is a
+sibling someone bothered to name — and a `BranchRef` is just a bookmark on a
+node, like a git ref. Promoting a swipe to a named branch writes ~50 bytes and
+moves no data.
+
+**Turn ids are stable and opaque, not `(branchId, index)`.** This matters more
+than it looks: §5 keys summaries on turn ids, so an identifier that changes when
+a turn is re-parented would silently break the summary cache. Position in the
+tree is a field, never part of identity.
+
+**Session head.** The session stores `headTurnId` — where you are. Named refs
+are separate and optional. A node may also record `lastSelectedChildId`, purely
+so that navigating back and then forward again resumes where you were rather
+than guessing.
+
+**Reading history** walks `parentTurnId` from the head to the root: O(depth),
+against turns you were going to read anyway. The derived index can materialise
+paths for fast queries, which is index hygiene rather than a model concern.
+
+**Everything before a fork is shared by construction** — the same nodes, not
+copies — which is what §5 exploits.
 
 ---
 
@@ -89,9 +128,13 @@ branches.
 Replaying every effect from turn 0 is correct and, at turn 800, too slow to feel
 casual.
 
-**State snapshots as a derived cache.** Periodically (every N turns, and always
-at a fork point once one is created), write the full channel state alongside the
-log. Reconstruction is then *nearest snapshot ≤ target, replay forward*.
+**State snapshots as a derived cache.** Periodically (every N turns of depth,
+and at nodes that have acquired more than one child), write the full channel
+state alongside the log, keyed by `TurnId`. Reconstruction is then *walk up to
+the nearest ancestor holding a snapshot, replay effects forward along the path*.
+
+Snapshotting at fork points is the cheap win: a node with several children is a
+node whose state will be materialised repeatedly, once per sibling explored.
 
 Snapshots follow the same rule as the SQLite index
 ([02 §5.1](02-data-model.md)): **derived, disposable, never authoritative.**
@@ -114,17 +157,19 @@ the stated worst case.
 inputs — the turn ids and content fingerprints it covers, plus the summariser
 prompt, model and parameters. Not the branch it was made on.
 
-Given that, consider a summary `S` covering turns `[a, b]`, and a branch forking
-at turn `f`:
+In tree terms this gets simpler to state than it was under the linear model. A
+summary covers a run of turns along a path. Fork at node `F` by giving it a
+second child:
 
-| Case | Result |
+| The summary's turns | Result |
 |---|---|
-| `b < f` — entirely before the fork | **Valid, reused.** Those turns are literally the same turns, so the key matches. |
-| `a > f` — entirely after the fork | Irrelevant; belongs to the other branch. |
-| `a ≤ f ≤ b` — straddles the fork | **Invalid.** Key differs. Recompute over `[a, f]`. |
+| entirely at or above `F` | **Valid, reused.** They are the *same nodes*, so the key matches exactly. |
+| spanning `F` and below | **Invalid.** Key differs. Recompute over the ancestor portion. |
+| entirely below `F` on the sibling path | Irrelevant; belongs to the other line. |
 
 **At most one summary is ever invalidated by a fork: the one in progress.**
-Everything older is shared, unchanged, and reused without a single model call.
+Everything older sits on shared ancestor nodes, unchanged, and is reused without
+a single model call.
 
 This also handles hierarchical summarisation — summaries of summaries —
 correctly and without special cases. A parent summary's key includes its
@@ -144,28 +189,38 @@ time. Summaries must be *values keyed by their inputs*, not *a running total*.
 
 ---
 
-## 6. Swipes are branches
+## 6. Swipes are branches — DECIDED
 
 ST and Marinara both treat swipes (regenerate an alternative reply) and branches
-as separate mechanisms with separate storage. If a branch costs a few dozen
-bytes, they are the same thing:
+as separate mechanisms with separate storage: swipes as an array of alternatives
+hanging off a message, branches as their own records. Under §3 they are one
+thing, and this is adopted.
 
-- A **swipe** is an unnamed branch forking at the current turn.
-- "Show my other swipes" is "show sibling branches at this turn index".
-- **Promoting** a swipe to a named branch is setting `name`. No data moves.
-- Continuing from a swipe you took twenty turns ago is not a special feature —
-  it is just navigating to that branch.
+- A **swipe** is a sibling node nobody named.
+- "Show my other swipes" is "show this node's siblings".
+- **Promoting** a swipe is creating a `BranchRef` pointing at it. No data moves.
+- Continuing from a swipe taken twenty turns ago is not a feature — it is
+  navigating to that node and appending.
 
-This collapses two features into one and gives something no tool in the survey
-does well: **swipes stop being ephemeral.** Today a discarded swipe is
-unrecoverable in all three sources; here nothing is thrown away unless the user
-asks.
+What this buys, beyond one mechanism instead of two:
 
-The cost is UI, not storage: a long session accumulates many unnamed branches,
-so the branch view must distinguish named/promoted branches from swipe noise by
-default, and offer a prune action. **[OPEN]** whether unnamed sibling branches
-should be garbage-collected on a retention policy, and whether that is even
-desirable given the above.
+- **Swipes stop being ephemeral.** In all three sources a discarded swipe is
+  gone. Here nothing is destroyed unless someone asks. "I liked the second
+  version from an hour ago" becomes answerable.
+- **Swipe alternatives carry their full turn record** — the assembled blocks,
+  the budget verdict, the cost ([02 §8](02-data-model.md)). Comparing two swipes
+  can therefore compare *why they differed*, not just their text. No tool in the
+  survey can do this, and it falls out for free.
+- **Effects are per-attempt.** A swipe whose channel effects differ from its
+  sibling's is handled correctly with no special case, because each node owns
+  its own effects. The sources' swipe arrays cannot express this at all — which
+  is why swiping in a game-like mode tends to corrupt tracked state in practice.
+
+The cost is UI, not storage. A long session accumulates many unnamed siblings,
+so the history view must default to the selected path and surface siblings as an
+inline affordance on the node, with the full tree behind a deliberate action.
+Retention is [06 C9](06-open-questions.md); the storage argument for keeping
+everything is strong, so the question is really about presentation.
 
 ---
 
@@ -183,26 +238,27 @@ or reverted, and the branch UI can say plainly that N library writes from the
 abandoned line still exist. This is a small honesty feature that avoids a
 confusing class of bug reports.
 
+**Two gestures, and the tree names them cleanly.** From a given message the user
+may mean *redo this* or *continue differently from here*. In the tree these are
+obviously distinct and both are one operation:
+
+- **Redo** — add a sibling to that node (same parent).
+- **Continue differently** — add a child to that node.
+
+Both should be offered explicitly. Guessing will be wrong half the time, and the
+earlier `forkTurnIndex ± 1` framing made them look like the same thing with an
+off-by-one, which they are not.
+
 **Branching within a multi-message turn.** Under `per-actor` dispatch
-([03 §3](03-modes-and-turn-pipeline.md)) one turn produces several messages.
-"Branch from message 2 of 3" has no clean meaning, because the turn is the
-atomic unit for effects.
-
-Proposal: anchor branches at **turn boundaries**. Branching from a message
-inside a multi-message turn forks *before* that turn and pre-fills the original
-input, which is the honest behaviour and matches what the user usually wants
-("run that turn again, differently"). **[OPEN]** — worth confirming against real
-use.
-
-**Two branch points, one gesture.** From a given message the user may mean
-"redo this" (fork before the turn) or "continue differently from here" (fork
-after it). Same mechanism, `forkTurnIndex` differs by one. Both should be
-offered; guessing will be wrong half the time.
+([03 §3](03-modes-and-turn-pipeline.md)) one turn produces several messages. A
+turn is still **one node**, because the turn is the atomic unit for effects — so
+"branch from message 2 of 3" resolves to an operation on that turn's node.
+Turn-granular, and now obviously so rather than by convention.
 
 **Branch and the derived index.** Library search must not surface content from
-branches the user is not on. The index carries `branchId` on session-scoped
-rows; this is index hygiene rather than a design problem, but it is the sort of
-thing that is discovered late.
+lines the user is not on. Session-scoped index rows carry their `TurnId` and a
+materialised path; index hygiene rather than a design problem, but the sort of
+thing discovered late.
 
 ---
 
@@ -231,13 +287,17 @@ The UX to port is **Marinara's**: one button, any message, any time.
 
 ## 9. Open questions
 
-Added to [06](06-open-questions.md) as C8–C10.
+Added to [06](06-open-questions.md) as C8–C10. C11 (branch anchor within a
+multi-message turn) is **resolved** by §3 — a turn is one node.
 
-- **C8. Snapshot interval and eviction.** Every N turns, plus at fork points —
-  what is N, and are old snapshots evicted? Cheap to tune later; needs a default.
-- **C9. Unnamed-branch retention.** Does §6 keep every swipe forever? Storage
-  says yes trivially; UI says the branch view needs a strong default filter.
+- **C8. Snapshot interval and eviction.** Every N turns of depth, plus at nodes
+  with multiple children — what is N, and are old snapshots evicted? Cheap to
+  tune later; needs a default.
+- **C9. Unnamed-sibling retention.** Does §6 keep every swipe forever? Storage
+  says yes trivially; the real question is presentation, since the history view
+  must not turn into a tree browser by default.
 - **C10. Cross-branch merge.** Explicitly out of scope for 1.0 — but worth
-  confirming nothing above precludes it. Nothing appears to: merging is a
-  question about reconciling two effect sequences, which the log makes
-  expressible even if it is not easy.
+  confirming nothing above precludes it. Nothing appears to: merging is
+  reconciling two effect sequences from a common ancestor, and the tree makes
+  the common ancestor trivially findable, which is the part that is usually
+  hard.

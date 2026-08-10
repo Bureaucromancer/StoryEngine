@@ -662,8 +662,10 @@ interface Session {
   lore: Ref<Lorebook>[]
 
   channels: Record<ChannelId, ChannelState>
-  branches: Branch[]              // see [10](10-branching.md) — tiny records, no copies
-  currentBranchId: BranchId
+
+  // Turns form a tree, not a list — see [10 §3](10-branching.md).
+  headTurnId: TurnId              // where the user currently is
+  branchRefs: BranchRef[]         // names bookmarking nodes; swipes need no record
 }
 ```
 
@@ -677,7 +679,10 @@ chat UI" becomes a data-model decision rather than a UI decision.
 
 ```ts
 interface Turn {
-  id, sessionId, branchId, index, createdAt
+  id: TurnId                     // stable, opaque — never (branch, index); [10 §3]
+  sessionId: SessionId
+  parentTurnId: TurnId | null    // the tree edge. Siblings are swipes/branches.
+  createdAt: string
   input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string }
 
   request: {
