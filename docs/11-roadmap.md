@@ -1,9 +1,16 @@
-# 11 — Post-1.0 roadmap
+# 11 — Post-1.0 roadmap, and desired extensions
 
-**Status: proposal.** Things deliberately deferred past 1.0. An item earns a
-place here by being *additive* — if deferring it would force a data-model change
-later, it belongs in 1.0 instead, and the test for each entry below is "what
-does this oblige 1.0 to do?"
+**Status: proposal.** Two distinct lists that are easy to confuse:
+
+- **§1–2, the roadmap** — things *we* intend to build, after 1.0. An item earns
+  a place by being *additive*: if deferring it would force a data-model change
+  later, it belongs in 1.0 instead, and the test for each entry is "what does
+  this oblige 1.0 to do?"
+- **§3, desired extensions** — things we hope *someone else* builds, and in
+  several cases should never be in core at all. Hints for expansion authors,
+  and the standing acceptance test for the extension contract.
+
+§3 is likely to graduate into user-facing documentation once the SDK exists.
 
 ---
 
@@ -149,9 +156,151 @@ None is specified further than its original entry.
 | Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it |
 | Per-actor knowledge scope (anti-omniscience) | [09 §5](09-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
 
-**[OPEN]** Whether the peripheral feature surface discarded in
-[08 §6.3](08-triage.md) — table games, music, calls, haptics — belongs on this
-roadmap at all. The position taken there is that it should be *buildable* rather
-than built, and that shipping any of it in core would be the wrong signal about
-what the extension contract is for. Listing them as roadmap items would quietly
-reverse that.
+The peripheral feature surface discarded in [08 §6.3](08-triage.md) — table
+games, music, calls, haptics — deliberately does **not** appear above. It is not
+a roadmap; it is §3.
+
+---
+
+## 3. Desired extensions
+
+Not a roadmap. Nothing here is planned, scheduled, or promised, and several
+entries would be actively wrong to ship in core. This section exists as **a set
+of large hints for anyone who wants to write an expansion** — what is worth
+building, which seam it should use, and where the naive version goes wrong.
+
+It doubles as the acceptance test for [03 §9](03-modes-and-turn-pipeline.md): if
+a motivated person cannot build these against the published contract without
+engine changes, the contract has failed and that is our problem, not theirs.
+
+### 3.1 First question: rules or code?
+
+Before anything else, work out which tier the idea belongs to
+([09 §2](09-infinite-worlds.md)):
+
+- **Authored rules** — declarative conditions and effects over channels, shipped
+  as data inside a package. No installation, no code review, no AGPL obligation
+  ([08 §1.2](08-triage.md)), works for anyone who imports the package.
+- **Code extension** — a real module with steps, channels and widgets. More
+  power, more responsibility, must be AGPL, must be installed deliberately.
+
+The test: **does it need to compute something, or only to decide something?**
+
+A weather system that shifts conditions with season and location is *deciding* —
+rules. A weather system that runs a wind model is *computing* — code. Rules
+handle far more than people expect, and Infinite Worlds' community built class
+trees, loot tables, encounter generators and quest state machines without ever
+touching code. Reach for code second.
+
+### 3.2 The principle behind the best ones
+
+The strongest extension ideas share a shape, and it is worth naming because it
+is the opposite of the instinct most people arrive with.
+
+> **Let a deterministic system do the hard work. Let the model do the voice.**
+
+An LLM asked to play chess plays bad chess. It also writes *worse prose* while
+doing it, because attention spent tracking legality is attention not spent on
+character. Give the board to a real engine and the model to the commentary, and
+both halves get better at once — the moves become correct and the writing
+becomes about the opponent's smugness rather than about the rules.
+
+This is `update: "engine-computed"` from [03 §4](03-modes-and-turn-pipeline.md),
+and it is Marinara's own observation about combat generalised: round maths is
+calculated by the engine, not the model, "so results stay fair and consistent."
+
+The corollary is what makes these extensions interesting rather than mechanical.
+Once the engine owns correctness, **character expresses itself in the space the
+rules leave open** — which move a reckless character picks from the legal set,
+whether they gloat, whether they let you win. That is far better
+characterisation than an LLM impersonating a chess engine, and it is only
+available once you stop asking the model to do arithmetic.
+
+### 3.3 The list
+
+**Table games** — chess, poker, and the rest.
+*Seam:* an engine-computed channel holding board state, a step validating and
+applying moves, a declared widget for the board.
+*The trap:* letting the model adjudicate anything. It proposes a move; the
+engine rules on legality and outcome; the model narrates what the engine
+decided. Never the reverse.
+*Why it is worth doing:* this is the purest available demonstration of §3.2, and
+Messages mode is a natural home — playing cards with a character you talk to
+daily is a genuinely good feature that no amount of prompt engineering
+approximates.
+*Proves:* engine-computed channels, the widget vocabulary, per-mode gating.
+
+**Music** — ambience driven by scene state.
+*Seam:* a step reading channels (location, mood, tension, time), mapping to a
+track, plus a provider shim for local folders or a streaming service.
+*The trap:* asking a model "what music suits this scene?" every turn. That is
+expensive, slow, inconsistent, and worse than a lookup table an author wrote
+once. Map from declared channel state deterministically; involve a model only
+when the mapping comes up empty, and cache what it decides.
+*Proves:* steps reading channels, external services through the capability API,
+and the discipline of not calling a model where a lookup will do.
+
+**Dice and skill resolution.**
+*Seam:* an engine-computed channel plus a pre-narration evaluation step
+([09 §4.3](09-infinite-worlds.md)).
+*The trap:* the model rolling. It cannot, will not produce a defensible
+distribution, and players can feel it. The engine rolls before narration and
+hands the outcome down; the model writes the consequence it was given.
+*Proves:* evaluate-before-narrate, and that mechanics can have teeth without
+being baked into core.
+
+**Tactical combat** — grid battles, initiative, line of sight.
+*Seam:* mostly engine-computed channels and a large widget; possibly its own
+mode.
+*The trap:* scope. This is the largest thing on the list and the one most likely
+to want an escape hatch from the declarative widget vocabulary
+([05 §7](05-ui-surfaces.md)). A good first attempt at it would tell us whether
+that escape hatch needs to exist sooner than planned.
+
+**Voice — calls, speech in and out.**
+*Seam:* an I/O surface rather than a game system; heavier on surface
+contribution than anything else here.
+*Why it is interesting:* it stresses a completely different part of the
+contract, which makes it valuable feedback even if few people use it.
+
+**Alternative memory strategies.**
+*Seam:* retrieval and summarisation steps, replacing the defaults.
+*Why:* memory is the least settled area of this design ([06 §E](06-open-questions.md)),
+and the honest position is that someone will have a better idea than ours.
+Retrieval being a set of steps behind a common interface
+([02 §3](02-data-model.md)) exists precisely so that person does not have to
+fork the project.
+
+**Per-actor knowledge scope — anti-omniscience.**
+*Seam:* a channel recording who knows what, updated when information is
+exchanged in scene, gating lore retrieval per speaking actor.
+*Why it is on this list rather than the roadmap:* it is [09 §5](09-infinite-worlds.md)'s
+acceptance test. NPCs acting on things the player never told them is one of the
+most-complained-about failures in this genre and none of the four references
+solves it structurally. If it is buildable as an extension, the channel model
+has earned its keep. If it is not, we need to know early.
+
+**Haptics.**
+*Seam:* device access through the capability API.
+*Why it is listed:* not because it is a priority, but because it is the sharpest
+test of the capability API being *narrow*. Device access must be something an
+extension has to be granted, never something it inherits by being installed. An
+attempt at this would find out.
+
+### 3.4 What we owe extension authors
+
+If this section is to be more than a wishlist:
+
+- The contract has to be published and versioned, with the built-in modes
+  visibly consuming it ([07 §10](07-tech-stack.md)).
+- The declarative widget vocabulary has to be documented with worked examples,
+  since it is the part most likely to block someone.
+- Rules need reference documentation at least as good as the code SDK's, because
+  §3.1 pushes most people there first and a badly documented tier is one nobody
+  uses.
+
+**[OPEN]** Whether any of these should ship as a first-party reference
+extension — built by us, in the repo, against the public contract — to serve as
+worked example and continuous proof the contract is usable. There is a strong
+argument for exactly one. Dice is the obvious candidate: small, canonical,
+demonstrates §3.2 completely, and useful to almost everyone.

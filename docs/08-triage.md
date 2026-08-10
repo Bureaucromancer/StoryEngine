@@ -350,6 +350,13 @@ against the extension API without engine changes, [03 §9](03-modes-and-turn-pip
 has failed — which makes this list a useful acceptance test rather than a
 backlog.
 
+The desirable ones are picked up as **desired extensions** in
+[11 §3](11-roadmap.md), with the seam each should use and where the naive
+version goes wrong. Two in particular — table games and music — are genuinely
+natural in some modes, and are *better* as extensions than they would be in
+core, because the whole point is to let a real engine do work the model only
+pretends to do.
+
 ### 6.4 The Repair JSON modal
 
 Discarding the *modal* means fixing the *mechanism* ([00 §2.3](00-stance.md)):
