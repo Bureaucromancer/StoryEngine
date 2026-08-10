@@ -218,7 +218,7 @@ available once you stop asking the model to do arithmetic.
 
 ### 3.3 The list
 
-**Table games** — chess, poker, and the rest.
+**Table games** — chess, poker, and the rest. *Poker is first-party, see §3.4.*
 *Seam:* an engine-computed channel holding board state, a step validating and
 applying moves, a declared widget for the board.
 *The trap:* letting the model adjudicate anything. It proposes a move; the
@@ -240,7 +240,7 @@ when the mapping comes up empty, and cache what it decides.
 *Proves:* steps reading channels, external services through the capability API,
 and the discipline of not calling a model where a lookup will do.
 
-**Dice and skill resolution.**
+**Dice and skill resolution.** — *first-party, see §3.4.*
 *Seam:* an engine-computed channel plus a pre-narration evaluation step
 ([09 §4.3](09-infinite-worlds.md)).
 *The trap:* the model rolling. It cannot, will not produce a defensible
@@ -299,8 +299,79 @@ If this section is to be more than a wishlist:
   §3.1 pushes most people there first and a badly documented tier is one nobody
   uses.
 
-**[OPEN]** Whether any of these should ship as a first-party reference
-extension — built by us, in the repo, against the public contract — to serve as
-worked example and continuous proof the contract is usable. There is a strong
-argument for exactly one. Dice is the obvious candidate: small, canonical,
-demonstrates §3.2 completely, and useful to almost everyone.
+---
+
+### 3.4 First-party reference extensions: dice and poker
+
+**Two, with different jobs.** An earlier draft proposed one, and picked dice.
+That was wrong, and the reason is worth keeping.
+
+**Dice ships because Adventure needs it, which is exactly why it cannot be the
+proof.** A reference extension is supposed to demonstrate that an outsider can
+build something real against the published contract. Dice will not demonstrate
+that, because we will be building a thing core modes depend on: if the contract
+turns out to be inadequate we will widen it, quietly, and never notice we did.
+It will read — correctly — as a core feature that happens to use the extension
+hooks.
+
+So dice is a **dependency**, not a demonstration. That still makes it useful:
+Adventure declaring `requires: [dice]` exercises the mode-to-extension
+dependency path in [02 §7](02-data-model.md), and uninstalling dice should
+degrade Adventure legibly rather than break it.
+
+**Poker is the proof, precisely because nothing needs it.** Nobody can mistake
+it for core. If it works, the contract works. Beyond that it stresses seams dice
+never touches:
+
+- **Per-actor hidden state.** Hole cards are visible to one actor and not the
+  others — and critically, the model call generating a character's action must
+  see *that character's* cards and not anyone else's. Channels currently have
+  hidden-versus-visible ([03 §7.3](03-modes-and-turn-pipeline.md)); this needs
+  per-actor visibility, and per-actor filtering of assembled context.
+
+  **This is the same machinery as anti-omniscience** ([09 §5](09-infinite-worlds.md)),
+  in a bounded and testable form. Poker is a hand of cards; anti-omniscience is
+  everything an NPC has ever learned. Build the first and the second becomes a
+  question of scope rather than of mechanism. That connection is the strongest
+  single argument for poker over any other game on the list.
+
+- **Bluffing makes the §3.2 split vivid in a way nothing else does.** The engine
+  knows the cards. The character's job is to *misrepresent* them — credibly, in
+  voice, consistently with a hand it can see and its opponents cannot. Here the
+  model is not narrating the truth the engine computed; it is lying about it on
+  purpose, while the engine keeps score. No other example separates correctness
+  from voice so cleanly, and it is a genuinely good demonstration of what the
+  architecture is *for*.
+
+- **Personality inside the legal move set.** A tight character folds, a loose one
+  chases. The extension derives a play-style knob from actor traits and the
+  engine enforces legality around it — §3.2's corollary, concretely.
+
+- **Multi-participant action between player turns.** A hand runs several betting
+  rounds with characters acting in sequence and the player acting in the middle
+  of them. This exercises step iteration and the suspend-for-input mechanism
+  ([06 C5](06-open-questions.md)) harder than anything else on the list.
+
+*Scope control:* hand evaluation is a solved problem with libraries, and side
+pots and multi-way all-ins are where the complexity actually lives. Heads-up
+first, or fixed-limit, is a reasonable first cut — the point is the seams, not
+completeness.
+
+### 3.5 One constraint this puts on core: seeded randomness
+
+Both extensions roll dice, in the general sense, and that has a core
+implication worth recording now.
+
+Randomness must come from a **core-provided, seeded source, and every draw must
+be recorded in the turn's effects** ([02 §8](02-data-model.md)). Replay works
+because it replays *effects* rather than re-running generation
+([10 §2](10-branching.md)), so a roll recorded as an effect reconstructs
+correctly on any branch. A step that calls `Math.random()` directly and does not
+record the result breaks that quietly — state at turn N stops being a function
+of the log, which is the one invariant branching depends on.
+
+So the capability API should expose randomness and *not* leave extensions to
+find their own, and the effect record needs somewhere to put the draw. Small,
+and much cheaper to establish before two first-party extensions and an
+authored-rules vocabulary (`<<1d20>>`, [09 §3](09-infinite-worlds.md)) all grow
+their own habits.

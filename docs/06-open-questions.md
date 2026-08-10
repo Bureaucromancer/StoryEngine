@@ -42,6 +42,14 @@ extension implementation remains a no for 1.0, and the rule vocabulary needs
 versioning so a package authored against v2 fails legibly on a v1 host.
 *[02 §7, 09 §2]*
 
+**A2b. Seeded randomness in the capability API.** [11 §3.5](11-roadmap.md): any
+step that draws a random number must take it from a core-provided source and
+record the draw in the turn's effects, or state at turn N stops being a function
+of the effect log — the one invariant branching depends on
+([10 §2](10-branching.md)). Cheap to establish now; awkward once two first-party
+extensions and the `<<1d20>>` rule syntax have each grown their own habits.
+*[11 §3.5, 02 §8]*
+
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
 household setup — and it means connections need a scope from the start. *[04 §3.3]*
