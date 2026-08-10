@@ -141,6 +141,82 @@ pleasant later feature into a migration.
 
 ---
 
+## 1b. Character Studio
+
+The actor card carries embedded media with typed roles and structured visual
+descriptors from 1.0 ([02 §5.2.2](02-data-model.md)). The Studio is the surface
+that makes that capability worth having.
+
+### 1b.1 The problem it addresses
+
+A Tavern-style card describes a character in prose and carries one picture. That
+is enough for text roleplay and nowhere near enough to hand a character to an
+image or video pipeline and get *the same person* back twice. Visual consistency
+is the unsolved problem in this space, and everything the field has converged on
+— reference images, multi-view sheets, structured descriptor tags, style
+anchors, seed pinning, per-character adapters — needs somewhere to live.
+
+The Studio's premise: **extend the card from a description of a character into a
+usable visual identity**, so a card can drive a generation pipeline and produce a
+stable likeness. That is a meaningful extension of what a character card *is*,
+and it is the reason the format work is 1.0 while the tooling is not.
+
+### 1b.2 What it is
+
+An editing surface for an actor's visual identity, sitting beside the text
+editor rather than inside it:
+
+- **Reference set curation.** Choose, generate, crop and label the canonical
+  likeness images. Multi-angle where the pipeline can use it.
+- **Descriptor authoring**, structured (`VisualDescriptors`) with the prose
+  appearance derivable from it or maintained alongside — the two must not drift
+  silently, which is a real design question, not a detail.
+- **Expression and pose sets**, generated from the references and kept
+  consistent with them, feeding sprite display in Scene mode as a side effect.
+- **Style anchoring.** Style is a property of the *production*, not the person —
+  the same character rendered in ink wash and in photoreal is still that
+  character. So style exemplars are a separate media role and separately
+  selectable, and Marinara's `image-style-profile` is the nearest prior art.
+- **A test bench.** Generate a few images against the current identity and see
+  whether it holds. Without this the Studio is a form; with it, it is a tool.
+
+### 1b.3 Why post-1.0
+
+The format lands at 1.0 and the tooling does not, for two reasons. It is
+genuinely large — a curation UI, a generation pipeline, and a consistency
+evaluation loop are three features. And it is the area where the underlying
+technology moves fastest, so specifying the tooling now against 2026 techniques
+would be designing for the wrong thing.
+
+The format is different: typed media roles and structured descriptors are cheap,
+stable, and unpleasant to retrofit. Hence the split.
+
+### 1b.4 What it obliges 1.0 to do
+
+- **Typed media roles**, not a flat image list ([02 §5.2.2](02-data-model.md)).
+  The single most important one, because guessing which image is the canonical
+  likeness is not recoverable later.
+- **Structured `VisualDescriptors`** on the profile ([02 §2.1](02-data-model.md)).
+  Fields now, or prose parsing later.
+- **Per-media generation provenance**, reusing `GeneratedFieldProvenance`
+  ([05 §8.2](05-ui-surfaces.md)) — which model, which prompt, which seed. A
+  reference image whose seed was not recorded cannot be regenerated
+  consistently, which defeats the purpose.
+- **Crop as a stored rectangle** rather than a destructive edit
+  ([02 §5.2.1](02-data-model.md)).
+
+All four are small. None is a feature at 1.0; all four are preconditions.
+
+### 1b.5 Non-goals
+
+- **Not a model training surface.** If per-character adapters become the
+  standard answer, the Studio should *reference* one, not train it.
+- **Not an image editor.** Crop and label, not paint.
+- **Not required.** A text-only actor with no media stays completely valid, and
+  nothing in the Studio may become a precondition for using a card.
+
+---
+
 ## 2. Other deferred items
 
 Already deferred in their own documents; listed here so the roadmap has shape.
@@ -155,6 +231,7 @@ None is specified further than its original entry.
 | Tailscale levels 2 and 3 (tailnet identity, `tsnet` node) | [04 §4.2](04-server-multiuser-deployment.md) | Level 1 ships; the auth layer is shaped so 2 is a provider, not a special case |
 | Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it |
 | Per-actor knowledge scope (anti-omniscience) | [09 §5](09-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
+| Aggregate cost and usage view | [05 §3](05-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
 
 The peripheral feature surface discarded in [08 §6.3](08-triage.md) — table
 games, music, calls, haptics — deliberately does **not** appear above. It is not

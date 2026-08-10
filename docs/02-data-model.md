@@ -65,11 +65,25 @@ rather than being a UI concern.
 ```ts
 interface ActorProfile {
   summary: string        // the always-present core. Short by design.
-  appearance: string
+  appearance: string     // prose, for the narrator
+  visual: VisualDescriptors | null   // structured, for image pipelines — see below
   voice: string          // register, verbal tics, how they talk — not what they sound like
   background: string
   traits: string[]
   sections: Section[]    // author-defined, addressable by id
+}
+
+/** Aventuras' `VisualDescriptors`, adopted. Prose appearance is for the
+ *  narrator; this is for image and video pipelines, which need fields rather
+ *  than a paragraph. Cheap now, and the alternative is parsing prose later. */
+interface VisualDescriptors {
+  face?: string          // features, skin, age indicators
+  hair?: string
+  eyes?: string
+  build?: string
+  clothing?: string
+  accessories?: string
+  distinguishing?: string  // scars, tattoos, birthmarks
 }
 
 interface Section {
@@ -497,9 +511,12 @@ library/actors/vera-solano/
 
 - **`card.png` is canonical for the actor data.** Not a mirror of a JSON file —
   there is no JSON file. Two sources of truth is the failure mode to avoid.
+- **The PNG's own pixels are the portrait as intended** — the cropped result,
+  because that is what a dumb tool will render. See §5.2.1.
 - **Drag the folder out and you have exported the actor**, assets included, with
-  no UI involvement. Drag just `card.png` and you have exported a valid actor
-  minus heavy assets — degraded, not broken. Both must be true.
+  no UI involvement. Drag just `card.png` and you get the actor plus its
+  **embedded media set** (§5.2.2) — degraded only in bulk assets, not in
+  identity.
 - **Chunk splicing, never pixel re-encode.** SillyTavern's parser gets this
   right and it matters: re-encoding on every save quietly degrades user art.
 - **Import accepts** a bare PNG, a folder, a zip of a folder (`.seactor`), a V2/V3
@@ -510,10 +527,80 @@ bake it in. Define an *embedded card envelope* — a `{schema, version, payload}
 document — with per-container encoders: PNG `tEXt`/`iTXt`, WebP `XMP`, JPEG
 `APP1`. Ship PNG at 1.0; the others are then a codec, not a migration.
 
+#### 5.2.1 Cropping is non-destructive, and still emits a cropped card
+
+The crop is stored as a normalised source rectangle and **never destroys
+anything** ([05 §8.3](05-ui-surfaces.md)). What the card *emits* is a copy that
+is only the crop.
+
+So there are two images, both first-class:
+
+- **The PNG's pixels** — the crop, rendered. This is what SillyTavern, Chub, or
+  anything else that only knows "a card is a picture" will show, and it is why
+  the drag-out-and-it-works promise holds.
+- **The uncropped source** — carried in the embedded media set (§5.2.2), with
+  the crop rectangle in the card JSON.
+
+Re-cropping is therefore lossless and reversible from the card alone, without
+needing the folder. The crop is a view, not an edit.
+
+#### 5.2.2 The card format embeds media natively
+
+**Decision: carrying more than the single portrait is a feature of the format,
+not of the folder.** A V2/V3 card is one picture plus text, and that ceiling is
+why every tool in this space bolts sprites and galleries onto the side. Here the
+envelope (§5.2 above) carries a **media set** alongside the JSON:
+
+```ts
+interface EmbeddedMedia {
+  id: string
+  role: MediaRole          // see below — typed, not a flat pile
+  mime: string
+  bytes: Uint8Array
+  meta: { width, height, crop?: SourceRect, caption?: string, generated?: GeneratedFieldProvenance }
+}
+
+type MediaRole =
+  | "portrait-source"      // the uncropped original behind the card's pixels
+  | "reference"            // canonical likeness, ideally multi-angle
+  | "expression"           // named emotional states
+  | "pose"
+  | "style"                // style exemplar rather than likeness
+  | "gallery"
+```
+
+**Roles are typed from the start, and that is the part worth insisting on now.**
+A flat list of images is cheap and forecloses everything downstream: an image
+pipeline needs to know *which* picture is the canonical likeness and which is a
+costume variant. Retrofitting roles onto a flat list means guessing, so the
+taxonomy goes in at 1.0 even if only two roles are populated. This is the format
+prerequisite for the Character Studio ([11 §1b](11-roadmap.md)).
+
+**Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
+chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
+overhead. That matters once a card carries a reference sheet and eight
+expressions rather than one avatar.
+
+**Bounded by policy, not unbounded.** The embedded set is the character's
+*visual identity* — portrait source, references, a curated expression set. Bulk
+galleries, video, and large sprite libraries stay in `assets/` and travel with
+the folder or a `.seactor` zip. Without a cap, cards become hundreds of
+megabytes and stop being shareable, which defeats the point.
+
+**The honest risk:** ancillary chunks are droppable by spec-compliant tools that
+do not understand them, so a round trip through a careless image editor can
+strip the media. That risk already exists for the `chara` chunk the whole
+ecosystem depends on, so it is not new — but the export UI should warn, and
+`.seactor` remains the lossless transport.
+
+**[OPEN]** The cap. A few MB is shareable; tens are not. Needs a default and a
+visible indicator in the editor, since a card that silently grew to 80 MB is a
+bad surprise at share time.
+
 **[OPEN]** Compression of the embedded payload. Base64 in `tEXt` is ~33%
-overhead and cards are small, so probably not worth it — but `zTXt` exists and
-costs nothing to support on write. Decide once, since it affects what third-party
-tools can read.
+overhead and text payloads are small, so probably not worth it — but `zTXt`
+exists and costs nothing to support on write. Decide once, since it affects what
+third-party tools can read. Binary media (above) sidesteps this entirely.
 
 ### 5.3 Asset manifest
 

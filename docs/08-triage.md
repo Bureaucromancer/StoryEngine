@@ -194,6 +194,8 @@ and no plan below should be built on the assumption that it did.
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
 | Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §8.3](05-ui-surfaces.md) |
 | Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §8.2](05-ui-surfaces.md) |
+| Structured `VisualDescriptors` | Aventuras `types/index.ts` | **PORT** | face/hair/eyes/build/clothing/accessories/distinguishing. Prose appearance is for the narrator; this is for image pipelines. [02 §2.1](02-data-model.md) |
+| Media embedded in the card, with typed roles | — *none of the three* | **NEW** | V2/V3 caps a card at one picture, which is why every tool bolts sprites on the side. [02 §5.2.2](02-data-model.md) |
 | Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [10 §8](10-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
 | `PersistentRetryState` | Aventuras | **DISCARD** | Hand-maintained undo snapshot; replaced by reversible effects. |
 | Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](01-source-survey.md). |

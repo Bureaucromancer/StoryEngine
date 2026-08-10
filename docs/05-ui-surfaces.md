@@ -80,8 +80,12 @@ What it shows for any turn, current or historical:
   messages. Multiple calls for `per-actor` dispatch and for steps.
 - **The effects** — proposed channel changes, which applied, which failed
   validation, which were overridden by an engine-computed rule.
-- **Cost** — tokens and wall time, itemised by call, so "agents cost extra" is a
-  number rather than a documentation note.
+- **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
+  cost extra" is a number rather than a documentation note. This is displaying a
+  field the record already holds. **Aggregate spend tracking is post-1.0**
+  ([11 §2](11-roadmap.md)) — the people running this at the development stage
+  are power users who already monitor their provider usage, and a usage
+  dashboard is a very nice feature that is not core functionality.
 
 What it lets you do:
 
@@ -373,9 +377,11 @@ before they are discovered:
   is what `ModelHint.role` ([02 §2.6](02-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
   server needs those resolvable per user.
-- **They cost money, and the cost UI must include them.** A per-turn cost
-  breakdown that omits the forty refinements someone ran while authoring a
-  setting is a cost display that lies.
+- **They cost money, and must be *recorded* even though nothing displays it at
+  1.0.** Recording is nearly free and cannot be added retroactively — a spend
+  view built later over data that was never captured shows nothing for the first
+  year. So capture assist-call cost from the start and leave the aggregate view
+  to [11 §2](11-roadmap.md).
 - **They produce no turn record.** §8.2's provenance is the record, which is
   another reason it is not optional.
 
