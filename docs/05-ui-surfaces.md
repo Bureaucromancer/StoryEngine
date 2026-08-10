@@ -259,3 +259,132 @@ still works after a framework upgrade.
 rendering — a map, a card table, a graph. Sandboxed iframe with a narrow
 postMessage API is the obvious answer and it is a real chunk of work. Deferring
 is fine; pretending the vocabulary will cover everything forever is not.
+
+---
+
+## 8. Editors are not dumb forms
+
+A cross-cutting requirement, and one that has to be decided early precisely
+*because* it is cross-cutting. Two capabilities belong to **every** editor in
+the application, not to particular ones:
+
+1. **Every text field can be generated, refined and reverted** — Aventuras'
+   pattern, applied everywhere rather than only in the wizard.
+2. **Every image slot can be generated, uploaded, cropped and replaced** —
+   Marinara's in-UI crop, available wherever an image can appear.
+
+Retrofitting these field by field produces exactly what all three sources have:
+assistance in the two or three places someone got round to, and a plain textarea
+everywhere else. They should be **primitives the editors are built from**, so
+that "does this field have AI assist?" is never a question anyone asks.
+
+### 8.1 The field assist contract
+
+Four operations on any text field:
+
+- **Generate** — write this field from nothing.
+- **Refine** — rewrite it against a free-text guidance string. Aventuras'
+  `refineSetting(guidance)` with its `settingElaborationGuidance` box is the
+  model, and the guidance box matters: "make it darker" is the whole interaction,
+  and without it the only recourse is regenerate-and-hope.
+- **Revert** — back to the value before the assist ran, and separately back to
+  the generated original after manual editing. Aventuras keeps
+  `previousExpandedSetting` for exactly the first of these.
+- **Accept as-is** — the escape hatch. Aventuras' `useSettingAsIs()` skips
+  expansion entirely and takes the raw seed. Nothing may *require* a model call
+  to proceed, ever.
+
+**Context is the part that gets skimped.** "Generate an appearance" must see the
+actor's name, summary, tags and the setting it is being authored against. An
+assist that receives only the field label produces generic slop and trains
+people not to use it. The assist call therefore needs a context builder over the
+object being edited and its links — which is a small, reusable thing, but it is
+real work and it is why this must be a primitive rather than a per-field bolt-on.
+
+### 8.2 Provenance, taken from Marinara
+
+Marinara's scenario work already has the persistence half of this, and it is
+right:
+
+```ts
+interface GeneratedFieldProvenance {
+  original: string      // the generated value, JSON-encoded for non-string fields
+  at: string            // ISO timestamp
+  model: string | null
+  seed: string | null   // the input the generation ran from
+}
+```
+
+…stored as a map keyed by dotted field path (`"setting.themes"`). Adopt it.
+
+It buys three things, the third of which is the interesting one:
+
+- Revert-to-generated after hand editing.
+- Honest disclosure — "this was model-written, from this prompt, with this
+  model."
+- **A library-wide view of what is authored and what is machine-written.** In a
+  library that has grown by generation, "which of these characters did I
+  actually write?" becomes answerable. No source offers this, and it is a real
+  trust feature rather than a novelty.
+
+### 8.3 Image slots
+
+Wherever an image can appear — actor avatar, sprites, gallery, setting cover,
+lorebook entry art, package cover — the same four affordances: **upload,
+generate, crop, replace.**
+
+**Cropping is non-destructive at the editing layer.** Marinara stores a
+normalised source rectangle rather than baking the crop into pixels:
+
+```ts
+interface SourceRectAvatarCrop { srcX, srcY, srcWidth, srcHeight }  // 0..1 of source
+```
+
+Normalised coordinates survive the source being resized or re-encoded, which is
+the reason to prefer them over pixel offsets. Marinara also keeps a legacy
+zoom+offset variant as a *render-only* compatibility path so old crops display
+unchanged until re-edited — a good pattern to copy when this format inevitably
+changes.
+
+**One tension to resolve deliberately, because our storage decision creates it.**
+[02 §5.2](02-data-model.md) makes `card.png` canonical *and* requires that
+dragging it out yields a usable character in another tool. A crop stored only as
+metadata means other tools render the uncropped source — often badly framed,
+sometimes absurdly. That undercuts the interop commitment we already made.
+
+So, for actor cards specifically:
+
+- **The card's pixels are the cropped result.** That is what other tools will
+  show, so it must be the portrait as intended.
+- **The uncropped source is retained** in the actor's `assets/`, with the crop
+  rectangle in the card JSON, so re-cropping is lossless and reversible.
+
+Destructive for interop, non-destructive in substance. Cropping never costs you
+the original.
+
+### 8.4 An architectural note: not every model call is a turn
+
+Everything up to here has assumed the turn pipeline is the only path to a model.
+Field assists and image generation in the library are a **second call path**,
+running outside any session, and that has three consequences worth stating
+before they are discovered:
+
+- **They need a connection**, and it should not silently be the chat one. This
+  is what `ModelHint.role` ([02 §2.6](02-data-model.md)) is for — assist work
+  wants the `fast` role, image work wants an image connection, and a household
+  server needs those resolvable per user.
+- **They cost money, and the cost UI must include them.** A per-turn cost
+  breakdown that omits the forty refinements someone ran while authoring a
+  setting is a cost display that lies.
+- **They produce no turn record.** §8.2's provenance is the record, which is
+  another reason it is not optional.
+
+### 8.5 Traps
+
+- **Never auto-generate.** Not on field focus, not on blur, not on opening an
+  empty editor. User-initiated only. An editor that fills itself in is an editor
+  people stop trusting.
+- **Never block on the model.** Every field stays directly typeable while an
+  assist is running or failing.
+- **Refine must be cheap to reject.** One click back to the previous value, no
+  confirmation dialogue.

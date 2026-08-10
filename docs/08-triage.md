@@ -192,6 +192,8 @@ and no plan below should be built on the assumption that it did.
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](02-data-model.md). Four scoped changes only. |
 | Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
+| Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §8.3](05-ui-surfaces.md) |
+| Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §8.2](05-ui-surfaces.md) |
 | Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [10 §8](10-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
 | `PersistentRetryState` | Aventuras | **DISCARD** | Hand-maintained undo snapshot; replaced by reversible effects. |
 | Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](01-source-survey.md). |
@@ -247,6 +249,8 @@ and no plan below should be built on the assumption that it did.
 | Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our `.sepack`. |
 | Browser-side orchestration | ST | **DISCARD** | [00 §2.9](00-stance.md). |
 | Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [05 §1](05-ui-surfaces.md). |
+| In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [05 §8.1](05-ui-surfaces.md) |
+| In-UI image crop and generate on any image slot | Marinara | **PORT, widened** | Available wherever an image appears, not only avatars. |
 | Regression-script pattern | Marinara `scripts/regressions/` | **PORT** | Especially `context-fit`. |
 
 ---

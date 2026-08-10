@@ -48,9 +48,17 @@ interface Actor {
   modelHint: ModelHint | null     // see §2.6
   modeData: Record<ModeId, unknown>   // namespaced, declared owner — see §2.4
   provenance: Provenance
+  generated: Record<string, GeneratedFieldProvenance> | null  // by dotted path; [05 §8.2]
   compat: Record<string, unknown> | null  // preserved legacy import fields
 }
 ```
+
+`generated` is Marinara's per-field generation provenance, adopted wholesale and
+applied to every authored kind rather than only scenarios. It records what a
+model wrote, when, with which model and from what input, so an edit can be
+reverted and a machine-written field can be disclosed as one. See
+[05 §8.2](05-ui-surfaces.md) for why it earns its place in the *data* model
+rather than being a UI concern.
 
 ### 2.1 The profile
 

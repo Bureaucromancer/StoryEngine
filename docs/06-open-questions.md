@@ -59,7 +59,11 @@ default. See [07 §12.5–12.6](07-tech-stack.md).
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
-household setup — and it means connections need a scope from the start. *[04 §3.3]*
+household setup — and it means connections need a scope from the start.
+Widened by [05 §8.4](05-ui-surfaces.md): library-time field assists and image
+generation are a **second call path** outside the turn pipeline, so connection
+resolution by role (`fast`, image) has to work outside a session too, and cost
+accounting has to cover calls that produce no turn record. *[04 §3.3, 05 §8.4]*
 
 **A4. Raw-completion support.** [00 §2.2] proposes making chat-shaped APIs with
 structured output the core contract and raw completion an edge adapter. How much
