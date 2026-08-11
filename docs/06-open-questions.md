@@ -64,6 +64,15 @@ have to be there from the start or every event producer changes later. Settle
 the class list early; it is also the entire user-facing preference model.
 *[04 §2b]*
 
+**A2d. UI localisation.** Settled in [07 §10c](07-tech-stack.md): i18next with
+explicit hierarchical keys, ICU plurals, silent per-key English fallback,
+machine translation as the primary path with provenance markers, Weblate for
+contributors. Two items are load-bearing before code: **CSS logical properties
+from the first stylesheet** (otherwise RTL is permanently foreclosed), and
+**server events carrying `{key, params}` rather than English prose**. Both are
+free now. Docs translation is explicitly out of scope — Marinara's `docs-i18n`
+branch shows the real ongoing cost. *[07 §10c, 04 §2b.2]*
+
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
 household setup — and it means connections need a scope from the start.

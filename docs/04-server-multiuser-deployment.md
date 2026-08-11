@@ -115,9 +115,13 @@ start, events carry:
 - **class** — turn-complete, message-received, awaiting-input, failed, agent-note.
   A small closed set; per-class preferences are the entire user-facing model.
 - **target user** — resolved server-side, never inferred by the client.
-- **a human summary** — one line fit to be a notification body. Composing that
-  later from structured fields produces the "New event in session 4f2a" school
-  of notification.
+- **a renderable summary as `{ key, params }`, not English prose.** One line fit
+  to be a notification body — but composed at display time, because the server
+  cannot know the reader's language and a baked English string is
+  untranslatable ([07 §10c.5](07-tech-stack.md)). Note this cuts both ways: the
+  params must carry everything the sentence needs, since composing a summary
+  later from *unstructured* fields produces the "New event in session 4f2a"
+  school of notification.
 - **a dedupe key and coalescing window** — five characters replying in a group
   chat is one notification, not five. Trivial to design in, unpleasant to add
   once producers exist.
@@ -187,6 +191,7 @@ interface Account {
   passwordHash, salt      // argon2id
   role: "admin" | "user"
   enabled: boolean
+  locale: string | null   // BCP-47; defaulted from Accept-Language on first login
   createdAt: number
 }
 ```

@@ -292,6 +292,148 @@ already holds everything needed to re-assemble ([02 §8](02-data-model.md)).
 
 ---
 
+## 10c. UI localisation
+
+Settled before code because two of the decisions below are nearly free now and
+expensive later, and one of them is already a latent bug in
+[04 §2b.2](04-server-multiuser-deployment.md).
+
+**Scope: application chrome only.** Not story content, not character cards or
+lorebooks (that is [06 B8](06-open-questions.md), a different problem), not log
+output, and not the documentation — see §10c.7.
+
+### 10c.1 The real risk is rot, not library choice
+
+The planning assumption should be that **the main dev does not translate**, and
+that the only first-party translation is a deliberately bad machine-generated
+French one for testing. Everything below follows from that.
+
+SillyTavern is the useful data point, being the most deployed project in this
+space. It ships 17 languages as flat JSON, and the key counts diverge sharply —
+French around 2,060 entries against German, Japanese and Icelandic all around
+1,455. **Partial translation is the steady state**, not a transient condition to
+be fixed. A design that treats a missing string as an error will produce a
+worse experience than one that treats it as normal.
+
+So: **missing keys fall back to English, silently, per key.** No placeholder, no
+`[MISSING]`, no console noise in production. A 60%-translated UI should look
+like a bilingual UI, not a broken one.
+
+### 10c.2 Explicit keys, not English source text
+
+SillyTavern keys on the English string (`"Delete": "Supprimer"`), which is
+tempting because it makes the fallback trivial. Its own files show where that
+goes: alongside the English keys sit `clickslidertips`, `kobldpresets`,
+`guikoboldaisettings` — explicit keys that appeared because source-text keys
+become unusable once a string is a sentence. The result is a hybrid nobody
+chose.
+
+The deeper problem is that **source-text keys make every English copy-edit a
+translation-invalidating event.** Fixing a typo or tightening a label orphans
+that string in all 17 languages. On a young project where English wording churns
+constantly, that is the rot mechanism.
+
+Use explicit hierarchical keys — `settings.connection.title` — with the English
+catalog as just another catalog file. Copy-editing English then costs nothing.
+
+### 10c.3 i18next
+
+**Recommendation: `i18next` with `react-i18next`, flat JSON catalogs, ICU
+MessageFormat via plugin.**
+
+The deciding factor is not the React binding, it is that **i18next runs on the
+server too**. Push notification bodies are rendered without the app open
+(§10c.5), so the server must be able to localise; a client-only library would
+mean two localisation stacks. Beyond that: largest ecosystem, first-class
+Weblate support, and catalogs that are plain JSON — which matters because both
+casual contributors and a machine-translation script have to edit them.
+
+Lingui is the better authoring experience and its extraction is cleaner; it is
+the reasonable alternative if the server-side need turns out to be small.
+
+**ICU MessageFormat is not optional.** Pluralisation is where naive i18n breaks:
+English has two plural forms, Russian and Arabic have more, and `count === 1 ?
+"entry" : "entries"` cannot express that. ICU handles plurals, gender and
+selection in the catalog where translators can reach them.
+
+### 10c.4 Machine translation as a first-class path
+
+Given the stated constraint, this is the primary mechanism rather than a
+fallback, and should be built as such:
+
+- A script that diffs each catalog against English and fills gaps via an LLM.
+- **Every machine-filled entry carries a provenance marker** — the same idea as
+  `GeneratedFieldProvenance` ([05 §8.2](05-ui-surfaces.md)), applied to strings.
+- The marker is what makes human contribution work: a translator sees which
+  entries are machine-generated and unreviewed, and fixing one clears the flag.
+  Without it, a contributor cannot tell their careful work from a script's
+  output and will not trust either.
+- Machine translation runs **on demand, not in CI**. Automatic translation on
+  every merge produces churn, cost, and diffs nobody reviews.
+
+**Give translators context.** A key alone is not enough to translate well —
+`actions.open` is a verb or an adjective depending on where it lives. Extraction
+should carry the developer comment and, where cheap, the surface it appears on.
+This helps a human translator and materially improves machine output.
+
+### 10c.5 Two things that are latent bugs right now
+
+**The server must emit keys and parameters, never English prose.**
+[04 §2b.2](04-server-multiuser-deployment.md) currently specifies that
+notification events carry "a human summary — one line fit to be a notification
+body". As written that is baked English and untranslatable. It must be
+`{ key, params }`, rendered at the point of display. Corrected there.
+
+**Accounts need a locale.** Push notifications are rendered by a service worker
+or by the push service with the app closed, so the *server* localises them —
+which means it must know each user's language. A `locale` field on the account
+([04 §3.2](04-server-multiuser-deployment.md)), defaulted from `Accept-Language`
+on first login and overridable in settings. Cheap now; a migration later.
+
+### 10c.6 Decisions that are free now and painful later
+
+- **CSS logical properties from the first stylesheet.** `margin-inline-start`,
+  not `margin-left`; `padding-inline`, not `padding-left/right`. This costs
+  nothing while writing new CSS and makes right-to-left support a `dir="rtl"`
+  attribute rather than a rewrite. Arabic and Hebrew are otherwise permanently
+  out of reach, which for a project with 17-language ambitions is a real
+  foreclosure.
+- **`Intl` for everything formatted.** Dates, numbers, currency, and especially
+  `Intl.RelativeTimeFormat` for "2 minutes ago". Hand-rolled relative time is
+  untranslatable and always slightly wrong.
+- **No string concatenation to build sentences.** `"Deleted " + n + " entries"`
+  cannot be translated into a language with different word order. One key, one
+  full sentence, with parameters.
+- **Extraction is a build step, not a discipline.** A key that only exists in
+  source but not in the English catalog is a bug; CI should fail on stale
+  extraction. It should **never** fail on missing translations in other
+  languages — that is the normal state, per §10c.1.
+
+### 10c.7 What not to translate, and one warning
+
+**Documentation is out of scope.** Marinara maintains translated docs on a
+separate `docs-i18n` branch, with per-language folders mirroring English 1:1,
+generated manifests, hash validation scripts, and a contributing rule requiring
+every PR touching `docs/` to update every language folder or file a follow-up
+issue. That is a well-built system and an accurate picture of the ongoing cost.
+For a solo dev it is not affordable. Translate the UI; leave docs in English.
+
+Also untranslated: log output and developer-facing errors (they are for the
+person reading a terminal), and user content (B8).
+
+### 10c.8 The contributor path
+
+**Weblate.** It is free for libre projects, hosts a web UI so a translator never
+touches git, and syncs to the repository as ordinary commits. For a project
+where the maintainer will not translate, this is the entire mechanism by which
+translations actually appear — a `CONTRIBUTING` note saying "edit the JSON and
+open a PR" produces roughly zero translations.
+
+**[OPEN]** Whether to self-host Weblate or use their hosted libre offering. The
+hosted one is the obvious start.
+
+---
+
 ## 11. Testing
 
 - **Vitest** (both Marinara and Aventuras use it), **Playwright** for end-to-end.
