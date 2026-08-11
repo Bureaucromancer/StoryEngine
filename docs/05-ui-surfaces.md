@@ -149,13 +149,21 @@ server-side:
 
 | Root | `read` | `write` |
 |---|---|---|
-| `/data/users/<own handle>/` | yes | yes |
-| `/data/library/` | yes | gated separately — it is shared with everyone |
+| `/data/users/<own handle>/` | yes | yes — this includes their whole library |
+| `/data/system/` | yes | never — app-shipped content |
 | `/data/users/<other>/` | never | never |
 | `/data/config.yaml`, `/data/index/` | never | never |
 
-`library` write deserves its own flag: a shared library on a family server is
-exactly the place where a stray drag-and-drop is someone else's problem.
+Simpler than an earlier draft, because there is no shared library to gate
+separately ([04 §3.3](04-server-multiuser-deployment.md)): a user's roots are
+their own directory, and everything in it is theirs to break.
+
+One exclusion worth stating explicitly: `connections/` lives under the user's
+own directory and holds credentials. It is within the writable root by that
+rule, which is defensible — they are that user's own keys — but the file browser
+should still refuse to *display* their contents, so a shoulder-surfer or a
+screen share does not reveal an API key that the UI otherwise only ever shows
+masked.
 
 ### 4.3 What it is, concretely
 
@@ -207,8 +215,10 @@ be inventive.
 
 Where it should differ:
 
-- **One library surface for all shareable kinds**, with a kind filter — not five
-  panels behind five buttons. Objects link across kinds constantly and the
+- **One library surface for all portable kinds**, with a kind filter — not five
+  panels behind five buttons. ("Portable" as in exportable
+  ([13 §1](13-schemas.md)); libraries themselves are per-user and nothing is
+  shared between accounts on one install.) Objects link across kinds constantly and the
   cross-links should be navigable inline.
 - **Links are visible and bidirectional.** From a lorebook: which settings,
   actors and packages reference this. From an actor: which lorebooks it links.

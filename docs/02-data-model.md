@@ -535,15 +535,21 @@ disposable index**.
 ```
 /data
   config.yaml
-  library/
-    actors/     <slug>/card.png            + assets/
-    lorebooks/  <slug>/lorebook.json       + assets/
-    settings/   <slug>/setting.json        + cover.png
-    presets/    <slug>/preset.json
-    packages/   <slug>/...                 (see §7)
+  system/                   # shipped with the app. Read-only. Not user content.
+    lorebooks/              #   e.g. the documentation the assistant reads
+    presets/
+    actors/                 #   default assistant card, starter actors
   users/
     <handle>/
       account.json
+      library/
+        actors/     <slug>/card.png        + assets/
+        lorebooks/  <slug>/lorebook.json   + assets/
+        settings/   <slug>/setting.json    + cover.png
+        presets/    <slug>/preset.json
+        packages/   <slug>/...             (see §7)
+      memories/               # auto-maintained, see [14](14-cross-session-memory.md)
+      connections/            # credentials. Never leaves this directory.
       sessions/<session-id>/
         session.json
         turns/000001.json …
@@ -551,6 +557,15 @@ disposable index**.
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
+
+**Every user owns a complete, independent library.** There is no shared area and
+no ownership field — the path is the owner
+([04 §3.3](04-server-multiuser-deployment.md)). Sharing between users on one
+install is deferred rather than designed out, and when it arrives it should be a
+new *location* beside these, not a field added to every object.
+
+`system/` is app-shipped content, which is a different thing from shared user
+content and does not imply a sharing mechanism.
 
 The rule that makes this work: **the index is never authoritative and never the
 only home for a fact.** It exists for search, listing, tag queries, cross-refs
@@ -811,9 +826,10 @@ crosses the content/session line the rest of the model keeps clean.
 
 ```ts
 interface Session {
-  id, ownerId, title, createdAt, updatedAt
-  visibility: "private" | "shared"
-  participants: UserId[]          // length 1 at 1.0 — see [04 §5]
+  id, title, createdAt, updatedAt
+  // No owner or visibility field: the session lives under its owner's
+  // directory, and there is nobody to share it with. [04 §3.3]
+  participants: UserId[]          // length 1 at 1.0 — see [04 §6]
 
   mode: { id: ModeId; config: unknown }
   preset: Preset                  // resolved copy, not a link

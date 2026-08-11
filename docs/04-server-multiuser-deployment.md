@@ -200,46 +200,83 @@ First-run creates the first admin. Admins manage accounts and install
 extensions; users do everything else. That is the entire authorisation model, and
 it should stay that small unless something forces otherwise.
 
-### 3.3 Shared library, private sessions — the divergence from SillyTavern
+### 3.3 Everything is per-user. Sharing is deferred.
 
-SillyTavern gives each user a complete private island: ~30 directories per user,
-nothing shared. For a household server this is exactly backwards. People want to
-share character cards, lorebooks, settings and packages, and absolutely do not
-want to share their sessions.
+**Revised.** An earlier draft proposed a shared library with `owner` and
+`visibility` fields on every object, defaulting to shared, and framed
+SillyTavern's per-user islands as "exactly backwards". That was wrong on the
+sequencing, and the argument against it is decisive:
+
+> **Merging separate stores later is mechanical. Splitting a shared store later
+> is adjudication.**
+
+To merge, you already have every object, its location tells you who owns it, and
+deduplication is a comparison. To split retroactively you must *decide* who owns
+each object — and after a year of several people editing the same lorebook, that
+information does not exist anywhere. One is a migration; the other is a
+judgement call nobody wants to make on someone else's data.
 
 So:
 
 ```
-/data/library/…            shared, readable by all users
-/data/users/<handle>/…     private: sessions, connections, preferences
+/data/system/…               shipped with the app. Read-only. Not "shared".
+/data/users/<handle>/
+  library/                   actors, lorebooks, settings, packages, presets
+  sessions/
+  connections/
+  memories/
+  prefs.json
 ```
 
-- **Library objects have an `owner` and a `visibility`.** Default `shared` for
-  actors/lorebooks/settings/packages/presets — that is the point of a family
-  server.
-- **Sessions default `private`** and live under the owner. There is no browse-all
-  for sessions, including for admins. (An admin can read the files on disk. That
-  is a property of the box, not a permission we should grant in the UI.)
-- **Connections are always private, never shared, never listed to others.** They
-  hold credentials. A user's API key is theirs.
-- **[OPEN]** Should an admin be able to configure a *server-level* connection
-  that all users may use without seeing the key? Very likely yes — it is the
-  natural household setup ("Dad pays for the API") — and it means connections
-  need a scope (`user` | `server`) with the key readable by neither, only usable.
-  Worth designing in early; awkward to retrofit.
-- **Deletion of a shared object** that others' sessions were seeded from is safe
-  by construction: sessions copy, they don't link ([00 §3.1](00-stance.md)).
+- **Every user has a complete, independent library.** No `owner` field, no
+  `visibility` field — **the path is the owner.** Adding those fields now would
+  be building a permission model we have decided to defer.
+- **Duplication is fine.** Two users with the same character is two files. Disk
+  is cheap, and the import/export story ([02 §5.2](02-data-model.md)) plus the
+  in-UI file browser ([05 §4](05-ui-surfaces.md)) already make copying one drag.
+- **Built-in content is not shared user content.** App-shipped lorebooks (the
+  documentation the assistant reads), default presets and starter actors live in
+  `/data/system/`, read-only, outside anyone's library. That is a distinct tier
+  and it does not imply a sharing mechanism.
+- **Connections stay per-user and private.** They hold credentials.
+- **Refs never cross users.** A setting's link to a lorebook resolves inside that
+  user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
+  are precisely the thing that would make a future split or merge painful, so
+  they must not exist.
+- **[OPEN]** A server-level connection an admin configures and everyone may
+  *use* without reading the key. Still likely yes, still the natural household
+  case, and note it is a *capability* grant rather than shared content — so it
+  does not reopen the library question.
+
+#### Keeping the merge path open
+
+Sharing may well arrive later. Four cheap decisions now keep it a small change
+rather than a schema migration:
+
+1. **Object ids are globally unique** (uuidv7), not namespaced per user. Alice's
+   Vera and Bob's Vera are different objects with different ids, so a future
+   merge has no collisions to resolve.
+2. **Provenance already records origin** ([13 §3](13-schemas.md)), so a copy can
+   say where it came from and a future dedupe has something to match on.
+3. **When sharing arrives it should be a new *location*, not a new field** — a
+   `/data/shared/library/` alongside the per-user ones, with objects copied or
+   moved into it. That is additive and leaves every schema in
+   [13](13-schemas.md) untouched.
+4. **No visibility or ownership fields until then.** Not having them is free;
+   removing them later is churn.
 
 ### 3.4 Concurrent edits
 
-Two users editing the same shared actor is now possible and it wasn't before.
-Files on disk plus no database means no transactions.
+Largely dissolved by §3.3: with no shared objects, two users cannot edit the
+same file, and the interesting case is one person with two tabs open.
 
-Proposal: optimistic concurrency. Each object read carries a version (content
-hash); a write that presents a stale version is rejected, and the UI offers
-"reload and reapply" or "save as a copy". No merge, no locking, no last-writer-
-wins-silently. Conflicts on a family LAN will be rare enough that the cheapest
-correct answer is the right one.
+Optimistic concurrency still earns its place, cheaply. Each object read carries a
+content hash; a write presenting a stale hash is rejected, and the UI offers
+"reload and reapply" or "save as a copy". No merge, no locking, no silent
+last-writer-wins. It also covers hand-edits made through the file browser or
+directly on disk while the UI has the object open — which is now the *likelier*
+conflict, and one the watcher-fed index makes possible
+([04 §4b.2](#4b2-content-already-hot-reloads-and-that-is-not-a-dev-feature)).
 
 ---
 

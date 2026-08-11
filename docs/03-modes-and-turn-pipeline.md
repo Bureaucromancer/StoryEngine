@@ -537,10 +537,10 @@ already do the work ([02 §3](02-data-model.md)).
 #### Propose, then apply
 
 Every mutation is a reviewable diff, not a silent write. Marinara has this
-instinct too — a change-review service sits beside its workspace agent — and it
-matters more here because the library is shared
-([04 §3.3](04-server-multiuser-deployment.md)): an assistant that edits a
-character somebody else is using should be showing its work.
+instinct too — a change-review service sits beside its workspace agent. Libraries
+are per-user ([04 §3.3](04-server-multiuser-deployment.md)), so the risk is not
+editing somebody else's character; it is that an assistant quietly rewriting
+your own work is the fastest way to stop trusting it.
 
 Applied changes carry `GeneratedFieldProvenance` ([05 §8.2](05-ui-surfaces.md))
 like any other machine-written content, so "the assistant wrote this bit" stays
@@ -651,6 +651,8 @@ role and the host executes it), or write another mode's `modeData`.
 
 **[OPEN]** Extension execution model — in-process modules, or sandboxed workers
 with a message-passing API? In-process is far simpler and makes every installed
-extension fully trusted. Given LAN multi-user with a shared library, that may be
-acceptable at 1.0 if extension installation is admin-only. Needs an explicit
-decision because it is very hard to retrofit.
+extension fully trusted. That is more defensible now that libraries are per-user
+([04 §3.3](04-server-multiuser-deployment.md)) — an extension's blast radius is
+one install rather than one household's shared content — but "fully trusted"
+still means it can read every user's directory, so admin-only installation
+remains the gate. Needs an explicit decision because it is very hard to retrofit.

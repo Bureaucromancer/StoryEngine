@@ -265,10 +265,15 @@ implement it differently.
 management, and prompt assembly live in the client. This is the root cause of the
 multi-user, mobile and resumability limitations.
 
-**Per-user islands with no sharing.** Every user gets a complete private copy of
-everything. For a household LAN server where people want to share character cards
-but keep their sessions private, this is the wrong default. See
-[04 §3](04-server-multiuser-deployment.md).
+**Per-user islands with no sharing.** ~~For a household LAN server this is the
+wrong default.~~ **Revised**: per-user stores are the right *default* and
+StoryEngine now adopts essentially this model
+([04 §3.3](04-server-multiuser-deployment.md)) — merging separate stores later
+is mechanical, whereas splitting a shared one is adjudication. What SillyTavern
+actually lacks is not per-user isolation but any *path* to sharing: no stable
+object identity across users, no provenance to dedupe on, and a directory layout
+where a shared area would be a new concept rather than a new location. The
+critique stands, narrowed to that.
 
 **Group chat by card-swapping.** See [00 §2.10](00-stance.md).
 

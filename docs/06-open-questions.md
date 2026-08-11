@@ -73,6 +73,16 @@ from the first stylesheet** (otherwise RTL is permanently foreclosed), and
 free now. Docs translation is explicitly out of scope — Marinara's `docs-i18n`
 branch shows the real ongoing cost. *[07 §10c, 04 §2b.2]*
 
+**A2e. Sharing content between users on one install — deferred, deliberately.**
+[04 §3.3](04-server-multiuser-deployment.md) reverses an earlier draft: every
+user gets a complete independent library, with no `owner` or `visibility`
+fields, because merging separate stores later is mechanical while splitting a
+shared one is adjudication. Four decisions keep the door open — globally unique
+ids, provenance recording origin, sharing arriving as a new *location* rather
+than a new field, and no ownership fields until then. Open: when sharing
+arrives, and whether it brings a real permission model or just a copy-from
+affordance. *[04 §3.3, 02 §5.1]*
+
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
 household setup — and it means connections need a scope from the start.
