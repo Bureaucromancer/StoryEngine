@@ -28,7 +28,9 @@ What follows from this:
   (This is a deliberate softening of Marinara's "mobile is a first-class play
   surface" principle. Marinara is right for Marinara; a LAN server whose primary
   users are on laptops has different priorities at 1.0.)
-- **No offline story.** No service worker, no local cache-as-database, no sync.
+- **No offline story.** No local cache-as-database, no sync. No service worker
+  *for caching* — though a push-only one is permitted, and the distinction is
+  drawn in [04 §2b.4](04-server-multiuser-deployment.md).
   The server is on your LAN; if you can't reach it there is nothing to do.
   This removes an entire class of state-reconciliation problems.
 - **Nothing is installed on the client.** Bookmark a URL. That is the whole
@@ -263,6 +265,36 @@ still works after a framework upgrade.
 rendering — a map, a card table, a graph. Sandboxed iframe with a narrow
 postMessage API is the obvious answer and it is a real chunk of work. Deferring
 is fine; pretending the vocabulary will cover everything forever is not.
+
+---
+
+## 7a. In-app notification, and sounds
+
+The client half of [04 §2b](04-server-multiuser-deployment.md). Routing is
+server-side; the client renders sound, toast, unread badges and the document
+title.
+
+- **Distinct sounds per event class**, not one generic chime. Turn-complete,
+  message-received, awaiting-input and failed should be tellable apart from
+  another room — which is the entire point of having a sound rather than a
+  toast. Per-class volume, a global mute, and a start-muted preference
+  (Marinara's, worth copying).
+- **Prime the audio on first interaction.** Browsers block audio until a user
+  gesture has occurred, so the *first* completion sound after a page load is
+  silently dropped unless an audio context was unlocked by an earlier click.
+  This is a well-known trap that presents as "sounds work sometimes", and the
+  fix — unlock on the first interaction of the session — has to be deliberate.
+- **Suppress what is already visible.** A toast for a message rendering in the
+  session you are looking at is noise. The sound is still wanted; the toast is
+  not.
+- **Unread state belongs to the server**, so it survives a reload and is
+  consistent across a phone and a laptop open at once. Marinara's floating
+  avatar bubble for a message in an unviewed chat is a good pattern, and it
+  collapses on mobile rather than stacking.
+
+**[OPEN]** Whether per-actor notification sounds are worth it in Messages mode —
+knowing *who* messaged without looking is genuinely useful, and it is one more
+thing to configure per card.
 
 ---
 

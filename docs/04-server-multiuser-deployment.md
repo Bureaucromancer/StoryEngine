@@ -61,6 +61,104 @@ recorded as failed with its blocks intact so it can be re-run rather than lost.
 
 ---
 
+## 2b. Notifications
+
+**Build this early.** Two unrelated pressures point at it, and the second is the
+architectural one.
+
+The small pressure: **completion sounds**. Marinara has them, Aventuras does not,
+and the absence is a genuine daily irritation — long generations mean you look
+away, and without a sound you either sit watching a spinner or come back late.
+It is a tiny feature that materially changes how the app feels to use.
+
+The large pressure: **Messages mode does not work without it.** Autonomous
+messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
+are *not* looking. A character messaging you first, with no way for that to
+surface, is a feature that does nothing.
+
+### 2b.1 It is a consumer of the event stream, not a new subsystem
+
+The session event stream already exists ([§2](#2-server-authoritative-generation)).
+Notifications are events plus a **router** plus a set of **delivery channels**:
+
+```
+turn events ──▶ notification router ──▶ in-app (sound, toast, badge)
+(server-side)     · event class          browser Notification API
+                  · target user          Web Push
+                  · user preferences     webhook / ntfy / Gotify
+                  · presence
+                  · dedupe window
+```
+
+**Routing decisions are server-side.** This is the part that must not be got
+wrong: if the client decides what to notify about, notifications only work while
+a client is connected, which fails the one case that motivated the feature. The
+server knows who should be told and through which channel; the client only
+renders the in-app part.
+
+**Presence is already the input this needs.** Messages mode specifies per-user
+presence — Active, Idle, Do Not Disturb, Invisible ([03 §7.1](03-modes-and-turn-pipeline.md)).
+That is exactly the routing signal: suppress on DND, prefer in-app when Active
+and viewing the session in question, escalate to push when Idle or disconnected.
+Reuse it rather than inventing a parallel notion.
+
+**Per-user, and scoped by ownership.** A household server must never tell one
+person about another's session. Session visibility ([§3.3](#33-shared-library-private-sessions--the-divergence-from-sillytavern))
+already answers this.
+
+### 2b.2 What this obliges 1.0 to do, even if channels ship late
+
+The retrofit cost is not in the delivery channels — those are additive. It is in
+the **event schema**, because every producer changes if it is wrong. From the
+start, events carry:
+
+- **class** — turn-complete, message-received, awaiting-input, failed, agent-note.
+  A small closed set; per-class preferences are the entire user-facing model.
+- **target user** — resolved server-side, never inferred by the client.
+- **a human summary** — one line fit to be a notification body. Composing that
+  later from structured fields produces the "New event in session 4f2a" school
+  of notification.
+- **a dedupe key and coalescing window** — five characters replying in a group
+  chat is one notification, not five. Trivial to design in, unpleasant to add
+  once producers exist.
+
+**Awaiting-input deserves special mention.** If a turn can suspend for player
+input ([06 C5](06-open-questions.md)), and the player has wandered off, the
+session is stuck until told. That class is the strongest argument for push
+rather than in-app-only.
+
+### 2b.3 Delivery channels, in order of cost
+
+1. **In-app** — sound, toast, unread badge, document title. Covers the
+   completion-sound case entirely and needs no infrastructure.
+2. **Browser Notification API** — works when the tab is backgrounded but the
+   browser is open. Small step, large practical gain.
+3. **Web Push** — works when the browser is closed. See §2b.4.
+4. **Outbound webhook, plus ntfy/Gotify shapes** — the self-hoster's expectation
+   and cheap to add, since it is an HTTP POST against a user-supplied endpoint.
+   It also sidesteps mobile push entirely for people who already run ntfy, which
+   is a large fraction of this audience. Treat the endpoint as user
+   configuration, not server configuration.
+
+### 2b.4 A correction to the no-service-worker position
+
+[05 §1](05-ui-surfaces.md) says "no offline story. No service worker, no local
+cache-as-database, no sync." **Web Push requires a service worker**, so that
+needs narrowing rather than quietly contradicting.
+
+The position stands as written for what it was aimed at: no offline caching, no
+client-side database, no sync reconciliation. A service worker registered
+*solely* to receive push and post a notification reintroduces none of that — it
+holds no state and serves no cached responses. That is a different thing wearing
+the same name.
+
+So: a push-only service worker is permitted; an offline-caching one is not. Worth
+writing down because the distinction is easy to lose, and a service worker that
+starts caching "while it is there anyway" is exactly how the offline
+state-reconciliation problem arrives uninvited.
+
+---
+
 ## 3. Multi-user
 
 ### 3.1 Threat model, stated plainly

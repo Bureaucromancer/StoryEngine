@@ -57,6 +57,13 @@ accident. Draws are keyed by site rather than position so replay survives a
 divergent execution path. Still open, and minor: whether a session may flip the
 default. See [07 §12.5–12.6](07-tech-stack.md).
 
+**A2c. Notification event schema.** [04 §2b.2](04-server-multiuser-deployment.md):
+delivery channels are additive and can ship late, but the *event schema* cannot
+— class, target user, human-readable summary, dedupe key and coalescing window
+have to be there from the start or every event producer changes later. Settle
+the class list early; it is also the entire user-facing preference model.
+*[04 §2b]*
+
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
 household setup — and it means connections need a scope from the start.
