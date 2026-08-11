@@ -545,9 +545,11 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
 - A **Source** link in the UI, visible to every logged-in user, not buried in an
   admin screen.
 - It must resolve to **the version actually running**, which means the build
-  embeds its commit hash and the link is version-aware. A link to `main` is not
-  strictly compliant when the operator is running a patched build — and the
-  patched-build case is exactly the one §13 exists for.
+  embeds its tag and commit hash and the link is version-aware. A link to `main`
+  is not strictly compliant when the operator is running a patched build — and
+  the patched-build case is exactly the one §13 exists for. The permanent
+  release branches and tags in [12 §2](12-repo-and-releases.md) are what keep
+  those links resolving years later.
 - An **About** surface showing version, commit, licence, and the dependency
   licence manifest. Cheap to generate at build time and independently useful for
   bug reports.

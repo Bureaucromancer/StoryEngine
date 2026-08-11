@@ -31,6 +31,7 @@ and also flagged inline as **[OPEN]**.
 | [09-infinite-worlds.md](09-infinite-worlds.md) | A fourth reference, and the authored-rules tier it exposes as missing |
 | [10-branching.md](10-branching.md) | Branch anywhere, any time: the effect log makes it a pointer, and summaries survive |
 | [11-roadmap.md](11-roadmap.md) | Post-1.0 roadmap, plus desired extensions — hints for expansion authors |
+| [12-repo-and-releases.md](12-repo-and-releases.md) | Branching and release model; draft of the eventual CONTRIBUTING.md |
 
 ## The four commitments these documents are built around
 
