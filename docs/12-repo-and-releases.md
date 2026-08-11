@@ -157,6 +157,11 @@ in-flight turns and possible schema migration is a bad place for a process to
 rewrite itself, and every mechanism above already delivers the outcome without
 that risk.
 
+The in-app check is specified in
+[04 §4b.5](04-server-multiuser-deployment.md), including the deliberate limits
+that keep it from becoming telemetry, and its secondary use as a connectivity
+signal that improves generation error messages.
+
 **None of this exists until the pipeline is boring.** A nightly that is often
 broken teaches people to ignore it, which is worse than not offering one.
 

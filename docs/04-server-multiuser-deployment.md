@@ -539,6 +539,68 @@ ESM modules make true unloading hard — stale references, already-registered
 channel definitions — so "restart required" is the honest 1.0 answer, and a
 cleaner lifecycle depends on [06 A1](06-open-questions.md).
 
+### 4b.5 Update check, and using it as a connectivity signal
+
+**An in-app update check ships.** It queries the release feed for the configured
+channel ([12 §4](12-repo-and-releases.md)), compares against the running version
+— which the build already embeds for AGPL §13 (§5) — and surfaces a quiet
+indicator. Daily, cached, never on page load.
+
+Surface it as a **badge on the About surface, not a notification**. A new release
+is not urgent, and a notification class for it would train people to dismiss
+notifications ([§2b](#2b-notifications)).
+
+#### It is an update check, not telemetry
+
+Stated firmly because the slide from one to the other is well-trodden and this
+audience is rightly sensitive to it:
+
+- **Disclosed at first run**, and disableable in one obvious place.
+- **Sends nothing beyond what a version comparison requires.** No install id, no
+  usage counts, no configuration, no anonymised anything. The request should be
+  a plain fetch of a public release feed — indistinguishable from someone
+  loading the releases page.
+- Anything that would later want to be added to it is telemetry, and the answer
+  is no.
+
+#### The connectivity signal, and who it should not nag
+
+The observation is right: nearly every install has internet access anyway,
+because that is where the models are. So a failed update check is a usable
+signal that this server is offline — and it costs nothing, since the request is
+already being made.
+
+**But it must be conditional on configuration, or it nags exactly the wrong
+people.** A fully local setup — Ollama, llama.cpp, an LLM box on the LAN — is a
+legitimate, fully-functional deployment, and its operator chose it deliberately.
+Telling them their server is broken because it cannot reach a release feed would
+be both wrong and irritating.
+
+So:
+
+- **All connections point at local or LAN endpoints** → no internet is expected.
+  Say nothing. Optionally note it in About as a fact rather than a fault.
+- **Any connection points at a remote provider** and the update check fails →
+  worth surfacing, because generation is going to fail too.
+- **Show it to admins.** A regular user cannot fix the server's networking, and
+  a warning they can only be alarmed by is noise.
+
+#### The better use: improving error messages
+
+More valuable than the warning itself. When generation fails against a remote
+provider, the error normally surfaces as whatever the HTTP layer produced —
+timeouts, DNS failures, TLS errors — none of which tells the user what is
+actually wrong.
+
+If the last update check also failed, the engine already knows the likely cause,
+and can say **"this server appears to have no internet access"** instead of
+surfacing a raw connection error. Cheap, and it turns the single most confusing
+failure in self-hosted software into a sentence someone can act on.
+
+The same applies at **first run**: a setup flow that knows there is no
+connectivity should say so before someone configures a remote provider that will
+never work.
+
 ---
 
 ## 5. Licence obligations that are actually features
