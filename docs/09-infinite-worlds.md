@@ -169,6 +169,14 @@ the AI does next", which is consistent with Marinara's Narrative Director
 arriving at the same mechanism independently. Two systems converging on
 "a one-shot instruction block for the next turn" is a strong signal.
 
+Taken further in [03 §5.1](03-modes-and-turn-pipeline.md): the same slot is
+exposed directly to the *player* as an expandable guidance box on every turn,
+with rule effects and agent pushes as additional producers of the same block.
+[03 §5.2](03-modes-and-turn-pipeline.md) then adds the constraint IW does not
+state — guidance is advisory and must never reach a roll, a rule verdict, or an
+engine computation, which matters most for IW-style AI-evaluated conditions,
+since those are model calls a player could otherwise talk into firing.
+
 ---
 
 ## 4. Three specific gaps this exposes

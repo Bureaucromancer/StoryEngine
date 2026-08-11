@@ -266,6 +266,33 @@ is fine; pretending the vocabulary will cover everything forever is not.
 
 ---
 
+## 7b. The guidance box
+
+Every session input carries an expandable guidance box, collapsed and empty by
+default, specified in [03 §5.1](03-modes-and-turn-pipeline.md). It is the
+supported place for "keep this short", "focus on Vera's reaction", "don't
+resolve the fight yet" — the meta-instruction people currently smuggle in as
+`(OOC: …)` inside their action.
+
+UI notes:
+
+- **Collapsed by default, and visibly empty when collapsed.** A guidance box
+  that silently retains last turn's text becomes a standing instruction by
+  accident, which is exactly what [03 §5.1](03-modes-and-turn-pipeline.md) says
+  it must not be. Clear on send.
+- **[OPEN]** Offer the previous guidance as a one-click refill. Convenient for
+  repeated nudges, and one step from the accidental-standing-instruction
+  problem. Probably worth it as an explicit recall action rather than a
+  persisted value.
+- **Show it in the turn record.** It was an input to that turn and belongs in
+  the workbench block list like any other, marked advisory.
+- **The `advisory` marker should be visible**, not just internal. A user typing
+  "she fails the check" into the box should be able to see that this text
+  reached the narrator and not the resolver — otherwise the guarantee in
+  [03 §5.2](03-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
+
+---
+
 ## 8. Editors are not dumb forms
 
 A cross-cutting requirement, and one that has to be decided early precisely

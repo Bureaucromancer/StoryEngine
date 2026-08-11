@@ -218,6 +218,77 @@ divergence distinguishes "app shipped a new default" from "user edited this" —
 the correct solution to updating shipped templates and should be adopted
 wholesale.
 
+### 5.1 The guidance slot
+
+**Every session's input carries an expandable guidance box**, in the style of
+the optional guidance field Infinite Worlds exposes. It is collapsed by default
+and empty by default. It is the supported home for the thing people currently do
+by typing `(OOC: keep this short)` into their action.
+
+That habit is a workaround with real costs, all of which follow from the meta
+instruction being *inside the story text*: it lands in history permanently, gets
+summarised into memory as though it were narrative, is scanned by lorebook
+keyword matching, can be read back as dialogue, and appears in exports. None of
+that is intended by the user typing it. Giving it a field of its own fixes all
+six at once, and it means **no mode needs an OOC convention baked into its core
+prompt text**.
+
+**It is a block, never message content.** Guidance is assembled as its own
+`AssembledBlock` with its own source and role, positioned by the preset. It is
+not concatenated into the user's turn.
+
+**It is one-shot.** Guidance applies to the turn it was written for and does not
+persist. Standing instructions are a different feature with a different home —
+Marinara's Author's Notes, injected every turn. Conflating the two produces
+accumulating meta-instruction, which is the failure the box exists to prevent.
+It is recorded in the turn record (so a rewrite replays it,
+[07 §12.5](07-tech-stack.md)) but does not enter the message history that later
+turns assemble from.
+
+**One slot, several producers.** The same block can be filled by the user's box,
+by an authored rule's `giveGuidance` effect ([09 §3](09-infinite-worlds.md)), or
+by a step such as a Narrative Director push. Treating them as one slot means the
+rule below applies to all of them without three separate arguments.
+
+### 5.2 Guidance is advisory, and must not reach systematic outcomes
+
+**Specification: guidance influences prose. It must never be admissible to any
+call or computation whose output determines a systematic result.**
+
+Concretely, guidance is excluded from:
+
+- the RNG service and anything consuming it ([07 §12](07-tech-stack.md));
+- the pre-narration **evaluation** step that decides what happens
+  ([09 §4.3](09-infinite-worlds.md));
+- **rule condition evaluation**, including AI-evaluated fuzzy conditions
+  ([09 §3](09-infinite-worlds.md));
+- any **engine-computed** channel update ([§4](#4-channels-the-extensibility-mechanism-that-matters));
+- extraction/classification steps whose output is applied as channel effects.
+
+The fuzzy-condition case is the sharp one and the reason this needs stating
+rather than assuming. Those *are* model calls. If guidance were in their context,
+"the player has clearly betrayed her by now" typed into the box would trip a
+rule, and the user would have talked their way past a mechanic without touching
+it. The same applies to an evaluation step: guidance must not be able to argue a
+failed check into a success.
+
+**Enforce it structurally, not by convention.** Guidance blocks carry an
+`advisory: true` marker, and the assembler refuses to admit advisory blocks to
+any call declared as producing effects or verdicts. Steps declare which they are
+([§6](#6-steps-and-the-pipeline)), so this is checkable rather than remembered.
+Because every block is recorded with its source ([02 §8](02-data-model.md)), a
+golden test can assert that no advisory block ever appears in an evaluation,
+rule or extraction context — which makes this one of the cheaper invariants to
+keep honest.
+
+**The honest limit.** Guidance shapes narration, and extraction reads narration,
+so an indirect path exists: "make Vera furious" produces a furious scene, and the
+classifier records her disposition accordingly. That is not a leak, it is the
+system working — guidance changed the *story*, and state follows the story. What
+the rule guarantees is narrower and worth stating precisely: **no direct path
+from guidance to a roll, a rule verdict, or an engine computation.** Claiming a
+total firewall would be false, and users will find the indirect path immediately.
+
 ---
 
 ## 6. Steps and the pipeline
