@@ -453,10 +453,18 @@ So: Tier 1 and Tier 2 always. Tier 3 as capacity allows, with AUR earlier than
 its usage share suggests for the reason above. Everything else, documented
 build scripts and someone else's enthusiasm.
 
-**[OPEN]** Auto-update. Container users have watchtower or a pull; package
-users have their package manager; tarball users have nothing. An in-app update
-check that merely *notices* a new release and links to it is cheap, and pairs
-with the version-awareness the AGPL §13 source link already needs (§5).
+**Auto-update — settled in [12 §4](12-repo-and-releases.md).** We publish a
+`latest` channel that others track, rather than updating in place: container
+users through unraid auto-update or watchtower, package users through their
+package manager, and everyone else through an in-app check that notices a
+release and links to it. That check pairs with the version-awareness the AGPL
+§13 source link already needs (§5). Self-updating a running server with a live
+data directory is not planned.
+
+**None of this packaging work is alpha-phase.** Per
+[12 §0](12-repo-and-releases.md), release engineering begins at beta — defined
+as feature-complete to the 1.0 spec. Until then the distribution strategy is
+build-it-yourself, and the tiers above are a plan rather than a backlog.
 
 ---
 

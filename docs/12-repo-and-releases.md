@@ -6,6 +6,34 @@ project is still design-only.
 
 ---
 
+## 0. Project phases, and what each one gates
+
+Most of this document does not apply yet. Recording the phases so it is clear
+what is deferred rather than forgotten.
+
+| Phase | Definition | Distribution |
+|---|---|---|
+| **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No release artifacts, no channels, no packages. |
+| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §4.4](04-server-multiuser-deployment.md). |
+| **1.0** | Beta, stabilised. | Full packaging matrix. |
+
+**Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0
+spec" is a usefully hard line — it is checkable against the design documents
+rather than negotiable, and it puts the argument about whether something ships
+*before* beta rather than during it.
+
+Two consequences worth naming:
+
+- **Release engineering is post-alpha work.** The packaging tiers, the channels,
+  signing, and CI matrices are all beta-phase concerns. Building them now would
+  be maintaining a distribution for software that has no users.
+- **"Build it yourself" is the alpha distribution strategy, not a permanent
+  philosophy.** [04 §4.4](04-server-multiuser-deployment.md) argues that
+  build-from-source should stay genuinely first-class forever — that remains
+  true, but during alpha it is the *only* path, which is a different claim.
+
+---
+
 ## 1. The model
 
 ```
@@ -100,15 +128,37 @@ automated and reliable" — and the automation condition is the tell.
   built *from* `main`. There is nothing for the branch to contain that `main`
   does not already have. What is actually wanted is a nightly *artifact*.
 
-So express both as **release channels** — `stable` from release tags, `nightly`
-built from `main` on a schedule — realised as container tags and published
-build artifacts. If a git ref is ever genuinely wanted, add it then as an
-automatically-updated alias where no work happens.
+So express these as **release channels**, realised as container tags and
+published build artifacts. If a git ref is ever genuinely wanted, add it then as
+an automatically-updated alias where no work happens.
 
-**And they should only exist once the pipeline is boring.** A nightly channel
-that is often broken teaches people to ignore it, which is worse than not
-offering one. This is squarely a "note it, revisit when CI is reliable" item
-rather than something to build early.
+Three channels:
+
+| Channel | Source | Gate | For |
+|---|---|---|---|
+| **latest** | newest release tag | a release was cut | normal use, and the thing auto-update tracks |
+| **testing** | a chosen commit on `main` | **a human decided `main` is in a good state** | manual testing of unreleased work |
+| **nightly** | `main` HEAD | schedule only | seeing today's state; may be broken |
+
+**`testing` and `nightly` are not the same channel at different frequencies**,
+and most projects blur them. `nightly` is unattended and carries no claim.
+`testing` is somebody's judgement that the current trunk is worth other people's
+time — which is precisely what makes it useful, and why it cannot be a cron job.
+
+**`latest` is what makes automatic updates possible**, and it is worth being
+precise about what that means for a server: we *publish* a channel others track,
+rather than updating ourselves in place. Container users get it through their
+platform (unraid's auto-update, watchtower, a scheduled pull); package users
+through their package manager; tarball and build-it-yourself users through an
+in-app check that notices a new release and links to it.
+
+**Self-updating in place is not planned.** A server with a live data directory,
+in-flight turns and possible schema migration is a bad place for a process to
+rewrite itself, and every mechanism above already delivers the outcome without
+that risk.
+
+**None of this exists until the pipeline is boring.** A nightly that is often
+broken teaches people to ignore it, which is worse than not offering one.
 
 ---
 
@@ -157,7 +207,8 @@ protecting from merge volume rather than from individual mistakes.
 
 ## 8. Open
 
-- **[OPEN]** When to introduce `nightly`. Gated on CI reliability, per §4.
+- **[OPEN]** When to introduce `nightly` and `testing`. Gated on CI reliability
+  per §4, and on reaching beta per §0.
 - **[OPEN]** How long a release line is maintained. "Forever" for the *branch*
   is cheap; "forever" for *fixes* is not, and the two are easy to conflate in
   users' expectations. A stated support window — current minor plus one — costs

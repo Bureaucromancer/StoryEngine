@@ -2,6 +2,10 @@
 
 **Status: early design exploration. Nothing here is decided.**
 
+**Phase: pre-alpha.** No code yet. Distribution, when there is something to
+distribute, is build-it-yourself until beta — which is defined as *feature
+complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
+
 These are working documents for a clean-sheet engine that takes the *feature
 territory* of Aventuras, Marinara Engine and SillyTavern without inheriting
 their accumulated structure. Infinite Worlds — closed-source, and in the same
