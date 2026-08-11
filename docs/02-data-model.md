@@ -421,6 +421,7 @@ interface Setting {
   lore: Ref<Lorebook>[]
   cast: CastEntry[]
   openings: Openings
+  hooks: PlotHook[]        // pending plot turns — see §4.1
   modeHints: { modeId?: ModeId; config?: unknown }   // advisory only
 }
 
@@ -451,6 +452,68 @@ Notes:
   the editor's "add a location" action creates a lorebook entry.
 - `contentRating: null` means unspecified, and consumers must prompt rather than
   assume. Taken directly from Marinara's scenario type; it is correct.
+
+### 4.1 Plot hooks
+
+A pool of authored, discrete, usually major plot turns that a setting or package
+carries and a step fires at an opportune moment. "X and Y have been having an
+affair and will soon announce their marriage." "The Flower Kingdom will declare
+war over some damned island."
+
+```ts
+interface PlotHook {
+  id: string
+  title: string            // for the author's list; never injected
+  premise: string          // the content, handwritten
+  scope: "world" | "local" | "personal"
+
+  // Eligibility — checked mechanically, before any model call
+  involves: Ref<Actor>[]   // moot if these are dead, gone or never introduced
+  requires?: Predicate[]   // channel conditions, or hooks that must have fired
+  blockedBy?: HookId[]     // hooks that make this one nonsensical
+  notBefore?: { turn?: number; afterHook?: HookId }
+
+  // Selection
+  weight: number           // relative likelihood among eligible hooks
+  delivery: "guidance" | "seed" | "immediate"
+  onFire?: Effect[]        // channel effects — this is what makes chains work
+  once: boolean
+}
+```
+
+Settings carry `hooks: PlotHook[]`; packages carry them via their settings.
+Session creation copies them, per prefill-not-binding
+([00 §3.1](00-stance.md)), and the session tracks which have fired.
+
+**What makes this a distinct object rather than a use of an existing one.** It
+is worth placing precisely, because it looks like three things it is not:
+
+| Not | Because |
+|---|---|
+| A lorebook entry | Lore is retrieved by *relevance* to what is being discussed. A hook is selected by *narrative readiness*. Opposite criteria; a hook must stay out of context until it fires. |
+| The Narrative Director's Secret Plot | That is a model-generated hidden arc. This is an author-written pool of discrete, specific events. |
+| An authored rule ([09 §3](09-infinite-worlds.md)) | **A hook is the inverse of a trigger.** A trigger says "when X happens, do Y". A hook is a Y looking for its moment. |
+
+That last line is the useful framing: rules are condition-first, hooks are
+content-first, and the two compose — a hook's `onFire` effects are ordinary rule
+effects, and a rule can require that a hook has fired.
+
+**Chains produce the emergent ordering.** A hook that sets a channel flag on
+firing makes other hooks eligible. A package with thirty loosely-dependent hooks
+therefore yields a different but coherent sequence each playthrough, which is
+exactly the "unpredictable specific flow over handwritten situations" this is
+for. It costs nothing beyond `onFire` and `requires` already being there.
+
+**Declaring `involves` is not optional bookkeeping.** The characteristic failure
+of a system like this is firing a hook about someone who died four sessions ago,
+and it is a *severe* failure — it destroys confidence in the whole mechanism in
+one message. Mechanical eligibility must be checked before anything else, and a
+hook whose cast is gone should be quietly retired rather than adapted.
+
+**[OPEN]** Whether hooks are also a shareable kind in their own right — a "hook
+pack" droppable onto any setting. Attractive for generic material ("a stranger
+arrives with news"), and it cuts against hooks being specific, which is where
+their value is. Lean: not at 1.0.
 
 **[OPEN]** Does a Setting own exactly one "primary" lorebook that its editor
 writes into, or only ever link to independently-owned lorebooks? A primary

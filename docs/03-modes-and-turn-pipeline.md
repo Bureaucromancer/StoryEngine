@@ -326,6 +326,58 @@ rather than folded in above:
   pause mid-turn to ask the player a question and resume with the answer. See
   [06 C5](06-open-questions.md).
 
+### 6.1 The plot-hook selector
+
+The worked example of a step that is genuinely an "agent" in the Marinara sense,
+and the consumer of [02 §4.1](02-data-model.md)'s hook pool.
+
+**Two stages, and the order is the whole design.**
+
+1. **Mechanical eligibility.** Filter the pool by `involves` (cast alive and
+   introduced), `requires`, `blockedBy`, `notBefore`, and already-fired. No model
+   call. This is what stops a hook firing about someone who died four sessions
+   ago, and it also cuts thirty hooks to a handful before anything expensive
+   happens — a package with a large pool must not mean thirty premises in a
+   prompt every turn.
+2. **Judgement.** One cheap call over the survivors: *is now a good moment, and
+   which of these fits what just happened?* Weighted, and permitted to answer
+   "none".
+
+Cheap filter before expensive judgement is the pattern; inverting it is both
+costlier and worse, because a model asked to consider ineligible hooks will
+argue for them.
+
+**Firing goes through the guidance slot** ([§5.1](#51-the-guidance-slot)). The
+selector is simply a fourth producer of that block, so `delivery: "guidance"`
+needs no new mechanism — and `delivery: "seed"` is the same block with an
+instruction to expand rather than weave. `"immediate"` is the only one that
+writes narrative directly, and it should be the rare choice.
+
+Note the asymmetry with [§5.2](#52-guidance-is-advisory-and-must-not-reach-systematic-outcomes):
+the *guidance* a hook emits is advisory like any other, but a hook's `onFire`
+effects are ordinary channel effects and are not. That is correct — the author
+declared those consequences deliberately, whereas the narrator's rendering of
+the twist should not be able to reach back into the machinery.
+
+**Pacing is what makes this work or fail.** A selector that fires every third
+turn produces incoherence, not drama. At minimum it needs a cooldown after
+firing, a cadence rather than running every turn, and an author-facing pacing
+setting (sparse / normal / aggressive / manual-only). Running only at scene or
+chapter boundaries is a plausible default, since those are already the moments a
+twist naturally lands.
+
+**Authoring affordances are part of the feature, not polish.** Somebody with
+thirty hooks cannot test them by playing to turn 200. They need to see which
+fired, which are eligible now, which are blocked *and by what*, and to force-fire
+any hook to see how it reads. Without the last one, large hook pools are
+unauthorable in practice.
+
+**[OPEN]** Whether the selector is core or an extension. The hook *data* should
+be core regardless, so packages authored now stay valid. But pacing judgement is
+an opinion, and a plausible split is a simple built-in selector plus the same
+replaceability retrieval has. **[OPEN]** also whether it ships at 1.0 at all —
+the schema is cheap and forecloses nothing, the agent is a real feature.
+
 **This unifies "agent" and "pipeline stage".** Marinara's agents — Narrative
 Director, Prose Guardian, Echo Chamber, tracker agents, Music DJ — are all steps
 under this definition, differing only in stage and cadence. Marinara's own docs

@@ -188,6 +188,16 @@ rather than growing a second. Open: whether Liquid is actually a good fit for
 rule *conditions*, and what query surface collection-valued channels need.
 *[03 §5, 07]*
 
+**C7b. Plot hooks — scope at 1.0.** [02 §4.1](02-data-model.md) adds an authored
+pool of discrete major plot turns, fired by a selector step
+([03 §6.1](03-modes-and-turn-pipeline.md)). The *schema* is cheap, forecloses
+nothing, and should land at 1.0 so packages authored early stay valid. The
+*selector* is a real feature and its pacing judgement is an opinion — open
+whether a simple built-in ships at 1.0, whether it is replaceable the way
+retrieval is, and whether it is core or an extension. Also open: whether hooks
+are separately shareable as "hook packs" (lean: no, their value is specificity).
+*[02 §4.1, 03 §6.1]*
+
 **C7. Authored rules — the vocabulary itself.** [09 §3](09-infinite-worlds.md)
 proposes taking Infinite Worlds' trigger vocabulary close to wholesale as a
 starting point. Open: which conditions and effects make the 1.0 cut, how the
