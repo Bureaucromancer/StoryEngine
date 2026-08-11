@@ -247,6 +247,14 @@ annotation early: a hand-kept list of settings-needing-restart is wrong within
 two releases, and wrong in the direction where a user changes something, sees
 nothing happen, and concludes the app is broken. *[04 §4b]*
 
+**D0b. Packaging targets.** [04 §4.4](04-server-multiuser-deployment.md) settles
+the list: OCI image as the real distribution, a tarball with a systemd unit as
+the highest-value non-container artifact, then `.deb` and AUR, plus a Windows
+service installer and a Homebrew tap for Apple Silicon. Explicitly declined:
+Flatpak, AppImage, Snap, `.rpm`, LXC templates, Intel macOS binaries. Open:
+whether Tier 3 lands at 1.0 or after, and whether an in-app update *check* ships
+with it. *[04 §4.4]*
+
 **D1. Tailscale target level for 1.0.** Level 1 (detect and show the tailnet
 URL) is cheap and captures most of the practical value; Level 2 (tailnet
 identity as auth, following SillyTavern's trusted-proxy header pattern) changes

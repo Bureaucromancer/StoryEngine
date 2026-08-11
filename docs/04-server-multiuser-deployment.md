@@ -317,6 +317,8 @@ plus a plain `node` install for people who prefer it. No launcher `.exe`, no
 Tauri shell, no Android build at 1.0. If a native wrapper is ever wanted it
 should be a thin client pointing at a server, not a second copy of the engine.
 
+Full target list in [§4.4](#44-which-packages-are-first-class).
+
 **Inside a container, binding loopback is simply broken.** `127.0.0.1` in a
 container is the *container's* loopback, so the process is unreachable from the
 host no matter how the port is mapped. A container image that shipped §4.1's
@@ -345,6 +347,111 @@ than being left to a third party.
 
 **[OPEN]** Whether to also publish to the unraid CA store directly, which means
 maintaining a presence there, versus letting the template be community-submitted.
+
+### 4.4 Which packages are first-class
+
+**The reframe that settles most of this: we are packaging a *service*, not a
+desktop application.** There is no GUI, no tray icon, no file associations, no
+window. The only questions that matter are:
+
+1. Does it install cleanly with its dependencies?
+2. **Does it start on boot and come back after a reboot?**
+3. Where does `/data` live, and does an upgrade leave it alone?
+
+Question 2 is the one that decides the list. A packaging format that does not
+give service integration is not buying anything a tarball does not, and several
+Linux formats that feel obligatory are desktop-application mechanisms wearing
+Linux hats.
+
+#### The tiers
+
+**Tier 1 — the OCI image.** Docker/Podman image plus a compose file. This is the
+distribution; everything else is a convenience. It also covers far more ground
+than it appears to: Podman, unraid, TrueNAS, Synology, Portainer, Proxmox users
+running Docker inside a VM or LXC, and anyone on a NAS. The unraid CA template
+(§4.3) is a thin wrapper over it.
+
+**Tier 2 — a generic tarball with a systemd unit and an install script.** The
+single highest-value non-container artifact, and the one most easily skipped.
+It answers question 2 for *every* Linux that is not Debian or Arch, which means
+it quietly obsoletes the need for `.rpm` at this project's size. Ship the unit
+file, create a service user, put data in a sane place, and document the upgrade
+path.
+
+**Tier 3 — `.deb` and the Arch AUR package.** Conveniences, plus one strategic
+reason each:
+
+- **`.deb`** covers the largest single slice of homelab Linux (Debian, Ubuntu,
+  Raspberry Pi OS) and its users genuinely expect `apt`.
+- **AUR**, as you say, is worth claiming before somebody else does it badly.
+  This is a real distinction rather than territorial instinct: **an AUR package
+  looks official.** It sits under the project's name, and when it breaks the
+  bug reports arrive here. Formats where third-party packaging is clearly
+  branded as third-party — Proxmox helper scripts, Nix expressions — do not
+  carry that problem, and are fine to leave alone.
+
+**Windows and macOS, both of which are Tier 2-ish**, because "run the server on
+the machine I already have" is a real and well-populated case in this audience:
+
+- **Windows** — an installer that registers a Windows Service, so it survives a
+  reboot. This is the same question-2 requirement in different clothes. A
+  double-clickable launcher that dies when the console closes is the failure
+  mode to avoid.
+- **macOS, Apple Silicon** — a **Homebrew tap** is the idiomatic answer for a
+  service, since `brew services start storyengine` gives launchd integration for
+  free and costs a formula rather than a signed `.pkg` and a notarisation dance.
+
+#### Not doing these, and why
+
+- **Flatpak** — a desktop-application format. Sandboxed, desktop-integrated,
+  and a poor fit for a long-running background service. Nobody runs Jellyfin,
+  Immich or Home Assistant this way. It *feels* like it should be on the list and
+  it buys nothing here.
+- **AppImage** — same category error, and your instinct is right that it
+  under-delivers. A portable single file is a desktop convenience; a server
+  wants an install location and a service.
+- **Snap** — as above, plus confinement fights with a data directory the user is
+  expected to browse and hand-edit ([05 §4](05-ui-surfaces.md)).
+- **`.rpm`** — Tier 2's tarball covers it. Revisit only if Fedora/RHEL users turn
+  up in numbers and say otherwise.
+- **LXC templates** — genuine in Proxmox homelabs, but Proxmox users overwhelmingly
+  either run Docker inside a container or use the community helper-script
+  ecosystem, which is clearly branded as third-party and therefore safe to leave
+  to it. Reconsider if that changes; you are right that it feels more like a
+  future than a present.
+- **Intel macOS builds** — agreed, and not marginal. The remaining hardware is a
+  small number of Mac Minis and Mac Pros, all of which can run something better
+  supported. Worth noting the DIY path serves them for free anyway: a Node
+  server with few or no native dependencies builds on Intel macOS without our
+  doing anything, so this is declining to *test and ship* a binary rather than
+  declining to work. Happy to bless it as official if someone else maintains it.
+
+#### On "fuck it, build scripts and DIY"
+
+Mostly right, and worth being precise about where it stops being right.
+
+The instinct is correct because **every package format is a recurring cost, not
+a one-time build**: a CI matrix entry, a signing story, a thing that breaks on
+someone else's schedule, and an implied support promise. For a very small team
+on a power-user project, a short list that works beats a long list that rots.
+Build-from-source should be genuinely first-class — documented, scripted, and
+the path maintainers actually use — not the shameful fallback it usually is.
+
+Where it stops being right is question 2. "Clone the release branch and run it"
+produces installs that die on the first reboot, and those become support load
+regardless of what the README said. That is why Tier 2 exists and why it is
+Tier 2 rather than optional: **the minimum honest artifact for a server is
+something that starts on boot.** A tarball with a unit file and an install script
+is a few hours of work and removes the single most common failure mode.
+
+So: Tier 1 and Tier 2 always. Tier 3 as capacity allows, with AUR earlier than
+its usage share suggests for the reason above. Everything else, documented
+build scripts and someone else's enthusiasm.
+
+**[OPEN]** Auto-update. Container users have watchtower or a pull; package
+users have their package manager; tarball users have nothing. An in-app update
+check that merely *notices* a new release and links to it is cheap, and pairs
+with the version-awareness the AGPL §13 source link already needs (§5).
 
 ---
 
