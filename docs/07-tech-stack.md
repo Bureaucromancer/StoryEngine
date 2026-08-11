@@ -131,7 +131,74 @@ llama.cpp/Ollama/vLLM's compatible endpoints, which is most of it. KoboldCpp and
 raw text-completion backends need the adapter, and how far that goes is
 [06 A4](06-open-questions.md).
 
----
+### 5.1 Prompt length caps are a provider capability
+
+**Every generated string sent to a provider is capped by a declared limit.**
+Prompted most sharply by image generation, where an expanded prompt routinely
+overruns what the model or endpoint will accept, but the same failure exists
+wherever the engine hands a model something it generated.
+
+The failure mode is worse than an error, because the common behaviour is
+**silent truncation**: the request succeeds, the tail is discarded, and the user
+gets a degraded image with nothing to indicate why. That is the specific thing
+this prevents.
+
+So the capability record the adapter already carries gains limits:
+
+```ts
+interface ProviderCapabilities {
+  supportsTools: boolean
+  supportsStructuredOutput: boolean
+  maxPromptChars?: number       // hard: what the endpoint accepts
+  usefulPromptChars?: number    // soft: where quality degrades
+  // …
+}
+```
+
+**Two numbers, not one**, because they are genuinely different questions. CLIP's
+77-token window is a *useful* limit — many implementations chunk past it and
+attention simply degrades — whereas a provider's request-size limit is a hard
+one. Conflating them either wastes headroom or silently produces bad output.
+
+Applies across the board, not only to images: video prompts, TTS input (which
+has real length limits), embedding input, and tool queries are all generated
+strings handed to a provider.
+
+**Ship known-provider defaults.** Nobody should have to discover CLIP's 77
+tokens themselves. Defaults per known provider, overridable per connection —
+and per connection is the right home, because a limit is a property of *that
+endpoint*, and connections are private production config rather than shareable
+content ([00 §3.2](00-stance.md)).
+
+**The cap is an input to generation, not just a guillotine at send.** A step
+generating an image prompt should be *told* its budget so it writes within it —
+which produces a good short prompt rather than a truncated long one. Enforcement
+at send is the backstop, not the mechanism.
+
+**Assemble prompts from prioritised parts.** Where a prompt is composed —
+subject, style, quality tags, character reference, negative — build it as ranked
+fragments and drop the lowest-ranked when over budget, rather than cutting
+mid-sentence. This is the same shape as context budgeting
+([03 §5](03-modes-and-turn-pipeline.md)) and it is what makes §5.2 cheap later.
+
+**Never silently.** The turn record shows the prompt was capped and what was
+dropped, exactly as it does for context blocks
+([02 §8](02-data-model.md)) — including for library-time generation, which
+produces no turn record and therefore records it as field provenance
+([05 §8.2](05-ui-surfaces.md)) instead.
+
+### 5.2 Overrun recovery — post-1.0
+
+An automatic handler that recognises a length-driven refusal and retries
+smaller, bounded by a **regenerate attempts** setting. Deferred, and the
+deferral is honest: providers signal this inconsistently — a clear 400 from one,
+a generic error from another, a silent 200 with truncation from a third — so
+detection is heuristic and needs real-world failures to tune against.
+
+What matters now is that §5.1 makes it cheap when it arrives: with a cap
+declared and prompts assembled from ranked fragments, a retry is *drop the
+lowest fragment and resend*, not a fresh generation round-trip. Recorded in
+[11 §2](11-roadmap.md).
 
 ## 6. Client: React + Vite, with the framework decision deliberately reversible
 
