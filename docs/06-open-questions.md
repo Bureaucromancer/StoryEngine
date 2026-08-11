@@ -240,6 +240,13 @@ sibling, *continue differently* adds a child. Both are offered explicitly.
 
 ## D. Deployment questions
 
+**D0. Config reload tiers.** [04 §4b.1](04-server-multiuser-deployment.md)
+annotates every config key `live` / `reconnect` / `restart`, which makes the
+restart-required notice derived rather than hand-maintained. Settle the
+annotation early: a hand-kept list of settings-needing-restart is wrong within
+two releases, and wrong in the direction where a user changes something, sees
+nothing happen, and concludes the app is broken. *[04 §4b]*
+
 **D1. Tailscale target level for 1.0.** Level 1 (detect and show the tailnet
 URL) is cheap and captures most of the practical value; Level 2 (tailnet
 identity as auth, following SillyTavern's trusted-proxy header pattern) changes

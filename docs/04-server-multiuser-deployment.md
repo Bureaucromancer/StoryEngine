@@ -240,16 +240,41 @@ correct answer is the right one.
 
 ## 4. LAN, Tailscale, and getting to it
 
-### 4.1 Defaults
+### 4.1 Defaults — loopback on first boot
 
-- Bind `0.0.0.0` on a fixed port, auth required, HTTP.
-- Advertise over mDNS as `storyengine.local` so nobody types an IP. This is a
-  small feature with a large effect on whether non-technical household members
-  ever use it.
+**Revised.** An earlier draft had this binding `0.0.0.0` by default, reasoning
+that LAN-first and auth-on-by-default were the same decision. That was wrong in
+one specific and important window: **a freshly installed instance has no admin
+account**, so between first boot and first-run setup there is an interval where
+anyone on the network can reach the create-the-first-admin flow and claim it.
+That is a well-known way self-hosted software gets embarrassed, and the cost of
+avoiding it is one config line.
+
+So:
+
+- **Bind `127.0.0.1` on first boot.** LAN exposure is an explicit act, not a
+  default.
+- **Flipping it must be trivial, and available in both places** — a setting in
+  the UI (admin only), and a plainly-named key in `config.yaml` for people who
+  never open the UI first. Neither may be the only route.
+- **Containers are the exception, necessarily** — see §4.3.
+- Advertise over mDNS as `storyengine.local` once bound beyond loopback, so
+  nobody types an IP. Small feature, large effect on whether non-technical
+  household members ever use it.
 - No HTTPS by default. It cannot be done well on a LAN without either a real
   domain or a private CA, and self-signed certificates train people to click
   through warnings. Document the plain-HTTP-on-a-trusted-LAN position honestly;
   offer a reverse-proxy guide for those who want TLS.
+
+**First-run setup gates everything.** Until an admin account exists, every route
+except setup returns the setup flow. Combined with the loopback default this
+closes the claim window on bare-metal installs.
+
+**When the bind is non-loopback and no admin exists yet**, print a one-time
+setup token to the server console and require it to create the first admin.
+Only someone with host access sees the console, which is exactly the right
+audience. This is what makes §4.3's container default safe rather than merely
+unavoidable.
 
 ### 4.2 Tailscale
 
@@ -285,12 +310,114 @@ than a special case, and treat Level 3 as a genuine later project.
 sight, or must be pre-created by an admin. Auto-provisioning is friendlier and
 means anyone you share your tailnet with gets a StoryEngine account.
 
-### 4.3 Packaging
+### 4.3 Packaging, and why containers invert the bind default
 
 Docker Compose as the primary distribution (one volume, one port, one env file),
 plus a plain `node` install for people who prefer it. No launcher `.exe`, no
 Tauri shell, no Android build at 1.0. If a native wrapper is ever wanted it
 should be a thin client pointing at a server, not a second copy of the engine.
+
+**Inside a container, binding loopback is simply broken.** `127.0.0.1` in a
+container is the *container's* loopback, so the process is unreachable from the
+host no matter how the port is mapped. A container image that shipped §4.1's
+default would appear completely dead on first run, and the resulting bug reports
+would all say "it doesn't work".
+
+So the container image binds `0.0.0.0`, and the security argument shifts rather
+than disappearing:
+
+- **The port mapping is the user's explicit act.** `-p 8080:8080` is the
+  deliberate exposure decision that §4.1 is trying to force; in a container the
+  runtime already forces it.
+- **The console setup token (§4.1) covers the rest** — `docker logs` is exactly
+  the host-access-only channel it assumes.
+
+This should be a single, documented environment variable rather than a hidden
+build difference, so that a bare-metal user can opt into the same behaviour and
+a container user can tighten it.
+
+**Ship an unraid Community Applications template as a first-class artifact.**
+Unraid is a large share of this audience, and a good template — port mapping,
+`/data` volume, WebUI URL, sensible defaults — turns "set it up for the LAN" into
+the install itself, which is the stated goal. A template that only half-works is
+worse than none, so it belongs in the repo and in the release checklist rather
+than being left to a third party.
+
+**[OPEN]** Whether to also publish to the unraid CA store directly, which means
+maintaining a presence there, versus letting the template be community-submitted.
+
+---
+
+## 4b. Reloading, restart-required, and restarting from the UI
+
+Three requests that turn out to be one mechanism, which is the reason to design
+them together rather than bolt the second onto the first.
+
+### 4b.1 Annotate every config key with what it takes to apply
+
+```ts
+reload: "live" | "reconnect" | "restart"
+```
+
+- **live** — re-read on change, effective immediately. Log level, pacing
+  defaults, notification preferences, prompt templates, most feature toggles.
+- **reconnect** — effective for new sessions or after clients reconnect.
+- **restart** — bind address, port, data root, anything establishing a listener
+  or a file handle.
+
+**Everything else follows from this being declared rather than remembered.** The
+restart-required notice (§4b.3) is *derived*, not hand-maintained — which
+matters because a hand-maintained list of "settings that need a restart" is
+wrong within two releases, and wrong in the direction where users change a
+setting, see nothing happen, and conclude the app is broken.
+
+### 4b.2 Content already hot-reloads, and that is not a dev feature
+
+Worth stating because it is easy to file under "dev mode" and it is not: because
+files on disk are canonical and the index is watcher-fed
+([02 §5.1](02-data-model.md)), **editing a lorebook, setting, preset or prompt
+template on disk takes effect with no restart, in production, for everyone.**
+That falls straight out of the storage design.
+
+It is also the property that makes in-UI file access ([05 §4](05-ui-surfaces.md))
+coherent, and the reason prompt-template iteration does not need a dev
+environment at all.
+
+### 4b.3 Restart-required notification
+
+When a change lands — from the UI, the config file, or an extension install —
+the server computes whether anything now pending requires a restart, and surfaces
+a **persistent banner naming the specific changes**, not a toast.
+
+- Server-held, so it survives a page reload and shows on every admin's client.
+- Lists *what* is pending. "Restart required" alone invites people to restart
+  and hope.
+- Sits next to a **Restart now** action (§4b.4).
+
+### 4b.4 Restart from the UI, with honest preconditions
+
+Admin-only, and there are two things it must not do naively.
+
+**It only works under a supervisor.** Docker with `restart: unless-stopped`,
+systemd, or unraid will bring the process back; a bare `node server.js` will
+simply exit and the admin who clicked the button now has no server and possibly
+no shell. So: detect whether the process is supervised, and where it is not,
+disable the control with an explanation rather than offering a trap.
+
+**Drain before exiting.** A restart during a turn loses it — C4 says in-flight
+turns are recorded as failed rather than resumed, which is survivable but rude
+when self-inflicted. Restart should refuse new turns, wait for in-flight ones
+within a timeout, then exit. And because this is multi-user, the confirmation
+must say what it is about to interrupt: *"2 other users have active sessions."*
+
+Clients reconnect on their own, since the event stream already reconnects
+([07 §8](07-tech-stack.md)), so the user-visible result is a brief disconnected
+banner rather than a manual refresh.
+
+**[OPEN]** Whether extension install/uninstall can avoid a full restart. In-process
+ESM modules make true unloading hard — stale references, already-registered
+channel definitions — so "restart required" is the honest 1.0 answer, and a
+cleaner lifecycle depends on [06 A1](06-open-questions.md).
 
 ---
 

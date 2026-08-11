@@ -255,6 +255,43 @@ cheapest possible enforcement of the design's central bet.
 
 ---
 
+## 10b. Dev mode
+
+**A priority, not a nicety.** Marinara's live-refresh-on-change is the bar. The
+loop this shortens is the one that dominates work on this kind of app — change a
+prompt, run a turn, read the output, change it again — and every second of
+restart in that loop is paid hundreds of times a day.
+
+What reloads, in descending order of how easily:
+
+| Changes to | Behaviour | Notes |
+|---|---|---|
+| Client code | Vite HMR | Free. |
+| **Content and templates** | **Live, in production too** | Falls out of the watcher-fed index ([04 §4b.2](04-server-multiuser-deployment.md)). Not a dev-mode feature. |
+| Config marked `live` | Re-read on change | Per [04 §4b.1](04-server-multiuser-deployment.md). |
+| Server code | Watch-restart (`tsx watch` or equivalent) | Fast, but drops SSE connections and in-flight turns. |
+| Extension code | Process restart | True ESM unloading is not worth attempting; see [04 §4b.4](04-server-multiuser-deployment.md). |
+| Config marked `restart` | Process restart | Notified, not silently ignored. |
+
+Two dev-mode specifics worth building deliberately:
+
+- **The client must survive a server restart gracefully.** In dev this happens
+  constantly, so the SSE reconnect path is exercised more in an hour of
+  development than in a month of use. That is a gift: the reconnect logic gets
+  hardened for free, provided the client shows a quiet reconnecting state and
+  resumes rather than erroring out and demanding a refresh.
+- **Preserve the session across a restart.** Losing your place on every server
+  reload makes the loop useless. Since sessions are files on disk and the client
+  is a view ([04 §2](04-server-multiuser-deployment.md)), this mostly works
+  already — but it needs to be verified deliberately rather than assumed.
+
+**[OPEN]** Whether prompt-template changes should trigger anything beyond taking
+effect next turn — a "re-run the last turn with the new template" action would
+close the iteration loop entirely, and it is nearly free given the turn record
+already holds everything needed to re-assemble ([02 §8](02-data-model.md)).
+
+---
+
 ## 11. Testing
 
 - **Vitest** (both Marinara and Aventuras use it), **Playwright** for end-to-end.
