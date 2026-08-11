@@ -248,6 +248,8 @@ and no plan below should be built on the assumption that it did.
 | Generation pipeline phases | Aventuras `services/generation/phases/` | **PORT the structure** | Closest thing to our turn pipeline. |
 | Agent/step execution | Marinara `agents/agent-executor.ts` etc. | **REBUILD** | Unify agent and pipeline step. |
 | Extension capability API | Marinara `CapabilityRuntime` | **PORT the design** | Including its typed-union instinct. |
+| Baked-in assistant | Marinara Professor Mari | **PORT the shape, REBUILD on sessions** | Suggestion chips and change-review are worth taking directly. [03 §7.4](03-modes-and-turn-pipeline.md) |
+| Assistant shell/filesystem tools (`bash`, `write`, shell sandbox) | Marinara | **DISCARD** | A coding-agent tool surface. On a multi-user LAN server it is privilege escalation wearing a friendly hat. Domain tools only. |
 | Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our `.sepack`. |
 | Browser-side orchestration | ST | **DISCARD** | [00 §2.9](00-stance.md). |
 | Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [05 §1](05-ui-surfaces.md). |

@@ -398,7 +398,10 @@ Consequences worth stating:
 
 ---
 
-## 7. The three modes at 1.0
+## 7. The modes at 1.0
+
+Three chat modes, plus the assistant (§7.4), which is not a chat mode but is
+built out of the same parts.
 
 ### 7.1 Messages
 
@@ -476,6 +479,112 @@ Design notes:
 - The three address modes (in-scene / to the party / to the GM) generalise to an
   **input target** on the input bar, available to any mode with more than one
   addressable audience. Messages mode gets "reply to X" from the same mechanism.
+
+### 7.4 The assistant
+
+A baked-in AI helper, in the spirit of Marinara's Professor Mari: summonable
+anywhere, knows the app, and can help you build things rather than only explain
+them. It complements the in-editor field assists ([05 §8](05-ui-surfaces.md))
+rather than replacing them — those are for *this field*, the assistant is for
+"help me work out what I'm doing".
+
+**It is a session, in a mode, with an actor card. That is the whole design.**
+
+Everything else follows for free, which is the point:
+
+| Already built | Applies to the assistant unchanged |
+|---|---|
+| Sessions, turns, event stream | It streams and reconnects like anything else |
+| The turn record and workbench | Its own calls are inspectable — you can debug the thing that debugs your setup |
+| Rewrite / reroll | "Say that again differently" costs nothing to implement |
+| Guidance box | "Be brief" as an out-of-band nudge |
+| Branching | Explore two approaches to a problem |
+| Notifications | A long analysis finishing tells you |
+| Per-user ownership | It acts as you, with your permissions, over your library |
+
+If building the assistant requires a parallel chat implementation, something in
+the mode contract is wrong — so this doubles as a test of
+[§2](#2-the-mode-contract), alongside [§9](#9-what-an-extension-mode-has-to-be-able-to-do).
+
+#### Capabilities belong to the mode, personality to the card
+
+The split that makes card-swapping work, and the same one as
+[00 §2.4](00-stance.md): the card carries voice, the mode carries what it can
+*do*. Swapping the assistant's card changes how it talks and nothing else. Point
+it at a roleplay character for fun and it still works.
+
+The default assistant card ships as an ordinary actor in the library, editable
+and replaceable like any other.
+
+#### Tools: domain, not filesystem
+
+Marinara's assistant has `read`, `grep`, `find`, `ls`, `edit`, `write` and
+**`bash`**, backed by a shell sandbox. That is a coding-agent tool surface, and
+it is the one part of the design not to copy. On a multi-user LAN server, an
+in-app assistant with shell access is a privilege-escalation path wearing a
+friendly hat — any user who can talk to it can talk it into running something.
+
+Scope tools to the **domain** instead: search and read the app's own docs;
+read and propose changes to library objects the user owns; explain the assembled
+context of a turn; diagnose a failing preset or a lorebook that never fires.
+Everything expressed as library operations, which are already permission-scoped
+per user ([04 §3.3](04-server-multiuser-deployment.md)).
+
+**Docs retrieval needs no new machinery.** Ship the documentation as a built-in
+lorebook and attach it to the assistant. Keyword activation plus the budgeter
+already do the work ([02 §3](02-data-model.md)).
+
+#### Propose, then apply
+
+Every mutation is a reviewable diff, not a silent write. Marinara has this
+instinct too — a change-review service sits beside its workspace agent — and it
+matters more here because the library is shared
+([04 §3.3](04-server-multiuser-deployment.md)): an assistant that edits a
+character somebody else is using should be showing its work.
+
+Applied changes carry `GeneratedFieldProvenance` ([05 §8.2](05-ui-surfaces.md))
+like any other machine-written content, so "the assistant wrote this bit" stays
+answerable later.
+
+#### Ambient context, disclosed
+
+The assistant should know what you are looking at — the actor you have open, the
+session you were in — or every request starts with the user re-describing their
+own screen. That context is a block the client contributes, and it must be
+**visible in the turn record like any other block**. An assistant that silently
+knows what is on your screen is unsettling; one that shows you it knows is
+useful.
+
+#### Starter prompts
+
+Marinara ships suggestion chips — labelled entry points that expand into a
+pre-written prompt ("Create a character", "Create a lorebook"). Cheap, and the
+main thing standing between a blank assistant box and people actually using it.
+Worth copying directly.
+
+#### On the default card's tone
+
+Stated as a principle because it is a real product decision and the reason the
+card is swappable at all:
+
+> **The default assistant carries competence, not character.**
+
+People summon an assistant when they are confused, stuck, or annoyed. Attitude
+in that moment is a tax on someone already paying one, and it does not become
+less of a tax when it is well-written. This is the opposite of a companion card,
+where personality *is* the product.
+
+Warm and plain, not brusque and not a mascot — the register of a colleague who
+knows the tool and is not performing. Everything with a personality-forward
+default in this space is fun for its author and a tax on everyone else, and the
+swappable card is exactly how both camps get served: neutral by default, and one
+click to something with more of a voice for those who want it.
+
+**[OPEN]** Whether the assistant is a distinct mode or a configuration of
+Messages mode. Messages already does one-to-one chat with an actor; the
+differences are the tool surface and the ambient context block. A configuration
+is tempting and probably right, but the tool surface is a large enough
+difference to be worth checking.
 
 ---
 

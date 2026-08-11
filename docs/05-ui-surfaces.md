@@ -268,6 +268,28 @@ is fine; pretending the vocabulary will cover everything forever is not.
 
 ---
 
+## 6b. The assistant surface
+
+Specified in [03 §7.4](03-modes-and-turn-pipeline.md), which covers why it is a
+session rather than a bespoke thing. The UI side:
+
+- **Summonable from anywhere**, including mid-session, without losing your
+  place. A panel rather than a route.
+- **Two scales of help, deliberately distinct.** The in-editor field assist
+  ([§8](#8-editors-are-not-dumb-forms)) is for *this field*; the assistant is
+  for "help me work out what I'm doing". Both should exist and neither should
+  try to be the other — a refine box that opens a chat is annoying, and an
+  assistant that can only rewrite one field is useless.
+- **Starter prompts on an empty assistant**, per Marinara's suggestion chips.
+  The gap between a blank input and knowing what to ask is most of why in-app
+  assistants go unused.
+- **Proposed changes render as diffs**, reviewed and applied explicitly, never
+  written silently.
+- **Show what it can see.** The ambient context — which actor is open, which
+  session you came from — belongs on screen, not just in the turn record.
+
+---
+
 ## 7a. In-app notification, and sounds
 
 The client half of [04 §2b](04-server-multiuser-deployment.md). Routing is
