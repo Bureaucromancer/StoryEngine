@@ -1,8 +1,11 @@
 # 02 — Data model
 
-**Status: proposal.** Shapes below are sketches for arguing about, not schemas.
-Field names are indicative. TypeScript is used because it is compact, not because
-it implies an implementation language.
+**Status: proposal.** Shapes below are sketches for arguing about, and this
+document exists to explain *why* they are shaped as they are.
+
+**For the consolidated, reconciled schemas, see [13](13-schemas.md).** Where the
+two differ, 13 is current — this document keeps the reasoning, 13 carries the
+definitions.
 
 ---
 
