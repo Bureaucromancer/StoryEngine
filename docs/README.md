@@ -37,6 +37,7 @@ and also flagged inline as **[OPEN]**.
 | [11-roadmap.md](11-roadmap.md) | Post-1.0 roadmap, plus desired extensions — hints for expansion authors |
 | [12-repo-and-releases.md](12-repo-and-releases.md) | Branching and release model; draft of the eventual CONTRIBUTING.md |
 | [13-schemas.md](13-schemas.md) | Proposed schemas for the portable structures, and the stability boundary |
+| [14-cross-session-memory.md](14-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 
 ## The four commitments these documents are built around
 

@@ -294,10 +294,13 @@ Flagged so the gaps are known rather than discovered:
 - **Image, audio and video generation.** All three sources invest heavily here.
   Nothing above says how generation assets attach to sessions and actors, how
   image-prompt construction relates to the turn record, or what ships at 1.0.
-- **Memory and summarisation.** Aventuras has chapters, batched summarisation and
-  retrieval; Marinara has rolling summaries and session recaps. The channel model
-  gestures at where this lives but nothing here designs it. This is a large
-  omission and probably the next document to write.
+- **Memory and summarisation *within* a session.** Aventuras has chapters,
+  batched summarisation and retrieval; Marinara has rolling summaries and session
+  recaps. Still the largest omission. Note one constraint already fixed by
+  [10 §5](10-branching.md): summaries must be content-addressed values keyed by
+  their inputs, not a mutating running total, or branching stops being cheap.
+  Memory *across* sessions is now covered separately in
+  [14](14-cross-session-memory.md).
 - **Embeddings and vector search.** Assumed available as a retriever
   ([02 §3](02-data-model.md)); no position on what provides it or where the index
   lives.
