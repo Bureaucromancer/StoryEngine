@@ -219,7 +219,7 @@ judgement call nobody wants to make on someone else's data.
 So:
 
 ```
-/data/system/…               shipped with the app. Read-only. Not "shared".
+/data/system/library/        shipped with the app. Read-only. Loads for everyone.
 /data/users/<handle>/
   library/                   actors, lorebooks, settings, packages, presets
   sessions/
@@ -234,10 +234,20 @@ So:
 - **Duplication is fine.** Two users with the same character is two files. Disk
   is cheap, and the import/export story ([02 §5.2](02-data-model.md)) plus the
   in-UI file browser ([05 §4](05-ui-surfaces.md)) already make copying one drag.
-- **Built-in content is not shared user content.** App-shipped lorebooks (the
-  documentation the assistant reads), default presets and starter actors live in
-  `/data/system/`, read-only, outside anyone's library. That is a distinct tier
-  and it does not imply a sharing mechanism.
+- **The system library is a full library, not a special case.** Same layout,
+  same loader, same index, same UI — a user's effective library is *their
+  objects plus the system's*, resolved as one query. What it ships is small: the
+  default assistant card, the documentation lorebook, a default preset per mode,
+  and an onboarding sample. Shipping lots of content is a maintenance burden and
+  a taste imposition.
+- **System objects are read-only, and editing one forks it.** "Copy to my
+  library" makes a real copy with a new id, provenance pointing at the original,
+  and no live link — so a later app update cannot change someone's fork. That
+  also *is* the pinning mechanism: if you need something never to change, copy
+  it.
+- **Refs may point at system objects**, which is the point of shipping a
+  lorebook. If an update removes one, the ref dangles visibly and non-blockingly
+  like any other ([00 §3.3](00-stance.md)).
 - **Connections stay per-user and private.** They hold credentials.
 - **Refs never cross users.** A setting's link to a lorebook resolves inside that
   user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
@@ -264,6 +274,19 @@ rather than a schema migration:
    [13](13-schemas.md) untouched.
 4. **No visibility or ownership fields until then.** Not having them is free;
    removing them later is churn.
+
+**And the system library is a working rehearsal of exactly that.** Merging two
+sources into one effective library — resolving them in a query, showing which
+object came from where, offering copy-to-mine on the read-only ones — is the
+whole mechanism a shared library needs. Building it now for `system/` means the
+later feature is a third path in an existing merge rather than a new concept.
+
+Worth naming the corollary honestly: **the system library is one write
+permission away from being the shared library.** An admin able to write there
+would make it the de-facto household share. That is deliberately not offered at
+1.0, because it would smuggle in the permission model this section defers — but
+it is very likely the shape sharing eventually takes, and it means the feature
+may cost far less than it appears to.
 
 ### 3.4 Concurrent edits
 

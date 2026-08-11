@@ -79,9 +79,13 @@ user gets a complete independent library, with no `owner` or `visibility`
 fields, because merging separate stores later is mechanical while splitting a
 shared one is adjudication. Four decisions keep the door open — globally unique
 ids, provenance recording origin, sharing arriving as a new *location* rather
-than a new field, and no ownership fields until then. Open: when sharing
-arrives, and whether it brings a real permission model or just a copy-from
-affordance. *[04 §3.3, 02 §5.1]*
+than a new field, and no ownership fields until then. A **full system library**
+ships alongside — same layout, read-only, loaded for everyone — which doubles as
+a working rehearsal of the merge a shared library would need. Note the corollary:
+that library is one admin write permission away from *being* the household
+share, which is not offered at 1.0 but is likely the shape sharing takes. Open:
+when it arrives, and whether it needs a real permission model or just
+copy-from. *[04 §3.3, 02 §5.1]*
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural

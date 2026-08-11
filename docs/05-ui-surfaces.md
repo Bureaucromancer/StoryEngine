@@ -150,7 +150,7 @@ server-side:
 | Root | `read` | `write` |
 |---|---|---|
 | `/data/users/<own handle>/` | yes | yes — this includes their whole library |
-| `/data/system/` | yes | never — app-shipped content |
+| `/data/system/library/` | yes | never — app-shipped, and an update would overwrite edits anyway |
 | `/data/users/<other>/` | never | never |
 | `/data/config.yaml`, `/data/index/` | never | never |
 
@@ -218,7 +218,12 @@ Where it should differ:
 - **One library surface for all portable kinds**, with a kind filter — not five
   panels behind five buttons. ("Portable" as in exportable
   ([13 §1](13-schemas.md)); libraries themselves are per-user and nothing is
-  shared between accounts on one install.) Objects link across kinds constantly and the
+  shared between accounts on one install.)
+- **The user's library and the system library render as one list**, with a
+  source badge and a filter, not as two panels. Hunting in two places to find a
+  character is worse than a badge. Read-only system objects show a **Copy to my
+  library** action in place of edit — which forks a real copy they own
+  ([04 §3.3](04-server-multiuser-deployment.md)). Objects link across kinds constantly and the
   cross-links should be navigable inline.
 - **Links are visible and bidirectional.** From a lorebook: which settings,
   actors and packages reference this. From an actor: which lorebooks it links.

@@ -535,10 +535,13 @@ disposable index**.
 ```
 /data
   config.yaml
-  system/                   # shipped with the app. Read-only. Not user content.
-    lorebooks/              #   e.g. the documentation the assistant reads
-    presets/
-    actors/                 #   default assistant card, starter actors
+  system/
+    library/                # shipped with the app. Read-only. Loads for everyone.
+      actors/               #   default assistant card, starter actors
+      lorebooks/            #   the documentation the assistant reads
+      settings/
+      presets/              #   default preset per mode
+      packages/             #   onboarding sample
   users/
     <handle>/
       account.json
@@ -558,14 +561,18 @@ disposable index**.
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
 
-**Every user owns a complete, independent library.** There is no shared area and
-no ownership field — the path is the owner
-([04 §3.3](04-server-multiuser-deployment.md)). Sharing between users on one
-install is deferred rather than designed out, and when it arrives it should be a
-new *location* beside these, not a field added to every object.
+**Every user owns a complete, independent library.** There is no shared *user*
+area and no ownership field — the path is the owner
+([04 §3.3](04-server-multiuser-deployment.md)).
 
-`system/` is app-shipped content, which is a different thing from shared user
-content and does not imply a sharing mechanism.
+**`system/library/` is a full library with the same layout**, shipped with the
+app, read-only, and loaded for every user alongside their own. Same structure
+means the same loader, the same index code and the same UI — the merge is a
+query, not a special case.
+
+Sharing between *users* stays deferred, and this is the shape it will most
+likely take: a third location read the same way. See
+[04 §3.3](04-server-multiuser-deployment.md).
 
 The rule that makes this work: **the index is never authoritative and never the
 only home for a fact.** It exists for search, listing, tag queries, cross-refs
