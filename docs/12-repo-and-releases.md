@@ -22,6 +22,12 @@ spec" is a usefully hard line — it is checkable against the design documents
 rather than negotiable, and it puts the argument about whether something ships
 *before* beta rather than during it.
 
+**It is also only half the bar.** The other half is release engineering —
+build chains, release automation, and workflows stable enough that shipping is
+repeatable rather than an event. That belongs *in* the beta gate rather than
+after it, and is sketched pending expansion in
+[15 §7](15-work-plan.md).
+
 Two consequences worth naming:
 
 - **Release engineering is post-alpha work.** The packaging tiers, the channels,

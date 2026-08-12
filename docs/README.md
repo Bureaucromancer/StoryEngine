@@ -55,6 +55,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | Doc | What it covers |
 |---|---|
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
+| [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
 | [12-repo-and-releases.md](12-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
 
 ### What comes after, and what is unresolved
