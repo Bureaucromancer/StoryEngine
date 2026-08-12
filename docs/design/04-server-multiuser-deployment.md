@@ -198,13 +198,43 @@ interface Account {
   role: "admin" | "user"
   enabled: boolean
   locale: string | null   // BCP-47; defaulted from Accept-Language on first login
+  capabilities: Capabilities
   createdAt: number
+}
+
+/** Named, enumerated, and deliberately not a role system — see §4.2.1. */
+interface Capabilities {
+  /** May add and use their own connections. When false, only system
+   *  connections resolve for this user. Default true. See §4.5. */
+  privateConnections: boolean
+  /** In-UI file browser over their own directory. [05 §4.2] */
+  fileAccess: "none" | "read" | "write"
+  /** May enable installed extensions for their own sessions. Installing
+   *  remains admin-only. [17 §7] */
+  enableExtensions: boolean
 }
 ```
 
-First-run creates the first admin. Admins manage accounts and install
-extensions; users do everything else. That is the entire authorisation model, and
-it should stay that small unless something forces otherwise.
+First-run creates the first admin. Admins manage accounts, install extensions,
+and administer the system scope (§4.3, §4.5). Everything else is a user.
+
+#### 4.2.1 Named capabilities, not a role system
+
+Capabilities are a **flat, enumerated set on the account**. There are no roles
+beyond `admin` / `user`, no groups, and no per-object permissions.
+
+This is adequate while the set is small, and it is small: three entries, each a
+plain answer to a question an admin will actually be asked ("can the kids add
+their own API keys?"). The reason to enumerate them in one structure now, rather
+than scattering booleans as they arise, is that **a future role system then
+becomes a move rather than an invention** — capabilities relocate from the
+account to a role, and accounts reference roles. Additive, and only if wanted.
+
+**A real role system is post-2.0** ([11 §3](11-roadmap.md)). The signals that it
+is needed: a capability that is not a simple boolean, wanting to apply the same
+set to several people, or wanting permissions scoped to particular objects
+rather than to the account. None of those is true yet, and building an RBAC
+system for a household of four would be the wrong shape of effort.
 
 ### 4.3 Everything is per-user. Sharing is deferred.
 
@@ -351,6 +381,33 @@ Personal bindings win over system defaults, visibly and switchably. If an admin
 removes a system connection that bindings point at, those bindings dangle and
 the user is told to pick another — the same non-blocking treatment every other
 dangling reference gets ([00 §3.3](00-stance.md)).
+
+#### Private connections are a per-account capability
+
+`capabilities.privateConnections` (§4.2) decides whether a user may have their
+own connections at all. **Default true** — the threat model is access separation
+among people who trust each other, so permissive by default and an admin turns
+it off deliberately. An operator who wants everyone on the house key, with
+spending and provider choice controlled, has one switch.
+
+Three details that decide whether it works:
+
+- **Enforced at resolution, not at creation.** A user with `fileAccess: "write"`
+  can drop a connection file into their own `connections/` directory
+  ([05 §4](05-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
+  loader must ignore personal connections for a user without the capability.
+  That also means the same rule covers extensions for free, since they request
+  calls by role and the host resolves ([17 §4](17-extensions.md)).
+- **Revoking disables, never deletes.** Existing personal connections stay on
+  disk and stop resolving, and the user is *told* rather than left wondering why
+  a model call started failing. Role bindings pointing at them dangle and fall
+  back to system bindings — the existing non-blocking behaviour, no new
+  mechanism.
+- **The dead-end state needs surfacing.** A user with no private connections
+  allowed and no system connection available cannot do anything at all. The
+  admin screen should say so plainly — *"2 users have no usable connection"* —
+  because it is otherwise discovered as a bug report from someone who cannot
+  send a message.
 
 #### Two things this makes more pressing
 

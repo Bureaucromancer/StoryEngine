@@ -144,8 +144,9 @@ the storage design has already failed** on its own terms.
 type FileAccess = "none" | "read" | "write"
 ```
 
-Per account, admin-granted, default `none`. Scoped roots, resolved and enforced
-server-side:
+One of the named account capabilities
+([04 §4.2](04-server-multiuser-deployment.md)), admin-granted, default `none`.
+Scoped roots, resolved and enforced server-side:
 
 | Root | `read` | `write` |
 |---|---|---|

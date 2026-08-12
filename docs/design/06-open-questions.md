@@ -121,7 +121,13 @@ binds `prose` and `fast` to system connections and personal bindings override.
 Two consequences worth carrying: cost attribution stops being optional once
 everyone spends one key, and rate limits become shared. Still true that
 library-time assists are a second call path, so role resolution must work outside
-a session ([05 §11.4](05-ui-surfaces.md)). *[04 §4.5, 07 §5.1]*
+a session ([05 §11.4](05-ui-surfaces.md)).
+
+**Extended: whether a user may hold private connections at all is a named
+account capability**, default true, enforced at resolution rather than creation
+so the file browser is not a bypass. Revoking disables rather than deletes.
+Beyond that, a general role system is post-2.0 ([04 §4.2.1](04-server-multiuser-deployment.md),
+[11 §3](11-roadmap.md)). *[04 §4.5, 04 §4.2, 07 §5.1]*
 
 **A4. Raw-completion support.** [00 §2.2] proposes making chat-shaped APIs with
 structured output the core contract and raw completion an edge adapter. How much
