@@ -430,11 +430,21 @@ be assumed to:
   server services. Verdict: post-1.0, extension, probably not by us — but its
   *carryover* mechanism generalises into something worth having, and attempting
   it reveals two gaps in the extension model.
-- **Marinara's tactical combat engine**, spatial-context / hierarchical maps.
-- **All three image/video/TTS pipelines**, beyond noting they exist.
 - **ST's extension runtime and the `third-party` loading path** — relevant to
   [06 A1](06-open-questions.md) and worth a look before deciding the extension
-  execution model.
+  execution model. The remaining item most worth closing.
 - **Client component trees** in all three.
-- **Marinara's `professor-mari`, `sidecar`, `achievements`, `bot-browser`**
-  services.
+- **Marinara's `bot-browser`** service.
+
+### 9.1 Closed without further examination
+
+Decided rather than investigated, because the verdict does not depend on the
+detail:
+
+| | Verdict |
+|---|---|
+| **Tactical combat engine**, spatial context, hierarchical maps | **Out of scope.** Grid battle is a desired extension at most ([11 §4.3](11-roadmap.md)), and the largest one there. Not examined further because nothing in core depends on the answer. |
+| **Achievements** | **DISCARD.** No plans, no roadmap entry, no seam owed to it. |
+| **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [07 §5.2](07-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
+| **`professor-mari`** | Examined for the assistant design; see [03 §7.4](03-modes-and-turn-pipeline.md). General-purpose assistant yes, its tool surface no, its default tone no, and the card is swappable. |
+| **Image / video / TTS pipelines** | Not ported, but the *requirement* is now designed: per-turn and on-demand illustration is a 1.0 feature, with video and speech as further kinds of the same mechanism ([03 §10](03-modes-and-turn-pipeline.md)). |

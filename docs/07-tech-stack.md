@@ -131,7 +131,69 @@ llama.cpp/Ollama/vLLM's compatible endpoints, which is most of it. KoboldCpp and
 raw text-completion backends need the adapter, and how far that goes is
 [06 A4](06-open-questions.md).
 
-### 5.1 Prompt length caps are a provider capability
+### 5.1 Model roles, and a hi/lo default
+
+**Steps never name a model. They name a role, and the install binds roles to
+connections.**
+
+```
+prose · fast · reasoning · vision · image · video · speech · embedding
+```
+
+Narration asks for `prose`; a classification or summarisation step asks for
+`fast`; a rendition step asks for `image` ([03 §10](03-modes-and-turn-pipeline.md)).
+Nothing in a mode, step or extension refers to a provider or a model id — which
+is what makes an install portable, an extension safe to share, and per-actor
+`ModelHint` ([13 §3](13-schemas.md)) resolvable as a *request* rather than a
+binding.
+
+**Default the eight roles onto two bindings.** A system-wide default plus
+per-agent overrides is not enough on its own, and eight separate pickers is too
+much setup for anyone. So the first-run question is two models — **a good one
+and a cheap one** — and every role defaults onto one of them:
+
+| Binds to *hi* | Binds to *lo* |
+|---|---|
+| `prose`, `reasoning` | `fast`, `vision`, `embedding` |
+
+`image`, `video` and `speech` are unset until a matching connection exists,
+because there is no sensible text-model fallback for them.
+
+Overrides layer on top in a fixed order: **install default → role binding →
+session override → step override → actor hint.** Most people set two models and
+never see the rest; someone who wants a different narrator for one session, or a
+cheap model for one noisy step, has a place to say so.
+
+**[OPEN]** Whether `hi`/`lo` are real named tiers in the data model or purely a
+setup-flow convenience over eight independent bindings. The convenience reading
+is simpler and probably right; the tier reading makes "use the cheap one for
+this" expressible without knowing which roles are involved.
+
+### 5.2 No embedded model runtime
+
+**Local models are supported as connections. They are never embedded in the
+server.**
+
+Marinara ships a `sidecar` service and a bundled local model for scene effects.
+The appeal is obvious — no configuration, no second process, free inference for
+small tasks — and it is still the wrong trade here:
+
+- It puts **model weights in the distribution**, which breaks the packaging
+  story ([04 §5.4](04-server-multiuser-deployment.md)) — the container stops
+  being small, and the tarball stops being a tarball.
+- It makes the server **compete with itself for GPU and RAM** on a box that is
+  usually also doing something else.
+- It drags in **platform-specific native builds**, which is precisely what the
+  runtime choice avoided ([§2](#2-runtime-node-lts)).
+- And it duplicates something the ecosystem already does better: **Ollama,
+  llama.cpp and vLLM all expose OpenAI-compatible endpoints**, so a local model
+  is already just a connection with a `localhost` URL and no key.
+
+The `fast` role in §5.0 is the honest version of the same idea: point it at a
+local endpoint and cheap work runs locally, without the engine owning an
+inference stack.
+
+### 5.3 Prompt length caps are a provider capability
 
 **Every generated string sent to a provider is capped by a declared limit.**
 Prompted most sharply by image generation, where an expanded prompt routinely
@@ -187,7 +249,7 @@ dropped, exactly as it does for context blocks
 produces no turn record and therefore records it as field provenance
 ([05 §11.2](05-ui-surfaces.md)) instead.
 
-### 5.2 Overrun recovery — post-1.0
+### 5.4 Overrun recovery — post-1.0
 
 An automatic handler that recognises a length-driven refusal and retries
 smaller, bounded by a **regenerate attempts** setting. Deferred, and the

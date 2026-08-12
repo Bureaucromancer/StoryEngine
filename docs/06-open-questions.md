@@ -314,9 +314,13 @@ desktop one from the start. *[05 §1]*
 
 Flagged so the gaps are known rather than discovered:
 
-- **Image, audio and video generation.** All three sources invest heavily here.
-  Nothing above says how generation assets attach to sessions and actors, how
-  image-prompt construction relates to the turn record, or what ships at 1.0.
+- ~~Image, audio and video generation~~ — **now designed** as *renditions*
+  ([03 §10](03-modes-and-turn-pipeline.md)). Per-turn and on-demand illustration
+  is a 1.0 feature; video and speech are further kinds of the same mechanism and
+  are not. What remains open there: whether an on-demand rendition of an old turn
+  assembles from that turn's recorded state or from the present, and the
+  transcript surface (placeholder while pending, retry on failure) is not yet
+  designed.
 - **Memory and summarisation *within* a session.** Aventuras has chapters,
   batched summarisation and retrieval; Marinara has rolling summaries and session
   recaps. Still the largest omission. Note one constraint already fixed by
@@ -327,6 +331,7 @@ Flagged so the gaps are known rather than discovered:
 - **Embeddings and vector search.** Assumed available as a retriever
   ([02 §3](02-data-model.md)); no position on what provides it or where the index
   lives.
+- **Renditions in the transcript** — placeholder while pending, retry on failure, and an **Illustrate** action on any message ([03 §10](03-modes-and-turn-pipeline.md)). Not yet designed as a surface.
 - **Import from SillyTavern chat logs and Marinara/Aventuras exports.** Card
   import is sketched ([02 §2.7](02-data-model.md)); session/chat history import
   is not.

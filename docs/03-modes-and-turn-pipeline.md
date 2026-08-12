@@ -656,3 +656,107 @@ extension fully trusted. That is more defensible now that libraries are per-user
 one install rather than one household's shared content — but "fully trusted"
 still means it can read every user's directory, so admin-only installation
 remains the gate. Needs an explicit decision because it is very hard to retrofit.
+
+---
+
+## 10. Renditions: illustration, and the shape video and speech share
+
+**Per-turn and on-demand illustration is a 1.0 feature.** Ask for an image, or a
+short series, for a turn — automatically each turn, or on demand from any
+message in the history. Video and speech are lower priority and are *not* 1.0,
+but the mechanism is designed so they are additional **kinds** rather than
+additional subsystems.
+
+### 10.1 One concept, three kinds
+
+A **rendition** is a non-text artefact derived from a turn.
+
+```ts
+interface Rendition {
+  id: string
+  turnId: string
+  kind: "image" | "video" | "speech"
+  /** Which part of the turn this renders. Whole turn, or one message under
+   *  per-actor dispatch — speech needs this, images usually do not. */
+  scope: { messageId?: string } | null
+  state: "pending" | "ready" | "failed"
+  /** Ranked prompt fragments as sent, plus what the cap dropped. [07 §5.3] */
+  prompt: AssembledPrompt | null
+  asset: AssetRef | null          // under the session's assets/
+  provenance: GeneratedFieldProvenance
+  error: string | null
+}
+```
+
+The three kinds differ in provider, latency and cost — not in lifecycle. All of
+them: derive from turn content, cost money, can fail, are re-runnable, and are
+worth showing in the workbench. Building images against this shape rather than
+as "the image feature" is most of what makes video and speech cheap later.
+
+### 10.2 Renditions never block the turn
+
+**The turn completes on text.** Renditions are dispatched as their own jobs and
+arrive later over the event stream ([04 §2](04-server-multiuser-deployment.md)),
+rendering in place as they resolve.
+
+This is not an optimisation, it is the only workable design: an image is seconds
+and a video can be minutes, and a story that stalls on either is unusable. It
+also means a failed rendition is a placeholder with a retry button, never a
+failed turn.
+
+The corollary for [10 §2](10-branching.md): a rendition is **not** a channel
+effect and does not participate in state reconstruction. It is an artefact
+hanging off a turn, so a branch inherits the turn's renditions by inheriting the
+turn.
+
+### 10.3 Where the prompt comes from
+
+An ordinary pipeline step at the `post` stage, which means it composes from
+what is already there rather than needing a private pathway:
+
+- the turn's output text — what actually happened;
+- present actors' `VisualDescriptors` and their `reference` media
+  ([13 §3](13-schemas.md)) — this is what the Character Studio's payload exists
+  to feed, and the reason typed media roles are a 1.0 obligation;
+- channel state — location, time of day, weather, whatever a mode tracks;
+- the setting's `tone` and any style profile.
+
+Assembled as **ranked fragments under the provider's declared cap**
+([07 §5.3](07-tech-stack.md)), so overrun drops the lowest-ranked fragment
+rather than truncating mid-sentence. That work was specified for exactly this
+case.
+
+### 10.4 A series, and what "series" should not mean
+
+A turn may produce more than one image. Two mechanisms, and only the first is
+1.0:
+
+- **Variations** — N renditions from one prompt. Trivial, useful, and what most
+  people mean.
+- **Beats** — split the turn into moments and illustrate each. This is
+  storyboarding, it needs a planner call, and it is where Marinara's storyboard
+  machinery lives. Out of scope at 1.0; expressible later as a step that emits
+  several prompts, because §10.1 already allows many renditions per turn.
+
+### 10.5 What speech needs that images do not
+
+Recorded now because it is cheap to accommodate and awkward to retrofit:
+
+- **`scope.messageId`.** Speech is per utterance, not per turn — under
+  `per-actor` dispatch a turn holds several. Images virtually never need this;
+  the field exists so speech does not force a schema change.
+- **A voice binding per actor.** Belongs in `modeData` or a `speech` block on
+  the actor, and — like `ModelHint` — it is a *preference resolved locally*
+  ([13 §3](13-schemas.md)), never a provider binding travelling in a shared card.
+- **Streaming.** Speech wants to start before the text finishes; images do not.
+  That is a step-level concern and does not change the record.
+
+### 10.6 Controls
+
+Per session: off, on-demand only, or every turn. Per mode defaults — Scene wants
+illustration far more than Messages does. And a manual **Illustrate** action on
+any message in the history, which is the same step invoked by hand.
+
+**[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
+turn's recorded state or from the present. Recorded state is more correct and
+more surprising; the turn record makes either possible.
