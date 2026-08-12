@@ -690,6 +690,59 @@ overhead and text payloads are small, so probably not worth it — but `zTXt`
 exists and costs nothing to support on write. Decide once, since it affects what
 third-party tools can read. Binary media (above) sidesteps this entirely.
 
+#### 5.2.3 Folder-as-file: what actually works
+
+The instinct that a folder is untidy for sharing is right, and worth separating
+from what the two named mechanisms actually are:
+
+- **AppImage** is not applicable. It is an executable format — a SquashFS image
+  appended to an ELF runtime — not a way to make a data directory look like a
+  file.
+- **macOS bundles** are a Finder presentation convention: a directory with a
+  registered UTI is shown as one opaque item. That registration comes from an
+  installed application. StoryEngine is a web app with no macOS client
+  ([05 §1](05-ui-surfaces.md)), so nothing on the user's machine would declare
+  the type, and the folder would present as a folder.
+
+**The mechanism that actually delivers this is a zip with a custom extension**,
+which is what every format in this position uses: `.docx`, `.epub`, `.apk`,
+`.krita`, and — directly relevant — SillyTavern's own `.charx`. That is already
+the `.seactor` transport format above.
+
+**Decision: folders are the only live form. `.seactor` is for import, export and
+exchange, and nothing else.**
+
+Making the zip a storage form — canonical, or even accepted alongside folders —
+would cost the properties the folder was chosen for, and they are not small:
+
+| Folder | Zipped store |
+|---|---|
+| Hand-editable on disk ([05 §4](05-ui-surfaces.md)) | Requires unzip/rezip to change one field |
+| Watcher-fed index sees per-file changes ([04 §4b.2](04-server-multiuser-deployment.md)) | Whole archive re-read on any change |
+| One sprite changes → one file written | One sprite changes → archive rewritten |
+| Git-able with real diffs | Opaque blob, no diffs |
+| Partial write loses one file | Partial write loses the actor |
+| PNG chunk splice is a direct write | Splice requires unpack and repack |
+
+And the sharing case — which is what motivates the tidiness — is already served,
+because **export produces one file**. That is where a single-file artifact
+genuinely helps, and it is the only place it is worth having one.
+
+Supporting both forms in the store was considered and rejected: it doubles the
+loader, the watcher and the write path to buy tidiness in a directory most users
+will reach through the library UI rather than a file manager. Keeping exactly
+one live form is worth more than the neatness.
+
+**Store, do not compress.** A `.seactor` is almost entirely PNG and JPEG, which
+are already compressed — deflate buys roughly nothing and costs CPU on every
+read. Use zip as a *container*, with entries stored rather than deflated. This
+is why `.docx` compresses well and `.charx` does not, and it is worth deciding
+deliberately rather than accepting a library default.
+
+The same split applies to every multi-file kind: folders live, a
+custom-extension zip for exchange — `.sepack` for packages, and the same
+treatment for any lorebook or setting that carries assets.
+
 ### 5.3 Asset manifest
 
 `assets` on the actor is a manifest of *relative paths within the actor folder*,

@@ -232,6 +232,9 @@ Where it should differ:
   and — for users with file access — link straight into the file browser at that
   location. This is a rare case where exposing the storage mechanism is the
   feature: it is how a user learns that drag-and-drop export works at all.
+- **Export produces one file**, not a folder the user has to zip themselves
+  ([02 §5.2.3](02-data-model.md)) — singly and in bulk. On disk everything stays
+  a folder; the single-file form exists for exchange only.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
   what went to `compat`, what resolved, what dangled, and let the user fix it
   before committing.
