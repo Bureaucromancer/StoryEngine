@@ -181,22 +181,21 @@ probably the most useful single list in the document.
 ## 3. Before any code: close the A-series
 
 [06 §A](06-open-questions.md) exists precisely because these constrain
-everything downstream. Several are already resolved; the ones that are not:
+everything downstream.
 
-| | Why it blocks |
-|---|---|
-| **A6/A7/A8** framework, schema direction, runtime + driver | Ordinary but touch every file once chosen |
-
-A6, A7 and A8 have recommendations; they need confirming rather than
-researching.
-
-**A1, A1c, A3 and A4 are now closed.** A1/A1c: a worker-thread
+**The A-series is closed except for one item.** A1/A1c: a worker-thread
 boundary with a namespaced storage API ([17](17-extensions.md)). A3: connections
 are account-scoped with a system scope, mirroring the library
 ([04 §4.5](04-server-multiuser-deployment.md)). A4: raw completion is legacy and
 unsupported ([07 §5.5](07-tech-stack.md)). That resolves the one item this plan
 called genuinely unretrofittable, and it changes P2 and P7: the step contract is
-async and serialisable from the first step written, not converted later.
+async and serialisable from the first step written, not converted later. A5–A8
+are confirmed: multiplayer stays "don't preclude, don't build"; React + Vite +
+TanStack; TypeBox; Node LTS with `node:sqlite`.
+
+**Only [06 A2c](06-open-questions.md) remains** — settling the notification
+event class list, which is small and wants doing before the first producer
+exists.
 
 ---
 

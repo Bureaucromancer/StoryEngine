@@ -309,10 +309,47 @@ This buys three things: extensions cannot break the app's rendering, the
 frontend framework stays a reversible decision, and an extension written today
 still works after a framework upgrade.
 
-**[OPEN]** The escape hatch for an extension that genuinely needs custom
-rendering — a map, a card table, a graph. Sandboxed iframe with a narrow
-postMessage API is the obvious answer and it is a real chunk of work. Deferring
-is fine; pretending the vocabulary will cover everything forever is not.
+### 8.1 Custom rendering: deferred as far as it will go
+
+An extension that genuinely needs to draw something — a map, a card table, a
+graph — has no route under the vocabulary. The obvious answer is a sandboxed
+iframe with a narrow `postMessage` protocol.
+
+**Decision: push this as far into the future as it will go.** Not "not yet"
+in the sense of being next; in the sense of doing everything possible to avoid
+needing it.
+
+**It is painful for everyone it touches, which is the real argument:**
+
+- **For us** — a message protocol, and then *versioning* that protocol; theming
+  across the boundary so an extension does not look pasted in; focus management,
+  keyboard handling and accessibility, none of which cross an iframe for free;
+  mobile layout; and a second security surface to reason about.
+- **For extension authors** — they stop declaring a widget and start maintaining
+  a small application, with a build, a bundle and their own styling problem.
+  Most people who wanted to add a HUD field will not do that.
+- **For users** — inconsistent surfaces, theming that breaks in one panel,
+  things that work on desktop and not on a phone. The declarative vocabulary
+  exists precisely so extensions inherit the app's look rather than approximating
+  it.
+
+**The paired commitment matters more than the deferral.** Deferring the escape
+hatch is only honest if the vocabulary keeps growing: every widget type added is
+one fewer reason to reach for an iframe. Concretely, when an extension cannot
+express something, the *first* response is to ask what widget would let it —
+a gauge, a grid, a small table, a timeline, a picker — and add that. Widening a
+declarative vocabulary is cheap, benefits every extension at once, and keeps the
+result consistent.
+
+**The signal to build it anyway** is a genuine class of thing the vocabulary
+cannot reach without becoming a rendering engine in disguise. Tactical combat and
+anything map-shaped are the likely triggers ([11 §4.3](11-roadmap.md)) — and
+both are things we have already decided not to build ourselves, so the pressure
+would be coming from outside, which is the right kind of evidence to act on.
+
+What must **not** happen is the vocabulary quietly acquiring an `html: string`
+field. That is the escape hatch arriving without any of the safety, and it is
+how this decision would be undone by accident rather than on purpose.
 
 ---
 

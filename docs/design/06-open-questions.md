@@ -147,32 +147,36 @@ implementation of one seam rather than a rewrite. Two conditionals elsewhere now
 close firmly — bundled tokenizers and the instruct/context template surface both
 stay discarded. *[00 §2.2, 07 §5.5, 08 §6.2]*
 
-**A5. Multiplayer posture.** Confirm "don't preclude, don't build": `participants`
-is a list, `control: "player"` isn't structurally limited to one, turns are
-already server-side — but no arbitration, no per-user hidden state, no
-simultaneous input at 1.0. *[04 §7]*
+**A5. Multiplayer posture. — CONFIRMED: don't preclude, don't build.**
+`participants` is a list, `control: "player"` is not structurally limited to one,
+and turns are already server-side jobs on an event stream. No turn arbitration,
+no per-user hidden state, no simultaneous input at 1.0 — those are the actual
+feature and none of them is prejudiced by the three decisions above.
+*[04 §8]*
 
-**A6. Client framework.** *Largely resolved*: [05 §8] settles that extensions
-declare widgets from a versioned vocabulary rather than shipping components,
-which removes the framework from every public contract and makes the choice
-reversible. [07 §6] recommends React + Vite + TanStack on the strength of the
-dense-data surfaces (library, workbench); Svelte 5 remains a genuine
-alternative that Aventuras proves works in this domain. What is *not* resolved
-is the escape hatch for extensions needing genuinely custom rendering — a
-sandboxed iframe with a narrow postMessage API is the obvious answer and real
-work. *[05 §8, 07 §6]*
+**A6. Client framework. — CONFIRMED: React + Vite + TanStack, and the custom-
+rendering escape hatch is pushed out as far as it will go.** The framework
+choice is reversible because extensions declare widgets rather than shipping
+components ([05 §8](05-ui-surfaces.md)), so nothing outside the client package
+knows what it is.
 
-**A7. Schema direction of derivation.** [07 §4] recommends TypeBox, so JSON
-Schema is the artefact and TypeScript types are derived — on the grounds that
+On the escape hatch: **deferred deliberately and for as long as possible.**
+Sandboxed custom rendering is painful for everyone it touches — see
+[05 §8.1](05-ui-surfaces.md) — and core features come first. The paired
+commitment is that deferring it means *actively widening the declarative
+vocabulary* instead, since every widget type added is one fewer reason to need
+an iframe. *[05 §8, 07 §6]*
+
+**A7. Schema direction of derivation. — CONFIRMED: TypeBox.** JSON Schema is the
+artefact; TypeScript types are derived from it. The deciding argument stands:
 package and extension manifests must be validatable by tools not compiled
-against our TypeScript. Zod v4 with `toJSONSchema()` is the better-DX reversal
-and a defensible one. Decide before the first schema is written; the migration
-is mechanical but touches everything.
+against our TypeScript ([07 §4](07-tech-stack.md)). *[07 §4]*
 
-**A8. Runtime and index driver.** Node LTS with `node:sqlite` if it holds up,
-`better-sqlite3` as fallback. The derived-index design makes this low-risk (a
-driver bug costs a rebuild, not data), but it decides whether the project has a
-native dependency at all, which shapes Docker builds. *[07 §2, §7]*
+**A8. Runtime and index driver. — CONFIRMED: Node LTS, `node:sqlite` preferred
+with `better-sqlite3` as fallback.** Low-risk because the index is derived — a
+driver bug costs a rebuild, not data — and preferring the built-in leaves the
+project with no unavoidable native dependency, which is what keeps Docker builds
+simple. *[07 §2, §7]*
 
 ---
 

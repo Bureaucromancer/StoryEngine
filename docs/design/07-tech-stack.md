@@ -1,7 +1,9 @@
 # 07 — Tech stack
 
-**Status: proposal with recommendations.** Nothing here has been specified by
-the requirements, so this document takes positions and shows the reasoning. The
+**Status: recommendations, with the load-bearing ones now confirmed.** Runtime,
+schema direction and client framework are settled
+([06 A6–A8](06-open-questions.md)). Nothing here was specified by the
+requirements, so this document takes positions and shows the reasoning. The
 recommendations are ordered by how much they constrain everything else.
 
 The constraints these choices have to satisfy, from the preceding documents:
@@ -49,7 +51,7 @@ simplicity that motivated Go is gone.
 
 ## 2. Runtime: Node LTS
 
-**Recommendation: current Node LTS. Keep code runtime-agnostic where free, but
+**CONFIRMED ([06 A8](06-open-questions.md)): current Node LTS. Keep code runtime-agnostic where free, but
 target Node.**
 
 - Native module ecosystem matters here: image processing for thumbnails and card
@@ -87,7 +89,7 @@ becomes a goal, which §2 says it isn't.
 
 ## 4. Schema: JSON Schema as source of truth, authored with TypeBox
 
-**Recommendation: TypeBox. JSON Schema is the artefact; TypeScript types are
+**CONFIRMED ([06 A7](06-open-questions.md)): TypeBox. JSON Schema is the artefact; TypeScript types are
 derived from it.**
 
 The direction of derivation is the actual decision, and it turns on constraint 5:
@@ -120,56 +122,12 @@ first-class primitives — which is exactly the model contract
 [00 §2.2](00-stance.md) argues should be the baseline. Marinara and SillyTavern
 both hand-roll per-provider adapters and both carry the maintenance.
 
-The thin wrapper is not ceremony. It is where the raw-completion adapter attaches
-([00 §2.2](00-stance.md)), where `ModelHint` resolution happens
-([02 §2.6](02-data-model.md)), where per-call cost accounting is captured for the
-turn record, and where capability negotiation lives ("this model has no tool
-calling — degrade to prompted JSON with validation").
-
-### 5.5 The compatibility surface: OpenAI-compatible chat, and nothing below it
-
-**Decision: raw text completion is legacy and is not supported.** There is no
-downgrade adapter, no instruct templates, no context templates, no stop-sequence
-machinery. The supported surface is stated in one line:
-
-> **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
-
-That is a position rather than an omission, and it is worth stating that plainly
-in user-facing documentation rather than letting people discover it.
-
-**Why this costs less than it looks.** The completion-only era is largely over:
-llama.cpp, Ollama, vLLM, LM Studio, KoboldCpp and text-generation-webui all
-expose OpenAI-compatible chat endpoints, so a local model is a connection with a
-`localhost` URL and no key ([§5.2](#52-no-embedded-model-runtime)). The genuinely
-excluded set is small — completion-only services such as NovelAI, Horde-style
-backends, and anyone deliberately driving a raw endpoint for control.
-
-**Those users have an answer that is not ours to build.** A translating proxy in
-front of the endpoint is an off-the-shelf solved problem. Pointing at one is a
-documentation line; maintaining a completion path is a permanent tax on every
-provider change.
-
-**What is actually lost**, stated honestly:
-
-- **Byte-exact control of the final prompt string.** Chat APIs impose a message
-  structure. The turn record and workbench show precisely what was sent
-  ([05 §3](05-ui-surfaces.md)), and blocks are editable — but the last
-  serialisation step belongs to the provider. This is the loss power users will
-  feel.
-- **Continuation semantics.** "Continue this text" rather than "reply to this".
-  Assistant prefill covers much of it where a provider supports it.
-- **Completion-only models with no chat variant.**
-
-**Reversing this later is a single seam.** [03 §5](03-modes-and-turn-pipeline.md)
-already isolates rendering as step 4 — "the only place that knows what a chat API
-looks like". A completion renderer would be a second implementation of that one
-step, not a rewrite, because the core representation stays structured. So this
-is a cheap decision to unmake if the bet on chat-shaped APIs ever turns.
-
-**Two conditionals elsewhere now close firmly rather than conditionally:**
-bundled tokenizers stay discarded ([08 §6.2](08-triage.md)), and the entire
-instruct/context template surface stays discarded
-([00 §2.2](00-stance.md)).
+The thin wrapper is not ceremony. It is where `ModelHint` resolution happens
+([02 §2.6](02-data-model.md)), where role bindings resolve to connections
+(§5.1), where per-call cost accounting is captured for the turn record, and
+where capability negotiation lives ("this model has no tool calling — degrade to
+prompted JSON with validation"). It is *not* where a raw-completion adapter
+attaches, because there is not one (§5.5).
 
 ### 5.1 Model roles, and a hi/lo default
 
@@ -307,9 +265,56 @@ declared and prompts assembled from ranked fragments, a retry is *drop the
 lowest fragment and resend*, not a fresh generation round-trip. Recorded in
 [11 §3](11-roadmap.md).
 
+### 5.5 The compatibility surface: OpenAI-compatible chat, and nothing below it
+
+**Decision: raw text completion is legacy and is not supported.** There is no
+downgrade adapter, no instruct templates, no context templates, no stop-sequence
+machinery. The supported surface is stated in one line:
+
+> **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
+
+That is a position rather than an omission, and it is worth stating that plainly
+in user-facing documentation rather than letting people discover it.
+
+**Why this costs less than it looks.** The completion-only era is largely over:
+llama.cpp, Ollama, vLLM, LM Studio, KoboldCpp and text-generation-webui all
+expose OpenAI-compatible chat endpoints, so a local model is a connection with a
+`localhost` URL and no key ([§5.2](#52-no-embedded-model-runtime)). The genuinely
+excluded set is small — completion-only services such as NovelAI, Horde-style
+backends, and anyone deliberately driving a raw endpoint for control.
+
+**Those users have an answer that is not ours to build.** A translating proxy in
+front of the endpoint is an off-the-shelf solved problem. Pointing at one is a
+documentation line; maintaining a completion path is a permanent tax on every
+provider change.
+
+**What is actually lost**, stated honestly:
+
+- **Byte-exact control of the final prompt string.** Chat APIs impose a message
+  structure. The turn record and workbench show precisely what was sent
+  ([05 §3](05-ui-surfaces.md)), and blocks are editable — but the last
+  serialisation step belongs to the provider. This is the loss power users will
+  feel.
+- **Continuation semantics.** "Continue this text" rather than "reply to this".
+  Assistant prefill covers much of it where a provider supports it.
+- **Completion-only models with no chat variant.**
+
+**Reversing this later is a single seam.** [03 §5](03-modes-and-turn-pipeline.md)
+already isolates rendering as step 4 — "the only place that knows what a chat API
+looks like". A completion renderer would be a second implementation of that one
+step, not a rewrite, because the core representation stays structured. So this
+is a cheap decision to unmake if the bet on chat-shaped APIs ever turns.
+
+**Two conditionals elsewhere now close firmly rather than conditionally:**
+bundled tokenizers stay discarded ([08 §6.2](08-triage.md)), and the entire
+instruct/context template surface stays discarded
+([00 §2.2](00-stance.md)).
+
+---
+
 ## 6. Client: React + Vite, with the framework decision deliberately reversible
 
-**Recommendation: React + TypeScript + Vite. TanStack Query / Router / Virtual /
+**CONFIRMED ([06 A6](06-open-questions.md)): React + TypeScript + Vite. TanStack Query / Router / Virtual /
 Table. Tailwind + a headless primitive library (Radix or equivalent).**
 
 Reasoning, in order:
