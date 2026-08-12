@@ -140,14 +140,21 @@ native dependency at all, which shapes Docker builds. *[07 §2, §7]*
 
 ## B. Data model questions
 
-**B1. Fixed profile fields or conventional sections?** Are `summary`,
-`appearance`, `voice`, `background` real fields on `ActorProfile`, or four
-`sections` with well-known ids? Current lean: fixed, because the default preset
-benefits from being able to rely on them. *[02 §2.1]*
+**B1. Fixed profile fields or conventional sections? — RESOLVED: conventional
+sections.** No fixed prose fields on `ActorProfile`. `se.summary`,
+`se.appearance`, `se.voice`, `se.background` are reserved section ids that
+everything assumes exist, enforced at three layers rather than by the schema:
+the editor creates all four on a new actor, generation and assists treat them as
+required and recreate a deleted one, and the default preset addresses them by id
+while tolerating absence. Buys one kind of prose block instead of two — adding a
+custom section is the same operation as editing a built-in one. *[02 §2.1,
+13 §4]*
 
-**B2. Does a Setting own a primary lorebook** that its editor writes into, or
-only link to independently-owned ones? Affects the "add a location" affordance
-and what happens on delete. *[02 §4]*
+**B2. Does a Setting own a primary lorebook? — RESOLVED: no. It only links.** A
+primary lorebook would block many settings over one lorebook — a noir and a
+comedy drawing on the same world — and create an ownership question on delete.
+`LoreLink.required` is the concession: mark a link load-bearing and a consumer
+warns loudly when it will not resolve, still without blocking. *[02 §4, 13 §3]*
 
 **B3. Turn record retention.** Full records are large. Keep everything by
 default with optional compaction of old turns, or compact automatically past N?
@@ -160,8 +167,12 @@ campaign) vs JSONL segments (~200 turns per file). Lean: segments. *[02 §5.5]*
 `zTXt`? Affects third-party tool compatibility, so decide once and don't
 revisit. *[02 §5.2]*
 
-**B6. JSON or YAML** for hand-edited kinds. Possible split: JSON for
-machine-written objects, YAML for config and preset templates. *[02 §5.4]*
+**B6. JSON or YAML? — RESOLVED: JSON everywhere, including config.** YAML is
+nicer to hand-edit and supports comments, and is still not worth mixing two
+serialisation formats inside one application — JSON is the norm here and every
+import/export path already speaks it. The one real loss is self-documenting
+config; covered by a commented `config.example.json` and keeping the settings UI
+the primary path. *[02 §5.4]*
 
 **B7. Channel schema migration.** What happens to an in-flight session when the
 mode that owns its channels updates its schema? Needs an answer before anything
@@ -172,8 +183,11 @@ entity, which does not scale. Is translated play a 1.0 requirement at all? If
 yes, a translation sidecar keyed by (objectId, field, language) is the obvious
 alternative. *[01 §2]*
 
-**B9. Can an expanded opening seed be saved back** to its source object as a new
-written opening? Cheap and useful; small provenance question. *[02 §6]*
+**B9. Can an expanded opening seed be promoted back? — RESOLVED: yes.** That is
+the point of carrying seeds and written openings as two lists: a seed is reusable
+machinery, a good expansion is content worth keeping. The loop closes —
+seed → expand → edit → accept → promote — and the promoted opening records
+`fromSeedId`. Promotion targets the source object, not the session. *[02 §6, 13 §3]*
 
 **B11. Lorebook — confirm the four revisions.** [02 §3] now takes entry
 activation, timing, recursion, placement and budgeting from Marinara
@@ -186,9 +200,21 @@ portability, since an exported lorebook must not carry your playthrough;
 scoping mechanisms collapse to one `LoreScope` union. (d) is nearly free; (a) is
 the one with real consequences for how quest-like content is authored. *[02 §3]*
 
-**B10. Prologue packages.** May a package ship a partially-played session as a
-starting state? Attractive for authored content; crosses the content/session
-line the rest of the model keeps clean. *[02 §7]*
+**B12. Are sessions exportable at all?** Not previously asked, and it turns out
+to gate B10. Sessions are the one kind marked internal and free-to-migrate
+([13 §1](13-schemas.md)) *because* nothing exports them — so exporting one makes
+the turn record a portable format with everything that implies, and drags along
+localActors, channel state, branch structure and possibly renditions. There is
+real demand for it (share a playthrough, move between installs, archive a
+finished story), and it is a much larger commitment than it looks. Deciding it
+also decides how much of the turn record can keep churning.
+
+**B10. Prologue packages — deferred, and blocked on B12.** May a package ship a
+partially-played session as a starting state? Conceptually welcome; it crosses
+the content/session line the rest of the model keeps clean, and it cannot be
+answered before session export exists and is known to work. The [13 §7](13-schemas.md)
+split helps: a prologue would be a *session* travelling in a package, not a
+variant of Setup. *[02 §7]*
 
 ---
 

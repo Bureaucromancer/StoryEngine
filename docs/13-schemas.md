@@ -88,6 +88,16 @@ interface Ref<T = unknown> {
   fingerprint?: string
 }
 
+/** A link to a lorebook, with a strength. Used by Setting and Setup rather than
+ *  a bare Ref, because "this world does not work without Rain City" is worth
+ *  saying and "this is a nice extra" is not the same claim. */
+interface LoreLink {
+  ref: Ref
+  /** When true, a consumer warns loudly if the lorebook cannot be resolved.
+   *  Still never blocks — [00 §3.3]. Default false. */
+  required: boolean
+}
+
 /** Where an object came from and who made it. */
 interface Provenance {
   source: "manual" | "import" | "generated" | "package" | "session"
@@ -133,6 +143,9 @@ interface Opening {
   text: string
   /** Author guidance. For a seed, this steers the expansion. */
   note?: string
+  /** Set when this written opening was promoted from an expanded seed, so the
+   *  lineage is visible. [02 §6] */
+  fromSeedId?: string
 }
 
 /** Normalised 0..1 rectangle of a source image. Normalised rather than pixels
@@ -245,25 +258,48 @@ interface Actor {
 type ActorRole = "persona" | "narrator"     // extensible
 
 interface ActorProfile {
-  /** The always-present core. Short by design. */
-  summary: string
-  appearance: string               // prose, for the narrator
-  visual: VisualDescriptors | null // structured, for image pipelines
-  /** Register, verbal tics, how they talk — not what they sound like. */
-  voice: string
-  background: string
+  /** Structured appearance, for image pipelines. A real field, not a section:
+   *  it is not prose and nothing renders it as a block. */
+  visual: VisualDescriptors | null
   traits: string[]
+  /** Everything prose. Includes the four conventional sections below. */
   sections: Section[]
 }
 
 interface Section {
-  /** Stable. Presets and modes address blocks by this. */
+  /** Stable. Presets and modes address blocks by this. Ids in the `se.`
+   *  namespace are reserved; author-defined sections must not use it. */
   id: string
   title: string
   body: string
   disposition: "always" | "on-demand" | "reference-only"
 }
 ```
+
+**Conventional sections.** There are no fixed prose fields on the profile. Four
+sections are *conventional* — reserved ids that everything assumes exist:
+
+| Id | What it holds |
+|---|---|
+| `se.summary` | The always-present core. Short by design. |
+| `se.appearance` | Prose appearance, for the narrator. Distinct from `visual`. |
+| `se.voice` | Register, verbal tics, how they talk — not what they sound like. |
+| `se.background` | History. |
+
+"Conventional" is enforced at three layers, none of them the schema:
+
+- **The editor creates all four on a new actor** and presents them as the form,
+  so in practice they always exist.
+- **Generation and assists treat them as required** — a field assist for "write
+  an appearance" targets `se.appearance` and will create it if somebody deleted
+  it.
+- **The default preset addresses them by id** and must tolerate absence, because
+  structurally nothing prevents a user deleting one. Missing means empty, never
+  an error.
+
+The gain is uniformity: adding a custom section is the same operation as editing
+a built-in one, the assembler has one code path rather than four fields plus a
+list, and a preset can reorder or drop `se.background` without special-casing.
 
 **Deliberately absent**, and this is most of the design:
 `system_prompt`, `post_history_instructions`, `depth_prompt`, `talkativeness`,
@@ -440,7 +476,7 @@ interface Setting {
     styleNotes: string
   }
 
-  lore: Ref[]                      // where the world content actually lives
+  lore: LoreLink[]                 // where the world content actually lives
   cast: CastEntry[]
   openings: Openings
   hooks: PlotHook[]                // §6.1
@@ -468,6 +504,26 @@ interface CastEntry {
 Locations are lorebook entries; the cast links to real actors. This is what
 dissolves the materialise-or-not question Marinara's scenario design spends a
 section on ([02 §4](02-data-model.md)).
+
+**A Setting owns no lorebook.** It only links, which is what allows **many
+settings over one lorebook** — a Rain City noir setting and a Rain City comedy
+setting drawing on the same world, which is a normal thing to want and would be
+blocked by a primary-lorebook relationship. Ownership on delete also stops being
+a question nobody wants to answer.
+
+`LoreLink.required` (§3) is the concession: an author can mark a link as load-
+bearing, and a consumer warns loudly when it cannot be resolved. It still never
+blocks ([00 §3.3](00-stance.md)) — the difference between "this setting is
+missing a nice extra" and "this setting is missing its world" is worth saying
+out loud, and that is all the flag does.
+
+Actor lore links stay bare `Ref[]`: a character's own lorebook going missing is
+a soft degradation, not a broken world.
+
+**Consequence for the editor.** With no owned lorebook, an "add a location while
+authoring a setting" action has to target one of the linked lorebooks — the user
+picks, or creates a new one and links it. Slightly more explicit than an implicit
+home, and correct.
 
 ### 6.1 PlotHook
 
@@ -548,7 +604,7 @@ interface Setup {
   }
 
   /** Beyond whatever the setting already links. */
-  lore: Ref[]
+  lore: LoreLink[]
   /** Overrides the setting's when present. */
   openings: Openings
   /** Additional to the setting's, not a replacement. */

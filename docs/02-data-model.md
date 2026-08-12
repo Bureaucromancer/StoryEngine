@@ -58,16 +58,27 @@ rather than being a UI concern.
 
 ### 2.1 The profile
 
-Four prose fields — `summary`, `appearance`, `voice`, `background` — plus
-`traits`, author-defined `sections`, and structured `VisualDescriptors`.
+**Decision: there are no fixed prose fields. All prose is sections, and four of
+them are conventional** — `se.summary`, `se.appearance`, `se.voice`,
+`se.background` ([13 §4](13-schemas.md)).
 
-The split between prose `appearance` and structured `visual` is deliberate:
-prose is for the narrator, fields are for image and video pipelines, which need
-attributes rather than a paragraph. Cheap to carry now; the alternative is
-parsing prose later.
+"Conventional" means everything behaves as though they exist, without the schema
+guaranteeing it: the editor creates all four on a new actor and presents them as
+the form, generation and assists treat them as required and will recreate a
+deleted one, and the default preset addresses them by id while tolerating
+absence. Missing means empty, never an error.
 
-`sections` carry a disposition (`always` / `on-demand` / `reference-only`) and a
-stable id, because presets and modes address blocks by id.
+The gain is that **there is one kind of prose block, not two.** Adding a custom
+section is the same operation as editing a built-in one; the assembler has a
+single code path instead of four fields plus a list; a preset can reorder or drop
+`se.background` without special-casing. The earlier argument for fixed fields —
+that the default preset needs something reliable to inject — is met by the three
+enforcement layers rather than by the type.
+
+`traits` and `visual` stay real fields: neither is prose, and nothing renders
+either as a block. The split between prose `se.appearance` and structured
+`visual` is deliberate — prose is for the narrator, fields are for image and
+video pipelines, which need attributes rather than a paragraph.
 
 Deliberately **absent**: `system_prompt`, `post_history_instructions`,
 `depth_prompt`, `talkativeness`, `mes_example`, `scenario`. Those are
@@ -76,14 +87,9 @@ prompt-assembly decisions and belong to the preset and the mode. See
 
 `mes_example` in particular is worth naming: dialogue examples are a *style
 sample*, and where they go and how many survive budgeting is a preset decision.
-They belong in `sections` with a disposition, not as a magic field.
-
-**[OPEN]** Whether `summary`/`appearance`/`voice`/`background` should be fixed
-fields at all, or just four conventional `sections` with well-known ids. Fixed
-fields give the editor and the default preset something to rely on; conventional
-sections are more uniform. Current lean: keep them fixed, because "the default
-preset always has something sensible to inject" is worth real money and four
-fields is not a slippery slope.
+They belong in `sections` with a disposition, not as a magic field — and under
+this decision that is no longer a demotion, since the conventional four live
+there too.
 
 ### 2.2 Roles and the persona flag
 
@@ -442,10 +448,22 @@ pack" droppable onto any setting. Attractive for generic material ("a stranger
 arrives with news"), and it cuts against hooks being specific, which is where
 their value is. Lean: not at 1.0.
 
-**[OPEN]** Does a Setting own exactly one "primary" lorebook that its editor
-writes into, or only ever link to independently-owned lorebooks? A primary
-lorebook makes the "add a location" affordance obvious; it also creates an
-ownership question when the setting is deleted.
+**Decision: a Setting owns no lorebook. It only links.** A "primary lorebook"
+would have made the *add a location* affordance obvious and cost more than it
+was worth: it blocks **many settings over one lorebook**, which is a normal
+thing to want — a Rain City noir and a Rain City comedy drawing on the same
+world — and it creates an ownership question on delete that nobody wants to
+answer.
+
+The concession is `LoreLink.required` ([13 §3](13-schemas.md)): an author can
+mark a link load-bearing, and a consumer warns loudly when it will not resolve.
+It never blocks ([00 §3.3](00-stance.md)). The distinction between "missing a
+nice extra" and "missing its world" is worth being able to state, and that is
+all the flag does.
+
+The editor consequence is that *add a location* targets one of the linked
+lorebooks — the user picks, or creates a new one and links it. Slightly more
+explicit than an implicit home, and correct.
 
 ---
 
@@ -458,7 +476,7 @@ disposable index**.
 
 ```
 /data
-  config.yaml
+  config.json
   system/
     library/                # shipped with the app. Read-only. Loads for everyone.
       actors/               #   default assistant card, starter actors
@@ -668,9 +686,15 @@ Lorebooks, settings, presets: plain JSON, formatted for humans, one object per
 file. Diffable, greppable, git-able. A user who wants to keep their library in
 git should be able to, and that should be a deliberately supported story.
 
-**[OPEN]** JSON vs YAML for hand-edited kinds. JSON is unambiguous and universal;
-YAML is much nicer to hand-edit and supports comments. Possible split: JSON for
-machine-written objects, YAML for `config.yaml` and preset templates.
+**Decision: JSON everywhere, including config.** YAML is genuinely nicer to
+hand-edit and supports comments, and it is still not worth it: JSON is the norm
+in this space, every import and export path already speaks it, and mixing two
+serialisation formats inside one application is a small tax paid forever by
+everyone who has to remember which is which.
+
+The one real loss is comments — a `config.json` cannot document itself. Cover it
+by shipping a commented `config.example.json`, documenting the keys, and keeping
+the settings UI the primary path so hand-editing config stays rare.
 
 ### 5.5 Sessions
 
@@ -713,8 +737,15 @@ Two lists — `written` and `seeds` — each with a designated primary.
   neither (start cold). Aventuras' seed→expand→edit→accept loop is the right
   interaction for the seed path: expansion produces editable text, and accepting
   it stores the *result* on the session, not a live link to the seed.
-- **[OPEN]** Should an expanded seed be offerable back to the source object as a
-  new written opening? Cheap, useful, and a small provenance question.
+- **An expanded seed can be promoted back to the source object as a written
+  opening.** This is the point of having two lists rather than one: a seed is
+  reusable machinery for generating openings, and a good expansion is worth
+  keeping as content. The loop closes — seed → expand → edit → accept → promote —
+  and the promoted opening records `fromSeedId` so the lineage stays visible
+  ([13 §3](13-schemas.md)).
+
+  Promotion targets the object the seed came from — a setting, an actor, a setup
+  — not the session, which keeps its own copy regardless.
 
 ---
 

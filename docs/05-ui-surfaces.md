@@ -152,7 +152,7 @@ server-side:
 | `/data/users/<own handle>/` | yes | yes — this includes their whole library |
 | `/data/system/library/` | yes | never — app-shipped, and an update would overwrite edits anyway |
 | `/data/users/<other>/` | never | never |
-| `/data/config.yaml`, `/data/index/` | never | never |
+| `/data/config.json`, `/data/index/` | never | never |
 
 Simpler than an earlier draft, because there is no shared library to gate
 separately ([04 §4.3](04-server-multiuser-deployment.md)): a user's roots are
@@ -168,7 +168,7 @@ masked.
 ### 4.3 What it is, concretely
 
 A file manager: tree, upload, download, rename, move, delete, and a text editor
-for the JSON/YAML kinds with schema validation on save. Plus — the actually
+for the JSON kinds with schema validation on save. Plus — the actually
 useful part — **download a folder as a zip** and **upload a zip into place**,
 which is the drag-and-drop export/import story working through a browser for
 people who can't reach the disk directly.

@@ -320,7 +320,7 @@ So:
 - **Bind `127.0.0.1` on first boot.** LAN exposure is an explicit act, not a
   default.
 - **Flipping it must be trivial, and available in both places** — a setting in
-  the UI (admin only), and a plainly-named key in `config.yaml` for people who
+  the UI (admin only), and a plainly-named key in `config.json` for people who
   never open the UI first. Neither may be the only route.
 - **Containers are the exception, necessarily** — see §4.3.
 - Advertise over mDNS as `storyengine.local` once bound beyond loopback, so
