@@ -337,6 +337,9 @@ interface Lorebook {
   maxRecursionDepth: number        // default 3
 
   folders: LoreFolder[]
+  /** Optional. Hooks genuinely inseparable from this lore — eligible only while
+   *  this lorebook is active. Settings remain the primary home. [02 §4.1] */
+  hooks?: PlotHook[]
   entries: LoreEntry[]
 
   tags: string[]

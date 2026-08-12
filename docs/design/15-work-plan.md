@@ -326,8 +326,14 @@ link.
 
 Everything left that the 1.0 spec commits to and the phases above did not
 absorb: the assistant, editors-are-not-dumb-forms across every editor, the
-reading view ([05 §12](05-ui-surfaces.md)), the file
-browser, packaging, localisation catalogue extraction, Tailscale level 1.
+reading view ([05 §12](05-ui-surfaces.md)), impersonation in Scene
+([03 §3.1](03-modes-and-turn-pipeline.md)), the plot-hook selector, packaging's
+six artifacts ([04 §5.4](04-server-multiuser-deployment.md)), the in-app update
+check, and localisation catalogue extraction.
+
+**No longer here:** the file
+browser ([06 D3](06-open-questions.md)) and Tailscale ([06 D1](06-open-questions.md)),
+both moved to the roadmap.
 
 ---
 

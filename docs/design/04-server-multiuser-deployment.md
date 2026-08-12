@@ -312,6 +312,35 @@ interface Capabilities {
 First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
 
+**All accounts are manually provisioned, until post-2.0 at the earliest.** No
+self-registration, no invite links, no auto-provisioning from an identity
+provider. Not a philosophical position — simply simpler, and matched to reality:
+most installs are one user or a handful, and the typical act of adding a person
+is a conversation followed by typing a name.
+
+#### 4.2.2 A decision rule for when this gets pushed on
+
+**We are not targeting StoryEngine as a hosted service**, and that is the
+sentence that resolves a whole family of future arguments — self-registration,
+tenant isolation, per-object ACLs, rate limiting, abuse handling. Each will
+eventually be proposed by someone, and each is a reasonable request *for a
+product this is not*.
+
+Two rules worth writing down while it is easy:
+
+- **If it were hosted, the answer would be VPS, not shared tenancy.** One
+  install per household or per person, isolated by the machine rather than by
+  our permission model. That keeps the threat model in §4.1 honest instead of
+  quietly promoting it to something it was never built to be.
+- **Fork before complicating.** Multi-tenant hosting wants a genuinely different
+  security posture, and bolting it onto this codebase would tax every home user
+  with complexity that exists for a deployment they will never run. A sibling
+  project sharing the engine is the better shape.
+
+This is not a refusal to ever revisit it. It is a statement of what the default
+answer is, so that revisiting requires an argument rather than accumulating by
+default.
+
 #### 4.2.1 Named capabilities, not a role system
 
 Capabilities are a **flat, enumerated set on the account**. There are no roles
@@ -559,7 +588,8 @@ unavoidable.
 
 ### 5.2 Tailscale
 
-Wanted eventually; worth designing the seam now because it changes the auth model
+**All post-2.0.** Not hard, but a side project rather than a release blocker.
+Worth designing the seam now because it changes the auth model
 rather than sitting beside it. Three levels, in increasing order of effort:
 
 **Level 1 — Detect and inform.** Notice a `100.64.0.0/10` interface, show the
@@ -583,13 +613,18 @@ Cleanest result, largest commitment (a Go component or an equivalent binding),
 and it makes Funnel/Serve available if anyone ever wants controlled outside
 access.
 
-**[OPEN]** Which level is the 1.0 target. Lean: ship Level 1, design the auth
-layer so Level 2 is a provider plugged into an existing identity interface rather
-than a special case, and treat Level 3 as a genuine later project.
+**Settled: Level 1 yes, Level 2 maybe, Level 3 not worth the effort** — an
+embedded `tsnet` node is a real component for a convenience the two simpler
+levels mostly deliver. **All of it lands after 2.0.** Not hard, but a side
+project rather than anything on the path.
 
-**[OPEN]** Whether tailnet-identity users get auto-provisioned accounts on first
-sight, or must be pre-created by an admin. Auto-provisioning is friendlier and
-means anyone you share your tailnet with gets a StoryEngine account.
+The only thing to do now is keep the auth layer shaped so Level 2 is a provider
+plugged into an existing identity interface rather than a special case, which
+costs nothing.
+
+**Accounts stay manually provisioned until post-2.0** (§4.2), so
+auto-provisioning from tailnet identity is a question for whenever Level 2
+arrives — not one to answer now.
 
 ### 5.3 Packaging, and why containers invert the bind default
 
@@ -659,7 +694,8 @@ it quietly obsoletes the need for `.rpm` at this project's size. Ship the unit
 file, create a service user, put data in a sane place, and document the upgrade
 path.
 
-**Tier 3 — `.deb` and the Arch AUR package.** Conveniences, plus one strategic
+**Tier 3 — `.deb` and the Arch AUR package.** Also required at beta (see below),
+plus one strategic
 reason each:
 
 - **`.deb`** covers the largest single slice of homelab Linux (Debian, Ubuntu,
@@ -725,9 +761,18 @@ Tier 2 rather than optional: **the minimum honest artifact for a server is
 something that starts on boot.** A tarball with a unit file and an install script
 is a few hours of work and removes the single most common failure mode.
 
-So: Tier 1 and Tier 2 always. Tier 3 as capacity allows, with AUR earlier than
-its usage share suggests for the reason above. Everything else, documented
-build scripts and someone else's enthusiasm.
+**All of it is a beta requirement, not a matter of capacity.** The canonical
+automated build path delivers the OCI image, the tarball, `.deb`, AUR, the
+Windows service installer and the Homebrew formula — six artifacts from one
+pipeline, and feature-complete-at-beta means all six build
+([12 §0](12-repo-and-releases.md)). The in-app update *check*
+([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) is a **1.0**
+release requirement rather than a beta one.
+
+What that changes from an earlier draft: **Tier 3 is no longer "as capacity
+allows".** The tiers now describe *order of value*, not optionality. Everything
+outside the six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
+build-from-source stays first-class.
 
 **Auto-update — settled in [12 §4](12-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container

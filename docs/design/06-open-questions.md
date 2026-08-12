@@ -347,56 +347,98 @@ later is a content migration rather than a rename. The **user-facing label**
 stays free until Campaign ships — there is one Adventure preset at 1.0 and the
 UI can simply say *Adventure*. *[03 §1]*
 
-**C2. Mixed voice within a turn** — a narrator paragraph followed by embodied
-dialogue from two characters, stitched into one message. Powerful; multiplies
-latency and failure modes. Mode-preset capability rather than per-turn toggle?
-*[03 §3]*
+**C2. Mixed voice within a turn. — CONFIRMED: yes**, as a mode-preset
+capability rather than a per-turn toggle. A narrator paragraph followed by
+embodied dialogue as several `generate` steps feeding one message. It multiplies
+latency and failure modes, which is why a preset declares it rather than a user
+toggling it mid-session. *[03 §3]*
 
-**C3. Multiple player-controlled party members** — may one human author two
-characters? Cheap to allow structurally; it is also where real multiplayer would
-attach. *[03 §8]*
+**C3. Multiple player-controlled party members. — CONFIRMED: yes**, and
+permitted by default in the Adventure presets, where playing a pair is a normal
+way to run a story.
 
-**C4. Turn job durability across server restart.** Proposed 1.0 answer: not
-resumed, but recorded as failed with blocks intact so it can be re-run rather
-than lost. *[04 §2]*
+**This also settles something not previously specified: impersonation.**
+SillyTavern's *impersonate* — the model writes your next message as your persona
+and you edit or accept it — is the same axis seen from the other end: a
+`player`-controlled member being model-authored for one turn. Not a separate
+feature, a per-turn control override. Scene mode is its home and it ships at
+1.0. Three details make it feel right: the output is a **draft** that lands in
+the input box and is not sent until the user sends it; it is a `generate` step
+like any other, so it is recorded and re-rollable; and the call is
+`voice: "embodied"` on the persona. *[03 §3.1, 03 §8]*
 
-**C5. Steps that suspend for player input.** [09 §4.2](09-infinite-worlds.md):
-Infinite Worlds can present a choice or request free text mid-turn and store the
-answer. Our `StepDefinition` cannot — a turn runs to completion. Proposed: a
-step may return a *suspend* outcome carrying an input request; the turn job
-parks, the event stream publishes it, the answer arrives as an intent, the turn
-resumes. Fits the server-authoritative model well, but it makes turn jobs
-long-lived and interacts with C4. *[03 §6, 09 §4.2]*
+**C4. Turn job durability across restart. — CONFIRMED as proposed.** Turns are
+not resumed; the partial turn is recorded as failed with its blocks intact, and
+recovers through the ordinary retry affordance. *[04 §2]*
 
-**C6. One expression language for both templates and rules.**
-[09 §6](09-infinite-worlds.md): Infinite Worlds ran on purely declarative
-triggers for years and then added an expression language. Assume we will need
-one, and make it the same language used for block rendering (Liquid is proposed)
-rather than growing a second. Open: whether Liquid is actually a good fit for
-rule *conditions*, and what query surface collection-valued channels need.
-*[03 §5, 07]*
+**C5. Steps that suspend for player input. — CONFIRMED: include it.**
+Potentially powerful, and worth noting that Infinite Worlds — where the idea
+comes from — uses it sparingly. So: build the mechanism, and do not over-invest
+in its UX before there is evidence anyone reaches for it often. *[03 §6]*
 
-**C7b. Plot hooks — scope at 1.0.** [02 §4.1](02-data-model.md) adds an authored
-pool of discrete major plot turns, fired by a selector step
-([03 §6.1](03-modes-and-turn-pipeline.md)). The *schema* is cheap, forecloses
-nothing, and should land at 1.0 so packages authored early stay valid. The
-*selector* is a real feature and its pacing judgement is an opinion — open
-whether a simple built-in ships at 1.0, whether it is replaceable the way
-retrieval is, and whether it is core or an extension. Also open: whether hooks
-are separately shareable as "hook packs" (lean: no, their value is specificity).
-*[02 §4.1, 03 §6.1]*
+**C6. One expression language for templates and rules. — PARTLY SETTLED: one
+language, definitely. Which one stays open.**
 
-**C7. Authored rules — the vocabulary itself.** [09 §3](09-infinite-worlds.md)
-proposes taking Infinite Worlds' trigger vocabulary close to wholesale as a
-starting point. Open: which conditions and effects make the 1.0 cut, how the
-vocabulary is versioned, and whether AI-evaluated fuzzy conditions ship at all
-(IW caps them at ten per world and warns they produce false positives).
-*[09 §2, §3]*
+The constraint is confirmed — templates and rule conditions share an evaluator,
+so authors learn one thing and we sandbox one thing. The *choice* needs real
+research and, more usefully, a closer understanding of the suite as actually
+built: what rule conditions really need to express, and whether a template
+language stretches to them comfortably. Deferring the pick costs nothing as long
+as the single-language constraint holds. *[03 §5, 07]*
 
-**C8. Branch snapshot interval and eviction.** [10 §4](10-branching.md) makes
-channel-state snapshots a derived cache so branch creation stays O(1) and
-materialisation stays bounded. Open: the interval, and whether old snapshots are
-evicted. Needs a default, cheap to tune later. *[10 §4]*
+**C7. Authored rule vocabulary. — CONFIRMED: take Infinite Worlds' as is.**
+Conditions and effects adopted close to wholesale ([09 §3](09-infinite-worlds.md)).
+
+**AI-evaluated fuzzy conditions are allowed, uncapped, and openly discouraged.**
+IW caps them at ten per world because it is a hosted service paying for every
+evaluation; a self-hosted install is not under that constraint, so a hard cap
+would be borrowed rather than reasoned. But they are slow, they cost a call, and
+IW's own documentation warns they produce false positives — so the editor should
+warn on use, the documentation should say plainly why they are a last resort, and
+the workbench should show when one misfired. **Making the cost visible is better
+discouragement than a limit.** *[09 §3]*
+
+**C7b. Plot hooks — scope at 1.0. — RESOLVED: data structures from the
+beginning, and a simple selector early.** Both ship. The structures because they
+are cheap and foreclose nothing; the selector because hooks are one of the
+clearest things StoryEngine does that its sources do not, and a data structure
+nobody can use is not a differentiator. Expect it to do little in early practice
+— pacing takes tuning — and build the simple version anyway. Replaceable by an
+extension, following retrieval's pattern.
+
+**Hooks must be addable to a running session**, which is most of why the feature
+earns its place: *"I have just realised I want this plot point to come up, but
+not necessarily on this turn."* That brushes against prefill-not-binding, so the
+reconciliation is explicit — **session-local hooks are the primary path** (add to
+the session, immediately eligible, no principle bent), and **setting changes are
+pulled, never pushed** (*"the setting has 2 new hooks — add them?"*). A pushed
+update would mean editing a setting could silently alter a story in progress,
+which is the failure prefill-not-binding exists to prevent.
+
+"Hook packs" as a separately shareable kind stay declined; C7c covers the case
+that motivated them. *[02 §4.1, 03 §6.1]*
+
+**C7c. Plot hooks on lorebooks. — RESOLVED: allowed, secondary.** Hooks are
+setting-shaped rather than lorebook-shaped, and multi-sourcing is genuinely
+untidy — but a hook is often *about* a specific piece of world content, and two
+things make the association principled rather than convenient. It **travels with
+the thing people actually exchange**, since lorebooks are this ecosystem's
+universal currency where Settings are ours; and it **gets an eligibility
+condition for free**, being live only while its lorebook is active.
+
+Costs accepted: hooks now come from up to four places (setting, setup, lorebook,
+session), mitigated the way multi-book lore already is — every hook shows its
+source and editing navigates to the owner. Compatible export to third-party
+lorebook formats drops them, like everything else we add. The real risk is
+conceptual drift, so it is documented as being for hooks genuinely inseparable
+from a piece of lore, with Settings staying the default answer.
+*[02 §4.1, 13 §5]*
+
+**C8. Branch snapshot interval. — RESOLVED: tuneable, and generous during
+alpha.** Snapshot often and keep many; they are derived and disposable
+([10 §4](10-branching.md)), so the cost is disk and the benefit is that branch
+materialisation stays fast while the real access patterns are still unknown.
+Tighten once there is evidence, not before. *[10 §4]*
 
 **C9. Unnamed-sibling retention.** [10 §6](10-branching.md) is now **decided**:
 swipes and branches are one mechanism, so discarded swipes are permanently
@@ -421,41 +463,64 @@ sibling, *continue differently* adds a child. Both are offered explicitly.
 
 ## D. Deployment questions
 
-**D0. Config reload tiers.** [04 §6.1](04-server-multiuser-deployment.md)
-annotates every config key `live` / `reconnect` / `restart`, which makes the
-restart-required notice derived rather than hand-maintained. Settle the
-annotation early: a hand-kept list of settings-needing-restart is wrong within
-two releases, and wrong in the direction where a user changes something, sees
-nothing happen, and concludes the app is broken. *[04 §6]*
+**D0. Config reload tiers. — CONFIRMED.** Every config key annotated
+`live` / `reconnect` / `restart`, so the restart-required notice is derived
+rather than hand-maintained. *[04 §6]*
 
-**D0b. Packaging targets.** [04 §5.4](04-server-multiuser-deployment.md) settles
-the list: OCI image as the real distribution, a tarball with a systemd unit as
-the highest-value non-container artifact, then `.deb` and AUR, plus a Windows
-service installer and a Homebrew tap for Apple Silicon. Explicitly declined:
-Flatpak, AppImage, Snap, `.rpm`, LXC templates, Intel macOS binaries. Open:
-whether Tier 3 lands at 1.0 or after, and whether an in-app update *check* ships
-with it. *[04 §5.4]*
+**D0b. Packaging targets. — CONFIRMED, and promoted from optional to required.**
+The canonical automated build path delivers **six artifacts**: OCI image,
+tarball, `.deb`, AUR, Windows service installer, Homebrew formula. All six are
+**beta feature-complete requirements** rather than as-capacity-allows, which
+rewrites the earlier tiering — the tiers now describe order of value, not
+optionality. The in-app update **check** is a **1.0 release requirement**.
+Declined stays declined: Flatpak, AppImage, Snap, `.rpm`, LXC.
+*[04 §5.4, 12 §0]*
 
-**D1. Tailscale target level for 1.0.** Level 1 (detect and show the tailnet
-URL) is cheap and captures most of the practical value; Level 2 (tailnet
-identity as auth, following SillyTavern's trusted-proxy header pattern) changes
-the auth model; Level 3 (`tsnet` embedded node) is a real project. Lean: ship
-1, design auth so 2 is a provider rather than a special case. *[04 §5.2]*
+**D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. All
+post-2.0.** An embedded `tsnet` node is a real component for a convenience the
+simpler levels mostly deliver. Not hard, but a side project rather than anything
+on the path. The only thing to do now is keep the auth layer shaped so Level 2 is
+a provider rather than a special case, which costs nothing. *[04 §5.2]*
 
-**D2. Auto-provision accounts from tailnet identity**, or require an admin to
-pre-create them? *[04 §5.2]*
+**D2. Auto-provisioning accounts. — RESOLVED: no. All accounts manually
+provisioned until post-2.0 at the earliest.** No self-registration, no invite
+links, no identity-provider provisioning. Not philosophical — simpler, and
+matched to reality, since most installs are one user or a handful and adding
+someone is a conversation followed by typing a name. Revisit only if Tailscale
+Level 2 or 3 ever lands.
 
-**D3. File access scope and phasing.** [05 §4] proposes `FileAccess = "none" |
-"read" | "write"` per account with library-write as a separate flag, shipping
-read-plus-zip-download early and deferring write and the in-UI text editor to
-1.x. Open: whether `write` should require password re-entry, and whether
-library write is admin-only on a shared server. *[05 §4]*
+**This also records a decision rule worth having** ([04 §4.2.2](04-server-multiuser-deployment.md)):
+StoryEngine is not targeting hosted-service deployment, which resolves a family
+of future arguments — self-registration, tenant isolation, per-object ACLs, abuse
+handling. If it were hosted the answer would be **VPS, not shared tenancy**, and
+if multi-tenancy is ever genuinely wanted the answer is **fork before
+complicating**: a sibling project sharing the engine, rather than taxing every
+home user with complexity for a deployment they will never run. *[04 §4.2]*
 
-**D4. Truly mobile-optimised layout.** [05 §1] commits to responsive-and-usable
-at 1.0 and defers a distinct mobile layout — different navigation, thumb-reach
-play surface — as a later project within the same web app. Worth confirming that
-is the right ordering versus designing the mobile play surface alongside the
-desktop one from the start. *[05 §1]*
+**D3. File access. — RESOLVED: deprioritised, experimental at best, roadmap
+rather than 1.0.** The feature is still wanted and the reasoning still stands;
+what changed is its position. Import and export UIs exist for a reason, in-app
+library management matters more, and a file-management UI is a disproportionate
+amount of surface and risk for something most people will never open.
+
+**Two things survive and still land at 1.0:** the capability field, and the
+single audited path-resolution helper — needed by every filesystem-touching route
+regardless, and having one from the start is the difference between a security
+property and a hope. **Hand-editing on disk keeps working**, because that was
+never about the UI: [05 §4.1](05-ui-surfaces.md)'s forcing function is unchanged.
+*[05 §4, 11 §3]*
+
+**D4. Mobile layout, and the stance on native clients. — RESOLVED.**
+Responsive-and-usable at 1.0; a distinct mobile-optimised layout stays later.
+
+**The "no apps ever" position is softened, with a bar.** Notification-driven
+modes — Messages especially — are the kind of thing a native client genuinely
+serves better, so a blanket never is the wrong shape. Instead: *not a priority
+and not ours to build; pitch it if you want to contribute one, but nothing ships
+that is not a feature-complete client with a real advantage over the web app.*
+A partial native client is worse than none — it splits the surface, halves the
+testing, and teaches people that some features live in one place and some in the
+other. *[05 §1, 11 §3]*
 
 ---
 

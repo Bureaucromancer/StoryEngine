@@ -245,9 +245,10 @@ None is specified further than its original entry.
 |---|---|---|
 | Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [04 §8](04-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
 | Truly mobile-optimised layout | [05 §1](05-ui-surfaces.md) | A mode of the same web app, never a native shell |
-| In-UI file access: write, and the text editor | [05 §4.4](05-ui-surfaces.md) | Read plus zip-download ships earlier; write is the risky half |
+| **In-UI file access, the whole feature** | [05 §4](05-ui-surfaces.md) | Deprioritised to experimental ([06 D3](06-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
 | Custom extension rendering (sandboxed iframe) | [05 §8](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work |
-| Tailscale levels 2 and 3 (tailnet identity, `tsnet` node) | [04 §5.2](04-server-multiuser-deployment.md) | Level 1 ships; the auth layer is shaped so 2 is a provider, not a special case |
+| **Tailscale, all levels** | [04 §5.2](04-server-multiuser-deployment.md) | **Post-2.0** ([06 D1](06-open-questions.md)). Level 1 yes, Level 2 maybe, Level 3 not worth it. Keep the auth layer shaped so Level 2 is a provider rather than a special case |
+| A native client | [05 §1](05-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([06 D4](06-open-questions.md)) |
 | Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it |
 | Per-actor knowledge scope (anti-omniscience) | [09 §5](09-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
 | A real user role system | [04 §4.2.1](04-server-multiuser-deployment.md) | **Post-2.0.** Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |

@@ -117,10 +117,45 @@ So: two settings, exposed per-session and overridable per-turn, rather than a
 mode enumeration. `ModelHint` ([02 §2.6](02-data-model.md)) is only consulted
 under `per-actor`, which is the honest statement of why it exists.
 
-**[OPEN]** Whether `voice` can vary *within* a turn — a narrator paragraph
-followed by embodied dialogue from two characters, as three calls stitched into
-one message. Powerful, and it multiplies latency and failure modes. Probably a
-mode-preset capability rather than a per-turn toggle.
+**Confirmed: `voice` may vary within a turn.** A narrator paragraph followed by
+embodied dialogue from two characters, as three calls stitched into one message.
+It multiplies latency and failure modes, so it is a **mode-preset capability**
+rather than a per-turn toggle — a preset declares that it composes turns this
+way, and the pipeline is already able to express it as several `generate` steps
+feeding one message.
+
+### 3.1 Who authors a character's words, and impersonation
+
+`control` on a party member ([§8](#8-party)) says who normally authors that
+character: `player`, `companion` or `auto`. Two things follow that are worth
+stating together, because they are the same axis seen from both ends.
+
+**More than one member may be `control: "player"`.** One human authoring two
+characters is allowed — in Adventure especially, where playing a pair is a
+normal way to run a story. Nothing structural limits it, and this is also the
+seam where genuine multiplayer would eventually attach
+([04 §8](04-server-multiuser-deployment.md)).
+
+**Impersonation is a per-turn override, not a separate feature.** SillyTavern's
+*impersonate* — the model writes your next message *as your persona*, and you
+edit or accept it — is simply a `player`-controlled member being model-authored
+for one turn. Same mechanism, flipped for a turn.
+
+Worth having because it is genuinely useful when stuck, when you want the
+model's read on how your character would answer, or as a drafting aid you then
+rewrite. Scene mode is its natural home and it should exist there at 1.0.
+
+Three details that decide whether it feels right:
+
+- **It is a draft, not a commitment.** The output lands in the input box,
+  editable, and is not sent until the user sends it. Anything else takes
+  authorship away rather than assisting it.
+- **It is a `generate` step like any other**, so it is recorded in the turn
+  record and rewrite/reroll apply ([07 §14.5](07-tech-stack.md)) — an
+  impersonation you dislike is re-rollable without ceremony.
+- **The persona's card is the subject, not the audience.** The call is
+  `voice: "embodied"` on the persona, which is exactly what the axis above
+  already describes.
 
 ---
 
@@ -456,11 +491,41 @@ fired, which are eligible now, which are blocked *and by what*, and to force-fir
 any hook to see how it reads. Without the last one, large hook pools are
 unauthorable in practice.
 
-**[OPEN]** Whether the selector is core or an extension. The hook *data* should
-be core regardless, so packages authored now stay valid. But pacing judgement is
-an opinion, and a plausible split is a simple built-in selector plus the same
-replaceability retrieval has. **[OPEN]** also whether it ships at 1.0 at all —
-the schema is cheap and forecloses nothing, the agent is a real feature.
+#### Scope: data structures from the beginning, a simple selector early
+
+**Both ship at 1.0.** The data structures because they are cheap and foreclose
+nothing; the selector because plot hooks are one of the clearest things
+StoryEngine does that its sources do not, and a data structure nobody can use is
+not a differentiator. Expect it to do relatively little in early practice —
+pacing judgement takes tuning — and build the simple version anyway.
+
+Replaceability follows retrieval's pattern: a built-in selector that an
+extension may substitute, since pacing is an opinion.
+
+#### Hooks must be addable to a running session
+
+The use case is specific and worth naming, because it is most of why the feature
+earns its place: *"I have just realised I want this plot point to come up — but
+not necessarily on this turn."* That is exactly what a hook is for, and it
+arrives mid-session far more often than at authoring time.
+
+So **a hook added while a session is running becomes eligible from the next
+selector pass.** No restart, no re-import, no new session.
+
+This brushes against prefill-not-binding ([00 §3.1](00-stance.md)) — a session
+copies from its setting and holds no live link — so the reconciliation matters:
+
+- **Session-local hooks are the primary path.** Add a hook *to the session*. It
+  is session state, immediately eligible, and no principle is bent. This serves
+  the use case above directly, and is what the "add a hook" button does.
+- **Setting changes are pulled, never pushed.** Edit the setting and the session
+  offers it: *"the setting has 2 new hooks — add them?"* Nothing changes without
+  the user asking, so the session still owns its own pool, and someone who wants
+  the hook in future sessions too gets that without a second act of authoring.
+
+The distinction is not pedantry: a *pushed* update would mean editing a setting
+could silently alter a story in progress, which is the failure prefill-not-
+binding exists to prevent.
 
 **This unifies "agent" and "pipeline stage".** Marinara's agents — Narrative
 Director, Prose Guardian, Echo Chamber, tracker agents, Music DJ — are all steps

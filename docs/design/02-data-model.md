@@ -413,9 +413,41 @@ A hook carries its premise and scope, mechanical eligibility (`involves`,
 `requires`, `blockedBy`, `notBefore`), and firing behaviour (`weight`,
 `delivery`, `onFire`).
 
-Settings carry the hooks. A Setup may add its own on top, and a package carries
-both by carrying the objects.
-Session creation copies them, per prefill-not-binding
+#### Where hooks live
+
+**Settings are the primary home.** A Setup may add its own on top, a session may
+add its own while running ([03 §6.1](03-modes-and-turn-pipeline.md)), and a
+package carries all of them by carrying the objects.
+
+**Lorebooks may also carry hooks, optionally** — and the reason is better than
+convenience. A hook is often *about* a specific piece of world content: "the
+Flower Kingdom will declare war" belongs with the Flower Kingdom. Two things
+follow that make this principled rather than a shortcut:
+
+- **It travels with the thing people actually exchange.** Lorebooks are the
+  universal currency of this ecosystem; Settings are ours. A hook attached to a
+  lorebook reaches anyone who imports it.
+- **It gets a natural eligibility condition for free.** A hook carried by a
+  lorebook is only eligible while that lorebook is active in the session. That
+  is a sensible default and a mechanical justification for the association,
+  rather than "it seemed handy".
+
+**The costs, stated.** Hooks now come from up to four places — setting, setup,
+lorebooks, session — which is more sourcing than any other object has.
+Mitigations are the same ones lore entries already rely on: every hook shows its
+source, and editing navigates to whichever object owns it.
+
+The real risk is conceptual drift. Lorebooks are *world facts*; hooks are
+*narrative intent*. If hooks-on-lorebooks became the common path, the
+separation that keeps a lorebook portable and a setting free of world content
+would erode. So: **allowed, secondary, and documented as being for hooks that
+are genuinely inseparable from a piece of lore.** Settings stay the default
+answer to "where do I put this?".
+
+Compatible export to third-party lorebook formats drops them, like everything
+else we add ([13 §2](13-schemas.md)) — worth knowing, not a reason to decline.
+
+Session creation copies hooks from all sources, per prefill-not-binding
 ([00 §3.1](00-stance.md)), and the session tracks which have fired.
 
 **What makes this a distinct object rather than a use of an existing one.** It

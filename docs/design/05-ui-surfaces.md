@@ -6,9 +6,22 @@
 
 ## 1. The client stance: web, and only web
 
-**StoryEngine is a web application.** The browser is not *a* client, it is *the*
-client. There is no desktop app, no Electron shell, no Tauri build, no native
-mobile app, and no plan for any.
+**StoryEngine is a web application.** The browser is *the* client, and every
+surface in this document is built for it. There is no desktop app, no Electron
+shell, no Tauri build and no native mobile app.
+
+**Softened from "and no plan for any", with a bar attached.** Notification-driven
+modes — Messages especially ([03 §7.1](03-modes-and-turn-pipeline.md)) — are the
+kind of thing a native client genuinely serves better, so a blanket never is the
+wrong shape. The position instead:
+
+> **Not a priority, and not ours to build. Pitch it if you want to contribute
+> one — but nothing ships that is not a feature-complete client with a real
+> advantage over the web app.**
+
+A partial native client is worse than none: it splits the surface, halves the
+testing, and teaches people that some features live in one place and some in the
+other. The bar is the whole point of the position.
 
 This is a stronger position than any of the three sources takes — Aventuras is a
 Tauri desktop app, Marinara ships a launcher `.exe` plus Docker plus an Android
@@ -118,6 +131,25 @@ beside every message is not.
 ---
 
 ## 4. File access as a permission level
+
+**Deprioritised. Experimental at best, and on the roadmap rather than in 1.0
+([11 §3](11-roadmap.md)).** The reasoning below stands and the feature is still
+wanted; what changed is its position. Import and export UIs exist for a reason,
+in-app library management matters more, and a file-management UI is a
+disproportionate amount of surface — and of risk — for something most people
+will never open.
+
+**Two things survive the deprioritisation and should still land at 1.0:**
+
+- **The capability field** ([04 §4.2](04-server-multiuser-deployment.md)) and the
+  **single audited path-resolution helper** ([07 §9](07-tech-stack.md)). The
+  helper is needed by every filesystem-touching route regardless, and having one
+  from the start is the difference between a security property and a hope.
+- **Hand-editing on disk keeps working**, because that was never about the UI.
+  §4.1's forcing function is unaffected: if editing a file on disk does not
+  reflect without a restart, the storage design has failed on its own terms.
+  Someone with shell access still gets everything; what is deferred is the
+  in-browser route to it.
 
 The requirement, restated: since the data directory is the system of record and
 is human-navigable by design ([02 §5](02-data-model.md)), a user with an account
