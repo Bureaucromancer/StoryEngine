@@ -46,9 +46,13 @@ intended. See §4.
 
 | Surface | What it is |
 |---|---|
-| **Play** | The three modes' chat/scene/adventure views |
+| **Play** | The modes' chat, scene and adventure views |
 | **Library** | Actors, lorebooks, settings, setups, presets, packages — browse, edit, organise, import, export |
 | **Workbench** | What the engine sent, why, what it cost, and what to change |
+
+Plus the **reading view** (§12) — the story as prose, with the machinery
+stripped. The workbench and the reading view answer opposite questions over the
+same records.
 
 "Peer" is a design-process claim as much as a layout one: Library and Workbench
 get designed in the same pass as Play, not retrofitted once Play works. Both of
@@ -549,3 +553,65 @@ before they are discovered:
   assist is running or failing.
 - **Refine must be cheap to reject.** One click back to the previous value, no
   confirmation dialogue.
+
+---
+
+## 12. The reading view
+
+**A story should be readable as a story, at any point, without the machinery.**
+Infinite Worlds does this well and it is the feature of theirs most worth
+copying: the ability to produce a reading-oriented output whenever you like.
+
+This is a **1.0 feature**, and a cheap one — every input already exists.
+
+### 12.1 What it is
+
+A path through the turn tree, rendered as prose. Narration and dialogue in
+order, speaker attribution, scene breaks, images inline where a turn produced
+them. Nothing else: no blocks, no budgets, no costs, no step timings, no channel
+state.
+
+**It is the opposite of the workbench, and deliberately so.** The workbench
+answers *why did the engine do that*; the reading view answers *what happened in
+the story*. They read the same turn records and share nothing else, and neither
+should drift toward the other.
+
+- **Any node, not just the head.** Read the current path, or a branch you
+  abandoned, or the story as it stood forty turns ago.
+- **Live, not an export step.** Openable at any time on any session, including
+  one still in progress.
+- **Renditions inline**, where they exist ([03 §10](03-modes-and-turn-pipeline.md)).
+
+### 12.2 Formats, and not shipping a PDF library
+
+**HTML with a real print stylesheet, plus Markdown and plain text.**
+
+That covers PDF without any PDF code: a clean printable page means the browser's
+own print-to-PDF produces a good result. Shipping a PDF renderer would be real
+weight — fonts, pagination, layout — for an outcome the platform already gives
+away. If PDF ever needs to be produced *server-side*, headless-browser printing
+is the next step, and still not a PDF library.
+
+Markdown matters for a different reason: it is what someone pastes elsewhere,
+and it round-trips into every other tool people already use.
+
+### 12.3 Not the same thing as session export
+
+Worth separating before they get conflated:
+
+| | **Reading view** | **Session export** ([06 B12](06-open-questions.md)) |
+|---|---|---|
+| For | A person to read | Another install to load |
+| Fidelity | Lossy by design — the machinery is stripped | Lossless |
+| Ships | 1.0 | Eventually, not early |
+
+The reading view being lossy is the point. An export that dropped the turn
+records would be broken; a reading view that included them would be unreadable.
+
+### 12.4 Why it belongs at 1.0
+
+Beyond being cheap: **"full readability and rollback" is the pair that makes a
+long session feel safe.** Rollback is branching ([10](10-branching.md)) — you can
+always go back. Readability is this — you can always see what you have. Together
+they are what makes someone willing to commit two hundred turns to a story, and
+either one alone is noticeably less reassuring.

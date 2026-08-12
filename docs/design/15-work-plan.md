@@ -123,6 +123,9 @@ probably the most useful single list in the document.
   Retrofitting user scoping into a flat store is miserable.
 - **Every portable object self-describes** with a `schema` field, so containers
   never enumerate kinds ([13 §8](13-schemas.md)).
+- **Turn segments append in creation order, never rewritten**, with reading order
+  resolved through the index ([02 §5.5](02-data-model.md)). Making file order
+  resemble tree order is the mistake that makes branching a storage problem.
 - **Readers preserve unknown fields.** The single rule that lets formats evolve
   ([13 §2](13-schemas.md)).
 - **Reserve the `se.*` section-id namespace** ([13 §4](13-schemas.md)).
@@ -319,7 +322,8 @@ link.
 ### P11 — Beta hardening
 
 Everything left that the 1.0 spec commits to and the phases above did not
-absorb: the assistant, editors-are-not-dumb-forms across every editor, the file
+absorb: the assistant, editors-are-not-dumb-forms across every editor, the
+reading view ([05 §12](05-ui-surfaces.md)), the file
 browser, packaging, localisation catalogue extraction, Tailscale level 1.
 
 ---

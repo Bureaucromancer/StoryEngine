@@ -218,16 +218,29 @@ comedy drawing on the same world — and create an ownership question on delete.
 `LoreLink.required` is the concession: mark a link load-bearing and a consumer
 warns loudly when it will not resolve, still without blocking. *[02 §4, 13 §3]*
 
-**B3. Turn record retention.** Full records are large. Keep everything by
-default with optional compaction of old turns, or compact automatically past N?
-*[02 §8]*
+**B3. Turn record retention. — RESOLVED: keep everything.** No compaction, no
+automatic pruning. The cost is disk and the benefit is that every question about
+a session stays answerable forever, which is most of why the record exists. Worth
+knowing the order of magnitude: a full record is roughly 10–100× its message
+text, so a thousand-turn session is tens to a couple of hundred megabytes.
+Acceptable, and it makes B4 matter more than it otherwise would. *[02 §8]*
 
-**B4. Turn storage layout.** One file per turn (simple, thousands of files per
-campaign) vs JSONL segments (~200 turns per file). Lean: segments. *[02 §5.5]*
+**B4. Turn storage layout. — RESOLVED: append-only JSONL segments, and branching
+does not affect it.** Specified in [02 §5.5](02-data-model.md).
 
-**B5. Embedded payload compression** in PNG cards — plain base64 `tEXt` or
-`zTXt`? Affects third-party tool compatibility, so decide once and don't
-revisit. *[02 §5.2]*
+The worry — that reconstructing the primary thread of a long, repeatedly
+branched session gets complicated — comes from an assumption worth dropping:
+that file order should resemble reading order. It should not. **Segments are
+creation-ordered and never rewritten; reading order is a tree walk resolved
+through the index.** Once those are separate, branching stops being a storage
+concern entirely: a branch is just more appends, so no branch-aware cap is
+needed and no segment ever has to be pieced back together.
+
+**B5. Embedded payload compression. — RESOLVED: plain base64 `tEXt`.** Simplest,
+and most widely readable by third-party tools. Volume is not the concern it
+looks like: binary media travels in its own chunk as raw bytes
+([02 §5.2.2](02-data-model.md)), so base64's ~33% overhead applies only to the
+JSON, which is small. *[02 §5.2]*
 
 **B6. JSON or YAML? — RESOLVED: JSON everywhere, including config.** YAML is
 nicer to hand-edit and supports comments, and is still not worth mixing two
@@ -240,10 +253,18 @@ the primary path. *[02 §5.4]*
 mode that owns its channels updates its schema? Needs an answer before anything
 ships. *[03 §4]*
 
-**B8. Translated play.** Aventuras smears `translated*` fields across every
-entity, which does not scale. Is translated play a 1.0 requirement at all? If
-yes, a translation sidecar keyed by (objectId, field, language) is the obvious
-alternative. *[01 §2]*
+**B8. Translated play. — RESOLVED: not attempted, and explicitly not a blocker
+for 1.0 or 2.0.** Translating *content* — cards, lorebooks, narration — is
+wanted in principle and cannot realistically be implemented or assessed here, so
+it is not attempted rather than half-attempted. UI localisation (A2d) is a
+separate matter and does ship.
+
+**Doing nothing is the correct action, and it forecloses nothing.** Aventuras'
+approach — `translated*` columns smeared across every entity — is what would
+have to be avoided, and simply not adding them costs nothing now. If it is ever
+attempted, a sidecar keyed by (objectId, field, language) needs no schema change
+at all, because readers already preserve unknown fields
+([13 §2](13-schemas.md)). *[01 §2, 07 §12]*
 
 **B9. Can an expanded opening seed be promoted back? — RESOLVED: yes.** That is
 the point of carrying seeds and written openings as two lists: a seed is reusable
@@ -251,32 +272,33 @@ machinery, a good expansion is content worth keeping. The loop closes —
 seed → expand → edit → accept → promote — and the promoted opening records
 `fromSeedId`. Promotion targets the source object, not the session. *[02 §6, 13 §3]*
 
-**B11. Lorebook — confirm the four revisions.** [02 §3] now takes entry
-activation, timing, recursion, placement and budgeting from Marinara
-essentially unchanged. Four changes remain proposed and each is arguable:
-(a) entry state (`dynamicState`, quests, relationships, disposition) moves to
-session channels, with only a `stateSchema` on the entry — justified by lorebook
-portability, since an exported lorebook must not carry your playthrough;
-(b) `activationConditions` + `schedule` unify as typed channel predicates;
-(c) `embedding` moves to the derived index; (d) the five overlapping book-level
-scoping mechanisms collapse to one `LoreScope` union. (d) is nearly free; (a) is
-the one with real consequences for how quest-like content is authored. *[02 §3]*
+**B11. Lorebook revisions. — CONFIRMED as proposed.** All four:
+(a) entry state — `dynamicState`, quests, relationships, disposition — moves to
+session channels with only a `stateSchema` left on the entry, so an exported
+lorebook cannot carry somebody's playthrough; (b) `activationConditions` and
+`schedule` unify as typed channel predicates; (c) `embedding` moves to the
+derived index; (d) the five overlapping book-level scoping mechanisms collapse
+to one `LoreScope` union. Everything else — matching, timing, recursion,
+placement, grouping, gating and the two-tier budget — is taken from Marinara
+essentially unchanged. *[02 §3, 13 §5]*
 
-**B12. Are sessions exportable at all?** Not previously asked, and it turns out
-to gate B10. Sessions are the one kind marked internal and free-to-migrate
-([13 §1](13-schemas.md)) *because* nothing exports them — so exporting one makes
-the turn record a portable format with everything that implies, and drags along
-localActors, channel state, branch structure and possibly renditions. There is
-real demand for it (share a playthrough, move between installs, archive a
-finished story), and it is a much larger commitment than it looks. Deciding it
-also decides how much of the turn record can keep churning.
+**B12. Are sessions exportable? — RESOLVED in principle: yes, eventually. Not an
+early priority.** Sessions are marked internal and free-to-migrate
+([13 §1](13-schemas.md)) *because* nothing exports them, so this has a
+consequence worth carrying: **the turn record may churn freely now and should be
+expected to freeze when export ships.** Better to know that is coming than to
+discover it. Export drags along `localActors`, channel state, branch structure
+and renditions, which is why it is a larger commitment than it looks.
 
-**B10. Prologue packages — deferred, and blocked on B12.** May a package ship a
-partially-played session as a starting state? Conceptually welcome; it crosses
-the content/session line the rest of the model keeps clean, and it cannot be
-answered before session export exists and is known to work. The [13 §7](13-schemas.md)
-split helps: a prologue would be a *session* travelling in a package, not a
-variant of Setup. *[02 §7]*
+Distinct from the **reading view** ([05 §12](05-ui-surfaces.md)), which *does*
+ship at 1.0 and is deliberately lossy — a person reading a story rather than an
+install loading one.
+
+**B10. Prologue packages — good concept, worth doing, unblocked once B12 lands.**
+A package shipping a partially-played session as a starting state. Conceptually
+welcome and no longer blocked on an undecided question, only on a sequenced one.
+The [13 §7](13-schemas.md) split makes it clean: a prologue is a *session*
+travelling in a package, not a variant of Setup. *[02 §7]*
 
 ---
 

@@ -700,20 +700,59 @@ the settings UI the primary path so hand-editing config stays rare.
 ### 5.5 Sessions
 
 Sessions are the one high-write-volume kind, and they live under the owning user.
-`session.json` holds metadata, cast, channel state and branch structure; turns
-are individual append-only files under `turns/`. Rationale: a turn record is
-large (§8) and immutable once written, so appending files avoids rewriting a
-growing document on every turn, and it makes the turn log rsync/backup-friendly.
+`session.json` holds metadata, cast, channel state and branch refs.
 
-**[OPEN]** One file per turn is a lot of small files for a long campaign
-(thousands). Alternatives: chunked append-only JSONL segments (say 200 turns per
-file), which trades random access for file count. Lean: JSONL segments.
+**Turns are append-only JSONL segments**, rolling on whichever limit is reached
+first — a turn count or a byte size. Not one file per turn (thousands of small
+files for a long campaign), and not one growing document (rewritten on every
+turn).
 
-Whichever is chosen, **turn storage must tolerate removal** — a tombstone the
-reader skips, plus a compaction pass. No UI needs it at 1.0, but pruning a
+```
+sessions/<id>/
+  session.json
+  turns/000001.jsonl … 000014.jsonl     # append-only, never rewritten
+  assets/
+```
+
+#### File order is creation order. Reading order is a tree walk.
+
+This is the decision that makes branching a non-issue for storage, and it is
+worth stating because the natural instinct points the other way.
+
+Turns form a tree ([10 §3](10-branching.md)), and the tempting move is to make
+storage resemble that — per-branch files, or segments kept in reading order. That
+is where "reconstructing the primary thread of a long, repeatedly branched
+session" becomes genuinely hard.
+
+**So do not.** Turns append in the order they were created, whatever branch they
+belong to, and the segment is never touched again. Reading a path is:
+
+1. walk `parentTurnId` from the head — the tree structure lives in the records;
+2. resolve each id to `(segment, offset)` through the index;
+3. read.
+
+Consequences worth having:
+
+- **Branching costs nothing in the write path.** A branch is more appends. No
+  branch-aware cap, no special case for a session that has never branched, and
+  no segment that ever needs piecing back together.
+- **Segments stay immutable**, which keeps them rsync- and backup-friendly and
+  means a corrupted segment loses a bounded window rather than a session.
+- **The index earns its keep again.** It already maps ids to locations and is
+  already rebuildable from disk (§5.1); path materialisation for the current head
+  is one more derived thing it holds.
+- The hot read is almost always "the last N turns of the current path", which
+  caches trivially.
+
+**Turn storage must tolerate removal** — a tombstone the reader skips, plus a
+compaction pass that rewrites a segment. No UI needs it at 1.0, but pruning a
 branch subtree ([11 §1.4](11-roadmap.md)) does, and retrofitting deletion into a
-format that assumed pure append is a migration rather than a feature. Cheap up
-front, unpleasant later.
+format that assumed pure append is a migration rather than a feature.
+
+**Retention: keep everything.** No automatic compaction of old records
+([06 B3](06-open-questions.md)). A full record runs roughly 10–100× its message
+text, so a thousand-turn session is tens to a couple of hundred megabytes —
+acceptable, and the reason the layout above matters.
 
 ---
 

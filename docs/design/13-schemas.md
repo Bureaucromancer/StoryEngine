@@ -40,7 +40,9 @@ character.**
 
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
-will churn.
+will churn. With one horizon worth knowing: session export is wanted eventually
+([06 B12](06-open-questions.md)), and when it ships the turn record becomes a
+portable format and this freedom ends.
 
 ---
 
