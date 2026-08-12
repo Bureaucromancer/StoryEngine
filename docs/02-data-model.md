@@ -11,21 +11,28 @@ definitions.
 
 ## 1. The object set
 
-Seven persistent kinds. Everything else is a sub-structure of one of them.
+Eight persistent kinds. Everything else is a sub-structure of one of them.
 
-| Kind | Shareable | What it is |
+| Kind | Portable | What it is |
 |---|---|---|
 | **Actor** | yes | A person. Personas and NPCs are flags on this, not separate types. |
 | **Lorebook** | yes | World content. Entries with retrieval rules and optional tracked state. |
 | **Setting** | yes | Tone, framing and *links*. Carries no world facts of its own. |
+| **Setup** | yes | How to start playing: mode, setting, cast, preset, opening. The "full game" definition. |
 | **Preset** | yes | Prompt templates, budgets, generation params, authored variables. |
-| **Package** | yes | A bundle of the above plus mode config. The "full game" export. |
-| **Session** | no | One running story. Owned by a user. |
+| **Package** | yes | An arbitrary bundle of the above, for moving them between installs. |
+| **Session** | no | One running story. Lives under its owner. |
 | **Connection** | **never** | Provider endpoint + credentials. Local, private, never exported. |
 
-The line between rows 1–5 and row 7 is the content/production seam from
-[00 §3.2](00-stance.md). It is enforced by the type system: shareable kinds have
-no field that could hold a connection.
+The line between the portable kinds and `Connection` is the content/production
+seam from [00 §3.2](00-stance.md). It is enforced by the type system: portable
+kinds have no field that could hold a connection.
+
+**Setup and Package are deliberately separate**, and an earlier draft conflated
+them. A Setup is *what a game is*; a Package is *how objects travel*. Sharing a
+full game means putting a Setup in a Package — but the Setup is an ordinary
+library object, useful for your own reuse without any of the transport
+machinery. See §7.
 
 ---
 
@@ -387,7 +394,7 @@ Notes on why:
 
 ### 4.1 Plot hooks
 
-A pool of authored, discrete, usually major plot turns that a setting or package
+A pool of authored, discrete, usually major plot turns that a setting or setup
 carries and a step fires at an opportune moment. "X and Y have been having an
 affair and will soon announce their marriage." "The Flower Kingdom will declare
 war over some damned island."
@@ -400,7 +407,8 @@ A hook carries its premise and scope, mechanical eligibility (`involves`,
 `requires`, `blockedBy`, `notBefore`), and firing behaviour (`weight`,
 `delivery`, `onFire`).
 
-Settings carry the hooks; packages carry them via their settings.
+Settings carry the hooks. A Setup may add its own on top, and a package carries
+both by carrying the objects.
 Session creation copies them, per prefill-not-binding
 ([00 §3.1](00-stance.md)), and the session tracks which have fired.
 
@@ -457,7 +465,8 @@ disposable index**.
       lorebooks/            #   the documentation the assistant reads
       settings/
       presets/              #   default preset per mode
-      packages/             #   onboarding sample
+      setups/               #   onboarding sample
+      packages/
   users/
     <handle>/
       account.json
@@ -466,6 +475,7 @@ disposable index**.
         lorebooks/  <slug>/lorebook.json   + assets/
         settings/   <slug>/setting.json    + cover.png
         presets/    <slug>/preset.json
+        setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
       memories/               # auto-maintained, see [14](14-cross-session-memory.md)
       connections/            # credentials. Never leaves this directory.
@@ -708,45 +718,73 @@ Two lists — `written` and `seeds` — each with a designated primary.
 
 ---
 
-## 7. Package — the "full game" export
+## 7. Setup and Package — two jobs, split
 
-A package is **primarily a bundle of other objects**, per the requirement. It
-carries very little of its own.
+> **Definitions: [13 §7](13-schemas.md) (Setup), [13 §8](13-schemas.md) (Package).**
 
-> **Definition: [13 §7](13-schemas.md)** — which ships it as `schema/0`, because
-> [13 §1](13-schemas.md) treats the wrapper as deliberately unstable while its
-> contents are not.
+An earlier draft had a single `Package` doing both jobs: it carried an `entry`
+block defining the game *and* the bundling machinery for moving objects. Splitting
+them makes both simpler, and the split is worth stating as a rule:
 
-Three parts: an `entry` block saying what "start this" means, `contents`
-holding embedded copies of actors, lorebooks, settings and presets, and
-`requires` declaring what the host must provide.
+| | |
+|---|---|
+| **Setup** | *What a game is.* Mode, setting, cast, preset, opening. An ordinary library object. |
+| **Package** | *How objects travel.* An arbitrary bundle, for moving anything between installs. |
 
-Key decisions:
+**Sharing a full game is putting a Setup in a Package.** The Setup is the game;
+the Package is the envelope.
 
+### 7.1 Why Setup is a plain object
+
+- **It is useful without ever being shared.** Saving "my Rain City campaign
+  configuration — this setting, this cast, this mode config" for your own reuse
+  should not require building a transport artefact with embedded copies and a
+  dependency manifest. Under the old shape it did.
+- **It completes a reframe we half-adopted.** Marinara's scenario design
+  identified and deferred "make Setting the first-class entity and scenarios its
+  children" ([01 §1](01-source-survey.md)). We took the parent and never built
+  the child. One Setting, many Setups: *Rain City* is the world, *The Fixer's
+  Debt* is a way to play in it.
+- **It gives the session-to-setup direction a shape.** Marinara's
+  play-first-share-afterwards snapshot becomes "emit a Setup from this running
+  session" — a real object rather than a text file.
+
+### 7.2 Why Package gets simpler, and stabler
+
+Reduced to a container, Package has almost no surface of its own:
+
+- **Contents are self-describing.** Each object carries its own `schema`, so the
+  package does not enumerate kinds — and therefore does not change when a new
+  portable kind appears, as Setup just did. This is why
+  [13 §1](13-schemas.md) can now treat it as stable rather than `/0`.
+- **No `entry` field.** A package holding one or more Setups is startable; that
+  *is* the mechanism. A package with no Setup is a content drop — *"here are five
+  characters and a lorebook"* — which is a perfectly reasonable thing to share
+  and had nowhere to live before.
 - **Contents are embedded copies, resolved on import** into the recipient's
-  library (with a "these already exist, link or duplicate?" step). Links inside
-  the package resolve within the package first, then locally, then dangle
-  visibly. This is the only reliable way to ship a working game to someone whose
-  library you know nothing about.
-- **`requires` is declared and checked at import**, producing a clear "this
-  package wants Adventure mode ≥ 2 and an image connection; you have neither"
-  rather than a broken session later. Missing requirements are a *warning with a
-  degraded-start option* where possible, not a hard block.
-- **No production settings. At all.** No connection ids, no keys, no endpoint
-  URLs, no per-install toggles. This is enforced by there being nowhere to put
-  them. See [00 §3.2](00-stance.md).
-- On disk a package is a folder (same layout as `library/`, plus
-  `package.json`), zipped as `.sepack` for transport. Same drag-and-drop
-  property as actors.
+  library (with a "these already exist, link or duplicate?" step). Links resolve
+  within the package first, then locally, then dangle visibly. The only reliable
+  way to ship something working to someone whose library you know nothing about.
+- **`requires` is declared and checked at import**, producing "this wants
+  Adventure mode ≥ 2 and an image connection; you have neither" rather than a
+  broken session later. A warning with a degraded-start option where possible,
+  not a hard block.
+- **No production settings, in either object.** No connection ids, no keys, no
+  endpoint URLs, no per-install toggles — enforced by there being nowhere to put
+  them ([00 §3.2](00-stance.md)).
+- On disk a package is a folder, zipped as `.sepack` for exchange
+  (§5.2.3).
 
 **[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes packages far more powerful and makes
-importing a package a code-execution decision. Strong lean: **declare only** at
-1.0; extensions install separately and visibly.
+importing one a code-execution decision. Strong lean: **declare only** at 1.0
+([06 A2](06-open-questions.md)).
 
 **[OPEN]** Should a package be able to ship a partially-played session as a
 starting state (a "pre-run prologue")? Attractive for authored content, and it
-crosses the content/session line the rest of the model keeps clean.
+crosses the content/session line the rest of the model keeps clean. Note the
+split makes this cleaner to reason about: it would be a *session* in a package,
+not a variant of Setup.
 
 ---
 
@@ -761,7 +799,7 @@ interface Session {
 
   mode: { id: ModeId; config: unknown }
   preset: Preset                  // resolved copy, not a link
-  origin: Provenance              // which package/setting/version seeded this. Dead link.
+  origin: Provenance              // which Setup/version seeded this. Provenance only — a dead link.
 
   cast: {
     persona: ActorId

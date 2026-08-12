@@ -23,16 +23,20 @@ Internal structures can be migrated on upgrade because we own every copy.
 
 | Tier | Structures | Commitment |
 |---|---|---|
-| **Stable** | Actor, Lorebook, Setting, and the shared substructures in §3 | Define now, change only additively, version on breakage |
-| **Prototype** | Package | Expect to break it; see §7 |
+| **Stable** | Actor, Lorebook, Setting, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
 | **Free to move** | Session, Turn record, Channel state, Preset, rule vocabulary | Internal. Migrate at will |
 
-**Why Package is a deliberate exception**, despite travelling: a package is
-mostly a *container of* stable things. Its payload is `Actor[]`, `Lorebook[]`,
-`Setting[]` — all stable. Breaking the wrapper costs a re-export; breaking an
-Actor costs somebody's character. That asymmetry is what makes it safe to leave
-the wrapper loose until it has been tested against real authored content, and
-it is the right call.
+**Package used to be a prototype exception and no longer is.** It was marked
+unstable because it carried a game definition — an `entry` block naming a mode,
+a setting and a cast — that nobody had tested against real authored content.
+Splitting that out into Setup (§7) leaves Package as a self-describing container
+(§8) with almost no surface of its own: it does not enumerate the kinds it
+holds, so a new portable kind does not change it. What was genuinely unstable was
+the game definition, and that is now a normal object versioned like the rest.
+
+The asymmetry that justified the exception still holds and is worth keeping in
+mind: **breaking a container costs a re-export; breaking an Actor costs somebody's
+character.**
 
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
@@ -508,32 +512,100 @@ writing hooks with premises and `involves` is safe; one leaning on complex
 
 ---
 
-## 7. Package — prototype, expected to break
+## 7. Setup — how to start playing
+
+An earlier draft folded this into Package, which conflated two unrelated jobs:
+*what a game is* and *how to move objects between installs*. Split, both get
+simpler.
+
+A **Setup** is an ordinary library object like any other. It says which mode,
+which setting, which cast, which preset, which opening — everything needed to
+start a session and nothing about how to transport it.
+
+```ts
+interface Setup {
+  schema: "storyengine.setup/1"
+  id: string
+  name: string
+  /** Library-card text. Never injected. */
+  blurb: string
+
+  mode: {
+    id: string
+    /** Whatever the mode's own setup collected. Stored verbatim, never
+     *  interpreted by the host, so a game can always recover the options it
+     *  was created with. */
+    config: unknown
+  }
+
+  setting: Ref | null              // one Setting; null = start bare
+  preset: Ref | null
+
+  cast: {
+    personaOptions: Ref[]          // offered as the played character
+    partyDefault: Ref[]            // [03 §8] — the party always contains the persona
+    narrator: Ref | null           // null = the mode's default narrator
+  }
+
+  /** Beyond whatever the setting already links. */
+  lore: Ref[]
+  /** Overrides the setting's when present. */
+  openings: Openings
+  /** Additional to the setting's, not a replacement. */
+  hooks: PlotHook[]
+
+  tags: string[]
+  media: EmbeddedMedia[]
+  provenance: Provenance
+  generated: Record<string, GeneratedFieldProvenance> | null
+  metadata: Record<string, unknown>
+}
+```
+
+**Setting is to Setup as a world is to a game played in it.** One Setting, many
+Setups: *Rain City* is the world; *The Fixer's Debt*, Adventure mode, playing
+Marlow is a way to play in it. This is the reframe Marinara's own scenario design
+identified and deferred — "make Setting the first-class entity and scenarios its
+children" ([01 §1](01-source-survey.md)). We adopted the parent and never built
+the child; Setup is the child.
+
+**A Setup is useful without ever being shared**, which is the strongest argument
+for it being a plain object. Saving "my Rain City campaign configuration" for
+your own reuse should not require building a transport artefact with embedded
+copies and a dependency manifest.
+
+**No production settings, still.** No connections, no credentials, no endpoint
+URLs, no per-install toggles — enforced by there being nowhere to put them
+([00 §3.2](00-stance.md)). `mode.config` is opaque to the host but is subject to
+the same rule.
+
+**Sessions are created from a Setup by copy**, per prefill-not-binding
+([00 §3.1](00-stance.md)). Editing a Setup afterwards cannot reach a running
+session. The reverse operation is also worth having and now has a clean shape:
+**a running session can emit a Setup**, which is Marinara's play-first-share-
+afterwards snapshot as a first-class object rather than a text file.
+
+---
+
+## 8. Package — a bundle, and nothing else
+
+With Setup carrying the game definition, a Package is reduced to what it always
+should have been: **an arbitrary bundle of portable objects, for moving them
+between installs.**
 
 ```ts
 interface Package {
-  schema: "storyengine.package/0"   // ← 0, deliberately
+  schema: "storyengine.package/1"
   id: string
   name: string
   version: string
   description: string
   media: EmbeddedMedia[]
 
-  entry: {
-    modeId: string
-    modeConfig: unknown             // opaque to the host
-    settingId: string
-    personaOptions: string[]
-    partyDefault: string[]
-    openings: Openings
-  }
-
-  contents: {                       // embedded copies, resolved on import
-    actors: Actor[]
-    lorebooks: Lorebook[]
-    settings: Setting[]
-    presets: unknown[]              // Preset is internal and unstable
-  }
+  /** Self-describing portable objects — each carries its own `schema`. The
+   *  package does not enumerate kinds, which is exactly why it stays stable
+   *  when a new kind appears (as Setup just did). */
+  contents: PortableObject[]
 
   requires: {
     modes: { id: string; minVersion: string }[]
@@ -544,20 +616,28 @@ interface Package {
   provenance: Provenance
   metadata: Record<string, unknown>
 }
+
+type PortableObject = Actor | Lorebook | Setting | Setup | Preset
 ```
 
-**`/0` is the point.** Per §1, a broken package costs a re-export while a broken
-Actor costs somebody's character — and the payload here is entirely made of
-stable types. Leave it loose until it has been tested against real authored
-content, and expect early refactors to break it.
+**No `entry` field.** A package containing one or more Setups is startable, and
+that is the whole mechanism — "start this" is "start that Setup". A package with
+no Setup is a content drop, which is a perfectly good thing to share and had no
+home before. *"Here are five characters and a lorebook"* is now expressible.
 
-**What is already firm** even at `/0`: no connections, no credentials, no
-endpoint URLs, no per-install toggles anywhere in this structure. That is
-enforced by there being nowhere to put them ([00 §3.2](00-stance.md)).
+**It is stable now, and can be `/1`.** §1 marked it `/0` because it was
+carrying a game definition nobody had tested. As a self-describing container it
+has almost no surface of its own: new kinds do not change it, and the payload is
+made of independently-versioned objects.
+
+Contents are **embedded copies resolved on import**, not links: links inside the
+package resolve within it first, then locally, then dangle visibly
+([00 §3.3](00-stance.md)). `requires` is checked at import and produces a clear
+warning with a degraded-start option rather than a hard block where possible.
 
 ---
 
-## 8. Not defined here, deliberately
+## 9. Not defined here, deliberately
 
 | Structure | Why not |
 |---|---|
@@ -570,7 +650,7 @@ enforced by there being nowhere to put them ([00 §3.2](00-stance.md)).
 
 ---
 
-## 9. Open
+## 10. Open
 
 - **[OPEN]** Whether `ActorProfile`'s four prose fields stay fixed or become
   conventional `Section`s with well-known ids ([06 B1](06-open-questions.md)).

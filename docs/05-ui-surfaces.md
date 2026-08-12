@@ -47,7 +47,7 @@ intended. See §4.
 | Surface | What it is |
 |---|---|
 | **Play** | The three modes' chat/scene/adventure views |
-| **Library** | Actors, lorebooks, settings, packages, presets — browse, edit, organise, import, export |
+| **Library** | Actors, lorebooks, settings, setups, presets, packages — browse, edit, organise, import, export |
 | **Workbench** | What the engine sent, why, what it cost, and what to change |
 
 "Peer" is a design-process claim as much as a layout one: Library and Workbench
@@ -253,8 +253,9 @@ Both sources use wizards and both wizards are good. Worth taking:
   required" is the right bar.
 - **From Marinara:** the immutable setup snapshot, so a good combination can be
   shared *after* playing rather than by remembering to record it beforehand. Here
-  it is stronger, because the snapshot is a real Package
-  ([02 §7](02-data-model.md)) rather than a text file.
+  it is stronger, because the snapshot is a real **Setup** object
+  ([13 §7](13-schemas.md)) rather than a text file — editable, re-runnable, and
+  shareable by dropping it in a package.
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 ([03 §2](03-modes-and-turn-pipeline.md)) is a schema the shell renders, so an

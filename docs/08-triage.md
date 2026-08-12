@@ -234,7 +234,7 @@ and no plan below should be built on the assumption that it did.
 | Duplicated RP-vs-Game combat & HUD | Marinara | **DISCARD one of each** | [00 §2.7](00-stance.md). |
 | Big-bang world gen + Repair JSON modal | Marinara | **DISCARD the mechanism** | [00 §2.3](00-stance.md). |
 | Hidden GM state / Secret Plot | Marinara | **PORT as a channel** | Generalises to all modes for free. |
-| Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real Package. |
+| Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real `Setup` object emitted from a running session, not a text file ([13 §7](13-schemas.md)). |
 | Seed → expand → edit → accept | Aventuras wizard | **PORT** | The right interaction for authoring. |
 | Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. |
 | Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [11 §4.6](11-roadmap.md) |
