@@ -55,14 +55,20 @@ Instruct templates, context templates, per-model prompt formats, stop-sequence
 juggling, "add BOS token" toggles. This is the largest surface area in
 SillyTavern and it exists to serve raw-completion local backends.
 
-**Replacement:** the baseline model contract is *chat-shaped with roles,
-structured output and tool calling*. Raw completion is an **adapter** that
-downgrades the structured request into a string at the edge — not the core
-representation everything else is shaped around.
+**Replacement:** the model contract is *chat-shaped with roles, structured output
+and tool calling*. Not "chat-shaped by default with a completion adapter behind
+it" — **raw completion is treated as legacy and is not supported at all**
+([07 §5.5](07-tech-stack.md)).
 
-*Cost:* this genuinely disadvantages some local/raw backends. That is an
-accepted trade, and it should be an explicit, stated trade rather than a
-discovered one. **[OPEN]** how much raw-completion support ships at 1.0.
+An earlier draft kept a downgrade adapter. Dropping it entirely is the stronger
+position and costs less than it did three years ago: essentially every local
+runtime now exposes an OpenAI-compatible chat endpoint, so the excluded
+population is small and has a working answer (a proxy) that is not ours to
+build.
+
+*Cost, stated rather than discovered:* completion-only providers are excluded,
+and so is byte-exact control over the final prompt string. The second is the one
+power users will notice.
 
 ### 2.3 "Model emits JSON in prose; we regex it out and ask the user to fix it"
 

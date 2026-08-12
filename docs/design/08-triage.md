@@ -343,7 +343,8 @@ We need token counts for budgeting, but not that precision. Providers return
 real usage; a fast local approximation is enough for *pre*-flight budgeting, and
 the turn record stores actual counts afterward. Shipping tokenizer model files
 is a large maintenance surface for accuracy we do not need. **DISCARD**, revisit
-only if raw-completion support ([06 A4](06-open-questions.md)) argues otherwise.
+Now unconditional: raw-completion support is dropped ([07 §5.5](07-tech-stack.md)),
+so the one thing that might have argued for exact tokenisation is gone.
 
 ### 6.3 Marinara's peripheral feature surface
 

@@ -207,7 +207,8 @@ The pipeline's context stage produces `AssembledBlock[]`
    we are confident matter. Output is a verdict per block: included, or dropped
    with the rule that dropped it.
 4. **Render.** Blocks become provider messages. This is the only place that knows
-   what a chat API looks like, and the only place a raw-completion adapter has to
+   what a chat API looks like — and, should the decision in [07 §5.5](07-tech-stack.md)
+   ever be revisited, the only place a completion renderer would have to
    touch ([00 §2.2](00-stance.md)).
 
 The `AssemblyPlan` in the mode definition declares the ordering constraints and

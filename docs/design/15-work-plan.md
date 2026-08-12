@@ -185,16 +185,16 @@ everything downstream. Several are already resolved; the ones that are not:
 
 | | Why it blocks |
 |---|---|
-| **A4** raw-completion support | Decides how much the provider abstraction must bend |
 | **A6/A7/A8** framework, schema direction, runtime + driver | Ordinary but touch every file once chosen |
 
 A6, A7 and A8 have recommendations; they need confirming rather than
 researching.
 
-**A1, A1c and A3 are now closed.** A1/A1c: a worker-thread
+**A1, A1c, A3 and A4 are now closed.** A1/A1c: a worker-thread
 boundary with a namespaced storage API ([17](17-extensions.md)). A3: connections
 are account-scoped with a system scope, mirroring the library
-([04 §4.5](04-server-multiuser-deployment.md)). That resolves the one item this plan
+([04 §4.5](04-server-multiuser-deployment.md)). A4: raw completion is legacy and
+unsupported ([07 §5.5](07-tech-stack.md)). That resolves the one item this plan
 called genuinely unretrofittable, and it changes P2 and P7: the step contract is
 async and serialisable from the first step written, not converted later.
 

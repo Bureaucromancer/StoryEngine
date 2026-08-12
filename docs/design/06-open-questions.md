@@ -129,10 +129,23 @@ so the file browser is not a bypass. Revoking disables rather than deletes.
 Beyond that, a general role system is post-2.0 ([04 §4.2.1](04-server-multiuser-deployment.md),
 [11 §3](11-roadmap.md)). *[04 §4.5, 04 §4.2, 07 §5.1]*
 
-**A4. Raw-completion support.** [00 §2.2] proposes making chat-shaped APIs with
-structured output the core contract and raw completion an edge adapter. How much
-raw/local-backend support ships at 1.0, and is the resulting disadvantage to
-those backends acceptable? *[00 §2.2]*
+**A4. Raw-completion support. — RESOLVED: legacy, dropped, no adapter.**
+Specified in [07 §5.5](07-tech-stack.md). Not "chat-shaped by default with a
+completion path behind it" — the supported surface is **OpenAI-compatible chat
+and nothing below it**, stated as a position rather than left to be discovered.
+
+It costs less than it would have three years ago: llama.cpp, Ollama, vLLM, LM
+Studio, KoboldCpp and text-generation-webui all expose OpenAI-compatible chat, so
+the excluded set is small — completion-only services, and anyone deliberately
+driving a raw endpoint — and a translating proxy is an off-the-shelf answer that
+is not ours to maintain. What is genuinely lost is byte-exact control of the
+final prompt string, which is the part power users will feel.
+
+Cheap to unmake: [03 §5](03-modes-and-turn-pipeline.md) already isolates
+rendering as a single step, so a completion renderer would be a second
+implementation of one seam rather than a rewrite. Two conditionals elsewhere now
+close firmly — bundled tokenizers and the instruct/context template surface both
+stay discarded. *[00 §2.2, 07 §5.5, 08 §6.2]*
 
 **A5. Multiplayer posture.** Confirm "don't preclude, don't build": `participants`
 is a list, `control: "player"` isn't structurally limited to one, turns are

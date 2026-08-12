@@ -126,10 +126,50 @@ The thin wrapper is not ceremony. It is where the raw-completion adapter attache
 turn record, and where capability negotiation lives ("this model has no tool
 calling — degrade to prompted JSON with validation").
 
-**[OPEN]** Local backends. AI SDK's OpenAI-compatible provider covers
-llama.cpp/Ollama/vLLM's compatible endpoints, which is most of it. KoboldCpp and
-raw text-completion backends need the adapter, and how far that goes is
-[06 A4](06-open-questions.md).
+### 5.5 The compatibility surface: OpenAI-compatible chat, and nothing below it
+
+**Decision: raw text completion is legacy and is not supported.** There is no
+downgrade adapter, no instruct templates, no context templates, no stop-sequence
+machinery. The supported surface is stated in one line:
+
+> **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
+
+That is a position rather than an omission, and it is worth stating that plainly
+in user-facing documentation rather than letting people discover it.
+
+**Why this costs less than it looks.** The completion-only era is largely over:
+llama.cpp, Ollama, vLLM, LM Studio, KoboldCpp and text-generation-webui all
+expose OpenAI-compatible chat endpoints, so a local model is a connection with a
+`localhost` URL and no key ([§5.2](#52-no-embedded-model-runtime)). The genuinely
+excluded set is small — completion-only services such as NovelAI, Horde-style
+backends, and anyone deliberately driving a raw endpoint for control.
+
+**Those users have an answer that is not ours to build.** A translating proxy in
+front of the endpoint is an off-the-shelf solved problem. Pointing at one is a
+documentation line; maintaining a completion path is a permanent tax on every
+provider change.
+
+**What is actually lost**, stated honestly:
+
+- **Byte-exact control of the final prompt string.** Chat APIs impose a message
+  structure. The turn record and workbench show precisely what was sent
+  ([05 §3](05-ui-surfaces.md)), and blocks are editable — but the last
+  serialisation step belongs to the provider. This is the loss power users will
+  feel.
+- **Continuation semantics.** "Continue this text" rather than "reply to this".
+  Assistant prefill covers much of it where a provider supports it.
+- **Completion-only models with no chat variant.**
+
+**Reversing this later is a single seam.** [03 §5](03-modes-and-turn-pipeline.md)
+already isolates rendering as step 4 — "the only place that knows what a chat API
+looks like". A completion renderer would be a second implementation of that one
+step, not a rewrite, because the core representation stays structured. So this
+is a cheap decision to unmake if the bet on chat-shaped APIs ever turns.
+
+**Two conditionals elsewhere now close firmly rather than conditionally:**
+bundled tokenizers stay discarded ([08 §6.2](08-triage.md)), and the entire
+instruct/context template surface stays discarded
+([00 §2.2](00-stance.md)).
 
 ### 5.1 Model roles, and a hi/lo default
 
