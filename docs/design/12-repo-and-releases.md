@@ -19,7 +19,7 @@ what is deferred rather than forgotten.
 | **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — Adventure–Campaign and Messages ([15 §0](15-work-plan.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
 
 **1.0 is a real release, not a staging post.** It ships two modes — Scene and
-Adventure–Chronicle — chosen as the ones this project has opinions about, with
+Adventure–Freeform — chosen as the ones this project has opinions about, with
 Campaign and Messages held for a 2.0 series ([15 §0](15-work-plan.md)). The
 release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.

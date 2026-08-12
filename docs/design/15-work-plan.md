@@ -13,13 +13,13 @@ guessing at it.
 
 ## 0. What is in 1.0, and what is 2.0
 
-**1.0 ships two modes: Scene, and Adventure–Chronicle.**
+**1.0 ships two modes: Scene, and Adventure–Freeform.**
 **2.0 adds Adventure–Campaign and Messages.**
 
 The cut is by *where this project has an opinion*, which is a better criterion
 than feature count:
 
-- **Scene** and **Chronicle** are where StoryEngine diverges most from what
+- **Scene** and **Freeform** are where StoryEngine diverges most from what
   exists. They are the modes worth being opinionated about, and the ones whose
   shape the design documents actually argue for.
 - **Campaign** is very good in Marinara already. What StoryEngine adds is
@@ -79,12 +79,12 @@ but unexercised:
   specified ([04 §3](04-server-multiuser-deployment.md)) and nothing at 1.0 will
   test them.
 - **Heavy channels and engine-computed effects** were Campaign's to prove.
-  Chronicle uses channels lightly by design, so the model is under-exercised.
+  Freeform uses channels lightly by design, so the model is under-exercised.
 
 The mitigation for the second is real: the dice reference extension
 ([11 §4.4](11-roadmap.md)) exercises engine-computed channels and
 evaluate-before-narrate on a small surface, which is a reason to keep it at 1.0
-even though Chronicle defaults to no mechanics. The first has no mitigation
+even though Freeform defaults to no mechanics. The first has no mitigation
 short of building Messages, and is simply a risk carried into 2.0.
 
 ---
@@ -291,7 +291,7 @@ migration.
 - Setup objects and the declarative setup wizard.
 - Party as a timeline, always non-empty ([03 §8](03-modes-and-turn-pipeline.md)).
 - Plot hooks and the selector.
-- **Scene** and **Adventure–Chronicle** (§0).
+- **Scene** and **Adventure–Freeform** (§0).
 
 Still the largest phase and still the one where the contract either holds or is
 revealed as wrong. If a built-in mode needs a back door, stop and fix the

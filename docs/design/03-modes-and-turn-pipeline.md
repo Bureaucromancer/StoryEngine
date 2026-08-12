@@ -7,57 +7,39 @@ piece is worth arguing about at length before writing code, it is §2 and §4.
 
 ## 1. Naming
 
-"Game Mode" needs a better name and the other two could use one too. A proposal,
-flagged as entirely open:
+**Settled.**
 
-| Requirement's name | Proposed | Why |
+| Requirement's name | Name | Why |
 |---|---|---|
 | Marinara "Convo" | **Messages** | Says what it is. Nobody needs it explained. |
 | SillyTavern/Marinara RP | **Scene** | Names the unit of play, and generalises to VN-style staging. |
-| "Game Mode" | **Adventure** | Covers both official presets without promising dice. |
+| "Game Mode" | **Adventure** | Covers both presets without promising dice. |
 
-Adventure ships two official presets: **Adventure · Chronicle** at 1.0 and
-**Adventure · Campaign** at 2.0 ([15 §0](15-work-plan.md)). Campaign is the Marinara RPG
-shape — party, sheets, combat, dice, map, clock; Chronicle is
-the Aventuras shape — do/say/think/story input, chapters, world-state
+Adventure ships two presets: **Adventure · Freeform** at 1.0 and
+**Adventure · Campaign** at 2.0 ([15 §0](15-work-plan.md)). Campaign is the
+Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform is the
+Aventuras shape — do/say/think/story input, chapters, world-state
 classification, branching, light or no mechanics.
 
 Naming the *presets* rather than making them separate modes is the load-bearing
-part: they share a mode contract, so a Chronicle game can switch on the dice
+part: they share a mode contract, so a Freeform game can switch on the dice
 channel without becoming a different kind of thing.
 
-**Confirmed: Messages, Scene, Adventure**, with Adventure naming its preset.
+**Why Freeform rather than something loftier.** An earlier draft called it
+*Chronicle*, which read as Campaign's sibling by being another grand noun and
+suggested *recording* something that had already happened rather than playing
+it. Campaign works because it is borrowed from the domain and everyone knows
+what it means; the other preset needed the same treatment, naming the axis that
+actually separates them — **how much structure the game imposes**. "Freeform RP"
+is established vocabulary for roleplay without dice or stats, legible from both
+tabletop and RP culture. *Solo* was the other contender and overclaims, since
+companions are allowed ([§8](#8-party)).
 
-**"Chronicle" is the weak one and should probably change.** The problem is that
-it tries to be Campaign's sibling by being another lofty noun, when what it needs
-to do is name a *different kind of play*. It also suggests recording something
-that already happened rather than playing it.
-
-Campaign works because it is borrowed from the domain and everyone already knows
-what it means. The other preset needs the same treatment, and the axis it should
-name is **how much structure the game imposes** — Campaign has dice, HP,
-inventory, a map and sessions; the other has prose and optional everything.
-
-| Candidate | For | Against |
-|---|---|---|
-| **Freeform** | Established vocabulary in exactly this community — "freeform RP" already means roleplay without dice or stats. Legible from both tabletop and RP culture. Not lofty. | Defined slightly by absence |
-| **Solo** | Names the structural default accurately, and "solo RPG" is a real and growing genre this mode closely resembles | Overclaims — companions are allowed ([§8](#8-party)) |
-| **Story** | Plain, nobody needs it explained | Generic; every mode makes a story |
-
-**Lean: Freeform.** *Adventure · Freeform* against *Adventure · Campaign* is an
-opposition a reader gets immediately, and it names the actual difference rather
-than a correlated one.
-
-**Worth knowing: the user-facing name is not needed until 2.0.** Campaign does
-not exist at 1.0 ([15 §0](15-work-plan.md)), so there is only one Adventure
-preset and the UI can simply say *Adventure*. Naming a thing after using it for a
-year is easier than naming it now. The *identifier* is a different matter and
-should be settled immediately — preset ids travel inside Setup objects
-([13 §7](13-schemas.md)), so changing one later is a content migration rather
-than a rename.
-
-**[OPEN]** Confirm `freeform` as the identifier, or propose better. The
-user-facing label can stay undecided until Campaign ships.
+`freeform` is the identifier, which is the part that had to be settled now:
+preset ids travel inside Setup objects ([13 §7](13-schemas.md)), so changing one
+later is a content migration rather than a rename. **The user-facing label is
+free to change until Campaign ships** — until then there is one Adventure preset
+and the UI can simply say *Adventure*.
 
 ---
 
@@ -72,7 +54,7 @@ interface ModeDefinition {
   id: ModeId                      // "storyengine.adventure"
   version: SemVer
   displayName: string
-  presets: ModePreset[]           // "campaign", "chronicle"
+  presets: ModePreset[]           // "freeform", "campaign"
 
   participants: ParticipantPolicy // §3 — who may speak and how turns are allocated
   assembly: AssemblyPlan          // §5 — which blocks, in what order, under what budgets
@@ -167,8 +149,8 @@ The properties that make this worth doing:
 
 - **A mode enables channels; it doesn't implement them.** Campaign turns on
   `hp`, `inventory`, `quests`, `clock`, `weather`, `map`, `reputation`.
-  Chronicle turns on `clock`, `chapters`, `relationships` and leaves the rest
-  off. A user who wants dice in Chronicle turns on one channel. No new mode, no
+  Freeform turns on `clock`, `chapters`, `relationships` and leaves the rest
+  off. A user who wants dice in Freeform turns on one channel. No new mode, no
   fork, no pre-designed combination.
 - **Channel state is injectable context**, budgeted like everything else — which
   is the fix for [00 §2.6](00-stance.md).
@@ -502,7 +484,7 @@ Consequences worth stating:
 
 ## 7. The modes
 
-Four chat modes across two releases — **Scene and Adventure–Chronicle at 1.0**,
+Four chat modes across two releases — **Scene and Adventure–Freeform at 1.0**,
 **Adventure–Campaign and Messages at 2.0** ([15 §0](15-work-plan.md)) — plus the
 assistant (§7.4), which is not a chat mode but is
 built out of the same parts.
@@ -552,7 +534,7 @@ Design notes:
   feature; branching is a session-level capability from
   [02 §8](02-data-model.md) available in every mode.
 
-### 7.3 Adventure — Chronicle **1.0**, Campaign **2.0**
+### 7.3 Adventure — Freeform **1.0**, Campaign **2.0**
 
 Two official presets over one contract.
 
@@ -563,7 +545,7 @@ Sessions-within-a-campaign with structured recaps and a bridging message on
 resume — a genuinely good pattern that should be a shared capability, not
 Campaign-specific.
 
-**Chronicle** — the Aventuras shape, and per the requirements the one most likely
+**Freeform** — the Aventuras shape, and per the requirements the one most likely
 to be used. Typed input (`do` / `say` / `story` / free), chapters with
 summarisation, world-state classification after each turn, retrieval over prior
 chapters, branching, suggested actions. Light or no mechanics *by default* —
@@ -578,7 +560,7 @@ Design notes:
   This is the single biggest reliability difference available versus the source.
 - Hidden GM state (Marinara's Show Spoilers / plot arcs; the Narrative Director's
   Secret Plot) is a channel with `visibility: "hidden"` and a reveal affordance.
-  Generalising it means Scene and Chronicle get it free — which is exactly the
+  Generalising it means Scene and Freeform get it free — which is exactly the
   cross-pollination the requirements ask for.
 - The three address modes (in-scene / to the party / to the GM) generalise to an
   **input target** on the input bar, available to any mode with more than one

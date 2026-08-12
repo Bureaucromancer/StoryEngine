@@ -230,7 +230,7 @@ and no plan below should be built on the assumption that it did.
 | Group generation by card swap | ST `group_generation_mode.SWAP` | **DISCARD** | [00 §2.10](00-stance.md). |
 | Conversation feature set | Marinara | **PORT** | Presence, schedules, autonomous messages, reactions, profiles, gated commands. |
 | Adventure/RPG systems | Marinara Game Mode | **REBUILD as channels** | [03 §4](03-modes-and-turn-pipeline.md). |
-| Typed input (do/say/story) + chapters | Aventuras | **PORT** | The Chronicle preset. |
+| Typed input (do/say/story) + chapters | Aventuras | **PORT** | The Freeform preset. |
 | Duplicated RP-vs-Game combat & HUD | Marinara | **DISCARD one of each** | [00 §2.7](00-stance.md). |
 | Big-bang world gen + Repair JSON modal | Marinara | **DISCARD the mechanism** | [00 §2.3](00-stance.md). |
 | Hidden GM state / Secret Plot | Marinara | **PORT as a channel** | Generalises to all modes for free. |

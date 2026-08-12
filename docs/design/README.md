@@ -3,7 +3,7 @@
 **Status: early design exploration. Nothing here is decided.** These are design
 notes, not documentation of what exists — see [../](../) for that distinction.
 
-**Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Chronicle;
+**Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Freeform;
 Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)).
 Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
@@ -83,7 +83,7 @@ considered; 13 carries the definitions. Where they disagree, 13 is current.
    generation happens. The only secondary interface is direct file access to the
    data directory, offered in-UI as a permission level.
 3. **Four chat modes across two releases.** **1.0**: Scene (SillyTavern/Marinara
-   RP) and Adventure–Chronicle (the Aventuras shape). **2.0**: Adventure–Campaign
+   RP) and Adventure–Freeform (the Aventuras shape). **2.0**: Adventure–Campaign
    (the Marinara RPG shape) and Messages (Marinara "Convo"). The cut is by where
    this project has an opinion — Campaign is already well done in Marinara and
    what we add is the substrate beneath it, while Messages is presentationally
