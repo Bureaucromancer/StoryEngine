@@ -155,7 +155,7 @@ and reattach to the finished result. Read the whole turn record as JSON.
 **CI from here on:** golden-file assembly tests. Given a fixture library and
 session, assemble and snapshot the turn record. This is the highest-value test
 surface in the project and it exists as soon as the record does
-([07 §13](07-tech-stack.md)).
+([16](16-testing.md)).
 
 ### P3 — The workbench
 

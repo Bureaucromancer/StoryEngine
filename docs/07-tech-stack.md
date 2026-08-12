@@ -565,16 +565,17 @@ hosted one is the obvious start.
 
 ## 13. Testing
 
-- **Vitest** (both Marinara and Aventuras use it), **Playwright** for end-to-end.
-- **The highest-value tests are golden-file tests of the assembler and budgeter.**
-  Given a fixture library and a fixture session, assemble a turn and snapshot the
-  turn record. Because the record already captures every block, its source, its
-  reason, its cost and the budget verdict ([02 §8](02-data-model.md)), the thing
-  hardest to test in every one of the three sources becomes the easiest thing to
-  test here. A regression in lore activation shows up as a diff.
-- Marinara's `scripts/regressions/*` pattern — targeted scenario scripts run in
-  CI, including a `context-fit` regression pinning budget behaviour — is worth
-  copying as a category.
+**Vitest** for unit and golden-file tests, **Playwright** for a thin set of
+end-to-end journeys, **fast-check** for the round-trip and replay invariants.
+
+The headline is that **prompt assembly is snapshot-testable here**, because the
+turn record already captures every block, its source, its reason, its cost and
+the budget verdict ([02 §8](02-data-model.md)). The thing hardest to test in all
+three sources becomes the easiest thing to test in this one.
+
+**Full treatment in [16](16-testing.md)** — the layers, the fake provider that
+keeps model calls out of CI, encoding the day-one checklist as lint rules,
+architectural boundary enforcement, fixtures, and the CI tiers.
 
 ---
 
