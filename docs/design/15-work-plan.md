@@ -161,6 +161,8 @@ probably the most useful single list in the document.
 - **Notification event schema complete from the first producer** — class, target
   user, dedupe key, coalescing window ([06 A2c](06-open-questions.md)).
 - **`locale` on the account** ([04 §4.2](04-server-multiuser-deployment.md)).
+- **The step contract async and serialisable from the first step** — the worker
+  boundary ([17](17-extensions.md)) is not something to convert to later.
 - **One audited path-resolution helper**, used by every filesystem-touching
   route ([07 §9](07-tech-stack.md)).
 
@@ -183,15 +185,17 @@ everything downstream. Several are already resolved; the ones that are not:
 
 | | Why it blocks |
 |---|---|
-| **A1** extension execution model | In-process vs sandboxed shapes the entire SDK surface and is close to unretrofittable |
-| **A1c** extension durable storage | Decides whether extensions can hold cross-session data at all |
 | **A3** connection scope | Server-level connections change the connection model, not just its UI |
 | **A4** raw-completion support | Decides how much the provider abstraction must bend |
 | **A6/A7/A8** framework, schema direction, runtime + driver | Ordinary but touch every file once chosen |
 
 A6, A7 and A8 have recommendations; they need confirming rather than
-researching. A1 and A1c are genuine design work and should not be deferred into
-the build.
+researching.
+
+**A1 and A1c are now closed** ([17](17-extensions.md)) — a worker-thread
+boundary with a namespaced storage API. That resolves the one item this plan
+called genuinely unretrofittable, and it changes P2 and P7: the step contract is
+async and serialisable from the first step written, not converted later.
 
 ---
 
@@ -356,8 +360,10 @@ Things that are wrong to schedule because they must happen inside every phase:
 - **Watcher and index consistency** under rapid or concurrent writes. The
   mitigation is architectural — the index is disposable — but the failure mode
   is confusing while it lasts.
-- **A1, the extension execution model**, is the one genuinely unretrofittable
-  decision in the plan.
+- ~~A1, the extension execution model~~ — **closed** ([17](17-extensions.md)).
+  The remaining risk is not structural but velocity: a boundary means anything
+  the API does not expose is blocked until it grows. Watch the signals in
+  [17 §9](17-extensions.md).
 - **Import fidelity** across three sources with years of edge cases. Expect this
   to take longer than it looks and to keep producing bug reports after P4.
 - **P7 is where the design is tested.** Everything before it is infrastructure

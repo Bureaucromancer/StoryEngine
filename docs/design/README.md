@@ -60,6 +60,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
 | [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
 | [16-testing.md](16-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
+| [17-extensions.md](17-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 | [12-repo-and-releases.md](12-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
 
 ### What comes after, and what is unresolved

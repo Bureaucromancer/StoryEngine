@@ -14,14 +14,19 @@ with notices preserved, §13 obliges us to offer source to LAN users
 AGPL-compatible, and user content is unaffected. See [08 §1](08-triage.md).
 Spawns A1b, below.
 
-**A1. Extension execution model.** In-process modules (simple, every installed
-extension is fully trusted) or sandboxed workers with message passing (safer,
-much more work, constrains the API shape)? Given LAN multi-user with a shared
-library and admin-only installation, in-process may be acceptable — but this is
-close to unretrofittable. **Narrowed by A1b**: this is now purely a technical
-question again. Decide it on blast radius, API ergonomics and how much a
-misbehaving extension can cost other users — the licensing dimension is gone,
-and in-process is licence-viable. *[03 §9]*
+**A1. Extension execution model. — RESOLVED: worker-thread boundary from 1.0.**
+Specified in [17](17-extensions.md). The decision turns on separating two things
+that get bundled under "sandbox": **fault isolation** (a crash, hang or runaway
+loop not taking the server down) is cheap and shapes the API, so take it now;
+**authority isolation** (an extension unable to reach the filesystem at all) is
+expensive and additive, so defer it — extensions are AGPL and admin-installed,
+which is a materially weaker threat model than untrusted code.
+
+The reason this costs less than instinct suggests: **the extension surface
+already serialises.** Five of the seven things [03 §9] requires are declarative
+and cross no boundary at all; the remaining two are a function over JSON-shaped
+data and async host calls. Built-in modes run through the same boundary, so the
+contract cannot drift. *[03 §9, 17]*
 
 **A1b. May extensions be non-AGPL? — RESOLVED 2026-08-09: no. Extensions and
 modes are AGPL-3.0, with no linking exception.** The friction of requiring
@@ -33,14 +38,15 @@ field for legibility. Content — including packages and their authored rules �
 is explicitly *not* covered and stays the author's own. See
 [08 §1.1–1.2](08-triage.md).
 
-**A1c. Extension-owned durable storage.** Surfaced by examining Noodle
-([11 §4.6](11-roadmap.md)): an extension can own session state via channels and
-can read-and-propose against the library, but there is **nowhere for it to keep
-its own persistent data across sessions**. Anything ambient — a social feed, an
-in-world news service, a character journal — needs that and currently cannot
-have it. Open: a per-extension directory under the user, with the same
-watcher-fed indexing as everything else, is the obvious answer; the questions
-are quota, schema ownership and what happens on uninstall. *[03 §9, 11 §4.6]*
+**A1c. Extension-owned durable storage. — RESOLVED: a namespaced key/value host
+API, not a directory.** Specified in [17 §5](17-extensions.md). The worker
+boundary from A1 makes this cleaner than the directory the question assumed:
+storage is a host call namespaced per (user, extension), so cross-user and
+cross-extension reach are impossible by construction rather than by check. Backed
+by files under the user's directory so it inherits the watcher, index and backup
+story; quota declared in the manifest; removed on uninstall with an explicit
+keep-the-data prompt. Values are JSON — bulk bytes go through a separate asset
+call returning a handle. *[03 §9, 11 §4.6, 17 §5]*
 
 **A2. Can a package ship code? — SHARPENED by [09 §2.1](09-infinite-worlds.md):
 packages may ship *rules*, never *code*.** Declarative rules are terms in a

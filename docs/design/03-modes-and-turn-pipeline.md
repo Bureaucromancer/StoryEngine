@@ -652,13 +652,19 @@ And must **not** be able to: reach the filesystem outside its own directory,
 read or use connection credentials directly (it requests a call by capability
 role and the host executes it), or write another mode's `modeData`.
 
-**[OPEN]** Extension execution model — in-process modules, or sandboxed workers
-with a message-passing API? In-process is far simpler and makes every installed
-extension fully trusted. That is more defensible now that libraries are per-user
-([04 §4.3](04-server-multiuser-deployment.md)) — an extension's blast radius is
-one install rather than one household's shared content — but "fully trusted"
-still means it can read every user's directory, so admin-only installation
-remains the gate. Needs an explicit decision because it is very hard to retrofit.
+**Execution model: settled.** Extensions run behind a worker-thread boundary
+from 1.0, and built-in modes go through the same interface — specified in
+[17](17-extensions.md).
+
+The list above is why it costs little. Five of the seven requirements are
+*declarative* and cross no boundary at all; the remaining two are a function over
+serialisable data and async host calls. The `reads` field on `StepDefinition`
+([§6](#6-steps-and-the-pipeline)) doubles as the payload filter, so a step
+receives only what it declared it needs.
+
+Two of the "must not" items above stop being conventions and become structural:
+an extension in a worker cannot reach a credential, and cannot reach an
+unrecorded random source ([07 §14](07-tech-stack.md)).
 
 ---
 
