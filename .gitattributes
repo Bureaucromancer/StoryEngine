@@ -3,7 +3,7 @@
 * text=auto eol=lf
 
 # Binary assets — never transformed.
-# Character cards carry their JSON in PNG text chunks (see docs/02-data-model.md
+# Character cards carry their JSON in PNG text chunks (see docs/design/02-data-model.md
 # §5.2), so any line-ending or encoding pass over a .png corrupts the card.
 *.png   binary
 *.jpg   binary
