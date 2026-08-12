@@ -253,6 +253,9 @@ None is specified further than its original entry.
 | Per-actor knowledge scope (anti-omniscience) | [09 §5](09-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
 | A real user role system | [04 §4.2.1](04-server-multiuser-deployment.md) | **Post-2.0.** Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
 | Prompt-overrun recovery — detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting |  [07 §5.4](07-tech-stack.md) | Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
+| **Manual chapterisation** | [06 E1](06-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([05 §12](05-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters can be applied retroactively to sessions that predate the feature |
+| Embeddings and semantic retrieval | [06 E2](06-open-questions.md) | Aimed at cross-session memory ([14](14-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss |
+| Backup and restore command | [06 E6](06-open-questions.md) | Small: quiesce, archive the data directory excluding the index, restore and rebuild. Files on disk means `rsync` works today and should be documented. **The part that matters is a CI restore test** ([16](16-testing.md)) — an untested restore is not a backup |
 | Aggregate cost and usage view | [05 §3](05-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
 
 The peripheral feature surface discarded in [08 §6.3](08-triage.md) — table
@@ -364,8 +367,9 @@ contract, which makes it valuable feedback even if few people use it.
 
 **Alternative memory strategies.**
 *Seam:* retrieval and summarisation steps, replacing the defaults.
-*Why:* memory is the least settled area of this design ([06 §E](06-open-questions.md)),
-and the honest position is that someone will have a better idea than ours.
+*Why:* the rolling summary ([06 E1](06-open-questions.md)) is deliberately the
+simple answer, and the honest position is that someone will have a better idea
+than ours.
 Retrieval being a set of steps behind a common interface
 ([02 §3](02-data-model.md)) exists precisely so that person does not have to
 fork the project.

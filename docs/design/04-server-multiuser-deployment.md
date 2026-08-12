@@ -539,8 +539,13 @@ Three details that decide whether it works:
   already belong to a user ([05 §3](05-ui-surfaces.md)), so the data exists —
   the aggregate view deferred to [11 §3](11-roadmap.md) is where it surfaces.
 - **Rate limits become shared.** Several users against one key will hit provider
-  limits that a single user would not. Not solved at 1.0; worth knowing before
-  someone reports it as a bug.
+  limits that a single user would not. The answer is a **queue per connection
+  with a concurrency cap** rather than hammering and failing — a turn that waits
+  beats a turn that errors, and the progress stream (§3.3) makes waiting legible
+  instead of looking like a hang. Scoping the queue to the connection, not the
+  user, is the part that has to be right from the start; the cap itself can stay
+  a setting. See [06 E7](06-open-questions.md) for the failure taxonomy this
+  sits inside.
 
 **No literal system account.** "The system account" is the right mental model
 and there is no such row — no login, no password, no sessions. It is a scope

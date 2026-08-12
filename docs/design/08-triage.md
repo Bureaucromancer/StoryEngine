@@ -210,7 +210,7 @@ and no plan below should be built on the assumption that it did.
 | Keyword matching semantics | Marinara `keyword-scanner.ts` / ST `world-info.js` | **PORT** | Behaviour spec. Marinara's is ST's superset and better organised. |
 | Regex ReDoS guard | Marinara `regex-timeout.ts` (~60 ln) | **ADOPT** | See §5.1 — the strongest single lift candidate in all three repos. |
 | Two-tier token budget + trim order + skip reporting | Marinara | **PORT** | Already the budgeter [00 §2.6](00-stance.md) argues for. |
-| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; fills the [06 §E](06-open-questions.md) gap. |
+| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; Retrieval tiers pair with the rolling summary ([06 E1](06-open-questions.md)). |
 | Stickiness tuning constants | Aventuras `STICKINESS_BY_TYPE` | **PORT** | See §5.2 — empirical tuning is the asset. |
 | Chapter summarisation + batching | Aventuras `ChapterBatchPlanner/Service` | **PORT** | Unexamined in detail; flagged as the next design doc. |
 | Agentic retrieval (tool-driven search) | Aventuras `AgenticRetrievalService` | **REBUILD** | Right idea; ours is a pipeline step ([03 §6](03-modes-and-turn-pipeline.md)). |

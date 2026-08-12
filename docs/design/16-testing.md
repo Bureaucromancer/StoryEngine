@@ -246,6 +246,11 @@ Two project-specific automations worth having beyond the usual:
 - **Forward-port check.** Flag any commit on a `release/*` branch with no
   counterpart on `main` — the one failure the branching model is prone to
   ([12 §3](12-repo-and-releases.md)).
+- **Restore test**, nightly, beside the upgrade test. Populate a data directory,
+  back it up, restore into a clean install, assert the library and sessions come
+  back. **An untested restore is not a backup** ([06 E6](06-open-questions.md)),
+  and this is the whole reason the backup story can stay as small as it is — the
+  index being derived means the archive excludes it and the restore rebuilds it.
 
 Renovate or Dependabot for updates, grouped so the noise stays manageable.
 

@@ -839,7 +839,9 @@ interface Rendition {
   state: "pending" | "ready" | "failed"
   /** Ranked prompt fragments as sent, plus what the cap dropped. [07 §5.3] */
   prompt: AssembledPrompt | null
+  /** null once evicted — the recipe outlives the pixels. §10.7 */
   asset: AssetRef | null          // under the session's assets/
+  /** Model, seed and workflow parameters. Never discarded. §10.7 */
   provenance: GeneratedFieldProvenance
   error: string | null
 }
@@ -912,8 +914,43 @@ Recorded now because it is cheap to accommodate and awkward to retrofit:
 
 Per session: off, on-demand only, or every turn. Per mode defaults — Scene wants
 illustration far more than Messages does. And a manual **Illustrate** action on
-any message in the history, which is the same step invoked by hand.
+any message in the history, which is the same step invoked by hand — **additive,
+never replacing** (§10.7).
 
 **[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
 turn's recorded state or from the present. Recorded state is more correct and
 more surprising; the turn record makes either possible.
+
+### 10.7 Renditions accumulate; recipes are permanent
+
+Two policies, both settled in [06 E3](06-open-questions.md), both cheap now and
+awkward to retrofit.
+
+**Illustrating an old turn adds; it does not overwrite.** A turn holds a list of
+renditions and the user picks which is shown. Structurally this is the turn tree
+again — siblings under a node, one of them current — and for the same reason:
+regeneration must never be a destructive act on something the user liked.
+§10.1's shape already permits many renditions per turn, so this is a UI
+commitment more than a schema one.
+
+**The recipe is preserved forever; the pixels need not be.**
+
+> A rendition's **prompt, seed, model and workflow parameters are never
+> discarded** unless the user deletes the rendition. The generated `asset` may
+> be evicted, leaving the record intact with `asset: null`.
+
+`Rendition.prompt` and `provenance` are therefore not diagnostics — they are the
+durable part of the object. What this buys:
+
+- **Any rendition can be re-created**, including one whose image is long gone.
+  The recipe is bytes; the asset is megabytes.
+- **Eviction becomes safe.** "Generated media will fill the disk" gets an answer
+  that loses nothing irreplaceable: evict pixels, keep recipes, regenerate on
+  demand. Which in turn means an eviction *policy* is a later decision — it can
+  never cost history, so it need not be settled now.
+- **Regenerations are comparable.** Two renditions of one turn carry their
+  seeds, so *why did this one come out different?* has an answer.
+
+The seed is the load-bearing field here, and it is the one an implementation is
+most likely to drop as uninteresting. It is not: without it, "preserved" means
+"approximately re-creatable", which is not the same promise.

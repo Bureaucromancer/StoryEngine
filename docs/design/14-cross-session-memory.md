@@ -3,9 +3,16 @@
 **Status: proposal.**
 
 Characters should remember you between sessions. This document covers memory
-*across* sessions; memory *within* a long session — summarisation, chapters,
-retrieval over prior turns — is still unwritten and remains the larger gap in
-[06 §E](06-open-questions.md).
+*across* sessions. Memory *within* a long session is settled elsewhere: a
+**rolling summary, built as an immutable chain** ([10 §5.1](10-branching.md),
+[06 E1](06-open-questions.md)), with manual chapterisation a roadmap item
+([11 §3](11-roadmap.md)).
+
+Worth noting which way the dependency runs. Semantic retrieval is weak medicine
+for lorebooks and strong medicine here — cross-session memories are numerous,
+keyword-poor, and exactly the case where "what is relevant now?" has no lexical
+answer ([06 E2](06-open-questions.md)). If embeddings are ever built, this
+document is their first customer.
 
 ---
 

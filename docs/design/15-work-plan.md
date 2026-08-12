@@ -305,9 +305,17 @@ retained modes are the more similar pair. §0.3 records what that costs.
 Cross-session memory as an auto-maintained lorebook ([14](14-cross-session-memory.md))
 is designed and buildable.
 
-**Within-session summarisation is not designed** ([06 §E](06-open-questions.md))
-and is the largest remaining hole in the specification. It needs a design pass
-before it can be scheduled — flagged here rather than pretended into a phase.
+**Within-session summarisation is a rolling summary** ([06 E1](06-open-questions.md)),
+which is schedulable here rather than needing its own design pass. The one
+constraint that must be honoured on the first commit: it is an **immutable
+chain**, `summary(n) = f(summary(n-1), turns[a..b])`, each link keyed by the hash
+of its inputs ([10 §5.1](10-branching.md)). The mutate-one-record version is the
+obvious implementation, is indistinguishable from the UI, and quietly breaks
+cheap branching — so it is a review item, not a detail.
+
+Summaries are derived and disposable, so a bad summariser is a regeneration
+rather than lost history. That is what makes shipping a simple version in P8
+safe. Chapterisation is roadmap ([11 §3](11-roadmap.md)), not P8.
 
 ### P9 — Renditions
 

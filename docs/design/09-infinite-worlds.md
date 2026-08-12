@@ -249,7 +249,8 @@ outcomes while writing prose" is the default failure mode otherwise.
 Related, and worth noting as a warning rather than a model: IW's summariser
 reportedly first runs at turn 8 and cannot see the original background or
 anything beyond six turns back. Fixed windows like that are what
-[06 §E](06-open-questions.md)'s memory design should avoid.
+[06 E1](06-open-questions.md)'s rolling summary avoids: the chain covers every
+turn from the first, and full history stays on disk behind it.
 
 ---
 

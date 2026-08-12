@@ -187,6 +187,27 @@ cursor, or a rolling summary that mutates a single record in place. Both make
 summaries un-shareable across branches and would force the expensive path every
 time. Summaries must be *values keyed by their inputs*, not *a running total*.
 
+### 5.1 The rolling summary is a chain, not a blob
+
+[06 E1](06-open-questions.md) settles the rolling summary as the default
+in-session memory, which reads like a collision with the paragraph above. It is
+not, provided one thing holds: **"rolling" describes the chain, not mutation.**
+
+```
+summary(n) = f( summary(n-1), turns[a..b] )
+```
+
+Each link is a value keyed by the hash of its inputs — the previous link's key
+plus the turns it consumes. That is §5's rule applied to a chain rather than a
+flat run, so everything above follows unchanged: a fork leaves every link up to
+`F` byte-identical, exactly the straddling link misses, and the branch's chain
+continues from a shared prefix.
+
+The forbidden design is the one-record-updated-in-place version, and it is
+forbidden for a reason worth restating: it is the *obvious* implementation, it
+looks identical from the UI, and the damage only shows up the first time someone
+branches a long session. Build the chain from the start.
+
 ---
 
 ## 6. Swipes are branches — DECIDED

@@ -524,40 +524,201 @@ other. *[05 §1, 11 §3]*
 
 ---
 
-## E. Questions these documents don't address at all
+## E. The remaining gaps, with positions
 
-Flagged so the gaps are known rather than discovered:
+Was a list of things these documents did not address. Now a list of positions on
+them — some decided, some opinionated leans, all better than silence.
 
-- ~~Image, audio and video generation~~ — **now designed** as *renditions*
-  ([03 §10](03-modes-and-turn-pipeline.md)). Per-turn and on-demand illustration
-  is a 1.0 feature; video and speech are further kinds of the same mechanism and
-  are not. What remains open there: whether an on-demand rendition of an old turn
-  assembles from that turn's recorded state or from the present, and the
-  transcript surface (placeholder while pending, retry on failure) is not yet
-  designed.
-- **Memory and summarisation *within* a session.** Aventuras has chapters,
-  batched summarisation and retrieval; Marinara has rolling summaries and session
-  recaps. Still the largest omission. Note one constraint already fixed by
-  [10 §5](10-branching.md): summaries must be content-addressed values keyed by
-  their inputs, not a mutating running total, or branching stops being cheap.
-  Memory *across* sessions is now covered separately in
-  [14](14-cross-session-memory.md).
-- **Embeddings and vector search.** Assumed available as a retriever
-  ([02 §3](02-data-model.md)); no position on what provides it or where the index
-  lives.
-- **Renditions in the transcript** — placeholder while pending, retry on failure, and an **Illustrate** action on any message ([03 §10](03-modes-and-turn-pipeline.md)). Not yet designed as a surface.
-- **Import from SillyTavern chat logs and Marinara/Aventuras exports.** Card
-  import is sketched ([02 §2.7](02-data-model.md)); session/chat history import
-  is not.
-- **Tokenisation.** Budgeting assumes token counts exist. Which tokeniser, how
-  it varies by model, and what the fallback estimate is when a provider's
-  tokeniser is unavailable.
-- **Backup and restore.** Files on disk makes this mostly "copy the folder", but
-  the index, in-flight sessions and per-user separation need a real answer.
-- **Error and rate-limit handling** across providers, and how a failed turn
-  presents.
-- **Content filtering / rating enforcement.** `contentRating` exists in the data
-  model and nothing says what, if anything, acts on it.
-- **Testing strategy.** Notably: the assembler and budgeter are the highest-value
-  things to test and the easiest to test well, since the turn record is a
-  complete, inspectable artefact.
+### E1. Memory within a session — rolling summaries, chapters later
+
+**Decided: a rolling summary is the default. Chapterisation is a roadmap
+feature, manual with agentic advice.**
+
+Rolling wins on the thing that matters day to day: it needs no ongoing thought
+from the user. Chapters demand a judgement — *is this a chapter break?* — every
+few thousand words, and a mode whose memory quality depends on the user making
+that call reliably will have bad memory.
+
+**But "rolling" must not mean "mutating".** This is the part that would silently
+break something. [10 §5](10-branching.md) requires summaries to be
+content-addressed values keyed by their inputs, because that is what makes a
+fork cheap. A naive rolling summary — one record, updated in place — violates it
+directly.
+
+The reconciliation: **a rolling summary is an immutable chain, not a mutated
+blob.**
+
+```
+summary(n) = f( summary(n-1), turns[a..b] )
+```
+
+Each link is a value keyed by the hash of its inputs. "Rolling" describes the
+chain, not mutation. Forking at turn *f* leaves every link up to *f*
+byte-identical — same inputs, same key — so the whole prefix is shared, exactly
+one straddling link is recomputed, and the branch's chain continues from there.
+This is the property [10 §5](10-branching.md) promised, and it is only available
+if the chain is built this way from the start.
+
+**Summaries are derived and disposable**, like the index ([02 §5.1](02-data-model.md)).
+Full history is always on disk, so a bad summary is regenerable — nuke and
+rebuild, at any point, with a better model or a better prompt. Summary quality is
+not a one-way door, which is what makes shipping a simple rolling summary early a
+safe bet rather than a commitment.
+
+**Chapters, when they come, are primarily a *reading* feature.** That is a better
+justification than memory structure, and it explains why manual is right: a human
+knows where a chapter ended better than a heuristic does, and the payoff is a
+readable [05 §12](05-ui-surfaces.md) view with real divisions. Chunking summaries
+along chapter boundaries is a secondary benefit that falls out. An agent
+proposing *"this looks like a chapter break"* is the right amount of automation —
+advice, accepted or ignored.
+
+### E2. Embeddings and vector search — later, and aimed at memory
+
+**Opinionated: lower value than it looks for lorebooks, genuinely useful for
+memory, and post-1.0 either way.**
+
+Keyword activation plus the budgeter covers most real lorebook use — the whole
+SillyTavern ecosystem runs on it. Semantic activation adds a provider
+dependency, an index to maintain, re-embedding on every edit, a threshold to
+tune, and a class of confusion keywords do not have: **"cosine 0.71" is not a
+reason a human can act on.** The turn record's plain-language inclusion reasons
+([02 §8](02-data-model.md)) are worth more than the extra recall.
+
+Where it *does* earn its keep is **cross-session memory**
+([14](14-cross-session-memory.md)): memories are numerous, keyword-poor, and
+exactly the case where "what is relevant here?" has no lexical answer. So when
+this arrives, aim it there first and at lorebooks second.
+
+Storage goes in the derived index, which means re-embedding is a rebuild cost
+rather than data loss — consistent with everything else, and it disposes of the
+"what if the embedding model changes" worry.
+
+### E3. Renditions in the transcript — non-destructive, and keep the recipe
+
+**Decided.** The transcript surface: placeholder while pending, retry on
+failure, an **Illustrate** action on any message.
+
+**Retroactive illustration is additive, never replacing.** Illustrating an old
+turn adds a rendition alongside whatever that turn already had; it does not
+overwrite. Renditions accumulate per turn and the user picks which is shown —
+structurally the same as siblings in the turn tree, and for the same reason.
+
+**And a general policy: the recipe is preserved forever; the pixels need not
+be.**
+
+> A rendition's **prompt, seed, model and workflow parameters are never
+> discarded** unless the user deletes the rendition. The generated asset may be
+> evicted.
+
+Worth stating as policy because of what it buys:
+
+- **Any rendition can be re-created**, even one whose image is long gone. The
+  recipe is bytes; the asset is megabytes.
+- **Eviction becomes safe.** "Generated images will fill the disk" gets an answer
+  that loses nothing irreplaceable — evict pixels, keep recipes, regenerate on
+  demand.
+- **Regenerations are comparable.** Two renditions of the same turn carry their
+  seeds, so *why did this one come out different?* is answerable.
+
+It also means an eviction policy is a later decision rather than a now one,
+because adopting one can never cost history.
+
+### E4. Session import from other platforms — speculative, not roadmapped
+
+**Nice one day, maybe. Deliberately not a commitment.**
+
+The lift is large and the promise is hard to keep: chat formats move under you,
+every source has years of edge cases, and a **half-working importer generates
+more support burden than no importer at all**. Better none than one that rots.
+
+Distinct from **card, lorebook and preset import**, which is committed and early
+([15](15-work-plan.md) P4). That is a bounded, well-understood surface against
+formats that barely move. Session history is neither.
+
+### E5. Tokenisation — one approximator and a margin
+
+**Opinionated: stop trying to be exact.**
+
+Bundled per-model tokenisers are already discarded ([08 §6.2](08-triage.md)).
+What replaces them is not a better estimate but a different posture: **budget
+with a margin, not with precision.** If a pre-flight estimate is within ~10% and
+the budget reserves headroom, exactness buys nothing — and the turn record stores
+*actual* usage from the response, so drift is measurable rather than assumed.
+
+Concretely: one modern BPE tokeniser as a universal approximator, wrong in a
+known and consistent direction, rather than one model per provider. One
+dependency, no bundled model files, and a measurable error to tune the margin
+against.
+
+### E6. Backup and restore — a command, not a feature
+
+**Opinionated: the design already did most of this, so do not build a
+subsystem.**
+
+Files on disk means `rsync` is a legitimate backup strategy and should be
+documented as one. What is worth building is small: a command that briefly
+quiesces writes, archives the data directory **excluding the index**, and a
+restore that puts it back and rebuilds. The index being derived
+([02 §5.1](02-data-model.md)) is what makes both trivial.
+
+**The part that actually matters is testing restore.** An untested restore is not
+a backup, and this belongs in CI beside the upgrade test
+([15 §8](15-work-plan.md)): populate a data directory, back it up, restore into a
+clean install, assert the library and sessions are intact.
+
+### E7. Error and rate-limit handling — a taxonomy, then a policy
+
+**Opinionated: under-specified, and more load-bearing than it looks.** Pieces
+exist — step `failure` modes, the bounded re-ask for malformed structured output
+([00 §2.3](00-stance.md)), connectivity detection
+([04 §6.5](04-server-multiuser-deployment.md)) — but nothing classifies failures,
+and the class is what should determine the response.
+
+| Class | Examples | Response |
+|---|---|---|
+| **Transient** | 429, 5xx, timeout, connection reset | Bounded retry with backoff, **visible in progress events** as "retrying (2/3)" rather than a spinner |
+| **Retryable with a change** | Context overflow, malformed structured output, prompt cap exceeded | Shrink and resend, or re-ask — mechanisms that already exist ([07 §5.3](07-tech-stack.md)) |
+| **Terminal** | Invalid credential, model not found, content refusal | Fail the step, surface as **actionable** ([04 §3.5](04-server-multiuser-deployment.md)) |
+
+Two things worth calling out:
+
+- **Shared connections make rate limits a design concern rather than an
+  annoyance.** With one system connection serving a household
+  ([04 §4.5](04-server-multiuser-deployment.md)), several users hit provider
+  limits one user never would. **Queue per connection with a concurrency cap**
+  rather than hammering and failing — a turn that waits beats a turn that errors,
+  and the progress stream makes waiting legible.
+- **Content refusal deserves its own treatment.** It is terminal for that call
+  but not for the user's intent, so it should offer *"try a different model"*
+  against another role binding rather than surfacing a raw provider error. It is
+  among the most common real failures in this domain and the one most likely to
+  be met with a shrug if handled generically.
+
+### E8. Content rating — advisory, and always caveated
+
+**Decided: `contentRating` is advisory. It states authorial *intent*, never a
+guarantee about model behaviour, and any surface that shows it says so.**
+
+Two reasons, the second stronger than the first:
+
+- Enforcement is not an area worth wrestling into this engine.
+- **Even trying would be a promise that cannot be kept.** A rating implying the
+  model will behave accordingly is a guarantee no local software can make, and
+  making it badly is worse than not making it at all.
+
+So nothing mechanical gates on it. It is metadata for a human choosing content,
+and a signal a preset *may* act on if its author chooses.
+
+**Where enforcement actually belongs is prompt packs and upstream system
+prompts** — the layer that shapes model behaviour directly, authored by whoever
+has an opinion about it and replaceable by whoever does not. That is also the
+layer where the effect is visible in the turn record rather than hidden in engine
+logic.
+
+`contentRating: null` continues to mean *unspecified, ask* rather than *safe*
+([13 §6](13-schemas.md)).
+
+### E9. Testing — done
+
+Now [16](16-testing.md).

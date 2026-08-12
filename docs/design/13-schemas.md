@@ -476,7 +476,8 @@ interface Setting {
     moods: string[]
     pov: "first" | "second" | "third"
     tense: "past" | "present"
-    /** null = unspecified. A consumer must prompt, never assume. */
+    /** Advisory. Authorial intent, not a promise about model behaviour — §6.2.
+     *  null = unspecified. A consumer must prompt, never assume. */
     contentRating: "sfw" | "nsfw" | null
     styleNotes: string
   }
@@ -570,6 +571,31 @@ stable: its content fields are committed, its rule-typed fields will move with
 that vocabulary. Worth flagging rather than pretending otherwise — an author
 writing hooks with premises and `involves` is safe; one leaning on complex
 `requires` predicates should expect churn.
+
+### 6.2 `contentRating` is advisory — and says so
+
+Settled in [06 E8](06-open-questions.md), recorded here because it constrains
+every surface that displays the field.
+
+**The rating states the author's intent for the material. It is not a statement
+about how any model will behave, and every surface that shows it carries that
+caveat in words.** Nothing in the engine gates on it: no step refuses to run, no
+lorebook entry is withheld, no connection is blocked.
+
+The reason is not squeamishness about the enforcement work. It is that
+enforcement here would be **a promise that cannot be kept** — a rating implying
+the model will stay inside it is a guarantee no local software can make, and
+making it badly is worse than not making it. So the field does the one thing it
+can do honestly: help a human decide what to open.
+
+**Where enforcement actually belongs is prompt packs and upstream system
+prompts** — the layer that shapes model behaviour directly, authored by whoever
+holds the opinion and replaceable by whoever does not. That layer also has the
+better property: its effect is visible in the turn record
+([02 §8](02-data-model.md)) rather than buried in engine logic.
+
+A preset *may* read the field and act on it. That is a preset's choice, made in
+the open, and is the correct place for such a choice to live.
 
 ---
 
