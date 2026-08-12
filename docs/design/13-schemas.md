@@ -640,6 +640,9 @@ interface Setup {
   openings: Openings
   /** Additional to the setting's, not a replacement. */
   hooks: PlotHook[]
+  /** §7.1. Ordered: goals[0] is where play begins. Empty = no win condition,
+   *  which is the deliberate opt-out rather than the default. */
+  goals: Goal[]
 
   tags: string[]
   media: EmbeddedMedia[]
@@ -671,6 +674,54 @@ the same rule.
 session. The reverse operation is also worth having and now has a clean shape:
 **a running session can emit a Setup**, which is Marinara's play-first-share-
 afterwards snapshot as a first-class object rather than a text file.
+
+### 7.1 Goal
+
+What the player is trying to do. Reasoning and the mode behaviour around it are
+in [03 §7.3.3](03-modes-and-turn-pipeline.md); this is the shape.
+
+```ts
+interface Goal {
+  id: string
+  /** Short, always injected. "Get the ledger out of the Foundry."
+   *  Difficulty prompt fragments reference it by name, which is why it is
+   *  present in context rather than consulted on demand. */
+  statement: string
+  /** The author's fuller version. Available to steps; not injected by default,
+   *  so a long one costs nothing per turn. */
+  detail: string | null
+  /** "hidden" is the GM's arc — same mechanism as a hidden channel
+   *  ([03 §7.3](03-modes-and-turn-pipeline.md)), so the reveal affordance and
+   *  the budgeting are shared rather than reinvented. */
+  visibility: "player" | "hidden"
+
+  completion:
+    | { kind: "narrative" }                        // an evaluation step judges it
+    | { kind: "mechanical"; when: Predicate[] }    // ⚠ authored-rule vocabulary
+    | { kind: "manual" }                           // the player says when
+
+  /** Seeds the offer made at completion; never applied without asking
+   *  ([03 §7.3.4](03-modes-and-turn-pipeline.md)). */
+  thenDefault: "continue-open" | "advance" | "end"
+  /** Authored successor, for a designed chain. null = ask. */
+  next: string | null
+}
+```
+
+**⚠ `Predicate` is the authored-rule vocabulary again** and carries the same
+instability warning as [§6.1](#61-plothook). A goal with `kind: "narrative"` or
+`"manual"` is on stable ground; one leaning on mechanical predicates will move
+with that vocabulary.
+
+**Why `Goal` sits on Setup rather than Setting.** A Setting is a world and a
+world has no win condition — the same rule that keeps world facts out of it
+([§6](#6-setting)). *Rain City* does not have an objective; *The Fixer's Debt*
+does. Placing goals here is what allows several Setups with different objectives
+over one world, which is the whole point of the split.
+
+**Difficulty is deliberately not here.** It is Adventure's, not every mode's, so
+it lives in `mode.config` where the host does not interpret it. Modelling it on
+Setup would imply Messages and Scene have a difficulty, which they do not.
 
 ---
 

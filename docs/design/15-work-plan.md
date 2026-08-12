@@ -291,6 +291,10 @@ migration.
 - Setup objects and the declarative setup wizard.
 - Party as a timeline, always non-empty ([03 §8](03-modes-and-turn-pipeline.md)).
 - Plot hooks and the selector.
+- **Goals** — the chain, the progress channel, narrative completion, and the
+  three offers at conclusion ([03 §7.3.3](03-modes-and-turn-pipeline.md)).
+- **Difficulty and directedness** as two settings, with levels supplied by the
+  prompt pack rather than engine code ([03 §7.3.1](03-modes-and-turn-pipeline.md)).
 - **Scene** and **Adventure–Freeform** (§0).
 
 Still the largest phase and still the one where the contract either holds or is

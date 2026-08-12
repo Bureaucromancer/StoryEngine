@@ -631,6 +631,136 @@ Design notes:
   **input target** on the input bar, available to any mode with more than one
   addressable audience. Messages mode gets "reply to X" from the same mechanism.
 
+#### 7.3.1 Difficulty is a sycophancy dial, not a stat modifier
+
+Adventure setup carries a **difficulty** setting, in the spirit of Marinara's.
+The thing worth being precise about is what it actually controls, because the
+obvious reading — a number added to rolls — is the smaller half.
+
+In Freeform there are frequently no rolls. What varies with difficulty is **how
+readily the world grants what you attempt**, which is to say it is a dial on
+narrator sycophancy — the failure mode named in [09 §5](09-infinite-worlds.md) as
+one of the things the community builds systems to correct. So difficulty
+resolves to two distinct outputs, and a mode declares which it consumes:
+
+| Output | Consumed by | Effect |
+|---|---|---|
+| **Prompt language** | Every Adventure preset | Ranked fragments describing how much to concede, how often attempts partially fail, whether the world volunteers help |
+| **Mechanical parameters** | Campaign, and Freeform with dice or HP toggled on | Target numbers, resource pressure, enemy competence |
+
+Three things this has to get right.
+
+**The levels live in the prompt pack, not in engine code.** A difficulty level is
+a named entry with prompt fragments attached, shipped in the preset layer and
+replaceable there. This is the same reasoning as [13 §6.2](13-schemas.md): the
+layer that shapes model behaviour should be the layer an author can open and
+edit, and its effect should be visible in the turn record rather than buried in a
+conditional. "Hard" meaning something different in one prompt pack than another
+is a feature.
+
+**It must be changeable mid-session**, recorded as an effect like anything else.
+Difficulty chosen at setup is chosen with the least information anyone will ever
+have about the session. The predictable failure is picking Hard, discovering
+every scene is a slog by turn 30, and having no recourse but to start over.
+
+**Obstruction must not reach unreachability.** Difficulty modulates the cost and
+the route, never whether the goal can be attained at all. Without that floor,
+the top setting is not hard mode, it is a losing game the player cannot detect
+they are playing.
+
+#### 7.3.2 Resistance and directedness are separate axes
+
+Worth separating explicitly, because conflating them is a real and observable
+failure. Infinite Worlds is notably opinionated about where a story should go —
+it will actively fight a player to get back to what it wanted to do. That is
+*not* the same quality as a hard game, and it is much less pleasant.
+
+- **Resistance** — how readily the world grants what you attempt. High
+  resistance means your plan fails, or costs more than you hoped, or works
+  partially. **It is still your plan.**
+- **Directedness** — how hard the narration pulls toward its own idea of the
+  story. High directedness means the narrator keeps steering back to the thing
+  it intended regardless of what you did.
+
+A naive difficulty implementation raises both together, because the prompt
+language for "push back" and the prompt language for "assert your own plot" look
+similar from the outside. The result is railroading wearing difficulty's
+clothes, and players report it as *the AI ignoring me* rather than as *hard*.
+
+**So: two settings.** Difficulty is the headline one and maps to resistance.
+Directedness is a separate control with a low default — some is wanted, since a
+narrator with none is a stenographer, but it should never be a hidden passenger
+on the difficulty slider. This is also where plot hooks
+([02 §4.1](02-data-model.md)) belong on the dial: hooks are the *honest* form of
+directedness, authored and selected in the open, which is a better mechanism
+than a narrator improvising a pull.
+
+#### 7.3.3 Goals: an adventure has a win condition by default
+
+Adopted from both sources, and a genuine divergence from the SillyTavern
+lineage: **an Adventure has something you are trying to do, and progress toward
+it is tracked.** Not an optional extra bolted on by an author — the default
+shape, with "no goal, just play" as the deliberate opt-out.
+
+This promotes the mutable Objective slot from [09 §4.1](09-infinite-worlds.md)
+out of *worth trying early* and into a 1.0 feature, and it is what makes §7.3.1
+coherent. Difficulty without a goal can only say "introduce friction", which is
+weak and quickly reads as arbitrary. With a goal it can say **obstruct progress
+toward this specific thing**, which is a far more useful instruction and one the
+narrator can act on deliberately. The goal statement is therefore always
+injected, and difficulty fragments are written to reference it.
+
+Schema in [13 §7.1](13-schemas.md). The shape in brief: a short always-injected
+`statement`, an optional fuller `detail` for steps, a `visibility` that makes
+hidden goals the GM's arc through the same mechanism as hidden channels, and a
+`completion` that is narrative, mechanical or manual.
+
+**Progress is a channel** (§4), which settles how it is maintained without a new
+mechanism: `update: "model-proposed"` in Freeform, where there is nothing to
+compute from and the narrator's judgement is the only signal available;
+`update: "engine-computed"` in Campaign, where quest state is real data. Same
+declaration, different policy, and the proposal-versus-decision seam is already
+specified.
+
+**Completion detection is the part that will need tuning.** `kind: "narrative"`
+means an evaluation step at `post` judges whether the goal is met — the
+before-narration evaluation pass from [09 §4.3](09-infinite-worlds.md), pointed
+at a different question. Both error directions are bad and they are not
+symmetric: a missed completion is an annoyance the player can resolve manually,
+while a false completion ends the story on a turn that did not earn it.
+**Bias toward under-firing, and make manual completion always available.**
+
+**[OPEN]** Whether narrative completion should require confirmation before it
+fires. Cheap insurance against the worse error, at the cost of a prompt at the
+most dramatically loaded moment in the session.
+
+#### 7.3.4 What happens at the end: both answers
+
+The two sources diverge here and both are right, so the setting takes both.
+Infinite Worlds lets a concluded game continue open-ended; Marinara lets you set
+the next goal. On completion, three offers:
+
+- **Continue open** — the goal channel retains it as achieved, nothing new is
+  set, play carries on without a driving objective.
+- **Advance** — set the next goal, either the authored `next` or one written
+  now. This is the campaign-arc shape and the reason goals are a **sequence
+  rather than a field**.
+- **End** — mark the session concluded. Concluded is a state, not a deletion:
+  the session stays readable ([05 §12](05-ui-surfaces.md)) and branchable
+  ([10](10-branching.md)), because "what if I had done it differently" is a
+  reasonable thing to want at exactly that moment.
+
+**The choice is made at completion, not only at setup.** `thenDefault` seeds the
+offer; it does not decide it. A player who did not know at setup whether they
+wanted an ending is the normal case, and the moment of completion is when they
+finally have the information.
+
+Completed goals are retained with the turn that completed them. That gives the
+reading view real structure for free — an adventure's goal chain is a much
+better spine for chapters than word count is ([06 E1](06-open-questions.md)) —
+and it gives the plot-hook selector (§6.1) a signal it otherwise lacks:
+proximity to the current goal is a strong reason to fire a hook or hold it.
+
 ### 7.4 The assistant
 
 A baked-in AI helper, in the spirit of Marinara's Professor Mari: summonable

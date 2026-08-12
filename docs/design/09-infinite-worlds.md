@@ -200,6 +200,24 @@ documentation admits they are "finicky" — so take the Objective, treat
 victory/defeat as an optional channel, and don't build a game-outcome system
 into the core.
 
+**Adopted, and further than this section originally proposed.** The Objective is
+now **Goal** ([03 §7.3.3](03-modes-and-turn-pipeline.md)), a 1.0 feature of
+Adventure, and an adventure has one by default rather than optionally. Two
+things pushed it past "worth trying early":
+
+- **It is a sequence, not a slot.** Marinara lets you set the next goal on
+  completion where IW only lets you continue open-ended; both are wanted, and
+  supporting both means goals chain ([03 §7.3.4](03-modes-and-turn-pipeline.md)).
+- **Difficulty needs it.** Without a goal, a difficulty setting can only ask for
+  generic friction. With one, it can ask the narrator to obstruct progress
+  toward a *named* thing, which is the difference between a dial that works and
+  one that reads as arbitrary.
+
+The caution about victory/defeat conditions survives intact and is why
+completion is biased toward under-firing, with manual completion always
+available. "Finicky" here means false positives, and a false ending is much
+worse than a missed one.
+
 ### 4.2 The pipeline cannot suspend for player input
 
 `effectPresentChoice` presents options (single or multi-select, with limits) and
@@ -261,6 +279,21 @@ than to build the world: **sycophancy prevention** (the AI agreeing with and
 rewarding the player regardless of merit), **anti-omniscience** (NPCs acting on
 information the player never told them), and **agency-based evaluation**
 (outcomes that respect what the character could plausibly do).
+
+**Sycophancy prevention is the one we ship rather than leave to the community**,
+because it turns out to be what a difficulty setting actually is
+([03 §7.3.1](03-modes-and-turn-pipeline.md)). In a mode with no dice, "hard"
+cannot mean higher target numbers; it can only mean the narrator concedes less.
+Recognising those as the same control is what lets difficulty be a real setting
+instead of a decorative one, and it puts the levels in the prompt pack — the
+layer a community member can already replace — rather than in engine code.
+
+**But this section is also where IW's own cautionary example sits.** IW is
+markedly opinionated about where a story should go and will fight a player to
+get back to it, which is a *different* quality from resistance and a much less
+pleasant one. The two get conflated because the prompt language for "push back
+on the player" and for "assert your own plot" look alike. Kept apart as separate
+axes in [03 §7.3.2](03-modes-and-turn-pipeline.md).
 
 Anti-omniscience is the one with real structural depth, and none of the four
 references solves it. Our data model has `hidden` on lore entries

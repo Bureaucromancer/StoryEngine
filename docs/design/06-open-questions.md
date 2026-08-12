@@ -459,6 +459,17 @@ so branching from any of them is an operation on that node. The related
 ambiguity also resolves cleanly rather than needing a convention: *redo* adds a
 sibling, *continue differently* adds a child. Both are offered explicitly.
 
+**C12. Confirmation before a narrative goal completion fires.** Goals with
+`completion: { kind: "narrative" }` are judged by an evaluation step
+([03 §7.3.3](03-modes-and-turn-pipeline.md)), and the two error directions are
+not symmetric: a missed completion is an annoyance the player resolves manually,
+a false one ends the story on a turn that did not earn it. A confirmation step
+is cheap insurance against the worse error and costs a prompt at the most
+dramatically loaded moment in the session. Leaning toward asking, on the
+grounds that a mis-fired ending is unrecoverable in a way nothing else here is —
+but it wants real sessions to judge. Under-firing plus always-available manual
+completion is the position regardless. *[03 §7.3.3]*
+
 ---
 
 ## D. Deployment questions
