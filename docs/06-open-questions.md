@@ -33,6 +33,15 @@ field for legibility. Content — including packages and their authored rules �
 is explicitly *not* covered and stays the author's own. See
 [08 §1.1–1.2](08-triage.md).
 
+**A1c. Extension-owned durable storage.** Surfaced by examining Noodle
+([11 §4.6](11-roadmap.md)): an extension can own session state via channels and
+can read-and-propose against the library, but there is **nowhere for it to keep
+its own persistent data across sessions**. Anything ambient — a social feed, an
+in-world news service, a character journal — needs that and currently cannot
+have it. Open: a per-extension directory under the user, with the same
+watcher-fed indexing as everything else, is the obvious answer; the questions
+are quota, schema ownership and what happens on uninstall. *[03 §9, 11 §4.6]*
+
 **A2. Can a package ship code? — SHARPENED by [09 §2.1](09-infinite-worlds.md):
 packages may ship *rules*, never *code*.** Declarative rules are terms in a
 closed vocabulary our evaluator interprets, so importing one grants no capability

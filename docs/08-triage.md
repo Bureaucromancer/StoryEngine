@@ -237,6 +237,7 @@ and no plan below should be built on the assumption that it did.
 | Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real Package. |
 | Seed → expand → edit → accept | Aventuras wizard | **PORT** | The right interaction for authoring. |
 | Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. |
+| Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [11 §4.6](11-roadmap.md) |
 
 ### Platform
 
@@ -424,8 +425,11 @@ are load-bearing for evaluating everything else.
 Stated so the gaps are known. Verdicts above do not cover these and should not
 be assumed to:
 
-- **Marinara's Noodle subsystem** — substantial (own types, schemas, services,
-  scheduler, regressions), purpose not investigated.
+- ~~Marinara's Noodle subsystem~~ — **now examined**, notes in
+  [11 §4.6](11-roadmap.md). An in-app fake social timeline, ~6,400 lines of
+  server services. Verdict: post-1.0, extension, probably not by us — but its
+  *carryover* mechanism generalises into something worth having, and attempting
+  it reveals two gaps in the extension model.
 - **Marinara's tactical combat engine**, spatial-context / hierarchical maps.
 - **All three image/video/TTS pipelines**, beyond noting they exist.
 - **ST's extension runtime and the `third-party` loading path** — relevant to

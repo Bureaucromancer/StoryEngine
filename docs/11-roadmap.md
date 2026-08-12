@@ -438,7 +438,87 @@ For extension authors specifically, the useful part is that this is
 replay-determinism check, because replaying its recorded effects will not
 reproduce its behaviour. Use the provided source and that check passes for free.
 
-### 4.6 What we owe extension authors
+### 4.6 Noodle — notes on Marinara's in-app social feed
+
+Flagged as unexamined in the first triage pass ([08 §9](08-triage.md)); examined
+now, because it turns out to be the most informative thing on this list even
+though it is unlikely we build it.
+
+**What it is.** A fake social timeline inside the app, served at a cosmetic
+`noodle.local` address. Accounts are your persona, characters you invite from
+the library, the assistant, and optional generated "random users". You post by
+hand; a **Refresh timeline** action runs a generation that produces posts,
+replies, likes, follows and polls across the invited accounts. There is an
+automatic schedule, image generation, and a second simulated platform —
+"NoodleR" — with subscriptions, locked posts, a coin wallet and staged identity
+disclosure.
+
+**It is not small.** Roughly 6,400 lines in server services alone, ~70 files
+across the workspace, with its own scheduler, operation locks, generation log,
+image and vision services, and prompt builders. Gimmicky in *concept*; the
+implementation is a full parallel content system on the scale of a mode.
+
+#### The idea worth keeping is not the feed
+
+The first instinct — that it relates to Messages mode — is right, and the
+connection is **carryover**. Noodle pushes a "Recent Social Media Activity"
+block into chat prompts, per-mode toggles, with its own hard token budget; a
+separate per-chat toggle sends activity the other way, into the next Noodle
+refresh.
+
+Strip the social-media skin and what remains is:
+
+> **Ambient off-screen activity, generated on a schedule, feeding chat context
+> in both directions.**
+
+That is the same shape as Messages mode's autonomous messages — characters doing
+things while you are not looking — and structurally the same as the share/intake
+pair in cross-session memory ([14 §4](14-cross-session-memory.md)). Three
+features, one pattern: **two opt-in toggles governing context flow between
+separate activity streams.** A timeline is one skin on it. A character's
+journal, in-world news, letters, or a group chat you are not in are others, and
+all of them are cheaper than a social network.
+
+#### What it would need that we do not currently offer
+
+This is the useful part, and why it is a better stress test than poker.
+
+- **Extension-owned durable storage that is not session state.** Noodle accounts,
+  posts and interactions live across sessions and belong to no session. Channels
+  ([03 §4](03-modes-and-turn-pipeline.md)) are session-scoped, and library access
+  is read-plus-propose. There is currently **nowhere for an extension to keep its
+  own persistent data**. Poker does not reveal this because a hand lives and dies
+  inside one session.
+- **The custom-rendering escape hatch.** The declarative widget vocabulary
+  ([05 §8](05-ui-surfaces.md)) covers HUD widgets and panels; it cannot render a
+  social feed with composer, polls, threads and profile pages. Noodle needs the
+  sandboxed-iframe route that is deferred there.
+- **Scheduler access**, to generate on a timer without a client connected.
+
+Two of those three are gaps rather than answers. Worth knowing before someone
+attempts an ambitious extension and discovers them.
+
+#### What not to copy
+
+Marinara's own documentation states that Noodle's built-in instructions treat
+every account as adult and permit explicit content, and that **this is not a
+setting that can be turned off**. Whatever one thinks of the default, a
+non-optional content posture baked into a subsystem is the wrong shape — content
+rating is a `Setting` field with `null` meaning *ask*
+([13 §6](13-schemas.md)), and any extension contributing generated content
+should respect it rather than carry its own fixed policy.
+
+The NoodleR economy — coins, subscriptions, locked posts — is where "gimmicky"
+is most accurate and where the maintenance sits. Notable in passing: its type
+definitions carefully distinguish platform separation from access control
+("content separation between two fictional products, NOT a privacy or security
+control"), which is exactly the comment someone writes after a near miss.
+
+**Verdict: post-1.0, extension, and probably not by us.** The reusable idea —
+ambient activity as a bidirectional context source — is worth generalising into
+core; the timeline is worth leaving to whoever wants it.
+
+### 4.7 What we owe extension authors
 
 If this section is to be more than a wishlist:
 

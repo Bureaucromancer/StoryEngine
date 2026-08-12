@@ -101,6 +101,14 @@ interface SessionMemoryConfig {
 }
 ```
 
+**This pattern is not unique to memory.** Marinara's Noodle carryover uses the
+same shape — a toggle pushing activity *into* chats, a separate per-chat toggle
+letting activity flow *back* ([11 §4.6](11-roadmap.md)) — and Messages mode's
+autonomous messages are the same idea with the toggles implicit. Three features
+converging on **two opt-in switches governing context flow between separate
+activity streams** suggests the mechanism is worth naming and sharing rather
+than implementing three times.
+
 All four combinations are meaningful, which is why these are two controls
 rather than one:
 
