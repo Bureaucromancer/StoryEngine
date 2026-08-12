@@ -183,10 +183,80 @@ extension": authored rules. Concretely:
 The rule vocabulary itself is [06 C7](06-open-questions.md);
 [09 §3](09-infinite-worlds.md) proposes a starting point.
 
-**[OPEN]** Channel schema migration when a mode updates and an in-flight session
-has old state. Needs a versioning story before anything ships; a `migrate`
-function on the definition is the obvious answer and the obvious maintenance
-burden.
+### 4.2 When a channel's schema changes under a live session
+
+Inevitable, and the temptation is to forbid it. Modes will evolve, extensions
+will evolve carelessly, and a session that has been open for three months will
+meet a channel that has changed shape.
+
+**Rejected: embedding the schema and running the old one.** It looks like
+compatibility and is a trap. Every session becomes a schema store; the engine
+has to keep every historical version of every reducer, step and widget alive; and
+nothing can ever be removed. The cost compounds and it is paid forever.
+
+**Record the version, never the schema.** One integer per channel saying which
+schema version its state was written against. That is all that is needed to know
+whether anything has to happen.
+
+#### Calibration: this is a low-stakes failure wearing a scary costume
+
+Worth establishing before deciding how much machinery it deserves. Channel state
+is **tracked numbers and flags** — HP, a clock, a reputation. It is not the
+story. Losing it is annoying; the messages, the branches and the turn records are
+untouched. The worst honest outcome is *this session's inventory got reset*, and
+designing as though the session itself were at risk would be over-building.
+
+#### The rule already exists: survivable, visible, non-blocking
+
+[00 §3.3](00-stance.md) settles dangling references — resolve what you can, show
+what you cannot, never block. A channel whose state no longer fits its schema is
+the same situation wearing different clothes, and gets the same treatment.
+
+**A session must always open.** Load never fails on a channel problem.
+
+Per channel, on load:
+
+1. **Validate** against the current schema. Cheap — schemas are JSON Schema and
+   the validator is already in the stack.
+2. **Coerce** if it fails: drop unknown fields, fill declared defaults, re-validate.
+3. **Migrate** if it still fails and the definition ships a `migrate(fromVersion,
+   state)`.
+4. **Quarantine** if it still fails: preserve the raw value verbatim under a side
+   key, initialise the channel to its default, mark it degraded, and carry on.
+
+**Most schema evolution never reaches step 3.** Additive changes validate
+already; removals are handled by dropping unknown fields. Migration functions are
+for the genuine minority — a type change, or a newly required field with no
+sensible default — which is why they are *optional* rather than mandatory. For
+built-in modes we write them. For third-party extensions we cannot require them,
+and the fallback has to be good enough to live with.
+
+#### The error surface is the point
+
+The part worth building properly, and the part the sources have nothing like:
+
+- **The session carries a health record** — which channels are degraded, which
+  version they were written against, and why they failed.
+- **A persistent banner on that session**, not a modal and not a log line:
+  *"2 channels could not be loaded. Your story is unaffected."* The reassurance
+  is load-bearing; without it people assume the worst.
+- **Recovery is offered, not automatic** — retry the migration once the author
+  ships a fix, edit the quarantined value by hand, or accept the reset. The raw
+  value survives until the user chooses, which is what makes "accept the reset"
+  a safe button to press.
+- **The same path covers an uninstalled extension**, whose channels are
+  unreachable rather than mis-shaped. One mechanism, two causes.
+
+#### Two constraints this puts on migrations
+
+- **Migrations must be pure and deterministic.** They sit inside the replay path
+  ([10 §4](10-branching.md)): replaying effects written under v1 produces
+  v1-shaped state, which is then migrated to v2. A migration with side effects or
+  a clock in it would make state reconstruction non-reproducible, which is the
+  one invariant branching depends on.
+- **Snapshots are invalidated by a migration**, and that is free — they are
+  derived and disposable by design ([10 §4](10-branching.md)), so a migration
+  discards them and the next reconstruction rebuilds.
 
 ---
 

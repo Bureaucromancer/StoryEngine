@@ -249,9 +249,34 @@ import/export path already speaks it. The one real loss is self-documenting
 config; covered by a commented `config.example.json` and keeping the settings UI
 the primary path. *[02 §5.4]*
 
-**B7. Channel schema migration.** What happens to an in-flight session when the
-mode that owns its channels updates its schema? Needs an answer before anything
-ships. *[03 §4]*
+**B7. Channel schema migration. — RESOLVED: validate, coerce, migrate,
+quarantine — and the session always opens.** Specified in
+[03 §4.2](03-modes-and-turn-pipeline.md).
+
+**Embedding the schema and running the old one is rejected.** It looks like
+compatibility and is a trap: every session becomes a schema store, the engine
+must keep every historical reducer and widget alive, and nothing can ever be
+removed. **Record the version, never the schema** — one integer per channel is
+all that is needed to know whether anything must happen.
+
+The rule to apply already exists: dangling references are survivable, visible and
+non-blocking ([00 §3.3](00-stance.md)), and a channel that no longer fits its
+schema is the same situation. So load never fails; a channel that cannot be
+salvaged is quarantined with its raw value preserved, the channel reset to
+default, and the session marked degraded rather than broken.
+
+Two things make this smaller than it first looks. **Most schema evolution never
+needs a migration** — additive changes validate already and removals are handled
+by dropping unknown fields — so migration functions are optional, which matters
+because third-party extension authors cannot be made to write them. And the
+stakes are lower than they feel: channel state is tracked numbers and flags, not
+the story, so the worst honest outcome is a reset inventory.
+
+The real work is the **error surface** — a per-session health record, a
+persistent banner that says the story is unaffected, and recovery offered rather
+than applied. The same path covers channels orphaned by an uninstalled
+extension. Migrations must be pure and deterministic, because they sit inside the
+replay path. *[03 §4.2, 10 §4]*
 
 **B8. Translated play. — RESOLVED: not attempted, and explicitly not a blocker
 for 1.0 or 2.0.** Translating *content* — cards, lorebooks, narration — is

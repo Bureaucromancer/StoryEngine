@@ -123,6 +123,9 @@ probably the most useful single list in the document.
   Retrofitting user scoping into a flat store is miserable.
 - **Every portable object self-describes** with a `schema` field, so containers
   never enumerate kinds ([13 §8](13-schemas.md)).
+- **Channel state records its schema version** — one integer, never the schema
+  itself ([03 §4.2](03-modes-and-turn-pipeline.md)). Without it, a later
+  migration cannot tell what it is migrating from.
 - **Turn segments append in creation order, never rewritten**, with reading order
   resolved through the index ([02 §5.5](02-data-model.md)). Making file order
   resemble tree order is the mistake that makes branching a storage problem.
