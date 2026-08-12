@@ -16,10 +16,11 @@ flagged as entirely open:
 | SillyTavern/Marinara RP | **Scene** | Names the unit of play, and generalises to VN-style staging. |
 | "Game Mode" | **Adventure** | Covers both official presets without promising dice. |
 
-Adventure ships two official presets: **Adventure · Campaign** (the Marinara RPG
-shape — party, sheets, combat, dice, map, clock) and **Adventure · Chronicle**
-(the Aventuras shape — do/say/think/story input, chapters, world-state
-classification, branching, light or no mechanics).
+Adventure ships two official presets: **Adventure · Chronicle** at 1.0 and
+**Adventure · Campaign** at 2.0 ([15 §0](15-work-plan.md)). Campaign is the Marinara RPG
+shape — party, sheets, combat, dice, map, clock; Chronicle is
+the Aventuras shape — do/say/think/story input, chapters, world-state
+classification, branching, light or no mechanics.
 
 Naming the *presets* rather than making them separate modes is the load-bearing
 part: they share a mode contract, so a Chronicle game can switch on the dice
@@ -53,7 +54,7 @@ interface ModeDefinition {
 }
 ```
 
-Everything an extension can do, a built-in mode does the same way. The three v1
+Everything an extension can do, a built-in mode does the same way. The built-in
 modes must be implemented *only* through this interface — if a built-in mode
 needs a back door, the contract is wrong and gets fixed rather than bypassed.
 This is the single discipline that determines whether "additional modes as
@@ -398,12 +399,14 @@ Consequences worth stating:
 
 ---
 
-## 7. The modes at 1.0
+## 7. The modes
 
-Three chat modes, plus the assistant (§7.4), which is not a chat mode but is
+Four chat modes across two releases — **Scene and Adventure–Chronicle at 1.0**,
+**Adventure–Campaign and Messages at 2.0** ([15 §0](15-work-plan.md)) — plus the
+assistant (§7.4), which is not a chat mode but is
 built out of the same parts.
 
-### 7.1 Messages
+### 7.1 Messages — **2.0**
 
 Messenger-shaped. Marinara's Conversation mode is the reference and it is the
 most complete of the three sources.
@@ -427,7 +430,7 @@ Design notes:
 - Leave out at 1.0: table games, calls, haptics, Spotify. All should be
   *expressible* as extensions; none should ship.
 
-### 7.2 Scene
+### 7.2 Scene — **1.0**
 
 The SillyTavern/Marinara RP shape: staged scene, optional background and sprites,
 optional HUD, one or more actors present.
@@ -448,7 +451,7 @@ Design notes:
   feature; branching is a session-level capability from
   [02 §8](02-data-model.md) available in every mode.
 
-### 7.3 Adventure
+### 7.3 Adventure — Chronicle **1.0**, Campaign **2.0**
 
 Two official presets over one contract.
 

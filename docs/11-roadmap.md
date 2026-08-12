@@ -2,7 +2,8 @@
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
-- **§1–3, the roadmap** — things *we* intend to build, after 1.0. An item earns
+- **§1–3, the roadmap** — things *we* intend to build after 1.0. §2b is
+  committed with a release attached; the rest is intent. An item earns
   a place by being *additive*: if deferring it would force a data-model change
   later, it belongs in 1.0 instead, and the test for each entry is "what does
   this oblige 1.0 to do?"
@@ -214,6 +215,24 @@ All four are small. None is a feature at 1.0; all four are preconditions.
 - **Not an image editor.** Crop and label, not paint.
 - **Not required.** A text-only actor with no media stays completely valid, and
   nothing in the Studio may become a precondition for using a card.
+
+---
+
+## 2b. The 2.0 modes — committed, not deferred
+
+**Adventure–Campaign** and **Messages** are scheduled for a 2.0 series
+([15 §0](15-work-plan.md)), which puts them in a different category from
+everything else in this document. §1–2 are things we intend to build and might
+not; §4 is things we hope someone else builds. These two are **committed work
+with a release attached**.
+
+Their designs are already written — Messages in
+[03 §7.1](03-modes-and-turn-pipeline.md), Campaign in
+[03 §7.3](03-modes-and-turn-pipeline.md) — so there is nothing to add here
+beyond the scheduling. What travels with them: presence, schedules, autonomous
+messaging and the Web Push / webhook delivery channels for Messages; the RPG
+channel library and incremental world generation for Campaign
+([15 §0.1](15-work-plan.md)).
 
 ---
 

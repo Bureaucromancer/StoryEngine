@@ -71,7 +71,9 @@ and the absence is a genuine daily irritation — long generations mean you look
 away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
-The large pressure: **Messages mode does not work without it.** Autonomous
+The large pressure: **Messages mode does not work without it** — though Messages
+is now a 2.0 mode ([15 §0](15-work-plan.md)), so this argument lands later than
+the others. Autonomous
 messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
 surface, is a feature that does nothing.
@@ -96,7 +98,7 @@ a client is connected, which fails the one case that motivated the feature. The
 server knows who should be told and through which channel; the client only
 renders the in-app part.
 
-**Presence is already the input this needs.** Messages mode specifies per-user
+**Presence is already the input this needs — from 2.0.** Messages mode specifies per-user
 presence — Active, Idle, Do Not Disturb, Invisible ([03 §7.1](03-modes-and-turn-pipeline.md)).
 That is exactly the routing signal: suppress on DND, prefer in-app when Active
 and viewing the session in question, escalate to push when Idle or disconnected.
@@ -133,16 +135,20 @@ rather than in-app-only.
 
 ### 3.3 Delivery channels, in order of cost
 
-1. **In-app** — sound, toast, unread badge, document title. Covers the
+1. **In-app** *(1.0)* — sound, toast, unread badge, document title. Covers the
    completion-sound case entirely and needs no infrastructure.
-2. **Browser Notification API** — works when the tab is backgrounded but the
-   browser is open. Small step, large practical gain.
-3. **Web Push** — works when the browser is closed. See §3.4.
-4. **Outbound webhook, plus ntfy/Gotify shapes** — the self-hoster's expectation
-   and cheap to add, since it is an HTTP POST against a user-supplied endpoint.
-   It also sidesteps mobile push entirely for people who already run ntfy, which
-   is a large fraction of this audience. Treat the endpoint as user
+2. **Browser Notification API** *(1.0)* — works when the tab is backgrounded but
+   the browser is open. Small step, large practical gain.
+3. **Web Push** *(2.0)* — works when the browser is closed. See §3.4.
+4. **Outbound webhook, plus ntfy/Gotify shapes** *(2.0)* — the self-hoster's
+   expectation and cheap to add, since it is an HTTP POST against a user-supplied
+   endpoint. It also sidesteps mobile push entirely for people who already run
+   ntfy, which is a large fraction of this audience. Treat the endpoint as user
    configuration, not server configuration.
+
+The 1.0 pair covers everything 1.0 generates, because without Messages nothing
+reaches you when no browser is open ([15 §0.1](15-work-plan.md)). Push and
+webhooks arrive with the mode that needs them.
 
 ### 3.4 A correction to the no-service-worker position
 

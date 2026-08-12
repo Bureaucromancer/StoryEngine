@@ -6,8 +6,86 @@ fiction in a plan is worse than an ordering with honest dependencies.
 
 **Beta is defined as feature-complete to the 1.0 spec** ([12 §0](12-repo-and-releases.md)).
 That definition is about to widen — release engineering, automation and workflow
-stabilisation belong in it too, and §7 holds the space for that rather than
+stabilisation belong in it too, and §8 holds the space for that rather than
 guessing at it.
+
+---
+
+## 0. What is in 1.0, and what is 2.0
+
+**1.0 ships two modes: Scene, and Adventure–Chronicle.**
+**2.0 adds Adventure–Campaign and Messages.**
+
+The cut is by *where this project has an opinion*, which is a better criterion
+than feature count:
+
+- **Scene** and **Chronicle** are where StoryEngine diverges most from what
+  exists. They are the modes worth being opinionated about, and the ones whose
+  shape the design documents actually argue for.
+- **Campaign** is very good in Marinara already. What StoryEngine adds is
+  multi-user and the channel model underneath — not a different opinion about
+  what an RPG mode should be. Building it second, against a proven substrate,
+  is strictly better than building it first against an unproven one.
+- **Messages** is mechanically thin and presentationally expensive: presence,
+  schedules, autonomous messaging, profiles, reactions, and a great deal of look
+  and feel, for comparatively little that the pipeline does not already do.
+  It is the easiest place to spend six months on polish.
+
+**The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0.**
+1.0 is a real release with a `release/1.0` branch that persists
+([12 §2](12-repo-and-releases.md)); 2.0 work continues on `main`.
+
+### 0.1 What this removes from 1.0
+
+Deferring a mode removes more than the mode:
+
+| Deferred with | What goes with it |
+|---|---|
+| **Messages** | Presence (Active/Idle/DND/Invisible), per-actor schedules, autonomous messaging, Discord-style profiles, reactions, the command-family gating model |
+| **Messages** | **Background scheduling.** Autonomous messages were the forcing function for a server-side timer that starts turns with no client attached. Nothing else at 1.0 needs one — the plot-hook selector is a pipeline step, not a timer. Turns remain server-side *jobs* for reattach, which is a different thing. |
+| **Campaign** | The RPG channel library: HP and pools, attributes, inventory, quests, map, clock/weather, NPC reputation, sessions-within-a-campaign, combat |
+| **Campaign** | Incremental world generation at setup, and the character-sheet machinery |
+
+**Notifications stay at 1.0 but shrink.** The Messages argument for them goes
+away; the other two do not — completion sounds, and awaiting-input when a turn
+suspends for the player ([06 C5](06-open-questions.md)). In-app plus the browser
+Notification API covers 1.0. Web Push, ntfy and the delivery-channel spread move
+to 2.0 with Messages.
+
+**The event schema does not shrink** ([06 A2c](06-open-questions.md)). Class,
+target user, `{key, params}` summary, dedupe key and coalescing window are the
+retrofit cost, and they are as cheap now with two event classes as with ten.
+
+### 0.2 The check this cut creates
+
+The scope cut is also a test, and it is worth stating as a commitment rather
+than a hope:
+
+> **Adding Campaign and Messages at 2.0 must require no changes to the 1.0
+> portable schemas** ([13](13-schemas.md)).
+
+The design says it should not: Messages-specific fields live in `modeData` under
+a namespaced key, and Campaign's state lives in channels the mode declares.
+Neither touches Actor, Lorebook, Setting, Setup or Package. If either turns out
+to need a schema change, the mode contract or the data model was wrong — and
+finding that out at 2.0 is exactly what the stability tiers exist to prevent.
+
+### 0.3 The honest cost
+
+Cutting a mode also cuts a forcing function, and two seams go into 1.0 designed
+but unexercised:
+
+- **Background scheduling and presence** were Messages' to prove. They are
+  specified ([04 §3](04-server-multiuser-deployment.md)) and nothing at 1.0 will
+  test them.
+- **Heavy channels and engine-computed effects** were Campaign's to prove.
+  Chronicle uses channels lightly by design, so the model is under-exercised.
+
+The mitigation for the second is real: the dice reference extension
+([11 §4.4](11-roadmap.md)) exercises engine-computed channels and
+evaluate-before-narrate on a small surface, which is a reason to keep it at 1.0
+even though Chronicle defaults to no mechanics. The first has no mitigation
+short of building Messages, and is simply a risk carried into 2.0.
 
 ---
 
@@ -199,11 +277,16 @@ migration.
 - Channels, effects, engine-computed updates.
 - The authored-rule vocabulary and evaluator.
 - Setup objects and the declarative setup wizard.
-- Messages, Scene, Adventure × 2.
+- Party as a timeline, always non-empty ([03 §8](03-modes-and-turn-pipeline.md)).
+- Plot hooks and the selector.
+- **Scene** and **Adventure–Chronicle** (§0).
 
-The largest phase, and the one where the contract either holds or is revealed as
-wrong. If a built-in mode needs a back door, stop and fix the contract
-([03 §2](03-modes-and-turn-pipeline.md)).
+Still the largest phase and still the one where the contract either holds or is
+revealed as wrong. If a built-in mode needs a back door, stop and fix the
+contract ([03 §2](03-modes-and-turn-pipeline.md)).
+
+Two modes rather than four is a smaller phase but a weaker test, since the two
+retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P8 — Memory
 
@@ -235,7 +318,24 @@ browser, packaging, localisation catalogue extraction, Tailscale level 1.
 
 ---
 
-## 5. Continuous, not phased
+## 5. After 1.0: the 2.0 series
+
+**Campaign** and **Messages** (§0), each a mode built against a substrate that
+has by then been proven by two others. Campaign brings the RPG channel library
+and incremental world generation; Messages brings presence, schedules,
+background scheduling, autonomous messaging and the delivery-channel spread that
+Web Push and ntfy belong to.
+
+Both are **committed**, not speculative, which distinguishes them from the
+deferred items in [11 §3](11-roadmap.md) and the desired extensions in
+[11 §4](11-roadmap.md). The roadmap items may never happen; these are scheduled.
+
+The 2.0 series is also when the §0.2 check gets answered — whether either mode
+needed a portable schema change. That answer is worth recording either way.
+
+---
+
+## 6. Continuous, not phased
 
 Things that are wrong to schedule because they must happen inside every phase:
 
@@ -248,7 +348,7 @@ Things that are wrong to schedule because they must happen inside every phase:
 
 ---
 
-## 6. Where the risk actually is
+## 7. Where the risk actually is
 
 - **The assembler and budgeter** are the heart of the design and the easiest
   thing to get subtly wrong. Mitigated better than most projects manage, because
@@ -266,7 +366,7 @@ Things that are wrong to schedule because they must happen inside every phase:
 
 ---
 
-## 7. What "beta" means — to be expanded
+## 8. What "beta" means — to be expanded
 
 [12 §0](12-repo-and-releases.md) currently defines beta as **feature complete to
 the 1.0 spec**, which is a good completeness gate and an incomplete definition of

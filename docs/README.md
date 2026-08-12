@@ -2,7 +2,9 @@
 
 **Status: early design exploration. Nothing here is decided.**
 
-**Phase: pre-alpha.** No code yet. Distribution, when there is something to
+**Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Chronicle;
+Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)).
+Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
 complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
 
@@ -44,7 +46,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 |---|---|
 | [02-data-model.md](02-data-model.md) | **Why** the objects are shaped as they are; storage on disk |
 | [13-schemas.md](13-schemas.md) | **What** they are — definitions, and the stability boundary |
-| [03-modes-and-turn-pipeline.md](03-modes-and-turn-pipeline.md) | The mode contract, the three v1 modes, channels, party, assembly |
+| [03-modes-and-turn-pipeline.md](03-modes-and-turn-pipeline.md) | The mode contract, the modes, channels, party, assembly, renditions |
 | [10-branching.md](10-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
 | [14-cross-session-memory.md](14-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
@@ -78,10 +80,14 @@ considered; 13 carries the definitions. Where they disagree, 13 is current.
    native mobile app — and it is a view onto server-side state, not the place
    generation happens. The only secondary interface is direct file access to the
    data directory, offered in-UI as a permission level.
-3. **Three chat modes at 1.0** — Messages (Marinara "Convo"), Scene
-   (SillyTavern/Marinara RP), and Adventure (the "Game Mode" family) — with
-   Adventure shipping two official presets and specified as an *extension point*
-   rather than a fixed feature set.
+3. **Four chat modes across two releases.** **1.0**: Scene (SillyTavern/Marinara
+   RP) and Adventure–Chronicle (the Aventuras shape). **2.0**: Adventure–Campaign
+   (the Marinara RPG shape) and Messages (Marinara "Convo"). The cut is by where
+   this project has an opinion — Campaign is already well done in Marinara and
+   what we add is the substrate beneath it, while Messages is presentationally
+   expensive for what it adds mechanically. Modes are specified as an *extension
+   point* rather than a fixed feature set, so the 2.0 pair should need no change
+   to the 1.0 schemas ([15 §0.2](15-work-plan.md)).
 4. **Data objects that make sense for LLM workflows**, stored as files on disk,
    with character cards stored natively as cards — drag a folder out of the
    storage directory and you have exported it.
