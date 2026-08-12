@@ -26,8 +26,38 @@ Naming the *presets* rather than making them separate modes is the load-bearing
 part: they share a mode contract, so a Chronicle game can switch on the dice
 channel without becoming a different kind of thing.
 
-**[OPEN]** All three names. "Chronicle" in particular is doing a lot of work for
-a mode most likely to be someone's daily driver.
+**Confirmed: Messages, Scene, Adventure**, with Adventure naming its preset.
+
+**"Chronicle" is the weak one and should probably change.** The problem is that
+it tries to be Campaign's sibling by being another lofty noun, when what it needs
+to do is name a *different kind of play*. It also suggests recording something
+that already happened rather than playing it.
+
+Campaign works because it is borrowed from the domain and everyone already knows
+what it means. The other preset needs the same treatment, and the axis it should
+name is **how much structure the game imposes** — Campaign has dice, HP,
+inventory, a map and sessions; the other has prose and optional everything.
+
+| Candidate | For | Against |
+|---|---|---|
+| **Freeform** | Established vocabulary in exactly this community — "freeform RP" already means roleplay without dice or stats. Legible from both tabletop and RP culture. Not lofty. | Defined slightly by absence |
+| **Solo** | Names the structural default accurately, and "solo RPG" is a real and growing genre this mode closely resembles | Overclaims — companions are allowed ([§8](#8-party)) |
+| **Story** | Plain, nobody needs it explained | Generic; every mode makes a story |
+
+**Lean: Freeform.** *Adventure · Freeform* against *Adventure · Campaign* is an
+opposition a reader gets immediately, and it names the actual difference rather
+than a correlated one.
+
+**Worth knowing: the user-facing name is not needed until 2.0.** Campaign does
+not exist at 1.0 ([15 §0](15-work-plan.md)), so there is only one Adventure
+preset and the UI can simply say *Adventure*. Naming a thing after using it for a
+year is easier than naming it now. The *identifier* is a different matter and
+should be settled immediately — preset ids travel inside Setup objects
+([13 §7](13-schemas.md)), so changing one later is a content migration rather
+than a rename.
+
+**[OPEN]** Confirm `freeform` as the identifier, or propose better. The
+user-facing label can stay undecided until Campaign ships.
 
 ---
 

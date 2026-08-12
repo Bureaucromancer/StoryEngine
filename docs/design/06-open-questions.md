@@ -329,9 +329,26 @@ travelling in a package, not a variant of Setup. *[02 §7]*
 
 ## C. Mode and pipeline questions
 
-**C1. Names.** "Messages / Scene / Adventure", with Adventure presets "Campaign"
-and "Chronicle". All six names are open, and "Chronicle" is doing a lot of work
-for what is likely the most-used mode. *[03 §1]*
+**C1. Names. — CONFIRMED: Messages, Scene, Adventure**, with Adventure naming
+its preset. One remains unsettled: **"Chronicle" is the weak name.**
+
+Its problem is that it tries to be Campaign's sibling by being another lofty
+noun, rather than naming a different kind of play — and it suggests recording
+something that already happened. Campaign works because it is borrowed from the
+domain; the other preset needs the same, naming the axis that actually separates
+them: how much structure the game imposes.
+
+**Lean: `freeform`.** "Freeform RP" is established vocabulary meaning roleplay
+without dice or stats, legible from both tabletop and RP culture, and not lofty.
+`solo` names the structural default and overclaims slightly since companions are
+allowed; `story` is plain but generic to every mode.
+
+**The user-facing label can wait; the identifier cannot.** Campaign does not
+exist until 2.0, so there is one Adventure preset at 1.0 and the UI can simply
+say *Adventure*. But preset ids travel inside Setup objects
+([13 §7](13-schemas.md)), so changing one later is a content migration rather
+than a rename. Settle `freeform` (or better) as the id now; decide what to call
+it in the UI after a year of using it. *[03 §1]*
 
 **C2. Mixed voice within a turn** — a narrator paragraph followed by embodied
 dialogue from two characters, stitched into one message. Powerful; multiplies
