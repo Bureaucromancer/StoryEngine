@@ -33,69 +33,34 @@ no field that could hold a connection.
 
 One card type. This is the largest single divergence from all three sources.
 
-```ts
-interface Actor {
-  schema: "storyengine.actor/1"
-  id: ActorId                     // stable, uuidv7
-  name: string
-  aliases: string[]               // also the default keyword set for lore matching
-  pronouns: string | null         // never inferred from name
+> **Definition: [13 §4](13-schemas.md).** This section covers why it is shaped
+> that way.
 
-  roles: ActorRole[]              // flags, not types — see §2.2
-  tags: string[]                  // "npc" lives here
+The card holds identity, not prompt configuration. Beyond the obvious fields it
+carries: `roles` and `tags` as flags rather than types (§2.2), linked lorebooks
+rather than embedded ones, a `modelHint` that is a preference and never a
+binding (§2.6), namespaced `modeData` (§2.4), and two provenance maps — one for
+the object, one **per field**.
 
-  profile: ActorProfile           // who they are
-  openings: Openings              // see §6
-  lore: Ref<Lorebook>[]           // linked, not embedded
-  assets: AssetManifest           // see §5.3
-  modelHint: ModelHint | null     // see §2.6
-  modeData: Record<ModeId, unknown>   // namespaced, declared owner — see §2.4
-  provenance: Provenance
-  generated: Record<string, GeneratedFieldProvenance> | null  // by dotted path; [05 §8.2]
-  compat: Record<string, unknown> | null  // preserved legacy import fields
-}
-```
-
-`generated` is Marinara's per-field generation provenance, adopted wholesale and
-applied to every authored kind rather than only scenarios. It records what a
-model wrote, when, with which model and from what input, so an edit can be
-reverted and a machine-written field can be disclosed as one. See
-[05 §8.2](05-ui-surfaces.md) for why it earns its place in the *data* model
+That per-field map is Marinara's generation provenance, adopted wholesale and
+widened from scenarios to every authored kind. It records what a model wrote,
+when, with which model and from what input, so an edit can be reverted and a
+machine-written field disclosed as one. See
+[05 §11.2](05-ui-surfaces.md) for why it earns a place in the *data* model
 rather than being a UI concern.
 
 ### 2.1 The profile
 
-```ts
-interface ActorProfile {
-  summary: string        // the always-present core. Short by design.
-  appearance: string     // prose, for the narrator
-  visual: VisualDescriptors | null   // structured, for image pipelines — see below
-  voice: string          // register, verbal tics, how they talk — not what they sound like
-  background: string
-  traits: string[]
-  sections: Section[]    // author-defined, addressable by id
-}
+Four prose fields — `summary`, `appearance`, `voice`, `background` — plus
+`traits`, author-defined `sections`, and structured `VisualDescriptors`.
 
-/** Aventuras' `VisualDescriptors`, adopted. Prose appearance is for the
- *  narrator; this is for image and video pipelines, which need fields rather
- *  than a paragraph. Cheap now, and the alternative is parsing prose later. */
-interface VisualDescriptors {
-  face?: string          // features, skin, age indicators
-  hair?: string
-  eyes?: string
-  build?: string
-  clothing?: string
-  accessories?: string
-  distinguishing?: string  // scars, tattoos, birthmarks
-}
+The split between prose `appearance` and structured `visual` is deliberate:
+prose is for the narrator, fields are for image and video pipelines, which need
+attributes rather than a paragraph. Cheap to carry now; the alternative is
+parsing prose later.
 
-interface Section {
-  id: string             // stable; presets and modes address blocks by this
-  title: string
-  body: string
-  default: SectionDisposition   // "always" | "on-demand" | "reference-only"
-}
-```
+`sections` carry a disposition (`always` / `on-demand` / `reference-only`) and a
+stable id, because presets and modes address blocks by id.
 
 Deliberately **absent**: `system_prompt`, `post_history_instructions`,
 `depth_prompt`, `talkativeness`, `mes_example`, `scenario`. Those are
@@ -179,13 +144,9 @@ channel initialisation, not as live state.
 Required for per-character models in individual-dispatch Scene mode, and
 dangerous if done naively — a shared card must not repoint anyone's provider.
 
-```ts
-interface ModelHint {
-  role: "prose" | "fast" | "reasoning" | "vision"   // abstract capability class
-  preferredModelIds?: string[]      // advisory: "gemini-2.5-pro", …
-  note?: string                     // free text for the recipient
-}
-```
+A hint names an abstract capability class — `prose`, `fast`, `reasoning`,
+`vision` — plus optional advisory model ids and a free-text note
+([13 §3](13-schemas.md)).
 
 Resolution is local: the install maps `role` → connection, and
 `preferredModelIds` is consulted only if the user has that model configured. An
@@ -359,17 +320,9 @@ scope: LorebookScope            // { mode: "all" | "disabled" | "specific", chat
 migration that never completed, and the invariant is maintained by code rather
 than by shape.
 
-Collapse to one:
-
-```ts
-type LoreScope =
-  | { kind: "global" }
-  | { kind: "linked"; actorIds: ActorId[] }    // personas are actors — [02 §2.2]
-  | { kind: "session"; sessionIds: SessionId[] }
-```
-
-Same three behaviours from the docs (global / linked to a character or persona /
-pinned to one chat), mutual exclusion by construction, and the persona
+Collapse to a single three-variant union — global, linked to actors, or scoped to
+sessions ([13 §5](13-schemas.md)). Same three behaviours the docs describe,
+mutual exclusion by construction rather than by a save-time rule, and the persona
 duplication disappears for free once persona is a flag on an actor.
 
 `category` stays as-is — five values, purely organisational, explicitly does not
@@ -407,35 +360,11 @@ never stops, you're a fixer who owes the wrong people", carries
 `lore: [ref("Rain City")]`, and lets the lorebook be the single home for what
 Rain City *is*.
 
-```ts
-interface Setting {
-  schema: "storyengine.setting/1"
-  id, name, tags, provenance
-  blurb: string            // library card text. Never injected anywhere.
-  framing: string          // the short "how this setting is used" piece. Injected.
-  tone: {
-    genres: string[]
-    moods: string[]
-    pov: "first" | "second" | "third"
-    tense: "past" | "present"
-    contentRating: "sfw" | "nsfw" | null    // null = unspecified; never assume
-    styleNotes: string
-  }
-  lore: Ref<Lorebook>[]
-  cast: CastEntry[]
-  openings: Openings
-  hooks: PlotHook[]        // pending plot turns — see §4.1
-  modeHints: { modeId?: ModeId; config?: unknown }   // advisory only
-}
+> **Definition: [13 §6](13-schemas.md).**
 
-interface CastEntry {
-  ref: Ref<Actor>
-  billing: "persona-option" | "party-option" | "npc" | "narrator-option"
-  note: string             // "how this character is used in this setting"
-}
-```
-
-Notes:
+It carries `blurb` and `framing`, a `tone` block, links to lorebooks, a `cast`
+of billed actor links, openings, plot hooks (§4.1), and advisory mode hints.
+Notes on why:
 
 - `blurb` vs `framing` is a real distinction and both sources conflate it.
   Aventuras' `VaultScenario.description` and Marinara's `Scenario.description`
@@ -463,28 +392,15 @@ carries and a step fires at an opportune moment. "X and Y have been having an
 affair and will soon announce their marriage." "The Flower Kingdom will declare
 war over some damned island."
 
-```ts
-interface PlotHook {
-  id: string
-  title: string            // for the author's list; never injected
-  premise: string          // the content, handwritten
-  scope: "world" | "local" | "personal"
+> **Definition: [13 §6.1](13-schemas.md)**, including the note that its
+> `requires` and `onFire` fields are typed against the *unstable* rule
+> vocabulary while its content fields are committed.
 
-  // Eligibility — checked mechanically, before any model call
-  involves: Ref<Actor>[]   // moot if these are dead, gone or never introduced
-  requires?: Predicate[]   // channel conditions, or hooks that must have fired
-  blockedBy?: HookId[]     // hooks that make this one nonsensical
-  notBefore?: { turn?: number; afterHook?: HookId }
+A hook carries its premise and scope, mechanical eligibility (`involves`,
+`requires`, `blockedBy`, `notBefore`), and firing behaviour (`weight`,
+`delivery`, `onFire`).
 
-  // Selection
-  weight: number           // relative likelihood among eligible hooks
-  delivery: "guidance" | "seed" | "immediate"
-  onFire?: Effect[]        // channel effects — this is what makes chains work
-  once: boolean
-}
-```
-
-Settings carry `hooks: PlotHook[]`; packages carry them via their settings.
+Settings carry the hooks; packages carry them via their settings.
 Session creation copies them, per prefill-not-binding
 ([00 §3.1](00-stance.md)), and the session tracks which have fired.
 
@@ -563,7 +479,7 @@ disposable index**.
 
 **Every user owns a complete, independent library.** There is no shared *user*
 area and no ownership field — the path is the owner
-([04 §3.3](04-server-multiuser-deployment.md)).
+([04 §4.3](04-server-multiuser-deployment.md)).
 
 **`system/library/` is a full library with the same layout**, shipped with the
 app, read-only, and loaded for every user alongside their own. Same structure
@@ -572,7 +488,7 @@ query, not a special case.
 
 Sharing between *users* stays deferred, and this is the shape it will most
 likely take: a third location read the same way. See
-[04 §3.3](04-server-multiuser-deployment.md).
+[04 §4.3](04-server-multiuser-deployment.md).
 
 The rule that makes this work: **the index is never authoritative and never the
 only home for a fact.** It exists for search, listing, tag queries, cross-refs
@@ -618,7 +534,7 @@ document — with per-container encoders: PNG `tEXt`/`iTXt`, WebP `XMP`, JPEG
 #### 5.2.1 Cropping is non-destructive, and still emits a cropped card
 
 The crop is stored as a normalised source rectangle and **never destroys
-anything** ([05 §8.3](05-ui-surfaces.md)). What the card *emits* is a copy that
+anything** ([05 §11.3](05-ui-surfaces.md)). What the card *emits* is a copy that
 is only the crop.
 
 So there are two images, both first-class:
@@ -639,30 +555,16 @@ not of the folder.** A V2/V3 card is one picture plus text, and that ceiling is
 why every tool in this space bolts sprites and galleries onto the side. Here the
 envelope (§5.2 above) carries a **media set** alongside the JSON:
 
-```ts
-interface EmbeddedMedia {
-  id: string
-  role: MediaRole          // see below — typed, not a flat pile
-  mime: string
-  bytes: Uint8Array
-  meta: { width, height, crop?: SourceRect, caption?: string, generated?: GeneratedFieldProvenance }
-}
-
-type MediaRole =
-  | "portrait-source"      // the uncropped original behind the card's pixels
-  | "reference"            // canonical likeness, ideally multi-angle
-  | "expression"           // named emotional states
-  | "pose"
-  | "style"                // style exemplar rather than likeness
-  | "gallery"
-```
+The envelope carries an `EmbeddedMedia[]` alongside the JSON, each entry a
+typed role plus bytes ([13 §3](13-schemas.md)). Roles: `portrait-source`,
+`reference`, `expression`, `pose`, `style`, `gallery`.
 
 **Roles are typed from the start, and that is the part worth insisting on now.**
 A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([11 §1b](11-roadmap.md)).
+prerequisite for the Character Studio ([11 §2](11-roadmap.md)).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
@@ -718,7 +620,7 @@ would cost the properties the folder was chosen for, and they are not small:
 | Folder | Zipped store |
 |---|---|
 | Hand-editable on disk ([05 §4](05-ui-surfaces.md)) | Requires unzip/rezip to change one field |
-| Watcher-fed index sees per-file changes ([04 §4b.2](04-server-multiuser-deployment.md)) | Whole archive re-read on any change |
+| Watcher-fed index sees per-file changes ([04 §6.2](04-server-multiuser-deployment.md)) | Whole archive re-read on any change |
 | One sprite changes → one file written | One sprite changes → archive rewritten |
 | Git-able with real diffs | Opaque blob, no diffs |
 | Partial write loses one file | Partial write loses the actor |
@@ -785,21 +687,9 @@ front, unpleasant later.
 Requested as two types, each with primary and secondary alternatives. Defined
 once and reused on Actor, Setting and Package.
 
-```ts
-interface Openings {
-  written: Opening[]        // fully authored. Used verbatim.
-  seeds: Opening[]          // a prompt, expanded by a model into an opening.
-  primaryWrittenId: string | null
-  primarySeedId: string | null
-}
+> **Definition: [13 §3](13-schemas.md).**
 
-interface Opening {
-  id: string
-  label: string             // shown in the picker
-  text: string
-  note?: string             // author guidance; for seeds, this steers the expansion
-}
-```
+Two lists — `written` and `seeds` — each with a designated primary.
 
 - The two lists are genuinely different things and should not be merged with a
   flag: a written opening is content, a seed is an instruction. They render
@@ -823,35 +713,13 @@ interface Opening {
 A package is **primarily a bundle of other objects**, per the requirement. It
 carries very little of its own.
 
-```ts
-interface Package {
-  schema: "storyengine.package/1"
-  id, name, version, author, license, description
-  cover: AssetRef
+> **Definition: [13 §7](13-schemas.md)** — which ships it as `schema/0`, because
+> [13 §1](13-schemas.md) treats the wrapper as deliberately unstable while its
+> contents are not.
 
-  entry: {                        // what "start this" means
-    modeId: ModeId
-    modeConfig: unknown           // opaque to the host; the mode owns it
-    settingId: SettingId          // one of the embedded settings
-    personaOptions: ActorId[]
-    partyDefault: ActorId[]
-    openings: Openings            // package-level openings override the setting's
-  }
-
-  contents: {                     // embedded COPIES, not links
-    actors: Actor[]
-    lorebooks: Lorebook[]
-    settings: Setting[]
-    presets: Preset[]
-  }
-
-  requires: {
-    modes: ModeRequirement[]      // id + min version
-    extensions: ExtensionRequirement[]
-    capabilities: string[]        // "image-generation", "tool-calling", …
-  }
-}
-```
+Three parts: an `entry` block saying what "start this" means, `contents`
+holding embedded copies of actors, lorebooks, settings and presets, and
+`requires` declaring what the host must provide.
 
 Key decisions:
 
@@ -888,8 +756,8 @@ crosses the content/session line the rest of the model keeps clean.
 interface Session {
   id, title, createdAt, updatedAt
   // No owner or visibility field: the session lives under its owner's
-  // directory, and there is nobody to share it with. [04 §3.3]
-  participants: UserId[]          // length 1 at 1.0 — see [04 §6]
+  // directory, and there is nobody to share it with. [04 §4.3]
+  participants: UserId[]          // length 1 at 1.0 — see [04 §8]
 
   mode: { id: ModeId; config: unknown }
   preset: Preset                  // resolved copy, not a link
@@ -979,13 +847,7 @@ default, offer compaction, never compact the current branch's tail.
 
 ## 9. References and drift
 
-```ts
-interface Ref<T> {
-  id: string
-  name: string          // for display and for name-fallback resolution
-  fingerprint?: string  // content hash at link time — detects drift
-}
-```
+> **Definition: [13 §3](13-schemas.md).** A `Ref` is `{id, name, fingerprint?}`.
 
 Resolution order, everywhere, per [00 §3.3](00-stance.md): exact id →
 case-insensitive name → show as missing and continue. `fingerprint` lets the UI

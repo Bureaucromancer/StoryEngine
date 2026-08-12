@@ -14,7 +14,7 @@ what is deferred rather than forgotten.
 | Phase | Definition | Distribution |
 |---|---|---|
 | **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No release artifacts, no channels, no packages. |
-| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §4.4](04-server-multiuser-deployment.md). |
+| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. |
 
 **Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0
@@ -28,7 +28,7 @@ Two consequences worth naming:
   signing, and CI matrices are all beta-phase concerns. Building them now would
   be maintaining a distribution for software that has no users.
 - **"Build it yourself" is the alpha distribution strategy, not a permanent
-  philosophy.** [04 §4.4](04-server-multiuser-deployment.md) argues that
+  philosophy.** [04 §5.4](04-server-multiuser-deployment.md) argues that
   build-from-source should stay genuinely first-class forever — that remains
   true, but during alpha it is the *only* path, which is a different claim.
 
@@ -78,7 +78,7 @@ Release branches are per **minor line**, not per patch — `release/1.2` carries
 
 **This model directly serves an obligation we already have.** AGPL §13 requires
 offering the source corresponding to *the running version*
-([04 §5](04-server-multiuser-deployment.md)), which means builds embed their tag
+([04 §7](04-server-multiuser-deployment.md)), which means builds embed their tag
 and commit and the About surface links to them. Permanent release branches and
 permanent tags are what make that link resolve years later. A model that deleted
 release history would quietly make §13 compliance harder over time.
@@ -121,7 +121,7 @@ automated and reliable" — and the automation condition is the tell.
   automated fast-forward that can drift or fail silently. The genuine use case
   is convenience for install instructions — `git clone -b latest` reading better
   than "look up the newest tag". But per
-  [04 §4.4](04-server-multiuser-deployment.md) the real install paths are a
+  [04 §5.4](04-server-multiuser-deployment.md) the real install paths are a
   container image and a tarball, and both already have a `:latest` concept that
   is not a git ref.
 - A **`nightly` branch** is a category error in the same way: nightly builds are
@@ -158,7 +158,7 @@ rewrite itself, and every mechanism above already delivers the outcome without
 that risk.
 
 The in-app check is specified in
-[04 §4b.5](04-server-multiuser-deployment.md), including the deliberate limits
+[04 §6.5](04-server-multiuser-deployment.md), including the deliberate limits
 that keep it from becoming telemetry, and its secondary use as a connectivity
 signal that improves generation error messages.
 

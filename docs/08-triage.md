@@ -22,7 +22,7 @@ this section records what that settles and what it newly raises.
   remotely must be offered the corresponding source. In practice a "Source" link
   in the UI footer resolving to the repository, plus the ability to serve the
   exact running version. **This is a 1.0 requirement, not a nicety** — see
-  [04 §6](04-server-multiuser-deployment.md).
+  [04 §8](04-server-multiuser-deployment.md).
 - **Dependencies must be AGPL-compatible.** Permissive licences (MIT, Apache-2.0,
   BSD, ISC) are fine and cover everything on the BUY list in §7. Watch for
   SSPL, BUSL, "source-available", and non-commercial terms, which are not.
@@ -88,7 +88,7 @@ it was before it, and it is worth saying so publicly rather than leaving people
 to discover it.
 
 Both halves of the table belong somewhere user-facing — the About surface in
-[04 §5](04-server-multiuser-deployment.md) is the natural home.
+[04 §7](04-server-multiuser-deployment.md) is the natural home.
 
 ---
 
@@ -192,15 +192,15 @@ and no plan below should be built on the assumption that it did.
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](02-data-model.md). Four scoped changes only. |
 | Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
-| Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §8.3](05-ui-surfaces.md) |
-| Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §8.2](05-ui-surfaces.md) |
+| Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §11.3](05-ui-surfaces.md) |
+| Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §11.2](05-ui-surfaces.md) |
 | Structured `VisualDescriptors` | Aventuras `types/index.ts` | **PORT** | face/hair/eyes/build/clothing/accessories/distinguishing. Prose appearance is for the narrator; this is for image pipelines. [02 §2.1](02-data-model.md) |
 | Media embedded in the card, with typed roles | — *none of the three* | **NEW** | V2/V3 caps a card at one picture, which is why every tool bolts sprites on the side. [02 §5.2.2](02-data-model.md) |
 | Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [10 §8](10-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
 | `PersistentRetryState` | Aventuras | **DISCARD** | Hand-maintained undo snapshot; replaced by reversible effects. |
 | Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](01-source-survey.md). |
 | `GameSetupConfig` | Marinara | **REBUILD** | ~70 fields mixing narrative and production. |
-| Per-user directory islands | ST `USER_DIRECTORY_TEMPLATE` | **REBUILD** | Layout idea yes; isolation model no ([04 §3.3](04-server-multiuser-deployment.md)). |
+| Per-user directory islands | ST `USER_DIRECTORY_TEMPLATE` | **REBUILD** | Layout idea yes; isolation model no ([04 §4.3](04-server-multiuser-deployment.md)). |
 | Four backend settings dirs | ST | **DISCARD** | Completion-era fossil. |
 
 ### Retrieval and context
@@ -243,7 +243,7 @@ and no plan below should be built on the assumption that it did.
 | Subsystem | Best source | Verdict | Note |
 |---|---|---|---|
 | Multi-user auth (scrypt, cookies, CSRF, admin flag) | ST `users.js` | **PORT** | Shape is right; ~200 lines of standard practice. |
-| Header-SSO behind `trustedProxies` | ST `users.js` | **PORT** | Directly reusable for Tailscale ([04 §4.2](04-server-multiuser-deployment.md)). |
+| Header-SSO behind `trustedProxies` | ST `users.js` | **PORT** | Directly reusable for Tailscale ([04 §5.2](04-server-multiuser-deployment.md)). |
 | Provider adapters | Marinara (9) / Aventuras (AI SDK) | **BUY** | Aventuras already made this call correctly. |
 | Generation pipeline phases | Aventuras `services/generation/phases/` | **PORT the structure** | Closest thing to our turn pipeline. |
 | Agent/step execution | Marinara `agents/agent-executor.ts` etc. | **REBUILD** | Unify agent and pipeline step. |
@@ -253,7 +253,7 @@ and no plan below should be built on the assumption that it did.
 | Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our `.sepack`. |
 | Browser-side orchestration | ST | **DISCARD** | [00 §2.9](00-stance.md). |
 | Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [05 §1](05-ui-surfaces.md). |
-| In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [05 §8.1](05-ui-surfaces.md) |
+| In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [05 §11.1](05-ui-surfaces.md) |
 | In-UI image crop and generate on any image slot | Marinara | **PORT, widened** | Available wherever an image appears, not only avatars. |
 | Regression-script pattern | Marinara `scripts/regressions/` | **PORT** | Especially `context-fit`. |
 
@@ -359,7 +359,7 @@ has failed — which makes this list a useful acceptance test rather than a
 backlog.
 
 The desirable ones are picked up as **desired extensions** in
-[11 §3](11-roadmap.md), with the seam each should use and where the naive
+[11 §4](11-roadmap.md), with the seam each should use and where the naive
 version goes wrong. Two in particular — table games and music — are genuinely
 natural in some modes, and are *better* as extensions than they would be in
 core, because the whole point is to let a real engine do work the model only

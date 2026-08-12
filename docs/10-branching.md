@@ -216,7 +216,7 @@ What this buys, beyond one mechanism instead of two:
   its own effects. The sources' swipe arrays cannot express this at all — which
   is why swiping in a game-like mode tends to corrupt tracked state in practice.
 - **Rewrite and reroll are separable, and rewrite is the default.** Each node
-  records the draws it consumed ([07 §12.5](07-tech-stack.md)), so a sibling can
+  records the draws it consumed ([07 §14.5](07-tech-stack.md)), so a sibling can
   either replay that tape — *rewrite*: same mechanical outcome, different
   writing — or draw fresh — *reroll*: new outcome. Without the distinction,
   swiping past a failed check is save-scumming by accident. Both siblings are

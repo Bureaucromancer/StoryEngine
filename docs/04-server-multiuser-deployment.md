@@ -61,7 +61,7 @@ recorded as failed with its blocks intact so it can be re-run rather than lost.
 
 ---
 
-## 2b. Notifications
+## 3. Notifications
 
 **Build this early.** Two unrelated pressures point at it, and the second is the
 architectural one.
@@ -76,7 +76,7 @@ messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
 surface, is a feature that does nothing.
 
-### 2b.1 It is a consumer of the event stream, not a new subsystem
+### 3.1 It is a consumer of the event stream, not a new subsystem
 
 The session event stream already exists ([§2](#2-server-authoritative-generation)).
 Notifications are events plus a **router** plus a set of **delivery channels**:
@@ -103,10 +103,10 @@ and viewing the session in question, escalate to push when Idle or disconnected.
 Reuse it rather than inventing a parallel notion.
 
 **Per-user, and scoped by ownership.** A household server must never tell one
-person about another's session. Session visibility ([§3.3](#33-shared-library-private-sessions--the-divergence-from-sillytavern))
+person about another's session. Session visibility ([§4.3](#43-everything-is-per-user-sharing-is-deferred))
 already answers this.
 
-### 2b.2 What this obliges 1.0 to do, even if channels ship late
+### 3.2 What this obliges 1.0 to do, even if channels ship late
 
 The retrofit cost is not in the delivery channels — those are additive. It is in
 the **event schema**, because every producer changes if it is wrong. From the
@@ -118,7 +118,7 @@ start, events carry:
 - **a renderable summary as `{ key, params }`, not English prose.** One line fit
   to be a notification body — but composed at display time, because the server
   cannot know the reader's language and a baked English string is
-  untranslatable ([07 §10c.5](07-tech-stack.md)). Note this cuts both ways: the
+  untranslatable ([07 §12.5](07-tech-stack.md)). Note this cuts both ways: the
   params must carry everything the sentence needs, since composing a summary
   later from *unstructured* fields produces the "New event in session 4f2a"
   school of notification.
@@ -131,20 +131,20 @@ input ([06 C5](06-open-questions.md)), and the player has wandered off, the
 session is stuck until told. That class is the strongest argument for push
 rather than in-app-only.
 
-### 2b.3 Delivery channels, in order of cost
+### 3.3 Delivery channels, in order of cost
 
 1. **In-app** — sound, toast, unread badge, document title. Covers the
    completion-sound case entirely and needs no infrastructure.
 2. **Browser Notification API** — works when the tab is backgrounded but the
    browser is open. Small step, large practical gain.
-3. **Web Push** — works when the browser is closed. See §2b.4.
+3. **Web Push** — works when the browser is closed. See §3.4.
 4. **Outbound webhook, plus ntfy/Gotify shapes** — the self-hoster's expectation
    and cheap to add, since it is an HTTP POST against a user-supplied endpoint.
    It also sidesteps mobile push entirely for people who already run ntfy, which
    is a large fraction of this audience. Treat the endpoint as user
    configuration, not server configuration.
 
-### 2b.4 A correction to the no-service-worker position
+### 3.4 A correction to the no-service-worker position
 
 [05 §1](05-ui-surfaces.md) says "no offline story. No service worker, no local
 cache-as-database, no sync." **Web Push requires a service worker**, so that
@@ -163,9 +163,9 @@ state-reconciliation problem arrives uninvited.
 
 ---
 
-## 3. Multi-user
+## 4. Multi-user
 
-### 3.1 Threat model, stated plainly
+### 4.1 Threat model, stated plainly
 
 This is **access separation among people who already trust each other**, on a
 network they control. It keeps your sister out of your sessions. It does not
@@ -182,7 +182,7 @@ CSRF protection on state-changing routes, session cookies with sane flags, and
 path traversal checks on every filesystem-touching route. Those are cheap and
 their absence is embarrassing rather than defensible.
 
-### 3.2 Users
+### 4.2 Users
 
 ```ts
 interface Account {
@@ -200,7 +200,7 @@ First-run creates the first admin. Admins manage accounts and install
 extensions; users do everything else. That is the entire authorisation model, and
 it should stay that small unless something forces otherwise.
 
-### 3.3 Everything is per-user. Sharing is deferred.
+### 4.3 Everything is per-user. Sharing is deferred.
 
 **Revised.** An earlier draft proposed a shared library with `owner` and
 `visibility` fields on every object, defaulting to shared, and framed
@@ -288,7 +288,7 @@ would make it the de-facto household share. That is deliberately not offered at
 it is very likely the shape sharing eventually takes, and it means the feature
 may cost far less than it appears to.
 
-### 3.4 Concurrent edits
+### 4.4 Concurrent edits
 
 Largely dissolved by §3.3: with no shared objects, two users cannot edit the
 same file, and the interesting case is one person with two tabs open.
@@ -299,13 +299,13 @@ content hash; a write presenting a stale hash is rejected, and the UI offers
 last-writer-wins. It also covers hand-edits made through the file browser or
 directly on disk while the UI has the object open — which is now the *likelier*
 conflict, and one the watcher-fed index makes possible
-([04 §4b.2](#4b2-content-already-hot-reloads-and-that-is-not-a-dev-feature)).
+([04 §6.2](#62-content-already-hot-reloads-and-that-is-not-a-dev-feature)).
 
 ---
 
-## 4. LAN, Tailscale, and getting to it
+## 5. LAN, Tailscale, and getting to it
 
-### 4.1 Defaults — loopback on first boot
+### 5.1 Defaults — loopback on first boot
 
 **Revised.** An earlier draft had this binding `0.0.0.0` by default, reasoning
 that LAN-first and auth-on-by-default were the same decision. That was wrong in
@@ -341,7 +341,7 @@ Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §4.3's container default safe rather than merely
 unavoidable.
 
-### 4.2 Tailscale
+### 5.2 Tailscale
 
 Wanted eventually; worth designing the seam now because it changes the auth model
 rather than sitting beside it. Three levels, in increasing order of effort:
@@ -375,14 +375,14 @@ than a special case, and treat Level 3 as a genuine later project.
 sight, or must be pre-created by an admin. Auto-provisioning is friendlier and
 means anyone you share your tailnet with gets a StoryEngine account.
 
-### 4.3 Packaging, and why containers invert the bind default
+### 5.3 Packaging, and why containers invert the bind default
 
 Docker Compose as the primary distribution (one volume, one port, one env file),
 plus a plain `node` install for people who prefer it. No launcher `.exe`, no
 Tauri shell, no Android build at 1.0. If a native wrapper is ever wanted it
 should be a thin client pointing at a server, not a second copy of the engine.
 
-Full target list in [§4.4](#44-which-packages-are-first-class).
+Full target list in [§4.4](#54-which-packages-are-first-class).
 
 **Inside a container, binding loopback is simply broken.** `127.0.0.1` in a
 container is the *container's* loopback, so the process is unreachable from the
@@ -413,7 +413,7 @@ than being left to a third party.
 **[OPEN]** Whether to also publish to the unraid CA store directly, which means
 maintaining a presence there, versus letting the template be community-submitted.
 
-### 4.4 Which packages are first-class
+### 5.4 Which packages are first-class
 
 **The reframe that settles most of this: we are packaging a *service*, not a
 desktop application.** There is no GUI, no tray icon, no file associations, no
@@ -528,12 +528,12 @@ build-it-yourself, and the tiers above are a plan rather than a backlog.
 
 ---
 
-## 4b. Reloading, restart-required, and restarting from the UI
+## 6. Reloading, restart-required, and restarting from the UI
 
 Three requests that turn out to be one mechanism, which is the reason to design
 them together rather than bolt the second onto the first.
 
-### 4b.1 Annotate every config key with what it takes to apply
+### 6.1 Annotate every config key with what it takes to apply
 
 ```ts
 reload: "live" | "reconnect" | "restart"
@@ -546,12 +546,12 @@ reload: "live" | "reconnect" | "restart"
   or a file handle.
 
 **Everything else follows from this being declared rather than remembered.** The
-restart-required notice (§4b.3) is *derived*, not hand-maintained — which
+restart-required notice (§6.3) is *derived*, not hand-maintained — which
 matters because a hand-maintained list of "settings that need a restart" is
 wrong within two releases, and wrong in the direction where users change a
 setting, see nothing happen, and conclude the app is broken.
 
-### 4b.2 Content already hot-reloads, and that is not a dev feature
+### 6.2 Content already hot-reloads, and that is not a dev feature
 
 Worth stating because it is easy to file under "dev mode" and it is not: because
 files on disk are canonical and the index is watcher-fed
@@ -563,7 +563,7 @@ It is also the property that makes in-UI file access ([05 §4](05-ui-surfaces.md
 coherent, and the reason prompt-template iteration does not need a dev
 environment at all.
 
-### 4b.3 Restart-required notification
+### 6.3 Restart-required notification
 
 When a change lands — from the UI, the config file, or an extension install —
 the server computes whether anything now pending requires a restart, and surfaces
@@ -572,9 +572,9 @@ a **persistent banner naming the specific changes**, not a toast.
 - Server-held, so it survives a page reload and shows on every admin's client.
 - Lists *what* is pending. "Restart required" alone invites people to restart
   and hope.
-- Sits next to a **Restart now** action (§4b.4).
+- Sits next to a **Restart now** action (§6.4).
 
-### 4b.4 Restart from the UI, with honest preconditions
+### 6.4 Restart from the UI, with honest preconditions
 
 Admin-only, and there are two things it must not do naively.
 
@@ -599,7 +599,7 @@ ESM modules make true unloading hard — stale references, already-registered
 channel definitions — so "restart required" is the honest 1.0 answer, and a
 cleaner lifecycle depends on [06 A1](06-open-questions.md).
 
-### 4b.5 Update check, and using it as a connectivity signal
+### 6.5 Update check, and using it as a connectivity signal
 
 **An in-app update check ships.** It queries the release feed for the configured
 channel ([12 §4](12-repo-and-releases.md)), compares against the running version
@@ -608,7 +608,7 @@ indicator. Daily, cached, never on page load.
 
 Surface it as a **badge on the About surface, not a notification**. A new release
 is not urgent, and a notification class for it would train people to dismiss
-notifications ([§2b](#2b-notifications)).
+notifications ([§3](#3-notifications)).
 
 #### It is an update check, not telemetry
 
@@ -663,7 +663,7 @@ never work.
 
 ---
 
-## 5. Licence obligations that are actually features
+## 7. Licence obligations that are actually features
 
 StoryEngine is AGPL-3.0 ([08 §1](08-triage.md)), and §13 — the network clause —
 applies squarely to a multi-user server reached over a LAN: people interacting
@@ -701,7 +701,7 @@ defence against the misreading that copyleft is creeping into people's stories.
 
 ---
 
-## 6. Multiplayer, and why `participants` is a list now
+## 8. Multiplayer, and why `participants` is a list now
 
 Two people in the same session — one narrating, two personas, or a "GM plus
 players" arrangement — is a genuinely attractive feature and explicitly **not a

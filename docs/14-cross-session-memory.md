@@ -66,7 +66,7 @@ The part the naive version gets wrong.
 
 **Memories are scoped `(user, actor, persona)`.**
 
-- **Per user, absolutely.** Sessions are private ([04 §3.3](04-server-multiuser-deployment.md)),
+- **Per user, absolutely.** Sessions are private ([04 §4.3](04-server-multiuser-deployment.md)),
   so Alice's history with Vera can never inform Bob's, even though it is the
   same card. Not a toggle. Not overridable.
 - **Per actor**, which is the obvious axis and what the requirement means by

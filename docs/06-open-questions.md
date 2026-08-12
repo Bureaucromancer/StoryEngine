@@ -10,7 +10,7 @@ one document. Ordered by how expensive they are to answer late.
 **A0. The licence. — RESOLVED 2026-08-09: AGPL-3.0.** Matches all three sources;
 `LICENSE` is in the repository root. Lifting code from the sources is permitted
 with notices preserved, §13 obliges us to offer source to LAN users
-([04 §5](04-server-multiuser-deployment.md)), dependencies must be
+([04 §7](04-server-multiuser-deployment.md)), dependencies must be
 AGPL-compatible, and user content is unaffected. See [08 §1](08-triage.md).
 Spawns A1b, below.
 
@@ -47,7 +47,7 @@ service, no network dependency, every draw recorded in the turn's effects.**
 Nothing else draws — not steps, modes, the rules evaluator, or extensions.
 `node:crypto` under the hood with an injectable generator for tests; the API
 must be complete enough (dice notation, weighted pick, chance) that nobody is
-tempted to bypass it. Specified in [07 §12](07-tech-stack.md).
+tempted to bypass it. Specified in [07 §14](07-tech-stack.md).
 
 **Follow-on also resolved: rewrite and reroll are separate operations, and
 rewrite is the default.** An ordinary swipe replays the recorded draw tape —
@@ -55,26 +55,26 @@ same mechanical outcome, different prose — and drawing fresh is a deliberate
 second action, so swiping past a failed check cannot be save-scumming by
 accident. Draws are keyed by site rather than position so replay survives a
 divergent execution path. Still open, and minor: whether a session may flip the
-default. See [07 §12.5–12.6](07-tech-stack.md).
+default. See [07 §14.5–14.6](07-tech-stack.md).
 
-**A2c. Notification event schema.** [04 §2b.2](04-server-multiuser-deployment.md):
+**A2c. Notification event schema.** [04 §3.2](04-server-multiuser-deployment.md):
 delivery channels are additive and can ship late, but the *event schema* cannot
 — class, target user, human-readable summary, dedupe key and coalescing window
 have to be there from the start or every event producer changes later. Settle
 the class list early; it is also the entire user-facing preference model.
-*[04 §2b]*
+*[04 §3]*
 
-**A2d. UI localisation.** Settled in [07 §10c](07-tech-stack.md): i18next with
+**A2d. UI localisation.** Settled in [07 §12](07-tech-stack.md): i18next with
 explicit hierarchical keys, ICU plurals, silent per-key English fallback,
 machine translation as the primary path with provenance markers, Weblate for
 contributors. Two items are load-bearing before code: **CSS logical properties
 from the first stylesheet** (otherwise RTL is permanently foreclosed), and
 **server events carrying `{key, params}` rather than English prose**. Both are
 free now. Docs translation is explicitly out of scope — Marinara's `docs-i18n`
-branch shows the real ongoing cost. *[07 §10c, 04 §2b.2]*
+branch shows the real ongoing cost. *[07 §12, 04 §3.2]*
 
 **A2e. Sharing content between users on one install — deferred, deliberately.**
-[04 §3.3](04-server-multiuser-deployment.md) reverses an earlier draft: every
+[04 §4.3](04-server-multiuser-deployment.md) reverses an earlier draft: every
 user gets a complete independent library, with no `owner` or `visibility`
 fields, because merging separate stores later is mechanical while splitting a
 shared one is adjudication. Four decisions keep the door open — globally unique
@@ -85,15 +85,15 @@ a working rehearsal of the merge a shared library would need. Note the corollary
 that library is one admin write permission away from *being* the household
 share, which is not offered at 1.0 but is likely the shape sharing takes. Open:
 when it arrives, and whether it needs a real permission model or just
-copy-from. *[04 §3.3, 02 §5.1]*
+copy-from. *[04 §4.3, 02 §5.1]*
 
 **A3. Server-scoped connections.** Can an admin configure a connection that all
 users may *use* but none may read? Almost certainly yes — it is the natural
 household setup — and it means connections need a scope from the start.
-Widened by [05 §8.4](05-ui-surfaces.md): library-time field assists and image
+Widened by [05 §11.4](05-ui-surfaces.md): library-time field assists and image
 generation are a **second call path** outside the turn pipeline, so connection
 resolution by role (`fast`, image) has to work outside a session too, and cost
-accounting has to cover calls that produce no turn record. *[04 §3.3, 05 §8.4]*
+accounting has to cover calls that produce no turn record. *[04 §4.3, 05 §11.4]*
 
 **A4. Raw-completion support.** [00 §2.2] proposes making chat-shaped APIs with
 structured output the core contract and raw completion an edge adapter. How much
@@ -103,9 +103,9 @@ those backends acceptable? *[00 §2.2]*
 **A5. Multiplayer posture.** Confirm "don't preclude, don't build": `participants`
 is a list, `control: "player"` isn't structurally limited to one, turns are
 already server-side — but no arbitration, no per-user hidden state, no
-simultaneous input at 1.0. *[04 §5]*
+simultaneous input at 1.0. *[04 §7]*
 
-**A6. Client framework.** *Largely resolved*: [05 §7] settles that extensions
+**A6. Client framework.** *Largely resolved*: [05 §8] settles that extensions
 declare widgets from a versioned vocabulary rather than shipping components,
 which removes the framework from every public contract and makes the choice
 reversible. [07 §6] recommends React + Vite + TanStack on the strength of the
@@ -113,7 +113,7 @@ dense-data surfaces (library, workbench); Svelte 5 remains a genuine
 alternative that Aventuras proves works in this domain. What is *not* resolved
 is the escape hatch for extensions needing genuinely custom rendering — a
 sandboxed iframe with a narrow postMessage API is the obvious answer and real
-work. *[05 §7, 07 §6]*
+work. *[05 §8, 07 §6]*
 
 **A7. Schema direction of derivation.** [07 §4] recommends TypeBox, so JSON
 Schema is the artefact and TypeScript types are derived — on the grounds that
@@ -263,29 +263,29 @@ sibling, *continue differently* adds a child. Both are offered explicitly.
 
 ## D. Deployment questions
 
-**D0. Config reload tiers.** [04 §4b.1](04-server-multiuser-deployment.md)
+**D0. Config reload tiers.** [04 §6.1](04-server-multiuser-deployment.md)
 annotates every config key `live` / `reconnect` / `restart`, which makes the
 restart-required notice derived rather than hand-maintained. Settle the
 annotation early: a hand-kept list of settings-needing-restart is wrong within
 two releases, and wrong in the direction where a user changes something, sees
-nothing happen, and concludes the app is broken. *[04 §4b]*
+nothing happen, and concludes the app is broken. *[04 §6]*
 
-**D0b. Packaging targets.** [04 §4.4](04-server-multiuser-deployment.md) settles
+**D0b. Packaging targets.** [04 §5.4](04-server-multiuser-deployment.md) settles
 the list: OCI image as the real distribution, a tarball with a systemd unit as
 the highest-value non-container artifact, then `.deb` and AUR, plus a Windows
 service installer and a Homebrew tap for Apple Silicon. Explicitly declined:
 Flatpak, AppImage, Snap, `.rpm`, LXC templates, Intel macOS binaries. Open:
 whether Tier 3 lands at 1.0 or after, and whether an in-app update *check* ships
-with it. *[04 §4.4]*
+with it. *[04 §5.4]*
 
 **D1. Tailscale target level for 1.0.** Level 1 (detect and show the tailnet
 URL) is cheap and captures most of the practical value; Level 2 (tailnet
 identity as auth, following SillyTavern's trusted-proxy header pattern) changes
 the auth model; Level 3 (`tsnet` embedded node) is a real project. Lean: ship
-1, design auth so 2 is a provider rather than a special case. *[04 §4.2]*
+1, design auth so 2 is a provider rather than a special case. *[04 §5.2]*
 
 **D2. Auto-provision accounts from tailnet identity**, or require an admin to
-pre-create them? *[04 §4.2]*
+pre-create them? *[04 §5.2]*
 
 **D3. File access scope and phasing.** [05 §4] proposes `FileAccess = "none" |
 "read" | "write"` per account with library-write as a separate flag, shipping

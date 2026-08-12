@@ -242,7 +242,7 @@ persist. Standing instructions are a different feature with a different home —
 Marinara's Author's Notes, injected every turn. Conflating the two produces
 accumulating meta-instruction, which is the failure the box exists to prevent.
 It is recorded in the turn record (so a rewrite replays it,
-[07 §12.5](07-tech-stack.md)) but does not enter the message history that later
+[07 §14.5](07-tech-stack.md)) but does not enter the message history that later
 turns assemble from.
 
 **One slot, several producers.** The same block can be filled by the user's box,
@@ -257,7 +257,7 @@ call or computation whose output determines a systematic result.**
 
 Concretely, guidance is excluded from:
 
-- the RNG service and anything consuming it ([07 §12](07-tech-stack.md));
+- the RNG service and anything consuming it ([07 §14](07-tech-stack.md));
 - the pre-narration **evaluation** step that decides what happens
   ([09 §4.3](09-infinite-worlds.md));
 - **rule condition evaluation**, including AI-evaluated fuzzy conditions
@@ -484,7 +484,7 @@ Design notes:
 
 A baked-in AI helper, in the spirit of Marinara's Professor Mari: summonable
 anywhere, knows the app, and can help you build things rather than only explain
-them. It complements the in-editor field assists ([05 §8](05-ui-surfaces.md))
+them. It complements the in-editor field assists ([05 §11](05-ui-surfaces.md))
 rather than replacing them — those are for *this field*, the assistant is for
 "help me work out what I'm doing".
 
@@ -528,7 +528,7 @@ Scope tools to the **domain** instead: search and read the app's own docs;
 read and propose changes to library objects the user owns; explain the assembled
 context of a turn; diagnose a failing preset or a lorebook that never fires.
 Everything expressed as library operations, which are already permission-scoped
-per user ([04 §3.3](04-server-multiuser-deployment.md)).
+per user ([04 §4.3](04-server-multiuser-deployment.md)).
 
 **Docs retrieval needs no new machinery.** Ship the documentation as a built-in
 lorebook and attach it to the assistant. Keyword activation plus the budgeter
@@ -538,11 +538,11 @@ already do the work ([02 §3](02-data-model.md)).
 
 Every mutation is a reviewable diff, not a silent write. Marinara has this
 instinct too — a change-review service sits beside its workspace agent. Libraries
-are per-user ([04 §3.3](04-server-multiuser-deployment.md)), so the risk is not
+are per-user ([04 §4.3](04-server-multiuser-deployment.md)), so the risk is not
 editing somebody else's character; it is that an assistant quietly rewriting
 your own work is the fastest way to stop trusting it.
 
-Applied changes carry `GeneratedFieldProvenance` ([05 §8.2](05-ui-surfaces.md))
+Applied changes carry `GeneratedFieldProvenance` ([05 §11.2](05-ui-surfaces.md))
 like any other machine-written content, so "the assistant wrote this bit" stays
 answerable later.
 
@@ -626,7 +626,7 @@ Design rules:
 **[OPEN]** Whether `control: "player"` may apply to more than one member — i.e.
 whether one human may author two characters. Cheap to allow structurally,
 and it is the seam where genuine multiplayer would eventually attach
-([04 §5](04-server-multiuser-deployment.md)).
+([04 §7](04-server-multiuser-deployment.md)).
 
 ---
 
@@ -652,7 +652,7 @@ role and the host executes it), or write another mode's `modeData`.
 **[OPEN]** Extension execution model — in-process modules, or sandboxed workers
 with a message-passing API? In-process is far simpler and makes every installed
 extension fully trusted. That is more defensible now that libraries are per-user
-([04 §3.3](04-server-multiuser-deployment.md)) — an extension's blast radius is
+([04 §4.3](04-server-multiuser-deployment.md)) — an extension's blast radius is
 one install rather than one household's shared content — but "fully trusted"
 still means it can read every user's directory, so admin-only installation
 remains the gate. Needs an explicit decision because it is very hard to retrofit.

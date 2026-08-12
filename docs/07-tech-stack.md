@@ -185,7 +185,7 @@ mid-sentence. This is the same shape as context budgeting
 dropped, exactly as it does for context blocks
 ([02 §8](02-data-model.md)) — including for library-time generation, which
 produces no turn record and therefore records it as field provenance
-([05 §8.2](05-ui-surfaces.md)) instead.
+([05 §11.2](05-ui-surfaces.md)) instead.
 
 ### 5.2 Overrun recovery — post-1.0
 
@@ -198,7 +198,7 @@ detection is heuristic and needs real-world failures to tune against.
 What matters now is that §5.1 makes it cheap when it arrives: with a cap
 declared and prompts assembled from ranked fragments, a retry is *drop the
 lowest fragment and resend*, not a fresh generation round-trip. Recorded in
-[11 §2](11-roadmap.md).
+[11 §3](11-roadmap.md).
 
 ## 6. Client: React + Vite, with the framework decision deliberately reversible
 
@@ -225,7 +225,7 @@ preference-weighted call rather than a forced one, and the tooling argument abov
 is the strongest thing on React's side.
 
 **What makes it reversible.** Because extensions declare widgets rather than
-shipping components ([05 §7](05-ui-surfaces.md)), the framework is not part of
+shipping components ([05 §8](05-ui-surfaces.md)), the framework is not part of
 any public contract. Nothing outside the client package knows what it is. That
 resolves the open question from the earlier draft: the framework choice is
 ordinary, not architectural, *provided* the extension-UI decision holds.
@@ -267,14 +267,14 @@ reverse proxies without special configuration, and needs no connection lifecycle
 management.
 
 WebSockets buy bidirectionality we don't need yet. Revisit if real multiplayer
-([04 §5](04-server-multiuser-deployment.md)) arrives — that is when
+([04 §7](04-server-multiuser-deployment.md)) arrives — that is when
 simultaneous input and turn arbitration would make it worth the complexity.
 
 ---
 
 ## 9. Auth: no framework
 
-Given the threat model in [04 §3.1](04-server-multiuser-deployment.md):
+Given the threat model in [04 §4.1](04-server-multiuser-deployment.md):
 
 - **`scrypt` from `node:crypto`.** No native dependency, in the standard library,
   and what SillyTavern uses. argon2id is marginally better and costs a native
@@ -287,7 +287,7 @@ Given the threat model in [04 §3.1](04-server-multiuser-deployment.md):
   [05 §4.4](05-ui-surfaces.md).
 
 An identity-provider interface should exist from the start even with one
-implementation, so Tailscale identity ([04 §4.2](04-server-multiuser-deployment.md))
+implementation, so Tailscale identity ([04 §5.2](04-server-multiuser-deployment.md))
 plugs in as a provider rather than a special case.
 
 ---
@@ -322,7 +322,7 @@ cheapest possible enforcement of the design's central bet.
 
 ---
 
-## 10b. Dev mode
+## 11. Dev mode
 
 **A priority, not a nicety.** Marinara's live-refresh-on-change is the bar. The
 loop this shortens is the one that dominates work on this kind of app — change a
@@ -334,10 +334,10 @@ What reloads, in descending order of how easily:
 | Changes to | Behaviour | Notes |
 |---|---|---|
 | Client code | Vite HMR | Free. |
-| **Content and templates** | **Live, in production too** | Falls out of the watcher-fed index ([04 §4b.2](04-server-multiuser-deployment.md)). Not a dev-mode feature. |
-| Config marked `live` | Re-read on change | Per [04 §4b.1](04-server-multiuser-deployment.md). |
+| **Content and templates** | **Live, in production too** | Falls out of the watcher-fed index ([04 §6.2](04-server-multiuser-deployment.md)). Not a dev-mode feature. |
+| Config marked `live` | Re-read on change | Per [04 §6.1](04-server-multiuser-deployment.md). |
 | Server code | Watch-restart (`tsx watch` or equivalent) | Fast, but drops SSE connections and in-flight turns. |
-| Extension code | Process restart | True ESM unloading is not worth attempting; see [04 §4b.4](04-server-multiuser-deployment.md). |
+| Extension code | Process restart | True ESM unloading is not worth attempting; see [04 §6.4](04-server-multiuser-deployment.md). |
 | Config marked `restart` | Process restart | Notified, not silently ignored. |
 
 Two dev-mode specifics worth building deliberately:
@@ -359,17 +359,17 @@ already holds everything needed to re-assemble ([02 §8](02-data-model.md)).
 
 ---
 
-## 10c. UI localisation
+## 12. UI localisation
 
 Settled before code because two of the decisions below are nearly free now and
 expensive later, and one of them is already a latent bug in
-[04 §2b.2](04-server-multiuser-deployment.md).
+[04 §3.2](04-server-multiuser-deployment.md).
 
 **Scope: application chrome only.** Not story content, not character cards or
 lorebooks (that is [06 B8](06-open-questions.md), a different problem), not log
-output, and not the documentation — see §10c.7.
+output, and not the documentation — see §12.7.
 
-### 10c.1 The real risk is rot, not library choice
+### 12.1 The real risk is rot, not library choice
 
 The planning assumption should be that **the main dev does not translate**, and
 that the only first-party translation is a deliberately bad machine-generated
@@ -386,7 +386,7 @@ So: **missing keys fall back to English, silently, per key.** No placeholder, no
 `[MISSING]`, no console noise in production. A 60%-translated UI should look
 like a bilingual UI, not a broken one.
 
-### 10c.2 Explicit keys, not English source text
+### 12.2 Explicit keys, not English source text
 
 SillyTavern keys on the English string (`"Delete": "Supprimer"`), which is
 tempting because it makes the fallback trivial. Its own files show where that
@@ -403,14 +403,14 @@ constantly, that is the rot mechanism.
 Use explicit hierarchical keys — `settings.connection.title` — with the English
 catalog as just another catalog file. Copy-editing English then costs nothing.
 
-### 10c.3 i18next
+### 12.3 i18next
 
 **Recommendation: `i18next` with `react-i18next`, flat JSON catalogs, ICU
 MessageFormat via plugin.**
 
 The deciding factor is not the React binding, it is that **i18next runs on the
 server too**. Push notification bodies are rendered without the app open
-(§10c.5), so the server must be able to localise; a client-only library would
+(§12.5), so the server must be able to localise; a client-only library would
 mean two localisation stacks. Beyond that: largest ecosystem, first-class
 Weblate support, and catalogs that are plain JSON — which matters because both
 casual contributors and a machine-translation script have to edit them.
@@ -423,14 +423,14 @@ English has two plural forms, Russian and Arabic have more, and `count === 1 ?
 "entry" : "entries"` cannot express that. ICU handles plurals, gender and
 selection in the catalog where translators can reach them.
 
-### 10c.4 Machine translation as a first-class path
+### 12.4 Machine translation as a first-class path
 
 Given the stated constraint, this is the primary mechanism rather than a
 fallback, and should be built as such:
 
 - A script that diffs each catalog against English and fills gaps via an LLM.
 - **Every machine-filled entry carries a provenance marker** — the same idea as
-  `GeneratedFieldProvenance` ([05 §8.2](05-ui-surfaces.md)), applied to strings.
+  `GeneratedFieldProvenance` ([05 §11.2](05-ui-surfaces.md)), applied to strings.
 - The marker is what makes human contribution work: a translator sees which
   entries are machine-generated and unreviewed, and fixing one clears the flag.
   Without it, a contributor cannot tell their careful work from a script's
@@ -443,10 +443,10 @@ fallback, and should be built as such:
 should carry the developer comment and, where cheap, the surface it appears on.
 This helps a human translator and materially improves machine output.
 
-### 10c.5 Two things that are latent bugs right now
+### 12.5 Two things that are latent bugs right now
 
 **The server must emit keys and parameters, never English prose.**
-[04 §2b.2](04-server-multiuser-deployment.md) currently specifies that
+[04 §3.2](04-server-multiuser-deployment.md) currently specifies that
 notification events carry "a human summary — one line fit to be a notification
 body". As written that is baked English and untranslatable. It must be
 `{ key, params }`, rendered at the point of display. Corrected there.
@@ -454,10 +454,10 @@ body". As written that is baked English and untranslatable. It must be
 **Accounts need a locale.** Push notifications are rendered by a service worker
 or by the push service with the app closed, so the *server* localises them —
 which means it must know each user's language. A `locale` field on the account
-([04 §3.2](04-server-multiuser-deployment.md)), defaulted from `Accept-Language`
+([04 §4.2](04-server-multiuser-deployment.md)), defaulted from `Accept-Language`
 on first login and overridable in settings. Cheap now; a migration later.
 
-### 10c.6 Decisions that are free now and painful later
+### 12.6 Decisions that are free now and painful later
 
 - **CSS logical properties from the first stylesheet.** `margin-inline-start`,
   not `margin-left`; `padding-inline`, not `padding-left/right`. This costs
@@ -474,9 +474,9 @@ on first login and overridable in settings. Cheap now; a migration later.
 - **Extraction is a build step, not a discipline.** A key that only exists in
   source but not in the English catalog is a bug; CI should fail on stale
   extraction. It should **never** fail on missing translations in other
-  languages — that is the normal state, per §10c.1.
+  languages — that is the normal state, per §12.1.
 
-### 10c.7 What not to translate, and one warning
+### 12.7 What not to translate, and one warning
 
 **Documentation is out of scope.** Marinara maintains translated docs on a
 separate `docs-i18n` branch, with per-language folders mirroring English 1:1,
@@ -488,7 +488,7 @@ For a solo dev it is not affordable. Translate the UI; leave docs in English.
 Also untranslated: log output and developer-facing errors (they are for the
 person reading a terminal), and user content (B8).
 
-### 10c.8 The contributor path
+### 12.8 The contributor path
 
 **Weblate.** It is free for libre projects, hosts a web UI so a translator never
 touches git, and syncs to the repository as ordinary commits. For a project
@@ -501,7 +501,7 @@ hosted one is the obvious start.
 
 ---
 
-## 11. Testing
+## 13. Testing
 
 - **Vitest** (both Marinara and Aventuras use it), **Playwright** for end-to-end.
 - **The highest-value tests are golden-file tests of the assembler and budgeter.**
@@ -516,7 +516,7 @@ hosted one is the obvious start.
 
 ---
 
-## 12. Randomness: one canonical source
+## 14. Randomness: one canonical source
 
 **Decision: the server provides a single RNG service. Nothing else draws random
 numbers — not steps, not modes, not the rules evaluator, not extensions. It is
@@ -524,7 +524,7 @@ server-local and has no network dependency of any kind.**
 
 Implementation is deliberately unremarkable; the constraints are the point.
 
-### 12.1 Why singular is a correctness property
+### 14.1 Why singular is a correctness property
 
 Not tidiness. Three things depend on it:
 
@@ -538,7 +538,7 @@ Not tidiness. Three things depend on it:
   record, is a complete answer.
 - **Testability.** One seam to inject a deterministic generator through.
 
-### 12.2 The API has to be complete, or it will be bypassed
+### 14.2 The API has to be complete, or it will be bypassed
 
 If the service does not offer what a caller needs, they will reach for
 `Math.random()` and the invariant is gone. Completeness is therefore a
@@ -550,10 +550,10 @@ correctness requirement, not a convenience. It should cover at least:
 `dice` and `chance` are not speculative: the authored-rules vocabulary already
 needs `<<1d20>>` and `triggerOnRandomChance`
 ([09 §3](09-infinite-worlds.md)), and both first-party reference extensions
-need dice ([11 §3.4](11-roadmap.md)). `weightedPick` covers loot-table shapes,
+need dice ([11 §4.4](11-roadmap.md)). `weightedPick` covers loot-table shapes,
 which is where people would otherwise improvise.
 
-### 12.3 Implementation
+### 14.3 Implementation
 
 **`node:crypto`.** `randomInt` and `randomBytes` — standard library, no
 dependency, no network, and `randomInt` is uniform rather than modulo-biased.
@@ -568,7 +568,7 @@ needed for any of this.
 anything requiring connectivity. A LAN server with no internet must roll dice
 normally.
 
-### 12.4 Enforcement
+### 14.4 Enforcement
 
 - A lint rule banning `Math.random` and direct `node:crypto` random calls
   outside the service. Cheap, and catches the common case in our own code.
@@ -579,7 +579,7 @@ normally.
   reproduce its behaviour. That check belongs in the extension test kit, and it
   is a better guarantee than a rule nobody can enforce.
 
-### 12.5 Rewrite and reroll — DECIDED
+### 14.5 Rewrite and reroll — DECIDED
 
 Because every draw is recorded, a turn carries a **tape** of the values it
 consumed, and the service can run in replay mode against it. That makes two
@@ -596,7 +596,7 @@ from being save-scumming by accident: fail a check, swipe, succeed. Both
 operations are legitimate — the point is that the user should be choosing, not
 discovering.
 
-### 12.6 What the tape covers, and how it is keyed
+### 14.6 What the tape covers, and how it is keyed
 
 **Everything drawn during the turn**, not only the obvious dice: engine-computed
 channel effects, rules evaluation (`triggerOnRandomChance`), stochastic lorebook
@@ -633,7 +633,7 @@ default stays rewrite.
 
 ---
 
-## 13. Summary
+## 15. Summary
 
 | Layer | Recommendation | Main alternative |
 |---|---|---|

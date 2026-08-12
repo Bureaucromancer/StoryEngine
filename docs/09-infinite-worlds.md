@@ -278,7 +278,7 @@ alongside [08 §6.3](08-triage.md).
 There is a cheaper way to find out early. Poker needs exactly this mechanism in
 miniature — hole cards are per-actor hidden state, and the call generating a
 character's action must see that character's cards and no one else's. Building
-poker as a first-party reference extension ([11 §3.4](11-roadmap.md)) therefore
+poker as a first-party reference extension ([11 §4.4](11-roadmap.md)) therefore
 settles whether per-actor visibility works at all, on a bounded problem, long
 before anyone attempts it over a whole session's accumulated knowledge.
 

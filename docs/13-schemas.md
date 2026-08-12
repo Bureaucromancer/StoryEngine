@@ -99,7 +99,7 @@ interface Provenance {
 }
 
 /** Retained generated value for one field, so an edit can be reverted and the
- *  source disclosed. Keyed by dotted path in `generated`. [05 §8.2] */
+ *  source disclosed. Keyed by dotted path in `generated`. [05 §11.2] */
 interface GeneratedFieldProvenance {
   /** The generated value. JSON-encoded for non-string fields. */
   original: string
@@ -132,7 +132,7 @@ interface Opening {
 }
 
 /** Normalised 0..1 rectangle of a source image. Normalised rather than pixels
- *  so it survives the source being resized or re-encoded. [05 §8.3] */
+ *  so it survives the source being resized or re-encoded. [05 §11.3] */
 interface SourceRect {
   x: number; y: number; width: number; height: number
 }

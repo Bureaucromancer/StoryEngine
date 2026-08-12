@@ -2,15 +2,15 @@
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
-- **§1–2, the roadmap** — things *we* intend to build, after 1.0. An item earns
+- **§1–3, the roadmap** — things *we* intend to build, after 1.0. An item earns
   a place by being *additive*: if deferring it would force a data-model change
   later, it belongs in 1.0 instead, and the test for each entry is "what does
   this oblige 1.0 to do?"
-- **§3, desired extensions** — things we hope *someone else* builds, and in
+- **§4, desired extensions** — things we hope *someone else* builds, and in
   several cases should never be in core at all. Hints for expansion authors,
   and the standing acceptance test for the extension contract.
 
-§3 is likely to graduate into user-facing documentation once the SDK exists.
+§4 is likely to graduate into user-facing documentation once the SDK exists.
 
 ---
 
@@ -141,13 +141,13 @@ pleasant later feature into a migration.
 
 ---
 
-## 1b. Character Studio
+## 2. Character Studio
 
 The actor card carries embedded media with typed roles and structured visual
 descriptors from 1.0 ([02 §5.2.2](02-data-model.md)). The Studio is the surface
 that makes that capability worth having.
 
-### 1b.1 The problem it addresses
+### 2.1 The problem it addresses
 
 A Tavern-style card describes a character in prose and carries one picture. That
 is enough for text roleplay and nowhere near enough to hand a character to an
@@ -161,7 +161,7 @@ usable visual identity**, so a card can drive a generation pipeline and produce 
 stable likeness. That is a meaningful extension of what a character card *is*,
 and it is the reason the format work is 1.0 while the tooling is not.
 
-### 1b.2 What it is
+### 2.2 What it is
 
 An editing surface for an actor's visual identity, sitting beside the text
 editor rather than inside it:
@@ -180,7 +180,7 @@ editor rather than inside it:
 - **A test bench.** Generate a few images against the current identity and see
   whether it holds. Without this the Studio is a form; with it, it is a tool.
 
-### 1b.3 Why post-1.0
+### 2.3 Why post-1.0
 
 The format lands at 1.0 and the tooling does not, for two reasons. It is
 genuinely large — a curation UI, a generation pipeline, and a consistency
@@ -191,7 +191,7 @@ would be designing for the wrong thing.
 The format is different: typed media roles and structured descriptors are cheap,
 stable, and unpleasant to retrofit. Hence the split.
 
-### 1b.4 What it obliges 1.0 to do
+### 2.4 What it obliges 1.0 to do
 
 - **Typed media roles**, not a flat image list ([02 §5.2.2](02-data-model.md)).
   The single most important one, because guessing which image is the canonical
@@ -199,7 +199,7 @@ stable, and unpleasant to retrofit. Hence the split.
 - **Structured `VisualDescriptors`** on the profile ([02 §2.1](02-data-model.md)).
   Fields now, or prose parsing later.
 - **Per-media generation provenance**, reusing `GeneratedFieldProvenance`
-  ([05 §8.2](05-ui-surfaces.md)) — which model, which prompt, which seed. A
+  ([05 §11.2](05-ui-surfaces.md)) — which model, which prompt, which seed. A
   reference image whose seed was not recorded cannot be regenerated
   consistently, which defeats the purpose.
 - **Crop as a stored rectangle** rather than a destructive edit
@@ -207,7 +207,7 @@ stable, and unpleasant to retrofit. Hence the split.
 
 All four are small. None is a feature at 1.0; all four are preconditions.
 
-### 1b.5 Non-goals
+### 2.5 Non-goals
 
 - **Not a model training surface.** If per-character adapters become the
   standard answer, the Studio should *reference* one, not train it.
@@ -217,18 +217,18 @@ All four are small. None is a feature at 1.0; all four are preconditions.
 
 ---
 
-## 2. Other deferred items
+## 3. Other deferred items
 
 Already deferred in their own documents; listed here so the roadmap has shape.
 None is specified further than its original entry.
 
 | Item | Deferred in | Note |
 |---|---|---|
-| Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [04 §6](04-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
+| Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [04 §8](04-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
 | Truly mobile-optimised layout | [05 §1](05-ui-surfaces.md) | A mode of the same web app, never a native shell |
 | In-UI file access: write, and the text editor | [05 §4.4](05-ui-surfaces.md) | Read plus zip-download ships earlier; write is the risky half |
-| Custom extension rendering (sandboxed iframe) | [05 §7](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work |
-| Tailscale levels 2 and 3 (tailnet identity, `tsnet` node) | [04 §4.2](04-server-multiuser-deployment.md) | Level 1 ships; the auth layer is shaped so 2 is a provider, not a special case |
+| Custom extension rendering (sandboxed iframe) | [05 §8](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work |
+| Tailscale levels 2 and 3 (tailnet identity, `tsnet` node) | [04 §5.2](04-server-multiuser-deployment.md) | Level 1 ships; the auth layer is shaped so 2 is a provider, not a special case |
 | Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it |
 | Per-actor knowledge scope (anti-omniscience) | [09 §5](09-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
 | Prompt-overrun recovery — detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting | [07 §5.2](07-tech-stack.md) | Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
@@ -240,7 +240,7 @@ a roadmap; it is §3.
 
 ---
 
-## 3. Desired extensions
+## 4. Desired extensions
 
 Not a roadmap. Nothing here is planned, scheduled, or promised, and several
 entries would be actively wrong to ship in core. This section exists as **a set
@@ -251,7 +251,7 @@ It doubles as the acceptance test for [03 §9](03-modes-and-turn-pipeline.md): i
 a motivated person cannot build these against the published contract without
 engine changes, the contract has failed and that is our problem, not theirs.
 
-### 3.1 First question: rules or code?
+### 4.1 First question: rules or code?
 
 Before anything else, work out which tier the idea belongs to
 ([09 §2](09-infinite-worlds.md)):
@@ -270,7 +270,7 @@ handle far more than people expect, and Infinite Worlds' community built class
 trees, loot tables, encounter generators and quest state machines without ever
 touching code. Reach for code second.
 
-### 3.2 The principle behind the best ones
+### 4.2 The principle behind the best ones
 
 The strongest extension ideas share a shape, and it is worth naming because it
 is the opposite of the instinct most people arrive with.
@@ -294,7 +294,7 @@ whether they gloat, whether they let you win. That is far better
 characterisation than an LLM impersonating a chess engine, and it is only
 available once you stop asking the model to do arithmetic.
 
-### 3.3 The list
+### 4.3 The list
 
 **Table games** — chess, poker, and the rest. *Poker is first-party, see §3.4.*
 *Seam:* an engine-computed channel holding board state, a step validating and
@@ -332,7 +332,7 @@ being baked into core.
 mode.
 *The trap:* scope. This is the largest thing on the list and the one most likely
 to want an escape hatch from the declarative widget vocabulary
-([05 §7](05-ui-surfaces.md)). A good first attempt at it would tell us whether
+([05 §8](05-ui-surfaces.md)). A good first attempt at it would tell us whether
 that escape hatch needs to exist sooner than planned.
 
 **Voice — calls, speech in and out.**
@@ -365,21 +365,7 @@ test of the capability API being *narrow*. Device access must be something an
 extension has to be granted, never something it inherits by being installed. An
 attempt at this would find out.
 
-### 3.4 What we owe extension authors
-
-If this section is to be more than a wishlist:
-
-- The contract has to be published and versioned, with the built-in modes
-  visibly consuming it ([07 §10](07-tech-stack.md)).
-- The declarative widget vocabulary has to be documented with worked examples,
-  since it is the part most likely to block someone.
-- Rules need reference documentation at least as good as the code SDK's, because
-  §3.1 pushes most people there first and a badly documented tier is one nobody
-  uses.
-
----
-
-### 3.4 First-party reference extensions: dice and poker
+### 4.4 First-party reference extensions: dice and poker
 
 **Two, with different jobs.** An earlier draft proposed one, and picked dice.
 That was wrong, and the reason is worth keeping.
@@ -435,10 +421,10 @@ pots and multi-way all-ins are where the complexity actually lives. Heads-up
 first, or fixed-limit, is a reasonable first cut — the point is the seams, not
 completeness.
 
-### 3.5 One constraint this puts on core: randomness
+### 4.5 One constraint this puts on core: randomness
 
 Both extensions roll dice, in the general sense, which forced a core decision —
-now settled in [07 §12](07-tech-stack.md).
+now settled in [07 §14](07-tech-stack.md).
 
 There is **one canonical RNG service**, server-local, with no network
 dependency, and every draw is recorded in the turn's effects. Extensions receive
@@ -451,3 +437,15 @@ For extension authors specifically, the useful part is that this is
 **self-policing under test**: an extension using its own randomness will fail a
 replay-determinism check, because replaying its recorded effects will not
 reproduce its behaviour. Use the provided source and that check passes for free.
+
+### 4.6 What we owe extension authors
+
+If this section is to be more than a wishlist:
+
+- The contract has to be published and versioned, with the built-in modes
+  visibly consuming it ([07 §10](07-tech-stack.md)).
+- The declarative widget vocabulary has to be documented with worked examples,
+  since it is the part most likely to block someone.
+- Rules need reference documentation at least as good as the code SDK's, because
+  §4.1 pushes most people there first and a badly documented tier is one nobody
+  uses.

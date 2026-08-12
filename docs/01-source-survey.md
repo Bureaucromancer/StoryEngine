@@ -268,7 +268,7 @@ multi-user, mobile and resumability limitations.
 **Per-user islands with no sharing.** ~~For a household LAN server this is the
 wrong default.~~ **Revised**: per-user stores are the right *default* and
 StoryEngine now adopts essentially this model
-([04 §3.3](04-server-multiuser-deployment.md)) — merging separate stores later
+([04 §4.3](04-server-multiuser-deployment.md)) — merging separate stores later
 is mechanical, whereas splitting a shared one is adjudication. What SillyTavern
 actually lacks is not per-user isolation but any *path* to sharing: no stable
 object identity across users, no provenance to dedupe on, and a directory layout

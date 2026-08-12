@@ -30,7 +30,7 @@ What follows from this:
   users are on laptops has different priorities at 1.0.)
 - **No offline story.** No local cache-as-database, no sync. No service worker
   *for caching* — though a push-only one is permitted, and the distinction is
-  drawn in [04 §2b.4](04-server-multiuser-deployment.md).
+  drawn in [04 §3.4](04-server-multiuser-deployment.md).
   The server is on your LAN; if you can't reach it there is nothing to do.
   This removes an entire class of state-reconciliation problems.
 - **Nothing is installed on the client.** Bookmark a URL. That is the whole
@@ -85,7 +85,7 @@ What it shows for any turn, current or historical:
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
-  ([11 §2](11-roadmap.md)) — the people running this at the development stage
+  ([11 §3](11-roadmap.md)) — the people running this at the development stage
   are power users who already monitor their provider usage, and a usage
   dashboard is a very nice feature that is not core functionality.
 
@@ -96,7 +96,7 @@ What it lets you do:
   that same reply. It does not change the reply already on screen." That
   separation is correct and should be preserved. Re-running follows the same
   rewrite/reroll distinction as an ordinary swipe
-  ([07 §12.5](07-tech-stack.md)) and defaults to **rewrite** — editing a block
+  ([07 §14.5](07-tech-stack.md)) and defaults to **rewrite** — editing a block
   is changing the input, not asking for different luck.
 - **Diff two turns**, or the same turn before and after a preset change. The
   cheapest possible answer to "it got worse and I don't know what I changed".
@@ -155,7 +155,7 @@ server-side:
 | `/data/config.yaml`, `/data/index/` | never | never |
 
 Simpler than an earlier draft, because there is no shared library to gate
-separately ([04 §3.3](04-server-multiuser-deployment.md)): a user's roots are
+separately ([04 §4.3](04-server-multiuser-deployment.md)): a user's roots are
 their own directory, and everything in it is theirs to break.
 
 One exclusion worth stating explicitly: `connections/` lives under the user's
@@ -203,7 +203,7 @@ Honest accounting, because the user is right that this is a pain:
 
 **[OPEN]** Whether `write` should require re-entering the password, the way
 admin actions sometimes do. Probably overkill given the threat model in
-[04 §3.1](04-server-multiuser-deployment.md), but worth one conversation.
+[04 §4.1](04-server-multiuser-deployment.md), but worth one conversation.
 
 ---
 
@@ -223,7 +223,7 @@ Where it should differ:
   source badge and a filter, not as two panels. Hunting in two places to find a
   character is worse than a badge. Read-only system objects show a **Copy to my
   library** action in place of edit — which forks a real copy they own
-  ([04 §3.3](04-server-multiuser-deployment.md)). Objects link across kinds constantly and the
+  ([04 §4.3](04-server-multiuser-deployment.md)). Objects link across kinds constantly and the
   cross-links should be navigable inline.
 - **Links are visible and bidirectional.** From a lorebook: which settings,
   actors and packages reference this. From an actor: which lorebooks it links.
@@ -264,7 +264,29 @@ text — is a working precedent and close to the right vocabulary.
 
 ---
 
-## 7. Extension-contributed UI
+## 7. The assistant surface
+
+Specified in [03 §7.4](03-modes-and-turn-pipeline.md), which covers why it is a
+session rather than a bespoke thing. The UI side:
+
+- **Summonable from anywhere**, including mid-session, without losing your
+  place. A panel rather than a route.
+- **Two scales of help, deliberately distinct.** The in-editor field assist
+  ([§11](#11-editors-are-not-dumb-forms)) is for *this field*; the assistant is
+  for "help me work out what I'm doing". Both should exist and neither should
+  try to be the other — a refine box that opens a chat is annoying, and an
+  assistant that can only rewrite one field is useless.
+- **Starter prompts on an empty assistant**, per Marinara's suggestion chips.
+  The gap between a blank input and knowing what to ask is most of why in-app
+  assistants go unused.
+- **Proposed changes render as diffs**, reviewed and applied explicitly, never
+  written silently.
+- **Show what it can see.** The ambient context — which actor is open, which
+  session you came from — belongs on screen, not just in the turn record.
+
+---
+
+## 8. Extension-contributed UI
 
 Resolved here because it is what decouples the frontend framework choice from
 everything else (see [07 §6](07-tech-stack.md)).
@@ -286,31 +308,9 @@ is fine; pretending the vocabulary will cover everything forever is not.
 
 ---
 
-## 6b. The assistant surface
+## 9. In-app notification, and sounds
 
-Specified in [03 §7.4](03-modes-and-turn-pipeline.md), which covers why it is a
-session rather than a bespoke thing. The UI side:
-
-- **Summonable from anywhere**, including mid-session, without losing your
-  place. A panel rather than a route.
-- **Two scales of help, deliberately distinct.** The in-editor field assist
-  ([§8](#8-editors-are-not-dumb-forms)) is for *this field*; the assistant is
-  for "help me work out what I'm doing". Both should exist and neither should
-  try to be the other — a refine box that opens a chat is annoying, and an
-  assistant that can only rewrite one field is useless.
-- **Starter prompts on an empty assistant**, per Marinara's suggestion chips.
-  The gap between a blank input and knowing what to ask is most of why in-app
-  assistants go unused.
-- **Proposed changes render as diffs**, reviewed and applied explicitly, never
-  written silently.
-- **Show what it can see.** The ambient context — which actor is open, which
-  session you came from — belongs on screen, not just in the turn record.
-
----
-
-## 7a. In-app notification, and sounds
-
-The client half of [04 §2b](04-server-multiuser-deployment.md). Routing is
+The client half of [04 §3](04-server-multiuser-deployment.md). Routing is
 server-side; the client renders sound, toast, unread badges and the document
 title.
 
@@ -338,7 +338,7 @@ thing to configure per card.
 
 ---
 
-## 7b. The guidance box
+## 10. The guidance box
 
 Every session input carries an expandable guidance box, collapsed and empty by
 default, specified in [03 §5.1](03-modes-and-turn-pipeline.md). It is the
@@ -365,7 +365,7 @@ UI notes:
 
 ---
 
-## 8. Editors are not dumb forms
+## 11. Editors are not dumb forms
 
 A cross-cutting requirement, and one that has to be decided early precisely
 *because* it is cross-cutting. Two capabilities belong to **every** editor in
@@ -381,7 +381,7 @@ assistance in the two or three places someone got round to, and a plain textarea
 everywhere else. They should be **primitives the editors are built from**, so
 that "does this field have AI assist?" is never a question anyone asks.
 
-### 8.1 The field assist contract
+### 11.1 The field assist contract
 
 Four operations on any text field:
 
@@ -404,7 +404,7 @@ people not to use it. The assist call therefore needs a context builder over the
 object being edited and its links — which is a small, reusable thing, but it is
 real work and it is why this must be a primitive rather than a per-field bolt-on.
 
-### 8.2 Provenance, taken from Marinara
+### 11.2 Provenance, taken from Marinara
 
 Marinara's scenario work already has the persistence half of this, and it is
 right:
@@ -430,7 +430,7 @@ It buys three things, the third of which is the interesting one:
   actually write?" becomes answerable. No source offers this, and it is a real
   trust feature rather than a novelty.
 
-### 8.3 Image slots
+### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, setting cover,
 lorebook entry art, package cover — the same four affordances: **upload,
@@ -465,7 +465,7 @@ So, for actor cards specifically:
 Destructive for interop, non-destructive in substance. Cropping never costs you
 the original.
 
-### 8.4 An architectural note: not every model call is a turn
+### 11.4 An architectural note: not every model call is a turn
 
 Everything up to here has assumed the turn pipeline is the only path to a model.
 Field assists and image generation in the library are a **second call path**,
@@ -480,11 +480,11 @@ before they are discovered:
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
-  to [11 §2](11-roadmap.md).
+  to [11 §3](11-roadmap.md).
 - **They produce no turn record.** §8.2's provenance is the record, which is
   another reason it is not optional.
 
-### 8.5 Traps
+### 11.5 Traps
 
 - **Never auto-generate.** Not on field focus, not on blur, not on opening an
   empty editor. User-initiated only. An editor that fills itself in is an editor
