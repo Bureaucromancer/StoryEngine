@@ -236,6 +236,8 @@ and no plan below should be built on the assumption that it did.
 | Hidden GM state / Secret Plot | Marinara | **PORT as a channel** | Generalises to all modes for free. |
 | Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real `Setup` object emitted from a running session, not a text file ([13 §7](13-schemas.md)). |
 | Seed → expand → edit → accept | Aventuras wizard | **PORT** | The right interaction for authoring. |
+| Character panel with active/inactive/dead | Aventuras | **PORT, corrected** | The state tracking is the valuable part. Split the one enum into presence and status channels, and make the panel *editable* so it repairs identity errors rather than only reporting them ([05 §13.2](05-ui-surfaces.md)). |
+| NPC identity resolution | Aventuras | **REBUILD** | Splits one character into several and merges several into one — notably worse at it than the models are. Ours proposes rather than auto-materialising, and surfaces its conclusions as linked mentions ([05 §13.1](05-ui-surfaces.md)). |
 | Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. |
 | Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [11 §4.6](11-roadmap.md) |
 

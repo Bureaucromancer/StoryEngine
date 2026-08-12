@@ -293,6 +293,12 @@ migration.
 - Plot hooks and the selector.
 - **Goals** — the chain, the progress channel, narrative completion, and the
   three offers at conclusion ([03 §7.3.3](03-modes-and-turn-pipeline.md)).
+- **Presence and status channels**, and the editable cast panel over them
+  ([03 §8.1](03-modes-and-turn-pipeline.md), [05 §13.2](05-ui-surfaces.md)).
+- **Mention resolution** as an `extract` step sharing the lorebook keyword pass,
+  with spans on the turn record ([03 §8.2](03-modes-and-turn-pipeline.md)).
+  `explicit` and `matched` at 1.0; `proposed` can follow, but the span overlay
+  and the never-auto-create rule must land now — both are structural.
 - **Difficulty and directedness** as two settings, with levels supplied by the
   prompt pack rather than engine code ([03 §7.3.1](03-modes-and-turn-pipeline.md)).
 - **Scene** and **Adventure–Freeform** (§0).

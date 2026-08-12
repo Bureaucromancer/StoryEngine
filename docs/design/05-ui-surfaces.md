@@ -647,3 +647,159 @@ long session feel safe.** Rollback is branching ([10](10-branching.md)) — you 
 always go back. Readability is this — you can always see what you have. Together
 they are what makes someone willing to commit two hundred turns to a story, and
 either one alone is noticeably less reassuring.
+
+---
+
+## 13. Showing what the engine understands
+
+The workbench (§3) makes the *prompt* legible. This section is the companion for
+the play surface: making the engine's **understanding of the fiction** legible,
+in place, without a detour into the workbench.
+
+Two features, and they are the same feature seen from two angles. Both have an
+obvious convenience justification and a better diagnostic one, and the
+diagnostic is what earns them a place at 1.0.
+
+**The observation behind both:** in Aventuras the bookkeeping layer gets
+character identity wrong in ways the *model* usually gets right — one NPC
+recorded several times, or several treated as one. That asymmetry is the useful
+clue. It says the failure is in the application's tracking rather than in
+generation, and a tracking failure nobody can see is a tracking failure nobody
+can correct. The answer is therefore not a cleverer resolver. It is showing the
+resolver's conclusions where the user is already looking.
+
+### 13.1 Mentions: linked, and marked by confidence
+
+Names of known actors are highlighted and linked to their cards, in both the
+input box and the output.
+
+The link is the small half — click through to a card, useful, unremarkable. The
+half that matters is that **highlighting is the engine reporting what it
+resolved.** A name that renders plain is a name the app does not know is a
+character, and that is information the user currently has no way to obtain until
+the world state is already wrong.
+
+**The two failures it exposes are duals of each other:**
+
+- **Splitting** — *Vera*, *Vera Kohl* and *the fixer* become three records of
+  one person. Shows up as prose full of unlinked names.
+- **Merging** — two characters collapse into one. Shows up as two clearly
+  different people linking to the same card.
+
+Neither is detectable today until something downstream behaves oddly. Both are
+obvious at a glance once mentions are marked.
+
+**Annotate, never rewrite.** Mentions are an overlay on the turn record —
+`{ start, end, ref, method, confidence }` spans — and the message text stays
+canonical plain prose with no markup injected into it. Editing a message
+recomputes the spans; the reading view (§12) may render or drop them; a branch
+inherits them with the turn. Same rule as renditions
+([03 §10.7](03-modes-and-turn-pipeline.md)) and provenance (§11.2): the artefact
+is annotated, the authored bytes are not touched.
+
+**Three resolution methods, and they must look different:**
+
+| Method | Source | Rendering |
+|---|---|---|
+| `explicit` | The user typed it with `@` | Certain — full-strength link |
+| `matched` | Exact hit on `name` or `aliases` ([13 §4](13-schemas.md)) | Confident |
+| `proposed` | Fuzzy, or a model-proposed resolution | **Visibly tentative**, clickable to confirm or reject |
+
+Collapsing these into one appearance throws away the whole diagnostic value. A
+tentative match that looks identical to a certain one is worse than no
+highlighting at all, because it reports confidence the engine does not have.
+
+**It never silently creates an actor.** This is precisely where duplicate records
+come from: materialising a record on first mention, repeatedly, for the same
+person under three names. So an unresolved capitalised name is an **offer** —
+*create actor? link to an existing one?* — never a write. Model proposes, user
+disposes, which is the channel policy ([03 §4](03-modes-and-turn-pipeline.md))
+applied to entity resolution rather than a new principle.
+
+**An unresolved mention is not an error.** Most names in prose are scenery, and a
+UI that nags about every one is a UI people switch off. Visible, non-blocking,
+ignorable ([00 §3.3](00-stance.md)).
+
+**It shares the lorebook keyword pass.** `Actor.aliases` is already specified as
+the default keyword set for lore matching ([13 §4](13-schemas.md)), so mention
+resolution and lorebook keyword activation are scanning the same text for the
+same strings. One pass, two consumers. Two matchers that can disagree about
+whether *the fixer* means Vera is a bug waiting to happen — and the shared pass
+also guarantees that the turn record's inclusion reasons and the highlighting in
+the transcript tell the same story.
+
+**Input side: `@` autocomplete over the cast.** The cheapest part and possibly the
+most valuable. It produces `explicit` mentions, which are ground truth the other
+two tiers can be measured against; it is a real disambiguation tool when two
+characters could plausibly be *her*; and an explicit mention is a strong
+activation signal for the assembler with no heuristics involved.
+
+**Not in scope at 1.0:** extending this to locations, items and factions. The
+span model generalises to any entity type and should be built so that it can,
+but shipping actor mentions first keeps the surface honest — actors are where
+the identity failures actually hurt.
+
+### 13.2 The cast panel
+
+Aventuras' character panel, adopted along with its state tracking, which the
+requirement rightly values as much for confirming the software is following
+along as for playing.
+
+It lists the actors in the session with their current state, and it is the
+natural home for per-actor model bindings under `per-actor` dispatch
+([03 §3](03-modes-and-turn-pipeline.md)).
+
+**Two axes, not one enum.** Aventuras' *active / inactive / dead* squashes
+together two things that behave differently:
+
+- **Presence** — in the scene right now. Volatile, changes several times a
+  session, uninteresting historically.
+- **Status** — alive, dead, departed, imprisoned. Durable, changes rarely, and
+  each change is narratively significant.
+
+One enum cannot say *dead but present* — the body in the room, the ghost, the
+open casket — nor *alive, elsewhere, coming back*, which is the ordinary state of
+most of the cast most of the time. Splitting them is nearly free now and
+unpleasant to retrofit once sessions carry the squashed value.
+
+**The UI still shows one badge**, derived from both axes, because a two-axis
+matrix is the wrong thing to put in a sidebar. The split is in the data, not on
+the screen.
+
+**Presence and status are channels** ([03 §4](03-modes-and-turn-pipeline.md)),
+model-proposed and engine-decided, which buys three properties with no new
+machinery: changes are effects in the turn record and individually reversible;
+panel state is reconstructible at any node; and **a branch gets it right** —
+someone dead on one line and alive on another is a requirement, not a bug, and it
+falls out of effects being per-node ([10 §4](10-branching.md)).
+
+**Party is a subset, not a second list.** The party already exists as a timeline
+([03 §8](03-modes-and-turn-pipeline.md)). The panel marks party members
+distinctly and introduces no parallel membership concept — a second source of
+truth about who is in the story is exactly the class of bug this section exists
+to surface.
+
+**Death is asymmetric, and needs the goal-completion treatment.** Models kill
+characters casually and in passing. A missed death is an annoyance corrected in
+one click; a false one silently removes someone from the story, and every
+subsequent turn is then assembled around their absence. So a proposed status
+change to `dead` is surfaced prominently rather than applied as a quiet badge
+change, and it is reversible from the effect log. Same reasoning as
+[06 C12](06-open-questions.md), same bias: under-fire, and keep the manual path
+always available.
+
+**The panel must be editable, and this is what makes it worth building.** If it
+is where the user sees the software's understanding, it has to be where they fix
+it:
+
+- **Merge** two records that are one person. Leaves a redirect rather than
+  breaking references — turn records point at actor ids and history must not rot
+  ([00 §3.3](00-stance.md)).
+- **Split** one record being used for two people.
+- **Correct presence and status** directly.
+- **Link an unresolved mention** to an existing actor, which is §13.1's offer
+  arriving from the other direction.
+
+Read-only, the panel is a complaint the user cannot act on. Editable, it is the
+repair surface for exactly the failures §13.1 makes visible — which is why the
+two belong in one section rather than as unrelated features.

@@ -904,12 +904,66 @@ Design rules:
    Scene mode has a party; it's usually the actors present. Messages mode has a
    party of one. Modes differ in what they *do* with it.
 
-**[OPEN]** Whether `control: "player"` may apply to more than one member — i.e.
-whether one human may author two characters. Cheap to allow structurally,
-and it is the seam where genuine multiplayer would eventually attach
-([04 §7](04-server-multiuser-deployment.md)).
+**Resolved:** `control: "player"` may apply to more than one member — one human
+authoring two characters is allowed, and it is the seam where genuine
+multiplayer would eventually attach ([§3.1](#31-who-authors-a-characters-words-and-impersonation),
+[04 §8](04-server-multiuser-deployment.md)).
 
----
+### 8.1 Presence and status: who is here, and who is still alive
+
+The party answers *who is travelling with me*. Two further questions are asked
+constantly and answered by neither the party nor the cast list: **who is in this
+scene**, and **who is still alive**. Both are channels, and the cast panel
+([05 §13.2](05-ui-surfaces.md)) is where they surface.
+
+**Two axes rather than one enum**, which is the correction to Aventuras'
+*active / inactive / dead*:
+
+| Channel | Scope | Volatility | Update policy |
+|---|---|---|---|
+| `se.presence` | actor | High — several times a session | model-proposed |
+| `se.status` | actor | Low — rarely, and always significant | model-proposed, **flagged on change** |
+
+A single enum cannot express *dead but present* or *alive, elsewhere,
+returning*, and the second of those is the ordinary condition of most of the
+cast most of the time. The UI derives one badge from both
+([05 §13.2](05-ui-surfaces.md)); the split lives in the data.
+
+Being channels rather than fields is what makes them behave correctly under
+branching: the effects are per-node, so a character dead on one line and alive
+on another is a natural consequence rather than a special case
+([10 §4](10-branching.md)).
+
+**Presence is not party membership and must not be conflated with it.** The
+party is a timeline of commitment; presence is a fact about the current scene.
+Party members are frequently absent, and present actors are frequently not party
+members. Two concepts, two channels, one panel.
+
+**Status changes to `dead` are flagged, not applied quietly.** Models kill
+characters in passing, and the two error directions are not symmetric — a missed
+death is corrected in a click, a false one removes someone from every subsequent
+assembly. Same asymmetry as goal completion ([06 C12](06-open-questions.md)) and
+the same posture: under-fire, surface prominently, keep the manual override
+available.
+
+### 8.2 Mention resolution is an `extract` step
+
+Linking names in prose to actors ([05 §13.1](05-ui-surfaces.md)) needs no new
+pipeline concept. It is an `extract` step (§6) producing **spans on the turn
+record** — `{ start, end, ref, method, confidence }` — never a rewrite of the
+message text.
+
+Two constraints worth fixing now, because both are awkward later:
+
+- **It shares the lorebook keyword pass.** `Actor.aliases` is already the
+  default keyword set for lore matching ([13 §4](13-schemas.md)); mention
+  resolution wants the same strings in the same text. One scan, two consumers,
+  and no possibility of the highlighting and the inclusion reasons disagreeing
+  about who *the fixer* is.
+- **It proposes, it never writes.** An unresolved name yields an offer to the
+  user, not a new actor record. Auto-materialising on first mention is the
+  mechanism that produces one character stored three times, which is the failure
+  this whole feature exists to make visible.
 
 ## 9. What an extension mode has to be able to do
 

@@ -907,8 +907,10 @@ interface Session {
   cast: {
     persona: ActorId
     party: PartyMember[]
-    present: ActorId[]
     narrator: ActorId | null
+    // No `present` list. Presence and status are channels — `se.presence`,
+    // `se.status` — so they reconstruct per node and branch correctly.
+    // [03 §8.1]
   }
   localActors: Actor[]
   lore: Ref<Lorebook>[]
@@ -945,7 +947,24 @@ interface Turn {
 
   output: { text: string; reasoning?: string; toolCalls: ToolCall[] }
   effects: ChannelEffect[]       // proposed and applied state changes, individually reversible
+  /** Resolved actor mentions in `input.text` and `output.text`, as an overlay.
+   *  The text itself is never rewritten with markup. [03 §8.2, 05 §13.1] */
+  mentions: MentionSpan[]
   cost: { promptTokens, completionTokens, wallMs, model }
+}
+
+interface MentionSpan {
+  /** Which text this indexes into — the two are stored separately. */
+  field: "input" | "output"
+  /** Character offsets. Recomputed when a message is edited. */
+  start: number
+  end: number
+  ref: Ref<Actor>
+  /** How it was resolved. Rendered differently per method, because a tentative
+   *  match that looks certain is worse than no highlighting. [05 §13.1] */
+  method: "explicit" | "matched" | "proposed"
+  /** Only meaningful for "proposed". */
+  confidence: number | null
 }
 
 interface AssembledBlock {
