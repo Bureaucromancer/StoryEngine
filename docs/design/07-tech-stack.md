@@ -159,6 +159,11 @@ and a cheap one** — and every role defaults onto one of them:
 `image`, `video` and `speech` are unset until a matching connection exists,
 because there is no sensible text-model fallback for them.
 
+A binding may point at a **personal or a system connection**
+([04 §4.5](04-server-multiuser-deployment.md)), which is what makes the
+household case work: an admin binds the two defaults to system connections, and
+anyone who wants their own key overrides a role without the admin's involvement.
+
 Overrides layer on top in a fixed order: **install default → role binding →
 session override → step override → actor hint.** Most people set two models and
 never see the rest; someone who wants a different narrator for one session, or a

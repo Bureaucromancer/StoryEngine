@@ -485,6 +485,7 @@ disposable index**.
       presets/              #   default preset per mode
       setups/               #   onboarding sample
       packages/
+    connections/            # admin-managed. Usable by all, readable by none.
   users/
     <handle>/
       account.json
@@ -496,7 +497,7 @@ disposable index**.
         setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
       memories/               # auto-maintained, see [14](14-cross-session-memory.md)
-      connections/            # credentials. Never leaves this directory.
+      connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
         session.json
         turns/000001.json …

@@ -151,6 +151,7 @@ server-side:
 |---|---|---|
 | `/data/users/<own handle>/` | yes | yes — this includes their whole library |
 | `/data/system/library/` | yes | never — app-shipped, and an update would overwrite edits anyway |
+| `/data/system/connections/` | **never** | never — system connections are usable, not readable ([04 §4.5](04-server-multiuser-deployment.md)) |
 | `/data/users/<other>/` | never | never |
 | `/data/config.json`, `/data/index/` | never | never |
 
@@ -158,12 +159,17 @@ Simpler than an earlier draft, because there is no shared library to gate
 separately ([04 §4.3](04-server-multiuser-deployment.md)): a user's roots are
 their own directory, and everything in it is theirs to break.
 
-One exclusion worth stating explicitly: `connections/` lives under the user's
-own directory and holds credentials. It is within the writable root by that
-rule, which is defensible — they are that user's own keys — but the file browser
-should still refuse to *display* their contents, so a shoulder-surfer or a
-screen share does not reveal an API key that the UI otherwise only ever shows
-masked.
+Two exclusions worth stating explicitly, both about credentials:
+
+- **The user's own `connections/`** is within their writable root, which is
+  defensible — they are that user's own keys — but the file browser should still
+  refuse to *display* the contents, so a shoulder-surfer or a screen share does
+  not reveal a key the UI otherwise only ever shows masked.
+- **`system/connections/` is excluded outright**, and this is the one place the
+  system scope is *not* readable the way `system/library/` is. System
+  connections are usable, never readable
+  ([04 §4.5](04-server-multiuser-deployment.md)) — an admin who wants to inspect
+  one has shell access to the box, which is the right gate.
 
 ### 4.3 What it is, concretely
 

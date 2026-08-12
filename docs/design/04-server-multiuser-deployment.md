@@ -254,15 +254,12 @@ So:
 - **Refs may point at system objects**, which is the point of shipping a
   lorebook. If an update removes one, the ref dangles visibly and non-blockingly
   like any other ([00 §3.3](00-stance.md)).
-- **Connections stay per-user and private.** They hold credentials.
+- **Connections are account-scoped, with a system scope alongside** — the same
+  shape as the library. See §4.5.
 - **Refs never cross users.** A setting's link to a lorebook resolves inside that
   user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
   are precisely the thing that would make a future split or merge painful, so
   they must not exist.
-- **[OPEN]** A server-level connection an admin configures and everyone may
-  *use* without reading the key. Still likely yes, still the natural household
-  case, and note it is a *capability* grant rather than shared content — so it
-  does not reopen the library question.
 
 #### Keeping the merge path open
 
@@ -306,6 +303,68 @@ last-writer-wins. It also covers hand-edits made through the file browser or
 directly on disk while the UI has the object open — which is now the *likelier*
 conflict, and one the watcher-fed index makes possible
 ([04 §6.2](#62-content-already-hot-reloads-and-that-is-not-a-dev-feature)).
+
+### 4.5 Connections: account-scoped, plus a system scope
+
+**Decision: connections follow exactly the library model.** They belong to an
+account, except for **system connections**, which live in the system scope. The
+admin capability is adding and removing connections there — not a separate
+permission system, the same authority that manages the system library (§4.3).
+
+```
+/data/system/connections/       admin-managed. Usable by everyone.
+/data/users/<handle>/connections/   the user's own.
+```
+
+A user's effective connection list is their own plus the system's, resolved as
+one query — the same merge the library already does, which is the point of
+choosing this shape.
+
+#### The one place the symmetry breaks
+
+Library objects are *readable*: you can open a system actor, see everything in
+it, and fork it with "copy to my library". **Connections are not.** A system
+connection is **usable but opaque**, and that difference matters more than the
+similarity:
+
+- **The key never leaves the server.** Not to a client, not to the UI, not to
+  the file browser. `system/connections/` is excluded from file access entirely,
+  unlike `system/library/` which is readable ([05 §4.2](05-ui-surfaces.md)).
+- **There is no fork.** "Copy to my library" has no analogue here, because
+  copying would mean copying the credential. The read-only-so-edit-forks-it rule
+  from §4.3 explicitly does not extend to connections.
+- **What a user sees is a label and its capabilities** — a display name,
+  provider type, and which models it offers. Not the endpoint URL, which can
+  itself carry a token or reveal a private host. An admin may opt to show it.
+
+#### Where they are actually consumed: role bindings
+
+Users do not pick a connection per turn. They bind **model roles**
+([07 §5.1](07-tech-stack.md)), and a binding may point at a personal or a system
+connection. That is what makes this the natural household arrangement:
+
+> The admin binds `prose` and `fast` to system connections. Every user's
+> defaults resolve there — "Dad pays for the API" — and anyone who wants their
+> own key overrides one role, or all of them, without the admin's involvement.
+
+Personal bindings win over system defaults, visibly and switchably. If an admin
+removes a system connection that bindings point at, those bindings dangle and
+the user is told to pick another — the same non-blocking treatment every other
+dangling reference gets ([00 §3.3](00-stance.md)).
+
+#### Two things this makes more pressing
+
+- **Cost attribution stops being optional at 2.0.** With everyone spending one
+  key, "who used what" becomes a real question. Turns already record cost and
+  already belong to a user ([05 §3](05-ui-surfaces.md)), so the data exists —
+  the aggregate view deferred to [11 §3](11-roadmap.md) is where it surfaces.
+- **Rate limits become shared.** Several users against one key will hit provider
+  limits that a single user would not. Not solved at 1.0; worth knowing before
+  someone reports it as a bug.
+
+**No literal system account.** "The system account" is the right mental model
+and there is no such row — no login, no password, no sessions. It is a scope
+that an admin administers, exactly as the system library is.
 
 ---
 

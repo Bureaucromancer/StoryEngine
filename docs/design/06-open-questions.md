@@ -102,13 +102,26 @@ share, which is not offered at 1.0 but is likely the shape sharing takes. Open:
 when it arrives, and whether it needs a real permission model or just
 copy-from. *[04 §4.3, 02 §5.1]*
 
-**A3. Server-scoped connections.** Can an admin configure a connection that all
-users may *use* but none may read? Almost certainly yes — it is the natural
-household setup — and it means connections need a scope from the start.
-Widened by [05 §11.4](05-ui-surfaces.md): library-time field assists and image
-generation are a **second call path** outside the turn pipeline, so connection
-resolution by role (`fast`, image) has to work outside a session too, and cost
-accounting has to cover calls that produce no turn record. *[04 §4.3, 05 §11.4]*
+**A3. Server-scoped connections. — RESOLVED: account-scoped, with a system
+scope, exactly like the library.** Specified in
+[04 §4.5](04-server-multiuser-deployment.md). Connections belong to an account
+except for system connections, and the admin capability is adding and removing
+those — the same authority that manages the system library, not a new permission
+model. Effective list is the user's plus the system's, resolved as one merge.
+
+**The symmetry breaks in one place and that is the important part:** library
+objects are readable and forkable, connections are **usable but opaque**. The key
+never leaves the server, `system/connections/` is excluded from file access
+entirely (unlike `system/library/`), and there is no copy-to-mine because copying
+would mean copying the credential.
+
+They are consumed through **role bindings** ([07 §5.1](07-tech-stack.md)) rather
+than picked per turn, which is what makes the household case work — an admin
+binds `prose` and `fast` to system connections and personal bindings override.
+Two consequences worth carrying: cost attribution stops being optional once
+everyone spends one key, and rate limits become shared. Still true that
+library-time assists are a second call path, so role resolution must work outside
+a session ([05 §11.4](05-ui-surfaces.md)). *[04 §4.5, 07 §5.1]*
 
 **A4. Raw-completion support.** [00 §2.2] proposes making chat-shaped APIs with
 structured output the core contract and raw completion an edge adapter. How much
