@@ -72,12 +72,32 @@ accident. Draws are keyed by site rather than position so replay survives a
 divergent execution path. Still open, and minor: whether a session may flip the
 default. See [07 §14.5–14.6](07-tech-stack.md).
 
-**A2c. Notification event schema.** [04 §3.2](04-server-multiuser-deployment.md):
-delivery channels are additive and can ship late, but the *event schema* cannot
-— class, target user, human-readable summary, dedupe key and coalescing window
-have to be there from the start or every event producer changes later. Settle
-the class list early; it is also the entire user-facing preference model.
-*[04 §3]*
+**A2c. Notification event schema. — RESOLVED, by separating two taxonomies that
+were being treated as one.** Specified in
+[04 §3.2–3.5](04-server-multiuser-deployment.md).
+
+The question stalled because "how granular should status be?" and "what are the
+notification classes?" felt like one question. They are not: **progress events**
+are dozens per turn, ephemeral, structural, sent to session subscribers, and
+rendered by the client; **notifications** are a handful, routed to a person,
+need `{key, params}` and dedupe, and sometimes leave the app. Both ride the same
+SSE stream; only the second goes through the router.
+
+**So a far more granular status view than Marinara or Aventuras costs nothing in
+notification classes.** The live view people want — where in the chain we are,
+what exactly failed — is the turn record rendered while it is still being
+written, which means one component serves live and historical alike.
+
+Classes, closed: `turn.complete`, `turn.failed`, `turn.awaiting-input`,
+`artifact.ready`, `system.notice` at 1.0; `message.received` at 2.0. Named
+`artifact.ready` rather than `rendition-ready` because the class is about async
+work attached to a turn finishing, and naming it for its first producer means
+renaming it for the second. Deliberately **not** split into blocking and
+non-blocking: renditions never block by design and the blocking case is already
+`awaiting-input`, so the split would model a state the architecture forbids.
+`agent-note` dropped — that is a progress event. `actionable: boolean` carries
+the distinction that actually matters for routing, as a field rather than a
+doubling of the list. *[04 §3.2–3.5]*
 
 **A2d. UI localisation.** Settled in [07 §12](07-tech-stack.md): i18next with
 explicit hierarchical keys, ICU plurals, silent per-key English fallback,

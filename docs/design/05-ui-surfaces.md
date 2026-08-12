@@ -30,7 +30,7 @@ What follows from this:
   users are on laptops has different priorities at 1.0.)
 - **No offline story.** No local cache-as-database, no sync. No service worker
   *for caching* — though a push-only one is permitted, and the distinction is
-  drawn in [04 §3.4](04-server-multiuser-deployment.md).
+  drawn in [04 §3.7](04-server-multiuser-deployment.md).
   The server is on your LAN; if you can't reach it there is nothing to do.
   This removes an entire class of state-reconciliation problems.
 - **Nothing is installed on the client.** Bookmark a URL. That is the whole
@@ -353,9 +353,20 @@ how this decision would be undone by accident rather than on purpose.
 
 ---
 
-## 9. In-app notification, and sounds
+## 9. Turn status, notification, and sounds
 
-The client half of [04 §3](04-server-multiuser-deployment.md). Routing is
+**The live turn view is the turn record being written**
+([04 §3.3](04-server-multiuser-deployment.md)) — the same component that renders
+a finished turn in the workbench, fed by progress events instead of a file. A
+collapsed line while things go well; expanded, the whole chain with per-step
+timing, what each step contributed, what was skipped and why, and any failure
+attached to the step that produced it rather than to the turn.
+
+That is deliberately more verbose than either source: Marinara names a failed
+agent, Aventuras emits phase events as diagnostics, and neither lets you watch
+the chain. It costs nothing extra because the record already carries it.
+
+The rest is the client half of [04 §3](04-server-multiuser-deployment.md). Routing is
 server-side; the client renders sound, toast, unread badges and the document
 title.
 

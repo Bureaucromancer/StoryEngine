@@ -157,7 +157,7 @@ probably the most useful single list in the document.
 - **Prompt caps declared per provider; composed prompts built from ranked
   fragments** ([07 §5.3](07-tech-stack.md)).
 - **Server events carry `{key, params}`, never English prose**
-  ([04 §3.2](04-server-multiuser-deployment.md)).
+  ([04 §3.4](04-server-multiuser-deployment.md)).
 - **Notification event schema complete from the first producer** — class, target
   user, dedupe key, coalescing window ([06 A2c](06-open-questions.md)).
 - **`locale` on the account** ([04 §4.2](04-server-multiuser-deployment.md)).
@@ -183,7 +183,7 @@ probably the most useful single list in the document.
 [06 §A](06-open-questions.md) exists precisely because these constrain
 everything downstream.
 
-**The A-series is closed except for one item.** A1/A1c: a worker-thread
+**The A-series is closed.** A1/A1c: a worker-thread
 boundary with a namespaced storage API ([17](17-extensions.md)). A3: connections
 are account-scoped with a system scope, mirroring the library
 ([04 §4.5](04-server-multiuser-deployment.md)). A4: raw completion is legacy and
@@ -193,9 +193,11 @@ async and serialisable from the first step written, not converted later. A5–A8
 are confirmed: multiplayer stays "don't preclude, don't build"; React + Vite +
 TanStack; TypeBox; Node LTS with `node:sqlite`.
 
-**Only [06 A2c](06-open-questions.md) remains** — settling the notification
-event class list, which is small and wants doing before the first producer
-exists.
+**A2c is closed too**, by separating progress events from notifications
+([04 §3.2](04-server-multiuser-deployment.md)) — granular status turns out to
+cost nothing in notification classes.
+
+**Nothing in §A now blocks the first commit.**
 
 ---
 

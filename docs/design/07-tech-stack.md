@@ -475,7 +475,7 @@ already holds everything needed to re-assemble ([02 §8](02-data-model.md)).
 
 Settled before code because two of the decisions below are nearly free now and
 expensive later, and one of them is already a latent bug in
-[04 §3.2](04-server-multiuser-deployment.md).
+[04 §3.4](04-server-multiuser-deployment.md).
 
 **Scope: application chrome only.** Not story content, not character cards or
 lorebooks (that is [06 B8](06-open-questions.md), a different problem), not log
@@ -558,7 +558,7 @@ This helps a human translator and materially improves machine output.
 ### 12.5 Two things that are latent bugs right now
 
 **The server must emit keys and parameters, never English prose.**
-[04 §3.2](04-server-multiuser-deployment.md) currently specifies that
+[04 §3.4](04-server-multiuser-deployment.md) currently specifies that
 notification events carry "a human summary — one line fit to be a notification
 body". As written that is baked English and untranslatable. It must be
 `{ key, params }`, rendered at the point of display. Corrected there.

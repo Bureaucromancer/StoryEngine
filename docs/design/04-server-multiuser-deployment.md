@@ -108,38 +108,132 @@ Reuse it rather than inventing a parallel notion.
 person about another's session. Session visibility ([§4.3](#43-everything-is-per-user-sharing-is-deferred))
 already answers this.
 
-### 3.2 What this obliges 1.0 to do, even if channels ship late
+### 3.2 Two event taxonomies, not one
+
+The question "how granular should status be?" and the question "what are the
+notification classes?" feel like the same question and are not. Separating them
+is what makes both answerable.
+
+| | **Progress events** | **Notifications** |
+|---|---|---|
+| Purpose | Show where the turn is, live | Reach someone who may not be looking |
+| Volume | Dozens per turn | A few per turn at most |
+| Audience | Whoever is subscribed to the session | A specific user, wherever they are |
+| Lifetime | Ephemeral — the turn record is the durable version | Persist until seen |
+| Needs | Structure the client renders | `{key, params}`, dedupe, coalescing, routing |
+| Leaves the app | Never | Sometimes (browser notification, later push) |
+
+Both travel on the same SSE stream ([§2](#2-server-authoritative-generation)).
+Only the second goes through the router.
+
+**So a much more granular status view than Marinara or Aventuras costs nothing
+in notification classes.** Granularity belongs entirely to the progress stream.
+
+### 3.3 Progress events: the live view is the turn record being built
+
+The status view people actually want — *where in the chain are we, and what
+exactly failed* — is the turn record ([02 §8](02-data-model.md)) rendered while
+it is still being written. Same shape live and afterwards, which means one
+mental model and one component rather than a live view and a separate history
+view that disagree.
+
+```
+turn.started
+  step.started    { stepId, stage }
+  call.started    { stepId, role, model }
+  call.streaming  { stepId, tokens }
+  call.finished   { stepId, promptTokens, completionTokens, ms }
+  step.finished   { stepId, contributed: { blocks, effects }, ms }
+  step.failed     { stepId, error, willRetry }
+  step.skipped    { stepId, reason }        // `when` predicate was false
+  effect.applied  { channelId, accepted }
+turn.finished     { state: "complete" | "failed" | "suspended" }
+job.progress      { jobId, kind, state }    // renditions and other async work
+```
+
+Three things this buys that the sources do not have:
+
+- **Failure is attached to a step, not to the turn.** Marinara's failed-agent
+  list with a retry is the closest prior art and it is coarser: you learn that
+  something failed, not where in the chain, and not what it was going to
+  contribute.
+- **Skipped is visible.** A step whose `when` predicate was false is a common
+  source of "why didn't that happen?", and silence is the worst possible answer.
+- **Timing per step, live.** Which makes "the turn is slow" answerable while it
+  is happening rather than after.
+
+Progress events need **no** `{key, params}` summary, no dedupe key and no target
+user — they are structural, the client renders them, and they go to session
+subscribers rather than to a person.
+
+### 3.4 What this obliges 1.0 to do, even if channels ship late
 
 The retrofit cost is not in the delivery channels — those are additive. It is in
-the **event schema**, because every producer changes if it is wrong. From the
-start, events carry:
+the **notification event schema**, because every producer changes if it is wrong.
+From the start, notification events carry:
 
-- **class** — turn-complete, message-received, awaiting-input, failed, agent-note.
-  A small closed set; per-class preferences are the entire user-facing model.
+- **class** — the closed set in §3.5.
 - **target user** — resolved server-side, never inferred by the client.
-- **a renderable summary as `{ key, params }`, not English prose.** One line fit
-  to be a notification body — but composed at display time, because the server
-  cannot know the reader's language and a baked English string is
-  untranslatable ([07 §12.5](07-tech-stack.md)). Note this cuts both ways: the
-  params must carry everything the sentence needs, since composing a summary
-  later from *unstructured* fields produces the "New event in session 4f2a"
-  school of notification.
+- **`actionable: boolean`** — does the reader need to *do* something, or only to
+  know? This is the axis that actually matters for routing and presentation, and
+  it is one field rather than a doubling of the class list.
+- **a renderable summary as `{ key, params }`, not English prose.** Composed at
+  display time, because the server cannot know the reader's language
+  ([07 §12.5](07-tech-stack.md)). Note this cuts both ways: the params must carry
+  everything the sentence needs, since composing a summary later from
+  *unstructured* fields produces the "New event in session 4f2a" school of
+  notification.
 - **a dedupe key and coalescing window** — five characters replying in a group
   chat is one notification, not five. Trivial to design in, unpleasant to add
   once producers exist.
+
+### 3.5 The notification classes
+
+Small, closed, and the entire user-facing preference model — one row per class in
+settings.
+
+| Class | Actionable | Ships |
+|---|---|---|
+| `turn.complete` | no | 1.0 — the completion-sound case |
+| `turn.failed` | **yes** | 1.0 |
+| `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([06 C5](06-open-questions.md)); the strongest argument for push |
+| `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
+| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([17 §7](17-extensions.md)) |
+| `message.received` | no | **2.0**, with Messages |
+
+**`artifact.ready` rather than `rendition-ready`.** Renditions are the only
+producer at 1.0, but the class is about *asynchronous work attached to a turn
+finishing*, and naming it for its first instance would mean renaming it for the
+second.
+
+**Deliberately not split into blocking and non-blocking.** The distinction is
+real in general and does not exist here: renditions never block a turn by design
+([03 §10.2](03-modes-and-turn-pipeline.md)), and the blocking case already has
+its own class in `turn.awaiting-input`. Modelling a split the architecture
+currently forbids would be inventing a taxonomy for a case that cannot occur. If
+blocking async work ever appears, it extends `awaiting-input` rather than
+splitting `artifact.ready`.
+
+**`agent-note` dropped.** An earlier draft had a class for "a step produced
+something notable". Under §3.2's split that is a progress event and belongs in
+the session view, not in someone's notification tray.
+
+**`system.notice` earns its place** because several admin-facing warnings are
+already specified with nowhere to be delivered. Without it each of them invents
+a private path.
 
 **Awaiting-input deserves special mention.** If a turn can suspend for player
 input ([06 C5](06-open-questions.md)), and the player has wandered off, the
 session is stuck until told. That class is the strongest argument for push
 rather than in-app-only.
 
-### 3.3 Delivery channels, in order of cost
+### 3.6 Delivery channels, in order of cost
 
 1. **In-app** *(1.0)* — sound, toast, unread badge, document title. Covers the
    completion-sound case entirely and needs no infrastructure.
 2. **Browser Notification API** *(1.0)* — works when the tab is backgrounded but
    the browser is open. Small step, large practical gain.
-3. **Web Push** *(2.0)* — works when the browser is closed. See §3.4.
+3. **Web Push** *(2.0)* — works when the browser is closed. See §3.7.
 4. **Outbound webhook, plus ntfy/Gotify shapes** *(2.0)* — the self-hoster's
    expectation and cheap to add, since it is an HTTP POST against a user-supplied
    endpoint. It also sidesteps mobile push entirely for people who already run
@@ -150,7 +244,7 @@ The 1.0 pair covers everything 1.0 generates, because without Messages nothing
 reaches you when no browser is open ([15 §0.1](15-work-plan.md)). Push and
 webhooks arrive with the mode that needs them.
 
-### 3.4 A correction to the no-service-worker position
+### 3.7 A correction to the no-service-worker position
 
 [05 §1](05-ui-surfaces.md) says "no offline story. No service worker, no local
 cache-as-database, no sync." **Web Push requires a service worker**, so that
