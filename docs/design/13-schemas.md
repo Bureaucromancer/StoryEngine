@@ -24,7 +24,14 @@ Internal structures can be migrated on upgrade because we own every copy.
 | Tier | Structures | Commitment |
 |---|---|---|
 | **Stable** | Actor, Lorebook, Setting, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
-| **Free to move** | Session, Turn record, Channel state, Preset, rule vocabulary | Internal. Migrate at will |
+| **Provisional** | Preset (§8) | Portable, so it needs a schema — but at `/0`, which says the shape will move |
+| **Free to move** | Session, Turn record, Channel state, rule vocabulary | Internal. Migrate at will |
+
+**Preset moved out of the internal tier**, where an earlier draft had it, on the
+grounds that it plainly fails this section's own test: a preset travels between
+installs — it is the object this ecosystem trades most — so calling it internal
+was a contradiction with [02 §1](02-data-model.md), which lists it as portable.
+§8 works through the consequences.
 
 **Package used to be a prototype exception and no longer is.** It was marked
 unstable because it carried a game definition — an `entry` block naming a mode,
@@ -551,26 +558,33 @@ interface PlotHook {
    *  firing a hook about someone who died four sessions ago destroys
    *  confidence in the mechanism in one message. */
   involves: Ref[]
-  requires?: Predicate[]           // ⚠ unstable — see note
   blockedBy?: string[]             // hook ids that make this nonsensical
   notBefore?: { turn?: number; afterHook?: string }
 
   // ── Selection and firing ──
   weight: number                   // relative likelihood among eligible hooks
   delivery: "guidance" | "seed" | "immediate"
-  /** Channel effects applied on firing. This is what makes chains work: a hook
-   *  that sets a flag makes other hooks eligible. */
-  onFire?: Effect[]                // ⚠ unstable — see note
   once: boolean
 }
 ```
 
-**⚠ `Predicate` and `Effect` belong to the authored-rule vocabulary**, which is
-explicitly unstable ([06 C7](06-open-questions.md)). So PlotHook is *partly*
-stable: its content fields are committed, its rule-typed fields will move with
-that vocabulary. Worth flagging rather than pretending otherwise — an author
-writing hooks with premises and `involves` is safe; one leaning on complex
-`requires` predicates should expect churn.
+**Fully stable, because the rule-typed fields are gone.** An earlier draft
+carried `requires?: Predicate[]` and `onFire?: Effect[]` with ⚠ warnings, since
+both belonged to the authored-rule vocabulary. That vocabulary is now 2.0
+([15 §0.4](15-work-plan.md)), and rather than ship a `/1` schema with two fields
+typed against something unwritten, they are removed.
+
+**Little is lost, which is part of why the deferral was affordable.**
+`involves`, `blockedBy` and `notBefore` are mechanical filters needing no
+vocabulary, and between them they carry most authored hooks — *not until turn 40,
+not if she is dead, not if the rival plot already fired* is the shape of nearly
+every real pacing constraint. What goes is arbitrary state predicates and
+effect-driven hook chaining, both of which want a real vocabulary to be worth
+using at all.
+
+**They return additively.** Two optional fields on an object that already has
+optional fields is not a breaking change, so the schema stays `/1` when the
+vocabulary arrives ([13 §2](#2-versioning-and-compatibility)).
 
 ### 6.2 `contentRating` is advisory — and says so
 
@@ -695,10 +709,12 @@ interface Goal {
    *  the budgeting are shared rather than reinvented. */
   visibility: "player" | "hidden"
 
+  /** "mechanical" — completion computed from channel state — waits on the
+   *  authored-rule vocabulary and arrives as a third variant at 2.0
+   *  ([15 §0.4](15-work-plan.md)). Adding a variant is additive. */
   completion:
-    | { kind: "narrative" }                        // an evaluation step judges it
-    | { kind: "mechanical"; when: Predicate[] }    // ⚠ authored-rule vocabulary
-    | { kind: "manual" }                           // the player says when
+    | { kind: "narrative" }        // an evaluation step judges it
+    | { kind: "manual" }           // the player says when
 
   /** Seeds the offer made at completion; never applied without asking
    *  ([03 §7.3.4](03-modes-and-turn-pipeline.md)). */
@@ -708,10 +724,11 @@ interface Goal {
 }
 ```
 
-**⚠ `Predicate` is the authored-rule vocabulary again** and carries the same
-instability warning as [§6.1](#61-plothook). A goal with `kind: "narrative"` or
-`"manual"` is on stable ground; one leaning on mechanical predicates will move
-with that vocabulary.
+**Both completion kinds are stable**, because the one that depended on the rule
+vocabulary is not here yet. Campaign is where mechanical completion actually
+earns its place — a quest whose state is real data — and Campaign is 2.0
+([15 §0](15-work-plan.md)), so the vocabulary and its first serious consumer
+arrive together rather than one waiting on the other.
 
 **Why `Goal` sits on Setup rather than Setting.** A Setting is a world and a
 world has no win condition — the same rule that keeps world facts out of it
@@ -725,7 +742,134 @@ Setup would imply Messages and Scene have a difficulty, which they do not.
 
 ---
 
-## 8. Package — a bundle, and nothing else
+## 8. Preset — the prompt pack
+
+**At `storyengine.preset/0`, and defined now despite the assembler being
+unbuilt.** An earlier draft declined to define it at all, on the reasoning that
+its shape depends on assembly design that does not exist yet. That reasoning was
+right about the *detail* and wrong about the *decision*, for two reasons that
+have accumulated since.
+
+**First, it is portable, and §1's rule is not optional.** A preset moves between
+installs. It is, empirically, the object this ecosystem trades most — SillyTavern
+users swap presets more readily than they swap cards. Leaving the most-shared
+object as the only portable kind with no schema, no version and no round-trip
+guarantee inverts the priority §1 sets out.
+
+**Second, and more pressing: three decisions have delegated their enforcement
+here.**
+
+| Decision | What it hands to this layer |
+|---|---|
+| Content rating is advisory ([§6.2](#62-contentrating-is-advisory--and-says-so)) | *"Where enforcement actually belongs is prompt packs and upstream system prompts"* |
+| Difficulty is a sycophancy dial ([03 §7.3.1](03-modes-and-turn-pipeline.md)) | *"The levels live in the prompt pack, not in engine code"* |
+| Model-behaviour patching ([09 §5](09-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
+
+Each of those is a good decision. Together they mean the layer three separate
+arguments rest on cannot be the one layer left undefined — that is how a
+delegation becomes a hole.
+
+```ts
+interface Preset {
+  schema: "storyengine.preset/0"
+  id: string
+  name: string
+  blurb: string
+
+  /** Which modes this is written for. Empty = mode-agnostic. Advisory: a
+   *  preset for a mode you do not have still imports and still shows. */
+  modes: ModeId[]
+
+  /** Ordered prompt fragments. The unit the assembler consumes and the
+   *  workbench displays — one authored block, one line in the block list. */
+  blocks: PresetBlock[]
+
+  /** Budget policy. Never absolute token counts alone: a preset written
+   *  against a 4k window must not silently misbehave at 200k. */
+  budget: BudgetPolicy
+
+  /** Generation parameters, as a portable subset. Never a model id, never a
+   *  connection — [00 §3.2]. */
+  params: GenerationParams
+
+  /** Named levels the mode's difficulty setting resolves against
+   *  ([03 §7.3.1](03-modes-and-turn-pipeline.md)). A preset that omits this
+   *  gets the built-in default pack; a preset that supplies it owns the
+   *  meaning of "hard". */
+  difficultyLevels?: DifficultyLevel[]
+
+  /** Author-declared variables the blocks interpolate, with defaults. The
+   *  Aventuras `CustomVariable` shape ([05 §6](05-ui-surfaces.md)). */
+  variables: PresetVariable[]
+
+  tags: string[]
+  provenance: Provenance
+  generated: Record<string, GeneratedFieldProvenance> | null
+  metadata: Record<string, unknown>
+}
+
+interface PresetBlock {
+  /** Stable, and addressable by modes and the workbench. */
+  id: string
+  /** Author-facing. Never injected. */
+  label: string
+  role: "system" | "user" | "assistant"
+  /** Liquid, rendered within the block — never across blocks. [03 §5] */
+  template: string
+
+  /** Ordering constraints, not character offsets. This is the whole divergence
+   *  from depth-injection ([00 §2.1](00-stance.md)): a block says what it must
+   *  sit before or after, and the assembler resolves. */
+  order: { after?: string[]; before?: string[] }
+
+  /** Priority under budget pressure. "Never trim" is a value here, never the
+   *  absence of a budget — [00 §2.6]. */
+  priority: number
+  /** Guidance-class blocks are refused by effect-producing calls.
+   *  [03 §5.2] */
+  advisory: boolean
+  /** Omit the block entirely when the template renders empty, rather than
+   *  emitting a heading with nothing under it. */
+  omitWhenEmpty: boolean
+}
+```
+
+**`/0` is the honest version number**, and it means what [§2](#2-versioning-and-compatibility)
+says it means: this will move. The alternative was leaving it undefined, which
+communicates the same instability while also losing the round-trip guarantee, the
+`metadata` escape hatch and the unknown-field preservation rule. A moving schema
+that preserves what it does not understand is strictly better than no schema.
+
+**What is committed even at `/0`:**
+
+- **Blocks are ordered by constraint, not by offset.** This is
+  [00 §2.1](00-stance.md)'s central replacement for depth injection, and it is
+  not going to be reversed.
+- **Every block is budgeted and priced.** Including the ones the author is sure
+  matter — [00 §2.6](00-stance.md).
+- **No production settings.** No connection, no credential, no endpoint, no model
+  id. Enforced by there being nowhere to put them
+  ([00 §3.2](00-stance.md)); `params` carries sampling, not identity.
+- **Blocks are addressable by stable id**, which is what lets a mode reference a
+  block, a workbench diff line up across presets, and a later version reorder
+  without breaking references.
+
+**What is genuinely unsettled**, and is why this is `/0` rather than `/1`: the
+`BudgetPolicy` vocabulary, whether `order` needs anything richer than
+before/after, and whether `params` can stay a portable subset or has to grow a
+provider-specific escape hatch. All three want the assembler to exist.
+
+**Prompt packs are where model-behaviour opinion lives, by design.** The three
+delegations above are not evasions — this layer has a property engine code does
+not: **its effect is visible in the turn record** ([02 §8](02-data-model.md)) as
+a block with a source, rather than buried in a conditional. Someone who dislikes
+how "hard" behaves can read the fragment that caused it and change it. That is a
+better place for contested opinion than anywhere in the engine, and it is the
+reason the delegations were right even though they left this hole.
+
+---
+
+## 9. Package — a bundle, and nothing else
 
 With Setup carrying the game definition, a Package is reduced to what it always
 should have been: **an arbitrary bundle of portable objects, for moving them
@@ -775,29 +919,35 @@ warning with a degraded-start option rather than a hard block where possible.
 
 ---
 
-## 9. Not defined here, deliberately
+## 10. Not defined here, deliberately
 
 | Structure | Why not |
 |---|---|
 | **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. |
 | **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). |
 | **Preset** | Depends on the assembly design, which is unbuilt. Defining it now would be guessing. |
-| **Rule vocabulary** (`Predicate`, `Effect`) | [06 C7](06-open-questions.md). Blocks the two PlotHook fields noted in §6.1 and nothing else. |
+| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 2.0 ([15 §0.4](15-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
 
 ---
 
-## 10. Open
+## 11. Open
 
-- **[OPEN]** Whether `ActorProfile`'s four prose fields stay fixed or become
-  conventional `Section`s with well-known ids ([06 B1](06-open-questions.md)).
-  Committing to §4 as written closes this in favour of fixed.
-- **[OPEN]** Whether `Setting` owns a primary lorebook its editor writes into
-  ([06 B2](06-open-questions.md)). Affects nothing above; it is a UI and
-  ownership question.
 - **[OPEN]** Embedded-media size cap ([02 §5.2.2](02-data-model.md)). A
   schema-level `maxBytes` hint versus a policy enforced at write time.
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
   ([06 B9](06-open-questions.md)).
+
+**Two entries removed as already answered**, and both had drifted into
+contradicting their own resolutions:
+
+- *Whether `ActorProfile`'s prose fields stay fixed.* Decided in
+  [02 §2.1](02-data-model.md): **there are no fixed prose fields**, all prose is
+  `Section`s and four are conventional. The entry claimed committing to §4 would
+  close it "in favour of fixed", which is the opposite of what §4 now says.
+- *Whether `Setting` owns a primary lorebook.* Decided in
+  [§6](#6-setting): **a Setting owns no lorebook, it only links** — which is what
+  allows many settings over one world and removes the ownership-on-delete
+  question.

@@ -823,7 +823,7 @@ Two lists — `written` and `seeds` — each with a designated primary.
 
 ## 7. Setup and Package — two jobs, split
 
-> **Definitions: [13 §7](13-schemas.md) (Setup), [13 §8](13-schemas.md) (Package).**
+> **Definitions: [13 §7](13-schemas.md) (Setup), [13 §9](13-schemas.md) (Package).**
 
 An earlier draft had a single `Package` doing both jobs: it carried an `entry`
 block defining the game *and* the bundling machinery for moving objects. Splitting
@@ -1014,3 +1014,95 @@ case-insensitive name → show as missing and continue. `fingerprint` lets the U
 say "this lorebook has changed since this package was built" without blocking
 anything. Marinara's `resolveGameSetupImport` already does the first two steps
 and reports misses as warnings; the third is the addition.
+
+---
+
+## 10. Deletion
+
+Unspecified until now, and it is the most frightening operation in the product.
+[00 §3.3](00-stance.md) makes a broken reference *survivable*, which is necessary
+and not sufficient: it says the sessions still open after you delete an actor, not
+that you meant to.
+
+The gap is worth naming plainly, because this design otherwise sells safety hard.
+Branching means you can always go back ([10](10-branching.md)); full history means
+nothing is lost to summarisation ([06 E1](06-open-questions.md)); files on disk
+mean you can always get your data out (§5). Against all of that, an unqualified
+Delete button is the one place where *gone* means gone — and the first person to
+lose a character they had spent an evening writing will not be consoled by the
+sessions still loading.
+
+Two mechanisms, both cheap because the pieces exist already.
+
+### 10.1 Reference counts before the fact, not after
+
+The derived index (§5.1) already knows every inbound reference — it exists partly
+to answer "which settings link this lorebook" for the library's bidirectional link
+view ([05 §5](05-ui-surfaces.md)). Pointing the same query at the delete
+confirmation costs nothing:
+
+> Delete **Vera Kohl**?
+> Referenced by **12 sessions**, **3 settings** and **1 package**.
+
+That is the whole feature. It converts a decision made blind into one made
+informed, and it uses a query that has to exist anyway.
+
+**It never blocks.** Counts inform; they do not veto. A user deleting something
+with forty references may well be doing exactly what they intend, and a product
+that refuses would be substituting its judgement for theirs — which is also the
+[00 §3.3](00-stance.md) posture applied one step earlier: *visible, and
+non-blocking*.
+
+### 10.2 Trash, with a retention window
+
+**Deleting moves the folder to a per-user trash. A sweeper removes what has been
+there past the window.**
+
+```
+/data/users/<handle>/
+  library/            the live objects
+  trash/              deleted objects, awaiting the window
+```
+
+The reason it is nearly free is the same reason the storage design keeps paying:
+**the folder is the object** (§3.4 of [00](00-stance.md), §5.2 here). Deletion is
+a move, restoration is a move back, and neither needs a serialisation format, a
+tombstone convention or a schema. The index treats trashed objects as absent —
+they do not appear in the library, do not resolve as references, and do not match
+search. Restoring re-indexes them.
+
+Four properties worth fixing now:
+
+- **The window is a setting with a sane default**, not a constant. Someone
+  running this on a NAS with 8TB and someone on a Pi have different opinions and
+  both are right.
+- **Trash is per-user**, under the user's own directory, like everything else
+  ([04 §4.3](04-server-multiuser-deployment.md)). No shared trash, no admin
+  reviewing other people's deletions.
+- **Purge is available and honest.** *Delete permanently* exists, says so, and
+  skips the trash. The point of the window is to make the ordinary path
+  recoverable, not to make deletion impossible for someone who means it.
+- **Trash is excluded from export and from backup by default**
+  ([06 E6](06-open-questions.md)) — restoring a backup should not resurrect
+  everything the user threw away before taking it.
+
+### 10.3 Sessions delete the same way, with one addition
+
+A session is a folder too, so §10.2 covers it unchanged. What sessions want on
+top is a state that is not deletion at all:
+
+**Archive.** Hidden from the default list, fully intact, restorable, never swept.
+Most sessions people stop playing are not sessions they want gone — they are
+sessions they want out of the way, and offering only Delete for that pushes people
+into a destructive action to solve a cosmetic problem. It also pairs with the
+concluded state a finished goal chain produces
+([03 §7.3.4](03-modes-and-turn-pipeline.md)), which is already "over but kept".
+
+**What deletion does not do:** it does not reach into other sessions to remove
+what this one wrote. A session that promoted an actor to the library, or wrote a
+cross-session memory ([14](14-cross-session-memory.md)), leaves those behind —
+they are separate objects, owned by the library, and quietly deleting them because
+their origin was removed would be a much worse surprise than leaving them. Same
+reasoning as the escaped-effects warning on branch pruning
+([10 §7](10-branching.md)), and the delete confirmation should say so when it
+applies.

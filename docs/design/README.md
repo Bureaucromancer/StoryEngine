@@ -4,10 +4,15 @@
 notes, not documentation of what exists — see [../](../) for that distinction.
 
 **Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Freeform;
-Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)).
+Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the
+authored-rule vocabulary ([15 §0.4](15-work-plan.md)).
 Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
 complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
+
+**The first checkpoint is PLAYABLE** ([15 §4.1](15-work-plan.md)) — well before
+beta, and the point at which the design gets tested by use rather than completed
+on paper.
 
 These are working documents for a clean-sheet engine that takes the *feature
 territory* of Aventuras, Marinara Engine and SillyTavern without inheriting

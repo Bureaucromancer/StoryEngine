@@ -87,6 +87,71 @@ evaluate-before-narrate on a small surface, which is a reason to keep it at 1.0
 even though Freeform defaults to no mechanics. The first has no mitigation
 short of building Messages, and is simply a risk carried into 2.0.
 
+### 0.4 Three further cuts, not driven by the mode scope
+
+§0.1 cut what falls out of deferring two modes. These three are different: they
+survive the mode cut and were removed anyway, on a review pass that asked the
+question §2.1 exists to ask — *what is additive, and can therefore wait?*
+
+**Authored rules: the vocabulary and evaluator move to 2.0.**
+
+The third extensibility tier ([03 §4.1](03-modes-and-turn-pipeline.md)) stays a
+committed direction. What moves is the part that is a language design project
+wearing a feature's clothes: a predicate and effect vocabulary, an evaluator, and
+the authoring surface that makes either usable.
+
+Three reasons, and the third is the strongest:
+
+- [06 C7](06-open-questions.md) already held the vocabulary open, and two stable
+  schemas were carrying ⚠ warnings because they depended on something
+  unspecified — `PlotHook.requires`/`onFire` and `Goal.completion`. Deferring
+  removes both warnings and makes those schemas honestly stable.
+- Infinite Worlds — the entire evidence base for this tier
+  ([09](09-infinite-worlds.md)) — ran on triggers and tracked items for years
+  before arriving at PawScript, and arrived at it *with a corpus of real authored
+  worlds to design against.*
+- **We have no such corpus.** Designing an expression language against
+  imagination is how you get one nobody can use. Channels and engine-computed
+  effects ship at 1.0 and are where the actual power lives; the rule layer gets
+  designed at 2.0 against real channel usage.
+
+Plot hooks lose nothing that matters. `involves`, `notBefore` and `blockedBy` are
+mechanical filters that need no vocabulary, and they carry most authored hooks.
+Goals keep narrative and manual completion.
+
+**i18n discipline is reduced, not removed.**
+
+"Every string through i18n from the first component" is a genuine ongoing tax on
+a solo developer whose stated plan is one bad machine translation for testing.
+What stays on the day-one checklist is the part that is actually
+unretrofittable:
+
+- **Never concatenate sentences from fragments**, and never build a string by
+  assembling clauses in code. This is the one that cannot be fixed later without
+  rewriting the components that do it.
+- **Never bake user-visible strings into logic** — no branching on displayed
+  text, no strings as keys.
+- **CSS logical properties and `Intl` unchanged.** Both near-free, both
+  permanently foreclosing if skipped.
+
+What moves is *catalogue extraction*, which becomes a pre-beta sweep rather than
+a per-component obligation. Extraction over a codebase that never concatenated
+is mechanical work; extraction over one that did is a rewrite. Keeping the
+discipline and dropping the ceremony holds nearly all the value
+([07 §12](07-tech-stack.md)).
+
+**Packaging at beta is container plus tarball.**
+
+[04 §5.4](04-server-multiuser-deployment.md) lists six artifacts and §8 made all
+six a beta requirement. Container and tarball are enough to have users, and the
+audience for a pre-1.0 release of this can run a container. `.deb`, AUR,
+Homebrew and the Windows service are a substantial build chain to stand up and
+maintain for people who are not there yet.
+
+**They move to the 1.0 bar rather than off the list.** The reasoning that put
+them there — that a home server product people cannot install is a home server
+product nobody uses — is right about 1.0 and premature for beta.
+
 ---
 
 ## 1. Two things this plan is built around
@@ -122,7 +187,7 @@ probably the most useful single list in the document.
 - **Per-user directory structure from the first write** — `users/<handle>/…`.
   Retrofitting user scoping into a flat store is miserable.
 - **Every portable object self-describes** with a `schema` field, so containers
-  never enumerate kinds ([13 §8](13-schemas.md)).
+  never enumerate kinds ([13 §9](13-schemas.md)).
 - **Channel state records its schema version** — one integer, never the schema
   itself ([03 §4.2](03-modes-and-turn-pipeline.md)). Without it, a later
   migration cannot tell what it is migrating from.
@@ -177,10 +242,56 @@ probably the most useful single list in the document.
 - **CSS logical properties from the first stylesheet.** `margin-inline-start`,
   never `margin-left`. Skip this and RTL is permanently foreclosed
   ([07 §12.6](07-tech-stack.md)).
-- **Every string through i18n from the first component**, explicit hierarchical
-  keys, extraction as a build step.
+- **Never concatenate sentences from fragments, and never put a user-visible
+  string in logic** ([07 §12.6a](07-tech-stack.md)). Wrapping strings and
+  extracting the catalogue is a pre-beta task; *these two* are habits, and a
+  codebase that broke them has to be reworked component by component with nothing
+  flagging where (§0.4).
 - **`Intl` for all dates, numbers and relative times.** No hand-rolled
   "2 minutes ago".
+- **Semantic HTML, focus management, and a keyboard path through the play loop.**
+  Landmarks and headings that mean something, focus moved deliberately on view
+  change and returned on dismiss, every play-loop action reachable without a
+  mouse, and **no state encoded in colour alone** — the turn status indicators
+  ([05 §9](05-ui-surfaces.md)), the mention confidence tiers
+  ([05 §13.1](05-ui-surfaces.md)) and the cast badges
+  ([05 §13.2](05-ui-surfaces.md)) all need a second channel. Same argument as CSS
+  logical properties: cheap now, a rewrite later, and there is no native client
+  to fall back on if the web app is unusable.
+
+### 2.1 The inverse discipline: what is free to defer
+
+§2 answers *what is expensive to retrofit*. That question, asked alone, has a
+predictable failure mode — it grows the release, because everything that might be
+expensive later becomes a reason to do it now. The list above is genuinely worth
+its length; the release scope around it is not.
+
+So the counter-question, asked of every feature before it enters a phase:
+
+> **If this is added a year later, what does it cost?** If the answer is "the
+> work itself, and nothing else", it is a candidate for cutting — however good it
+> is.
+
+Three cost shapes make something *not* deferrable, and they are the only three:
+
+- **It changes a persisted shape.** Turn storage, portable schemas, the per-user
+  layout, ids. Adding these later is a migration over user data.
+- **It changes a contract others build against.** The step interface, the
+  extension API, the event schema. Adding later breaks what exists.
+- **It is a habit rather than a feature.** Provenance, i18n-safe strings, logical
+  properties, accessible markup, recording cost. These are not built once; they
+  are done continuously or not at all, and retrofitting means touching everything.
+
+Everything else is additive, and **additive work should be scheduled by value,
+not by fear.** §0.4 applies this to three items that were in 1.0 for no better
+reason than that they were designed.
+
+The general risk this guards against is worth naming plainly, because it is the
+one most likely to sink this project: not that it ships slowly, but that **the
+design never meets reality.** Every claim in these documents is a hypothesis —
+that the budgeter is legible, that channels carry mode divergence, that the mode
+contract holds without back doors, that hook pacing works at all. None of them is
+tested by being written down. §4.1 exists to test them early.
 
 ---
 
@@ -211,6 +322,47 @@ cost nothing in notification classes.
 
 Each phase should end somewhere demonstrable. If a phase cannot be shown
 working, it is a layer rather than a slice and should be resliced.
+
+### 4.1 PLAYABLE — the milestone that matters most
+
+**At the end of P4, with a crude Scene mode bolted on, stop and play with it.**
+
+Not a release, not a preview, and nothing anyone else installs. A named
+checkpoint whose purpose is different in kind from the phases around it: **P1–P4
+build the design; PLAYABLE tests it.** Everything after is completion work; this
+is the last point before a large amount of construction is committed on top of
+assumptions nobody has hit yet.
+
+By the end of P4 the following exist: files on disk with a rebuildable index, one
+turn end to end as a resumable server-side job, a complete turn record, the
+workbench reading it, and a real imported library from three ecosystems. The
+minimal mode from P2 is already there and already disposable. Wiring it into
+something one person can sit down and use is a small amount of work on top.
+
+**Four hypotheses get answered, and no earlier point answers any of them:**
+
+| Claim | Where it is asserted | How PLAYABLE tests it |
+|---|---|---|
+| The turn record is *legible*, not just complete | [00 §1](00-stance.md), [05 §3](05-ui-surfaces.md) | Use the workbench to answer a real "why did it say that" |
+| Files on disk beat a database for this | [00 §3.4](00-stance.md), [02 §5](02-data-model.md) | Hand-edit a card mid-session and watch it take |
+| One budgeter over everything is comprehensible | [00 §2.6](00-stance.md), [03 §5](03-modes-and-turn-pipeline.md) | Watch it under pressure against an imported library, not fixtures |
+| Inclusion reasons are a product feature | [03 §5](03-modes-and-turn-pipeline.md) | Read them and see whether they explain anything |
+
+The fourth is the one most likely to be wrong, and the cheapest to fix at this
+point.
+
+**Why here specifically.** P5 onward all *build on* the assembler and the record:
+retrieval feeds the budgeter, the tree stores records, modes configure the
+pipeline, memory summarises history. If the record's shape or the budgeter's
+behaviour is wrong, every later phase inherits the error and the correction gets
+more expensive per phase. P4 is also the first point where a *realistic* library
+exists, which is exactly what makes the test meaningful — synthetic fixtures will
+not surface what real cards do, which is already the stated reason import lands
+early ([§1](#1-two-things-this-plan-is-built-around)).
+
+**What it is not.** Not a scope gate, not something to polish, and explicitly not
+a milestone to add features to. If it takes more than a small amount of work
+beyond P4, it has been misunderstood.
 
 ### P1 — Skeleton and storage spine
 
@@ -266,6 +418,8 @@ it turns an empty install into a realistic library.
 populated library, with a review step showing what resolved, what went to
 `compat`, and what dangled.
 
+**Then stop — this is where PLAYABLE falls (§4.1).**
+
 ### P5 — Lorebooks and retrieval
 
 Full activation semantics, folders, the two-tier budget, trim order, skip
@@ -282,12 +436,13 @@ Branching, rewrite/reroll, the RNG tape, sibling navigation.
 built after it inherits the behaviour for free. Built after modes, it is a
 migration.
 
-### P7 — Modes, channels, rules
+### P7 — Modes and channels
 
 - The mode contract as a real interface; built-ins as separate packages
   consuming the published SDK ([07 §10](07-tech-stack.md)).
-- Channels, effects, engine-computed updates.
-- The authored-rule vocabulary and evaluator.
+- Channels, effects, engine-computed updates. **Not the authored-rule vocabulary
+  or evaluator** — deferred to 2.0 (§0.4), which is the single largest thing this
+  phase lost and the reason it is merely large rather than impossible.
 - Setup objects and the declarative setup wizard.
 - Party as a timeline, always non-empty ([03 §8](03-modes-and-turn-pipeline.md)).
 - Plot hooks and the selector.
@@ -345,9 +500,12 @@ link.
 Everything left that the 1.0 spec commits to and the phases above did not
 absorb: the assistant, editors-are-not-dumb-forms across every editor, the
 reading view ([05 §12](05-ui-surfaces.md)), impersonation in Scene
-([03 §3.1](03-modes-and-turn-pipeline.md)), the plot-hook selector, packaging's
-six artifacts ([04 §5.4](04-server-multiuser-deployment.md)), the in-app update
-check, and localisation catalogue extraction.
+([03 §3.1](03-modes-and-turn-pipeline.md)), the plot-hook selector, the in-app
+update check, and the localisation catalogue extraction sweep (§0.4).
+
+**Packaging here is the container and the tarball only** (§0.4). The other four
+artifacts ([04 §5.4](04-server-multiuser-deployment.md)) are a 1.0 requirement,
+not a beta one.
 
 **No longer here:** the file
 browser ([06 D3](06-open-questions.md)) and Tailscale ([06 D1](06-open-questions.md)),
@@ -399,9 +557,14 @@ Things that are wrong to schedule because they must happen inside every phase:
   [17 §9](17-extensions.md).
 - **Import fidelity** across three sources with years of edge cases. Expect this
   to take longer than it looks and to keep producing bug reports after P4.
-- **P7 is where the design is tested.** Everything before it is infrastructure
-  whose shape we control; P7 is where the mode contract meets three real modes
-  and either holds or does not.
+- **P7 is where the mode contract is tested** — where it meets two real modes and
+  either holds or does not. Everything before it is infrastructure whose shape we
+  control.
+- **The risk PLAYABLE exists to reduce** is different and larger: that the
+  assembler, the record and the budgeter are all *built on* by P5 through P11, so
+  an error in any of them compounds per phase. §4.1 is the cheapest point at
+  which a human can find that error, and skipping it is the single most expensive
+  economy available in this plan.
 
 ---
 
@@ -418,7 +581,10 @@ shipping repeatable rather than an event. Sketched here only to hold the shape �
 extended:
 
 - CI that builds, tests and produces artifacts on every merge.
-- Reproducible builds of the container and the tarball, from a tag.
+- Reproducible builds of the container and the tarball, from a tag. **Those two
+  artifacts only** (§0.4) — the remaining four are a 1.0 requirement, and
+  standing up four more build chains is exactly the kind of work that reads as
+  progress while delaying the thing being packaged.
 - The release cut itself automated: tag → build → publish → changelog.
 - Channels wired (`latest`, `testing`, `nightly`) and *boring* — a nightly that
   is often broken is worse than none ([12 §4](12-repo-and-releases.md)).

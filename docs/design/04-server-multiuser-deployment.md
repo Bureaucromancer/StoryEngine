@@ -699,9 +699,8 @@ it quietly obsoletes the need for `.rpm` at this project's size. Ship the unit
 file, create a service user, put data in a sane place, and document the upgrade
 path.
 
-**Tier 3 — `.deb` and the Arch AUR package.** Also required at beta (see below),
-plus one strategic
-reason each:
+**Tier 3 — `.deb` and the Arch AUR package.** Required at 1.0 rather than beta
+(see below), plus one strategic reason each:
 
 - **`.deb`** covers the largest single slice of homelab Linux (Debian, Ubuntu,
   Raspberry Pi OS) and its users genuinely expect `apt`.
@@ -766,18 +765,28 @@ Tier 2 rather than optional: **the minimum honest artifact for a server is
 something that starts on boot.** A tarball with a unit file and an install script
 is a few hours of work and removes the single most common failure mode.
 
-**All of it is a beta requirement, not a matter of capacity.** The canonical
-automated build path delivers the OCI image, the tarball, `.deb`, AUR, the
-Windows service installer and the Homebrew formula — six artifacts from one
-pipeline, and feature-complete-at-beta means all six build
-([12 §0](12-repo-and-releases.md)). The in-app update *check*
-([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) is a **1.0**
-release requirement rather than a beta one.
-
-What that changes from an earlier draft: **Tier 3 is no longer "as capacity
-allows".** The tiers now describe *order of value*, not optionality. Everything
-outside the six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
+**All six are required, and the tiers are order of value rather than
+optionality** — Tier 3 is no longer "as capacity allows". Everything outside the
+six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
 build-from-source stays first-class.
+
+**Which are needed *when* has been re-cut** ([15 §0.4](15-work-plan.md)):
+
+| Milestone | Artifacts |
+|---|---|
+| **Beta** | The OCI image and the tarball |
+| **1.0** | `.deb`, AUR, the Windows service installer, the Homebrew formula — and the in-app update *check* ([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) |
+
+An earlier draft made all six a beta requirement. Tiers 1 and 2 are enough to
+*have users*, and the audience for a beta of this can run a container. Standing
+up four more build chains — packaging conventions, repository publication,
+signing, and four upgrade paths to test — is a large amount of work that reads as
+progress while delaying the thing being packaged.
+
+**The reasoning that put them on the list is untouched**, and is about 1.0: a
+home-server product people cannot install is a home-server product nobody uses,
+and an unclaimed AUR slot gets claimed by someone else. Both are true of a
+release; neither is true of a beta.
 
 **Auto-update — settled in [12 §4](12-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container

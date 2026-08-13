@@ -229,6 +229,44 @@ it. In practice this means the prompt workbench and library are designed in the
 same pass as the chat views, and the turn record is designed to be displayed —
 see [05](05-ui-surfaces.md).
 
+### 3.6 The engine's understanding is visible, and correctable
+
+**Wherever the software forms a belief about the fiction, that belief is shown to
+the user in the surface where it matters, and the user can correct it there.**
+
+Promoted to a principle because it was arrived at independently three times, from
+three different directions, which is the signal that it is a rule rather than a
+coincidence:
+
+- **The workbench** ([05 §3](05-ui-surfaces.md)) shows what the engine decided to
+  send and why, with inclusion reasons in plain language — and lets you edit a
+  block and re-run.
+- **Mention linking** ([05 §13.1](05-ui-surfaces.md)) shows which names the
+  engine resolved to which actors, marked by confidence — and an unresolved name
+  is an offer to link or create.
+- **The cast panel** ([05 §13.2](05-ui-surfaces.md)) shows who it thinks is
+  present and alive — and is where you merge duplicates, split conflations and
+  correct status.
+
+**Both halves are required.** Showing without correcting produces a complaint the
+user cannot act on; correcting without showing means nobody knows there is
+anything to fix. The pairing is what makes the principle worth stating.
+
+The argument for it is not tidiness. **This class of software is wrong about the
+fiction constantly** — identity, presence, state, what mattered in a scene — and
+its errors compound silently over hundreds of turns. Every source project has
+this problem and none treats it as a design axis; Aventuras is measurably *worse*
+at character identity than the models it drives, and nothing in it surfaces that.
+The alternative to visibility is not correctness, it is invisible drift.
+
+It is also the cheapest kind of feature here, because [§1](#1-the-organising-principle)
+already requires the engine to record what it did and why. Most of the work is
+choosing to render it.
+
+**The test to apply to any new feature that infers something:** *where does the
+user see this, and how do they fix it when it is wrong?* A feature with no answer
+is not finished.
+
 ---
 
 ## 4. Non-goals for 1.0

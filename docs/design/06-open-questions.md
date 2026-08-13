@@ -386,8 +386,26 @@ built: what rule conditions really need to express, and whether a template
 language stretches to them comfortably. Deferring the pick costs nothing as long
 as the single-language constraint holds. *[03 §5, 07]*
 
-**C7. Authored rule vocabulary. — CONFIRMED: take Infinite Worlds' as is.**
-Conditions and effects adopted close to wholesale ([09 §3](09-infinite-worlds.md)).
+**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 2.0.** The direction is
+unchanged — take Infinite Worlds' conditions and effects close to wholesale
+([09 §3](09-infinite-worlds.md)) — but the vocabulary, its evaluator and its
+authoring surface leave 1.0 entirely ([15 §0.4](15-work-plan.md)).
+
+The argument that moved it: IW itself ran on triggers and tracked items for years
+before arriving at PawScript, **and arrived at it with a corpus of real authored
+worlds to design against.** We have none, and an expression language designed
+against imagination is one nobody can use. Two stable schemas were also carrying
+⚠ warnings for fields typed against something unwritten; deferring removed both
+and left `PlotHook` and `Goal` honestly stable.
+
+**What 1.0 owes it** ([03 §4.1](03-modes-and-turn-pipeline.md)): `owner` accepts
+a package id from the first channel definition written, and every effect —
+model-proposed, engine-computed, later authored-rule — applies through one path
+into the turn record. Both free now, both migrations later. The fields removed
+from the two schemas return additively, so neither goes to `/2`.
+
+**The fuzzy-condition position below stands** and moves with the vocabulary; it
+is recorded here so the reasoning is not re-derived in two years.
 
 **AI-evaluated fuzzy conditions are allowed, uncapped, and openly discouraged.**
 IW caps them at ten per world because it is a hosted service paying for every
@@ -481,11 +499,15 @@ rather than hand-maintained. *[04 §6]*
 **D0b. Packaging targets. — CONFIRMED, and promoted from optional to required.**
 The canonical automated build path delivers **six artifacts**: OCI image,
 tarball, `.deb`, AUR, Windows service installer, Homebrew formula. All six are
-**beta feature-complete requirements** rather than as-capacity-allows, which
-rewrites the earlier tiering — the tiers now describe order of value, not
-optionality. The in-app update **check** is a **1.0 release requirement**.
-Declined stays declined: Flatpak, AppImage, Snap, `.rpm`, LXC.
-*[04 §5.4, 12 §0]*
+required rather than as-capacity-allows, which rewrites the earlier tiering — the
+tiers now describe order of value, not optionality. Declined stays declined:
+Flatpak, AppImage, Snap, `.rpm`, LXC.
+
+**Re-cut on the milestone, not on the list** ([15 §0.4](15-work-plan.md)): the
+OCI image and the tarball are the **beta** requirement; the other four join the
+in-app update **check** as **1.0 release** requirements. Tiers 1 and 2 are enough
+to have users, and four more build chains before there are any is work that reads
+as progress. *[04 §5.4, 12 §0]*
 
 **D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. All
 post-2.0.** An embedded `tsnet` node is a real component for a convenience the

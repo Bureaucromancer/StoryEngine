@@ -215,6 +215,15 @@ variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
+**Scope: the tier is committed; the vocabulary is 2.0**
+([15 §0.4](15-work-plan.md)). Channels and engine-computed effects ship at 1.0
+and are where the power actually is. What waits is the predicate/effect
+vocabulary, its evaluator and its authoring surface — a language design project,
+and one Infinite Worlds only got right after years of real authored worlds to
+design against. We have no such corpus, and designing an expression language
+against imagination produces one nobody can use. What follows is therefore the
+shape to preserve room for, not a 1.0 feature list.
+
 So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
@@ -228,7 +237,21 @@ extension": authored rules. Concretely:
   [06 A2](06-open-questions.md) to "packages may ship rules, never code."
 
 The rule vocabulary itself is [06 C7](06-open-questions.md);
-[09 §3](09-infinite-worlds.md) proposes a starting point.
+[09 §3](09-infinite-worlds.md) proposes a starting point for when it is designed.
+
+**What 1.0 owes the deferral** — the two things that would make the tier
+impossible to add later rather than merely absent:
+
+- **`owner` accepts a package id**, not only a mode or extension id, from the
+  first channel definition written. Widening that field later is a migration
+  over every stored channel.
+- **Effects apply through one path** — model-proposed, engine-computed and
+  authored-rule effects all land as `ChannelEffect`s in the turn record. If rules
+  ever need a private application path, the tier was bolted on rather than
+  designed for, and reversibility ([10 §2](10-branching.md)) stops holding
+  uniformly.
+
+Both are free now. Neither is a rule engine.
 
 ### 4.2 When a channel's schema changes under a live session
 
@@ -426,10 +449,17 @@ interface StepDefinition {
   reads: (ChannelId | "history" | "output")[]
   writes: ChannelId[]
   contributes?: "blocks" | "effects" | "messages"
-  when: Predicate                 // conditions, cadence ("every 8 turns"), user-armed
+  when: StepCondition             // cadence ("every 8 turns"), stage flags, user-armed
   failure: "abort" | "warn" | "ignore"
 }
 ```
+
+**`StepCondition` is deliberately not an expression language.** At 1.0 it is a
+small closed set — a cadence, a stage flag, an explicit arm by the user — and
+`StepDefinition` is internal ([13 §10](13-schemas.md)) rather than portable, so it
+is free to grow later. Naming it separately from the authored-rule vocabulary
+matters, because the tempting move once rules arrive is to let steps take rule
+predicates, and that quietly makes an internal shape depend on a portable one.
 
 Two additions from [09](09-infinite-worlds.md), both recorded as open questions
 rather than folded in above:
@@ -713,7 +743,10 @@ injected, and difficulty fragments are written to reference it.
 Schema in [13 §7.1](13-schemas.md). The shape in brief: a short always-injected
 `statement`, an optional fuller `detail` for steps, a `visibility` that makes
 hidden goals the GM's arc through the same mechanism as hidden channels, and a
-`completion` that is narrative, mechanical or manual.
+`completion` that is narrative or manual. Mechanical completion — computed from
+channel state — needs the authored-rule vocabulary and arrives with it at 2.0
+([15 §0.4](15-work-plan.md)), alongside Campaign, which is where it earns its
+place.
 
 **Progress is a channel** (§4), which settles how it is maintained without a new
 mechanism: `update: "model-proposed"` in Freeform, where there is nothing to

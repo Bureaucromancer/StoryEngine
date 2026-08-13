@@ -81,6 +81,15 @@ author *declare a variable* but not *state a rule about it*. Declaring
 "Corruption: 0–100, purple, pinned" is a fraction of the way to "when corruption
 reaches 50, change the objective and swap in a different instruction block".
 
+**Scheduled for 2.0, not 1.0** ([15 §0.4](15-work-plan.md)) — and this document
+is the reason why, in both directions. It makes the case for the tier, and it
+also records that IW ran on triggers and tracked items for years before adding
+PawScript (§6), designing that language against a corpus of real authored worlds.
+Building the vocabulary first, with no corpus, would be taking IW's destination
+without its route. What 1.0 keeps is the room: `owner` accepting a package id,
+and one application path for all effects
+([03 §4.1](03-modes-and-turn-pipeline.md)).
+
 ### 2.1 Why this is safe, and how it resolves an open question
 
 [06 A2](06-open-questions.md) asks whether a package may ship code, and leans no,
@@ -351,11 +360,11 @@ thing that comes from retrofitting.
 
 | Change | Where | Size |
 |---|---|---|
-| Add authored rules as a third extensibility tier | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding |
+| Add authored rules as a third extensibility tier — **2.0** ([15 §0.4](15-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
 | "Packages may ship rules, never code" resolves A2 | [06 A2](06-open-questions.md) | Clarification |
 | Channels declarable by authors, not only modes | [03 §4](03-modes-and-turn-pipeline.md) | Moderate |
 | Steps may suspend for player input | [03 §6](03-modes-and-turn-pipeline.md) | Moderate — new C5 |
 | Name the evaluate-before-narrate pattern | [03 §6](03-modes-and-turn-pipeline.md) | Small |
 | Add a mutable Objective block | [02](02-data-model.md), [03](03-modes-and-turn-pipeline.md) | Small |
-| One expression language for templates and rules | [03 §5](03-modes-and-turn-pipeline.md), [07](07-tech-stack.md) | Decision |
+| One expression language for templates and rules — **decided when rules are** | [03 §5](03-modes-and-turn-pipeline.md), [07](07-tech-stack.md) | Decision, deferred with §2 |
 | Per-actor knowledge scope as an acceptance test | [08 §6.3](08-triage.md) | Test, not feature |

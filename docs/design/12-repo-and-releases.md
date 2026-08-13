@@ -32,10 +32,12 @@ rather than negotiable, and it puts the argument about whether something ships
 **It is also only half the bar.** The other half is release engineering —
 build chains, release automation, and workflows stable enough that shipping is
 repeatable rather than an event. That belongs *in* the beta gate rather than
-after it. One piece is already settled: the canonical build must deliver all six
-packaging artifacts ([04 §5.4](04-server-multiuser-deployment.md)) for beta to
-count as feature-complete. The rest is sketched pending expansion in
-[15 §7](15-work-plan.md).
+after it. One piece is settled: the canonical build must deliver **the OCI image
+and the tarball** ([04 §5.4](04-server-multiuser-deployment.md)) for beta to
+count. The other four packaging artifacts moved to the 1.0 bar
+([15 §0.4](15-work-plan.md)) — enough to have users is the beta test, and four
+more build chains is work that reads as progress while delaying the thing being
+packaged. The rest is sketched pending expansion in [15 §8](15-work-plan.md).
 
 Two consequences worth naming:
 

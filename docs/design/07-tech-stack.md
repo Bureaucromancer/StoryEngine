@@ -172,6 +172,41 @@ setup-flow convenience over eight independent bindings. The convenience reading
 is simpler and probably right; the tier reading makes "use the cheap one for
 this" expressible without knowing which roles are involved.
 
+#### The policy, not just the mechanism
+
+The bindings above are the mechanism. The policy is worth stating separately,
+because a new step has to inherit it by default rather than deciding for itself:
+
+> **The expensive model writes. Everything else uses the cheap one.**
+
+`prose` is for narration — the thing the user reads and judges the product by.
+Nearly everything else in this design *judges, extracts or classifies*, and that
+list has grown long enough that the default matters:
+
+| `fast` work | Where |
+|---|---|
+| Summarisation | [06 E1](06-open-questions.md) |
+| Extraction and world-state classification | [03 §6](03-modes-and-turn-pipeline.md) |
+| Plot-hook selection | [03 §6.1](03-modes-and-turn-pipeline.md) |
+| Mention resolution, where it is model-assisted | [03 §8.2](03-modes-and-turn-pipeline.md) |
+| Goal completion judgement | [03 §7.3.3](03-modes-and-turn-pipeline.md) |
+| Continuity checking | [11 §2c.2](11-roadmap.md) |
+| Field assists and the assistant | [05 §7](05-ui-surfaces.md), [05 §11.1](05-ui-surfaces.md) |
+
+Several of those run **every turn**. Bound to `hi` by accident, they would
+multiply a session's cost several times over for no perceptible gain, and the
+user would experience it as *"this app is expensive"* without ever seeing why.
+The turn record itemises cost per call ([05 §3](05-ui-surfaces.md)), so the
+mistake is at least visible — but it is much better not made.
+
+**Two caveats, so this does not become dogma.** Evaluation before narration
+([09 §4.3](09-infinite-worlds.md)) decides *what happens* rather than how it
+reads, and a mode with real mechanics may reasonably bind it higher. And a
+`fast` binding pointed at a genuinely poor model produces bad extraction, which
+surfaces as bad state rather than bad prose and is therefore harder to diagnose —
+which is an argument for the first-run flow asking for two *usable* models, not a
+good one and whatever is free.
+
 ### 5.2 No embedded model runtime
 
 **Local models are supported as connections. They are never embedded in the
@@ -364,6 +399,32 @@ ordinary, not architectural, *provided* the extension-UI decision holds.
   than the pure-JS alternatives for a server generating them on ingest.
   (SillyTavern uses `jimp`, presumably to stay native-dependency-free; a server
   can afford `sharp`.)
+
+### 7.1 Turn text in the index is a feature, not a side effect
+
+The FTS5 line above says *"cards, entries and turn text"*, and the third of those
+was written as though it were free capacity. It is the more valuable one:
+searching your own story is the thing people want most and none of the three
+sources does well ([05 §14](05-ui-surfaces.md)).
+
+Three consequences for the index, all cheap now and awkward later:
+
+- **Index turn text on write**, as part of the same incremental pass that indexes
+  library objects. A search that only works after a manual reindex is a search
+  nobody trusts.
+- **Store the turn id and the session id**, not an offset into a rendered
+  transcript. Reading order comes from a tree walk ([02 §5.5](02-data-model.md))
+  and offsets into it are not stable across branching.
+- **Records off the current path stay indexed**, because they are still real
+  history — but a hit on an abandoned branch must be *labelled* as one. The
+  branch-awareness rule in [10 §7](10-branching.md) already says library search
+  must not surface content from a discarded line as though it were current; this
+  is the same rule for turn search, and the honest resolution is to show it with
+  its branch rather than to hide it.
+
+None of this is work beyond what indexing turn text already implies. It is worth
+stating because the natural shortcut — index the current path only, rebuild
+lazily — produces a search that quietly loses the thing you were looking for.
 
 ---
 
@@ -582,11 +643,39 @@ on first login and overridable in settings. Cheap now; a migration later.
   untranslatable and always slightly wrong.
 - **No string concatenation to build sentences.** `"Deleted " + n + " entries"`
   cannot be translated into a language with different word order. One key, one
-  full sentence, with parameters.
-- **Extraction is a build step, not a discipline.** A key that only exists in
-  source but not in the English catalog is a bug; CI should fail on stale
-  extraction. It should **never** fail on missing translations in other
-  languages — that is the normal state, per §12.1.
+  full sentence, with parameters. **This is the one that is genuinely
+  unretrofittable** — see §12.6a.
+- **No user-visible string in logic.** Nothing branches on displayed text and
+  nothing uses it as a key. Cheap to hold, and it is what keeps a later
+  extraction pass mechanical.
+
+#### 12.6a What is actually unretrofittable, and what only feels like it
+
+Scoped down deliberately ([15 §0.4](15-work-plan.md)). Full i18n ceremony from
+the first component is a real ongoing tax on a solo developer whose only planned
+translation is one bad machine-generated French pass, and paying it from commit
+one buys less than it appears to.
+
+The distinction that matters is between a **habit** and a **task**:
+
+| | Cost if deferred |
+|---|---|
+| Concatenated sentences, strings in logic, `margin-left`, hand-rolled relative time | **A rewrite.** Every component that did it has to be reworked, and nothing flags them. |
+| Wrapping strings in `t()`, the catalogue, the key hierarchy, extraction in CI | **The work itself.** Mechanical, greppable, and done once. |
+
+The first row stays on the day-one checklist ([15 §2](15-work-plan.md)) and is
+non-negotiable. **The second becomes a pre-beta sweep**, run as its own task
+against a codebase that never concatenated — which is exactly the codebase the
+first row guarantees.
+
+This holds nearly all the value and drops most of the cost. It also fails
+honestly if it fails: an un-extracted string is visible, findable and fixable,
+whereas a concatenated one is invisible until a translator hits it.
+
+- **Extraction is a build step once it exists.** From the sweep onward, a key in
+  source but not in the English catalogue is a bug and CI fails on stale
+  extraction. It must **never** fail on missing translations in other languages —
+  that is the normal state, per §12.1.
 
 ### 12.7 What not to translate, and one warning
 

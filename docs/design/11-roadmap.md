@@ -236,6 +236,107 @@ channel library and incremental world generation for Campaign
 
 ---
 
+## 2c. Continuity checking, and the story bible
+
+Two roadmap features that belong together: one derives what a session has
+established, the other checks the story against it. Both are direct applications
+of [00 §3.6](00-stance.md) — *the engine's understanding is visible, and
+correctable* — and both are readers over data 1.0 already records, which is what
+keeps them additive.
+
+### 2c.1 The story bible
+
+**A derived view of what a session has established**, separate from its prose.
+Who exists and what is known about them, what state the channels hold, which lore
+entries have fired and when, which goals were completed and where.
+
+Nothing here is new data. Actors and their presence come from
+[03 §8.1](03-modes-and-turn-pipeline.md); established facts come from extraction
+steps whose output already lands as channel effects; lore activation history is
+in every turn record ([02 §8](02-data-model.md)); the goal chain is in its own
+channel ([03 §7.3.4](03-modes-and-turn-pipeline.md)). **The bible is a reader**,
+in the same sense that the workbench is a reader — which is why it is cheap and
+why it was worth designing the record to be complete.
+
+Two reasons it earns a place rather than being a nicety:
+
+- **People already do this by hand.** The spreadsheet-beside-the-session is a
+  well-known habit in long-form RP, and it exists because the information is
+  genuinely scattered and genuinely needed. Software that has all of it and shows
+  none of it is leaving the obvious on the table.
+- **It is the appendix to the reading view** ([05 §12](05-ui-surfaces.md)). One
+  answers *what happened*, the other *what is true*, and a long story wants both.
+
+**Where it must not go:** the bible is derived, never authoritative. Editing it
+means editing the thing underneath — a channel, an actor, a lore entry — not
+writing to a parallel store. A bible that could drift from the session it
+describes would be [00 §2.8](00-stance.md)'s derived-data-persisted-as-truth
+failure in a new costume.
+
+### 2c.2 Continuity checking
+
+**An advisory step that reads recent turns against established state and flags
+contradictions.** *"Turn 12 says Vera's eyes are green."* *"Kell was marked dead
+at turn 88."* *"The Foundry was described as abandoned."*
+
+Contradiction is the most-complained-about failure in long-form play, and the
+important thing about it is that **it is not preventable, but it is checkable.**
+No amount of context management stops a model from changing an eye colour four
+hundred turns later; what is available is noticing.
+
+The shape, and every piece of it exists:
+
+- **A `fast`-role step** at `post`. The cheap-model principle
+  ([07 §5.1](07-tech-stack.md)) applies squarely: this runs often and judges
+  rather than writes.
+- **Reads recent turns plus channel state plus activated lore** — precisely what
+  `StepDefinition.reads` already declares
+  ([03 §6](03-modes-and-turn-pipeline.md)).
+- **Emits notices, never effects.** It does not correct anything. It cannot
+  correct anything; a checker confident enough to rewrite the story would be
+  worse than the problem.
+- **Surfaced where the subject lives** — a character contradiction on the cast
+  panel ([05 §13.2](05-ui-surfaces.md)), a world contradiction as a notice. And
+  dismissible, permanently, per notice: **the author is allowed to contradict
+  themselves on purpose**, and a checker that cannot be told *"yes, deliberately"*
+  becomes noise within an hour.
+
+**Why roadmap rather than 1.0.** It wants long real sessions to tune against —
+the false-positive rate is the entire question, and there is no way to know it
+without a corpus. Shipping a noisy version early would teach people to ignore it,
+which is the one outcome that cannot be undone. **It obliges 1.0 to** record
+extraction output as channel effects rather than as prose, which is already the
+rule, so the debt is nil.
+
+**The pairing is the point.** The bible is what continuity is checked *against*;
+continuity checking is what makes the bible more than a curiosity. Neither is
+worth much alone, and together they are the strongest available answer to the
+genre's most common complaint.
+
+### 2c.3 Lorebook extraction: closing the play-to-authoring loop
+
+Two thirds of this loop already exist. A running session can emit a **Setup**
+([13 §7](13-schemas.md)), and a session-local actor can be promoted to the
+library ([02 §2.3](02-data-model.md)). The missing third is **extracting a
+lorebook from what a session established** — the places visited, the people met,
+the things decided.
+
+It is the natural output of §2c.1: once the bible exists, "make this a lorebook"
+is a selection and a write rather than a new mechanism.
+
+Both existing halves set the pattern this must follow: **offered, never
+automatic, and reviewed before it lands.** Marinara's own conclusion about
+auto-promotion applies unchanged — a session tried once and abandoned must leave
+nothing behind ([02 §2.3](02-data-model.md)) — and an extractor that silently
+wrote lore entries would be the mention-resolution failure
+([05 §13.1](05-ui-surfaces.md)) at a larger scale.
+
+*Play a session, keep the world* is the whole pitch, and it is the answer to
+something the sources handle badly: worlds currently have to be authored before
+they can be played in, when in practice they are discovered while playing.
+
+---
+
 ## 3. Other deferred items
 
 Already deferred in their own documents; listed here so the roadmap has shape.
@@ -283,6 +384,10 @@ Before anything else, work out which tier the idea belongs to
 - **Authored rules** — declarative conditions and effects over channels, shipped
   as data inside a package. No installation, no code review, no AGPL obligation
   ([08 §1.2](08-triage.md)), works for anyone who imports the package.
+  **Arrives at 2.0** ([15 §0.4](15-work-plan.md)), so until then everything below
+  that would have been rules is a code extension — which is worth knowing before
+  starting, and is also the best available evidence for what the vocabulary
+  should eventually contain.
 - **Code extension** — a real module with steps, channels and widgets. More
   power, more responsibility, must be AGPL, must be installed deliberately.
 

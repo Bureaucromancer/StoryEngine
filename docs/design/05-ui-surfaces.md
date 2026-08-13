@@ -282,6 +282,43 @@ Where it should differ:
   what went to `compat`, what resolved, what dangled, and let the user fix it
   before committing.
 
+### 5.1 Eight kinds is a lot to arrive at
+
+Worth stating as a presentation position, because the data model does not solve
+it and pretending otherwise is how it gets ignored.
+
+[02 §1](02-data-model.md) defines eight persistent kinds. Someone arriving from
+SillyTavern has priors for exactly two of them — a character card and world info
+— and no prior at all for Setting, Setup, Preset or Package. Every one of those
+splits is *correct* and none should be undone; the Setting/Setup split in
+particular is what Marinara's own scenario design identified and never built
+([13 §7](13-schemas.md)). But correct is not the same as learnable, and "one
+surface with a kind filter" helps someone *browse* eight kinds without helping
+them *understand* eight kinds.
+
+**Present three, reveal the rest:**
+
+| Presented as | Actually | Why |
+|---|---|---|
+| **Actor** | Actor | Already familiar. Personas and NPCs are flags, so there is nothing extra to explain ([02 §2.2](02-data-model.md)). |
+| **World** | Setting, and the lorebooks it links | The pairing people already hold in their heads. The link structure surfaces when they open it. |
+| **Game** | Setup | *"How to start playing"* is a thing people want a name for and currently do not have one for. |
+
+**Preset and Package are advanced surfaces**, reached deliberately. A preset is
+a thing you acquire, not a thing you make on day one; a package is transport, and
+transport should appear at the moment you export rather than sit in the way
+beforehand.
+
+**The distinction that has to survive** is Setting versus Setup, since it is the
+one doing real work: *Rain City* is a world, *The Fixer's Debt* is a game played
+in it, and one world carries many games. The way to teach it is not a label — it
+is the moment a second Setup appears under a World the user already has, which
+makes the relationship self-evident and needs no explanation at all.
+
+**What this is not:** a data model change, and not a merged type. The
+presentation collapses; the storage, the schemas and the export boundaries do
+not.
+
 ---
 
 ## 6. Setup flows
@@ -660,6 +697,11 @@ Two features, and they are the same feature seen from two angles. Both have an
 obvious convenience justification and a better diagnostic one, and the
 diagnostic is what earns them a place at 1.0.
 
+Together with the workbench they are the three instances that made
+[00 §3.6](00-stance.md) a stated principle rather than three coincidences — *the
+engine's understanding is visible, and correctable*. What follows is that
+principle applied to identity and presence.
+
 **The observation behind both:** in Aventuras the bookkeeping layer gets
 character identity wrong in ways the *model* usually gets right — one NPC
 recorded several times, or several treated as one. That asymmetry is the useful
@@ -803,3 +845,79 @@ it:
 Read-only, the panel is a complaint the user cannot act on. Editable, it is the
 repair surface for exactly the failures §13.1 makes visible — which is why the
 two belong in one section rather than as unrelated features.
+
+---
+
+## 14. Searching your own story
+
+**Find the moment.** *"Where did I first meet Vera."* *"What did she say about
+her brother."* *"That inn, four sessions ago."*
+
+Over six hundred turns this is the single most common thing a person wants from
+their own history, and none of the three sources answers it well — SillyTavern
+has no session search at all, and scrolling is the interface. It is also, given
+this architecture, close to free: turns are on disk, the index is derived and
+rebuildable, FTS5 is already in the stack for library search
+([07 §7.1](07-tech-stack.md)), and the tree walk already produces reading order.
+
+**Argued for 1.0** on the grounds that it is small, that it is a differentiator
+on a dimension nobody competes on, and that the alternative — scrolling a
+six-hundred-turn transcript — is the experience it exists to prevent.
+
+### 14.1 Two scopes, one surface
+
+- **Within a session.** The common case. Results as a list of turns with a
+  snippet, jumping to that point in the transcript or the reading view (§12).
+- **Across all your sessions.** *"Which story had the lighthouse in it?"* Less
+  frequent, more delightful, and the same query with a wider scope.
+
+Filters that fall out of data already recorded, at no extra cost: by speaker,
+by input kind (`do` / `say` / `story`), by date range, and by whether the hit is
+on the current path.
+
+### 14.2 Branch hits are shown, and labelled
+
+The one genuinely tricky part, and the answer follows an existing rule rather
+than a new one.
+
+Abandoned branches are still real history — [10 §6](10-branching.md) makes
+discarded swipes permanently recoverable, which is a feature none of the sources
+offers, and a search that pretends they do not exist throws it away. But
+[10 §7](10-branching.md) is equally clear that content from a discarded line
+must not surface as though it were current.
+
+**So: hits off the current path are returned, visually distinguished, and
+labelled with where they live** — *"on a branch you left at turn 214"* — with the
+default filter set to the current path and one click to widen. Hiding them loses
+real answers; showing them undifferentiated produces the worse failure of
+someone acting on something that never happened in their story.
+
+### 14.3 Why this and not embeddings
+
+[06 E2](06-open-questions.md) puts semantic retrieval post-1.0 and aims it at
+cross-session memory rather than at lorebooks. Text search is the complement, not
+a lesser version of it:
+
+- **The query is usually lexical.** People search for the name, the place, the
+  phrase they remember. That is exactly what FTS is good at, and "cosine 0.71" is
+  no more actionable here than it was there.
+- **It is verifiable.** A hit contains the words you typed. A semantic near-miss
+  cannot be distinguished from a semantic hit without reading everything, which
+  is the problem you were trying to solve.
+- **It costs no provider.** No embedding model, no re-embedding on edit, no
+  network dependency, nothing to configure. It works on a disconnected LAN
+  server on first boot.
+
+If embeddings arrive, they extend this surface rather than replacing it — the
+same results list, one more retriever behind it.
+
+### 14.4 What it is not
+
+- **Not a replacement for memory.** Search is what *you* do; summarisation and
+  retrieval are what the *engine* does ([06 E1](06-open-questions.md),
+  [14](14-cross-session-memory.md)). They meet at the index and nowhere else, and
+  a search result never enters a prompt because a search happened.
+- **Not full-corpus search over other people's libraries.** Per-user scoping
+  ([04 §4.3](04-server-multiuser-deployment.md)) applies unchanged; the system
+  library is searchable because it is readable, and another account's sessions
+  are neither.
