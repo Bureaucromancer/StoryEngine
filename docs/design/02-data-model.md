@@ -954,12 +954,13 @@ interface Session {
   origin: Provenance              // which Setup/version seeded this. Provenance only — a dead link.
 
   cast: {
+    /** The one static member. Chosen at setup; changing it is an explicit act
+     *  rather than an outcome of play, so it needs no per-node history. */
     persona: ActorId
-    party: PartyMember[]
-    narrator: ActorId | null
-    // No `present` list. Presence and status are channels — `se.presence`,
-    // `se.status` — so they reconstruct per node and branch correctly.
-    // [03 §8.1]
+    // Party, control and narrator are NOT here. Like presence and status they
+    // change as a result of turns, so they are channels — `se.party`,
+    // `se.narrator` — reconstructed per node and branching correctly.
+    // [03 §8, 03 §8.1]
   }
   localActors: Actor[]
   lore: Ref<Lorebook>[]
@@ -1044,7 +1045,7 @@ interface Turn {
   }
 
   output: { text: string; reasoning?: string; toolCalls: ToolCall[] }
-  effects: ChannelEffect[]       // proposed and applied state changes, individually reversible
+  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [18 §1.2.1]
   /** Resolved actor mentions in `input.text` and `output.text`, as an overlay.
    *  The text itself is never rewritten with markup. [03 §8.2, 05 §13.1] */
   mentions: MentionSpan[]

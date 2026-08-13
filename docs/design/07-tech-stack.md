@@ -452,8 +452,12 @@ Given the threat model in [04 §4.1](04-server-multiuser-deployment.md):
 - **`scrypt` from `node:crypto`.** No native dependency, in the standard library,
   and what SillyTavern uses. argon2id is marginally better and costs a native
   module; not worth it here.
-- **httpOnly, SameSite=Lax signed session cookie**, with session records in the
-  index database.
+- **httpOnly, SameSite=Lax signed session cookie.** Session records go in the
+  **operational store**, not the index ([18 §5.1](18-internal-contracts.md)) — an
+  earlier draft put them in the index, which is defined as deletable without
+  consequence, and logging every user out is a consequence. Signed stateless
+  cookies plus a revocation denylist avoid the table entirely and are probably
+  the right answer at household scale.
 - **CSRF token on state-changing routes.**
 - **One audited path-resolution helper** used by every filesystem-touching route
   — the single most important piece of security code in the project, per

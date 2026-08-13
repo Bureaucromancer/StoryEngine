@@ -32,13 +32,23 @@ failure is a well-meaning extension with a bug, not an attacker. It is also the
 part that shapes the API — async, serialisable, declared reads — and that shape
 is what cannot be retrofitted.
 
-Authority isolation is deferrable because the threat model is weaker than it
-looks: extensions are **AGPL, so source-available** ([08 §1.1](08-triage.md)),
-and **admin-installed** ([06 A1](06-open-questions.md)). That is not "arbitrary
-code from the internet"; it is code an operator chose, whose source they can
-read. Deferring it is a judgement about *this* threat model, not an oversight —
-and tightening later is additive, because it removes reachability without
+Authority isolation is deferrable because of one property, not two:
+**extensions are admin-installed** ([06 A1](06-open-questions.md)). Installing
+one is a deliberate act by the operator, on the same footing as anything else
+they choose to run on that box. Deferring is a judgement about *that* threat
+model, and tightening later is additive — it removes reachability without
 changing the interface.
+
+**The licence is not part of this argument**, though an earlier draft counted it.
+Extensions being AGPL and therefore source-available ([08 §1.1](08-triage.md))
+means auditable *by someone who audits*, which is not a control and stops
+nothing on its own. Treating source availability as mitigation is a common and
+comfortable error, and it would let the deferral look better-supported than it
+is. One reason, honestly stated, is worth more than two where one is decorative.
+
+**And "fault isolation" is the whole of what this buys.** §4.0 spells out what a
+worker does not stop, because the gap between *fault-separated* and *sandboxed*
+is exactly where this decision could be misread.
 
 ---
 
@@ -130,17 +140,59 @@ interface HostApi {
 }
 ```
 
-Three properties worth stating explicitly:
+Three properties worth stating explicitly — **and stating precisely**, because an
+earlier draft of this list claimed more than §2 delivers:
 
-- **No connection or credential ever crosses.** An extension asks for a call by
-  *role*; the host resolves the connection and executes it
-  ([07 §5.1](07-tech-stack.md)). This was already the rule and the boundary now
-  enforces it structurally rather than by convention.
-- **No direct library writes.** `propose` returns something reviewable
-  ([03 §7.4](03-modes-and-turn-pipeline.md)).
-- **Randomness comes from the host.** Which finally makes
-  [07 §14.4](07-tech-stack.md)'s "self-policing under test" into "impossible to
-  get wrong" — an extension in a worker cannot reach an unrecorded source.
+- **No connection or credential is *passed* across.** An extension asks for a
+  call by *role*; the host resolves the connection and executes it
+  ([07 §5.1](07-tech-stack.md)). Credentials are not in the worker's payload.
+- **No direct library writes *through this API*.** `propose` returns something
+  reviewable ([03 §7.4](03-modes-and-turn-pipeline.md)).
+- **Randomness is *provided* by the host**, which makes
+  [07 §14.4](07-tech-stack.md)'s replay-determinism check pass for free when an
+  extension uses it.
+
+### 4.0 What a worker does not stop
+
+The earlier phrasing — "`HostApi` is the only way out", "an extension in a worker
+cannot reach an unrecorded source" — was wrong, and wrong in the direction that
+matters. §2 already says authority isolation is deferred; this list must not
+quietly take it back.
+
+**A Node worker thread is not a sandbox.** It can `require('node:fs')`,
+`node:net` and `node:crypto`; it receives a copy of the environment; and an
+out-of-memory condition can still take the whole process down. Those are
+documented properties of `worker_threads`, not gaps in our usage of it.
+
+So the honest description is **fault-separated, not sandboxed**, and the
+vocabulary matters because the wrong word invites the wrong deployment
+behaviour. Concretely, until real authority isolation exists
+([§10](#10-still-open)):
+
+- **Workers are for built-in modes and extensions an operator has chosen to
+  trust.** They buy crash, hang and runaway-loop containment — which is the
+  realistic failure ([§2](#2-two-isolations-which-get-bundled-and-should-not-be)) — and nothing more.
+- **Third-party extension code is administrator-trust code**, equivalent to
+  anything else the operator installs on the box, and its bundled dependencies
+  are too.
+- **No one-click remote install.** Installation stays a deliberate act with the
+  source available to read, and the installer says plainly what trust is being
+  extended rather than implying a boundary that is not there.
+- **`HostApi` is the *supported* surface, not the only reachable one.** An
+  extension that goes around it is misbehaving rather than prevented — the same
+  status as a built-in module that ignores its own contract.
+
+**And AGPL is not a supply-chain control.** [§2](#2-two-isolations-which-get-bundled-and-should-not-be)
+leans on extensions being source-available and admin-installed as part of why
+deferring authority isolation is defensible. Source-available means auditable by
+someone who audits; it stops nothing on its own, and it should not be counted as
+mitigation. The defensible half of that argument is *admin-installed*; the
+licence half should be dropped from the reasoning.
+
+Real isolation, when it comes, is a **separate process with a stripped
+environment and OS-level filesystem and network restriction** — not a stricter
+worker. That is [§10](#10-still-open)'s open item, and it is now the item that
+carries the word "sandbox".
 
 ### 4.1 Built-ins go through the same boundary
 

@@ -115,17 +115,50 @@ type EffectOp =
 
 #### 1.2.1 Why `before` is stored rather than derived
 
-It looks redundant — the previous state is replayable — and storing it is what
-makes three separate things cheap:
+It looks redundant — the previous state is replayable — and storing it makes
+three things cheap:
 
-- **Undo is local.** Inverting turn N means applying `before`, not replaying
-  0..N-1. [00 §2.8](00-stance.md) promises exactly this in place of Aventuras'
-  hand-maintained `PersistentRetryState`.
+- **Undoing the tip is local.** Reverting the newest turn means applying
+  `before`, not replaying 0..N-1. [00 §2.8](00-stance.md)'s promise, in place of
+  Aventuras' hand-maintained `PersistentRetryState`.
 - **The workbench can show a diff** without materialising two full states.
 - **A snapshot disagreement is diagnosable.** [10 §4](10-branching.md) requires
   CI to assert replay-from-zero equals snapshot-plus-replay; when that fails,
   `before`/`after` pairs say *which effect* diverged rather than only that the
   end states differ.
+
+##### `before` does not give arbitrary historical undo
+
+An earlier draft of this section claimed it did — *"inverting turn N means
+applying `before`"* — and that is wrong for any N that is not the tip.
+
+> HP goes `10 → 8` at turn N. Later it goes `8 → 5`. Applying turn N's
+> `before: 10` at the current head does not undo turn N; it destroys the later
+> change and produces a state no turn ever wrote.
+
+The general rule: **`before` is only a valid inverse when nothing has touched
+the same path since.** Blind application is a silent corruption, and silent is
+the operative word — the value is plausible, so nothing surfaces.
+
+**Two operations, and they are genuinely different:**
+
+| | Mechanism |
+|---|---|
+| **Undo the tip** | Apply `before`. Local, O(1), what the undo button does. |
+| **Change something further back** | **Branch and replay** ([10 §3](10-branching.md)) |
+
+The second is not a limitation to apologise for — it is the design's existing
+answer. "Go back to turn N and do it differently" is a pointer move plus new
+turns, which is cheaper *and* more honest than mutating history in place: the
+original line survives, both are readable, and nothing is destroyed. A tree
+model that also offered destructive historical edit would be offering a worse
+version of what it already does well.
+
+**So the implementation rule:** applying an inverse requires the effect to be at
+the tip for its `(channelId, scopeKey, path)`. If it is not, the operation is
+refused and the branch path is offered instead. That check is cheap — the index
+knows the latest effect per path — and it converts a silent corruption into a
+UI affordance.
 
 *Cost:* effects grow with the state they touch, and a `merge` over a large object
 stores a large `before`. Bounded by scoping `before` to the touched keys — hence
@@ -377,6 +410,32 @@ what must be true of it.
   and rows off the current path stay indexed but carry their branch
   ([05 §14.2](05-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
+
+### 5.1 Operational state is not derived, and must not live in the index
+
+The index's defining property is that deleting it costs time and nothing else.
+Anything for which that is false does not belong in it — and three things had
+been put there or implied into it:
+
+| State | Why it is not derived |
+|---|---|
+| **Auth sessions** | [07 §9](07-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
+| **Notification inbox** | "Persist until seen" ([04 §3.2](04-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
+| **Jobs and idempotency keys** | A turn in flight, and the keys that stop a retry charging twice, are facts about work — not restatements of anything on disk. |
+
+**So: a small operational store, separate from the index**, at
+`/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
+rebuildable — which is exactly why keeping it out of the index matters. Both are
+SQLite; the distinction is what happens when you delete them.
+
+**Auth may not need it at all.** Signed stateless cookies with a short lifetime
+and a server-side revocation list ([07 §9](07-tech-stack.md)) reduce this to a
+small denylist rather than a session table, which is the cheaper answer for a
+household. The store is still wanted for jobs and notifications.
+
+The general rule, since the operational surface will grow: **if losing it would
+surprise a user, it is not derived.** The index holds restatements of what is on
+disk; anything else has its own home.
 
 ---
 

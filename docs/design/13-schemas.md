@@ -188,12 +188,24 @@ type MediaRole =
 
 /** Media carried *inside* the card envelope. Bounded by policy — bulk galleries
  *  and video live in the folder as `assets`. */
+/** A *reference* to bytes carried by the container, never the bytes themselves.
+ *  An earlier draft had `bytes: Uint8Array`, which has no representation in
+ *  JSON Schema and no meaning at all inside a `.sepack`, where there is no PNG
+ *  chunk to point at. The manifest form works in every container: a PNG private
+ *  chunk, a zip entry, or a folder. */
 interface EmbeddedMedia {
   id: string
   role: MediaRole
   mime: string
-  /** Raw bytes in the container's binary chunk. Not base64. */
-  bytes: Uint8Array
+  /** Content hash of the bytes — `sha256:<hex>`. The identity of the blob, and
+   *  what makes duplicate media across a package store once. */
+  digest: string
+  bytes: number
+  /** Where the container keeps it. A PNG chunk blob index, a zip entry path, or
+   *  a path relative to the object's folder — the container decides, and the
+   *  reader resolves it through the same envelope interface
+   *  ([02 §5.2](02-data-model.md)). */
+  ref: string
   label?: string
   width?: number
   height?: number
@@ -264,7 +276,7 @@ interface Actor {
   compat: Record<string, unknown> | null
 }
 
-type ActorRole = "persona" | "narrator"     // extensible
+type ActorRole = "persona" | "narrator" | (string & {})   // genuinely open
 
 interface ActorProfile {
   /** Structured appearance, for image pipelines. A real field, not a section:
@@ -359,10 +371,19 @@ interface Lorebook {
 /** One mechanism, three behaviours, mutual exclusion by construction. Replaces
  *  characterId + characterIds + personaId + personaIds + chatId + isGlobal +
  *  scope, and the save-time rule that kept them consistent. [02 §3.4] */
+/** Portable scopes only. `global` and `linked` travel — an actor id is portable
+ *  and resolves or dangles like any other Ref ([00 §3.3](00-stance.md)). */
 type LoreScope =
   | { kind: "global" }
   | { kind: "linked"; actorIds: string[] }    // personas are actors
-  | { kind: "session"; sessionIds: string[] }
+
+// Session scoping is NOT here. Session ids are install-local, so a shared
+// lorebook carrying them exports identifiers that are meaningless everywhere
+// else — noise on import at best, and a false resolution against an unrelated
+// local session at worst. "This lorebook applies to this session" is a fact
+// about the *session*, so it lives on the session's own lore links
+// ([02 §8](02-data-model.md)), pointing outward at the lorebook rather than the
+// lorebook pointing inward at the session.
 
 interface LoreFolder {
   id: string
@@ -920,10 +941,21 @@ type Placement =
    *  modern presets depend on — §8.4.2. */
   | { at: "in-history"; fromEnd: number; tiebreak?: number }
 
+/** Open. Modes declare their own kinds, and a preset written for a mode you do
+ *  not have must still round-trip rather than failing validation on a string
+ *  this build has not heard of. */
 type CallKind =
   | "narrate" | "impersonate" | "continue" | "group-nudge"
   | "session-start" | "example" | "utility"
+  | (string & {})
 ```
+
+**Two unions were labelled extensible and defined closed** — this one and
+`ActorRole` ([§4](#4-actor)). In TypeScript the comment was aspirational; in the
+emitted JSON Schema it was a hard `enum`, which would have rejected a perfectly
+good file from a newer build. Both are now genuinely open, and the rule
+generalises: **a portable enum is a `string` with known values documented, not
+an `enum`, unless the engine truly cannot proceed without understanding it.**
 
 ### 8.3 Budget, and the one placement that costs something
 
@@ -1208,8 +1240,31 @@ interface Package {
   metadata: Record<string, unknown>
 }
 
-type PortableObject = Actor | Lorebook | Setting | Setup | Preset
+/** Open, not closed. The comment above says the package does not enumerate
+ *  kinds; an earlier draft then enumerated them one line later, which meant an
+ *  older reader would reject a package containing a kind it had never heard of
+ *  — exactly the stranding [§2](#2-versioning-and-compatibility) forbids. */
+type PortableObject =
+  | Actor | Lorebook | Setting | Setup | Preset
+  | UnknownPortableObject
+
+/** Any self-describing object this reader does not know. Preserved verbatim,
+ *  round-tripped intact, shown in the import review as "1 object of an
+ *  unrecognised kind (storyengine.campaign/1) — kept, not usable here". */
+interface UnknownPortableObject {
+  schema: string
+  id: string
+  name?: string
+  [key: string]: unknown
+}
 ```
+
+**The container validates the envelope, never the payload kind.** A reader
+checks that each entry has a `schema` and an `id`, resolves what it recognises
+through the registry, and carries the rest through untouched. That is what makes
+Package stable when a new kind appears, and it is the same rule as
+[§2](#2-versioning-and-compatibility)'s unknown-field preservation applied one
+level up.
 
 **No `entry` field.** A package containing one or more Setups is startable, and
 that is the whole mechanism — "start this" is "start that Setup". A package with
@@ -1234,7 +1289,6 @@ warning with a degraded-start option rather than a hard block where possible.
 |---|---|
 | **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [18](18-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
 | **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [18 §1.3](18-internal-contracts.md). |
-| **Preset** | Depends on the assembly design, which is unbuilt. Defining it now would be guessing. |
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 2.0 ([15 §0.4](15-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |

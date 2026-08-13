@@ -191,7 +191,10 @@ The properties that make this worth doing:
   is the fix for [00 §2.6](00-stance.md).
 - **Channel updates are the effects in the turn record**, individually
   reversible, which is the fix for [00 §2.8](00-stance.md) — undo becomes
-  "invert the effects of turn N" rather than a hand-maintained snapshot struct.
+  "invert the effects of the newest turn" rather than a hand-maintained snapshot
+  struct. Reaching further back is branch-and-replay, not inversion — an effect's
+  recorded `before` is only a valid inverse while nothing has touched the same
+  path since ([18 §1.2.1](18-internal-contracts.md)).
 - **`update: "engine-computed"` is where determinism lives.** Marinara is right
   that combat round math is calculated by the engine, not the model, "so results
   stay fair and consistent". Generalised: any channel may declare that the model
@@ -939,10 +942,33 @@ encoding precisely:
 interface PartyMember {
   actorId: ActorId
   control: "player" | "companion" | "auto"
-  joinedAtTurn: number
-  leftAtTurn: number | null       // history is kept; membership is a timeline
+  /** TurnIds, never ordinals. See below. */
+  joinedAtTurn: TurnId
+  leftAtTurn: TurnId | null       // history is kept; membership is a timeline
 }
 ```
+
+**These were numbers, and numbers are wrong here.** [10 §3](10-branching.md)
+states the rule the rest of the design follows — turn ids are stable and opaque,
+never `(branch, index)` — and party membership was quietly keeping ordinals. A
+turn's *position* is not a fact about the turn; it is a fact about a path through
+the tree, and it differs per branch. "Joined at turn 40" resolves to two
+different moments on two lines, so the party would silently diverge exactly where
+branching is supposed to be free.
+
+**And the deeper version: party membership belongs in channels.** Who is in the
+party, who controls whom, and which actor is narrating are *dynamic session
+state that changes as a result of turns* — which is the definition of a channel
+([§4](#4-channels-the-extensibility-mechanism-that-matters)). Keeping them in
+`session.cast` as a separate structure means they do not reconstruct at a node,
+do not appear as effects in the turn record, and do not branch correctly — the
+same three properties §8.1 just established for presence and status.
+
+So `cast` follows presence: **party membership, `control`, and the narrator
+selection are channel state**, keyed by `TurnId` and materialised at head like
+everything else ([02 §8.1](02-data-model.md)). The persona is the one part that
+can stay a plain session field, because it is chosen at setup and changing it
+mid-session is an explicit act rather than an outcome of play.
 
 Design rules:
 

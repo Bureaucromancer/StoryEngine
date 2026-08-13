@@ -7,9 +7,15 @@
 ## 1. The shape of the product
 
 **StoryEngine is a server.** The default install is a long-running process on a
-box on your LAN, bound to `0.0.0.0`, that people reach from browsers on their
-phones, laptops and TVs. There is no desktop app, no bundled Electron shell, and
-no "run it locally and also maybe expose it" ambiguity.
+box on your LAN that people reach from browsers on their phones, laptops and
+TVs. There is no desktop app, no bundled Electron shell, and no "run it locally
+and also maybe expose it" ambiguity.
+
+**It binds loopback on first boot and LAN exposure is one setting** (§5.1) — an
+earlier version of this paragraph said `0.0.0.0` and predates that decision. The
+product shape is unchanged: this is a server expecting LAN clients, and the
+default exists to close the window before an admin account exists, not to hedge
+about what the software is.
 
 This is a real divergence from all three sources: SillyTavern defaults to
 localhost with an IP whitelist and treats remote access as a documented
@@ -123,11 +129,36 @@ is what makes both answerable.
 | Needs | Structure the client renders | `{key, params}`, dedupe, coalescing, routing |
 | Leaves the app | Never | Sometimes (browser notification, later push) |
 
-Both travel on the same SSE stream ([§2](#2-server-authoritative-generation)).
-Only the second goes through the router.
-
 **So a much more granular status view than Marinara or Aventuras costs nothing
 in notification classes.** Granularity belongs entirely to the progress stream.
+
+#### Two streams, because the table above has two audiences
+
+An earlier draft said both travel on the same session SSE stream, which cannot
+work and defeats the feature that motivated notifications in the first place: a
+notification is for *a user, wherever they are*, and a user not subscribed to
+that session would never receive it. The whole point is reaching someone who is
+not looking at the thing.
+
+| Stream | Scope | Carries | Lifetime |
+|---|---|---|---|
+| **Session** | One session, subscribed while viewing it | Progress events (§3.3) | Ephemeral; reattach takes a snapshot plus a cursor |
+| **User** | One account, subscribed for as long as any tab is open | Notifications, across every session they own | Durable until seen |
+
+The user stream is the one that has to survive disconnection, so it needs an
+**inbox with a cursor** rather than fire-and-forget: undelivered notifications
+wait, a reconnecting client replays from its last acknowledged id, and "persist
+until seen" becomes a property of storage rather than a hope about timing.
+
+**That inbox is operational state, not derived** — it goes with jobs and auth
+sessions in the store described in [18 §5.1](18-internal-contracts.md), never in
+the disposable index. A notification that vanishes when someone deletes
+`index.sqlite` was never durable.
+
+The session stream keeps a **cursor too**, for a different reason: a client that
+drops mid-turn and reattaches needs the turn's state *now* plus everything since,
+not a replay from the beginning. Snapshot-plus-cursor is the same shape the turn
+record already has ([§3.3](#33-progress-events-the-live-view-is-the-turn-record-being-built)).
 
 ### 3.3 Progress events: the live view is the turn record being built
 
@@ -243,6 +274,44 @@ rather than in-app-only.
 The 1.0 pair covers everything 1.0 generates, because without Messages nothing
 reaches you when no browser is open ([15 §0.1](15-work-plan.md)). Push and
 webhooks arrive with the mode that needs them.
+
+#### Channels 2 and 3 require a secure context, and plain LAN HTTP is not one
+
+**A hard platform constraint, and it collides with §5.1's no-HTTPS-by-default
+position.** The Notification API and service workers are restricted to secure
+contexts. `localhost` counts as trustworthy; `http://192.168.1.50:8080` does
+not. So on the *default* install — LAN, plain HTTP — channel 2 is unavailable
+and channel 3 is unavailable later, no matter what we build.
+
+This was missed because the two decisions were made in different documents and
+each is reasonable alone. Stating the resolution rather than leaving the
+collision:
+
+| Reach | What works |
+|---|---|
+| **The server box itself** (`localhost`) | Everything. Secure context by definition. |
+| **LAN over plain HTTP — the default** | **In-app only**: sound, toast, badge, title. No browser notifications. |
+| **HTTPS by reverse proxy, or Tailscale** ([§5.2](#52-tailscale-and-getting-to-it)) | Everything, including Web Push at 2.0. |
+
+**In-app is therefore the 1.0 notification story, and it has to be good enough
+on its own** — which it nearly is, since the feature that motivated the small
+half of §3 was completion sounds, and those work in a foreground tab regardless.
+What is lost on plain HTTP is reaching a *backgrounded* tab.
+
+Three obligations follow:
+
+- **Say so where the user chooses.** The notification settings screen detects an
+  insecure context and explains it in one sentence with the fix, rather than
+  offering a permission prompt the browser will refuse. A greyed toggle with no
+  reason is the worst version of this.
+- **Do not treat HTTPS as exotic.** A reverse-proxy guide already exists in
+  §5.1's position; it now has a second reason to exist, and Tailscale
+  ([§5.2](#52-tailscale-and-getting-to-it)) gets HTTPS more or less for free,
+  which strengthens the case for its Level 1.
+- **Messages at 2.0 has to know this.** A mode whose premise is being reached
+  when you are not looking is substantially weaker on plain HTTP, so the
+  secure-context question is a prerequisite for that mode rather than a detail
+  of it.
 
 ### 3.7 A correction to the no-service-worker position
 

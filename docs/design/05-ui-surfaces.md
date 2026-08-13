@@ -193,15 +193,47 @@ Scoped roots, resolved and enforced server-side:
 
 | Root | `read` | `write` |
 |---|---|---|
-| `/data/users/<own handle>/` | yes | yes — this includes their whole library |
+| `/data/users/<own handle>/library/` | yes | yes |
+| `/data/users/<own handle>/sessions/` | yes | yes |
+| `/data/users/<own handle>/memories/` | yes | yes |
+| `/data/users/<own handle>/account.json` | **never** | **never** — §4.2.1 |
+| `/data/users/<own handle>/connections/` | never (listing only) | yes |
 | `/data/system/library/` | yes | never — app-shipped, and an update would overwrite edits anyway |
 | `/data/system/connections/` | **never** | never — system connections are usable, not readable ([04 §4.5](04-server-multiuser-deployment.md)) |
 | `/data/users/<other>/` | never | never |
-| `/data/config.json`, `/data/index/` | never | never |
+| `/data/config.json`, `/data/index/`, operational state | never | never |
 
-Simpler than an earlier draft, because there is no shared library to gate
-separately ([04 §4.3](04-server-multiuser-deployment.md)): a user's roots are
-their own directory, and everything in it is theirs to break.
+**Content roots, not the whole user directory.** An earlier draft rooted this at
+`/data/users/<own handle>/` and reasoned that everything in it is theirs to
+break. That was wrong, and §4.2.1 is why.
+
+#### 4.2.1 `account.json` is not content
+
+It lives under the user's own directory ([02 §5.1](02-data-model.md)) and holds
+`role: "admin" | "user"` alongside the password hash
+([04 §4.2](04-server-multiuser-deployment.md)). Rooting file access at the
+directory therefore handed **any user with `fileAccess: "write"` a one-line path
+to `role: "admin"`** — and admin is what gates extension installation and the
+system connection scope ([04 §4.5](04-server-multiuser-deployment.md)).
+
+That is worth naming precisely rather than filing under "not a security
+product". [00 §4](00-stance.md) says multi-user is access separation among people
+who trust each other, and that stands — it means we do not defend against a
+determined attacker on the LAN. **It does not mean a documented feature should
+hand out privilege escalation**, because the failure is not an attack, it is a
+household member idly editing a file and acquiring the ability to install code.
+
+The fix is the table above: file access is scoped to **content and session
+roots**, and account, credential, job and operational state are outside it.
+`account.json` is reached through the account API, which can enforce that a user
+may change their display name and password and not their role.
+
+**The general rule this establishes**, since more operational state is coming
+([18 §5](18-internal-contracts.md)): *the file browser exposes what the user
+authored, never what the server decides with.* Anything the engine reads to make
+an authorisation or scheduling decision is out of scope by construction, and new
+files under the user directory are excluded by default rather than included by
+default.
 
 Two exclusions worth stating explicitly, both about credentials:
 
@@ -817,7 +849,8 @@ the screen.
 
 **Presence and status are channels** ([03 §4](03-modes-and-turn-pipeline.md)),
 model-proposed and engine-decided, which buys three properties with no new
-machinery: changes are effects in the turn record and individually reversible;
+machinery: changes are effects in the turn record, invertible at the tip and
+otherwise revisited by branching ([18 §1.2.1](18-internal-contracts.md));
 panel state is reconstructible at any node; and **a branch gets it right** —
 someone dead on one line and alive on another is a requirement, not a bug, and it
 falls out of effects being per-node ([10 §4](10-branching.md)).
