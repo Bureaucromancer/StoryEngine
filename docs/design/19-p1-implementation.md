@@ -5,7 +5,7 @@ worked from. The first document here that describes *code to write* rather than 
 design to argue with.
 
 **P1 delivers:** repo shape, the portable schemas, files on disk, the derived
-index, library CRUD, and a read-only library list.
+index, login, library CRUD, a library list, and a prototype actor editor.
 
 **The demo that defines done**, from [15 P1](15-work-plan.md): *create an actor
 through the API, see the folder appear, edit the JSON on disk by hand, watch the
@@ -24,6 +24,20 @@ promise the format does not currently keep**, and the file-access feature
 ([05 §4](05-ui-surfaces.md)) will eventually need an "edit card JSON" action that
 splices for the user. Recorded here because P1 is where it becomes visible.
 
+**The discipline this phase runs under** is [15 §2.2](15-work-plan.md):
+*demonstrate minimally, but build nothing whose only purpose is to be replaced.*
+It decides several things below that would otherwise look arbitrary — why auth
+ships whole rather than stubbed (§1.3), why the `Capabilities` record is written
+in P1 but nothing enforces it, and why the actor editor ships with a real write
+path and an empty assist slot rather than the reverse (P1.7). The line is between
+a real thing scoped small and a fake thing scoped fully.
+
+**P1 ends somewhere that looks like an application**, not only somewhere that
+proves a storage model. That is the point of the last two stages: the spine is
+worth little if nothing has ever tried to use it, and the editor is what turns
+the exit gate from *the files behave* into *the files behave while someone is
+working on them*.
+
 **CI gate this phase establishes:** rebuild-from-disk equals the incrementally
 maintained index.
 
@@ -31,8 +45,8 @@ maintained index.
 
 ## 1. Decisions this plan had to make
 
-Three things the design documents left open that P1 cannot be written without,
-plus one verification.
+Two things the design documents left open that P1 cannot be written without, one
+revision to the work plan's phasing, and one verification.
 
 ### 1.1 Folder names versus identity — the `<slug>` question
 
@@ -41,66 +55,128 @@ The storage layout ([02 §5.1](02-data-model.md)) uses `actors/<slug>/`,
 it is derived, whether it is unique, or what happens on rename. Ids are uuidv7
 and live *inside* the file.
 
-**DECIDED: the folder name tracks the object's name.** Renaming an object renames
-its folder, so the data directory always reads the way the library does.
+**DECIDED: the slug is derived at creation and then frozen.** Derived from `name`
+— kebab-case, ASCII-folded, length-capped — and de-duplicated against the
+existing directory with a numeric suffix. Renaming an object changes the name
+*inside the file*. The folder keeps the name it was born with.
 
-- Slug derived from `name` — kebab-case, ASCII-folded, length-capped — and
-  de-duplicated with a numeric suffix. **Dedup runs at every rename**, not only
-  at creation, since a rename can collide with an existing folder.
-- **The slug is still not identity.** The uuidv7 inside the file is, and the
-  index maps `id → path`. Nothing resolves by slug — which is what keeps a
-  *foreign* rename (someone renaming the folder in a file manager) an update to
-  an existing row rather than the creation of a second object.
-
-Four mechanics this needs, all cheap and all unpleasant to discover late:
-
-- **A rename is one self-write, not two events.** At the filesystem level a
-  directory rename is unlink + add, so it emits suppression tokens
-  ([02 §5.1.1](02-data-model.md)) for *both* paths, then updates `id → path`
-  synchronously. Without this the watcher re-ingests the object as a deletion
-  followed by a creation, and anything holding the old row sees it vanish.
-- **Case-only renames need a two-step.** `Vera` → `vera` through a single
-  `fs.rename` is a no-op or an error on Windows and macOS, and Windows is the
-  development platform. Go through a temporary name.
-- **Assets are unaffected**, because the manifest holds paths *relative to the
-  folder* ([02 §5.3](02-data-model.md)) and the whole directory moves together.
-  Worth a test rather than an assumption.
+- **The slug is not identity.** The uuidv7 inside the file is, and the index maps
+  `id → path`. Nothing resolves by slug — which is what keeps a *foreign* rename
+  (someone renaming the folder in a file manager) an update to an existing row
+  rather than the creation of a second object.
+- **The engine never moves the user's directories.** If a user wants the folder
+  tidied to match a new name, they rename it themselves and the watcher follows.
+  A "tidy folder name" action can be offered later; it is not automatic, and it
+  is not P1.
+- **Assets are unaffected** by any rename, because the manifest holds paths
+  *relative to the folder* ([02 §5.3](02-data-model.md)) and the whole directory
+  moves together. Worth a test rather than an assumption.
 - **References are unaffected**, because `Ref` resolves by id
   ([13 §3](13-schemas.md)). A setting linking a renamed actor keeps working.
 
-**The accepted cost**, recorded once so it is a known trade rather than a
-surprise: a rename invalidates the user's *own* external references — a symlink,
-a script, a path in their notes. Nothing in the engine can prevent that. Git
-usually copes, since rename detection works on unchanged content.
+**Why not auto-rename**, recorded so the question is not reopened by the first
+person who notices a folder whose name has drifted. Tracking the name over time
+buys a data directory that always reads the way the library does, and costs:
+dedup on every rename, a rename that must emit suppression tokens for two paths
+and update `id → path` synchronously or the object appears to vanish, and a
+two-step dance for case-only renames on Windows and macOS. It also means the
+engine invalidates the user's *own* external references — a symlink, a script, a
+path in their notes — on a name edit. The filesystem is the user's
+([00 §3.3](00-stance.md)); moving their directories behind their back to keep a
+cosmetic property is the wrong trade. Drift is bounded and legible: the folder
+reads the way the library did when the object was created.
+
+**The path under an id still changes**, so the machinery is not avoided, only
+concentrated. A foreign rename produces exactly the failure auto-rename would
+have: unlink on the old path, add on the new. Handle it **once, in ingest** — an
+unlink tombstones the row rather than deleting it, and an add carrying the same
+uuid before the tombstone matures is a move, which rewrites `id → path`. One
+mechanism, one caller, exercised by the foreign-rename test that P1.4 needs
+anyway. A rename through the API is then an ordinary write.
 
 ### 1.2 The same id in two folders
 
-Follows from 1.1 and from folders being copy-pasteable, which is a feature.
-Someone duplicates `vera-solano/` to `vera-draft/` and there are now two files
-claiming one uuid.
+Independent of 1.1: it follows from folders being copy-pasteable, which is a
+feature. Someone duplicates `vera-solano/` to `vera-draft/` and there are now two
+files claiming one uuid.
 
-**DECIDED: first-wins by mtime, the loser is flagged, nothing blocks.** The index
-records the conflict, the library shows both with a warning on the shadowed one,
-and the fix is *offered* (assign a new id) rather than performed.
+**DECIDED: the winner is the lexicographically first path, the loser is flagged,
+nothing blocks.** The index records the conflict, the library shows both with a
+warning on the shadowed one, and no remedy is performed.
 
 This is the dangling-reference posture ([00 §3.3](00-stance.md)) applied to a
 collision: survivable, visible, non-blocking. Refusing to load either would
 punish a user for using the filesystem the way this design explicitly invites
 them to.
 
-### 1.3 A user context before there is auth
+Two things this deliberately is not:
 
-Per-user layout is a day-one item ([15 §2](15-work-plan.md)); accounts and login
-are P10. So P1 writes to `users/<handle>/` from the first write, with `<handle>`
-supplied by a **stub context module** returning a fixed `dev` user.
+- **Not mtime-ordered.** mtime is unstable in exactly the ways this design
+  invites — `cp -p`, a backup restore and a git checkout all rewrite or equalise
+  it, and equal mtimes leave the tiebreak undefined. It also inverts under normal
+  use: editing the real object makes it *newer* than the stale copy, so an
+  oldest-wins rule silently promotes the copy. Path order is deterministic,
+  immune to editing, and makes **rebuild-from-disk equals incremental** — this
+  phase's CI gate — trivially true rather than something to hope holds.
+- **Not a resolution UI.** A dialog showing both folders and timestamps and
+  asking which keeps the id is a *remedy*, and remedies need what P1 has not
+  built: a confirmation model, an undo story, and a write that rewrites identity
+  rather than content. P1.7 having an editor does not change that — editing an
+  object's fields and reassigning its id are different operations with different
+  risks. P1 shows a badge on the shadowed row and explains what happened.
 
-Stated so neither wrong thing happens: not building auth early, and not building
-a flat store "for now" — the second is what the checklist calls miserable to
-retrofit. The stub is one file and P10 replaces its innards.
+### 1.3 Auth is day-zero, not a stub
+
+Per-user layout is a day-one item ([15 §2](15-work-plan.md)), so P1 writes to
+`users/<handle>/` from the first write. An earlier draft supplied `<handle>` from
+a stub context module returning a fixed `dev` user, with real accounts at P10.
+
+**REVISED: build the real thing in P1**, per [15 §2.2](15-work-plan.md) — the
+stub was a system whose only purpose was to be deleted, and it would have been
+threaded through every route written between here and P10. The reason it is
+affordable is that there is very little "real thing" to build. [04 §4.1](04-server-multiuser-deployment.md) already
+scopes auth to access separation among people who trust each other, and
+explicitly rules out rate limiting, lockout, complexity policy, email
+verification and 2FA. [04 §4.2](04-server-multiuser-deployment.md) rules out
+self-registration and identity providers. What is left is roughly the whole of
+what will *ever* ship:
+
+- `Account` per [04 §4.2](04-server-multiuser-deployment.md), including the
+  `Capabilities` block with defaults. Nothing enforces capabilities in P1 because
+  none of the gated features exist yet — but the record is written once rather
+  than migrated later.
+- **scrypt** for the password hash ([07 §9](07-tech-stack.md)) — no native
+  dependency, in the standard library.
+- A session cookie with sane flags, and **CSRF on state-changing routes**. Both
+  are named in [04 §4.1](04-server-multiuser-deployment.md) as the things whose
+  absence is embarrassing rather than defensible, and both are far cheaper to
+  put in before there are routes than after.
+- **First-run creates the first admin.** Safe on the default loopback bind
+  ([04 §5.1](04-server-multiuser-deployment.md)), which is exactly the window
+  that section revised the default to protect.
+
+**Accounts are authoritative state, so they are a file, not an index row** —
+`data/accounts.json`, atomic-written, never derived. Deleting `index.sqlite` must
+stay a non-event ([18 §5](18-internal-contracts.md)), and it cannot be if
+accounts live there. It sits outside every user directory so the file browser
+([05 §4.2](05-ui-surfaces.md)) can never serve a password hash, whatever
+`fileAccess` a user is granted. It is written through `storage/atomic.ts` like
+everything else, so P1.0's no-direct-`fs` rule needs no exemption for auth.
+
+**What stays at P10**, so this does not become the auth phase: account management
+UI, capability *enforcement*, the notification router, deployment and the
+Tailscale provider seam ([04 §5.2](04-server-multiuser-deployment.md)). P10
+becomes the multi-user and deployment phase it is named for, rather than
+retrofitting an identity into a codebase that assumed one.
+
+**The honest cost.** P1.6 carries a login form and a first-run form on top of the
+list. Cheap, and neither needs anything the field-assist contract provides.
 
 **`system/library/` is loaded and merged from P1 too**, shipped empty. The merge
 is a query, not a special case ([02 §5.1](02-data-model.md)), and retrofitting it
-into every list endpoint later is the annoying version.
+into every list endpoint later is the annoying version. It is a scope an admin
+administers and **not** an account — there is no system login
+([04 §4.5](04-server-multiuser-deployment.md)).
 
 ### 1.4 Verified locally, so the stack choice holds
 
@@ -127,7 +203,7 @@ pnpm workspaces per [07 §10](07-tech-stack.md):
 packages/shared/     types + schemas, no runtime deps
 packages/sdk/        scaffolded, re-exports shared
 packages/server/
-packages/client/     React + Vite; the read-only list ships in P1.6
+packages/client/     React + Vite; list in P1.6, actor editor in P1.7
                      modes/* deferred to P7 — the boundary rules land now
 ```
 
@@ -241,7 +317,7 @@ ancillary chunk survives a round trip.
 packages/server/src/index-db/
   migrations.ts  schema versioning for the index itself
   open.ts        node:sqlite, FTS5 (§1.4)
-  ingest.ts      file → rows, one per kind
+  ingest.ts      file → rows, one per kind; tombstone-and-match (§1.1)
   rebuild.ts     full scan; the startup option
   watcher.ts     chokidar + self-write suppression
 ```
@@ -256,6 +332,10 @@ of P1 most likely to be got subtly wrong:
 - Self-write events are suppressed by a short-lived `(path, mtime, size)` token.
   `write-file-atomic` does temp + rename, so without suppression the watcher sees
   an add/unlink pair per write and re-indexes everything twice.
+- **An unlink tombstones rather than deletes** (§1.1). If an add carrying the
+  same uuid arrives before the tombstone matures, it is a move: rewrite
+  `id → path` and keep the row. This is the whole of the rename story — there is
+  no rename special case anywhere else, because the engine never renames folders.
 
 Turn text indexing ([07 §7.1](07-tech-stack.md)) is scaffolded but unused — no
 turns exist until P2.
@@ -263,15 +343,19 @@ turns exist until P2.
 *Tests:* **rebuild-from-disk equals incremental**, this phase's CI gate; a
 foreign write is picked up; a self-write does not double-index; deleting
 `index.sqlite` and restarting is a non-event ([18 §5](18-internal-contracts.md));
-a duplicate id is flagged rather than fatal (§1.2).
+**a foreign rename is a move, not a delete followed by a create** — the row
+survives with its id and a new path (§1.1); a duplicate id is flagged rather than
+fatal, and **the same copy wins after a rebuild as won incrementally** (§1.2).
 
 ### P1.5 — Config, HTTP, and library CRUD
 
 ```
 packages/server/src/
   config.ts          load + validate + reload tiers
-  context.ts         the stub user (§1.3)
+  auth/accounts.ts   accounts.json, scrypt, first-run admin (§1.3)
+  auth/session.ts    session cookie + CSRF; request → handle
   app.ts             Fastify
+  routes/auth.ts     login, logout, first-run setup
   routes/library.ts  CRUD over all six kinds, kind-agnostic
 ```
 
@@ -287,18 +371,37 @@ six. List merges user and system libraries with a source badge
 storage layer uses, which is the fifth job for one schema technology
 ([07 §3](07-tech-stack.md)).
 
-**Rename lands here**, since it is a route rather than a storage primitive: a
-name change triggers §1.1's folder move, with suppression tokens on both paths
-and a synchronous index update.
+**Every library route resolves its root from the session**, never from a
+parameter. `paths.ts` is containment-checked against *that* user's root, which is
+the version of the P1.2 check that matters once there is more than one root.
 
-### P1.6 — A read-only library list
+**Rename is not a special route.** A name change is an ordinary write of the
+object's `name`; the folder does not move (§1.1).
+
+**Every read carries a content hash and every write must present one**
+([04 §4.4](04-server-multiuser-deployment.md)). A stale hash is rejected with the
+current object in the response body, so the client can offer a choice rather than
+guess. It lands here rather than in P1.7 because it is a property of the write
+path, not of the UI — and because a rejected write is the only defence the
+hot-reload thesis has against silently eating a hand-edit.
+
+### P1.6 — The library list, and login
 
 React + Vite + TanStack ([07 §6](07-tech-stack.md)). Deliberately small: **one
 surface for all six kinds with a kind filter** ([05 §5](05-ui-surfaces.md)), a
 source badge for user versus system, and a detail view.
 
-**No editing.** That is [05 §11](05-ui-surfaces.md)'s editors-are-not-dumb-forms,
-and it wants the field-assist contract that does not exist yet.
+**Plus login and first-run** (§1.3): no accounts on disk routes every request to
+create-the-first-admin; otherwise a login form. Small, but it is the reason this
+stage is not purely read-only.
+
+**No editing at this stage** — that is P1.7, and keeping it a separate stage is
+deliberate: this one has to be green on its own, because it is what the hot-reload
+demo runs on.
+
+This stage is the model for [15 §2.2](15-work-plan.md)'s good case: **nothing
+here is thrown away.** The list, the detail view, the routing and the login are
+all the real surfaces, scoped small.
 
 It earns its place by making the demo's most important step *visible*: a
 hand-edit on disk appearing in a browser without a restart is a far stronger
@@ -319,7 +422,67 @@ the first component ([15 §2](15-work-plan.md)):
 - **Semantic HTML, focus management, and no state encoded in colour alone** — the
   source badge needs a second channel.
 
-*Ends at:* the demo.
+*Ends at:* the storage demo.
+
+### P1.7 — A prototype actor editor
+
+The stage that turns the skeleton into something recognisably an application.
+Everything before it proves the storage spine is sound; this one shows the spine
+can be *used*, which is a different claim and the one that is easy to defer until
+it is expensive.
+
+**This reverses an earlier position**, which put all editing out of P1 on the
+grounds of [05 §11](05-ui-surfaces.md)'s editors-are-not-dumb-forms. That
+argument turns out to prove something narrower than it first appears. Assist is
+what [05 §11](05-ui-surfaces.md) is about, and assist needs providers, which do
+not exist until P2 — so the *assist* half is deferred by dependency, not by
+choice. The **write** half is entirely P1's business, and leaving it unbuilt
+means P1's central claim goes untested in the one condition that matters.
+
+**The argument for building it here**, rather than "it would be nice to see":
+
+- **It is the only thing that exercises the write path under contention.** The
+  read-only list demonstrates hot reload. An editor demonstrates hot reload
+  *while a user is mid-edit*, which is where [02 §5.1.1](02-data-model.md)'s dual
+  write path either holds or does not. The stale-hash rejection from P1.5 is
+  unfalsifiable without a UI that can hold a stale hash.
+- **It is the sharpest available test of unknown-field preservation.** P1.1 calls
+  that the trap that strands people and is invisible until someone downgrades.
+  A round-trip test proves the codec preserves them; only an editor proves the
+  whole stack does — load an actor carrying fields this build does not know,
+  edit one field, save, and confirm the rest survived.
+- **It proves the schemas are usable, not merely valid.** Six kinds of TypeBox
+  are an assertion until something renders a form from one and writes it back.
+
+**Scope, held down deliberately.** Actor only — the kind with the richest shape
+([13](13-schemas.md)), so it is the honest test rather than the easy one. Text
+and simple structured fields, sections, and the existing avatar shown but not
+replaced. No other kind gets an editor in P1; the list stays read-only for the
+other five.
+
+**Built as the smallest real editor, per [15 §2.2](15-work-plan.md)** — which
+means one specific thing about its shape:
+
+- **A single `Field` primitive** owning label, value, validation and the slot
+  where assist actions will attach. [05 §11](05-ui-surfaces.md) is explicit that
+  assist must be a primitive rather than a per-field bolt-on, so the primitive is
+  where the seam belongs. In P1 that slot renders nothing.
+- **The slot is empty, not disabled-with-a-promise.** A greyed "Generate" button
+  that cannot work is a placeholder in the §2.2 sense and also a bad UI.
+- **Provenance is preserved, never authored.** `GeneratedFieldProvenance`
+  ([05 §11.2](05-ui-surfaces.md)) is already in P1.1's `schema/common.ts`. Nothing
+  writes it until P2, and the editor must not drop the map on save — which is the
+  unknown-field discipline applied to a field we *do* know.
+
+**The risk, stated because [15 §2.2](15-work-plan.md) requires it to be.**
+Building a field primitive before the assist contract is proven can bake in the
+wrong shape. The mitigation is that P1 commits to a *component boundary*, not to
+the contract: one component, whose interface changes cheaply if P2 shows the four
+operations want a different shape. That is the "build less of it" branch of §2.2,
+not the "build a false version" one. If P1.7 starts growing an assist mechanism
+before providers exist, the rule has been broken and the work should stop.
+
+*Ends at:* the demo, now including the editor.
 
 ---
 
@@ -330,41 +493,65 @@ pnpm install && pnpm build && pnpm lint && pnpm test
 pnpm dev    # http://127.0.0.1:8080
 ```
 
-1. `POST /api/library/actors` with a minimal actor → `201` with a uuidv7.
-2. `ls data/users/dev/library/actors/` → `vera-solano/card.png` exists.
-3. `GET /api/library/actors` **immediately** → the actor is listed.
+1. First boot with no `accounts.json` → the browser lands on first-run setup.
+   Create the admin, log in (§1.3). Call the handle `ned`.
+2. `POST /api/library/actors` with a minimal actor → `201` with a uuidv7.
+3. `ls data/users/ned/library/actors/` → `vera-solano/card.png` exists.
+4. `GET /api/library/actors` **immediately** → the actor is listed.
    *This is the read-after-write guarantee. If it needs a retry, P1.4 is wrong.*
-4. Open the library list in a browser → both kinds listed, source badges correct.
-5. `POST /api/library/lorebooks` → folder appears.
-6. Open `data/users/dev/library/lorebooks/<slug>/lorebook.json` in an editor,
+5. Open the library list in a browser → both kinds listed, source badges correct.
+6. `POST /api/library/lorebooks` → folder appears.
+7. Open `data/users/ned/library/lorebooks/<slug>/lorebook.json` in a text editor,
    change the title, save.
-7. **The browser shows the new title without a restart.** The storage thesis,
+8. **The browser shows the new title without a restart.** The storage thesis,
    demonstrated rather than asserted.
-8. Rename the lorebook through the API → the folder on disk is renamed, the id is
-   unchanged, and the list does not flicker through a delete (§1.1).
-9. Rename to a name colliding with another → suffixed, both intact.
-10. Rename changing only case → succeeds on Windows (the two-step, §1.1).
+9. Rename the lorebook through the API → the title changes, the folder does not,
+   the id is unchanged (§1.1).
+10. Rename that folder on disk in a file manager → the list does not flicker
+    through a delete, and the id survives with a new path (§1.1).
 11. Stop the server, delete `data/index/index.sqlite`, start → everything still
-    lists.
-12. Copy an actor folder under a new name → both appear, the shadowed one flagged
-    (§1.2).
+    lists, and **the admin can still log in** — accounts are not in the index
+    (§1.3).
+12. Copy an actor folder under a new name → both appear, the shadowed one
+    flagged, and the same one stays shadowed after a rebuild (§1.2).
+13. Open the actor in the editor, change the summary, save → the change is on
+    disk, and `card.png`'s pixel bytes are unchanged (P1.3).
+14. Add a field the build does not know to the card JSON by hand. Open the actor,
+    edit a *different* field, save → **the unknown field is still there** (P1.1).
+15. With the actor open in the editor, hand-edit the same object on disk, then
+    save from the UI → the write is **rejected** on a stale hash and the UI
+    offers reload-and-reapply or save-as-a-copy
+    ([04 §4.4](04-server-multiuser-deployment.md)).
 
-*Automated equivalents of 3 and 6–12 are this phase's CI suite*, plus the
+*Automated equivalents of 4 and 7–15 are this phase's CI suite*, plus the
 rebuild-equals-incremental property test.
 
-**Steps 8–10 matter more than they look.** Auto-rename is the decision with the
-most moving parts in P1, and each of those three is a distinct way for it to fail
-— watcher churn, collision handling, and case-insensitive filesystems.
+**Step 10 matters more than it looks.** The path under a stable id is the part of
+P1 most likely to be got subtly wrong, and a foreign rename is the only thing
+that exercises it — which is the argument for keeping it the *single* way a path
+ever changes.
+
+**Steps 14 and 15 are why P1.7 exists.** Neither is reachable without an editor,
+and both test a claim P1 makes and would otherwise ship unverified: that this
+storage model survives contact with a second writer, and that it does not eat
+data it does not understand.
 
 ---
 
 ## 4. Out of scope, deliberately
 
-Named so they do not creep in: **editing in the UI**; the workbench (P3); auth
-and accounts (P10, but see §1.3); the turn pipeline and providers (P2); import
+Named so they do not creep in: **field assist in any form** and **editors for the
+other five kinds** (P1.7 is actor-only); the workbench (P3);
+account management, capability enforcement and deployment (P10 — but login and
+first-run land now, §1.3); the turn pipeline and providers (P2); import
 (P4); lorebook *activation* semantics — P1 stores lorebooks, it does not retrieve
 from them (P5); and `modes/*` (P7).
 
-**The editing line is the one most likely to erode**, because a list view makes
-the absence of an edit button feel like an omission. It is not: an editor built
-before the assist contract is an editor rebuilt after it.
+**The assist line is now the one most likely to erode**, and it moved: it used to
+be the editing line, and editing turned out to be defensible on its own terms
+(P1.7). Assist is not, and it will feel like the obvious next thing precisely
+because P1.7 leaves a visible slot for it. The slot is not an invitation. Assist
+needs providers, a context builder over the object and its links, and the four
+operations of [05 §11.1](05-ui-surfaces.md) — none of which exist before P2, and
+a version built without them is the per-field bolt-on that section exists to
+prevent.

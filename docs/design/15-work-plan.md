@@ -293,6 +293,66 @@ that the budgeter is legible, that channels carry mode divergence, that the mode
 contract holds without back doors, that hook pacing works at all. None of them is
 tested by being written down. §4.1 exists to test them early.
 
+### 2.2 The third discipline: nothing built to be discarded
+
+§2 asks what is expensive to retrofit. §2.1 asks what is free to defer. Between
+them sits everything that must exist *now* but is not yet worth its full shape,
+and the early phases have one rule about it:
+
+> **Demonstrate minimally, but do not build a system whose only purpose is to be
+> replaced.**
+
+The two halves are easy to confuse, so the distinction is worth drawing sharply:
+
+- **A minimal demonstration is the real thing, scoped small.** It is not
+  discarded later; it grows. P1's actor editor
+  ([19 §P1.7](19-p1-implementation.md)) has a real write path and an empty slot
+  where assist will attach — not a mock editor, an editor missing a feature that
+  cannot exist yet. The `system/library/` merge ships in P1 with nothing in it:
+  the query is real, the content is absent. Neither gets rewritten when the phase
+  after it arrives.
+- **A placeholder is a system that exists to be deleted.** It is paid for three
+  times: building it, working around it while it stands, and removing it — and
+  the third payment is the one that arrives as a broad refactor or a migration,
+  in a phase already busy with something else.
+
+**The test to apply before writing a placeholder: cost the real thing first.**
+Often it is not much larger, because the placeholder has to satisfy the same
+callers. Auth is the case that made this explicit and is worth carrying as the
+worked example ([19 §1.3](19-p1-implementation.md)): a stub user context was one
+file, but it would have been threaded through every route in P1 through P9 and
+then torn out at P10, which is every one of those routes written twice. The real
+thing — scrypt, a session cookie, CSRF, a first-run admin — is not much more code
+than the stub *plus* its eventual removal, and the design had already ruled out
+everything that makes auth large ([04 §4.1](04-server-multiuser-deployment.md)).
+
+Three qualifications, because this rule is the easiest one here to abuse:
+
+- **It does not override §2.1.** The question is only asked about things that
+  must exist now. If nothing needs it yet, defer the whole thing — that is not
+  throwaway work avoided, it is work not done, which is better.
+- **It is not permission to build the finished version.** Capability
+  *enforcement* stays at P10 even though the `Capabilities` record ships in P1:
+  the record is a persisted shape (§2's first cost), the enforcement is additive
+  (§2.1). Splitting on that line is the point.
+- **Test doubles are exempt.** Fakes, fixtures and harnesses are supposed to be
+  disposable, and [16](16-testing.md) governs them. This is about production
+  scaffolding only.
+
+**The real counter-argument, recorded rather than dismissed:** a placeholder
+makes no claim, and the real thing does. Building early against a contract that
+has not met reality can bake in a wrong contract — which is the risk §2.1 closes
+on, and it is not imaginary. The resolution is that this rule is about
+*replacement*, not *commitment*: prefer the real thing when it is the same size,
+and prefer the smallest real thing that can be grown when it is not. Where a
+contract is genuinely unproven, the answer is to build less of it, not to build a
+false version of it. A stub does not de-risk a bad design; it postpones finding
+out, which is the failure §2.1 names outright.
+
+**Where this bites hardest is the earliest phases**, because that is where the
+real system is smallest and the temptation to fake it is largest — the gap
+between a stub and the genuine article is never narrower than at P1.
+
 ---
 
 ## 3. Before any code: close the A-series
@@ -367,8 +427,9 @@ beyond P4, it has been misunderstood.
 ### P1 — Skeleton and storage spine
 
 **Expanded into a working plan: [19](19-p1-implementation.md)** — stages, the
-three decisions the design documents left open (folder naming and rename,
-duplicate ids on disk, the user context before auth), and the exit gate.
+decisions the design documents left open (folder naming and rename, duplicate ids
+on disk), the phasing revision that pulls auth forward from P10, and the exit
+gate.
 
 Repo shape ([07 §10](07-tech-stack.md)), workspaces, CI, schema tooling, licence
 headers. Then the part everything else stands on:
@@ -376,12 +437,21 @@ headers. Then the part everything else stands on:
 - Portable object schemas ([13](13-schemas.md)) as TypeBox, emitting JSON Schema.
 - Files on disk, atomic writes, per-user layout, the PNG card envelope.
 - Derived index, filesystem watcher, **rebuild-from-disk as a startup option**.
-- Library CRUD.
+- Library CRUD, with accounts and login ([19 §1.3](19-p1-implementation.md)).
+- A library list, and **a prototype actor editor**
+  ([19 §P1.7](19-p1-implementation.md)) — actor only, real write path, no assist.
 
 **Demonstrable:** create an actor through the API, see the folder appear, edit
 the JSON on disk by hand, watch the change reflected without a restart. That
 last step is the whole storage thesis in one gesture — if it does not work, the
 design has already failed ([05 §4.1](05-ui-surfaces.md)).
+
+**And then the harder version of the same demo:** hand-edit an object on disk
+*while it is open in the editor*, and watch the save be rejected rather than
+silently eat one of the two edits ([04 §4.4](04-server-multiuser-deployment.md)).
+The first demo proves the storage model reads honestly; this one proves it
+survives a second writer, which is the claim that actually has to hold once
+anyone uses it. It is the reason P1 carries an editor at all.
 
 **CI from here on:** rebuild-from-disk equals incremental index.
 
@@ -393,7 +463,13 @@ The spine. Deliberately with the crudest possible mode.
 - Assembler → budgeter → render. Turn record written complete.
 - Turn as a server-side job; SSE event stream; client reattach.
 - RNG service.
-- A minimal Scene-ish mode, hardcoded, which will be thrown away.
+- **The smallest real Scene mode**, not a hardcoded stand-in. An earlier draft
+  had this thrown away; §2.2 says otherwise. The pipeline needs a mode-shaped
+  caller regardless, and the step contract is already committed here (§2) — so
+  writing that caller as a short list of real steps costs about what faking it
+  costs, and P5 grows it instead of replacing it. What stays out is everything
+  §2.1 makes deferrable: no channels, no hooks, no mode registry, no SDK
+  boundary — that is P7's.
 
 **Demonstrable:** type a message, get a streamed reply, close the tab mid-turn
 and reattach to the finished result. Read the whole turn record as JSON.
@@ -503,11 +579,13 @@ built against the general rendition shape so video and speech are later kinds.
 
 ### P10 — Multi-user, notifications, deployment
 
-Accounts and auth are small and could land earlier; the per-user *storage
-layout* is already in P1 because that part is not retrofittable. What lands here:
-login, admin, the notification router and delivery channels, first-run flow, the
-loopback bind and its container inversion, mDNS, the About surface and §13 source
-link.
+**Accounts, login and first-run moved to P1** ([19 §1.3](19-p1-implementation.md))
+— they were always small, and the alternative was a stub identity threaded
+through every route until this phase. The per-user *storage layout* was already
+in P1 because that part is not retrofittable; auth turned out to be cheaper to
+build than to fake. What lands here: admin and account management, capability
+enforcement, the notification router and delivery channels, the loopback bind and
+its container inversion, mDNS, the About surface and §13 source link.
 
 ### P11 — Beta hardening
 
