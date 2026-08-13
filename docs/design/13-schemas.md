@@ -747,17 +747,15 @@ Setup would imply Messages and Scene have a difficulty, which they do not.
 **At `storyengine.preset/0`, and defined now despite the assembler being
 unbuilt.** An earlier draft declined to define it at all, on the reasoning that
 its shape depends on assembly design that does not exist yet. That reasoning was
-right about the *detail* and wrong about the *decision*, for two reasons that
-have accumulated since.
+right about the *detail* and wrong about the *decision*, for three reasons.
 
-**First, it is portable, and §1's rule is not optional.** A preset moves between
-installs. It is, empirically, the object this ecosystem trades most — SillyTavern
-users swap presets more readily than they swap cards. Leaving the most-shared
-object as the only portable kind with no schema, no version and no round-trip
-guarantee inverts the priority §1 sets out.
+**It is portable, and §1's rule is not optional.** A preset moves between
+installs. It is, empirically, the object this ecosystem trades most —
+SillyTavern users swap presets far more readily than they swap cards. Leaving the
+most-shared object as the only portable kind with no schema, no version and no
+round-trip guarantee inverts the priority §1 sets out.
 
-**Second, and more pressing: three decisions have delegated their enforcement
-here.**
+**Three decisions have delegated their enforcement here.**
 
 | Decision | What it hands to this layer |
 |---|---|
@@ -765,9 +763,41 @@ here.**
 | Difficulty is a sycophancy dial ([03 §7.3.1](03-modes-and-turn-pipeline.md)) | *"The levels live in the prompt pack, not in engine code"* |
 | Model-behaviour patching ([09 §5](09-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
 
-Each of those is a good decision. Together they mean the layer three separate
-arguments rest on cannot be the one layer left undefined — that is how a
-delegation becomes a hole.
+Each is a good decision. Together they mean the layer three arguments rest on
+cannot be the one layer left undefined — that is how a delegation becomes a hole.
+
+**And the shape turned out to be knowable**, because SillyTavern's chat-completion
+preset already contains most of it. §8.4 is the survey; it is the reason this
+section could be written before the assembler exists, and several fields below
+come directly from it rather than from first principles.
+
+### 8.1 The two block kinds
+
+The single structural decision, and the one the survey forced. **A preset's
+blocks are of two kinds**, and an earlier sketch here wrongly had only the second:
+
+- A **slot** positions content the *engine* supplies — the persona, the actor's
+  sections, retrieved lore, channel state, history. The preset decides where it
+  goes, what wraps it and what it costs. It does not author it.
+- A **text block** is prose the *preset author* wrote. The main instruction, the
+  style directive, the post-history push.
+
+SillyTavern discovered this and did not name it: its `prompts[]` array holds
+entries with `marker: true` (`chatHistory`, `worldInfoBefore`, `charDescription`,
+`scenario`, `personaDescription`, `dialogueExamples`) alongside entries carrying
+`content`. Those are slots and text blocks, in one list, distinguished by a
+boolean. **The prompt manager is a block assembler whose blocks are called
+prompts** — which is a strong independent confirmation of
+[00 §2.1](00-stance.md)'s replacement for the mega-string, arrived at from the
+other direction by the most-deployed project in the space.
+
+Naming the two kinds explicitly is the improvement. A slot and a text block have
+genuinely different fields — a slot has a source and a wrapper, a text block has
+a template and an author — and collapsing them into one type with half the
+fields inapplicable is what produces `marker: true` and the `content` field being
+absent-but-meaningful.
+
+### 8.2 The schema
 
 ```ts
 interface Preset {
@@ -780,92 +810,342 @@ interface Preset {
    *  preset for a mode you do not have still imports and still shows. */
   modes: ModeId[]
 
-  /** Ordered prompt fragments. The unit the assembler consumes and the
-   *  workbench displays — one authored block, one line in the block list. */
+  /** Ordered. The unit the assembler consumes and the workbench displays —
+   *  one entry here, one line in the block list. */
   blocks: PresetBlock[]
 
-  /** Budget policy. Never absolute token counts alone: a preset written
-   *  against a 4k window must not silently misbehave at 200k. */
-  budget: BudgetPolicy
-
-  /** Generation parameters, as a portable subset. Never a model id, never a
-   *  connection — [00 §3.2]. */
+  budget: BudgetPolicy               // §8.3
+  /** Sampling only. Never a model id, never a connection — [00 §3.2]. */
   params: GenerationParams
 
+  /** Advisory model preference, resolved locally exactly as an actor's is
+   *  ([§3](#3-shared-substructures)). This is where an imported preset's
+   *  `openai_model` lands: expressible as a wish, never as a binding. */
+  modelHint: ModelHint | null
+
   /** Named levels the mode's difficulty setting resolves against
-   *  ([03 §7.3.1](03-modes-and-turn-pipeline.md)). A preset that omits this
-   *  gets the built-in default pack; a preset that supplies it owns the
-   *  meaning of "hard". */
+   *  ([03 §7.3.1](03-modes-and-turn-pipeline.md)). Omitted = the built-in
+   *  pack. Supplied = this preset owns the meaning of "hard". */
   difficultyLevels?: DifficultyLevel[]
 
-  /** Author-declared variables the blocks interpolate, with defaults. The
-   *  Aventuras `CustomVariable` shape ([05 §6](05-ui-surfaces.md)). */
+  /** Author-declared variables the templates interpolate, with defaults and
+   *  help text. The Aventuras `CustomVariable` shape ([05 §6](05-ui-surfaces.md)). */
   variables: PresetVariable[]
 
   tags: string[]
   provenance: Provenance
   generated: Record<string, GeneratedFieldProvenance> | null
+  /** Unrecognised fields from an import, verbatim — §8.4. */
+  compat: Record<string, unknown> | null
   metadata: Record<string, unknown>
 }
 
-interface PresetBlock {
-  /** Stable, and addressable by modes and the workbench. */
+type PresetBlock = SlotBlock | TextBlock
+
+interface BlockCommon {
+  /** Stable, and addressable by modes, the workbench and later versions of
+   *  this preset. Reordering must never break a reference. */
   id: string
   /** Author-facing. Never injected. */
   label: string
   role: "system" | "user" | "assistant"
-  /** Liquid, rendered within the block — never across blocks. [03 §5] */
-  template: string
 
-  /** Ordering constraints, not character offsets. This is the whole divergence
-   *  from depth-injection ([00 §2.1](00-stance.md)): a block says what it must
-   *  sit before or after, and the assembler resolves. */
-  order: { after?: string[]; before?: string[] }
+  /** Present but off. Worth having as a real state: a disabled block is an
+   *  author's note to themselves, and deleting it to try without it loses
+   *  their work. Taken from ST's `prompt_order[].enabled`. */
+  enabled: boolean
 
-  /** Priority under budget pressure. "Never trim" is a value here, never the
-   *  absence of a budget — [00 §2.6]. */
+  /** Ordering constraints, never character offsets — [00 §2.1]. §8.3 covers
+   *  the one position that needs more than this. */
+  placement: Placement
+
+  /** Budget priority. "Never trim" is a value here, never the absence of a
+   *  budget — [00 §2.6]. */
   priority: number
-  /** Guidance-class blocks are refused by effect-producing calls.
-   *  [03 §5.2] */
+  /** Which kinds of call this block applies to. Empty = all. This is what
+   *  dissolves ST's eight special-cased template fields — §8.4.3. */
+  appliesTo: CallKind[]
+  /** Guidance-class blocks are refused by effect-producing calls. [03 §5.2] */
   advisory: boolean
-  /** Omit the block entirely when the template renders empty, rather than
-   *  emitting a heading with nothing under it. */
+  /** Drop the block rather than emit a heading with nothing under it. */
   omitWhenEmpty: boolean
 }
+
+/** Positions engine-supplied content. The preset chooses where and how it is
+ *  framed; it never authors what goes in. */
+interface SlotBlock extends BlockCommon {
+  kind: "slot"
+  /** What fills it. Closed vocabulary, extended by modes declaring channels. */
+  source: SlotSource
+  /** Optional wrapper, with `{{content}}` standing for the filled value.
+   *  "Scenario: {{content}}" — this is exactly ST's `scenario_format` and
+   *  `wi_format`, generalised from eight fixed fields to a property of any
+   *  slot. Absent = emit the content bare. */
+  wrapper?: string
+}
+
+type SlotSource =
+  | { of: "persona" }
+  | { of: "actor"; sectionId: string }     // "se.summary", "se.appearance", …
+  | { of: "lore"; phase: "before" | "after" }
+  | { of: "history" }
+  | { of: "examples" }
+  | { of: "channel"; channelId: ChannelId }
+  | { of: "setting"; part: "framing" | "tone" }
+  | { of: "goal" }                          // [03 §7.3.3]
+
+/** Prose the preset author wrote. */
+interface TextBlock extends BlockCommon {
+  kind: "text"
+  /** Liquid, rendered within the block — never across blocks. [03 §5] */
+  template: string
+}
+
+type Placement =
+  | { at: "sequence" }                      // ordinary: position in `blocks`
+  /** Inside the history run, counted from the newest message. The one thing
+   *  ST does that a flat sequence cannot express, and the mechanism most
+   *  modern presets depend on — §8.4.2. */
+  | { at: "in-history"; fromEnd: number; tiebreak?: number }
+
+type CallKind =
+  | "narrate" | "impersonate" | "continue" | "group-nudge"
+  | "session-start" | "example" | "utility"
 ```
 
-**`/0` is the honest version number**, and it means what [§2](#2-versioning-and-compatibility)
-says it means: this will move. The alternative was leaving it undefined, which
-communicates the same instability while also losing the round-trip guarantee, the
-`metadata` escape hatch and the unknown-field preservation rule. A moving schema
-that preserves what it does not understand is strictly better than no schema.
+### 8.3 Budget, and the one placement that costs something
 
-**What is committed even at `/0`:**
+**`BudgetPolicy` is deliberately not a token count alone.** A preset written
+against a 4k window must not silently misbehave at 200k — and ST's
+`openai_max_context: 4095` sitting in a preset shared in 2026 is the concrete
+form of that problem. So the policy expresses *shares and floors* against the
+resolved window, with absolute values available where an author means them.
 
-- **Blocks are ordered by constraint, not by offset.** This is
-  [00 §2.1](00-stance.md)'s central replacement for depth injection, and it is
-  not going to be reversed.
-- **Every block is budgeted and priced.** Including the ones the author is sure
+**`placement: "in-history"` is the expensive one, and it is worth paying.**
+An ordinary block sits in the sequence and the budgeter treats history as one
+unit. A block placed four messages from the end forces **history to be a
+splittable source** rather than an atomic block: the assembler emits
+`history[…-5]`, the block, then `history[-4…]`, and the budgeter has to trim a
+run that now has something embedded in it.
+
+Two reasons to accept the cost rather than refuse the placement:
+
+- **It is not what [00 §2.1](00-stance.md) rejects.** That objection is to
+  *character offsets into an assembled string* — "insert at index 4,182" — which
+  is unrepresentable, unreviewable and breaks whenever anything upstream changes
+  length. "After the Nth-newest message" is a **structural** position over a list
+  the engine owns. It survives edits, branching and re-rendering, and it appears
+  in the turn record as an ordinary ordered block.
+- **Refusing it would drop most real presets on the floor.** Depth injection is
+  how nearly every modern ST jailbreak and style directive works, precisely
+  because recency dominates instruction-following. A converter that silently
+  moved those blocks to the top would produce a preset that imports cleanly and
+  behaves nothing like the original, which is the worst available outcome.
+
+**`tiebreak` exists only because ST has it** (`injection_order`, default 100) and
+two blocks can land at the same depth. Ours could have used sequence order; ST's
+files carry an explicit number, so preserving it is free and dropping it would
+reorder someone's prompt silently.
+
+### 8.4 Converting a SillyTavern preset
+
+The conversion path is worth designing *with* the schema rather than after it,
+because ST presets are the largest body of authored prompt work in existence and
+importing them badly is a worse outcome than not importing them.
+
+The good news, established in §8.1: **the structural distance is small.** ST's
+prompt manager is a block assembler. Most of the conversion is renaming.
+
+#### 8.4.1 What maps cleanly
+
+| SillyTavern | StoryEngine |
+|---|---|
+| `prompts[]` entry with `marker: true` | `SlotBlock`, per the identifier table below |
+| `prompts[]` entry with `content` | `TextBlock`, `template` = content after macro conversion |
+| `role` | `role`, unchanged |
+| `prompt_order[].order[]` sequence | `blocks[]` order — a flat enabled list is the degenerate case of ordering constraints |
+| `prompt_order[].order[].enabled` | `enabled` |
+| `injection_position: RELATIVE` | `placement: { at: "sequence" }` |
+| `injection_position: ABSOLUTE` + `injection_depth` | `placement: { at: "in-history", fromEnd }` — §8.3 |
+| `injection_order` | `placement.tiebreak` |
+| `injection_trigger[]` | `appliesTo` |
+| `temperature`, `top_p`, `top_k`, `top_a`, `min_p`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `seed`, `n`, `openai_max_tokens` | `params` |
+| `openai_max_context` | `budget`, as a ceiling with a note that it was absolute |
+| `openai_model` / `claude_model` / … | `modelHint.preferredModelIds` — a wish, never a binding ([§3](#3-shared-substructures)) |
+
+The marker identifiers map one to one:
+
+| ST identifier | `SlotSource` |
+|---|---|
+| `chatHistory` | `{ of: "history" }` |
+| `worldInfoBefore` / `worldInfoAfter` | `{ of: "lore", phase }` |
+| `charDescription` | `{ of: "actor", sectionId: "se.summary" }` |
+| `charPersonality` | `{ of: "actor", sectionId: "se.voice" }` |
+| `personaDescription` | `{ of: "persona" }` |
+| `dialogueExamples` | `{ of: "examples" }` |
+| `scenario` | `{ of: "setting", part: "framing" }` |
+
+The `scenario` row is the interesting one, and it is the same move
+[02 §2.7](02-data-model.md) makes for card import: ST's scenario is per-character
+text, ours is the setting's framing, and routing it there is where it always
+wanted to live.
+
+#### 8.4.2 What is lossy, and how each loss is reported
+
+Every item here lands in the import review step ([05 §5](05-ui-surfaces.md)) as a
+named consequence, never as a silent drop.
+
+- **Macros.** `{{char}}`, `{{user}}`, `{{persona}}`, `{{scenario}}` and friends
+  become Liquid at import, per [00 §2.1](00-stance.md). A closed mapping table
+  covers the common set; **an unrecognised macro is preserved verbatim and
+  flagged**, because a mangled prompt that looks fine is worse than one that
+  visibly needs a look. `{{charIfNotGroup}}` and similar conditionals become
+  Liquid conditionals rather than being dropped.
+- **`system_prompt: true`** means *"came from the built-in set"*, not *"has the
+  system role"* — a genuinely misleading field name. It carries no meaning here
+  and drops.
+- **`forbid_overrides`** governs whether a character card may override a prompt.
+  Cards cannot override prompts at all ([00 §2.4](00-stance.md)), so it is moot
+  and drops.
+- **Per-character `prompt_order` entries.** ST keys orderings by
+  `character_id`, with `100000` and `100001` as dummy ids for the global and
+  group defaults. Only the global order converts; a preset carrying genuinely
+  per-character orders gets **one preset plus a warning naming the characters**,
+  rather than a silent choice among them.
+- **Instruct and context templates** are not converted at all
+  ([00 §2.2](00-stance.md), [08 §6.1](08-triage.md)). They exist to serve raw
+  completion, which is unsupported ([07 §5.5](07-tech-stack.md)).
+- **Text-completion presets** convert to `params` only, and most of their fields
+  drop: `dry_*`, `smoothing_*`, `mirostat_*`, `xtc_*`, `tfs`, `eta_cutoff`,
+  `epsilon_cutoff`, `num_beams` and the rest are backend-specific sampler
+  controls with no chat-API equivalent. Worth stating plainly in the review:
+  *"this preset was mostly sampler settings for a local backend; 6 of 41 fields
+  carried over."*
+- **Reasoning presets** (`prefix`/`suffix`/`separator`) parse reasoning blocks
+  out of output. Nothing at 1.0 consumes them; they go to `compat`.
+- **`sysprompt` presets** convert well and are the easy case: `content` becomes
+  a `TextBlock` at the top, `post_history` a `TextBlock` after history.
+
+#### 8.4.3 Eight special-cased fields that become ordinary blocks
+
+The most satisfying part of the conversion, and the strongest evidence that
+`appliesTo` and `wrapper` are the right two fields rather than one field too
+many. ST carries these as top-level preset settings, each with bespoke handling
+in the assembler:
+
+| ST field | Becomes |
+|---|---|
+| `wi_format` (`"{0}"`) | The lore slot's `wrapper` |
+| `scenario_format` (`"{{scenario}}"`) | The setting slot's `wrapper` |
+| `personality_format` | The actor-section slot's `wrapper` |
+| `group_nudge_prompt` | A `TextBlock`, `appliesTo: ["group-nudge"]` |
+| `new_chat_prompt` | A `TextBlock`, `appliesTo: ["session-start"]` |
+| `new_group_chat_prompt` | Same, group variant |
+| `new_example_chat_prompt` | A `TextBlock`, `appliesTo: ["example"]` |
+| `continue_nudge_prompt` | A `TextBlock`, `appliesTo: ["continue"]` |
+| `impersonation_prompt` | A `TextBlock`, `appliesTo: ["impersonate"]` — the block behind [03 §3.1](03-modes-and-turn-pipeline.md) |
+
+**Nine fixed fields collapse into two general properties**, and the result is
+strictly more capable: an author can wrap *any* slot, and gate *any* block on
+call kind, rather than being limited to the combinations someone anticipated.
+This is [00 §2.7](00-stance.md)'s "per-mode reimplementation" argument appearing
+in a smaller frame — each of those fields is the same idea implemented again
+because there was no general mechanism.
+
+It is also why they are worth converting rather than dropping: they are not
+decoration. `continue_nudge_prompt` is why *continue* works at all.
+
+#### 8.4.4 Credentials in shared presets — dropped, never offered
+
+**The finding that most justifies [00 §3.2](00-stance.md), and it is not
+hypothetical.** ST's chat-completion preset carries `reverse_proxy`,
+`proxy_password`, `custom_url`, `custom_include_headers`, `azure_base_url`,
+`azure_deployment_name`, `vertexai_express_project_id` and
+`workers_ai_account_id` — a list ST itself maintains under the name
+`sensitiveFields`.
+
+ST handles it about as well as its data model allows: on both export and import
+it detects those fields and offers to remove them. But the offer includes
+**"Import as-is"**, and the default is a choice rather than a removal — so
+**presets circulating in the wild can and do contain a working proxy password.**
+
+**Our rule is not a prompt.** The importer drops every one of those fields
+unconditionally, and the review step says which were present:
+
+> *Removed 2 connection fields from this preset (`reverse_proxy`,
+> `proxy_password`). Presets never carry connection settings —
+> configure connections under Settings.*
+
+Three things worth stating about why it is unconditional:
+
+- **There is nowhere to put them.** `Preset` has no field that could hold an
+  endpoint or a credential, so this is not a check that could be forgotten —
+  it is the type refusing. That is exactly the structural enforcement
+  [00 §3.2](00-stance.md) argues for, and ST is the counterexample that shows
+  what the alternative costs: a runtime field list, two modal flows, and a
+  correct outcome only if the user picks the right button.
+- **The person importing is not the person at risk.** A leaked proxy password
+  harms whoever *published* the preset — quite possibly someone who clicked
+  "Import as-is" once and re-shared. Offering a choice here would be offering to
+  help with something the user has no standing to decide.
+- **Report it, do not merely drop it.** Silence would hide the fact that a
+  circulating file contains someone's credential, which is worth someone
+  knowing.
+
+The same rule covers `custom_include_body` / `exclude_body` and any future
+addition: **anything ST classifies as a connection field is discarded on sight**,
+and the importer's list is derived from that category rather than enumerated
+by hand.
+
+#### 8.4.5 Round-tripping is not a goal
+
+We import ST presets. We do not export them, and a converted preset is not
+expected to reproduce ST's output token for token.
+
+The honest reasons: the block model is strictly more expressive in some places
+(wrappers on any slot, call-kind gating on any block) and deliberately narrower
+in others (no character offsets, no instruct templates, no raw completion), so a
+faithful reverse map does not exist. Promising round-trip fidelity would be
+promising something that quietly fails.
+
+**What is promised instead** is the thing that matters to somebody with forty
+presets: the *authored prose survives intact*, the order is preserved,
+depth-injected blocks stay at their depth, and everything that could not be
+carried is named in the review rather than discovered later. That is the same
+bargain [02 §2.7](02-data-model.md) strikes for character cards, and it is the
+right one.
+
+### 8.5 What is committed at `/0`, and what is not
+
+`/0` means what [§2](#2-versioning-and-compatibility) says: this will move. That
+is better than leaving it undefined, which communicates the same instability
+while also losing the round-trip guarantee, the `metadata` escape hatch and the
+unknown-field preservation rule.
+
+**Committed, and not expected to reverse:**
+
+- **Two block kinds**, slot and text. §8.1's argument does not depend on
+  anything unbuilt, and ST's independent arrival at the same split is strong
+  evidence.
+- **Ordering by constraint, never by character offset** — [00 §2.1](00-stance.md).
+- **Every block budgeted and priced**, including the ones the author is sure
   matter — [00 §2.6](00-stance.md).
-- **No production settings.** No connection, no credential, no endpoint, no model
-  id. Enforced by there being nowhere to put them
-  ([00 §3.2](00-stance.md)); `params` carries sampling, not identity.
-- **Blocks are addressable by stable id**, which is what lets a mode reference a
-  block, a workbench diff line up across presets, and a later version reorder
-  without breaking references.
+- **No production settings**, enforced by absence — [00 §3.2](00-stance.md),
+  §8.4.4.
+- **Stable block ids**, so a mode can reference a block, a workbench diff can
+  line up across preset versions, and reordering is free.
 
-**What is genuinely unsettled**, and is why this is `/0` rather than `/1`: the
-`BudgetPolicy` vocabulary, whether `order` needs anything richer than
-before/after, and whether `params` can stay a portable subset or has to grow a
-provider-specific escape hatch. All three want the assembler to exist.
+**Genuinely unsettled, and why this is `/0`:** the `BudgetPolicy` vocabulary; the
+`SlotSource` list, which will grow as modes declare channels; whether `params`
+can stay a portable subset or needs a provider-specific escape hatch; and whether
+`CallKind` is closed or extensible by modes. All four want the assembler to
+exist.
 
-**Prompt packs are where model-behaviour opinion lives, by design.** The three
-delegations above are not evasions — this layer has a property engine code does
-not: **its effect is visible in the turn record** ([02 §8](02-data-model.md)) as
-a block with a source, rather than buried in a conditional. Someone who dislikes
-how "hard" behaves can read the fragment that caused it and change it. That is a
-better place for contested opinion than anywhere in the engine, and it is the
-reason the delegations were right even though they left this hole.
+**Prompt packs are where model-behaviour opinion belongs**, which is the point
+of the three delegations above. This layer has a property engine code does not:
+its effect is visible in the turn record ([02 §8](02-data-model.md)) as a block
+with a source and a reason, rather than buried in a conditional. Someone who
+dislikes how "hard" behaves can read the fragment that caused it and change it.
 
 ---
 

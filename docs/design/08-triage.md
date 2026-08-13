@@ -188,6 +188,10 @@ and no plan below should be built on the assumption that it did.
 | PNG card chunk read/write | ST `character-card-parser.js` | **ADOPT/BUY** | ~120 lines over two npm packages. Technique matters more than code: splice chunks, never re-encode pixels. |
 | Card V2/V3 + CHARX import | ST + Marinara `st-character.importer.ts` (869 ln) | **PORT** | The edge cases are the asset, not the code. |
 | ST lorebook / chat / preset import | Marinara `import/` (~4,450 ln total) | **PORT** | The single largest body of "someone already found the edge cases" in any of the three. |
+| ST chat-completion **prompt manager** — `prompts[]` + `prompt_order[]` | ST `public/scripts/PromptManager.js`, `openai.js` | **PORT the model, rebuild the code** | The closest prior art to our block assembler, and it independently arrived at the slot-versus-text split we need ([13 §8.1](13-schemas.md)). Its `prompts[]` already separates `marker: true` placeholders from authored `content`. The conversion path is mostly renaming ([13 §8.4](13-schemas.md)). |
+| ST preset `sensitiveFields` handling | ST `openai.js` | **REBUILD, harder** | ST detects proxy URLs and passwords in presets on import *and* export, and offers to strip them — with "Import as-is" among the options. Ours drops them unconditionally, because `Preset` has nowhere to put them ([13 §8.4.4](13-schemas.md)). |
+| Instruct / context / reasoning presets | ST | **DISCARD** | Raw-completion plumbing ([00 §2.2](00-stance.md)) and reasoning-block parsing nothing consumes at 1.0. |
+| Text-completion sampler presets | ST `presets/textgen/` | **PARTIAL** | Converts to `params` only; most fields are backend-specific samplers with no chat-API equivalent. Report the ratio rather than implying fidelity. |
 | Character card *format* | all three | **REBUILD** | [02 §2](02-data-model.md). |
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](02-data-model.md). Four scoped changes only. |
 | Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |

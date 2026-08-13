@@ -414,9 +414,19 @@ Cards, lorebooks and presets from SillyTavern, Marinara and Aventuras. The
 largest PORT in the triage ([08 §4](08-triage.md)) and the reason to do it now:
 it turns an empty install into a realistic library.
 
+**Presets are the load-bearing half and the one to sequence first**, because they
+are what makes the imported library *playable* rather than merely present, and
+because the conversion is already designed ([13 §8.4](13-schemas.md)) against
+ST's actual format rather than against a guess. Three things it must do from the
+first version: drop connection fields unconditionally and report them
+([13 §8.4.4](13-schemas.md)), preserve depth-injected blocks at their depth
+rather than flattening them to the top, and name every lossy conversion in the
+review instead of implying fidelity.
+
 **Demonstrable:** point it at a real SillyTavern data directory and get a
 populated library, with a review step showing what resolved, what went to
-`compat`, and what dangled.
+`compat`, and what dangled — and a converted preset whose block list, read in the
+workbench, is recognisably the preset that went in.
 
 **Then stop — this is where PLAYABLE falls (§4.1).**
 

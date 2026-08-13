@@ -354,6 +354,28 @@ The pipeline's context stage produces `AssembledBlock[]`
 The `AssemblyPlan` in the mode definition declares the ordering constraints and
 budget policy; it does not build strings.
 
+**The preset supplies the blocks, in two kinds** ([13 §8.1](13-schemas.md)): a
+**slot** positions content the engine produces — persona, actor sections, lore,
+history, channel state — optionally wrapped; a **text block** is prose the preset
+author wrote. Step 1 above collects candidates for the slots; the text blocks
+*are* candidates already. The split is not ours originally: SillyTavern's prompt
+manager arrived at it independently, distinguishing the two with a `marker`
+boolean inside one array.
+
+**One consequence for the budgeter, and it is the expensive one.** A preset may
+place a block *inside* the history run — four messages from the newest, which is
+how most modern ST presets carry their strongest instructions
+([13 §8.3](13-schemas.md)). So **history is a splittable source, not an atomic
+block**: the assembler can emit `history[…-5]`, a block, then `history[-4…]`, and
+the budgeter must trim a run with something embedded in it.
+
+This is not the thing [00 §2.1](00-stance.md) rejects. That objection is to
+character offsets into an assembled string; "after the Nth-newest message" is a
+structural position over a list the engine owns, it survives editing and
+branching, and it appears in the turn record as an ordinary ordered block. The
+cost is real and worth paying — refusing it would mean importing the existing
+corpus of presets into something that runs but behaves differently.
+
 Templates (Liquid, following Aventuras) render *within* a block. Aventuras'
 `PackTemplate` dual-hash trick — `contentHash` plus `baselineHash`, where the
 divergence distinguishes "app shipped a new default" from "user edited this" — is
