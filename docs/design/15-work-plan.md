@@ -366,6 +366,10 @@ beyond P4, it has been misunderstood.
 
 ### P1 — Skeleton and storage spine
 
+**Expanded into a working plan: [19](19-p1-implementation.md)** — stages, the
+three decisions the design documents left open (folder naming and rename,
+duplicate ids on disk, the user context before auth), and the exit gate.
+
 Repo shape ([07 §10](07-tech-stack.md)), workspaces, CI, schema tooling, licence
 headers. Then the part everything else stands on:
 
