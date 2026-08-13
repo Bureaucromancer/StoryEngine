@@ -532,7 +532,8 @@ disposable index**.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
         session.json
-        turns/000001.json …
+        turns/000001.jsonl …   # append-only segments, never rewritten. §5.5
+        snapshots/             # derived channel state, keyed by TurnId. [10 §4]
         assets/
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
@@ -559,10 +560,57 @@ can only be answered from the index, that feature is storing data in the wrong
 place.
 
 *Honest cost:* every write is a file write plus an index update, and the two can
-diverge under crash. Mitigations: atomic replace (write temp + rename), index
-updates derived from a filesystem watcher rather than written in parallel by
-application code, and a cheap consistency check at startup (mtime/size against
-recorded values) with automatic re-index of anything that doesn't match.
+diverge under crash. Mitigations: atomic replace (write temp + rename), a
+startup consistency check (mtime/size against recorded values) with automatic
+re-index of anything that does not match, and the write path in §5.1.1.
+
+#### 5.1.1 Two writers, one index
+
+**The server updates the index synchronously for its own writes. The watcher
+exists for foreign writes.** Both feed one index; neither is the only path.
+
+An earlier draft said index updates should come from the watcher *rather than*
+from application code, which is appealing — one path, no duplication, the index
+provably a function of the disk. It is also wrong in a way that would not have
+surfaced until the P1 demo, because it makes every write **eventually
+consistent**:
+
+```
+POST /actors → write file → 201
+                    ↓  chokidar: 10–100ms, unbounded under load
+              watcher fires → index updated
+```
+
+A `GET` immediately after a create can legitimately miss it. That is a bad
+property for the most-used API in the product: every UI mutation needs an
+optimistic update or a refetch-with-retry, and **tests race by construction**
+rather than occasionally.
+
+So, two writers with different jobs:
+
+| Writer | Handles | Timing |
+|---|---|---|
+| **Application** | The server's own writes | Synchronous with the file write. Read-after-write is guaranteed. |
+| **Watcher** | Hand edits, git checkouts, restored backups, anything not us | Whenever it happens |
+
+**Self-write events are suppressed**, not merely tolerated. Each application
+write registers a short-lived `(path, mtime, size)` token; a watcher event
+matching one is a no-op rather than a redundant re-index. Without this, `temp +
+rename` produces an add/unlink pair per write and the index does every job twice.
+
+**Nothing the design values is given up.** The index remains derived, disposable
+and rebuildable from disk; a feature that can only be answered from the index is
+still storing data in the wrong place; and hand-editing still works, because that
+is a foreign write and foreign writes are exactly what the watcher is for.
+
+**The CI check gets stronger, not weaker.** "Rebuild-from-disk equals incremental
+index" ([15 P1](15-work-plan.md)) now has two producers to hold to one answer,
+which is a sharper assertion than one producer agreeing with itself.
+
+*What this costs:* a crash between the file write and the index update leaves a
+divergence the watcher would have caught. That is what the startup consistency
+check above is for, and it was needed regardless — the same crash can land
+between temp and rename.
 
 ### 5.2 Actors are folders; the card is a PNG
 
@@ -732,7 +780,8 @@ the settings UI the primary path so hand-editing config stays rare.
 ### 5.5 Sessions
 
 Sessions are the one high-write-volume kind, and they live under the owning user.
-`session.json` holds metadata, cast, channel state and branch refs.
+`session.json` holds metadata, cast, branch refs and the **head channel
+snapshot** — derived, not authoritative (§8.1).
 
 **Turns are append-only JSONL segments**, rolling on whichever limit is reached
 first — a turn count or a byte size. Not one file per turn (thousands of small
@@ -915,6 +964,10 @@ interface Session {
   localActors: Actor[]
   lore: Ref<Lorebook>[]
 
+  /** THE HEAD SNAPSHOT, not the source of truth. Channel state is
+   *  reconstructed by replaying effects ([10 §4](10-branching.md)); this is a
+   *  materialisation of it at `headTurnId`, derived and regenerable. It lives
+   *  here so a human opening the file can read the clock. §8.1 */
   channels: Record<ChannelId, ChannelState>
 
   // Turns form a tree, not a list — see [10 §3](10-branching.md).
@@ -925,6 +978,51 @@ interface Session {
 
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 setting later must not affect this session.
+
+### 8.1 `session.json`'s channel state is the head snapshot
+
+Worth stating plainly, because the naive reading produces a bug that only
+surfaces at P6 and is expensive by then.
+
+A session is a **tree** ([10 §3](10-branching.md)), so "the channel state of a
+session" is not a thing that exists. State exists *at a node*, and is
+reconstructed by replaying effects from the nearest snapshot
+([10 §4](10-branching.md)). A single `channels` map in `session.json` can
+therefore only mean **state at `headTurnId`** — and it is derived, exactly like
+the snapshots under `snapshots/` and the SQLite index. Deleting it must cost a
+recomputation and nothing else.
+
+Read as authoritative instead, it becomes a mutable state blob that switching
+branches has to rewrite — which is the same failure
+[10 §5.1](10-branching.md) rules out for rolling summaries, arriving by a
+different door.
+
+**So why keep it in the file at all?** Because [00 §3.4](00-stance.md) means
+someone will open `session.json`, and a session file that cannot tell you what
+time it is in the story fails the legibility promise the storage design is built
+on. Materialising the head is cheap and it is the one snapshot that is always
+wanted.
+
+#### Hand-editing it writes an effect
+
+The move that keeps both properties, and it is worth having for its own sake.
+
+A user who edits `channels.hp.current` in the file on disk has expressed an
+intent, not corrupted a cache. On load, the engine compares the file's channel
+state against the state replayed at head, and **any divergence becomes a
+user-authored `ChannelEffect` appended at the head** — attributed, visible in the
+turn record, and reversible like any other effect.
+
+- The effect log stays the single source of truth.
+- Editing your own data on disk ([05 §4](05-ui-surfaces.md)) works for sessions
+  and not only for library objects, which it otherwise would not.
+- The change survives branching, appears in the workbench, and can be undone.
+- **A stale snapshot is self-healing rather than dangerous**: if the divergence
+  came from a bug rather than a person, it still lands as a visible effect
+  someone can inspect, instead of silently persisting.
+
+The alternative — treating the file as authoritative — buys the same editability
+and costs the branching model.
 
 ### The turn record is a first-class artefact
 
@@ -969,7 +1067,9 @@ interface MentionSpan {
 
 interface AssembledBlock {
   id: string
-  source: { kind: "actor" | "lore" | "setting" | "channel" | "history" | "preset" | "step"; id: string }
+  /** One vocabulary, shared with the preset's slots — [18 §1.1]. Carries the
+   *  identifier too (*which* lore entry), so provenance is clickable. */
+  source: BlockSource
   reason: string                 // "keyword match: 'cathedral'" / "always" / "pinned by user"
   role: "system" | "user" | "assistant"
   tokens: number
@@ -977,6 +1077,13 @@ interface AssembledBlock {
   droppedBy?: string             // which budget rule dropped it
 }
 ```
+
+**`ModelCall`, `BudgetVerdict`, `ChannelEffect`, `ChannelState` and `BlockSource`
+are defined in [18](18-internal-contracts.md).** They are internal and free to
+migrate ([13 §1](13-schemas.md)); they are written down because the assembler
+cannot be built against a reference. `ChannelEffect` is the one worth reading
+before writing any of this — it carries the reversibility
+[10 §2](10-branching.md) depends on.
 
 Aventuras stores a `retrievalSnapshot` annotated "Diagnostic only — nothing reads
 it back", and Marinara has an Active Context popover plus a debug-only Injections

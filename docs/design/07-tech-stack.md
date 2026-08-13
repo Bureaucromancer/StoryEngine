@@ -251,7 +251,7 @@ interface ProviderCapabilities {
   supportsStructuredOutput: boolean
   maxPromptChars?: number       // hard: what the endpoint accepts
   usefulPromptChars?: number    // soft: where quality degrades
-  // …
+  // … completed in [18 §3], including same-role message merging
 }
 ```
 
@@ -475,9 +475,9 @@ packages/
   sdk/         the published extension/mode contract. Depends on shared.
   server/
   client/
-  modes/messages/  ⎫ built-in modes, each its own package,
-  modes/scene/     ⎬ consuming sdk exactly as a third party would
-  modes/adventure/ ⎭
+  modes/scene/     ⎫ built-in modes, each its own package,
+  modes/adventure/ ⎬ consuming sdk exactly as a third party would.
+                   ⎭ Messages joins at 2.0 [15 §0].
 ```
 
 **`sdk` is AGPL-3.0, like everything else, and that is deliberate rather than

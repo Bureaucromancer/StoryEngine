@@ -162,12 +162,19 @@ It looks like a scary feature and mostly isn't, because of a decision already
 made elsewhere: **the SQLite index is derived and rebuilt from a filesystem
 watcher.**
 
-That means a hand-edited file is not a special case. It is the same code path as
-any other write — something changed on disk, the watcher notices, the object is
-re-parsed and re-indexed. There is no "the UI wrote it so it's trusted / the user
-wrote it so it's suspect" distinction, because the UI's writes go to disk and get
-picked up the same way. A file browser is a view onto the truth rather than a
-back door around it.
+That means a hand-edited file is not a special case. Something changed on disk,
+the watcher notices, the object is re-parsed and re-indexed. There is no "the UI
+wrote it so it's trusted / the user wrote it so it's suspect" distinction — both
+end up as bytes on disk, re-parsed by the same loader and validated by the same
+schema. A file browser is a view onto the truth rather than a back door around
+it.
+
+**Precisely:** the server indexes its own writes synchronously and the watcher
+handles foreign ones ([02 §5.1.1](02-data-model.md)), so the two do not share a
+*code path* — they share the loader, the schema and the index. That is the part
+that matters here, and it is what makes hand-editing safe rather than merely
+tolerated. Hand edits are the watcher's actual job rather than a side effect of
+it.
 
 The corollary is that the feature is nearly free *if* the watcher path is correct,
 and impossible to add safely if it isn't. Which makes it a useful design forcing

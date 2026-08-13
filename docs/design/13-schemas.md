@@ -887,12 +887,24 @@ interface SlotBlock extends BlockCommon {
 type SlotSource =
   | { of: "persona" }
   | { of: "actor"; sectionId: string }     // "se.summary", "se.appearance", …
+  /** Non-prose actor fields. `traits` is a real field rather than a Section
+   *  ([§4](#4-actor)), so a slot cannot reach it through `sectionId` — and
+   *  card import puts a legacy `personality` here ([02 §2.7](02-data-model.md)),
+   *  which makes this the slot ST's `charPersonality` converts to. §8.4.1. */
+  | { of: "actor"; field: "traits" | "visual" }
   | { of: "lore"; phase: "before" | "after" }
   | { of: "history" }
   | { of: "examples" }
   | { of: "channel"; channelId: ChannelId }
   | { of: "setting"; part: "framing" | "tone" }
   | { of: "goal" }                          // [03 §7.3.3]
+
+// SlotSource is BlockSource ([18 §1.1](18-internal-contracts.md)) minus its two
+// assembler-only origins — `preset`, because a preset's own prose *is* a
+// TextBlock rather than a reference to one, and `step`, because a step's
+// contribution did not exist when the preset was authored. One vocabulary, used
+// from both ends: a slot names a source, the assembler fills it, and the block
+// it produces records the same source back.
 
 /** Prose the preset author wrote. */
 interface TextBlock extends BlockCommon {
@@ -980,7 +992,7 @@ The marker identifiers map one to one:
 | `chatHistory` | `{ of: "history" }` |
 | `worldInfoBefore` / `worldInfoAfter` | `{ of: "lore", phase }` |
 | `charDescription` | `{ of: "actor", sectionId: "se.summary" }` |
-| `charPersonality` | `{ of: "actor", sectionId: "se.voice" }` |
+| `charPersonality` | `{ of: "actor", field: "traits" }` — see below |
 | `personaDescription` | `{ of: "persona" }` |
 | `dialogueExamples` | `{ of: "examples" }` |
 | `scenario` | `{ of: "setting", part: "framing" }` |
@@ -989,6 +1001,23 @@ The `scenario` row is the interesting one, and it is the same move
 [02 §2.7](02-data-model.md) makes for card import: ST's scenario is per-character
 text, ours is the setting's framing, and routing it there is where it always
 wanted to live.
+
+**The `charPersonality` row is the one that has to agree with card import, and
+an earlier draft got it wrong.** It pointed at `se.voice`, which reads sensibly
+in isolation and is broken in practice: [02 §2.7](02-data-model.md) routes a
+card's `personality` to `traits` + `summary`, so a converted preset and a
+converted card from the *same* install would have produced a slot that resolves
+to a section nothing ever wrote. Empty forever, and `omitWhenEmpty` would have
+hidden it.
+
+> **The rule this establishes:** the card importer and the preset importer
+> convert opposite ends of one format and have to be checked *against each
+> other*. Verified separately, both look right.
+
+The check is cheap and belongs in the fixture suite
+([16 §5](16-testing.md)): import a real ST directory, assemble one turn, and
+assert that **no slot resolves empty**. It is the kind of failure that produces
+silence rather than an error, which is exactly what a golden-file test is for.
 
 #### 8.4.2 What is lossy, and how each loss is reported
 
@@ -1203,8 +1232,8 @@ warning with a degraded-start option rather than a hard block where possible.
 
 | Structure | Why not |
 |---|---|
-| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. |
-| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). |
+| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [18](18-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
+| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [18 §1.3](18-internal-contracts.md). |
 | **Preset** | Depends on the assembly design, which is unbuilt. Defining it now would be guessing. |
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 2.0 ([15 §0.4](15-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |

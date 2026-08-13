@@ -560,7 +560,12 @@ Things that are wrong to schedule because they must happen inside every phase:
   the turn record makes them snapshot-testable from P2.
 - **Watcher and index consistency** under rapid or concurrent writes. The
   mitigation is architectural — the index is disposable — but the failure mode
-  is confusing while it lasts.
+  is confusing while it lasts. **Reduced, not removed**, by the dual write path
+  ([02 §5.1.1](02-data-model.md)): the server indexes its own writes
+  synchronously, so the API is read-after-write consistent and only *foreign*
+  edits go through the watcher. What remains is self-write suppression getting
+  its `(path, mtime, size)` token wrong, which shows up as double-indexing rather
+  than as missing data.
 - ~~A1, the extension execution model~~ — **closed** ([17](17-extensions.md)).
   The remaining risk is not structural but velocity: a boundary means anything
   the API does not expose is blocked until it grows. Watch the signals in

@@ -288,7 +288,7 @@ their absence is embarrassing rather than defensible.
 interface Account {
   handle: string          // stable, used for directory names, immutable
   displayName: string
-  passwordHash, salt      // argon2id
+  passwordHash, salt      // scrypt, per [07 §9] — no native dependency
   role: "admin" | "user"
   enabled: boolean
   locale: string | null   // BCP-47; defaulted from Accept-Language on first login

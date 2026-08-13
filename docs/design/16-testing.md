@@ -220,6 +220,33 @@ structural edge cases, keep a handful of explicitly-permissive real ones, and
 maintain a larger private local corpus for manual verification that never enters
 the repository.
 
+### 5.1 The importers must be tested against each other
+
+**A converted card and a converted preset have to meet**, and testing each
+importer alone will not find out whether they do. The card importer routes ST's
+`personality` one way ([02 §2.7](02-data-model.md)); the preset importer points
+the `charPersonality` slot somewhere ([13 §8.4.1](13-schemas.md)). Both can be
+individually correct and disagree, and an earlier draft of the two did exactly
+that — producing a slot that would have resolved empty forever, hidden by
+`omitWhenEmpty`.
+
+So one fixture pair and one assertion:
+
+> Import a SillyTavern directory containing **both** cards and a chat-completion
+> preset, assemble one turn from them, and assert that **no slot resolves to
+> nothing**.
+
+It is a two-line assertion over machinery the golden-file tests already build
+(§3.1), and it catches the whole class: any slot whose source no importer
+populates. The class matters because its failure mode is *silence* — no error,
+no warning, just a prompt quietly missing a section — which is the one thing
+golden-file testing is uniquely good at catching and manual testing is uniquely
+bad at.
+
+The same check generalises beyond import: a hand-authored preset referencing
+`{ of: "channel", channelId: … }` for a channel the mode does not declare fails
+it too, which is worth having.
+
 ---
 
 ## 6. CI

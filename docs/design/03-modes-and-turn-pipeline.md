@@ -349,7 +349,13 @@ The pipeline's context stage produces `AssembledBlock[]`
 4. **Render.** Blocks become provider messages. This is the only place that knows
    what a chat API looks like — and, should the decision in [07 §5.5](07-tech-stack.md)
    ever be revisited, the only place a completion renderer would have to
-   touch ([00 §2.2](00-stance.md)).
+   touch ([00 §2.2](00-stance.md)). It carries one decision worth naming:
+   **adjacent blocks with the same role** — six consecutive `system` blocks are
+   one message or six. Providers differ and some reject consecutive same-role
+   messages outright, so it is a **provider capability** rather than a global
+   choice, and a merged message still records which blocks produced it or the
+   workbench loses its mapping. Shape in
+   [18 §2](18-internal-contracts.md).
 
 The `AssemblyPlan` in the mode definition declares the ordering constraints and
 budget policy; it does not build strings.

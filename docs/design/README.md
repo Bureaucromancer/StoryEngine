@@ -63,6 +63,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | Doc | What it covers |
 |---|---|
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
+| [18-internal-contracts.md](18-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
 | [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
 | [16-testing.md](16-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
 | [17-extensions.md](17-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
@@ -77,6 +78,11 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 
 **02 and 13 are a pair.** 02 carries the reasoning and the alternatives
 considered; 13 carries the definitions. Where they disagree, 13 is current.
+
+**13 and 18 split by portability, not by importance.** 13 holds structures that
+travel between installs and are therefore committed; 18 holds structures that
+never leave and are free to migrate — but which everything is built against, so
+they still have to exist before code does.
 
 ## The four commitments these documents are built around
 

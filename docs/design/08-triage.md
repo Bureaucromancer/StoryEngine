@@ -415,7 +415,8 @@ The triage suggests an order, because some verdicts depend on others being right
    the block/budget model.
 4. **Import.** Early, not late — it is how you get a realistic library to test
    retrieval and budgeting against, and it is the largest PORT in the document.
-5. **The three modes**, each as a separate package against the public contract.
+5. **The modes** — Scene and Adventure–Freeform at 1.0 ([15 §0](15-work-plan.md)),
+   each as a separate package against the public contract.
 6. **Retrieval and memory.** The Aventuras PORT. Needs a real library and real
    long sessions to tune, so it wants to come after import.
 7. **Multi-user, then file access.** Auth is small; the shared-library ownership

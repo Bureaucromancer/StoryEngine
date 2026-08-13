@@ -138,7 +138,16 @@ node whose state will be materialised repeatedly, once per sibling explored.
 
 Snapshots follow the same rule as the SQLite index
 ([02 §5.1](02-data-model.md)): **derived, disposable, never authoritative.**
-Deleting every snapshot must cost time and nothing else. A snapshot that
+Deleting every snapshot must cost time and nothing else.
+
+**Including the one in `session.json`.** That file carries channel state at the
+head, which reads like the session's canonical state and is not — it is a
+snapshot like any other, materialised there because a human opening the file
+should be able to read the clock ([02 §8.1](02-data-model.md)). Treating it as
+authoritative would mean branch switching rewrites it, which puts mutable state
+back in the middle of the one mechanism this document exists to keep cheap. The
+reconciliation, including what happens when someone hand-edits it, is in
+[02 §8.1](02-data-model.md). A snapshot that
 disagrees with a replay is a bug in the effects, and CI should check exactly
 that on a fixture session — replay-from-zero must equal snapshot-plus-replay at
 every index.
