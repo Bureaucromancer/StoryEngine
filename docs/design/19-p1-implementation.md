@@ -182,8 +182,12 @@ administers and **not** an account — there is no system login
 
 - **`node:sqlite` has FTS5, with no flag** (Node 26.4, SQLite 3.53.2). This was
   the live risk in [07 §7](07-tech-stack.md); the documented fallback to
-  `better-sqlite3` is not needed. **Re-run the probe on whichever LTS gets
-  pinned**, since 26 may be Current rather than LTS.
+  `better-sqlite3` is not needed. ~~Re-run the probe on whichever LTS gets
+  pinned~~ — **settled at P1.0: the pin is Node 26**, so the probe above stands
+  as run and needs no repeat. 26 is Current until roughly October 2026, which
+  makes this a deliberate exception to [07 §2](07-tech-stack.md)'s "current LTS"
+  rather than a drift; it is recorded there too. `engines.node` is `>=26.4.0`
+  and CI runs the single version.
 - **`crypto.randomUUID()` is v4 only.** uuidv7 is ~20 lines — 48-bit millisecond
   timestamp, version nibble, random tail — and goes in `shared` with a
   monotonicity test. Not worth a dependency.
@@ -474,6 +478,25 @@ means one specific thing about its shape:
   writes it until P2, and the editor must not drop the map on save — which is the
   unknown-field discipline applied to a field we *do* know.
 
+**Version history is part of this stage**, on both sides. The storage half
+belongs with P1.2 — every write snapshots the state it replaces
+([02 §11](02-data-model.md)) — and the editor is where it becomes visible: a
+history panel with restore and diff ([05 §11.2a](05-ui-surfaces.md)).
+
+That pairing is not decoration, it is what makes a *prototype* editor safe to
+have. An editor built before the assist contract is one people will use on real
+characters anyway, and the argument for building it early is undermined if a bad
+save is unrecoverable. History removes that objection entirely — and the two
+features share the write path, so building them together costs less than
+building either alone would suggest.
+
+It also gives the stage a second falsifiable claim: **the `source` field is
+populated correctly.** An edit through the UI records `manual`, a hand-edit on
+disk records `external` ([18 §1.6](18-internal-contracts.md)). If those come out
+the same, the watcher is not distinguishing its own writes from foreign ones,
+which is [02 §5.1.1](02-data-model.md) failing in a way nothing else in P1
+surfaces.
+
 **The risk, stated because [15 §2.2](15-work-plan.md) requires it to be.**
 Building a field primitive before the assist contract is proven can bake in the
 wrong shape. The mitigation is that P1 commits to a *component boundary*, not to
@@ -522,9 +545,25 @@ pnpm dev    # http://127.0.0.1:8080
     save from the UI → the write is **rejected** on a stale hash and the UI
     offers reload-and-reapply or save-as-a-copy
     ([04 §4.4](04-server-multiuser-deployment.md)).
+16. Open the actor's history → the edit from step 13 is listed as `manual`, and
+    the hand-edit from step 15 as `external` ([02 §11](02-data-model.md)). Two
+    entries, correctly attributed; one entry or two identical ones means the
+    watcher is not telling its own writes from foreign ones.
+17. Save the actor again without changing anything → **no new version.** The
+    no-op rule ([02 §11.1](02-data-model.md)), and the difference between a
+    history someone reads and one they scroll past.
+18. Restore the step-13 version → the summary reverts, and the state you were on
+    is now the newest entry rather than gone.
+19. Diff two versions → the changed field, and only the changed field.
 
-*Automated equivalents of 4 and 7–15 are this phase's CI suite*, plus the
+*Automated equivalents of 4 and 7–19 are this phase's CI suite*, plus the
 rebuild-equals-incremental property test.
+
+**Steps 16–18 are cheap to write and disproportionately worth having**, because
+each fails silently otherwise: mis-attributed sources look like a working
+feature, no-op suppression is invisible until the list is unusable, and a
+destructive restore is only discovered by someone who needed the thing it
+destroyed.
 
 **Step 10 matters more than it looks.** The path under a stable id is the part of
 P1 most likely to be got subtly wrong, and a foreign rename is the only thing

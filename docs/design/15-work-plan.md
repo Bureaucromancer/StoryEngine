@@ -438,8 +438,15 @@ headers. Then the part everything else stands on:
 - Files on disk, atomic writes, per-user layout, the PNG card envelope.
 - Derived index, filesystem watcher, **rebuild-from-disk as a startup option**.
 - Library CRUD, with accounts and login ([19 §1.3](19-p1-implementation.md)).
+- **Version history on write** ([02 §11](02-data-model.md)) — cheap here and
+  awkward later, because the trigger points are every write path there will ever
+  be. The watcher makes *hand-edits* snapshot too, which no source can offer and
+  which this phase's demo exercises directly.
 - A library list, and **a prototype actor editor**
   ([19 §P1.7](19-p1-implementation.md)) — actor only, real write path, no assist.
+  The editor is also where the history panel first appears
+  ([05 §11.2a](05-ui-surfaces.md)): restore and diff are the parts worth having
+  early, since they are what make a prototype editor safe to experiment in.
 
 **Demonstrable:** create an actor through the API, see the folder appear, edit
 the JSON on disk by hand, watch the change reflected without a restart. That

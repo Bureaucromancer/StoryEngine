@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 StoryEngine contributors
+#
+# The per-PR tier from docs/design/16-testing.md §6: typecheck, lint, build,
+# test. It has one job — to be fast enough that it is never skipped.
+#
+# The nightly and on-tag tiers, the dependency-licence scan and the forward-port
+# check are deliberately absent. They belong to later phases: there are no
+# release branches to forward-port between yet, and no provider adapters to
+# conform-test.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      # Node 26 rather than the current LTS. docs/design/19-p1-implementation.md
+      # §1.4 verified node:sqlite's FTS5 support there, which is what removes the
+      # better-sqlite3 fallback from the plan; 26 becomes LTS in October 2026.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Typecheck first, and not only because it is fast. `tsc -b` emits each
+      # package's dist, and the boundary rules classify an import by its
+      # resolved path — which runs through those built entry points. Linting an
+      # unbuilt workspace would pass for the wrong reason.
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm build
+
+      - run: pnpm test

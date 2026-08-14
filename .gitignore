@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+.vitest/
+
+# The runtime data directory. Files on disk are canonical (docs/design/02-data-model.md
+# §5) and they are the user's, never the repository's.
+data/
+
+# Local config, never committed.
+config.json
+
+.env
+.env.local

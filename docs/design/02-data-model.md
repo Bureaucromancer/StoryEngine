@@ -521,13 +521,14 @@ disposable index**.
   users/
     <handle>/
       account.json
-      library/
+      library/                # every object folder may carry history/ — §11.2
         actors/     <slug>/card.png        + assets/
         lorebooks/  <slug>/lorebook.json   + assets/
         settings/   <slug>/setting.json    + cover.png
         presets/    <slug>/preset.json
         setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
+      trash/                  # deleted objects awaiting the retention window §10.2
       memories/               # auto-maintained, see [14](14-cross-session-memory.md)
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
@@ -1214,3 +1215,160 @@ their origin was removed would be a much worse surprise than leaving them. Same
 reasoning as the escaped-effects warning on branch pruning
 ([10 §7](10-branching.md)), and the delete confirmation should say so when it
 applies.
+
+---
+
+## 11. Version history on library objects
+
+**Every library object keeps its own edit history, automatically.** Editing an
+actor, lorebook, setting, setup or preset snapshots the state being replaced, and
+any earlier state can be inspected, compared, or restored.
+
+Adopted from Marinara, which implements this for character and persona cards
+(`packages/server/src/services/storage/characters.storage.ts`,
+`packages/shared/src/types/character.ts`) and gets the hard parts right. What
+changes here is the storage substrate and the scope: Marinara keeps versions in a
+database table for two card types; ours are files, for every kind.
+
+### 11.1 What Marinara gets right, and is worth taking unchanged
+
+Four behaviours, each of which is the non-obvious choice:
+
+- **Snapshots are automatic, not requested.** There is no "save a version"
+  button. Any write that actually changes something records the previous state
+  first. A feature that depends on remembering to use it protects nobody, and
+  the moment you want history is *after* the edit you regret.
+- **No-op writes do not snapshot.** The write path compares content, comment and
+  image before recording anything. Without this, every autosave and every
+  round-trip through an editor produces an identical entry and the history
+  becomes unreadable within a day.
+- **The snapshot carries the replaced state's own timestamp**, not the moment it
+  was superseded. Marinara's comment on this is exact — *"so a restored version
+  keeps its real date in history"*. A version dated when it stopped being current
+  tells you nothing; dated when it was authored, the list reads as a timeline.
+- **Restore is itself an edit.** Restoring snapshots the current state first, in
+  one transaction, so going back never destroys what you were on and an
+  interruption cannot leave a half-applied card. Marinara skips the snapshot when
+  the current state already equals the target, which is the same no-op rule
+  applied to the same problem.
+
+And two fields worth keeping verbatim: **`source`** — what made this change
+(`manual`, `assist`, `extension`, `import`, `restore`) — and **`reason`**, free
+text that is sometimes generated (*"Saved before restoring an earlier version"*)
+and sometimes the user's.
+
+`source` earns its place here more than it does in Marinara, because more things
+edit objects in this design: field assists ([05 §11.1](05-ui-surfaces.md)), the
+assistant's proposals ([17 §4](17-extensions.md)), and import. *"Who changed my
+character"* is a question with several possible answers, and the history is where
+it gets one.
+
+### 11.2 What has to change: versions are files
+
+Marinara stores versions in a table. That is not available here — the database is
+a derived index and deleting it must be a non-event (§5.1), so anything held only
+there would be lost on a rebuild.
+
+**History lives inside the object's own folder.**
+
+```
+library/actors/vera-solano--01h9x2/
+  actor.json
+  card.png                    derived
+  history/
+    index.jsonl               append-only: one record per version
+    v/<sha256>.json           the snapshot payloads, content-addressed
+  assets/
+```
+
+Four consequences, and the second is the one that makes this design better than
+the database version rather than merely equivalent:
+
+- **History travels with the object.** The folder is the object
+  ([00 §3.4](00-stance.md)), so dragging it out takes the history along. Nothing
+  extra to export, nothing left behind.
+- **Hand-edits get history for free.** A foreign write — someone editing
+  `lorebook.json` in a text editor — reaches the engine through the watcher
+  (§5.1.1), and the engine snapshots the *previous* state before re-indexing. So
+  breaking a file by hand is recoverable, which is a promise Marinara structurally
+  cannot make and which this design gets as a side effect of the storage thesis.
+  It is also the strongest argument for building the mechanism in P1, when the
+  watcher exists and no editor does.
+- **Media dedupes automatically.** Snapshots reference embedded media by digest
+  ([13 §3](13-schemas.md)), so forty versions of an actor whose portrait never
+  changed store the portrait once. The payloads are JSON and small; without this
+  the feature would be unaffordable for actors specifically.
+- **Content-addressed payloads dedupe too.** Edit, revert by hand, edit back —
+  the repeated state is one file with two entries pointing at it.
+
+**`index.jsonl` is append-only**, which is the same decision as turn segments
+(§5.5) for the same reasons: cheap writes, clean git diffs, and a corrupted tail
+costs the newest entry rather than the history.
+
+### 11.3 Retention
+
+**Marinara has no cap**, and that is the one place its design should not be
+copied. An agent making a run of small edits can produce hundreds of entries, and
+an unbounded list is a list nobody scrolls.
+
+- **A generous default count, tunable** ([18 §4](18-internal-contracts.md)) —
+  prune oldest first, per object.
+- **Pinned versions are never pruned.** Pinning is what a user does to the state
+  they might want back in a year, and it is the entire answer to "the cap ate
+  something I cared about".
+- **Prune by count, not by age.** A card edited heavily one evening and left
+  alone for six months should not lose that evening.
+- **Pruning is not deletion of content.** Content-addressed payloads referenced
+  by a surviving entry stay; only unreferenced ones are collected.
+
+### 11.4 Three scales of undo, and why they do not overlap
+
+Worth stating together, because this is the third one and someone will otherwise
+ask why there are three:
+
+| Scale | Mechanism | Question it answers |
+|---|---|---|
+| **A field** | `generated.original` ([13 §3](13-schemas.md)) | *Undo what the model wrote in this box* |
+| **An object** | Version history — this section | *Put this character back how it was* |
+| **A story** | Branching ([10](10-branching.md)) | *Go back to before that happened* |
+
+They are genuinely different: field-level revert is about one generated value and
+survives no further edits; object history is about an authored artefact across
+its whole life; branching is about narrative time and does not touch the library
+at all.
+
+**And they compose without interacting.** Restoring an actor to an older version
+does *not* reach into running sessions — sessions copy from the library at
+creation and hold no live link ([00 §3.1](00-stance.md)). That is worth saying
+explicitly, because it is the first thing someone worries about, and the answer
+is a principle that already exists rather than a special case.
+
+### 11.5 What the author's own version string is, and is not
+
+`Provenance.version` ([13 §3](13-schemas.md)) is free text the *author* sets —
+`"1.2"`, `"final-ish"`, whatever they like. Marinara snapshots the equivalent
+field alongside each version and displays both, which is right and worth
+copying.
+
+**Two different notions, deliberately kept apart:**
+
+- **The revision** is ours: monotonic, per object, computed for display rather
+  than stored, and meaningless outside this install.
+- **The version string** is theirs: a claim about the content that travels with
+  the object when it is shared.
+
+An author who bumps `"1.1"` to `"1.2"` is making a statement to whoever they
+share the card with. The revision counter is bookkeeping. Conflating them would
+mean either renumbering someone's release when they fix a typo, or pretending
+seventeen local edits were one.
+
+### 11.6 Not part of an export, by default
+
+A `.seactor` or `.sepack` carries the object, not its history. Two reasons, and
+they point the same way: forty drafts make the file large for no benefit to the
+recipient, and edit history is a working record — the false starts, the
+abandoned phrasings — that people do not necessarily intend to publish.
+
+**Opt-in on export** for the case where it is wanted: handing a character to a
+collaborator who will keep working on it. Same treatment as the trash
+(§10.2), and the export UI says which it is doing.

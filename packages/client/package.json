@@ -1,0 +1,17 @@
+{
+  "name": "@storyengine/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "The StoryEngine web client.",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@storyengine/shared": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}
