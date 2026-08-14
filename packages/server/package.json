@@ -32,5 +32,8 @@
     "@types/png-chunk-text": "1.0.3",
     "@types/png-chunks-encode": "1.0.2",
     "@types/png-chunks-extract": "1.0.2"
+  },
+  "scripts": {
+    "start": "node dist/main.js"
   }
 }

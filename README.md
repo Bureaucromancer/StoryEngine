@@ -2,11 +2,18 @@
 
 A self-hosted, multi-user engine for character-driven interactive fiction.
 
-**Status: alpha, and pre-first-feature.** The design is written down in
-[`docs/design/`](docs/design/); the code is at
-[P1.0](docs/design/19-p1-implementation.md#p10--repo-skeleton), which is the
-repository skeleton and the discipline mechanisms. **Nothing runs yet.** There
-is no server to start and no UI to open — that is P1.5 and P1.6.
+**Status: alpha.** The design is written down in
+[`docs/design/`](docs/design/); the code is through
+[P1.5](docs/design/19-p1-implementation.md) — the storage spine, the derived
+index and its watcher, auth, and the library API.
+
+**The server runs; there is no UI yet.** That is P1.6. Until then the API is
+the whole product, and [`docs/api.md`](docs/api.md) is how to drive it.
+
+The storage thesis this phase exists to prove does work end to end: create an
+actor through the API, watch the folder appear, hand-edit a lorebook on disk in
+a text editor, and see the change without a restart
+([05 §4.1](docs/design/05-ui-surfaces.md)).
 
 Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)
@@ -23,12 +30,28 @@ Requires **Node 26** and **pnpm 11**.
 pnpm install && pnpm typecheck && pnpm lint && pnpm build && pnpm test
 ```
 
+Then start it:
+
+```bash
+pnpm dev
+```
+
+It binds `127.0.0.1:8080` and creates `./data` on first run. Open the address
+and it will ask you to create the first admin — or drive it with `curl`, per
+[`docs/api.md`](docs/api.md).
+
+**Loopback is the default deliberately.** Until an admin account exists, anyone
+who can reach the port can claim the install, so LAN exposure is an explicit act
+([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
+[`config.example.json`](config.example.json) to `data/config.json` to change it.
+
 | Script | What it does |
 |---|---|
 | `pnpm typecheck` | `tsc -b` across the project references, then the tooling |
 | `pnpm lint` | ESLint (including the boundary graph) and Stylelint |
-| `pnpm build` | Typecheck, then the client bundle |
+| `pnpm build` | Typecheck, emit the JSON Schemas, then the client bundle |
 | `pnpm test` | Vitest |
+| `pnpm dev` | Start the server |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an
@@ -38,12 +61,16 @@ point — so linting an unbuilt workspace passes for the wrong reason.
 ## Layout
 
 ```
-packages/shared/     portable types and schemas. No runtime dependencies.
-packages/sdk/        the published extension and mode contract.
+packages/shared/     portable types and schemas, and the registry over them
+packages/sdk/        the published extension and mode contract
 packages/server/
-packages/client/     React + Vite.
+  src/storage/       the only place that touches the filesystem
+  src/index-db/      the derived index and its watcher — delete it, lose nothing
+  src/auth/          accounts, scrypt, sessions
+  src/routes/        the HTTP surface
+packages/client/     React + Vite. A scaffold until P1.6.
 tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
-                     tested rather than trusted.
+                     tested rather than trusted
 ```
 
 `packages/modes/` does not exist yet — but the lint rules governing it do, which

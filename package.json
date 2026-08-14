@@ -10,14 +10,15 @@
     "node": ">=26.4.0"
   },
   "scripts": {
-    "typecheck": "tsc -b && tsc -p tsconfig.tools.json",
-    "lint": "pnpm run lint:es && pnpm run lint:css",
-    "lint:es": "eslint .",
-    "lint:css": "stylelint \"packages/**/*.css\"",
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
-    "test": "vitest run",
+    "dev": "pnpm --filter @storyengine/server start",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint": "pnpm run lint:es && pnpm run lint:css",
+    "lint:css": "stylelint \"packages/**/*.css\"",
+    "lint:es": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc -b && tsc -p tsconfig.tools.json"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
