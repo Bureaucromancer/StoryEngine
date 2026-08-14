@@ -19,6 +19,14 @@
   "dependencies": {
     "@storyengine/sdk": "workspace:*",
     "@storyengine/shared": "workspace:*",
+    "png-chunk-text": "1.0.0",
+    "png-chunks-encode": "1.0.0",
+    "png-chunks-extract": "1.0.0",
     "write-file-atomic": "8.0.0"
+  },
+  "devDependencies": {
+    "@types/png-chunk-text": "1.0.3",
+    "@types/png-chunks-encode": "1.0.2",
+    "@types/png-chunks-extract": "1.0.2"
   }
 }
