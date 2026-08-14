@@ -3,7 +3,7 @@
 
 import { type Static, Type } from '@sinclair/typebox';
 
-import { EmbeddedMedia, GeneratedMap, Id, Metadata, Provenance } from './common.js';
+import { AssetRef, EmbeddedMedia, GeneratedMap, Id, Metadata, Provenance } from './common.js';
 import { PlotHook } from './hook.js';
 
 /**
@@ -11,8 +11,13 @@ import { PlotHook } from './hook.js';
  *
  * Entry activation is taken from Marinara close to unchanged, because it is a
  * decade of empirical tuning and it is the interchange format. The changes are
- * four, all scoped: the collapsed scope union, folders, the extension
- * activation hook, and `stateSchema`.
+ * five, all scoped: the collapsed scope union, folders, the extension
+ * activation hook, `stateSchema`, and images (§5.1).
+ *
+ * Images are the one addition that is new territory rather than a port —
+ * Marinara carries a single `imagePath` per book and SillyTavern's World Info
+ * has none — which is why the rule that they *do not activate* is stated on the
+ * field itself rather than left to this header.
  */
 
 export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
@@ -171,6 +176,22 @@ export const LoreEntry = Type.Object(
      * a closed union.
      */
     tag: Type.Union([Type.String(), Type.Null()]),
+
+    /**
+     * Pictures of the thing this entry describes
+     * ([13 §5.1](docs/design/13-schemas.md)).
+     *
+     * ⚠ **MEDIA DOES NOT ACTIVATE.** An entry firing on a keyword contributes
+     * its *text*. Its images are not retrieved, not budgeted and not sent — at
+     * 1.0 nothing outside the editor reads this field at all.
+     *
+     * The assumption that activation carries the whole entry is the natural one
+     * and it is wrong. It also fails quietly and expensively: twelve pictures
+     * on a `constant: true` entry would otherwise become a per-turn cost nobody
+     * chose, discovered on a bill.
+     */
+    media: Type.Array(EmbeddedMedia),
+
     /** Locked against automatic modification by agents. */
     locked: Type.Boolean(),
     metadata: Metadata,
@@ -221,8 +242,28 @@ export const Lorebook = Type.Object(
     entries: Type.Array(LoreEntry),
 
     tags: Type.Array(Type.String()),
-    /** Cover art. */
+    /**
+     * The book's gallery — maps, establishing shots, style references for the
+     * world as a whole ([13 §5.1](docs/design/13-schemas.md)).
+     */
     media: Type.Array(EmbeddedMedia),
+    /**
+     * Which of `media` is the library card's picture.
+     *
+     * Ordered-list-plus-primary, as `Openings` does it, rather than a separate
+     * `cover` field — reordering stays free and the first element is not
+     * special. Deliberately not cross-validated against `media`: `Openings`
+     * does not either, and a dangling id here degrades to "no cover picture"
+     * rather than to an error.
+     */
+    primaryMediaId: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * Bulk, in the folder rather than the manifest. Parity with Actor, and the
+     * schema catching up to a layout that already listed
+     * `lorebooks/<slug>/lorebook.json + assets/`
+     * ([02 §5.1](docs/design/02-data-model.md)).
+     */
+    assets: Type.Array(AssetRef),
     provenance: Provenance,
     generated: GeneratedMap,
     metadata: Metadata,

@@ -555,7 +555,8 @@
           "mime",
           "digest",
           "bytes",
-          "ref"
+          "ref",
+          "tags"
         ],
         "properties": {
           "id": {
@@ -586,6 +587,10 @@
                 "type": "string"
               },
               {
+                "const": "map",
+                "type": "string"
+              },
+              {
                 "const": "gallery",
                 "type": "string"
               }
@@ -606,6 +611,12 @@
           },
           "label": {
             "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "width": {
             "minimum": 0,

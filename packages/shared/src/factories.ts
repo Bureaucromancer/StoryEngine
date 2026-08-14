@@ -4,7 +4,7 @@
 import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
-import { type Lorebook, LOREBOOK_SCHEMA } from './schema/lorebook.js';
+import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
 import { type Setting, SETTING_SCHEMA } from './schema/setting.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
@@ -108,8 +108,74 @@ export function newLorebook(name: string): Lorebook {
     entries: [],
     tags: [],
     media: [],
+    primaryMediaId: null,
+    assets: [],
     provenance: blankProvenance(),
     generated: null,
+    metadata: {},
+  };
+}
+
+/**
+ * A lore entry with the doc's stated defaults
+ * ([13 §5](docs/design/13-schemas.md)).
+ *
+ * Here for the same reason the others are — the defaults belong to the schema
+ * rather than to whatever creates an entry — and it earns its place immediately:
+ * `LoreEntry` has thirty-odd required fields, so without this every caller that
+ * wants one writes them all out, including the tests that are supposed to be
+ * checking the interesting three.
+ *
+ * `media` is empty and stays that way unless an author adds pictures. Nothing
+ * reads it at 1.0, and nothing ever sends it — see the field.
+ */
+export function newLoreEntry(name: string): LoreEntry {
+  return {
+    id: uuidv7(),
+    name,
+    content: '',
+    description: '',
+
+    keys: [],
+    secondaryKeys: [],
+    selectiveLogic: 'and_any',
+    selective: false,
+    matchWholeWords: true,
+    caseSensitive: false,
+    useRegex: false,
+    // null, not 2: the entry inherits the book's depth unless it says otherwise.
+    scanDepth: null,
+
+    enabled: true,
+    constant: false,
+    probability: null,
+
+    sticky: null,
+    cooldown: null,
+    delay: null,
+    ephemeral: null,
+
+    position: 'before_char',
+    outletName: null,
+    depth: 0,
+    order: 100,
+    role: 'system',
+
+    group: null,
+    groupWeight: null,
+    folderId: null,
+    actorFilter: null,
+    actorTagFilter: null,
+    generationTriggerFilter: null,
+    additionalMatchingSources: [],
+
+    preventRecursion: false,
+    excludeRecursion: false,
+    delayUntilRecursion: false,
+
+    tag: null,
+    media: [],
+    locked: false,
     metadata: {},
   };
 }

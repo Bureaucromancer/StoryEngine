@@ -212,17 +212,27 @@ export type VisualDescriptors = Static<typeof VisualDescriptors>;
  * Roles are typed from the start. A flat image list forecloses everything
  * downstream — an image pipeline must know which picture is the canonical
  * likeness.
+ *
+ * **One vocabulary, not one per kind.** `reference` means the same thing on a
+ * lorebook entry as on an actor — *this is what it looks like*, suitable for
+ * conditioning generation — which is what lets a later feature treat a
+ * location's reference image the way it already treats an actor's
+ * ([11 §3](docs/design/11-roadmap.md)). `map` is the only addition lore needed,
+ * because a diagram is genuinely not a likeness. `illustration` was considered
+ * and rejected as a synonym for `reference` that would leave authors guessing.
  */
 export const MediaRole = Type.Union(
   [
     /** The uncropped original behind the card's own pixels. */
     Type.Literal('portrait-source'),
-    /** Canonical likeness. */
+    /** Canonical likeness — of a person, or of a place. */
     Type.Literal('reference'),
     Type.Literal('expression'),
     Type.Literal('pose'),
     /** Style exemplar, not likeness. */
     Type.Literal('style'),
+    /** A diagram rather than a likeness. Lore, mostly. */
+    Type.Literal('map'),
     Type.Literal('gallery'),
   ],
   { title: 'MediaRole' },
@@ -247,6 +257,24 @@ export const EmbeddedMedia = Type.Object(
      */
     ref: Type.String(),
     label: Type.Optional(Type.String()),
+    /**
+     * Arbitrary, author-defined: "winter", "aerial", "concept art", "before the
+     * fire", "by Mireille". The counterpart to `role`, and the division of
+     * labour is the same one `ActorRole` and `Actor.tags` already make:
+     *
+     *     role — closed union. The engine reads it and acts on it.
+     *     tags — open. Nothing in the engine branches on them.
+     *
+     * That split is what keeps the union small without costing authors
+     * precision. A gallery of forty images needs finer notation than six roles
+     * can carry, and every attempt to express that *through* the roles ends
+     * with a union nobody can choose from.
+     *
+     * Required rather than optional, like `Actor.tags` and `Lorebook.tags`: an
+     * absent list and an empty one would mean the same thing, and offering both
+     * spellings of "none" is how writers and readers drift apart.
+     */
+    tags: Type.Array(Type.String()),
     width: Type.Optional(Type.Integer({ minimum: 0 })),
     height: Type.Optional(Type.Integer({ minimum: 0 })),
     crop: Type.Optional(SourceRect),
