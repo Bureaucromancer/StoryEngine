@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 
 /**
  * The read side of the storage layer.
@@ -89,4 +89,17 @@ export async function listEntryNames(path: string): Promise<string[]> {
 
 export async function ensureDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
+}
+
+/**
+ * Removes a directory and everything under it.
+ *
+ * Used for deleting an object, which is a *folder* rather than a file — the
+ * card plus its assets travel together ([02 §5.2](docs/design/02-data-model.md)).
+ * Recursive deletion is the one operation here worth being nervous about, which
+ * is why it takes a path that has already been through the resolver and why it
+ * lives beside the rest of the filesystem access rather than at a call site.
+ */
+export async function removeTree(path: string): Promise<void> {
+  await rm(path, { recursive: true, force: true });
 }

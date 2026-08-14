@@ -1,0 +1,105 @@
+// StoryEngine configuration.
+//
+// Every key here is optional — delete this file and the defaults below are what
+// you get, which is a working install. Copy it to `data/config.json` and change
+// what you need.
+//
+// JSON does not have comments, so this file is not loadable as-is. That is the
+// one real cost of JSON everywhere (docs/design/02-data-model.md §5.4), and this
+// commented example is how it is paid: strip the comments, or use the settings
+// UI, which is the primary path.
+//
+// Every key is annotated with what it takes to apply:
+//
+//   live      re-read on change, effective immediately
+//   reconnect effective for new sessions, or after clients reconnect
+//   restart   anything establishing a listener or a file handle
+//
+// The server derives its own "restart required" notice from these tiers rather
+// than from a list someone maintains by hand — see docs/design/18 §4.
+
+{
+  // restart — where everything lives. Relative paths resolve against the
+  // working directory.
+  "dataDir": "./data",
+
+  "server": {
+    // restart — LOOPBACK BY DEFAULT, and deliberately.
+    //
+    // Until you create the first admin account, whoever can reach this port can
+    // claim it. Binding 127.0.0.1 means that window is only open to this
+    // machine. Set "0.0.0.0" when you want the rest of the house to reach it —
+    // and know that you are doing it (docs/design/04 §5.1).
+    //
+    // The container image binds 0.0.0.0 instead, because a container's
+    // 127.0.0.1 is its own loopback and would be unreachable no matter how you
+    // mapped the port. There, the `-p` flag is your explicit act instead.
+    //
+    // There is no HTTPS. On a LAN it cannot be done well without a real domain
+    // or a private CA, and self-signed certificates teach people to click
+    // through warnings. Put a reverse proxy in front if you want TLS.
+    "host": "127.0.0.1",
+
+    // restart
+    "port": 8080,
+
+    // restart — trust X-Forwarded-* headers. Only turn this on when something
+    // you control is actually in front, or client addresses become spoofable.
+    "trustProxy": false
+  },
+
+  "log": {
+    // live
+    "level": "info",
+    // restart — "json" in the container.
+    "format": "pretty"
+  },
+
+  "index": {
+    // restart — rescan the whole data directory at start-up.
+    //
+    // Not normally needed: the index is derived and disposable, so if you doubt
+    // it you can simply delete data/index/index.sqlite and it will be rebuilt.
+    // This is the same operation without the deletion.
+    "rebuildOnStart": false
+  },
+
+  "sessions": {
+    // live
+    "snapshotEveryNTurns": 10
+  },
+
+  "limits": {
+    // live
+    "maxUploadMb": 64,
+    // live
+    "extensionStorageQuotaMb": 32
+  },
+
+  "trash": {
+    // live — how long deleted objects stay recoverable.
+    "retentionDays": 30
+  },
+
+  "history": {
+    // live — versions kept per object. Pinned versions are exempt.
+    "keepPerObject": 50
+  },
+
+  "updates": {
+    // live — a daily, cached check of the release feed for your channel.
+    //
+    // It is an update check, not telemetry: it sends nothing beyond what a
+    // version comparison needs — no install id, no usage counts, no
+    // configuration. Set false and nothing leaves this machine.
+    "checkEnabled": true,
+
+    // live — "latest", "testing" or "nightly".
+    "channel": "latest"
+  },
+
+  "dev": {
+    // restart
+    "enabled": false
+  }
+}

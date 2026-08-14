@@ -106,10 +106,22 @@ export default tseslint.config(
   // Tests assert things the type system cannot see — that an index is in range,
   // that a union narrowed the way the fixture guarantees. Writing around that
   // makes a test harder to read without making it safer.
+  //
+  // The `no-unsafe-*` family goes too, and only here. A decoded JSON response
+  // body genuinely *is* dynamic: `response.body.objects[0].contentHash` is the
+  // assertion, and the alternative is either a cast on every line or a declared
+  // response type per route, which would be ceremony that tests nothing. In
+  // production code these rules stay on, which is where they earn their keep.
   {
-    files: ['**/*.test.ts', '**/*.test.tsx'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
 
@@ -177,6 +189,26 @@ export default tseslint.config(
     files: ['packages/shared/src/ids.ts'],
     rules: {
       'no-restricted-imports': restrictedImports({ allowRandomness: true }),
+    },
+  },
+
+  // Cryptographic material — password salts, the session signing key, the
+  // console setup token. Same argument as `ids.ts` and worth restating because
+  // it is the second exemption rather than the first: the randomness rule
+  // protects replay and branching, and a salt is not a draw. Nothing replays
+  // it and no outcome depends on its value. Routing secrets through a
+  // recorded, replayable generator would be actively wrong — it would put them
+  // on the turn tape.
+  //
+  // One file, like `ids.ts`, so the fixture tests can keep proving that the
+  // file next door is still caught.
+  {
+    files: ['packages/server/src/auth/secrets.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
     },
   },
 

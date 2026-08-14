@@ -12,3 +12,8 @@
 
 export * from './storage/index.js';
 export * from './index-db/index.js';
+export * from './config.js';
+export * from './library.js';
+export * from './auth/accounts.js';
+export * from './auth/session.js';
+export * from './app.js';

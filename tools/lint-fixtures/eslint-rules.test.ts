@@ -129,6 +129,19 @@ describe('no randomness outside the RNG service (docs/design/07-tech-stack.md §
     expect(fired).not.toContain('no-restricted-imports');
   });
 
+  it('permits it in the secrets module — a salt is not a draw either', async () => {
+    // The second exemption, and the same argument: nothing replays a password
+    // salt or a session key, and routing them through a recorded generator
+    // would put secrets on the turn tape.
+    const fired = await rulesFiredIn('packages/server/src/auth/secrets.ts');
+    expect(fired).not.toContain('no-restricted-imports');
+  });
+
+  it('catches the file beside the secrets module too', async () => {
+    const fired = await rulesFiredIn('packages/server/src/auth/session.ts');
+    expect(fired).toContain('no-restricted-imports');
+  });
+
   it('still catches the file next door, so the exemption is one file wide', async () => {
     // `uses-node-crypto.ts` sits in the same directory as the exempt `ids.ts`.
     // If this ever passes, the carve-out has widened into a hole.

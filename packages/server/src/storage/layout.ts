@@ -142,8 +142,24 @@ export class Layout {
    * derived, not rebuildable, and therefore not in the index
    * ([18 §5.1](docs/design/18-internal-contracts.md)).
    */
+  get stateRoot(): string {
+    return resolveWithin(this.dataRoot, 'state');
+  }
+
   get stateFile(): string {
-    return resolveWithin(this.dataRoot, 'state', 'state.sqlite');
+    return resolveWithin(this.stateRoot, 'state.sqlite');
+  }
+
+  /**
+   * The session signing key.
+   *
+   * Operational rather than derived, by the same test: losing it would surprise
+   * a user — everyone is logged out. Not in `config.json`, which has nowhere to
+   * put a credential ([18 §4]), and not in the index, which is deletable
+   * without consequence.
+   */
+  get sessionKeyFile(): string {
+    return resolveWithin(this.stateRoot, 'session.key');
   }
 
   get systemRoot(): string {

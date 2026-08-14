@@ -97,6 +97,17 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // Cryptographic material: randomness allowed, and deliberately one file wide.
+  {
+    files: [`${FIXTURE_ROOT}/packages/server/src/auth/secrets.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+    },
+  },
+
   // Id generation: randomness allowed, and deliberately one file wide.
   {
     files: [`${FIXTURE_ROOT}/packages/shared/src/ids.ts`],
