@@ -17,8 +17,9 @@ route touches `fs` is a rule negotiated with existing code.
 | File | Job |
 |---|---|
 | `paths.ts` | the audited path helper |
-| `atomic.ts` | `write-file-atomic`, plus the self-write suppression token P1.4 needs |
-| `layout.ts` | user and system roots, kind directories, slug resolution |
+| `atomic.ts` | `write-file-atomic`, plus the self-write suppression token the watcher consumes |
+| `files.ts` | the read side — the only other `fs` in the server |
+| `layout.ts` | user and system roots, kind directories, slug resolution, and the inverse: path → object |
 | `card/` | the embedded card envelope and its PNG codec |
 
 **`paths.ts` has two entry points and the difference matters.** `resolveWithin`
@@ -60,5 +61,13 @@ it; the media rides raw bytes in a private `seMd` chunk, because ~33% on the
 large half of a card is worth avoiding
 ([06 B5](../../../../docs/design/06-open-questions.md)).
 
-Coming next: the index and watcher at P1.4, which is where `atomic.ts`'s
-self-write tokens get consumed.
+**`files.ts` exists because of the rule rather than in spite of it.** The index
+at `../index-db` needs to read files, and the answer to *"may it import
+`node:fs`?"* is no — it asks here. The veneer is thin on purpose: the point is
+not abstraction but that there is exactly one directory to audit, and one place
+to add a permission check when `fileAccess`
+([05 §4.2](../../../../docs/design/05-ui-surfaces.md)) grows teeth.
+
+Tests are exempt, and that is deliberate too: a storage test is playing the part
+of the user with a file manager — renaming a folder, hand-editing a card — which
+is the behaviour under test rather than a bypass of it.

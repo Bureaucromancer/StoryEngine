@@ -19,6 +19,7 @@
   "dependencies": {
     "@storyengine/sdk": "workspace:*",
     "@storyengine/shared": "workspace:*",
+    "chokidar": "5.0.0",
     "png-chunk-text": "1.0.0",
     "png-chunks-encode": "1.0.0",
     "png-chunks-extract": "1.0.0",

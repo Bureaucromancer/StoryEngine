@@ -146,6 +146,24 @@ export default tseslint.config(
     },
   },
 
+  // Tests may touch the filesystem directly, and it is the point rather than a
+  // concession. The rule keeps *production* code behind one audited resolver;
+  // a storage test is playing the part of the user with a file manager —
+  // renaming a folder, hand-editing a card, deleting one mid-write — which is
+  // exactly the behaviour under test. Routing that through the storage helpers
+  // would mean the tests could only exercise what those helpers already allow,
+  // and would grow the production surface with a `rename` and an `rm` that
+  // nothing in the server needs.
+  //
+  // Deliberately last, so it wins over the per-package overrides above; the
+  // cross-package bans are restated here rather than lost.
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
   // Id generation. The randomness rule protects replay and branching: every
   // draw that can change what happens must be recorded, or a reconstructed
   // branch silently diverges (docs/design/07-tech-stack.md §14.1). A uuidv7 is

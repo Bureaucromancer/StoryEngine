@@ -11,3 +11,4 @@
  */
 
 export * from './storage/index.js';
+export * from './index-db/index.js';

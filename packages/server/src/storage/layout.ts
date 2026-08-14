@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readdir } from 'node:fs/promises';
+import { relative as relativePath, sep } from 'node:path';
 
 import {
   ACTOR_SCHEMA,
@@ -15,7 +15,8 @@ import {
   slugify,
 } from '@storyengine/shared';
 
-import { assertSafeSegment, PathEscapeError, resolveWithin } from './paths.js';
+import { listEntryNames } from './files.js';
+import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from './paths.js';
 
 /**
  * The data directory, from [02 §5.1](docs/design/02-data-model.md).
@@ -212,6 +213,74 @@ export class Layout {
   assetsRoot(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
     return resolveWithin(this.objectRoot(scope, schemaId, slug), 'assets');
   }
+
+  /**
+   * The inverse of {@link objectFile}: given a path on disk, what object is it?
+   *
+   * The watcher needs this and so does a rebuild — both are handed a path and
+   * have to decide whether it is a library object at all before doing anything
+   * with it. Returning null rather than throwing is the point: a data directory
+   * is full of files that are *not* objects (assets, a stray `.DS_Store`, a
+   * user's notes), and being handed one is normal rather than exceptional.
+   *
+   * Matching is on the **canonical filename for the kind**, so
+   * `actors/vera/card.png` is an actor and `actors/vera/assets/portrait.png` is
+   * not. That is what keeps a gallery of forty images from producing forty
+   * spurious index events.
+   */
+  parseObjectPath(path: string): ParsedObjectPath | null {
+    const relative = relativeWithin(this.dataRoot, path);
+    if (!relative) return null;
+
+    const parts = relative.split('/');
+
+    // system/library/<kind>/<slug>/<file>  |  users/<handle>/library/<kind>/<slug>/<file>
+    let scope: LibraryScope;
+    let rest: string[];
+    if (parts[0] === 'system') {
+      scope = SYSTEM_SCOPE;
+      rest = parts.slice(1);
+    } else if (parts[0] === 'users' && parts[1] !== undefined) {
+      if (!isValidHandle(parts[1])) return null;
+      scope = userScope(parts[1]);
+      rest = parts.slice(2);
+    } else {
+      return null;
+    }
+
+    const [library, directory, slug, filename, ...deeper] = rest;
+    if (library !== 'library' || !directory || !slug || !filename) return null;
+    // `assets/…` and anything else below the object folder is not the object.
+    if (deeper.length > 0) return null;
+
+    const entry = Object.entries(LIBRARY_DIRECTORIES).find(([, dir]) => dir === directory);
+    if (!entry) return null;
+    const schemaId = entry[0] as PortableSchemaId;
+
+    if (filename !== OBJECT_FILENAMES[schemaId]) return null;
+
+    return { scope, schemaId, slug, path };
+  }
+}
+
+export interface ParsedObjectPath {
+  scope: LibraryScope;
+  schemaId: PortableSchemaId;
+  slug: string;
+  path: string;
+}
+
+/**
+ * The portable-path form of `path` beneath `root`, or null if it is outside.
+ *
+ * Forward slashes regardless of platform, because these strings are compared,
+ * split and stored — a path that reads one way on Windows and another on Linux
+ * would make the index's contents platform-dependent.
+ */
+function relativeWithin(root: string, path: string): string | null {
+  if (!isContained(root, path)) return null;
+  const relative = relativePath(root, path);
+  return relative.length === 0 ? null : relative.split(sep).join('/');
 }
 
 /**
@@ -251,13 +320,6 @@ export async function resolveFreeSlug(directory: string, name: string): Promise<
  * authored on Linux from becoming unopenable when it is copied to a laptop.
  */
 async function existingEntries(directory: string): Promise<Set<string>> {
-  try {
-    const entries = await readdir(directory);
-    return new Set(entries.map((entry) => entry.toLowerCase()));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return new Set();
-    }
-    throw error;
-  }
+  const entries = await listEntryNames(directory);
+  return new Set(entries.map((entry) => entry.toLowerCase()));
 }
