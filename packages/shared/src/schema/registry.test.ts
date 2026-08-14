@@ -50,14 +50,12 @@ describe('the registry', () => {
     );
   });
 
-  it('gives every library kind a directory, and gives Package none', () => {
-    // Package is a transport container, not a library object — it has no folder
-    // under users/<handle>/library/.
-    expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(
-      Object.keys(PORTABLE_SCHEMAS)
-        .filter((id) => id !== PACKAGE_SCHEMA)
-        .sort(),
-    );
+  it('gives every portable kind a library directory', () => {
+    // [02 §5.1](docs/design/02-data-model.md) lists all six under
+    // users/<handle>/library/, `packages/` included. A kind added to the
+    // registry without a directory would have nowhere to be written.
+    expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
+    expect(LIBRARY_DIRECTORIES[PACKAGE_SCHEMA]).toBe('packages');
   });
 
   it('reads the schema id off a self-describing object', () => {

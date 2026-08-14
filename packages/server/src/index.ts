@@ -4,9 +4,10 @@
 /**
  * The StoryEngine server.
  *
- * Nothing runs at P1.0 — that is the stage's exit condition
- * (docs/design/19-p1-implementation.md §P1.0). Storage lands at P1.2, the
- * index and watcher at P1.4, and the Fastify app at P1.5.
+ * Still nothing runs. P1.2 adds the storage layer — the audited path helper,
+ * atomic writes, and the data-directory layout
+ * (docs/design/19-p1-implementation.md §P1.2) — but there is no process to
+ * start until the Fastify app at P1.5, and no index until P1.4.
  */
 
-export {};
+export * from './storage/index.js';

@@ -89,20 +89,13 @@ export const PORTABLE_SCHEMAS = {
 export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
 
 /**
- * The library kinds — everything a user can hold in a library, which is the six
- * minus Package. Package is a transport container, not a library object.
- */
-export const LIBRARY_SCHEMAS = {
-  [ACTOR_SCHEMA]: Actor,
-  [LOREBOOK_SCHEMA]: Lorebook,
-  [SETTING_SCHEMA]: Setting,
-  [SETUP_SCHEMA]: Setup,
-  [PRESET_SCHEMA]: Preset,
-} as const satisfies Record<string, TSchema>;
-
-/**
- * The folder each library kind lives in, per
- * [02 §5.1](docs/design/02-data-model.md). Plural, matching the storage layout.
+ * The folder each kind lives in, per [02 §5.1](docs/design/02-data-model.md).
+ * Plural, matching the storage layout.
+ *
+ * Package is here too. It is a transport container rather than something you
+ * play with, but §5.1 gives it a `packages/` folder in the library like any
+ * other kind — a received bundle is a thing you keep, and the layout treats it
+ * as one.
  */
 export const LIBRARY_DIRECTORIES = {
   [ACTOR_SCHEMA]: 'actors',
@@ -110,6 +103,7 @@ export const LIBRARY_DIRECTORIES = {
   [SETTING_SCHEMA]: 'settings',
   [SETUP_SCHEMA]: 'setups',
   [PRESET_SCHEMA]: 'presets',
+  [PACKAGE_SCHEMA]: 'packages',
 } as const;
 
 export interface ValidationIssue {
