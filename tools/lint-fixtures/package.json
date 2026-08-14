@@ -1,0 +1,14 @@
+{
+  "name": "@storyengine/lint-fixtures",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "Files that exist to violate the day-one lint rules, so the rules can be tested rather than trusted.",
+  "devDependencies": {
+    "@storyengine/client": "workspace:*",
+    "@storyengine/sdk": "workspace:*",
+    "@storyengine/server": "workspace:*",
+    "@storyengine/shared": "workspace:*"
+  }
+}

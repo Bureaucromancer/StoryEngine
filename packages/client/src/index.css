@@ -1,0 +1,10 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+ * Copyright (C) 2026 StoryEngine contributors
+ *
+ * The first stylesheet in the project, and therefore the one the logical-property
+ * rule was written for (docs/design/07-tech-stack.md §12.6). `margin-inline-start`,
+ * never `margin-left` — Stylelint enforces it, and eslint.config.js enforces the
+ * Tailwind-utility half that Stylelint cannot see.
+ */
+
+@import 'tailwindcss';
