@@ -598,6 +598,44 @@ It buys three things, the third of which is the interesting one:
   actually write?" becomes answerable. No source offers this, and it is a real
   trust feature rather than a novelty.
 
+### 11.2a Version history, in every editor
+
+Every library object keeps an edit history automatically
+([02 §11](02-data-model.md)), and the editor is where it surfaces. Marinara's
+character editor is the model here and the interaction is worth copying closely.
+
+**A history panel listing revisions**, newest first, with the live object pinned
+at the top as *current*. Each entry shows its authored date, the author's own
+version string if set ([02 §11.5](02-data-model.md)), what made the change, and
+its reason.
+
+Four actions, three of them Marinara's:
+
+- **Restore.** Non-destructive — restoring snapshots the current state first, so
+  the thing you were on is one entry away ([02 §11.1](02-data-model.md)).
+- **Rename**, which sets the entry's reason. History becomes useful when the
+  entries are labelled *"before I rewrote her backstory"* rather than
+  timestamped, and only the author can write that.
+- **Pin**, so a version survives retention pruning
+  ([02 §11.3](02-data-model.md)). The escape hatch that makes a cap acceptable.
+- **Diff**, which is ours and nearly free. The workbench already diffs two turn
+  records (§3); two versions of an object are the same problem with a simpler
+  payload, and *"what actually changed between these"* is the question a list of
+  timestamps cannot answer.
+
+**The source badge is not decoration.** More things edit objects here than in
+Marinara — a field assist, an extension proposal, an import that overwrote, a
+hand-edit picked up from disk. *"Who changed my character"* has several possible
+answers and this is where it gets one, which puts it squarely under
+[00 §3.6](00-stance.md): the engine showing what it did, where it can be
+corrected.
+
+**Not shown by default.** The panel is behind a control, because the common case
+is editing a character and not thinking about history at all. It should be
+discoverable at the moment it is wanted, which is immediately after a bad edit —
+so an undo affordance in the editor pointing at it is worth more than
+prominence.
+
 ### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, setting cover,

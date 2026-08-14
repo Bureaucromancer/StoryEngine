@@ -267,6 +267,59 @@ interface BudgetVerdict {
 }
 ```
 
+### 1.6 `VersionRecord`
+
+One line of `history/index.jsonl` inside a library object's folder
+([02 §11.2](02-data-model.md)). Internal: the *payload* is a portable object, but
+the bookkeeping around it never leaves the install and is free to migrate.
+
+```ts
+interface VersionRecord {
+  id: string
+  /** sha256 of the snapshot payload — the filename under history/v/, and what
+   *  makes an edit-and-revert store one copy rather than two. */
+  digest: string
+
+  /** When the snapshotted state was *authored*, not when it was superseded.
+   *  Taken from the replaced object's `provenance.updatedAt`. The subtlety
+   *  Marinara names explicitly and the reason a restored version keeps its real
+   *  date in the list. [02 §11.1] */
+  authoredAt: string
+  /** When the snapshot was taken. Usually uninteresting; occasionally the only
+   *  way to explain an out-of-order list. */
+  recordedAt: string
+
+  /** What made the change this snapshot preserves the state before. */
+  source:
+    | { kind: "manual" }
+    | { kind: "assist"; field: string }        // [05 §11.1]
+    | { kind: "extension"; extensionId: string }
+    | { kind: "import"; from: string }
+    | { kind: "external" }                     // a hand-edit, seen by the watcher
+    | { kind: "restore"; fromVersionId: string }
+  /** Free text. Sometimes generated ("Saved before restoring an earlier
+   *  version"), sometimes the user's — they may rename it later. */
+  reason: string
+
+  /** The author's own version string at the time ([02 §11.5]) — theirs, not
+   *  ours, and displayed alongside our revision number rather than instead
+   *  of it. */
+  authorVersion: string | null
+  /** Exempt from retention pruning. [02 §11.3] */
+  pinned: boolean
+}
+```
+
+**`revision` is not a field.** It is the entry's ordinal in the file, computed on
+read, exactly as Marinara does it. Storing it would mean rewriting records when
+one is pruned, and an append-only file should never be rewritten for a display
+number.
+
+**The live object appears at the top of the history list** as a synthetic
+current entry rather than being written to the file — also Marinara's approach,
+and it is what makes "compare against current" the same operation as comparing
+any two versions.
+
 ---
 
 ## 2. Rendering: blocks to provider messages
@@ -358,6 +411,7 @@ interface Config {
   sessions: { snapshotEveryNTurns: number }
   limits: { maxUploadMb: number; extensionStorageQuotaMb: number }
   trash: { retentionDays: number }          // [02 §10.2]
+  history: { keepPerObject: number }        // [02 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
   dev: { enabled: boolean }                  // [07 §11]
 }
@@ -375,6 +429,7 @@ interface Config {
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([06 C8](06-open-questions.md)) |
 | `limits.*` | `live` | — | |
 | `trash.retentionDays` | `live` | `30` | |
+| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([02 §11.3](02-data-model.md)) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([04 §6.5](04-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |
 | `dev.enabled` | `restart` | `false` | |
