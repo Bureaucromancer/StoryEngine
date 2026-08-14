@@ -180,11 +180,20 @@ interface VisualDescriptors {
  *  likeness. [02 §5.2.2] */
 type MediaRole =
   | "portrait-source"   // the uncropped original behind the card's own pixels
-  | "reference"         // canonical likeness
+  | "reference"         // canonical likeness — of a person, or of a place
   | "expression"
   | "pose"
   | "style"             // style exemplar, not likeness
+  | "map"               // a diagram rather than a likeness. Lore, mostly
   | "gallery"
+
+// One vocabulary, not one per kind. `reference` means the same thing on a
+// lorebook entry as on an actor — *this is what it looks like*, suitable for
+// conditioning generation — which is what lets a later feature treat a
+// location's reference image the way it already treats an actor's
+// ([11 §3](11-roadmap.md)). `map` is the only addition lore needed, because a
+// diagram is genuinely not a likeness. `illustration` was considered and
+// rejected as a synonym for `reference` that would leave authors guessing.
 
 /** Media carried *inside* the card envelope. Bounded by policy — bulk galleries
  *  and video live in the folder as `assets`. */
@@ -207,6 +216,19 @@ interface EmbeddedMedia {
    *  ([02 §5.2](02-data-model.md)). */
   ref: string
   label?: string
+  /** Arbitrary, author-defined: "winter", "aerial", "concept art", "before the
+   *  fire", "by Mireille". The counterpart to `role`, and the division of
+   *  labour is the same one `ActorRole` and `Actor.tags` already make
+   *  ([02 §2.2](02-data-model.md)):
+   *
+   *    role — closed union. The engine reads it and acts on it.
+   *    tags — open. Nothing in the engine branches on them.
+   *
+   *  That split is what keeps the union small without costing authors
+   *  precision. A gallery of forty images needs finer notation than six roles
+   *  can carry, and every attempt to express that *through* the roles ends with
+   *  a union nobody can choose from. */
+  tags: string[]
   width?: number
   height?: number
   crop?: SourceRect
@@ -362,7 +384,15 @@ interface Lorebook {
   entries: LoreEntry[]
 
   tags: string[]
-  media: EmbeddedMedia[]           // cover art
+  /** The book's gallery — maps, establishing shots, style references for the
+   *  world as a whole. §5.1 */
+  media: EmbeddedMedia[]
+  /** Which of `media` is the library card's picture. Ordered-list-plus-primary,
+   *  as `Openings` does it (§3), rather than a separate `cover` field —
+   *  reordering stays free and the first element is not special. */
+  primaryMediaId: string | null
+  /** Bulk, in the folder rather than the manifest. Parity with Actor. [02 §5.3] */
+  assets: AssetRef[]
   provenance: Provenance
   generated: Record<string, GeneratedFieldProvenance> | null
   metadata: Record<string, unknown>
@@ -463,6 +493,17 @@ interface LoreEntry {
   /** Free string with a suggested vocabulary ("location", "item", "quest"),
    *  not a closed union. */
   tag: string | null
+
+  /** Pictures of the thing this entry describes. §5.1
+   *
+   *  ⚠ MEDIA DOES NOT ACTIVATE. An entry firing on a keyword contributes its
+   *  *text*. Its images are not retrieved, not budgeted and not sent — at 1.0
+   *  nothing outside the editor reads this field at all. The assumption that
+   *  activation carries the whole entry is the natural one and it is wrong;
+   *  twelve pictures on a `constant: true` entry would otherwise be a per-turn
+   *  cost nobody chose. */
+  media: EmbeddedMedia[]
+
   /** Locked against automatic modification by agents. */
   locked: boolean
   metadata: Record<string, unknown>
@@ -479,6 +520,27 @@ otherwise put megabytes of one install's vector arithmetic into every shared
 lorebook), `dynamicState`, quest structures, `relationships`, and
 `activationConditions` / `schedule`. The last two become typed channel
 predicates; the rest become channels ([02 §3.3](02-data-model.md)).
+
+### 5.1 Images on lore
+
+New territory rather than a port: Marinara carries one `imagePath` per book for
+the library card and nothing per entry, and SillyTavern's World Info has no
+images at all. Reasoning in [02 §3.6](02-data-model.md); the shape is two
+`EmbeddedMedia[]` fields, one on the book and one on the entry, both resolving
+into the object's folder.
+
+**Nothing reads them at 1.0 outside the editor**, and the `⚠` on
+`LoreEntry.media` is the load-bearing part of this addition rather than a
+caution. What makes it worth adding now anyway is that **typed roles cannot be
+retrofitted** ([02 §5.2.2](02-data-model.md)) — the same argument made for cards,
+unchanged. Adding images later without roles means guessing afterwards what each
+one was for, and the guess is not recoverable.
+
+The intended first real consumer is rendition conditioning
+([11 §3](11-roadmap.md)): a location's `reference` image is the same shape of
+input to *illustrate this scene* that an actor's already is
+([03 §10.3](03-modes-and-turn-pipeline.md)). That is why `reference` carries the
+same meaning across both kinds rather than lore getting a vocabulary of its own.
 
 ---
 

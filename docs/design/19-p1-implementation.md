@@ -465,6 +465,13 @@ and simple structured fields, sections, and the existing avatar shown but not
 replaced. No other kind gets an editor in P1; the list stays read-only for the
 other five.
 
+**Lore media is schema-only in P1.** `Lorebook.media`, `LoreEntry.media` and
+`EmbeddedMedia.tags` ([13 §5.1](13-schemas.md)) land in P1.1 with the rest of the
+schemas, because the roles are the part that cannot be retrofitted
+([02 §3.6](02-data-model.md)). Nothing renders them — the lorebook editor is not
+in P1 — and P1.1's round-trip tests are the whole of their coverage. Worth
+naming so the fields are not mistaken for an unfinished feature.
+
 **Built as the smallest real editor, per [15 §2.2](15-work-plan.md)** — which
 means one specific thing about its shape:
 
