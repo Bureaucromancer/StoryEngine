@@ -51,4 +51,11 @@ jobs:
 
       - run: pnpm build
 
+      # The JSON Schemas are the published artefact (docs/design/07-tech-stack.md
+      # §4) and are committed, so third-party tools can fetch one without
+      # building anything. `pnpm build` regenerates them; if that changes a file,
+      # someone edited a TypeBox schema without re-emitting.
+      - name: Emitted schemas are current
+        run: git diff --exit-code -- packages/shared/schemas
+
       - run: pnpm test

@@ -1,0 +1,907 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyengine.dev/schemas/storyengine.preset/0.json",
+  "title": "Preset",
+  "description": "The prompt pack. Carries no connection settings and has nowhere to put them — SillyTavern’s `reverse_proxy`, `proxy_password`, `custom_url` and the rest of its `sensitiveFields` list are dropped unconditionally on import and named in the review. That is the type refusing, not a check that could be forgotten (§8.4.4).",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "blurb",
+    "modes",
+    "blocks",
+    "budget",
+    "params",
+    "modelHint",
+    "variables",
+    "tags",
+    "provenance",
+    "generated",
+    "compat",
+    "metadata"
+  ],
+  "properties": {
+    "schema": {
+      "const": "storyengine.preset/0",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "blurb": {
+      "type": "string"
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "title": "PresetBlock",
+        "anyOf": [
+          {
+            "title": "SlotBlock",
+            "description": "Positions engine-supplied content. The preset chooses where and how it is framed; it never authors what goes in.",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "role",
+              "enabled",
+              "placement",
+              "priority",
+              "appliesTo",
+              "advisory",
+              "omitWhenEmpty",
+              "kind",
+              "source"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "const": "system",
+                    "type": "string"
+                  },
+                  {
+                    "const": "user",
+                    "type": "string"
+                  },
+                  {
+                    "const": "assistant",
+                    "type": "string"
+                  }
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "placement": {
+                "title": "Placement",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "at"
+                    ],
+                    "properties": {
+                      "at": {
+                        "const": "sequence",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "fromEnd"
+                    ],
+                    "properties": {
+                      "at": {
+                        "const": "in-history",
+                        "type": "string"
+                      },
+                      "fromEnd": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "tiebreak": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                ]
+              },
+              "priority": {
+                "type": "number"
+              },
+              "appliesTo": {
+                "type": "array",
+                "items": {
+                  "title": "CallKind",
+                  "description": "Which kind of call a block applies to. Open — modes declare their own kinds.",
+                  "examples": [
+                    "narrate",
+                    "impersonate",
+                    "continue",
+                    "group-nudge",
+                    "session-start",
+                    "example",
+                    "utility"
+                  ],
+                  "type": "string"
+                }
+              },
+              "advisory": {
+                "type": "boolean"
+              },
+              "omitWhenEmpty": {
+                "type": "boolean"
+              },
+              "kind": {
+                "const": "slot",
+                "type": "string"
+              },
+              "source": {
+                "title": "SlotSource",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "persona",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "sectionId"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "actor",
+                        "type": "string"
+                      },
+                      "sectionId": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "field"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "actor",
+                        "type": "string"
+                      },
+                      "field": {
+                        "anyOf": [
+                          {
+                            "const": "traits",
+                            "type": "string"
+                          },
+                          {
+                            "const": "visual",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "phase"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "lore",
+                        "type": "string"
+                      },
+                      "phase": {
+                        "anyOf": [
+                          {
+                            "const": "before",
+                            "type": "string"
+                          },
+                          {
+                            "const": "after",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "history",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "examples",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "channelId"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "channel",
+                        "type": "string"
+                      },
+                      "channelId": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "part"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "setting",
+                        "type": "string"
+                      },
+                      "part": {
+                        "anyOf": [
+                          {
+                            "const": "framing",
+                            "type": "string"
+                          },
+                          {
+                            "const": "tone",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "goal",
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "wrapper": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "title": "TextBlock",
+            "description": "Prose the preset author wrote.",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "role",
+              "enabled",
+              "placement",
+              "priority",
+              "appliesTo",
+              "advisory",
+              "omitWhenEmpty",
+              "kind",
+              "template"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "const": "system",
+                    "type": "string"
+                  },
+                  {
+                    "const": "user",
+                    "type": "string"
+                  },
+                  {
+                    "const": "assistant",
+                    "type": "string"
+                  }
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "placement": {
+                "title": "Placement",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "at"
+                    ],
+                    "properties": {
+                      "at": {
+                        "const": "sequence",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "fromEnd"
+                    ],
+                    "properties": {
+                      "at": {
+                        "const": "in-history",
+                        "type": "string"
+                      },
+                      "fromEnd": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "tiebreak": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                ]
+              },
+              "priority": {
+                "type": "number"
+              },
+              "appliesTo": {
+                "type": "array",
+                "items": {
+                  "title": "CallKind",
+                  "description": "Which kind of call a block applies to. Open — modes declare their own kinds.",
+                  "examples": [
+                    "narrate",
+                    "impersonate",
+                    "continue",
+                    "group-nudge",
+                    "session-start",
+                    "example",
+                    "utility"
+                  ],
+                  "type": "string"
+                }
+              },
+              "advisory": {
+                "type": "boolean"
+              },
+              "omitWhenEmpty": {
+                "type": "boolean"
+              },
+              "kind": {
+                "const": "text",
+                "type": "string"
+              },
+              "template": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "budget": {
+      "title": "BudgetPolicy",
+      "type": "object",
+      "required": [
+        "contextShare",
+        "maxContextTokens",
+        "reserveOutputTokens",
+        "sources"
+      ],
+      "properties": {
+        "contextShare": {
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.75,
+          "type": "number"
+        },
+        "maxContextTokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reserveOutputTokens": {
+          "minimum": 0,
+          "default": 1024,
+          "type": "integer"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "title": "BudgetShare",
+            "type": "object",
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "share": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "minTokens": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxTokens": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "params": {
+      "title": "GenerationParams",
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "number"
+        },
+        "topP": {
+          "type": "number"
+        },
+        "topK": {
+          "type": "number"
+        },
+        "topA": {
+          "type": "number"
+        },
+        "minP": {
+          "type": "number"
+        },
+        "frequencyPenalty": {
+          "type": "number"
+        },
+        "presencePenalty": {
+          "type": "number"
+        },
+        "repetitionPenalty": {
+          "type": "number"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "n": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "stop": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modelHint": {
+      "anyOf": [
+        {
+          "title": "ModelHint",
+          "description": "A preference, never a binding. An imported card may express what it wants; it can never repoint anyone’s provider. Resolution is local.",
+          "type": "object",
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "anyOf": [
+                {
+                  "const": "prose",
+                  "type": "string"
+                },
+                {
+                  "const": "fast",
+                  "type": "string"
+                },
+                {
+                  "const": "reasoning",
+                  "type": "string"
+                },
+                {
+                  "const": "vision",
+                  "type": "string"
+                }
+              ]
+            },
+            "preferredModelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "difficultyLevels": {
+      "type": "array",
+      "items": {
+        "title": "DifficultyLevel",
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "rank",
+          "fragments"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "number"
+          },
+          "fragments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text",
+                "priority"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "patternProperties": {
+              "^(.*)$": {}
+            }
+          }
+        }
+      }
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "title": "PresetVariable",
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "type",
+          "required",
+          "order"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "const": "string",
+                "type": "string"
+              },
+              {
+                "const": "text",
+                "type": "string"
+              },
+              {
+                "const": "number",
+                "type": "string"
+              },
+              {
+                "const": "boolean",
+                "type": "string"
+              },
+              {
+                "const": "enum",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "value",
+                "label"
+              ],
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {},
+          "required": {
+            "default": false,
+            "type": "boolean"
+          },
+          "help": {
+            "type": "string"
+          },
+          "order": {
+            "default": 0,
+            "type": "number"
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance": {
+      "title": "Provenance",
+      "description": "Where an object came from and who made it.",
+      "type": "object",
+      "required": [
+        "source",
+        "creator",
+        "version",
+        "license",
+        "originalFilename",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "source": {
+          "default": "manual",
+          "anyOf": [
+            {
+              "const": "manual",
+              "type": "string"
+            },
+            {
+              "const": "import",
+              "type": "string"
+            },
+            {
+              "const": "generated",
+              "type": "string"
+            },
+            {
+              "const": "package",
+              "type": "string"
+            },
+            {
+              "const": "session",
+              "type": "string"
+            }
+          ]
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        }
+      }
+    },
+    "generated": {
+      "anyOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "title": "GeneratedFieldProvenance",
+              "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+              "type": "object",
+              "required": [
+                "original",
+                "at",
+                "model",
+                "seed",
+                "unreviewed"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string"
+                },
+                "at": {
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                  "type": "string"
+                },
+                "model": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seed": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unreviewed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compat": {
+      "anyOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {}
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "patternProperties": {
+        "^(.*)$": {}
+      }
+    }
+  }
+}

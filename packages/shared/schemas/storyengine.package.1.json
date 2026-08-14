@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyengine.dev/schemas/storyengine.package/1.json",
+  "title": "Package",
+  "description": "No `entry` field. A package containing one or more Setups is startable, and that is the whole mechanism. A package with no Setup is a content drop — \"here are five characters and a lorebook\" — which is a perfectly good thing to share and had no home before.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "version",
+    "description",
+    "media",
+    "contents",
+    "requires",
+    "provenance",
+    "metadata"
+  ],
+  "properties": {
+    "schema": {
+      "const": "storyengine.package/1",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "title": "EmbeddedMedia",
+        "description": "A *reference* to bytes carried by the container, never the bytes themselves. The manifest form works in every container: a PNG private chunk, a zip entry, or a folder.",
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "mime",
+          "digest",
+          "bytes",
+          "ref"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "title": "MediaRole",
+            "anyOf": [
+              {
+                "const": "portrait-source",
+                "type": "string"
+              },
+              {
+                "const": "reference",
+                "type": "string"
+              },
+              {
+                "const": "expression",
+                "type": "string"
+              },
+              {
+                "const": "pose",
+                "type": "string"
+              },
+              {
+                "const": "style",
+                "type": "string"
+              },
+              {
+                "const": "gallery",
+                "type": "string"
+              }
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "width": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "height": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "crop": {
+            "title": "SourceRect",
+            "description": "Normalised 0..1 rectangle of a source image. Normalised rather than pixels so it survives the source being resized or re-encoded.",
+            "type": "object",
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "x": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "y": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "width": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "height": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            }
+          },
+          "generated": {
+            "title": "GeneratedFieldProvenance",
+            "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+            "type": "object",
+            "required": [
+              "original",
+              "at",
+              "model",
+              "seed",
+              "unreviewed"
+            ],
+            "properties": {
+              "original": {
+                "type": "string"
+              },
+              "at": {
+                "format": "date-time",
+                "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                "type": "string"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seed": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unreviewed": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "contents": {
+      "type": "array",
+      "items": {
+        "title": "PortableObjectEnvelope",
+        "type": "object",
+        "required": [
+          "schema",
+          "id"
+        ],
+        "properties": {
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "required": [
+        "modes",
+        "extensions",
+        "capabilities"
+      ],
+      "properties": {
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "minVersion"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "minVersion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "minVersion"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "minVersion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "provenance": {
+      "title": "Provenance",
+      "description": "Where an object came from and who made it.",
+      "type": "object",
+      "required": [
+        "source",
+        "creator",
+        "version",
+        "license",
+        "originalFilename",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "source": {
+          "default": "manual",
+          "anyOf": [
+            {
+              "const": "manual",
+              "type": "string"
+            },
+            {
+              "const": "import",
+              "type": "string"
+            },
+            {
+              "const": "generated",
+              "type": "string"
+            },
+            {
+              "const": "package",
+              "type": "string"
+            },
+            {
+              "const": "session",
+              "type": "string"
+            }
+          ]
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "patternProperties": {
+        "^(.*)$": {}
+      }
+    }
+  }
+}

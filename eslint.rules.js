@@ -73,9 +73,13 @@ const CRYPTO_RANDOM_NAMES = [
  * configured once per config object, so the fs ban, the crypto ban and the
  * cross-package ban have to be assembled together rather than layered.
  *
- * @param {{ allowFs?: boolean, bannedPackages?: { name: string, message: string }[] }} options
+ * @param {{ allowFs?: boolean, allowRandomness?: boolean, bannedPackages?: { name: string, message: string }[] }} options
  */
-export function restrictedImports({ allowFs = false, bannedPackages = [] } = {}) {
+export function restrictedImports({
+  allowFs = false,
+  allowRandomness = false,
+  bannedPackages = [],
+} = {}) {
   const paths = [];
 
   if (!allowFs) {
@@ -84,8 +88,10 @@ export function restrictedImports({ allowFs = false, bannedPackages = [] } = {})
     }
   }
 
-  for (const name of ['crypto', 'node:crypto']) {
-    paths.push({ name, importNames: CRYPTO_RANDOM_NAMES, message: RANDOM_MESSAGE });
+  if (!allowRandomness) {
+    for (const name of ['crypto', 'node:crypto']) {
+      paths.push({ name, importNames: CRYPTO_RANDOM_NAMES, message: RANDOM_MESSAGE });
+    }
   }
 
   for (const banned of bannedPackages) {

@@ -1,0 +1,737 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyengine.dev/schemas/storyengine.setting/1.json",
+  "title": "Setting",
+  "description": "Deliberately absent: key locations, world description, NPC inline snapshots. A Setting owns no lorebook — it only links.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "blurb",
+    "framing",
+    "tone",
+    "lore",
+    "cast",
+    "openings",
+    "hooks",
+    "modeHints",
+    "tags",
+    "media",
+    "provenance",
+    "generated",
+    "metadata"
+  ],
+  "properties": {
+    "schema": {
+      "const": "storyengine.setting/1",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "blurb": {
+      "type": "string"
+    },
+    "framing": {
+      "type": "string"
+    },
+    "tone": {
+      "title": "SettingTone",
+      "type": "object",
+      "required": [
+        "genres",
+        "moods",
+        "pov",
+        "tense",
+        "contentRating",
+        "styleNotes"
+      ],
+      "properties": {
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pov": {
+          "anyOf": [
+            {
+              "const": "first",
+              "type": "string"
+            },
+            {
+              "const": "second",
+              "type": "string"
+            },
+            {
+              "const": "third",
+              "type": "string"
+            }
+          ]
+        },
+        "tense": {
+          "anyOf": [
+            {
+              "const": "past",
+              "type": "string"
+            },
+            {
+              "const": "present",
+              "type": "string"
+            }
+          ]
+        },
+        "contentRating": {
+          "anyOf": [
+            {
+              "const": "sfw",
+              "type": "string"
+            },
+            {
+              "const": "nsfw",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "styleNotes": {
+          "type": "string"
+        }
+      }
+    },
+    "lore": {
+      "type": "array",
+      "items": {
+        "title": "LoreLink",
+        "description": "A link to a lorebook, with a strength.",
+        "type": "object",
+        "required": [
+          "ref",
+          "required"
+        ],
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "description": "A link to another object. Resolution order is always: exact id, then case-insensitive name, then show as missing and continue. Never blocks.",
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string"
+              }
+            }
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "cast": {
+      "type": "array",
+      "items": {
+        "title": "CastEntry",
+        "type": "object",
+        "required": [
+          "ref",
+          "billing",
+          "note"
+        ],
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "description": "A link to another object. Resolution order is always: exact id, then case-insensitive name, then show as missing and continue. Never blocks.",
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string"
+              }
+            }
+          },
+          "billing": {
+            "anyOf": [
+              {
+                "const": "persona-option",
+                "type": "string"
+              },
+              {
+                "const": "party-option",
+                "type": "string"
+              },
+              {
+                "const": "npc",
+                "type": "string"
+              },
+              {
+                "const": "narrator-option",
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "openings": {
+      "title": "Openings",
+      "description": "Two genuinely different things, so two lists rather than one with a flag: a written opening is content, a seed is an instruction.",
+      "type": "object",
+      "required": [
+        "written",
+        "seeds",
+        "primaryWrittenId",
+        "primarySeedId"
+      ],
+      "properties": {
+        "written": {
+          "type": "array",
+          "items": {
+            "title": "Opening",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "fromSeedId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "title": "Opening",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "fromSeedId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "primaryWrittenId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "primarySeedId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "title": "PlotHook",
+        "description": "Fully stable, because the rule-typed fields are gone. An earlier draft carried `requires?: Predicate[]` and `onFire?: Effect[]`; that vocabulary is 2.0, and rather than ship a /1 schema with two fields typed against something unwritten they are removed. They return additively, so the schema stays /1 when the vocabulary arrives.",
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "premise",
+          "scope",
+          "involves",
+          "weight",
+          "delivery",
+          "once"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "premise": {
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "const": "world",
+                "type": "string"
+              },
+              {
+                "const": "local",
+                "type": "string"
+              },
+              {
+                "const": "personal",
+                "type": "string"
+              }
+            ]
+          },
+          "involves": {
+            "type": "array",
+            "items": {
+              "title": "Ref",
+              "description": "A link to another object. Resolution order is always: exact id, then case-insensitive name, then show as missing and continue. Never blocks.",
+              "type": "object",
+              "required": [
+                "id",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "fingerprint": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "blockedBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notBefore": {
+            "type": "object",
+            "properties": {
+              "turn": {
+                "type": "number"
+              },
+              "afterHook": {
+                "type": "string"
+              }
+            }
+          },
+          "weight": {
+            "type": "number"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "const": "guidance",
+                "type": "string"
+              },
+              {
+                "const": "seed",
+                "type": "string"
+              },
+              {
+                "const": "immediate",
+                "type": "string"
+              }
+            ]
+          },
+          "once": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "modeHints": {
+      "type": "object",
+      "properties": {
+        "modeId": {
+          "type": "string"
+        },
+        "config": {}
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "title": "EmbeddedMedia",
+        "description": "A *reference* to bytes carried by the container, never the bytes themselves. The manifest form works in every container: a PNG private chunk, a zip entry, or a folder.",
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "mime",
+          "digest",
+          "bytes",
+          "ref"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "title": "MediaRole",
+            "anyOf": [
+              {
+                "const": "portrait-source",
+                "type": "string"
+              },
+              {
+                "const": "reference",
+                "type": "string"
+              },
+              {
+                "const": "expression",
+                "type": "string"
+              },
+              {
+                "const": "pose",
+                "type": "string"
+              },
+              {
+                "const": "style",
+                "type": "string"
+              },
+              {
+                "const": "gallery",
+                "type": "string"
+              }
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "width": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "height": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "crop": {
+            "title": "SourceRect",
+            "description": "Normalised 0..1 rectangle of a source image. Normalised rather than pixels so it survives the source being resized or re-encoded.",
+            "type": "object",
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "x": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "y": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "width": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "height": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            }
+          },
+          "generated": {
+            "title": "GeneratedFieldProvenance",
+            "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+            "type": "object",
+            "required": [
+              "original",
+              "at",
+              "model",
+              "seed",
+              "unreviewed"
+            ],
+            "properties": {
+              "original": {
+                "type": "string"
+              },
+              "at": {
+                "format": "date-time",
+                "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                "type": "string"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seed": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unreviewed": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "title": "Provenance",
+      "description": "Where an object came from and who made it.",
+      "type": "object",
+      "required": [
+        "source",
+        "creator",
+        "version",
+        "license",
+        "originalFilename",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "source": {
+          "default": "manual",
+          "anyOf": [
+            {
+              "const": "manual",
+              "type": "string"
+            },
+            {
+              "const": "import",
+              "type": "string"
+            },
+            {
+              "const": "generated",
+              "type": "string"
+            },
+            {
+              "const": "package",
+              "type": "string"
+            },
+            {
+              "const": "session",
+              "type": "string"
+            }
+          ]
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        }
+      }
+    },
+    "generated": {
+      "anyOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "title": "GeneratedFieldProvenance",
+              "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+              "type": "object",
+              "required": [
+                "original",
+                "at",
+                "model",
+                "seed",
+                "unreviewed"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string"
+                },
+                "at": {
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                  "type": "string"
+                },
+                "model": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seed": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unreviewed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "patternProperties": {
+        "^(.*)$": {}
+      }
+    }
+  }
+}

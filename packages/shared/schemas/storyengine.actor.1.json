@@ -1,0 +1,739 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyengine.dev/schemas/storyengine.actor/1.json",
+  "title": "Actor",
+  "description": "A character. Deliberately absent: system_prompt, post_history_instructions, depth_prompt, talkativeness, mes_example and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. Per-session numbers live in channels and must never appear here.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "aliases",
+    "pronouns",
+    "roles",
+    "tags",
+    "profile",
+    "openings",
+    "lore",
+    "media",
+    "assets",
+    "portraitCrop",
+    "modelHint",
+    "modeData",
+    "provenance",
+    "generated",
+    "compat"
+  ],
+  "properties": {
+    "schema": {
+      "const": "storyengine.actor/1",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pronouns": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "title": "ActorRole",
+        "description": "Advisory flag, not a type. Any actor may be chosen as persona; the flag controls what pickers offer first. Open — a newer build may write a value this one has not heard of, and that must round-trip rather than fail.",
+        "examples": [
+          "persona",
+          "narrator"
+        ],
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "profile": {
+      "title": "ActorProfile",
+      "type": "object",
+      "required": [
+        "visual",
+        "traits",
+        "sections"
+      ],
+      "properties": {
+        "visual": {
+          "anyOf": [
+            {
+              "title": "VisualDescriptors",
+              "description": "Structured appearance for image and video pipelines. Prose `appearance` is for the narrator; this is for machines.",
+              "type": "object",
+              "properties": {
+                "face": {
+                  "type": "string"
+                },
+                "hair": {
+                  "type": "string"
+                },
+                "eyes": {
+                  "type": "string"
+                },
+                "build": {
+                  "type": "string"
+                },
+                "clothing": {
+                  "type": "string"
+                },
+                "accessories": {
+                  "type": "string"
+                },
+                "distinguishing": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "traits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "title": "Section",
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "body",
+              "disposition"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "disposition": {
+                "anyOf": [
+                  {
+                    "const": "always",
+                    "type": "string"
+                  },
+                  {
+                    "const": "on-demand",
+                    "type": "string"
+                  },
+                  {
+                    "const": "reference-only",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "openings": {
+      "title": "Openings",
+      "description": "Two genuinely different things, so two lists rather than one with a flag: a written opening is content, a seed is an instruction.",
+      "type": "object",
+      "required": [
+        "written",
+        "seeds",
+        "primaryWrittenId",
+        "primarySeedId"
+      ],
+      "properties": {
+        "written": {
+          "type": "array",
+          "items": {
+            "title": "Opening",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "fromSeedId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "title": "Opening",
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "fromSeedId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "primaryWrittenId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "primarySeedId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "lore": {
+      "type": "array",
+      "items": {
+        "title": "Ref",
+        "description": "A link to another object. Resolution order is always: exact id, then case-insensitive name, then show as missing and continue. Never blocks.",
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "title": "EmbeddedMedia",
+        "description": "A *reference* to bytes carried by the container, never the bytes themselves. The manifest form works in every container: a PNG private chunk, a zip entry, or a folder.",
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "mime",
+          "digest",
+          "bytes",
+          "ref"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "title": "MediaRole",
+            "anyOf": [
+              {
+                "const": "portrait-source",
+                "type": "string"
+              },
+              {
+                "const": "reference",
+                "type": "string"
+              },
+              {
+                "const": "expression",
+                "type": "string"
+              },
+              {
+                "const": "pose",
+                "type": "string"
+              },
+              {
+                "const": "style",
+                "type": "string"
+              },
+              {
+                "const": "gallery",
+                "type": "string"
+              }
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "width": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "height": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "crop": {
+            "title": "SourceRect",
+            "description": "Normalised 0..1 rectangle of a source image. Normalised rather than pixels so it survives the source being resized or re-encoded.",
+            "type": "object",
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "x": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "y": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "width": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              "height": {
+                "minimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            }
+          },
+          "generated": {
+            "title": "GeneratedFieldProvenance",
+            "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+            "type": "object",
+            "required": [
+              "original",
+              "at",
+              "model",
+              "seed",
+              "unreviewed"
+            ],
+            "properties": {
+              "original": {
+                "type": "string"
+              },
+              "at": {
+                "format": "date-time",
+                "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                "type": "string"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seed": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unreviewed": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "title": "AssetRef",
+        "description": "Bulk asset, stored in the object’s folder. Always a relative path inside that folder — never absolute, never escaping it.",
+        "type": "object",
+        "required": [
+          "path",
+          "role"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "role": {
+            "title": "MediaRole",
+            "anyOf": [
+              {
+                "const": "portrait-source",
+                "type": "string"
+              },
+              {
+                "const": "reference",
+                "type": "string"
+              },
+              {
+                "const": "expression",
+                "type": "string"
+              },
+              {
+                "const": "pose",
+                "type": "string"
+              },
+              {
+                "const": "style",
+                "type": "string"
+              },
+              {
+                "const": "gallery",
+                "type": "string"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "portraitCrop": {
+      "anyOf": [
+        {
+          "title": "SourceRect",
+          "description": "Normalised 0..1 rectangle of a source image. Normalised rather than pixels so it survives the source being resized or re-encoded.",
+          "type": "object",
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "properties": {
+            "x": {
+              "minimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "y": {
+              "minimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "width": {
+              "minimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "height": {
+              "minimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "modelHint": {
+      "anyOf": [
+        {
+          "title": "ModelHint",
+          "description": "A preference, never a binding. An imported card may express what it wants; it can never repoint anyone’s provider. Resolution is local.",
+          "type": "object",
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "anyOf": [
+                {
+                  "const": "prose",
+                  "type": "string"
+                },
+                {
+                  "const": "fast",
+                  "type": "string"
+                },
+                {
+                  "const": "reasoning",
+                  "type": "string"
+                },
+                {
+                  "const": "vision",
+                  "type": "string"
+                }
+              ]
+            },
+            "preferredModelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "modeData": {
+      "type": "object",
+      "patternProperties": {
+        "^(.*)$": {}
+      }
+    },
+    "provenance": {
+      "title": "Provenance",
+      "description": "Where an object came from and who made it.",
+      "type": "object",
+      "required": [
+        "source",
+        "creator",
+        "version",
+        "license",
+        "originalFilename",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "source": {
+          "default": "manual",
+          "anyOf": [
+            {
+              "const": "manual",
+              "type": "string"
+            },
+            {
+              "const": "import",
+              "type": "string"
+            },
+            {
+              "const": "generated",
+              "type": "string"
+            },
+            {
+              "const": "package",
+              "type": "string"
+            },
+            {
+              "const": "session",
+              "type": "string"
+            }
+          ]
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originalFilename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+          "type": "string"
+        }
+      }
+    },
+    "generated": {
+      "anyOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {
+              "title": "GeneratedFieldProvenance",
+              "description": "Retained generated value for one field, so an edit can be reverted and the source disclosed. Keyed by dotted path in `generated`.",
+              "type": "object",
+              "required": [
+                "original",
+                "at",
+                "model",
+                "seed",
+                "unreviewed"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string"
+                },
+                "at": {
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                  "type": "string"
+                },
+                "model": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seed": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unreviewed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compat": {
+      "anyOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            "^(.*)$": {}
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

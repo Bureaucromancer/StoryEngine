@@ -94,6 +94,15 @@ describe('no direct fs outside server/src/storage (docs/design/07-tech-stack.md 
     const fired = await rulesFiredIn('packages/server/src/storage/uses-fs.ts');
     expect(fired).not.toContain('no-restricted-imports');
   });
+
+  it('permits node:fs in a build script, which never sees a request', async () => {
+    // The rule keeps one audited path resolver the only door to *user data*,
+    // reached from a request whose user is the thing being checked. A script
+    // emitting artefacts into the repository has no user root to be contained
+    // within, so the rule has nothing to say about it.
+    const fired = await rulesFiredIn('packages/shared/scripts/emits-artefacts.ts');
+    expect(fired).not.toContain('no-restricted-imports');
+  });
 });
 
 describe('no randomness outside the RNG service (docs/design/07-tech-stack.md §14.4)', () => {
@@ -110,6 +119,21 @@ describe('no randomness outside the RNG service (docs/design/07-tech-stack.md §
   it('blocks crypto.randomUUID on the global', async () => {
     const fired = await rulesFiredIn('packages/shared/src/uses-global-crypto.ts');
     expect(fired).toContain('no-restricted-syntax');
+  });
+
+  it('permits it in the id generator — an id is not a draw', async () => {
+    // Nothing replays a uuid and no outcome depends on its value, so it is not
+    // the thing docs/design/07-tech-stack.md §14.1 protects. The exemption is
+    // deliberately one file wide, which the next test is what actually proves.
+    const fired = await rulesFiredIn('packages/shared/src/ids.ts');
+    expect(fired).not.toContain('no-restricted-imports');
+  });
+
+  it('still catches the file next door, so the exemption is one file wide', async () => {
+    // `uses-node-crypto.ts` sits in the same directory as the exempt `ids.ts`.
+    // If this ever passes, the carve-out has widened into a hole.
+    const fired = await rulesFiredIn('packages/shared/src/uses-node-crypto.ts');
+    expect(fired).toContain('no-restricted-imports');
   });
 });
 

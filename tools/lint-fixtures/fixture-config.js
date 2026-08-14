@@ -88,4 +88,23 @@ export const fixtureConfig = tseslint.config(
       }),
     },
   },
+
+  // Build scripts: fs allowed, because they never see a request.
+  {
+    files: [`${FIXTURE_ROOT}/packages/*/scripts/**/*.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
+  // Id generation: randomness allowed, and deliberately one file wide.
+  {
+    files: [`${FIXTURE_ROOT}/packages/shared/src/ids.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('shared'),
+      }),
+    },
+  },
 );
