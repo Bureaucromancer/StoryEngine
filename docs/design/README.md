@@ -1,12 +1,17 @@
 # StoryEngine — Preliminary Design Notes
 
-**Status: early design exploration. Nothing here is decided.** These are design
-notes, not documentation of what exists — see [../](../) for that distinction.
+**Status: design exploration, with the load-bearing questions now answered.**
+These are design notes, not documentation of what exists — see [../](../) for
+that distinction, and treat anything here as intent rather than as a description
+of the code. Where a document still says *proposal*, it is one; the decisions
+that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
+[06](06-open-questions.md), and [19](19-p1-implementation.md) is a plan being
+worked from rather than argued with.
 
-**Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Freeform;
-Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the
-authored-rule vocabulary ([15 §0.4](15-work-plan.md)).
-Distribution, when there is something to
+**Phase: alpha, building P1** — see the [root README](../../README.md) for what
+actually runs today. **1.0 ships Scene and Adventure–Freeform; Adventure–Campaign
+and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the authored-rule
+vocabulary ([15 §0.4](15-work-plan.md)). Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
 complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
 

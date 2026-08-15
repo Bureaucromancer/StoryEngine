@@ -1,8 +1,9 @@
 # The HTTP API
 
-**Status: as built at P1.5.** This describes what exists, not what is planned —
-where the two differ, this file is right and the design notes record intent
-([docs/README.md](README.md)).
+**Status: as built at P1.5, and unchanged by P1.6** — the client consumes these
+routes rather than adding to them. This describes what exists, not what is
+planned — where the two differ, this file is right and the design notes record
+intent ([docs/README.md](README.md)).
 
 Everything is under `/api`. Responses are JSON. The client is the only consumer
 today, but nothing here is client-specific: `curl` is a first-class way to drive

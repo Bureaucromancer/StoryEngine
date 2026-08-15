@@ -4,15 +4,17 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha.** The design is written down in
 [`docs/design/`](docs/design/); the code is through
-[P1.5](docs/design/19-p1-implementation.md) — the storage spine, the derived
-index and its watcher, auth, and the library API.
+[P1.6](docs/design/19-p1-implementation.md) — the storage spine, the derived
+index and its watcher, auth, the library API, and a web client that reads it.
 
-**The server runs; there is no UI yet.** That is P1.6. Until then the API is
-the whole product, and [`docs/api.md`](docs/api.md) is how to drive it.
+**There is a UI, and it is read-only.** Sign in, browse all six kinds of
+library object on one surface, open one and see it. Creating and editing still
+happen through the API — the actor editor is P1.7 — so
+[`docs/api.md`](docs/api.md) remains how you put anything *into* a library.
 
 The storage thesis this phase exists to prove does work end to end: create an
 actor through the API, watch the folder appear, hand-edit a lorebook on disk in
-a text editor, and see the change without a restart
+a text editor, and see the change in the browser without a restart
 ([05 §4.1](docs/design/05-ui-surfaces.md)).
 
 Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
@@ -30,20 +32,58 @@ Requires **Node 26** and **pnpm 11**.
 pnpm install && pnpm typecheck && pnpm lint && pnpm build && pnpm test
 ```
 
-Then start it:
+## Running it
+
+**Two processes on two ports, started separately.** The server is the API and
+nothing else; Vite serves the client and proxies `/api` back to the server.
+Neither waits for the other, and there is no combined command yet — see
+[below](#why-two-commands).
+
+Terminal one, the server:
 
 ```bash
 pnpm dev
 ```
 
-It binds `127.0.0.1:8080` and creates `./data` on first run. Open the address
-and it will ask you to create the first admin — or drive it with `curl`, per
-[`docs/api.md`](docs/api.md).
+It binds `127.0.0.1:8080` and creates `./data` on first run. Driving that port
+with `curl` is a first-class way to work ([`docs/api.md`](docs/api.md)) and is
+still the only way to *create* anything. Opening it in a browser is not useful:
+there are no files there to serve.
+
+Terminal two, the client:
+
+```bash
+pnpm dev:client
+```
+
+Vite serves `http://127.0.0.1:5173` and proxies `/api` through to 8080, which
+keeps the two same-origin — so the session cookie is sent normally and there is
+no CORS anywhere. **5173 is the address to open**, and on a fresh install it
+will ask you to create the first admin.
+
+Start the server first if you care about the order. The client comes up either
+way, but its requests fail until something is listening on 8080, and the UI
+reports that it cannot reach the server.
 
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
 ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
 [`config.example.json`](config.example.json) to `data/config.json` to change it.
+
+### Why two commands
+
+The split is temporary rather than principled, and it exists because the server
+does not serve the client's files yet ([`docs/api.md`](docs/api.md), *Not here
+yet*). The shipped product is meant to be one container, one volume and one
+port ([04 §5.3](docs/design/04-server-multiuser-deployment.md)) — so the server
+will eventually serve the built client, at which point this collapses back into
+a single command and a single address.
+
+Keeping them separate until then costs one extra terminal and keeps the API
+honest: nothing in the server knows the client exists, which is the same
+boundary the lint graph enforces in code.
+
+## Scripts
 
 | Script | What it does |
 |---|---|
@@ -51,7 +91,8 @@ who can reach the port can claim the install, so LAN exposure is an explicit act
 | `pnpm lint` | ESLint (including the boundary graph) and Stylelint |
 | `pnpm build` | Typecheck, emit the JSON Schemas, then the client bundle |
 | `pnpm test` | Vitest |
-| `pnpm dev` | Start the server |
+| `pnpm dev` | Start the server (API only, port 8080) |
+| `pnpm dev:client` | Start Vite for the client (port 5173, proxies `/api`) |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an
@@ -68,7 +109,7 @@ packages/server/
   src/index-db/      the derived index and its watcher — delete it, lose nothing
   src/auth/          accounts, scrypt, sessions
   src/routes/        the HTTP surface
-packages/client/     React + Vite. A scaffold until P1.6.
+packages/client/     React + Vite. The library list, a detail view, and login.
 tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
                      tested rather than trusted
 ```
@@ -87,7 +128,8 @@ fixture test asserting the enforcement actually fires:
 - **No direct `fs`** outside `packages/server/src/storage`, which keeps one
   audited path resolver the only door ([07 §9](docs/design/07-tech-stack.md)).
 - **No randomness** outside the RNG service — and since the service does not
-  exist until P2, no randomness anywhere
+  exist until P2, nowhere at all bar two one-file exemptions, id generation and
+  cryptographic secrets, each argued where it is granted in `eslint.config.js`
   ([07 §14.4](docs/design/07-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
   classes ([07 §12.6](docs/design/07-tech-stack.md)).
