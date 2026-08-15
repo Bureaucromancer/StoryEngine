@@ -34,54 +34,85 @@ pnpm install && pnpm typecheck && pnpm lint && pnpm build && pnpm test
 
 ## Running it
 
-**Two processes on two ports, started separately.** The server is the API and
-nothing else; Vite serves the client and proxies `/api` back to the server.
-Neither waits for the other, and there is no combined command yet — see
-[below](#why-two-commands).
-
-Terminal one, the server:
-
 ```bash
 pnpm dev
 ```
 
-It binds `127.0.0.1:8080` and creates `./data` on first run. Driving that port
-with `curl` is a first-class way to work ([`docs/api.md`](docs/api.md)) and is
-still the only way to *create* anything. Opening it in a browser is not useful:
-there are no files there to serve.
+Starts both halves and watches both. **Open `http://127.0.0.1:5173`** — that is
+Vite, and on a fresh install it will ask you to create the first admin.
 
-Terminal two, the client:
+They remain **two processes on two ports**, and `pnpm dev` is a convenience over
+that rather than a thing of its own:
+
+| | Port | What it is | On a source change |
+|---|---|---|---|
+| Server | 8080 | The API, and nothing else | Restarts (`tsx watch`) |
+| Client | 5173 | Vite, proxying `/api` to 8080 | Hot module replacement |
+
+The proxy is what keeps the two same-origin, so the session cookie is sent
+normally and there is no CORS anywhere. Port 8080 serves no files — pointing a
+browser at it is not useful, but pointing `curl` at it is a first-class way to
+work ([`docs/api.md`](docs/api.md)) and is still the only way to *create*
+anything.
+
+Either half runs on its own, which is the point of keeping them separate:
 
 ```bash
-pnpm dev:client
+pnpm dev:server    # just the API, for curl-driven work
+pnpm dev:client    # just Vite, against a server you started some other way
 ```
 
-Vite serves `http://127.0.0.1:5173` and proxies `/api` through to 8080, which
-keeps the two same-origin — so the session cookie is sent normally and there is
-no CORS anywhere. **5173 is the address to open**, and on a fresh install it
-will ask you to create the first admin.
+`pnpm dev` starts them in parallel and does not order them, so on a cold start
+Vite is usually ready first and logs a proxy error or two until the server
+binds. That is noise rather than failure. Started alone, the client comes up
+fine and reports that it cannot reach the server until one is there.
 
-Start the server first if you care about the order. The client comes up either
-way, but its requests fail until something is listening on 8080, and the UI
-reports that it cannot reach the server.
+**Both need a build first.** The server imports `@storyengine/shared` through
+its built entry point, so `pnpm build` has to have run at least once. Watch mode
+covers each package's *own* sources — editing `shared` or `sdk` needs a
+`pnpm build` before the server sees it.
 
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
 ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
 [`config.example.json`](config.example.json) to `data/config.json` to change it.
 
-### Why two commands
+### How the dev setup is wired
+
+Worth writing down, because three of the four pieces are choices rather than
+defaults.
+
+- **`pnpm dev` is `pnpm --parallel`** over the server and client `dev` scripts —
+  pnpm's own runner rather than a `concurrently`-style dependency. Output is
+  prefixed per package. One consequence of two processes under one terminal: a
+  signal that does not reach the whole process group can leave a child holding a
+  port, and `Port 5173 is in use` on the next start is what that looks like.
+- **The server watches with `tsx`**, per [07 §11](docs/design/07-tech-stack.md),
+  which names it. Node 26 can strip types unaided, but this codebase imports
+  with `.js` specifiers under `NodeNext` and Node will not resolve those onto
+  the `.ts` files that actually exist; `tsx` does. It also means dev runs from
+  `src/` while production runs the built `dist/` — `pnpm --filter
+  @storyengine/server start` is unchanged and still the production entry point.
+- **Dev writes to the repository's `data/`.** The scripts run with their own
+  package as the working directory, so the server's dev script passes
+  `--data ../../data` explicitly. Without it the data directory would appear
+  under `packages/server/`, which is not where `config.example.json` or
+  anything else expects it.
+- **esbuild's install script is declined**, in `pnpm-workspace.yaml`. It arrives
+  under `tsx` and is the only dependency here that asks to run one; it only
+  re-checks a binary pnpm has already linked, so `pnpm install` still runs no
+  third-party code.
+
+### Why two commands and not one process
 
 The split is temporary rather than principled, and it exists because the server
 does not serve the client's files yet ([`docs/api.md`](docs/api.md), *Not here
 yet*). The shipped product is meant to be one container, one volume and one
 port ([04 §5.3](docs/design/04-server-multiuser-deployment.md)) — so the server
-will eventually serve the built client, at which point this collapses back into
-a single command and a single address.
+will eventually serve the built client, and the two ports become one.
 
-Keeping them separate until then costs one extra terminal and keeps the API
-honest: nothing in the server knows the client exists, which is the same
-boundary the lint graph enforces in code.
+Keeping them apart until then keeps the API honest: nothing in the server knows
+the client exists, which is the same boundary the lint graph enforces in code.
 
 ## Scripts
 
@@ -91,8 +122,9 @@ boundary the lint graph enforces in code.
 | `pnpm lint` | ESLint (including the boundary graph) and Stylelint |
 | `pnpm build` | Typecheck, emit the JSON Schemas, then the client bundle |
 | `pnpm test` | Vitest |
-| `pnpm dev` | Start the server (API only, port 8080) |
-| `pnpm dev:client` | Start Vite for the client (port 5173, proxies `/api`) |
+| `pnpm dev` | Both of the below, in parallel |
+| `pnpm dev:server` | The API on 8080, restarting on a change (`tsx watch`) |
+| `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an
