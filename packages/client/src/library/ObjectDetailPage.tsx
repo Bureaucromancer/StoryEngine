@@ -87,8 +87,8 @@ function ObjectView(props: {
           role="note"
           className="mb-6 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
         >
-          Another folder on disk holds the same id at an earlier path, and that copy is the one
-          that loads. Nothing is lost; this copy is shown so the duplicate stays visible.
+          Another folder on disk holds the same id at an earlier path, and that copy is the one that
+          loads. Nothing is lost; this copy is shown so the duplicate stays visible.
         </p>
       ) : null}
 

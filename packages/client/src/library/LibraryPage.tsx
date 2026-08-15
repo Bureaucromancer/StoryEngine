@@ -43,7 +43,10 @@ export function LibraryPage(): JSX.Element {
   );
 }
 
-function FilterLink(props: { kind: LibraryKind | undefined; current: LibraryKind | undefined }): JSX.Element {
+function FilterLink(props: {
+  kind: LibraryKind | undefined;
+  current: LibraryKind | undefined;
+}): JSX.Element {
   const active = props.kind === props.current;
   return (
     <Link

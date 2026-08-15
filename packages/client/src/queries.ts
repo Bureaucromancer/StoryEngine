@@ -35,7 +35,27 @@ const LIBRARY_POLL_MS = 2000;
 
 export const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1 },
+    queries: {
+      retry: 1,
+      /**
+       * **`always`, not the default `online`.**
+       *
+       * TanStack's default refuses to fetch whenever the browser reports
+       * itself offline, and a query that never fetches stays `pending`
+       * forever — so the UI sits on a loading state rather than reporting
+       * anything. For an app on the public web that is the right trade.
+       *
+       * Here it is simply wrong. This server is on loopback or on the LAN
+       * ([04 §5.1](docs/design/04-server-multiuser-deployment.md)), and
+       * `navigator.onLine` describes the *internet*, which has no bearing on
+       * whether a box in the next room is reachable. A laptop with its Wi-Fi
+       * off can still reach `127.0.0.1:8080` perfectly well.
+       *
+       * With `always`, an unreachable server is a failed request like any
+       * other: it retries, gives up, and the UI says so.
+       */
+      networkMode: 'always',
+    },
   },
 });
 
