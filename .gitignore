@@ -14,3 +14,8 @@ config.json
 
 .env
 .env.local
+
+# OS and editor cruft. macOS drops .DS_Store into every directory Finder opens,
+# and a pair of them reached the repository in ff59ee8 before this rule existed.
+.DS_Store
+Thumbs.db
