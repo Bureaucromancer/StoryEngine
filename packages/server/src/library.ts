@@ -16,9 +16,17 @@ import {
 
 import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
 import { findById, type IndexedObject, listObjects } from './index-db/query.js';
-import { writeAtomic, writeJsonAtomic } from './storage/atomic.js';
+import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
 import { readFileBytes, removeTree } from './storage/files.js';
+import {
+  listVersions,
+  patchVersion,
+  readVersionPayload,
+  snapshotReplaced,
+  type VersionRecord,
+  type VersionSource,
+} from './storage/history.js';
 import {
   type Layout,
   type LibraryScope,
@@ -67,6 +75,8 @@ export class LibraryError extends Error {
 export interface LibraryContext {
   db: DatabaseSync;
   layout: Layout;
+  /** Retention cap for version history, from `history.keepPerObject` ([02 §11.3]). */
+  keepHistoryPerObject: number;
 }
 
 export interface StoredObject {
@@ -118,33 +128,37 @@ function scopeKeyOf(scope: LibraryScope): string {
 }
 
 /**
- * Serialises an object the way its kind is stored.
+ * Serialises an object the way its kind is stored, without writing anything.
  *
  * The actor is the only kind that is not plain JSON, and the card is spliced
  * into whatever pixels are already there — never re-encoded
  * ([02 §5.2](docs/design/02-data-model.md)).
+ *
+ * Encoding is separate from writing so the caller can apply the no-op rule
+ * ([02 §11.1](docs/design/02-data-model.md)): a save that changes nothing must
+ * produce neither a write nor a history entry, and the only honest way to know
+ * is to build the exact bytes and compare.
  */
-async function writeObject(
+async function encodeObject(
   layout: Layout,
   scope: LibraryScope,
   schemaId: PortableSchemaId,
   slug: string,
   object: unknown,
-): Promise<{ path: string; contentHash: string }> {
+): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(scope, schemaId, slug);
 
+  let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
     const existing = await readFileBytes(path);
     const canvas = existing ?? blankCardPixels();
     const contents = existing ? pngCardCodec.read(existing) : null;
-    const bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
-    await writeAtomic(path, bytes);
-    return { path, contentHash: contentHashOf(bytes) };
+    bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
+  } else {
+    bytes = new TextEncoder().encode(`${JSON.stringify(object, null, 2)}\n`);
   }
 
-  const json = `${JSON.stringify(object, null, 2)}\n`;
-  await writeJsonAtomic(path, object);
-  return { path, contentHash: contentHashOf(new TextEncoder().encode(json)) };
+  return { path, bytes, contentHash: contentHashOf(bytes) };
 }
 
 /**
@@ -221,11 +235,30 @@ export async function create(
       : 'untitled';
   const slug = await resolveFreeSlug(context.layout.kindRoot(scope, schemaId), name);
 
-  const { path, contentHash } = await writeObject(context.layout, scope, schemaId, slug, object);
+  const { path, bytes, contentHash } = await encodeObject(
+    context.layout,
+    scope,
+    schemaId,
+    slug,
+    object,
+  );
+  await writeAtomic(path, bytes);
   await ingestFile(context.db, context.layout, path);
 
   return { object, contentHash, path, slug, scope, shadowed: false };
 }
+
+/**
+ * What made a change, threaded through to the version record. The route passes
+ * `manual`; `restore` passes itself; the watcher stamps `external` on its own
+ * path rather than through here.
+ */
+export interface ChangeAttribution {
+  source: VersionSource;
+  reason: string;
+}
+
+const MANUAL: ChangeAttribution = { source: { kind: 'manual' }, reason: '' };
 
 /**
  * Replaces an object, checking the caller's hash first.
@@ -242,6 +275,7 @@ export async function update(
   id: string,
   object: unknown,
   expectedHash: string,
+  change: ChangeAttribution = MANUAL,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
   const current = read(context, handle, id);
@@ -262,16 +296,175 @@ export async function update(
   }
 
   const scope = userScope(handle);
-  const { path, contentHash } = await writeObject(
+  const { path, bytes, contentHash } = await encodeObject(
     context.layout,
     scope,
     schemaId,
     current.slug,
     object,
   );
+
+  // **The no-op rule** ([02 §11.1]). A write that changes nothing produces no
+  // write and no version — without this, every round-trip through an editor
+  // adds an identical history entry, and a restore to the current state
+  // duplicates it. Byte equality, via the hash, is the honest comparison: it is
+  // exactly what the next read would see.
+  if (contentHash === current.contentHash) {
+    return {
+      object: current.body,
+      contentHash,
+      path,
+      slug: current.slug,
+      scope,
+      shadowed: current.shadowed,
+    };
+  }
+
+  // Snapshot the state being replaced, *then* write. Automatic, not requested
+  // ([02 §11.1]) — the moment someone wants history is after the edit they
+  // regret.
+  await snapshotReplaced({
+    objectRoot: context.layout.objectRoot(scope, schemaId, current.slug),
+    payload: current.body,
+    source: change.source,
+    reason: change.reason,
+    keepPerObject: context.keepHistoryPerObject,
+  });
+
+  await writeAtomic(path, bytes);
   await ingestFile(context.db, context.layout, path);
 
   return { object, contentHash, path, slug: current.slug, scope, shadowed: current.shadowed };
+}
+
+/**
+ * Restores an earlier version — **an ordinary write, not a special one**
+ * ([02 §11.1](docs/design/02-data-model.md)): it goes through `update`, so the
+ * current state is snapshotted first and going back never destroys what you
+ * were on. Restoring the state you are already on falls into the no-op rule
+ * and records nothing.
+ */
+export async function restoreVersion(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  versionId: string,
+  expectedHash: string,
+): Promise<StoredObject> {
+  const current = read(context, handle, id);
+  if (current.scope === 'system') {
+    throw new LibraryError('read-only', 'System library objects cannot be edited.');
+  }
+
+  const objectRoot = context.layout.objectRoot(
+    userScope(handle),
+    current.schemaId as PortableSchemaId,
+    current.slug,
+  );
+  const record = (await listVersions(objectRoot)).find((version) => version.id === versionId);
+  if (!record) {
+    throw new LibraryError('not-found', `No version with id ${versionId}.`);
+  }
+  const payload = await readVersionPayload(objectRoot, record.digest);
+  if (payload === null) {
+    throw new LibraryError('not-found', `The payload for version ${versionId} is missing.`);
+  }
+
+  return update(context, handle, id, payload, expectedHash, {
+    source: { kind: 'restore', fromVersionId: versionId },
+    reason: 'Saved before restoring an earlier version',
+  });
+}
+
+/**
+ * The versions of an object, oldest first. Position is the revision number —
+ * computed for display, never stored ([02 §11.5]).
+ */
+export async function versionsOf(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+): Promise<{ current: IndexedObject; versions: VersionRecord[] }> {
+  const current = read(context, handle, id);
+  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const objectRoot = context.layout.objectRoot(
+    scope,
+    current.schemaId as PortableSchemaId,
+    current.slug,
+  );
+  return { current, versions: await listVersions(objectRoot) };
+}
+
+/** One version's snapshotted object, by record id. */
+export async function versionPayload(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  versionId: string,
+): Promise<{ record: VersionRecord; object: unknown }> {
+  const { current, versions } = await versionsOf(context, handle, id);
+  const record = versions.find((version) => version.id === versionId);
+  if (!record) {
+    throw new LibraryError('not-found', `No version with id ${versionId}.`);
+  }
+  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const objectRoot = context.layout.objectRoot(
+    scope,
+    current.schemaId as PortableSchemaId,
+    current.slug,
+  );
+  const object = await readVersionPayload(objectRoot, record.digest);
+  if (object === null) {
+    throw new LibraryError('not-found', `The payload for version ${versionId} is missing.`);
+  }
+  return { record, object };
+}
+
+/**
+ * Renames (sets `reason`) or pins a version record ([05 §11.2a]).
+ */
+export async function amendVersion(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  versionId: string,
+  patch: { reason?: string; pinned?: boolean },
+): Promise<VersionRecord> {
+  const current = read(context, handle, id);
+  if (current.scope === 'system') {
+    throw new LibraryError('read-only', 'System library objects cannot be edited.');
+  }
+  const objectRoot = context.layout.objectRoot(
+    userScope(handle),
+    current.schemaId as PortableSchemaId,
+    current.slug,
+  );
+  const updated = await patchVersion(objectRoot, versionId, patch);
+  if (!updated) {
+    throw new LibraryError('not-found', `No version with id ${versionId}.`);
+  }
+  return updated;
+}
+
+/**
+ * The raw stored bytes of an actor's card — the avatar the editor shows and
+ * does not replace ([19 §P1.7](docs/design/19-p1-implementation.md)). Only
+ * actors have pixels; any other kind is not-found rather than empty.
+ */
+export async function readCardPixels(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+): Promise<{ bytes: Uint8Array; contentHash: string }> {
+  const current = read(context, handle, id);
+  if (current.schemaId !== ACTOR_SCHEMA) {
+    throw new LibraryError('not-found', 'Only actors have a card image.');
+  }
+  const bytes = await readFileBytes(current.path);
+  if (bytes === null) {
+    throw new LibraryError('not-found', 'The card file is missing from disk.');
+  }
+  return { bytes, contentHash: current.contentHash };
 }
 
 /**

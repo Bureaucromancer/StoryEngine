@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
+import { listVersions } from '../storage/history.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
 import { LibraryWatcher, type WatchEvent } from './watcher.js';
@@ -148,6 +149,65 @@ describe('the watcher ignores its own writes', () => {
     await eventually(() => events.some((event) => event.path.endsWith('map.png')));
     expect(events.find((event) => event.path.endsWith('map.png'))?.type).toBe('ignored');
     expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(0);
+  });
+});
+
+describe('a hand edit leaves history behind', () => {
+  // [02 §11.2]: hand-edits get history for free, which is a promise a
+  // database-backed history structurally cannot make — and the strongest
+  // argument for building the mechanism in P1, while the watcher exists and no
+  // editor does.
+  it('snapshots the replaced state with an external source', async () => {
+    const book = newLorebook('Rain City');
+    const path = await library.saveObject(book, 'rain-city');
+    await seenBy(path);
+
+    await writeFile(path, JSON.stringify({ ...book, name: 'Rain City, after the fire' }));
+    await eventually(
+      () =>
+        listObjects(library.db, { scopes: [library.scope] })[0]?.name ===
+        'Rain City, after the fire',
+    );
+
+    const versions = await listVersions(dirname(path));
+    expect(versions).toHaveLength(1);
+    expect(versions[0]?.source).toEqual({ kind: 'external' });
+    // The snapshot is the state *before* the hand edit.
+    const payload = (await import('../storage/history.js')).readVersionPayload;
+    const snapshotted = (await payload(dirname(path), versions[0]!.digest)) as { name: string };
+    expect(snapshotted.name).toBe('Rain City');
+  });
+
+  it('snapshots the last good state when a hand edit breaks the file', async () => {
+    // Exactly the person the last good state is being kept for: someone whose
+    // text editor saved half a JSON file.
+    const book = newLorebook('Rain City');
+    const path = await library.saveObject(book, 'rain-city');
+    await seenBy(path);
+
+    await writeFile(path, '{ "name": "Rain City", truncated');
+    await eventually(() =>
+      events.some((event) => event.path === path && event.type !== 'suppressed'),
+    );
+
+    const versions = await listVersions(dirname(path));
+    expect(versions).toHaveLength(1);
+    expect(versions[0]?.source).toEqual({ kind: 'external' });
+  });
+
+  it('records nothing for a move', async () => {
+    // A rename is the same content at a new path — not an edit, and a history
+    // entry for it would be noise.
+    const book = newLorebook('Rain City');
+    const from = await library.saveObject(book, 'rain-city');
+    await seenBy(from);
+
+    const to = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city-noir');
+    await mkdir(dirname(to), { recursive: true });
+    await rename(from, to);
+    await eventually(() => findById(library.db, book.id)?.path === to);
+
+    expect(await listVersions(dirname(to))).toHaveLength(0);
   });
 });
 

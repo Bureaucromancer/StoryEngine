@@ -17,6 +17,7 @@ import {
   type Credentials,
   type LibraryKind,
   type LibraryObject,
+  type ObjectVersion,
   type SetupInput,
 } from './api.js';
 
@@ -76,6 +77,118 @@ export function useLibraryObject(kind: LibraryKind, id: string): UseQueryResult<
     queryKey: ['library', kind, id],
     queryFn: () => api.readObject(kind, id),
     refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+/**
+ * The editor's base object. Deliberately **not** polled and outside the
+ * `['library']` invalidation prefix: the object under an open editor must not
+ * shift beneath the form. The designed mechanism for concurrent change is the
+ * stale-hash rejection on save (docs/api.md, the 412), not a silently moving
+ * base.
+ */
+export function useEditorBase(kind: LibraryKind, id: string): UseQueryResult<LibraryObject> {
+  return useQuery({
+    queryKey: ['editor', kind, id],
+    queryFn: () => api.readObject(kind, id),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useObjectHistory(
+  kind: LibraryKind,
+  id: string,
+): UseQueryResult<{ versions: ObjectVersion[] }> {
+  return useQuery({
+    queryKey: ['library', kind, id, 'history'],
+    queryFn: () => api.history(kind, id),
+    refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+export function useVersionPayload(
+  kind: LibraryKind,
+  id: string,
+  versionId: string | null,
+): UseQueryResult<{ version: ObjectVersion; object: Record<string, unknown> }> {
+  return useQuery({
+    queryKey: ['library', kind, id, 'version', versionId],
+    // `enabled` below keeps this from running with a null id; the throw is the
+    // honest spelling of that contract rather than an assertion.
+    queryFn: () => {
+      if (versionId === null) throw new Error('The version query ran while disabled.');
+      return api.version(kind, id, versionId);
+    },
+    enabled: versionId !== null,
+    staleTime: Infinity,
+  });
+}
+
+interface SaveInput {
+  kind: LibraryKind;
+  id: string;
+  object: Record<string, unknown>;
+  contentHash: string;
+}
+
+export function useSaveObject(): UseMutationResult<
+  { contentHash: string; object: Record<string, unknown> },
+  Error,
+  SaveInput
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveInput) =>
+      api.updateObject(input.kind, input.id, input.object, input.contentHash),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
+  });
+}
+
+export function useCreateObject(): UseMutationResult<
+  { id: string; slug: string; contentHash: string },
+  Error,
+  { kind: LibraryKind; object: Record<string, unknown> }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { kind: LibraryKind; object: Record<string, unknown> }) =>
+      api.createObject(input.kind, input.object),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
+  });
+}
+
+export function useRestoreVersion(): UseMutationResult<
+  { contentHash: string; object: Record<string, unknown> },
+  Error,
+  { kind: LibraryKind; id: string; versionId: string; contentHash: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      kind: LibraryKind;
+      id: string;
+      versionId: string;
+      contentHash: string;
+    }) => api.restoreVersion(input.kind, input.id, input.versionId, input.contentHash),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
+  });
+}
+
+export function useAmendVersion(): UseMutationResult<
+  { version: ObjectVersion },
+  Error,
+  { kind: LibraryKind; id: string; versionId: string; patch: { reason?: string; pinned?: boolean } }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      kind: LibraryKind;
+      id: string;
+      versionId: string;
+      patch: { reason?: string; pinned?: boolean };
+    }) => api.amendVersion(input.kind, input.id, input.versionId, input.patch),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
   });
 }
 

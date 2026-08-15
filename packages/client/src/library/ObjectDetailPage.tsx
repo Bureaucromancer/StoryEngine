@@ -80,6 +80,15 @@ function ObjectView(props: {
         <h1 className="text-2xl font-semibold">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
+        {kind === 'actors' && object.source === 'user' ? (
+          <Link
+            to="/library/actors/$id/edit"
+            params={{ id: object.id }}
+            className="ms-auto rounded-md bg-slate-800 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            Edit
+          </Link>
+        ) : null}
       </header>
 
       {object.shadowed ? (

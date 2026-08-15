@@ -8,7 +8,20 @@ import { isKnownSchema, LIBRARY_DIRECTORIES, type PortableSchemaId } from '@stor
 
 import { type AppServices, requireAccount } from '../app.js';
 import type { IndexedObject } from '../index-db/query.js';
-import { create, LibraryError, list, read, remove, update } from '../library.js';
+import {
+  amendVersion,
+  create,
+  LibraryError,
+  list,
+  read,
+  readCardPixels,
+  remove,
+  restoreVersion,
+  update,
+  versionPayload,
+  versionsOf,
+} from '../library.js';
+import type { VersionRecord } from '../storage/history.js';
 
 /**
  * Library CRUD — **one handler set, not six**.
@@ -40,6 +53,15 @@ const DIRECTORY_TO_SCHEMA = new Map<string, PortableSchemaId>(
 
 const KindParams = Type.Object({ kind: Type.String() });
 const ObjectParams = Type.Object({ kind: Type.String(), id: Type.String() });
+const VersionParams = Type.Object({
+  kind: Type.String(),
+  id: Type.String(),
+  versionId: Type.String(),
+});
+const VersionPatch = Type.Object({
+  reason: Type.Optional(Type.String({ maxLength: 2000 })),
+  pinned: Type.Optional(Type.Boolean()),
+});
 
 /**
  * The public shape of an indexed object.
@@ -159,6 +181,163 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     }
   });
 
+  /**
+   * The version history routes — [02 §11](docs/design/02-data-model.md).
+   *
+   * Newest first, with the revision number computed from append order rather
+   * than stored ([02 §11.5]). The *current* state is not an entry: the client
+   * pins it at the top of the panel itself, because "current" is a fact about
+   * the object, not about its history.
+   */
+  app.get(
+    '/library/:kind/:id/history',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!schemaFor(request.params as { kind: string }, reply)) return;
+
+      try {
+        const { versions } = await versionsOf(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+        );
+        return await reply.send({
+          versions: versions.map((record, position) => presentVersion(record, position)).reverse(),
+        });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  app.get(
+    '/library/:kind/:id/history/:versionId',
+    { schema: { params: VersionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!schemaFor(request.params as { kind: string }, reply)) return;
+
+      const params = request.params as { id: string; versionId: string };
+      try {
+        const { record, object } = await versionPayload(
+          services.library,
+          account.handle,
+          params.id,
+          params.versionId,
+        );
+        return await reply.send({ version: presentVersion(record), object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * Restore is an ordinary write wearing a route: it is hash-checked like PUT,
+   * snapshots the current state first, and answers with the same shape — so a
+   * client treats the response exactly as it treats a save.
+   */
+  app.post(
+    '/library/:kind/:id/history/:versionId/restore',
+    { schema: { params: VersionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!schemaFor(request.params as { kind: string }, reply)) return;
+
+      const expected = expectedHash(request.headers['if-match'], request.body);
+      if (!expected) {
+        return reply.code(428).send({
+          error: 'hash-required',
+          message:
+            'Send the content hash you last read, as If-Match or as contentHash in the body.',
+        });
+      }
+
+      const params = request.params as { id: string; versionId: string };
+      try {
+        const stored = await restoreVersion(
+          services.library,
+          account.handle,
+          params.id,
+          params.versionId,
+          expected,
+        );
+        return await reply
+          .header('etag', stored.contentHash)
+          .send({ contentHash: stored.contentHash, object: stored.object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /** Rename (set `reason`) and pin — the two caller-editable fields ([05 §11.2a]). */
+  app.patch(
+    '/library/:kind/:id/history/:versionId',
+    { schema: { params: VersionParams, body: VersionPatch } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!schemaFor(request.params as { kind: string }, reply)) return;
+
+      const params = request.params as { id: string; versionId: string };
+      const body = request.body as { reason?: string; pinned?: boolean };
+      try {
+        const record = await amendVersion(
+          services.library,
+          account.handle,
+          params.id,
+          params.versionId,
+          {
+            ...(body.reason === undefined ? {} : { reason: body.reason }),
+            ...(body.pinned === undefined ? {} : { pinned: body.pinned }),
+          },
+        );
+        return await reply.send({ version: presentVersion(record) });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * The card's pixels, for the editor to show and not replace
+   * ([19 §P1.7](docs/design/19-p1-implementation.md)). Actors only — no other
+   * kind has an image that *is* the object.
+   */
+  app.get(
+    '/library/:kind/:id/avatar',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!schemaFor(request.params as { kind: string }, reply)) return;
+
+      try {
+        const { bytes, contentHash } = await readCardPixels(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+        );
+        return await reply
+          .header('content-type', 'image/png')
+          .header('etag', contentHash)
+          .send(Buffer.from(bytes));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
   app.delete('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
@@ -181,6 +360,25 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       return;
     }
   });
+}
+
+/**
+ * A version record as the client sees it. `revision` is the entry's position
+ * in append order, oldest = 1 — computed here for display and never stored
+ * ([02 §11.5](docs/design/02-data-model.md)).
+ */
+function presentVersion(record: VersionRecord, position?: number): Record<string, unknown> {
+  return {
+    id: record.id,
+    digest: record.digest,
+    ...(position === undefined ? {} : { revision: position + 1 }),
+    authoredAt: record.authoredAt,
+    recordedAt: record.recordedAt,
+    source: record.source,
+    reason: record.reason,
+    authorVersion: record.authorVersion,
+    pinned: record.pinned,
+  };
 }
 
 function schemaFor(params: { kind: string }, reply: FastifyReply): PortableSchemaId | null {

@@ -4,16 +4,20 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
+import { ActorEditorPage } from './editor/ActorEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { Shell } from './Shell.js';
 
 /**
- * Two routes: the list and the detail view. The kind filter is a search param
- * on the list, so a filtered library is an address like any other.
+ * Three routes: the list, the detail view, and the actor editor. The kind
+ * filter is a search param on the list, so a filtered library is an address
+ * like any other. The editor's path is actor-specific because the editor is —
+ * the other five kinds stay read-only in P1
+ * ([19 §P1.7](docs/design/19-p1-implementation.md)).
  *
- * Code-based rather than file-based routing — at two routes the generator would
- * be more machinery than route.
+ * Code-based rather than file-based routing — at three routes the generator
+ * would be more machinery than route.
  */
 
 export interface LibrarySearch {
@@ -38,7 +42,13 @@ const objectRoute = createRoute({
   component: ObjectDetailPage,
 });
 
-const routeTree = rootRoute.addChildren([libraryRoute, objectRoute]);
+const actorEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/actors/$id/edit',
+  component: ActorEditorPage,
+});
+
+const routeTree = rootRoute.addChildren([libraryRoute, objectRoute, actorEditorRoute]);
 
 export const router = createRouter({ routeTree });
 

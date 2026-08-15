@@ -58,7 +58,11 @@ export interface BuildAppOptions {
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
   const layout = new Layout(options.config.dataDir);
   const index = await openIndex({ path: layout.indexFile });
-  const library: LibraryContext = { db: index.db, layout };
+  const library: LibraryContext = {
+    db: index.db,
+    layout,
+    keepHistoryPerObject: options.config.history.keepPerObject,
+  };
 
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
@@ -67,7 +71,14 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
     await rebuild(index.db, layout);
   }
 
-  const watcher = options.watch === false ? null : new LibraryWatcher({ db: index.db, layout });
+  const watcher =
+    options.watch === false
+      ? null
+      : new LibraryWatcher({
+          db: index.db,
+          layout,
+          keepHistoryPerObject: options.config.history.keepPerObject,
+        });
   await watcher?.start();
 
   return {

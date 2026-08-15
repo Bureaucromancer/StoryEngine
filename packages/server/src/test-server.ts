@@ -30,7 +30,7 @@ export interface TestServer {
   /** Cookies the client is holding, in the form a `cookie` header wants. */
   cookies: Map<string, string>;
   request: (options: {
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     url: string;
     payload?: unknown;
     headers?: Record<string, string>;
@@ -54,7 +54,7 @@ export async function makeTestServer(): Promise<TestServer> {
   const cookies = new Map<string, string>();
 
   async function request(options: {
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     url: string;
     payload?: unknown;
     headers?: Record<string, string>;

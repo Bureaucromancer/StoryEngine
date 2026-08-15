@@ -4,18 +4,23 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha.** The design is written down in
 [`docs/design/`](docs/design/); the code is through
-[P1.6](docs/design/19-p1-implementation.md) — the storage spine, the derived
-index and its watcher, auth, the library API, and a web client that reads it.
+[P1.7](docs/design/19-p1-implementation.md) — the storage spine, the derived
+index and its watcher, auth, the library API, a web client, and a prototype
+actor editor with version history.
 
-**There is a UI, and it is read-only.** Sign in, browse all six kinds of
-library object on one surface, open one and see it. Creating and editing still
-happen through the API — the actor editor is P1.7 — so
-[`docs/api.md`](docs/api.md) remains how you put anything *into* a library.
+**The UI browses everything and edits actors.** Sign in, browse all six kinds
+of library object on one surface, open an actor and edit it — with automatic
+version history behind a History control: every change snapshots the state it
+replaced, hand edits included, and any version can be restored, diffed, pinned
+or renamed. The other five kinds stay read-only for now, and *creating* objects
+still happens through the API ([`docs/api.md`](docs/api.md)).
 
 The storage thesis this phase exists to prove does work end to end: create an
 actor through the API, watch the folder appear, hand-edit a lorebook on disk in
 a text editor, and see the change in the browser without a restart
-([05 §4.1](docs/design/05-ui-surfaces.md)).
+([05 §4.1](docs/design/05-ui-surfaces.md)). And it survives a second writer:
+saving over an object that changed on disk is refused, and the editor offers to
+reload-and-reapply or save as a copy rather than guess.
 
 Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)

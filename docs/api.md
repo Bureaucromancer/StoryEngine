@@ -1,7 +1,6 @@
 # The HTTP API
 
-**Status: as built at P1.5, and unchanged by P1.6** — the client consumes these
-routes rather than adding to them. This describes what exists, not what is
+**Status: as built at P1.7.** This describes what exists, not what is
 planned — where the two differ, this file is right and the design notes record
 intent ([docs/README.md](README.md)).
 
@@ -212,6 +211,70 @@ An object cannot change its `id` or its `schema`. System-scope objects are
 
 Hash-checked the same way: deleting something a second tab has edited is the same
 mistake as overwriting it, and rather more final. → `204`.
+
+### `GET /api/library/:kind/:id/avatar`
+
+The stored bytes of an actor's `card.png`, as `image/png` with an `ETag` of the
+content hash. Actors only — no other kind has an image that *is* the object —
+so any other kind is `404`.
+
+---
+
+## Version history
+
+Every write that changes something snapshots the state it replaced, automatically
+([02 §11](design/02-data-model.md)). A no-op write records nothing. History
+lives inside the object's own folder (`history/index.jsonl` plus
+content-addressed payloads), so it travels with the folder and survives an index
+rebuild. Hand edits get history too: the watcher snapshots the previous state
+before re-indexing a foreign change, with source `external`.
+
+### `GET /api/library/:kind/:id/history`
+
+```json
+{
+  "versions": [
+    {
+      "id": "0199…",
+      "digest": "sha256 hex of the payload",
+      "revision": 2,
+      "authoredAt": "2026-08-15T02:55:47.584Z",
+      "recordedAt": "2026-08-15T03:10:02.114Z",
+      "source": { "kind": "manual" },
+      "reason": "",
+      "authorVersion": null,
+      "pinned": false
+    }
+  ]
+}
+```
+
+Newest first. `revision` is append order, oldest = 1 — computed for display,
+never stored ([02 §11.5](design/02-data-model.md)). `authoredAt` is when the
+snapshotted state was *written*, not when it was replaced, so a restored
+version keeps its real date. `source.kind` is one of `manual`, `external`,
+`restore`, `assist`, `extension`, `import` — the last three have no writers
+until their phases.
+
+### `GET /api/library/:kind/:id/history/:versionId`
+
+`{ version, object }` — the record plus the snapshotted object itself.
+
+### `POST /api/library/:kind/:id/history/:versionId/restore`
+
+An ordinary write wearing a route: hash-checked exactly like `PUT` (`If-Match`
+or `contentHash` in the body), and it snapshots the current state first — so
+going back never destroys what you were on. Restoring the state you are already
+on is a no-op and records nothing. → `200 { contentHash, object }`, the same
+shape as `PUT`, so a client treats it exactly as a save.
+
+### `PATCH /api/library/:kind/:id/history/:versionId`
+
+Body `{ reason?, pinned? }` — rename an entry, or pin it so retention pruning
+never takes it ([02 §11.3](design/02-data-model.md)). → `200 { version }`.
+
+Retention: history is pruned to `history.keepPerObject` (default 50) per
+object, oldest unpinned first.
 
 ---
 

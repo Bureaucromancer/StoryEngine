@@ -64,12 +64,19 @@ export class ApiError extends Error {
   readonly status: number;
   /** The `error` field from the response body — `invalid-credentials`, `stale`, … */
   readonly code: string;
+  /**
+   * On a 412, the object as it is *now* (docs/api.md). Carried so the UI can
+   * offer reload-and-reapply or save-as-a-copy rather than guessing
+   * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+   */
+  readonly current?: LibraryObject;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, current?: LibraryObject) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    if (current !== undefined) this.current = current;
   }
 }
 
@@ -120,7 +127,11 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       typeof payload?.['message'] === 'string'
         ? payload['message']
         : `The server answered with status ${String(response.status)}.`;
-    throw new ApiError(response.status, code, message);
+    const current =
+      code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
+        ? (payload['current'] as LibraryObject)
+        : undefined;
+    throw new ApiError(response.status, code, message, current);
   }
 
   return payload as T;
@@ -133,6 +144,27 @@ export interface Credentials {
 
 export interface SetupInput extends Credentials {
   displayName?: string;
+}
+
+/** One entry of an object's version history (docs/api.md). */
+export interface ObjectVersion {
+  id: string;
+  digest: string;
+  revision: number;
+  authoredAt: string;
+  recordedAt: string;
+  source: { kind: string; [detail: string]: unknown };
+  reason: string;
+  authorVersion: string | null;
+  pinned: boolean;
+}
+
+function objectUrl(kind: LibraryKind, id: string): string {
+  return `/api/library/${kind}/${encodeURIComponent(id)}`;
+}
+
+function versionUrl(kind: LibraryKind, id: string, versionId: string): string {
+  return `${objectUrl(kind, id)}/history/${encodeURIComponent(versionId)}`;
 }
 
 export const api = {
@@ -150,5 +182,49 @@ export const api = {
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
   readObject: (kind: LibraryKind, id: string): Promise<LibraryObject> =>
-    request('GET', `/api/library/${kind}/${encodeURIComponent(id)}`),
+    request('GET', objectUrl(kind, id)),
+
+  createObject: (
+    kind: LibraryKind,
+    object: Record<string, unknown>,
+  ): Promise<{ id: string; slug: string; contentHash: string }> =>
+    request('POST', `/api/library/${kind}`, { object }),
+
+  /** The hash rides in the body — the second spelling docs/api.md allows. */
+  updateObject: (
+    kind: LibraryKind,
+    id: string,
+    object: Record<string, unknown>,
+    contentHash: string,
+  ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
+    request('PUT', objectUrl(kind, id), { object, contentHash }),
+
+  history: (kind: LibraryKind, id: string): Promise<{ versions: ObjectVersion[] }> =>
+    request('GET', `${objectUrl(kind, id)}/history`),
+
+  version: (
+    kind: LibraryKind,
+    id: string,
+    versionId: string,
+  ): Promise<{ version: ObjectVersion; object: Record<string, unknown> }> =>
+    request('GET', versionUrl(kind, id, versionId)),
+
+  restoreVersion: (
+    kind: LibraryKind,
+    id: string,
+    versionId: string,
+    contentHash: string,
+  ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
+    request('POST', `${versionUrl(kind, id, versionId)}/restore`, { contentHash }),
+
+  amendVersion: (
+    kind: LibraryKind,
+    id: string,
+    versionId: string,
+    patch: { reason?: string; pinned?: boolean },
+  ): Promise<{ version: ObjectVersion }> =>
+    request('PATCH', versionUrl(kind, id, versionId), patch),
+
+  avatarUrl: (id: string, contentHash: string): string =>
+    `/api/library/actors/${encodeURIComponent(id)}/avatar?v=${encodeURIComponent(contentHash)}`,
 };

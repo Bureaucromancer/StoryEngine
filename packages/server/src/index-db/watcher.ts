@@ -7,8 +7,10 @@ import { type FSWatcher, watch } from 'chokidar';
 
 import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { statFile } from '../storage/files.js';
+import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
 import { ingestFile, matureTombstones, removeFile } from './ingest.js';
+import { findByPath } from './query.js';
 
 /**
  * The watcher — **foreign writes only**.
@@ -42,6 +44,8 @@ export interface WatcherOptions {
    * being read half-written.
    */
   stabilityThresholdMs?: number;
+  /** Retention cap for the history a foreign edit leaves behind ([02 §11.3]). */
+  keepHistoryPerObject?: number;
   /** Called after each handled event. Test seam, and a logging point later. */
   onChange?: (event: WatchEvent) => void;
 }
@@ -58,6 +62,7 @@ export class LibraryWatcher {
   readonly #registry: SelfWriteRegistry;
   readonly #onChange: (event: WatchEvent) => void;
   readonly #stabilityThresholdMs: number;
+  readonly #keepHistoryPerObject: number;
   #watcher: FSWatcher | null = null;
   /**
    * Events are serialised through one promise chain.
@@ -76,6 +81,7 @@ export class LibraryWatcher {
     this.#registry = options.registry ?? selfWrites;
     this.#onChange = options.onChange ?? (() => undefined);
     this.#stabilityThresholdMs = options.stabilityThresholdMs ?? 150;
+    this.#keepHistoryPerObject = options.keepHistoryPerObject ?? 50;
   }
 
   async start(): Promise<void> {
@@ -127,7 +133,8 @@ export class LibraryWatcher {
   }
 
   async #onUpsert(path: string): Promise<void> {
-    if (!this.#layout.parseObjectPath(path)) {
+    const parsed = this.#layout.parseObjectPath(path);
+    if (!parsed) {
       this.#onChange({ type: 'ignored', path });
       return;
     }
@@ -137,8 +144,32 @@ export class LibraryWatcher {
       return;
     }
 
+    // The state a foreign edit is replacing, read *before* the index moves on.
+    const previous = findByPath(this.#db, path);
+
     matureTombstones(this.#db);
     const outcome = await ingestFile(this.#db, this.#layout, path);
+
+    // **Hand-edits get history for free** ([02 §11.2]) — the strongest argument
+    // for building the mechanism now, while the watcher exists and no editor
+    // does. Snapshot when the content genuinely changed, and also when the new
+    // content failed to parse at all: someone breaking a file in a text editor
+    // is exactly the person the last good state is being kept for. A move is
+    // neither — same content, new path — and records nothing.
+    const changed =
+      outcome.kind === 'indexed'
+        ? outcome.row.contentHash !== previous?.contentHash
+        : outcome.reason === 'invalid';
+    if (previous && changed) {
+      await snapshotReplaced({
+        objectRoot: this.#layout.objectRoot(parsed.scope, parsed.schemaId, parsed.slug),
+        payload: previous.body,
+        source: { kind: 'external' },
+        reason: '',
+        keepPerObject: this.#keepHistoryPerObject,
+      });
+    }
+
     this.#onChange(
       outcome.kind === 'indexed'
         ? { type: 'indexed', path, moved: outcome.moved }

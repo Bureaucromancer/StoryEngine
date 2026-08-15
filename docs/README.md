@@ -1,7 +1,7 @@
 # Documentation
 
-- **[api.md](api.md)** — the HTTP API, as built. Still the only way to *write*
-  anything: the client that arrived at P1.6 reads.
+- **[api.md](api.md)** — the HTTP API, as built. Still the only way to *create*
+  an object; the client browses everything and, since P1.7, edits actors.
 - **[design/](design/)** — preliminary design notes. Positions to argue with,
   most of them written before any code existed. Start at
   [design/README.md](design/README.md).
