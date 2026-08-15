@@ -1,24 +1,58 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
+import { LoginForm, SetupForm } from './auth/forms.js';
+import { queryClient, useAuthState } from './queries.js';
+import { router } from './router.js';
+
 /**
- * The application shell.
- *
- * Deliberately almost empty at P1.0 — the library list is P1.6 and the actor
- * editor is P1.7 (docs/design/19-p1-implementation.md). What exists here is the
- * mount point and enough markup to prove the build pipeline and the CSS rules
- * work end to end.
- *
- * Note the utility classes: `ps-*`, `border-s-*`, `text-start`. The physical
- * equivalents (`pl-*`, `border-l-*`, `text-left`) are a lint error — see the
- * `no-restricted-syntax` block in eslint.config.js.
+ * The gate before the app: `GET /api/auth/state` decides between first-run
+ * setup, login, and the library (docs/api.md). The router only mounts once
+ * someone is signed in — there are no routes worth addressing before that.
  */
 export function App(): JSX.Element {
   return (
-    <main className="mx-auto max-w-3xl p-8 text-start">
-      <h1 className="border-s-4 border-s-slate-400 ps-4 text-2xl font-semibold">StoryEngine</h1>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <Gate />
+    </QueryClientProvider>
   );
+}
+
+function Gate(): JSX.Element {
+  const auth = useAuthState();
+
+  if (auth.isPending) {
+    return (
+      <main className="mx-auto max-w-sm p-8 text-center">
+        <p className="text-slate-600">Loading…</p>
+      </main>
+    );
+  }
+
+  if (auth.isError) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 p-8 text-center">
+        <p role="alert" className="text-red-900">
+          The server could not be reached. Check that it is running, then try again.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            void auth.refetch();
+          }}
+          className="mx-auto rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+        >
+          Try again
+        </button>
+      </main>
+    );
+  }
+
+  if (auth.data.setupRequired) return <SetupForm />;
+  if (auth.data.account === null) return <LoginForm />;
+  return <RouterProvider router={router} />;
 }

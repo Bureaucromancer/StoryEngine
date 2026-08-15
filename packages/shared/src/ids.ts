@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { randomBytes, randomInt } from 'node:crypto';
-
 /**
  * Identity: uuidv7 for objects, and slugs for the folders they live in.
  *
@@ -16,6 +14,11 @@ import { randomBytes, randomInt } from 'node:crypto';
  * (docs/design/07-tech-stack.md §14.4), and the exemption is argued in
  * eslint.config.js: an id is not a draw. Nothing replays it and no outcome
  * depends on its value.
+ *
+ * The randomness comes from the **Web Crypto global**, not `node:crypto`:
+ * `shared` is on the client's side of the boundary graph (client → shared,
+ * docs/design/16-testing.md §2), and a `node:crypto` import is the one thing
+ * that would make this package unloadable in a browser.
  */
 
 // ---------------------------------------------------------------------------
@@ -24,6 +27,16 @@ import { randomBytes, randomInt } from 'node:crypto';
 
 const MAX_COUNTER = 0xfff; // 12 bits of rand_a
 const COUNTER_SEED_CEILING = 0x400; // leave 3072 increments of headroom per ms
+
+/**
+ * A uniform draw from [0, COUNTER_SEED_CEILING). The ceiling is a power of
+ * two, so masking a random word is exact — no rejection loop, no modulo bias.
+ */
+function randomCounterSeed(): number {
+  const word = new Uint32Array(1);
+  crypto.getRandomValues(word);
+  return (word[0] ?? 0) & (COUNTER_SEED_CEILING - 1);
+}
 
 /**
  * Builds an independent generator.
@@ -45,7 +58,7 @@ export function createUuidv7(): (now?: number) => string {
 
     if (ms > lastMs) {
       lastMs = ms;
-      counter = randomInt(0, COUNTER_SEED_CEILING);
+      counter = randomCounterSeed();
     } else {
       // Same millisecond, or a clock that went backwards. Either way, continue
       // from where we are rather than emitting an id that sorts before its
@@ -55,7 +68,7 @@ export function createUuidv7(): (now?: number) => string {
       if (counter > MAX_COUNTER) {
         lastMs += 1;
         ms = lastMs;
-        counter = randomInt(0, COUNTER_SEED_CEILING);
+        counter = randomCounterSeed();
       }
     }
 
@@ -76,7 +89,7 @@ export function createUuidv7(): (now?: number) => string {
     bytes[6] = 0x70 | ((counter >>> 8) & 0x0f);
     bytes[7] = counter & 0xff;
 
-    bytes.set(randomBytes(8), 8);
+    crypto.getRandomValues(bytes.subarray(8));
     // Variant bits: 0b10 in the top two bits of byte 8.
     bytes[8] = 0x80 | ((bytes[8] ?? 0) & 0x3f);
 

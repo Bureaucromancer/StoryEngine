@@ -59,7 +59,7 @@ export default tseslint.config(
     rules: {
       ...headerRule,
       'no-restricted-properties': restrictedProperties,
-      'no-restricted-syntax': restrictedSyntax,
+      'no-restricted-syntax': restrictedSyntax(),
       'no-restricted-imports': restrictedImports(),
     },
   },
@@ -185,10 +185,15 @@ export default tseslint.config(
   // Deliberately one file wide. When the RNG service lands at P2 this stays
   // separate from it, because routing identity through a recorded, replayable
   // generator would put uuids on the tape and make a rewrite mint new ids.
+  //
+  // The syntax rule is relaxed alongside the import rule because this file
+  // draws through the *Web Crypto* global — `shared` runs in the browser too
+  // (the client → shared edge), and `node:crypto` would break that bundle.
   {
     files: ['packages/shared/src/ids.ts'],
     rules: {
       'no-restricted-imports': restrictedImports({ allowRandomness: true }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 
@@ -209,6 +214,7 @@ export default tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 

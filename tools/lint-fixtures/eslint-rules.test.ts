@@ -125,8 +125,12 @@ describe('no randomness outside the RNG service (docs/design/07-tech-stack.md §
     // Nothing replays a uuid and no outcome depends on its value, so it is not
     // the thing docs/design/07-tech-stack.md §14.1 protects. The exemption is
     // deliberately one file wide, which the next test is what actually proves.
+    // Both rules are relaxed together: the real ids.ts draws through the Web
+    // Crypto global (shared runs in the browser too), which the syntax rule
+    // bans everywhere else.
     const fired = await rulesFiredIn('packages/shared/src/ids.ts');
     expect(fired).not.toContain('no-restricted-imports');
+    expect(fired).not.toContain('no-restricted-syntax');
   });
 
   it('permits it in the secrets module — a salt is not a draw either', async () => {

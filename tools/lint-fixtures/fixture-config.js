@@ -56,7 +56,7 @@ export const fixtureConfig = tseslint.config(
       ...graph.rules,
       ...headerRule,
       'no-restricted-properties': restrictedProperties,
-      'no-restricted-syntax': restrictedSyntax,
+      'no-restricted-syntax': restrictedSyntax(),
       'no-restricted-imports': restrictedImports(),
     },
   },
@@ -105,10 +105,13 @@ export const fixtureConfig = tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 
-  // Id generation: randomness allowed, and deliberately one file wide.
+  // Id generation: randomness allowed, and deliberately one file wide. The
+  // syntax rule is relaxed too — ids.ts draws through the Web Crypto global,
+  // because `shared` must also run in a browser (client → shared).
   {
     files: [`${FIXTURE_ROOT}/packages/shared/src/ids.ts`],
     rules: {
@@ -116,6 +119,7 @@ export const fixtureConfig = tseslint.config(
         allowRandomness: true,
         bannedPackages: bannedPackagesFor('shared'),
       }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 );
