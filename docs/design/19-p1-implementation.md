@@ -212,6 +212,10 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
                      modes/* deferred to P7 — the boundary rules land now
 ```
 
+> **Corrected as built ([20 §1.4](20-p2-implementation.md)):** `shared`
+> shipped with two runtime deps — TypeBox and Ajv. The dependency is right
+> (one schema technology, five jobs); this line was wrong.
+
 - TypeScript strict, `"type": "module"`, project references.
 - **ESLint flat config with `eslint-plugin-boundaries`**, encoding
   [16 §2](16-testing.md)'s graph: `modes/* → sdk, shared` (never `server`, never
@@ -374,7 +378,9 @@ commented `config.example.json` ([02 §5.4](02-data-model.md)).
 six. List merges user and system libraries with a source badge
 ([05 §5](05-ui-surfaces.md)). Fastify validates against the same JSON Schema the
 storage layer uses, which is the fifth job for one schema technology
-([07 §3](07-tech-stack.md)).
+([07 §3](07-tech-stack.md)). *Not delivered as built — params only, no body
+schemas; recorded at [20 §1.4](20-p2-implementation.md) (F2) and repaired at
+20 P2.0.*
 
 **Every library route resolves its root from the session**, never from a
 parameter. `paths.ts` is containment-checked against *that* user's root, which is
@@ -565,7 +571,10 @@ pnpm dev    # http://127.0.0.1:8080
 19. Diff two versions → the changed field, and only the changed field.
 
 *Automated equivalents of 4 and 7–19 are this phase's CI suite*, plus the
-rebuild-equals-incremental property test.
+rebuild-equals-incremental property test. *Overstated as built — steps 16,
+11's login half, DELETE, and the rebuild property test were not automated;
+recorded at [20 §1.4](20-p2-implementation.md) (F11) and completed at
+20 P2.0.*
 
 **Steps 16–18 are cheap to write and disproportionately worth having**, because
 each fails silently otherwise: mis-attributed sources look like a working

@@ -20,7 +20,7 @@ no checkpoint precondition, no branching mode, cheap enough to be casual
 ([10 §1](10-branching.md)).
 
 **What P2 already bought.** `parentTurnId` is on every turn from the first
-([20 §1.2](20-p2-implementation.md)), segments append in creation order
+([20 §2.5](20-p2-implementation.md)), segments append in creation order
 ([02 §5.5](02-data-model.md)), effects are complete and reversible, and the
 tape is recorded keyed by site. P6 builds no storage; it builds **navigation,
 reconstruction performance, and the two-gesture UI** over storage that was
@@ -78,10 +78,11 @@ what makes it acceptable UI, and that alternative is this phase.
 Effects carry `scope: "session" | "escaped"` per [10 §7](10-branching.md);
 escaped ones (library writes, generated assets) are never replayed or
 reverted, and abandoning a line says plainly that N library writes from it
-still exist. Small, and it pre-empts a confusing class of bug reports. **To
-confirm on revisit:** whether the `scope` field itself should be added to
-`ChannelEffect` in doc 18 at P2 instead, since fields are cheaper than
-migrations — lean yes; flagging for the P2 revisit rather than deciding here.
+still exist. Small, and it pre-empts a confusing class of bug reports.
+**Closed at the P2 revisit, the way it leaned:** `scope` was added to
+`ChannelEffect` in [18 §1.2](18-internal-contracts.md) and P2 writes only
+`"session"` ([20 §2.7](20-p2-implementation.md)) — P6 gets a field, not a
+migration.
 
 ### 1.6 Branch hygiene in the index and search
 

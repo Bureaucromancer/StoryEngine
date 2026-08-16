@@ -71,7 +71,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | [18-internal-contracts.md](18-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
 | [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
 | [19-p1-implementation.md](19-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
-| [20-p2-implementation.md](20-p2-implementation.md) | P2 skeleton — provider layer, assembler, turn record, the turn as a job, the smallest Scene mode |
+| [20-p2-implementation.md](20-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
 | [21-p3-implementation.md](21-p3-implementation.md) | P3 skeleton — the workbench as a reader over the record |
 | [22-p4-implementation.md](22-p4-implementation.md) | P4 skeleton — import from the three sources, presets first; ends at PLAYABLE |
 | [23-p5-implementation.md](23-p5-implementation.md) | P5 skeleton — lore activation, budgets, trim order, skip reporting |

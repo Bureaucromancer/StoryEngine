@@ -103,6 +103,13 @@ interface ChannelEffect {
 
   /** Schema version of the channel this was written against. [03 §4.2] */
   channelVersion: number
+
+  /** Whether the effect stayed inside the session or escaped it — a library
+   *  write, a generated asset, anything a branch cannot un-write. Escaped
+   *  effects are recorded like everything else but never replayed or
+   *  reverted ([10 §7]). Added ahead of P2 so P6 needs a field, not a
+   *  migration ([20 §2.7], closing [24 §1.5]); P2 writes only "session". */
+  scope: "session" | "escaped"
 }
 
 type EffectOp =
