@@ -206,7 +206,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
 | F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap, step-17-via-API test. `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P3/P11** |
 | F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving |
-| F20 | Invalid foreign edit remains invisible | **P2.0** | Index a visible file-error state without treating invalid bytes as an object; reads name the path/problem and writes remain hash-blocked until explicitly resolved |
+| F20 | Invalid foreign edit remains invisible | **Fix-when-touched** | **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not doc 19's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
 
 ### 1.4 Corrections to doc 19, recorded
 
@@ -420,7 +420,12 @@ operational state — but a terminal turn already appended to JSONL is reconcile
 into the session rather than duplicated or discarded.
 
 Progress events receive a monotonically increasing per-job sequence in the same
-operational transaction as the draft change they describe. Reattach reads
+operational transaction as the draft change they describe. **Streaming deltas
+coalesce into those checkpoints rather than each being one** — a durable
+transaction per token would be an fsync storm, and the snapshot already carries
+the accumulated text. The exactly-once, in-order guarantee applies to durable
+checkpointed events; a reattach may observe coalesced text rather than every
+delta that painted it live. Reattach reads
 `snapshot + cursor`, then subscribes strictly after that cursor; this ordering
 closes the snapshot/subscribe race. Event rows are ephemeral and may be pruned
 after the terminal record exists, because the turn record is their durable
@@ -462,10 +467,10 @@ regression tests. What remains here is the hardening-and-debt half:
   read/write path; body schemas on every object route via the shared JSON
   Schemas; `:kind` checked against the object's own `schema` field (mismatch
   is a 400, not a silent lie).
-- **Filesystem honesty** (F19, F20): shadowed duplicates are individually
-  addressable from the list without changing id-based reference resolution;
-  invalid foreign files surface as path-scoped errors instead of leaving a
-  believable stale object on screen.
+- **Filesystem honesty** (F19): shadowed duplicates are individually
+  addressable from the list without changing id-based reference resolution.
+  (F20, the invalid-file half of this pair, rides with F9's ingest rework at
+  P2.3 — §1.3's table records why.)
 - **Logging** (F8): Fastify logger on, structured per `log.format`,
   `log.level` live-reloadable — the first real live-tier consumer.
 - **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset): the P1 gate
@@ -518,7 +523,11 @@ utility — ingest into the index, FTS on turn text on write, and the FTS
 **search route** wired (F10: `search()` exists and is unreachable; this stage
 gives it its second consumer and its first caller — API only, UI is P3's).
 Ingest becomes transactional after I/O completes and tombstone maturation runs
-on startup plus a timer (F9). Session delete **tombstones** — F7's lesson
+on startup plus a timer (F9) — and in the same opening, an invalid foreign
+file becomes a **visible, path-scoped error state** rather than a silent skip
+(F20): the index records what failed to parse and why without treating the
+bytes as an object, reads surface it, and the closeout's hash-block keeps
+writes refused meanwhile. Session delete **tombstones** — F7's lesson
 applied to the new kind rather than copied from the old one. Effect
 application and head-snapshot maintenance per §2.7, including
 hand-edit-divergence-becomes-an-effect ([02 §8.1](02-data-model.md)).
@@ -531,7 +540,9 @@ runner and transport to this already crash-testable store.
 *Tests:* the P1 gate's storage properties extended to sessions; segment
 rollover; a hand-edited `session.json` clock landing as a user-attributed
 effect; search returning a turn-text hit; terminal append/finalise interrupted
-after each protocol step and recovered without duplicate turns or effects.
+after each protocol step and recovered without duplicate turns or effects; an
+invalid foreign edit surfaces as a path-scoped error and clears when the file
+is fixed (F20).
 
 ### P2.4 — Assembler, budgeter, render
 

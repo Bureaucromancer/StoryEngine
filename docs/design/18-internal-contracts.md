@@ -484,6 +484,7 @@ been put there or implied into it:
 | **Auth sessions** | [07 §9](07-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
 | **Notification inbox** | "Persist until seen" ([04 §3.2](04-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
 | **Jobs and idempotency keys** | A turn in flight, and the keys that stop a retry charging twice, are facts about work — not restatements of anything on disk. |
+| **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([20 §2.10](20-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([02 §5.5](02-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
 
 **So: a small operational store, separate from the index**, at
 `/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
