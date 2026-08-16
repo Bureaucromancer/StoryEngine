@@ -31,9 +31,9 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
-      # Node 26 rather than the current LTS. docs/design/19-p1-implementation.md
-      # §1.4 verified node:sqlite's FTS5 support there, which is what removes the
-      # better-sqlite3 fallback from the plan; 26 becomes LTS in October 2026.
+      # Node 26 — LTS from October 2026, which lands inside P1. It is also where
+      # docs/design/19-p1-implementation.md §1.4 verified node:sqlite's FTS5
+      # support, and that is what retires the better-sqlite3 fallback.
       - uses: actions/setup-node@v6
         with:
           node-version: 26
@@ -50,5 +50,12 @@ jobs:
       - run: pnpm lint
 
       - run: pnpm build
+
+      # The JSON Schemas are the published artefact (docs/design/07-tech-stack.md
+      # §4) and are committed, so third-party tools can fetch one without
+      # building anything. `pnpm build` regenerates them; if that changes a file,
+      # someone edited a TypeBox schema without re-emitting.
+      - name: Emitted schemas are current
+        run: git diff --exit-code -- packages/shared/schemas
 
       - run: pnpm test

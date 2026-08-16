@@ -8,6 +8,11 @@ packages:
   # the boundary rules testable.
   - tools/lint-fixtures
 allowBuilds:
+  # Under tsx, which is the server's watch mode. Its install script only
+  # re-checks a binary that is already there — esbuild ships one optional
+  # package per platform and pnpm links it directly — so the answer is no, and
+  # `pnpm install` goes on running no third-party code.
+  esbuild: false
   # Native resolver behind eslint-import-resolver-typescript, which is what lets
   # the boundary rules resolve `@storyengine/*` through pnpm's symlinks.
   unrs-resolver: true

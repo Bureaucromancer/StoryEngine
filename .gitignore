@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# The client emits its declarations here rather than to `dist/`, which is where
+# its Vite bundle goes — so it needs naming separately or it is tracked build
+# output. It was, from d4a8afa until the rule arrived.
+dist-types/
 coverage/
 *.tsbuildinfo
 .vite/
@@ -14,3 +18,8 @@ config.json
 
 .env
 .env.local
+
+# OS and editor cruft. macOS drops .DS_Store into every directory Finder opens,
+# and a pair of them reached the repository in ff59ee8 before this rule existed.
+.DS_Store
+Thumbs.db

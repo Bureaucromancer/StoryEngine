@@ -357,6 +357,62 @@ one with the ceiling. Take Marinara's shape.
 | `embedding` | Move to the derived index. |
 | Book-level scoping (5 mechanisms) | **Collapse to one `LoreScope` union.** |
 | Entry `kind` / `tag` | Free string, per Marinara. Not Aventuras' closed union. |
+| Images on the book and on entries | **New.** Not a port — see §3.6. |
+
+### 3.6 Images on lore
+
+**A lorebook and its entries may carry images.** Definitions in
+[13 §5.1](13-schemas.md); this is why.
+
+The case is simply that world content is often visual and currently has nowhere
+to put it. A place looks like something, an item has a picture, a region has a
+map — and the author is the person who wants to see it, while writing the entry
+that describes it. Marinara carries one picture per book for the library card;
+SillyTavern's World Info has none. Neither is a decision against the idea so much
+as an absence.
+
+**At 1.0 the feature is exactly that: a place to put pictures.** Shown in the
+editor, and nowhere else.
+
+#### Activation is a text mechanism, and stays one
+
+The rule that has to be stated because the wrong reading is the natural one:
+
+> **An entry firing does not bring its images.** Keyword activation contributes
+> the entry's *text*. Media is not retrieved, not budgeted, not sent.
+
+Someone will otherwise assume activation carries the whole entry, and the failure
+is quiet and expensive: twelve pictures on a `constant: true` entry become a
+per-turn cost nobody chose, discovered on a bill. Keeping the rule explicit costs
+one sentence; discovering it costs a redesign of the budgeter's relationship to
+lore ([§3.2](#32-take-unchanged-budgeting)).
+
+#### Roles are closed, tags are open
+
+Two fields, because they answer different questions. `role` is the small closed
+union the engine acts on — `reference` for *this is what it looks like*, `map`
+for a diagram, `gallery` for pictures without a claim. `tags` are arbitrary and
+authorial: *winter*, *aerial*, *before the fire*, *by Mireille*.
+
+**Same division the actor already makes** (§2.2): `ActorRole` is closed and read
+by the engine, `tags` are open and nothing branches on them. A gallery of forty
+images needs finer notation than any role vocabulary should try to carry, and
+every attempt to express that *through* roles ends with a union nobody can choose
+from.
+
+#### Why now, given nothing consumes it
+
+Because **typed roles cannot be retrofitted** — the argument §5.2.2 makes for
+cards, unchanged. A flat image list forecloses what comes after it, and adding
+roles later means guessing what each existing image was for. That guess is not
+recoverable, which makes the taxonomy the part that has to land early even though
+the feature does not.
+
+The intended first consumer is rendition conditioning
+([11 §3](11-roadmap.md)), and it is deferred for a real reason rather than a
+scheduling one: passing an image to an image model is trivial, but choosing
+*which* image, when six entries and three actors all carry references, is not.
+That wants the location channel to exist and real sessions to tune against.
 
 ---
 

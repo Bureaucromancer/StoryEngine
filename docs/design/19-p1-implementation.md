@@ -183,11 +183,12 @@ administers and **not** an account — there is no system login
 - **`node:sqlite` has FTS5, with no flag** (Node 26.4, SQLite 3.53.2). This was
   the live risk in [07 §7](07-tech-stack.md); the documented fallback to
   `better-sqlite3` is not needed. ~~Re-run the probe on whichever LTS gets
-  pinned~~ — **settled at P1.0: the pin is Node 26**, so the probe above stands
-  as run and needs no repeat. 26 is Current until roughly October 2026, which
-  makes this a deliberate exception to [07 §2](07-tech-stack.md)'s "current LTS"
-  rather than a drift; it is recorded there too. `engines.node` is `>=26.4.0`
-  and CI runs the single version.
+  pinned~~ — **settled at P1.0: the pin is 26, which is the LTS this probe was
+  always going to be re-run against.** It becomes LTS in October 2026, roughly
+  two months after the first commit and well inside P1, so the probe above
+  stands as run and there is nothing to repeat. `engines.node` is `>=26.4.0` and
+  CI runs the single version; the reasoning is recorded at
+  [07 §2](07-tech-stack.md).
 - **`crypto.randomUUID()` is v4 only.** uuidv7 is ~20 lines — 48-bit millisecond
   timestamp, version nibble, random tail — and goes in `shared` with a
   monotonicity test. Not worth a dependency.
@@ -210,6 +211,10 @@ packages/server/
 packages/client/     React + Vite; list in P1.6, actor editor in P1.7
                      modes/* deferred to P7 — the boundary rules land now
 ```
+
+> **Corrected as built ([20 §1.4](20-p2-implementation.md)):** `shared`
+> shipped with two runtime deps — TypeBox and Ajv. The dependency is right
+> (one schema technology, five jobs); this line was wrong.
 
 - TypeScript strict, `"type": "module"`, project references.
 - **ESLint flat config with `eslint-plugin-boundaries`**, encoding
@@ -373,7 +378,9 @@ commented `config.example.json` ([02 §5.4](02-data-model.md)).
 six. List merges user and system libraries with a source badge
 ([05 §5](05-ui-surfaces.md)). Fastify validates against the same JSON Schema the
 storage layer uses, which is the fifth job for one schema technology
-([07 §3](07-tech-stack.md)).
+([07 §3](07-tech-stack.md)). *Not delivered as built — params only, no body
+schemas; recorded at [20 §1.4](20-p2-implementation.md) (F2) and repaired at
+20 P2.0.*
 
 **Every library route resolves its root from the session**, never from a
 parameter. `paths.ts` is containment-checked against *that* user's root, which is
@@ -463,6 +470,13 @@ means P1's central claim goes untested in the one condition that matters.
 and simple structured fields, sections, and the existing avatar shown but not
 replaced. No other kind gets an editor in P1; the list stays read-only for the
 other five.
+
+**Lore media is schema-only in P1.** `Lorebook.media`, `LoreEntry.media` and
+`EmbeddedMedia.tags` ([13 §5.1](13-schemas.md)) land in P1.1 with the rest of the
+schemas, because the roles are the part that cannot be retrofitted
+([02 §3.6](02-data-model.md)). Nothing renders them — the lorebook editor is not
+in P1 — and P1.1's round-trip tests are the whole of their coverage. Worth
+naming so the fields are not mistaken for an unfinished feature.
 
 **Built as the smallest real editor, per [15 §2.2](15-work-plan.md)** — which
 means one specific thing about its shape:
@@ -557,7 +571,10 @@ pnpm dev    # http://127.0.0.1:8080
 19. Diff two versions → the changed field, and only the changed field.
 
 *Automated equivalents of 4 and 7–19 are this phase's CI suite*, plus the
-rebuild-equals-incremental property test.
+rebuild-equals-incremental property test. *Overstated as built — steps 16,
+11's login half, DELETE, and the rebuild property test were not automated;
+recorded at [20 §1.4](20-p2-implementation.md) (F11) and completed at
+20 P2.0.*
 
 **Steps 16–18 are cheap to write and disproportionately worth having**, because
 each fails silently otherwise: mis-attributed sources look like a working

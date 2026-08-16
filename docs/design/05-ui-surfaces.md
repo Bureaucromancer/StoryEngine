@@ -636,6 +636,29 @@ discoverable at the moment it is wanted, which is immediately after a bad edit �
 so an undo affordance in the editor pointing at it is worth more than
 prominence.
 
+### 11.2b Lore galleries
+
+Lorebooks and their entries carry images ([02 §3.6](02-data-model.md)), and the
+editor is the only thing that reads them at 1.0.
+
+- **The book gets a gallery**, one image designated as the library card's
+  picture. Maps, establishing shots, style references for the world.
+- **Each entry gets its own strip**, small and inline with the entry rather than
+  behind a tab — the point is seeing the place while writing about it, and a
+  gallery you have to navigate to is one you forget is there.
+- **Role and tags are both editable**, and the difference has to read clearly:
+  role is a short pick-list the software understands, tags are free text the
+  author organises by. Getting this wrong in the UI produces tag soup in the role
+  field.
+- **No assist.** Generating a location image is a rendition
+  ([03 §10](03-modes-and-turn-pipeline.md)) and wants providers, so it arrives
+  with them and not before.
+
+**Nothing here suggests the images are used.** They are not sent, and an editor
+implying otherwise would be making a promise the engine does not keep — which
+matters more than usual here, because it is exactly the assumption the schema
+warns against.
+
 ### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, setting cover,

@@ -73,9 +73,13 @@ const CRYPTO_RANDOM_NAMES = [
  * configured once per config object, so the fs ban, the crypto ban and the
  * cross-package ban have to be assembled together rather than layered.
  *
- * @param {{ allowFs?: boolean, bannedPackages?: { name: string, message: string }[] }} options
+ * @param {{ allowFs?: boolean, allowRandomness?: boolean, bannedPackages?: { name: string, message: string }[] }} options
  */
-export function restrictedImports({ allowFs = false, bannedPackages = [] } = {}) {
+export function restrictedImports({
+  allowFs = false,
+  allowRandomness = false,
+  bannedPackages = [],
+} = {}) {
   const paths = [];
 
   if (!allowFs) {
@@ -84,8 +88,10 @@ export function restrictedImports({ allowFs = false, bannedPackages = [] } = {})
     }
   }
 
-  for (const name of ['crypto', 'node:crypto']) {
-    paths.push({ name, importNames: CRYPTO_RANDOM_NAMES, message: RANDOM_MESSAGE });
+  if (!allowRandomness) {
+    for (const name of ['crypto', 'node:crypto']) {
+      paths.push({ name, importNames: CRYPTO_RANDOM_NAMES, message: RANDOM_MESSAGE });
+    }
   }
 
   for (const banned of bannedPackages) {
@@ -125,22 +131,38 @@ const TAILWIND_MESSAGE =
   'start/end, border-s/border-e, rounded-s/rounded-e, text-start/text-end). ' +
   'RTL is a dir attribute or a rewrite — see docs/design/07-tech-stack.md §12.6.';
 
-export const restrictedSyntax = [
-  'error',
-  {
-    selector: `JSXAttribute[name.name="className"] Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
-    message: TAILWIND_MESSAGE,
-  },
-  {
-    selector: `JSXAttribute[name.name="className"] TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
-    message: TAILWIND_MESSAGE,
-  },
-  {
-    selector:
-      'MemberExpression[object.name=/^(crypto|globalThis)$/][property.name=/^(getRandomValues|randomUUID)$/]',
-    message: RANDOM_MESSAGE,
-  },
-];
+/**
+ * Builds the `no-restricted-syntax` value. A function for the same reason
+ * `restrictedImports` is: the rule can only be configured once per config
+ * object, and the two exempt files (`ids.ts`, `secrets.ts`) need the Tailwind
+ * bans without the Web Crypto ban — `crypto.getRandomValues` is how they draw
+ * randomness portably, since `shared` must also run in a browser (the
+ * `client → shared` edge in docs/design/16-testing.md §2).
+ *
+ * @param {{ allowRandomness?: boolean }} options
+ */
+export function restrictedSyntax({ allowRandomness = false } = {}) {
+  const entries = [
+    {
+      selector: `JSXAttribute[name.name="className"] Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      message: TAILWIND_MESSAGE,
+    },
+    {
+      selector: `JSXAttribute[name.name="className"] TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      message: TAILWIND_MESSAGE,
+    },
+  ];
+
+  if (!allowRandomness) {
+    entries.push({
+      selector:
+        'MemberExpression[object.name=/^(crypto|globalThis)$/][property.name=/^(getRandomValues|randomUUID)$/]',
+      message: RANDOM_MESSAGE,
+    });
+  }
+
+  return ['error', ...entries];
+}
 
 // ---------------------------------------------------------------------------
 // The architectural boundary graph

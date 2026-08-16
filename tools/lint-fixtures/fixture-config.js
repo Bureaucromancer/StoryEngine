@@ -56,7 +56,7 @@ export const fixtureConfig = tseslint.config(
       ...graph.rules,
       ...headerRule,
       'no-restricted-properties': restrictedProperties,
-      'no-restricted-syntax': restrictedSyntax,
+      'no-restricted-syntax': restrictedSyntax(),
       'no-restricted-imports': restrictedImports(),
     },
   },
@@ -86,6 +86,40 @@ export const fixtureConfig = tseslint.config(
         allowFs: true,
         bannedPackages: bannedPackagesFor('server'),
       }),
+    },
+  },
+
+  // Build scripts: fs allowed, because they never see a request.
+  {
+    files: [`${FIXTURE_ROOT}/packages/*/scripts/**/*.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
+  // Cryptographic material: randomness allowed, and deliberately one file wide.
+  {
+    files: [`${FIXTURE_ROOT}/packages/server/src/auth/secrets.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+    },
+  },
+
+  // Id generation: randomness allowed, and deliberately one file wide. The
+  // syntax rule is relaxed too — ids.ts draws through the Web Crypto global,
+  // because `shared` must also run in a browser (client → shared).
+  {
+    files: [`${FIXTURE_ROOT}/packages/shared/src/ids.ts`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('shared'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 );

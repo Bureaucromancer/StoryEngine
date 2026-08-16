@@ -5,6 +5,22 @@
     { "path": "./packages/shared" },
     { "path": "./packages/sdk" },
     { "path": "./packages/server" },
-    { "path": "./packages/client" }
+    { "path": "./packages/client" },
+
+    // Tests are excluded from the four projects above, so that `tsc -b` stops
+    // emitting them into `dist`. The packages declare `"files": ["dist"]`, and a
+    // published tarball has no business carrying the test suite.
+    //
+    // They are typechecked here instead, by a per-package spec project that
+    // emits nothing. Listing those projects *here*, rather than in a solution
+    // file of their own, is also what keeps ESLint working: `projectService`
+    // finds a file through the nearest `tsconfig.json` and the projects it
+    // references, and this is the nearest `tsconfig.json` above an excluded
+    // test. Under any other name it is not consulted, and every test file
+    // becomes "was not found by the project service".
+    { "path": "./packages/shared/tsconfig.spec.json" },
+    { "path": "./packages/sdk/tsconfig.spec.json" },
+    { "path": "./packages/server/tsconfig.spec.json" },
+    { "path": "./packages/client/tsconfig.spec.json" }
   ]
 }

@@ -61,9 +61,11 @@ client  ──intent──▶  server
   Messages mode's scheduler is a server-side timer that starts a turn; the fact
   that no client is connected is uninteresting.
 
-**[OPEN]** Job durability across a server restart mid-turn. Simplest honest
-answer for 1.0: turns are not resumed across restart, but the partial turn is
-recorded as failed with its blocks intact so it can be re-run rather than lost.
+~~[OPEN]~~ **Closed at the P2 plan** ([20 §2.10](20-p2-implementation.md)),
+along this lean and stronger: turns are not resumed across restart — recovery
+resumes *finalisation*, never generation. A job left running becomes a failed
+terminal turn with its blocks and calls checkpointed so far; a job interrupted
+mid-commit completes the remaining commit steps idempotently.
 
 ---
 

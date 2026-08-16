@@ -1,12 +1,17 @@
 # StoryEngine — Preliminary Design Notes
 
-**Status: early design exploration. Nothing here is decided.** These are design
-notes, not documentation of what exists — see [../](../) for that distinction.
+**Status: design exploration, with the load-bearing questions now answered.**
+These are design notes, not documentation of what exists — see [../](../) for
+that distinction, and treat anything here as intent rather than as a description
+of the code. Where a document still says *proposal*, it is one; the decisions
+that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
+[06](06-open-questions.md), and [19](19-p1-implementation.md) is a plan being
+worked from rather than argued with.
 
-**Phase: pre-alpha.** No code yet. **1.0 ships Scene and Adventure–Freeform;
-Adventure–Campaign and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the
-authored-rule vocabulary ([15 §0.4](15-work-plan.md)).
-Distribution, when there is something to
+**Phase: alpha, building P1** — see the [root README](../../README.md) for what
+actually runs today. **1.0 ships Scene and Adventure–Freeform; Adventure–Campaign
+and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the authored-rule
+vocabulary ([15 §0.4](15-work-plan.md)). Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
 complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
 
@@ -66,6 +71,11 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | [18-internal-contracts.md](18-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
 | [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
 | [19-p1-implementation.md](19-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
+| [20-p2-implementation.md](20-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
+| [21-p3-implementation.md](21-p3-implementation.md) | P3 skeleton — the workbench as a reader over the record |
+| [22-p4-implementation.md](22-p4-implementation.md) | P4 skeleton — import from the three sources, presets first; ends at PLAYABLE |
+| [23-p5-implementation.md](23-p5-implementation.md) | P5 skeleton — lore activation, budgets, trim order, skip reporting |
+| [24-p6-implementation.md](24-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
 | [16-testing.md](16-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
 | [17-extensions.md](17-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 | [12-repo-and-releases.md](12-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |

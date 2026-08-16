@@ -8,6 +8,10 @@ data/
 # Fixtures are formatted to violate rules, not to be pretty.
 tools/lint-fixtures/fixtures/
 
+# Generated. `emit-schemas` owns their formatting, and CI checks they are
+# current — a formatter rewriting them would make that check fail for no reason.
+packages/shared/schemas/
+
 # Markdown is hand-wrapped prose. Prettier's reflow fights the way these
 # documents are written, and a formatter that rewrites an argument's line breaks
 # is a formatter nobody runs.

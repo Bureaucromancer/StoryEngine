@@ -54,12 +54,20 @@ simplicity that motivated Go is gone.
 **CONFIRMED ([06 A8](06-open-questions.md)): current Node LTS. Keep code runtime-agnostic where free, but
 target Node.**
 
-**One standing exception, taken at P1.0: the pin is Node 26**, which is Current
-rather than LTS until roughly October 2026. It is where `node:sqlite`'s FTS5
-support was verified ([19 §1.4](19-p1-implementation.md)), and that verification
-is what removes the `better-sqlite3` fallback from §7 — pinning an older LTS
-would mean re-opening the one live risk in this document to save a few months of
-waiting for 26 to be blessed.
+**The pin, taken at P1.0, is Node 26** — which is Current at the time of writing
+and becomes LTS in October 2026. This is not an exception to the rule above so
+much as the rule applied forward: the first commit lands in August, 26 is blessed
+about two months later, and P1 is not finished by then. Pinning 24 would be work
+with a known expiry date.
+
+The alternative also costs something specific rather than only time. 26 is where
+`node:sqlite`'s FTS5 support was verified ([19 §1.4](19-p1-implementation.md)),
+and that verification is what retires the `better-sqlite3` fallback in §7.
+Targeting 24 means re-opening the one live risk in this document in exchange for
+a few months of orthodoxy.
+
+**The next bump is an ordinary one.** This is a timing call, not a carve-out —
+nothing here licenses running ahead of LTS as a habit.
 
 - Native module ecosystem matters here: image processing for thumbnails and card
   chunk manipulation, and SQLite. Node has the mature story.

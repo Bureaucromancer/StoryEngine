@@ -13,5 +13,8 @@
     "types": ["node", "vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  // Tests, and the helpers that exist only for them, are typechecked by
+  // tsconfig.spec.json instead. See the root tsconfig.json for why.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/test-*.ts", "src/**/test-*.tsx"],
   "references": [{ "path": "../shared" }]
 }

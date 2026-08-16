@@ -7,10 +7,13 @@
   "description": "The StoryEngine web client.",
   "scripts": {
     "build": "vite build",
+    "dev": "vite",
     "preview": "vite preview"
   },
   "dependencies": {
     "@storyengine/shared": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "@tanstack/react-router": "1.170.27",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   }
