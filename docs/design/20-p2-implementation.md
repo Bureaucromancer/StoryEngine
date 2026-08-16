@@ -69,7 +69,7 @@ scaffolding exists anywhere.
 
 ### 1.2 What did not
 
-Eighteen findings, numbered here and used by number everywhere below.
+Twenty findings, numbered here and used by number everywhere below.
 
 **Write-path integrity**
 
@@ -163,6 +163,16 @@ Eighteen findings, numbered here and used by number everywhere below.
   deps against doc 19 P1.0's "no runtime deps"; the editor cannot add/remove
   sections and gate step 17 is unreachable through the UI; the conflict dialog
   has no focus trap; `pnpm dev` fails on a fresh clone.
+- **F19.** Duplicate-id rows list correctly, but the detail address contains
+  only `{kind, id}` and `findById` always returns the winner. Clicking the
+  shadowed row therefore opens the winning copy while the page claims the
+  shadowed copy is being shown. The warning exists; the object it warns about
+  is not addressable.
+- **F20.** An invalid foreign edit is skipped by ingest without replacing or
+  annotating the prior valid index row. The P1 closeout's disk re-hash now
+  prevents an API write from overwriting those bytes, but the list and editor
+  continue to present the old object; doc 19's visible-filesystem thesis and
+  this plan's invalid-object error-card check are not yet true.
 
 ### 1.3 Triage
 
@@ -195,6 +205,8 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F16 | Component tests silently impossible | **P2.0** | Config + DOM env + one smoke component test proving the pipe, before P2.6 ships the first complex surface |
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
 | F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap, step-17-via-API test. `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P3/P11** |
+| F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving |
+| F20 | Invalid foreign edit remains invisible | **P2.0** | Index a visible file-error state without treating invalid bytes as an object; reads name the path/problem and writes remain hash-blocked until explicitly resolved |
 
 ### 1.4 Corrections to doc 19, recorded
 
@@ -353,7 +365,68 @@ If a second valve is needed, the FTS search route (P2.3) slips to P3 without
 harm — it is a reader. Nothing else here is cuttable: the rest is persisted
 shapes, contracts, or the demo itself.
 
-### 2.10 What stays broken on purpose
+### 2.10 One active turn per session, and one idempotent submission protocol
+
+P2 has two kinds of concurrency and they must not be confused. Any number of
+clients may **observe** one session and its stream; only one turn may **advance**
+that session at a time. Allowing two jobs to start from the same
+`headTurnId` would make both claim the same parent, race the head snapshot and
+apply two sets of effects in an order neither record states. That is accidental
+branching five phases before branching has semantics.
+
+**DECIDED: one active turn job per session in P2.** Submission carries both an
+idempotency key and the `headTurnId` the client composed against. Under the
+session's keyed write queue, the server re-reads the head and then does one of
+three things:
+
+- the idempotency key already names a job: return that job, whether it is
+  queued, running or terminal;
+- another job is active, or the expected head is stale: reject with the current
+  job/head rather than queue work whose context has already changed;
+- neither is true: reserve the key and create the job in one operational-store
+  transaction, then begin work.
+
+The key is scoped to the account and session and retained long enough for a
+browser retry or reconnect to be harmless. A retry must never make a second
+provider call or charge twice ([18 §5.1](18-internal-contracts.md)). P6 may turn
+the stale-head case into an explicit sibling; P2 must not manufacture one by
+race.
+
+#### The operational draft is live; the JSONL turn is terminal
+
+An append-only turn segment cannot also be a document rewritten on every token.
+During execution, the authoritative **in-flight draft** therefore lives with
+the job in `state.sqlite`: assembled blocks, calls, streamed output, effects,
+cost and failures are checkpointed as they become durable enough to show. The
+session SSE snapshot is a rendering of that draft. On complete, failed or
+suspended, one terminal `Turn` is appended to JSONL; completed turns are then
+authoritative files and the operational draft may be collected.
+
+Finalisation is a recoverable protocol rather than a pretend transaction across
+SQLite, a JSONL segment and `session.json`:
+
+1. checkpoint the terminal draft in the operational transaction;
+2. append the terminal turn, idempotently by `turnId`;
+3. apply accepted effects and advance `session.json`'s head snapshot;
+4. mark the job committed and publish `turn.finished`.
+
+Startup recovery resumes **finalisation**, never generation. A job left running
+becomes a failed terminal draft with the blocks and calls checkpointed so far;
+a job interrupted in steps 2–4 completes those steps idempotently. This closes
+[04 §2](04-server-multiuser-deployment.md)'s restart question without claiming
+that a provider stream itself can resume. If `state.sqlite` is deleted, an
+uncommitted draft can be lost — the explicit cost of deleting authoritative
+operational state — but a terminal turn already appended to JSONL is reconciled
+into the session rather than duplicated or discarded.
+
+Progress events receive a monotonically increasing per-job sequence in the same
+operational transaction as the draft change they describe. Reattach reads
+`snapshot + cursor`, then subscribes strictly after that cursor; this ordering
+closes the snapshot/subscribe race. Event rows are ephemeral and may be pruned
+after the terminal record exists, because the turn record is their durable
+meaning ([04 §3.2](04-server-multiuser-deployment.md)).
+
+### 2.11 What stays broken on purpose
 
 Argued once so the deferrals are decisions rather than omissions. **Trash**
 (F7's second half): additive ([15 §2.1](15-work-plan.md)), config key already
@@ -389,6 +462,10 @@ regression tests. What remains here is the hardening-and-debt half:
   read/write path; body schemas on every object route via the shared JSON
   Schemas; `:kind` checked against the object's own `schema` field (mismatch
   is a 400, not a silent lie).
+- **Filesystem honesty** (F19, F20): shadowed duplicates are individually
+  addressable from the list without changing id-based reference resolution;
+  invalid foreign files surface as path-scoped errors instead of leaving a
+  believable stale object on screen.
 - **Logging** (F8): Fastify logger on, structured per `log.format`,
   `log.level` live-reloadable — the first real live-tier consumer.
 - **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset): the P1 gate
@@ -446,9 +523,15 @@ applied to the new kind rather than copied from the old one. Effect
 application and head-snapshot maintenance per §2.7, including
 hand-edit-divergence-becomes-an-effect ([02 §8.1](02-data-model.md)).
 
+The operational schema also lands here: job, idempotency reservation, in-flight
+turn draft and sequenced progress event. Implement §2.10's terminal commit and
+startup reconciliation before a real provider can write a turn; P2.5 adds the
+runner and transport to this already crash-testable store.
+
 *Tests:* the P1 gate's storage properties extended to sessions; segment
 rollover; a hand-edited `session.json` clock landing as a user-attributed
-effect; search returning a turn-text hit.
+effect; search returning a turn-text hit; terminal append/finalise interrupted
+after each protocol step and recovered without duplicate turns or effects.
 
 ### P2.4 — Assembler, budgeter, render
 
@@ -477,6 +560,10 @@ the notification *classes* and router are P10; the event schema they need is
 complete from the first producer. This is where §2.2's logging pays off:
 job-scoped log context, every state transition logged, and the falsifiable
 claim that a killed turn's lifecycle is reconstructable from the log alone.
+Submission and reattach implement §2.10: expected-head plus idempotency key,
+one active job per session, sequenced events, and a snapshot/cursor subscription
+with no gap between them. Two clients may watch the same job; they may not race
+two jobs into the same head.
 
 ### P2.6 — The Scene mode and the play surface
 
@@ -509,7 +596,8 @@ them. Impersonation and the axis controls are not here —
    carries a correct `authoredAt` (F6).
 6. `DELETE` an object → `history/` remains on disk (F7).
 7. Hand-edit an actor into an invalid shape, open it → an error card naming
-   the problem, app alive, list still works (F13).
+   the path and problem, app alive, list still works; an attempted save cannot
+   overwrite the invalid bytes (F13, F20).
 8. Save in the editor, navigate away and back, save again → no conflict
    dialog for your own change (F12).
 9. Send a message → streamed reply → close the tab mid-generation → reopen →
@@ -521,19 +609,25 @@ them. Impersonation and the axis controls are not here —
     every RNG draw on the tape keyed by site, cost captured. No nulls where
     doc 18 says data.
 12. Two clients on one session both see the stream.
-13. Delete `index.sqlite` → sessions, turns and library all still read, and
+13. Submit the same idempotency key twice → one job id and one provider call.
+    Submit two different keys concurrently against one head → one starts and
+    the other is rejected with the active job/current head; no implicit sibling
+    turn and no double-applied effect.
+14. Disconnect between taking the SSE snapshot and subscribing → reconnect from
+    its cursor observes every later event exactly once in order.
+15. Delete `index.sqlite` → sessions, turns and library all still read, and
     the admin still logs in. Delete `state.sqlite` → an in-flight turn is
     lost and *that is expected*; nothing else is.
-14. Replay-from-zero reproduces the head channel state; hand-edit
+16. Replay-from-zero reproduces the head channel state; hand-edit
     `session.json`'s clock on disk → the divergence lands as a
     user-attributed effect (§2.7).
-15. Type guidance → it appears as an advisory block in the record, does not
+17. Type guidance → it appears as an advisory block in the record, does not
     enter history, and the golden suite asserts no advisory block ever
     reaches an effect-producing call (§2.9).
-16. Search returns a hit from turn text, through the route (F10, P2.3).
-17. Kill a turn mid-flight → its full lifecycle is reconstructable from the
+18. Search returns a hit from turn text, through the route (F10, P2.3).
+19. Kill a turn mid-flight → its full lifecycle is reconstructable from the
     structured log alone, by job id (F8, §2.2).
-18. The golden-file suite runs against the fake provider, snapshots the
+20. The golden-file suite runs against the fake provider, snapshots the
     rendered block table, and the rebuild property test is a named CI step on
     both OSes (F11, F17).
 
@@ -599,6 +693,8 @@ stable part.
 | F16 | `vitest.config.ts:22-23` | Includes `.test.ts` only — not `.test.tsx` — while eslint and tsconfig include `.tsx` tests: the first component test would lint, typecheck, and never run. No jsdom/happy-dom/@testing-library anywhere; zero component tests exist |
 | F17 | `.github/workflows/ci.yml`, `package.json:22` | ubuntu-only (paths/watcher/layout tests never run on the dev platform); rebuild gate not a named step (a `test.skip` retires it silently); `format:check` defined, never run; `eslint .` without `--max-warnings 0` while `exhaustive-deps` is warn-level |
 | F18 | various | Package: no factory, absent from round-trip and minimal-instance fixtures (5 of 6). Denylist walks TypeBox objects, not emitted JSON — `emit-schemas.ts` is the untested link. `$id` (`…/storyengine.actor/1.json`) ≠ emitted filename (`storyengine.actor.1.json`). `RESERVED_SECTION_PREFIX` exported, enforced nowhere. `shared` has 2 runtime deps vs 19 P1.0's line, argued only in a package.json note; `"types":["node"]` on the browser-safe package. Editor: sections not addable/removable, `visual`/`roles`/`openings`/`lore`/`modelHint` absent, save-disabled-when-unchanged makes gate step 17 unreachable via UI, conflict dialog lacks focus trap/Escape/restore, `index.html` `lang`/`dir` static. eslint Tailwind rule permits `mt-*`/`mb-*` while stylelint bans block-axis physical properties — the two halves disagree. `pnpm dev` on a fresh clone fails (shared not built first). `format.ts:44` dead; duplicated input class strings; `formChanges` runs `structuredClone`+2× `JSON.stringify` per keystroke |
+| F19 | `client/src/library/LibraryPage.tsx`, `index-db/query.ts:findById` | Both duplicate-id rows link by the same id; the detail query orders winner-first and has no path/slug discriminator. The shadowed row is visible but cannot be opened, despite the detail copy saying it is showing that copy |
+| F20 | `index-db/ingest.ts:decodeObject/ingestFile` | Parse/schema failure returns `skipped: invalid` and leaves the previous valid row untouched. The closeout disk re-hash prevents destructive overwrite, but every read still serves believable stale content and no path-scoped error reaches the client |
 
 **What held** (the counter-list, so the appendix is not only debt): the dual
 write path complete with consumed-on-claim tokens and the
