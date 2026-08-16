@@ -192,6 +192,14 @@ a search result rather than a way to browse; the naming and prominence in
 the tests that cover it stay as they are — this is a client presentation
 decision and should stay one.
 
+**One thing the panels must carry over.** P2.0 makes a shadowed duplicate-id row
+individually addressable — the row links by a path discriminator rather than by
+id alone, because id-addressing always opens the winner ([20 §1.3](20-p2-implementation.md),
+F19). That lives in the read route and the link contract, so the panels inherit
+it by using the same detail route; what would lose it is a panel building its
+own links from `{kind, id}`. The duplicate warning without the link is the bug
+F19 already fixed once.
+
 ## 5. A home, so arrival is not an arbitrary library view
 
 **What home is and what it holds is [05 §2.1](05-ui-surfaces.md)** — resume,

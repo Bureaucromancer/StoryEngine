@@ -139,3 +139,12 @@ display only); the keyword-test panel's lore half (P5, §1.4); sibling
 navigation and the branch-aware history view (P6); the workbench over
 renditions (P9); any assembly logic in the client. And **no editing of the
 record itself** — the record is what happened; edit-and-re-run makes a new one.
+
+**Editor completeness is not here either**, and this line exists because
+[20 §2.11](20-p2-implementation.md) once deferred it to "P3/P11" while this doc
+said nothing about it. It is not P3: section add/remove,
+`visual`/`roles`/`openings`/`lore`/`modelHint` and the undo affordance are
+**P11**'s, where editors-are-not-dumb-forms lives ([15 P11](15-work-plan.md)),
+with the by-field and *As stored* halves claimed as polish at
+[25 §1–§2](25-polish.md). P3 edits *blocks*, which is a different surface with a
+different reason to exist.

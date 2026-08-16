@@ -662,6 +662,19 @@ Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §4.3's container default safe rather than merely
 unavoidable.
 
+**And the same console is the break-glass for a lost password.** `--reset-password
+<handle>` replaces an account's password and re-enables it if it was disabled,
+then exits without starting the server. It reads the new password from **stdin
+only** — masked at a TTY, accepted from a pipe for scripting — and never from
+argv, because an argument is visible in shell history and in the process list to
+every other user on the host. The authority here is host access, the same
+authority the setup token assumes: someone who can run the binary against the
+data directory can already read it. There is no in-app recovery flow to weaken,
+which is the point — no email, no security questions, no account-recovery
+surface for an attacker to work on. Password reset from *inside* the admin UI is
+P10's, and does not remove this one: it is what recovers the admin who cannot
+log in to reach it.
+
 ### 5.2 Tailscale
 
 **All post-2.0.** Not hard, but a side project rather than a release blocker.

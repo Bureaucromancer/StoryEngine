@@ -47,7 +47,11 @@ Windows job, both owed since P1 (§1, F11/F17).
 
 An audit of the P1 codebase (server; shared/client/tooling) ran before this
 revisit. This section carries the verdicts and the triage; the finding-level
-detail with file references is Appendix A.
+detail with file references is Appendix A. **Every finding below was then
+re-verified against the code before P2.0 opened** — because §2.1 makes this
+list P2.0's work order, and a work order that sends someone to write a test
+that exists is how a boundary rule stops being believed. What that run changed
+is marked in place and summarised in [Appendix A.3](#a3-after-the-audit).
 
 ### 1.1 What held
 
@@ -69,7 +73,8 @@ scaffolding exists anywhere.
 
 ### 1.2 What did not
 
-Twenty findings, numbered here and used by number everywhere below.
+Twenty findings, numbered here and used by number everywhere below — plus F21,
+which is not from the audit at all and says so where it appears.
 
 **Write-path integrity**
 
@@ -174,6 +179,18 @@ Twenty findings, numbered here and used by number everywhere below.
   continue to present the old object; doc 19's visible-filesystem thesis and
   this plan's invalid-object error-card check are not yet true.
 
+**And one finding from after the audit.** `--reset-password` landed once this
+plan was already written, so nothing above could have seen it. A verification
+pass over §1.2 before P2.0 opened read it:
+
+- **F21.** `--reset-password` is well tested where the work happens —
+  `auth/reset.test.ts` covers replace, re-enable, unknown handle, and the
+  cross-instance staleness case that the accounts-cache change exists for — but
+  the `main.ts` wrapper around it is not: argv parsing, the handle-missing path
+  and the exit codes have no test. It is the only entry point in the codebase
+  that changes a credential, and the half that a person actually types is the
+  untested half.
+
 ### 1.3 Triage
 
 The assignment rule, stated once so it is not renegotiated per finding:
@@ -196,7 +213,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11** |
 | F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** |
 | F9 | Tombstone maturation watcher-only; ingest not transactional | **Fix-when-touched** | P2.3 extends ingest for sessions/turns anyway: transactional after I/O, maturation on startup + timer |
-| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout.* P2.0 sweep: docstring/`accountFile`/setup token. FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
+| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
 | F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
 | F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
 | F13 | Unchecked cast + no error boundary | **Fixed at P1 closeout** | `actorFormShape` guard before every cast + the router's `defaultErrorComponent` |
@@ -204,9 +221,10 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F15 | Two missing day-one lint rules | **P2.0** | Write both, fix the four violations in the same commit; day-one rules get more expensive per day |
 | F16 | Component tests silently impossible | **P2.0** | Config + DOM env + one smoke component test proving the pipe, before P2.6 ships the first complex surface |
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
-| F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap, step-17-via-API test. `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P3/P11** |
-| F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving |
+| F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap. *The step-17-via-API test in this row was already written at P1.7 and miscounted as debt — see Appendix A.* `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P11** ([21 §4](21-p3-implementation.md) declines it; [25 §1–§2](25-polish.md) takes its polish half) |
+| F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [05 §5](05-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [25 §4](25-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
 | F20 | Invalid foreign edit remains invisible | **Fix-when-touched** | **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not doc 19's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
+| F21 | `--reset-password`'s CLI wrapper untested | **P2.0** | One test beside the existing `auth/reset.test.ts`: argv parsing, the missing-handle path, exit codes. It rides in the test sweep — a credential-changing entry point is not the place to leave the typed half unasserted |
 
 ### 1.4 Corrections to doc 19, recorded
 
@@ -223,6 +241,14 @@ So the plan of record stays honest — annotated in
 - **Doc 19 §3's "automated equivalents of 4 and 7–19 are this phase's CI
   suite" overstates what P1 automated** — steps 16, 11's login half, DELETE,
   and the rebuild *property* test were not automated (F11). Completed at P2.0.
+- **`--reset-password` shipped between P1 and P2 and this section is its first
+  design-doc mention.** The flag existed only in the README, and it did two
+  things this plan depends on: it changed the `Accounts` cache from a
+  never-invalidated map to a per-read `(mtime, size)` revalidation — closing
+  F10's `invalidate()` half outright — and it made a credential-changing CLI
+  entry point that F21 now covers. The flag itself is documented at
+  [04 §5.1](04-server-multiuser-deployment.md), beside the first-run material
+  it belongs with; the record that P2's foundations moved under it is here.
 
 ---
 
@@ -437,14 +463,26 @@ Argued once so the deferrals are decisions rather than omissions. **Trash**
 (F7's second half): additive ([15 §2.1](15-work-plan.md)), config key already
 reserved, home **P11** — but P2.0 stops the destruction of `history/` now,
 which converts hard-delete from unrecoverable to recoverable at near-zero
-cost. **Editor completeness and a11y polish** beyond the P2.0 sweep (section
-add/remove, `visual`/`roles`/`openings`/`lore`/`modelHint`, the undo
-affordance): additive, home **P3/P11**, where editors-are-not-dumb-forms lives.
-**Cookie `secure`/`trustProxy` hardening** (F10): home **P10** with deployment;
-the loopback default ([04 §5.1](04-server-multiuser-deployment.md)) is what
-makes deferral safe. **Restart-notice UI** (F8's second half): home **P10**
-with the admin surface. Each is named again in §5 so the list survives this
-section being skimmed.
+cost. **Editor completeness** beyond the P2.0 sweep (section add/remove,
+`visual`/`roles`/`openings`/`lore`/`modelHint`, the undo affordance):
+additive, home **P11**, where editors-are-not-dumb-forms lives — with the
+by-field and *As stored* halves of it already claimed as polish at
+[25 §1–§2](25-polish.md). P3 is the workbench and does not claim this
+([21 §4](21-p3-implementation.md) says so explicitly); the earlier "P3/P11"
+here was a home that had not agreed to it. **Cookie `secure`/`trustProxy`
+hardening** (F10): home **P10** with deployment; the loopback default
+([04 §5.1](04-server-multiuser-deployment.md)) is what makes deferral safe.
+**Restart-notice UI** (F8's second half): home **P10** with the admin surface.
+Each is named again in §5 so the list survives this section being skimmed.
+
+**Accessibility is not on that list, and saying so is the point.**
+[15 §2.1](15-work-plan.md) names accessible markup as one of the three things
+that cannot be deferred — a habit, not a feature, retrofitted only by touching
+everything. So every surface P2 ships is accessible as it ships, the P2.0 sweep
+pays the one specific debt found (the conflict dialog's focus trap, F18), and
+what P11 owns is the *audit* — a systematic pass over surfaces built to the
+habit, not a rescue of surfaces built without it. A phase that defers the habit
+has already made P11's pass a rewrite.
 
 ---
 
@@ -468,12 +506,14 @@ regression tests. What remains here is the hardening-and-debt half:
   Schemas; `:kind` checked against the object's own `schema` field (mismatch
   is a 400, not a silent lie).
 - **Filesystem honesty** (F19): shadowed duplicates are individually
-  addressable from the list without changing id-based reference resolution.
+  addressable — the discriminator in the read route and the link contract, so
+  it survives [25 §4](25-polish.md)'s per-kind panels — without changing
+  id-based reference resolution.
   (F20, the invalid-file half of this pair, rides with F9's ingest rework at
   P2.3 — §1.3's table records why.)
 - **Logging** (F8): Fastify logger on, structured per `log.format`,
   `log.level` live-reloadable — the first real live-tier consumer.
-- **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset): the P1 gate
+- **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset, F21): the P1 gate
   completed — manual-vs-external asserted in one history, the rebuild
   property test (randomised write/edit/rename/delete/copy sequences), the
   login-after-index-delete half; the two missing day-one lint rules written
@@ -481,11 +521,14 @@ regression tests. What remains here is the hardening-and-debt half:
   component test; Windows CI job (which is what would have caught F4),
   `format:check`, `--max-warnings 0`, the rebuild gate as a named step;
   Package factory and fixture, denylist over the emitted JSON, `$id`-matching
-  filenames, fresh-clone `pnpm dev`, the conflict dialog's focus trap, and a
-  step-17-via-API test.
-- **Trap removal** (F10 remainder): the dead `Accounts.invalidate()` docstring
-  honesty, `layout.accountFile()` deleted, the setup token enforced or
-  removed.
+  filenames, fresh-clone `pnpm dev`, the conflict dialog's focus trap, and the
+  `--reset-password` CLI wrapper (F21). *Gate step 17 is already asserted
+  through the API — `routes/history.test.ts`'s "a save that changes nothing
+  records no version and keeps the hash", written at P1.7 and missed by the
+  audit's own inventory. Nothing to write; the row stands as coverage.*
+- **Trap removal** (F10 remainder): `layout.accountFile()` deleted and the
+  setup token enforced or removed. *The dead `Accounts.invalidate()` is
+  already gone — see §1.4.*
 
 *Ends at:* **[19 §3](19-p1-implementation.md), all nineteen steps, as green
 automated tests on both OSes.** The audit paid, in one legible unit.
@@ -652,8 +695,10 @@ snapshots-as-cache, rewrite/reroll surfaces (P6 — but the tape and
 `parentTurnId` are written now); channels beyond `se.clock`, hooks, the mode
 registry, the SDK boundary, setup wizards, `se.party` (P7); summarisation
 (P8); renditions (P9); notification routing and delivery, cookie hardening,
-the restart-notice UI, capability enforcement (P10); trash, editor
-completeness and the a11y pass beyond P2.0's sweep (P11).
+the restart-notice UI, capability enforcement (P10); trash, editor completeness
+([25 §1–§2](25-polish.md) for its polish half) and the systematic a11y audit
+(P11) — the *habit* of accessible markup being in scope for everything P2
+ships, per §2.11.
 
 Two erosion lines, and the first is new:
 
@@ -690,7 +735,7 @@ stable part.
 | F7 | `library.ts:490` | `remove()` = `removeTree` of the object folder including `history/`; `trash.retentionDays` configured, `Layout.trashRoot()` exists, no trash implementation; zero DELETE tests. **First half fixed at P1 closeout** (delete moves to trash via `moveTree`, tested); retention/restore stay P11 |
 | F8 | `app.ts:97`, `main.ts` | `logger: false`, raw `console.log`; `log.level`/`log.format` consumed by nothing; `pendingRestart()` (config.ts:161) has no callers outside its test; no `live` key is re-read live; `ReloadTier` declares an unused `'reconnect'`; `main.ts:33` mutates `dataDir` post-validation |
 | F9 | `index-db/ingest.ts`, `watcher.ts:150` | `matureTombstones` called only from the watcher — with `watch: false`, tombstones accumulate forever. `ingestFile`/`dropVanishedDuplicates` await mid-DB-mutation with no transaction; watcher and API ingests can interleave on the same `DatabaseSync` |
-| F10 | various | `Accounts.invalidate()` (accounts.ts:279) dead, docstring claims hand-edit pickup; `layout.accountFile()` (layout.ts:184) points at the per-user account-file anti-pattern 19 §1.3 overturned; setup token (main.ts:71) printed, stored nowhere, enforced nowhere; `secure=false` hardcoded (routes/auth.ts:44); CSRF checked only when `request.account` truthy (app.ts:132) and the setup-gate uses `startsWith` (app.ts:180); FTS5 `search()` (query.ts:144) has no route; `create()` slug resolution is read-then-write (library.ts:236, **fixed at P1 closeout** — per-kind queue); `accounts.ts:155` uncaught `JSON.parse` (**fixed at P1 closeout**); Ajv validator recompiled per read (accounts.ts:156); five unvalidated `as PortableSchemaId` casts; stale module docstring (index.ts:7) |
+| F10 | various | `Accounts.invalidate()` (accounts.ts:279) dead, docstring claims hand-edit pickup (**overtaken by `--reset-password`** — the method is gone and `#read()` now revalidates against `(mtime, size)` on every call, `accounts.ts:140-193`); `layout.accountFile()` (layout.ts:184) points at the per-user account-file anti-pattern 19 §1.3 overturned; setup token (main.ts:71) printed, stored nowhere, enforced nowhere; `secure=false` hardcoded (routes/auth.ts:44); CSRF checked only when `request.account` truthy (app.ts:132) and the setup-gate uses `startsWith` (app.ts:180); FTS5 `search()` (query.ts:144) has no route; `create()` slug resolution is read-then-write (library.ts:236, **fixed at P1 closeout** — per-kind queue); `accounts.ts:155` uncaught `JSON.parse` (**fixed at P1 closeout**); Ajv validator recompiled per read (accounts.ts:156); five unvalidated `as PortableSchemaId` casts; stale module docstring (index.ts:7) |
 | F11 | test suite | Gate step 16 (manual vs external in one history) split across files, never asserted together; rebuild==incremental is three fixed examples (two driving ingest directly, not through the watcher), not the named property test; step 11's login-after-index-delete half untested; DELETE untested; no malformed-body tests; no concurrency tests. **DELETE and concurrency coverage landed at P1 closeout** (`routes/concurrency.test.ts`); step 16, the rebuild property and the login half remain |
 
 ### A.2 Shared, client, tooling
@@ -703,7 +748,7 @@ stable part.
 | F15 | `eslint.config.js` / `eslint.rules.js` | Two of 16 §2's five day-one rules never written (bare user-facing strings; Intl-only). Violations they would catch: `api.ts:129` status-sentence, `HistoryPanel.tsx:140` `Revision {n}`, `:151` `v{authorVersion}`, `ActorEditorPage.tsx:149` `` `${name} (copy)` `` |
 | F16 | `vitest.config.ts:22-23` | Includes `.test.ts` only — not `.test.tsx` — while eslint and tsconfig include `.tsx` tests: the first component test would lint, typecheck, and never run. No jsdom/happy-dom/@testing-library anywhere; zero component tests exist |
 | F17 | `.github/workflows/ci.yml`, `package.json:22` | ubuntu-only (paths/watcher/layout tests never run on the dev platform); rebuild gate not a named step (a `test.skip` retires it silently); `format:check` defined, never run; `eslint .` without `--max-warnings 0` while `exhaustive-deps` is warn-level |
-| F18 | various | Package: no factory, absent from round-trip and minimal-instance fixtures (5 of 6). Denylist walks TypeBox objects, not emitted JSON — `emit-schemas.ts` is the untested link. `$id` (`…/storyengine.actor/1.json`) ≠ emitted filename (`storyengine.actor.1.json`). `RESERVED_SECTION_PREFIX` exported, enforced nowhere. `shared` has 2 runtime deps vs 19 P1.0's line, argued only in a package.json note; `"types":["node"]` on the browser-safe package. Editor: sections not addable/removable, `visual`/`roles`/`openings`/`lore`/`modelHint` absent, save-disabled-when-unchanged makes gate step 17 unreachable via UI, conflict dialog lacks focus trap/Escape/restore, `index.html` `lang`/`dir` static. eslint Tailwind rule permits `mt-*`/`mb-*` while stylelint bans block-axis physical properties — the two halves disagree. `pnpm dev` on a fresh clone fails (shared not built first). `format.ts:44` dead; duplicated input class strings; `formChanges` runs `structuredClone`+2× `JSON.stringify` per keystroke |
+| F18 | various | Package: no factory, absent from round-trip and minimal-instance fixtures (5 of 6). Denylist walks TypeBox objects, not emitted JSON — `emit-schemas.ts` is the untested link. `$id` (`…/storyengine.actor/1.json`) ≠ emitted filename (`storyengine.actor.1.json`). `RESERVED_SECTION_PREFIX` exported, enforced nowhere. `shared` has 2 runtime deps vs 19 P1.0's line, argued only in a package.json note; `"types":["node"]` on the browser-safe package. Editor: sections not addable/removable, `visual`/`roles`/`openings`/`lore`/`modelHint` absent, save-disabled-when-unchanged makes gate step 17 unreachable via UI (*the API half is covered — `routes/history.test.ts` 'a save that changes nothing records no version and keeps the hash', from P1.7; the audit inventory missed it*), conflict dialog lacks focus trap/Escape/restore, `index.html` `lang`/`dir` static. eslint Tailwind rule permits `mt-*`/`mb-*` while stylelint bans block-axis physical properties — the two halves disagree. `pnpm dev` on a fresh clone fails (shared not built first). `format.ts:44` dead; duplicated input class strings; `formChanges` runs `structuredClone`+2× `JSON.stringify` per keystroke |
 | F19 | `client/src/library/LibraryPage.tsx`, `index-db/query.ts:findById` | Both duplicate-id rows link by the same id; the detail query orders winner-first and has no path/slug discriminator. The shadowed row is visible but cannot be opened, despite the detail copy saying it is showing that copy |
 | F20 | `index-db/ingest.ts:decodeObject/ingestFile` | Parse/schema failure returns `skipped: invalid` and leaves the previous valid row untouched. The closeout disk re-hash prevents destructive overwrite, but every read still serves believable stale content and no path-scoped error reaches the client |
 
@@ -715,3 +760,24 @@ drive-relative and ADS; kill-safety with a vacuous-pass guard
 zero schema drift vs doc 13; bit-correct uuidv7 with monotonicity; triple
 unknown-field enforcement; two-layer fixture-tested boundary lint; the assist
 slot still an empty `<span aria-hidden>` with no scaffolding behind it.
+
+### A.3 After the audit
+
+Not from either audit pass — from the verification run over §1.2 before P2.0
+opened, against the two commits that landed after this plan was written.
+
+| # | Where | Detail |
+|---|---|---|
+| F21 | `main.ts:50-52,114-127`, `auth/reset.test.ts` | The `--reset-password` path is tested at the `Accounts` layer and untested at the wrapper: no test drives `argumentValue('--reset-password')`, the missing-handle branch, or the exit codes. The password itself is read from stdin only and never from argv, which is right and should stay asserted rather than assumed |
+
+**What the same run confirmed still true**, so the plan reads as a work order
+rather than a description of work already done: every finding marked *Fixed at
+P1 closeout* is fixed in the code as described (F3's `KeyedQueue` plus the
+in-section disk re-hash, F4's `isContained`, F5's serialised history mutators
+and the write→snapshot→ingest order, F6's server-side stamping with restore and
+create exempt, F7's `moveTree` to trash, F12/F13/F14 client-side), and every
+finding assigned to P2.0 or P2.3 is genuinely open — no P2.0 work has landed.
+The three §1.4 corrections are annotated in doc 19 with pointers back, and
+`ChannelEffect.scope` landed in [18 §1.2](18-internal-contracts.md) as §2.7
+promised. Two items were **struck** rather than confirmed: the step-17-via-API
+test (already written at P1.7) and F10's dead `invalidate()` (already removed).
