@@ -4,6 +4,8 @@
 import { resolve } from 'node:path';
 
 import { buildApp, buildServices } from './app.js';
+import { AccountError, Accounts } from './auth/accounts.js';
+import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { generateSetupToken } from './auth/secrets.js';
 import { loadConfig } from './config.js';
 import { Layout } from './storage/layout.js';
@@ -39,6 +41,16 @@ async function main(): Promise<void> {
     // Kept, not rejected — but said out loud, because a typo'd key is silently
     // doing nothing and that is worth one line.
     console.warn(`Config: ignoring unrecognised keys: ${unknownKeys.join(', ')}`);
+  }
+
+  // The break-glass path: reset a password from the console and exit, without
+  // starting the server. Host access is the authority — see
+  // Accounts.resetPassword for the argument, and the README for when to reach
+  // for this rather than asking an admin (P10's norm).
+  const resetHandle = argumentValue('--reset-password');
+  if (resetHandle !== undefined) {
+    await resetPassword(resetHandle, new Layout(config.dataDir));
+    return;
   }
 
   const services = await buildServices({ config });
@@ -91,6 +103,32 @@ async function main(): Promise<void> {
 function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
   return index === -1 ? undefined : process.argv[index + 1];
+}
+
+/**
+ * `--reset-password <handle>` — asks for the new password on stdin (masked at
+ * a terminal, a plain line from a pipe; never an argument, which would leak
+ * into shell history), writes it through the same scrypt-and-atomic-write
+ * machinery as setup, and exits.
+ */
+async function resetPassword(handle: string, layout: Layout): Promise<void> {
+  const accounts = new Accounts(layout);
+  try {
+    const password = await readNewPassword(process.stdin, process.stdout, handle);
+    const account = await accounts.resetPassword(handle, password);
+    console.log(`Password reset for ${account.handle} in ${layout.dataRoot}.`);
+    console.log(
+      'The account is enabled. A running server picks this up on the next login; ' +
+        'existing sessions for the account stay valid until they expire.',
+    );
+  } catch (error) {
+    if (error instanceof ResetAborted || error instanceof AccountError) {
+      console.error(error.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
 }
 
 await main();

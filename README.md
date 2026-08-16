@@ -82,6 +82,35 @@ who can reach the port can claim the install, so LAN exposure is an explicit act
 ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
 [`config.example.json`](config.example.json) to `data/config.json` to change it.
 
+### If a password is lost
+
+There is no email here and never will be
+([04 §4](docs/design/04-server-multiuser-deployment.md)), so recovery is always
+*someone with authority vouches for you*. The eventual norm is an admin
+resetting the account in the UI; until that arrives — and forever after, for
+the case where no usable admin account exists — the authority is access to the
+host:
+
+```bash
+node packages/server/dist/main.js --reset-password ned --data ./data
+```
+
+It asks for the new password on stdin (masked, twice) and exits without
+starting the server. Piped input works too, for scripts and container execs:
+`echo "the new password" | node dist/main.js --reset-password ned`. The
+password is never a command-line argument, which would leak it into shell
+history.
+
+Three behaviours worth knowing: the account is **re-enabled** as part of the
+reset, since a disabled account is the same lockout in a different hat; a
+server already running picks the change up on the next login, no restart; and
+existing sessions for the account stay valid until they expire — sessions are
+stateless, and the reset changes the password, not the signing key.
+
+**Do not delete `accounts.json`** to get unlocked. That destroys every account
+on the install and reopens the first-boot claim window on whatever the server
+is bound to.
+
 ### How the dev setup is wired
 
 Worth writing down, because three of the four pieces are choices rather than

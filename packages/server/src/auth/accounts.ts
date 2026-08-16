@@ -5,7 +5,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { createValidator } from '@storyengine/shared';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory, readFileBytes } from '../storage/files.js';
+import { ensureDirectory, type FileFacts, readFileBytes, statFile } from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
 import { hashPassword, verifyPassword } from './secrets.js';
 
@@ -137,19 +137,32 @@ export function toPublic(account: Account): PublicAccount {
  */
 export class Accounts {
   readonly #layout: Layout;
-  #cache: AccountsFile | null = null;
+  /**
+   * Cached against the file's `(mtime, size)`, revalidated by a stat on every
+   * read — not held forever. Two writers are legitimate here: a running server
+   * and a `--reset-password` process fixing an account beside it. A cache with
+   * no expiry would keep authenticating against the password the reset just
+   * replaced, silently, until a restart — and would also mean a hand edit to
+   * accounts.json is never seen at all. A stat per read is what the object
+   * index pays per *watch event* for the same freshness, and requests already
+   * pay more than that in queries.
+   */
+  #cache: { facts: FileFacts | null; file: AccountsFile } | null = null;
 
   constructor(layout: Layout) {
     this.#layout = layout;
   }
 
   async #read(): Promise<AccountsFile> {
-    if (this.#cache) return this.#cache;
+    const facts = await statFile(this.#layout.accountsFile);
+    if (this.#cache && sameFacts(this.#cache.facts, facts)) {
+      return this.#cache.file;
+    }
 
     const bytes = await readFileBytes(this.#layout.accountsFile);
     if (bytes === null) {
-      this.#cache = { schema: ACCOUNTS_SCHEMA, accounts: [] };
-      return this.#cache;
+      this.#cache = { facts: null, file: { schema: ACCOUNTS_SCHEMA, accounts: [] } };
+      return this.#cache.file;
     }
 
     let parsed: unknown;
@@ -175,13 +188,13 @@ export class Accounts {
       );
     }
 
-    this.#cache = parsed;
-    return this.#cache;
+    this.#cache = { facts, file: parsed };
+    return this.#cache.file;
   }
 
   async #write(file: AccountsFile): Promise<void> {
-    await writeJsonAtomic(this.#layout.accountsFile, file);
-    this.#cache = file;
+    const token = await writeJsonAtomic(this.#layout.accountsFile, file);
+    this.#cache = { facts: { mtimeMs: token.mtimeMs, size: token.size }, file };
   }
 
   async list(): Promise<PublicAccount[]> {
@@ -285,8 +298,40 @@ export class Accounts {
     return this.create({ ...input, role: 'admin' });
   }
 
-  /** Forgets the cached file, so a hand edit is picked up. */
-  invalidate(): void {
-    this.#cache = null;
+  /**
+   * Replaces an account's password, and re-enables the account.
+   *
+   * **The break-glass path.** Its only caller is the `--reset-password` flag
+   * on the server binary, which means the authority behind it is host access —
+   * and anyone who can read `data/` owns the install already
+   * ([04 §4.1](docs/design/04-server-multiuser-deployment.md)), so this adds no
+   * authority that did not exist. At 1.0 the *norm* is an admin resetting an
+   * account through the UI (P10); this remains the rung beneath it, for when
+   * no usable admin account exists.
+   *
+   * Re-enabling is deliberate rather than incidental: a disabled account is
+   * the same lockout wearing a different hat, nothing else can re-enable one
+   * until P10, and resetting a password someone still cannot use would be a
+   * half-repair.
+   */
+  async resetPassword(handle: string, password: string): Promise<PublicAccount> {
+    const file = await this.#read();
+    const account = file.accounts.find((entry) => entry.handle === handle);
+    if (!account) {
+      throw new AccountError('not-found', `No account with the handle ${handle}.`);
+    }
+
+    const { salt, hash } = await hashPassword(password);
+    const updated: Account = { ...account, passwordHash: hash, salt, enabled: true };
+    await this.#write({
+      ...file,
+      accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+    });
+    return toPublic(updated);
   }
+}
+
+function sameFacts(cached: FileFacts | null, current: FileFacts | null): boolean {
+  if (cached === null || current === null) return cached === current;
+  return cached.mtimeMs === current.mtimeMs && cached.size === current.size;
 }
