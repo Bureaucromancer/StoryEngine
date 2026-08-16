@@ -72,7 +72,8 @@ export function actorFormShape(object: Record<string, unknown>): string | null {
   if (!Array.isArray(shaped['traits'])) return 'its "profile.traits" is not a list';
   if (!Array.isArray(shaped['sections'])) return 'its "profile.sections" is not a list';
   for (const section of shaped['sections'] as unknown[]) {
-    if (typeof section !== 'object' || section === null) return 'a profile section is not an object';
+    if (typeof section !== 'object' || section === null)
+      return 'a profile section is not an object';
     const fields = section as Record<string, unknown>;
     if (typeof fields['id'] !== 'string') return 'a profile section has no "id" string';
     if (typeof fields['title'] !== 'string') return 'a profile section has no "title" string';

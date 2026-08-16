@@ -163,7 +163,9 @@ export async function recordVersion(
   source: VersionSource,
   reason: string,
 ): Promise<VersionRecord | null> {
-  return mutations.run(objectRoot, () => recordVersionUnlocked(objectRoot, payload, source, reason));
+  return mutations.run(objectRoot, () =>
+    recordVersionUnlocked(objectRoot, payload, source, reason),
+  );
 }
 
 async function recordVersionUnlocked(

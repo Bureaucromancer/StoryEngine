@@ -222,7 +222,11 @@ export class Layout {
     slug: string,
     suffix: string,
   ): string {
-    return resolveWithin(this.trashRoot(handle), LIBRARY_DIRECTORIES[schemaId], `${slug}-${suffix}`);
+    return resolveWithin(
+      this.trashRoot(handle),
+      LIBRARY_DIRECTORIES[schemaId],
+      `${slug}-${suffix}`,
+    );
   }
 
   libraryRoot(scope: LibraryScope): string {

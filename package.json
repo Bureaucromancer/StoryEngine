@@ -18,7 +18,7 @@
     "format:check": "prettier --check .",
     "lint": "pnpm run lint:es && pnpm run lint:css",
     "lint:css": "stylelint \"packages/**/*.css\"",
-    "lint:es": "eslint .",
+    "lint:es": "eslint . --max-warnings 0",
     "test": "vitest run",
     "typecheck": "tsc -b && tsc -p tsconfig.tools.json"
   },

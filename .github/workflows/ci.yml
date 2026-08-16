@@ -1,13 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 StoryEngine contributors
 #
-# The per-PR tier from docs/design/workplan/10-testing.md §6: typecheck, lint, build,
-# test. It has one job — to be fast enough that it is never skipped.
+# The per-PR tier from docs/design/workplan/10-testing.md §6: format, typecheck,
+# lint, build, test. It has one job — to be fast enough that it is never skipped.
 #
-# The nightly and on-tag tiers, the dependency-licence scan and the forward-port
-# check are deliberately absent. They belong to later phases: there are no
-# release branches to forward-port between yet, and no provider adapters to
-# conform-test.
+# It runs on ubuntu and Windows, from P2.0 (docs/design/workplan/04-p2-implementation.md
+# §3, F17). The paths, the layout and the watcher are the code most likely to be
+# wrong on a platform the CI never ran, and F4 — an `ignored` predicate that
+# compared mixed separators and so matched nothing on win32, on the development
+# platform — is what an ubuntu-only pipeline cost. `fail-fast: false` because the
+# interesting case is "green on one, red on the other", and cancelling the green
+# leg hides which half is which.
+#
+# Still absent, still deliberately: the nightly and on-tag tiers, the
+# dependency-licence scan and the forward-port check. There are no release
+# branches to forward-port between yet, and no provider adapters to conform-test.
+# The rebuild-equals-incremental property test joins this file as a *named* step
+# when P2.0 writes it (F11) — named, because a gate a `test.skip` can retire is
+# not a gate.
 
 name: CI
 
@@ -25,7 +35,11 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 
@@ -41,12 +55,22 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Typecheck first, and not only because it is fast. `tsc -b` emits each
-      # package's dist, and the boundary rules classify an import by its
-      # resolved path — which runs through those built entry points. Linting an
-      # unbuilt workspace would pass for the wrong reason.
+      # Formatting before anything that reads the files, because a failure here
+      # is mechanical and its fix touches nothing else. It is also the step most
+      # likely to disagree across platforms if line endings ever drift —
+      # .gitattributes pins `eol=lf`, and this is what would notice.
+      - run: pnpm format:check
+
+      # Typecheck first among the semantic steps, and not only because it is
+      # fast. `tsc -b` emits each package's dist, and the boundary rules classify
+      # an import by its resolved path — which runs through those built entry
+      # points. Linting an unbuilt workspace would pass for the wrong reason.
       - run: pnpm typecheck
 
+      # `--max-warnings 0` lives in package.json's `lint:es`, not on this line,
+      # so that `pnpm lint` means the same thing here and on a developer's
+      # machine. A warning that only fails in CI is a warning nobody sees until
+      # it is someone else's problem.
       - run: pnpm lint
 
       - run: pnpm build
