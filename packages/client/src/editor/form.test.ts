@@ -7,6 +7,7 @@ import { newActor } from '@storyengine/shared';
 
 import { diffObjects } from '../diff.js';
 import {
+  actorFormShape,
   applyForm,
   formChanges,
   formFromActor,
@@ -35,6 +36,32 @@ function actorWithUnknowns(): Record<string, unknown> {
   };
   return actor;
 }
+
+describe('actorFormShape — the guard before the cast', () => {
+  it('accepts a well-formed actor, unknown fields and all', () => {
+    expect(actorFormShape(actorWithUnknowns())).toBeNull();
+  });
+
+  it('names the problem for the shapes formFromActor would crash on', () => {
+    // The product invites hand edits; each of these is one keystroke away in
+    // a text editor, and each was a white screen before the guard.
+    const missingProfile = actorWithUnknowns();
+    delete missingProfile['profile'];
+    expect(actorFormShape(missingProfile)).toContain('profile');
+
+    const badAliases = actorWithUnknowns();
+    badAliases['aliases'] = 'not a list';
+    expect(actorFormShape(badAliases)).toContain('aliases');
+
+    const badSection = actorWithUnknowns();
+    (badSection['profile'] as { sections: unknown[] }).sections = [{ title: 'no id' }];
+    expect(actorFormShape(badSection)).toContain('section');
+
+    const badName = actorWithUnknowns();
+    badName['name'] = 7;
+    expect(actorFormShape(badName)).toContain('name');
+  });
+});
 
 describe('the form round trip', () => {
   it('preserves fields this build does not know', () => {

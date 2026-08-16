@@ -132,9 +132,14 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'accounts.json');
   }
 
+  /** The index's directory — what the watcher must never watch. */
+  get indexRoot(): string {
+    return resolveWithin(this.dataRoot, 'index');
+  }
+
   /** Derived and disposable. Deleting it must be a non-event ([18 §5]). */
   get indexFile(): string {
-    return resolveWithin(this.dataRoot, 'index', 'index.sqlite');
+    return resolveWithin(this.indexRoot, 'index.sqlite');
   }
 
   /**
@@ -204,6 +209,20 @@ export class Layout {
   /** Deleted objects awaiting the retention window ([02 §10.2]). */
   trashRoot(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'trash');
+  }
+
+  /**
+   * Where a deleted object's folder lands — deletion is a move, not an
+   * erasure ([02 §10.2]). The suffix keeps delete-recreate-delete from
+   * colliding; retention and restore are P11's.
+   */
+  trashDestination(
+    handle: string,
+    schemaId: PortableSchemaId,
+    slug: string,
+    suffix: string,
+  ): string {
+    return resolveWithin(this.trashRoot(handle), LIBRARY_DIRECTORIES[schemaId], `${slug}-${suffix}`);
   }
 
   libraryRoot(scope: LibraryScope): string {

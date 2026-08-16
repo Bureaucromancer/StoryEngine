@@ -45,7 +45,43 @@ export function joinLines(values: string[]): string {
   return values.join('\n');
 }
 
-/** The form as loaded from an actor. */
+/**
+ * Why this object cannot back the actor form, in one sentence — or null when
+ * it can.
+ *
+ * Checks exactly what `formFromActor` and `applyForm` dereference, no more:
+ * this is a crash guard, not schema validation (the server owns that, and
+ * pulling the shared Ajv validator into the bundle for it would be paying for
+ * the wrong tool). It exists because the product *invites* the input that
+ * breaks the cast below — a hand-edited card is the storage thesis working —
+ * and a white screen on the invited input is the one answer the editor may
+ * not give.
+ */
+export function actorFormShape(object: Record<string, unknown>): string | null {
+  // Read through `unknown`, never through `Actor` — the whole premise here is
+  // that the file may not be what the type says it is.
+  if (typeof object['name'] !== 'string') return 'its "name" is not a string';
+  const pronouns: unknown = object['pronouns'];
+  if (pronouns !== null && pronouns !== undefined && typeof pronouns !== 'string')
+    return 'its "pronouns" is neither a string nor null';
+  if (!Array.isArray(object['aliases'])) return 'its "aliases" is not a list';
+  if (!Array.isArray(object['tags'])) return 'its "tags" is not a list';
+  const profile: unknown = object['profile'];
+  if (typeof profile !== 'object' || profile === null) return 'it has no "profile" object';
+  const shaped = profile as Record<string, unknown>;
+  if (!Array.isArray(shaped['traits'])) return 'its "profile.traits" is not a list';
+  if (!Array.isArray(shaped['sections'])) return 'its "profile.sections" is not a list';
+  for (const section of shaped['sections'] as unknown[]) {
+    if (typeof section !== 'object' || section === null) return 'a profile section is not an object';
+    const fields = section as Record<string, unknown>;
+    if (typeof fields['id'] !== 'string') return 'a profile section has no "id" string';
+    if (typeof fields['title'] !== 'string') return 'a profile section has no "title" string';
+    if (typeof fields['body'] !== 'string') return 'a profile section has no "body" string';
+  }
+  return null;
+}
+
+/** The form as loaded from an actor. `actorFormShape` must have passed first. */
 export function formFromActor(object: Record<string, unknown>): ActorForm {
   const actor = object as unknown as Actor;
   return {

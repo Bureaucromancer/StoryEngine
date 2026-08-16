@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
@@ -112,6 +112,38 @@ describe('a hand edit on disk reflects without a restart', () => {
     await rm(dirname(path), { recursive: true });
 
     await eventually(() => listObjects(library.db, { scopes: [library.scope] }).length === 0);
+  });
+});
+
+describe("the watcher never watches the engine's own state", () => {
+  it('produces no events for the index, the state store, accounts or config', async () => {
+    // The pre-closeout predicate compared mixed path separators and never
+    // matched on Windows — the development platform — so every SQLite write
+    // fed the event queue (doc 20 Appendix A, F4). Ignored means *no event at
+    // all*, so a real object write is the fence that proves the junk writes
+    // had their chance to surface.
+    await mkdir(library.layout.indexRoot, { recursive: true });
+    await mkdir(library.layout.stateRoot, { recursive: true });
+    await writeFile(join(library.layout.indexRoot, 'index.sqlite-wal'), 'not for the watcher');
+    await writeFile(join(library.layout.stateRoot, 'state.sqlite'), 'not for the watcher');
+    await writeFile(library.layout.accountsFile, '{"accounts": []}');
+    await writeFile(library.layout.configFile, '{}');
+
+    const fence = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city');
+    await mkdir(dirname(fence), { recursive: true });
+    await writeFile(fence, JSON.stringify(newLorebook('Rain City')));
+    await seenBy(fence);
+
+    const engineOwned = [
+      library.layout.indexRoot,
+      library.layout.stateRoot,
+      library.layout.accountsFile,
+      library.layout.configFile,
+    ];
+    const leaked = events.filter((event) =>
+      engineOwned.some((root) => event.path.startsWith(root)),
+    );
+    expect(leaked).toEqual([]);
   });
 });
 

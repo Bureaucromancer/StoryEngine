@@ -9,6 +9,7 @@ import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { statFile } from '../storage/files.js';
 import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
+import { isContained } from '../storage/paths.js';
 import { ingestFile, matureTombstones, removeFile } from './ingest.js';
 import { findByPath } from './query.js';
 
@@ -94,7 +95,19 @@ export class LibraryWatcher {
         stabilityThreshold: this.#stabilityThresholdMs,
         pollInterval: 20,
       },
-      ignored: (path) => path.includes(`${this.#layout.dataRoot}/index`),
+      // What the watcher must never watch: its own index (whose SQLite/WAL
+      // writes would otherwise feed the event queue on every ingest), the
+      // operational store, and the two root files that are not content —
+      // accounts and config should not even be stat'ed on someone's behalf.
+      // `isContained` rather than string matching: the previous predicate
+      // compared mixed separators and never matched on Windows, which is the
+      // development platform. It matches the root itself, so it covers single
+      // files as well as directories.
+      ignored: (path) =>
+        isContained(this.#layout.indexRoot, path) ||
+        isContained(this.#layout.stateRoot, path) ||
+        isContained(this.#layout.accountsFile, path) ||
+        isContained(this.#layout.configFile, path),
     });
 
     watcher.on('add', (path) => {

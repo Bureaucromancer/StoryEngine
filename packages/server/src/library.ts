@@ -11,6 +11,7 @@ import {
   isKnownSchema,
   type PortableSchemaId,
   schemaIdOf,
+  uuidv7,
   validate,
 } from '@storyengine/shared';
 
@@ -18,7 +19,8 @@ import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
 import { findById, type IndexedObject, listObjects } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
-import { readFileBytes, removeTree } from './storage/files.js';
+import { moveTree, readFileBytes } from './storage/files.js';
+import { KeyedQueue } from './storage/keyed-queue.js';
 import {
   listVersions,
   patchVersion,
@@ -77,7 +79,21 @@ export interface LibraryContext {
   layout: Layout;
   /** Retention cap for version history, from `history.keepPerObject` ([02 §11.3]). */
   keepHistoryPerObject: number;
+  /** Test seam: a failing writer proves the write→snapshot ordering. */
+  write?: typeof writeAtomic;
 }
+
+/**
+ * Serialises the check-then-write sequences. The stale-hash comparison, the
+ * no-op decision, slug allocation and the snapshot all read state that the
+ * write then changes; without a critical section, two writers racing through
+ * the same `await` points both pass the check and the loser is silently
+ * overwritten — the exact failure the hash exists to refuse. Keyed by object
+ * id (updates, deletes) or kind directory (creates), so unrelated objects
+ * never wait on each other. Deliberately separate from the watcher's event
+ * chain — see `keyed-queue.ts` for why sharing it would be wrong.
+ */
+const writes = new KeyedQueue();
 
 export interface StoredObject {
   object: unknown;
@@ -145,12 +161,19 @@ async function encodeObject(
   schemaId: PortableSchemaId,
   slug: string,
   object: unknown,
+  /**
+   * The file's current bytes, when the caller has already read (and verified)
+   * them. `update()` must pass these: reading the file again here would open a
+   * window between its hash check and this read, which is the hole the check
+   * exists to close. `null` means verified-absent; omitted means "read it".
+   */
+  existingBytes?: Uint8Array | null,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(scope, schemaId, slug);
 
   let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
-    const existing = await readFileBytes(path);
+    const existing = existingBytes !== undefined ? existingBytes : await readFileBytes(path);
     const canvas = existing ?? blankCardPixels();
     const contents = existing ? pngCardCodec.read(existing) : null;
     bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
@@ -221,31 +244,41 @@ export async function create(
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
   const scope = userScope(handle);
-  const id = (object as { id: string }).id;
+  const kindRoot = context.layout.kindRoot(scope, schemaId);
 
-  if (findById(context.db, id)) {
-    throw new LibraryError('conflict', `An object with id ${id} already exists.`);
-  }
+  // The whole body runs on the kind's queue: slug resolution reads the
+  // directory and the write then claims the name, so two concurrent creates
+  // of "Vera" must take turns or they both resolve `vera` and one silently
+  // overwrites the other. The id-conflict check sits inside for the same
+  // reason — the first create's synchronous ingest is what the second one's
+  // check needs to see.
+  return writes.run(`kind:${kindRoot}`, async () => {
+    const id = (object as { id: string }).id;
 
-  // The slug is derived here, once, and then frozen ([19 §1.1]). Nothing ever
-  // resolves by it.
-  const name =
-    typeof (object as { name?: unknown }).name === 'string'
-      ? (object as { name: string }).name
-      : 'untitled';
-  const slug = await resolveFreeSlug(context.layout.kindRoot(scope, schemaId), name);
+    if (findById(context.db, id)) {
+      throw new LibraryError('conflict', `An object with id ${id} already exists.`);
+    }
 
-  const { path, bytes, contentHash } = await encodeObject(
-    context.layout,
-    scope,
-    schemaId,
-    slug,
-    object,
-  );
-  await writeAtomic(path, bytes);
-  await ingestFile(context.db, context.layout, path);
+    // The slug is derived here, once, and then frozen ([19 §1.1]). Nothing ever
+    // resolves by it.
+    const name =
+      typeof (object as { name?: unknown }).name === 'string'
+        ? (object as { name: string }).name
+        : 'untitled';
+    const slug = await resolveFreeSlug(kindRoot, name);
 
-  return { object, contentHash, path, slug, scope, shadowed: false };
+    const { path, bytes, contentHash } = await encodeObject(
+      context.layout,
+      scope,
+      schemaId,
+      slug,
+      object,
+    );
+    await (context.write ?? writeAtomic)(path, bytes);
+    await ingestFile(context.db, context.layout, path);
+
+    return { object, contentHash, path, slug, scope, shadowed: false };
+  });
 }
 
 /**
@@ -256,9 +289,27 @@ export async function create(
 export interface ChangeAttribution {
   source: VersionSource;
   reason: string;
+  /**
+   * Whether the server stamps `provenance.updatedAt` on a real change.
+   * Defaults on: `authoredAt` correctness must not depend on the client
+   * remembering to stamp ([18 §1.6]). Restore turns it off — restoring is not
+   * authoring, and stamping would change the restored bytes and so break
+   * "restoring the state you are on is a no-op".
+   */
+  stamp?: boolean;
 }
 
 const MANUAL: ChangeAttribution = { source: { kind: 'manual' }, reason: '' };
+
+/** A copy with `provenance.updatedAt` set to now. Validation has already run. */
+function stampProvenance(object: unknown): unknown {
+  const clone = structuredClone(object) as Record<string, unknown>;
+  const provenance = clone['provenance'];
+  if (typeof provenance === 'object' && provenance !== null) {
+    (provenance as Record<string, unknown>)['updatedAt'] = new Date().toISOString();
+  }
+  return clone;
+}
 
 /**
  * Replaces an object, checking the caller's hash first.
@@ -278,63 +329,99 @@ export async function update(
   change: ChangeAttribution = MANUAL,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
-  const current = read(context, handle, id);
 
-  if (current.scope === 'system') {
-    // App-shipped and read-only; an update would be overwritten by the next
-    // release anyway ([05 §4.2]). Copy-to-my-library is the intended move.
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
-  if (current.schemaId !== schemaId) {
-    throw new LibraryError('invalid', 'An object cannot change kind.');
-  }
-  if ((object as { id: string }).id !== id) {
-    throw new LibraryError('invalid', 'An object cannot change its id.');
-  }
-  if (current.contentHash !== expectedHash) {
-    throw new LibraryError('stale', 'The object has changed since it was read.', current);
-  }
+  // Everything from the hash check to the write runs on the object's queue —
+  // a second writer through the same server waits its turn and then fails the
+  // check honestly, instead of racing through the awaits and winning silently.
+  return writes.run(`obj:${id}`, async () => {
+    const current = read(context, handle, id);
 
-  const scope = userScope(handle);
-  const { path, bytes, contentHash } = await encodeObject(
-    context.layout,
-    scope,
-    schemaId,
-    current.slug,
-    object,
-  );
+    if (current.scope === 'system') {
+      // App-shipped and read-only; an update would be overwritten by the next
+      // release anyway ([05 §4.2]). Copy-to-my-library is the intended move.
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
+    if (current.schemaId !== schemaId) {
+      throw new LibraryError('invalid', 'An object cannot change kind.');
+    }
+    if ((object as { id: string }).id !== id) {
+      throw new LibraryError('invalid', 'An object cannot change its id.');
+    }
+    if (current.contentHash !== expectedHash) {
+      throw new LibraryError('stale', 'The object has changed since it was read.', current);
+    }
 
-  // **The no-op rule** ([02 §11.1]). A write that changes nothing produces no
-  // write and no version — without this, every round-trip through an editor
-  // adds an identical history entry, and a restore to the current state
-  // duplicates it. Byte equality, via the hash, is the honest comparison: it is
-  // exactly what the next read would see.
-  if (contentHash === current.contentHash) {
+    // The index lags a foreign edit by the watcher's settle window, so the row
+    // alone cannot vouch for the file. Read the bytes once, verify they still
+    // hash to what the caller saw, and thread them through the encode below —
+    // a hand edit made moments ago is refused here instead of eaten.
+    const existingBytes = await readFileBytes(current.path);
+    if (existingBytes === null || contentHashOf(existingBytes) !== current.contentHash) {
+      // Vanished-underneath lands here too: stale rather than not-found, so
+      // the caller keeps the 412 recovery path instead of a dead end.
+      throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    }
+
+    const scope = userScope(handle);
+    const asSent = await encodeObject(
+      context.layout,
+      scope,
+      schemaId,
+      current.slug,
+      object,
+      existingBytes,
+    );
+
+    // **The no-op rule** ([02 §11.1]). A write that changes nothing produces no
+    // write and no version — without this, every round-trip through an editor
+    // adds an identical history entry, and a restore to the current state
+    // duplicates it. Byte equality, via the hash, is the honest comparison: it
+    // is exactly what the next read would see. Decided on the object *as
+    // sent*, before any stamping — otherwise the stamp itself would make every
+    // save a change.
+    if (asSent.contentHash === current.contentHash) {
+      return {
+        object: current.body,
+        contentHash: asSent.contentHash,
+        path: asSent.path,
+        slug: current.slug,
+        scope,
+        shadowed: current.shadowed,
+      };
+    }
+
+    const stamp = change.stamp !== false;
+    const stamped = stamp ? stampProvenance(object) : object;
+    const { path, bytes, contentHash } = stamp
+      ? await encodeObject(context.layout, scope, schemaId, current.slug, stamped, existingBytes)
+      : asSent;
+
+    // Write, then snapshot the replaced state (held in memory), then index.
+    // The write first: snapshotting first left a phantom history entry when
+    // the write failed. Snapshot before the index update: the replacement
+    // happened at the rename, and the index is rebuildable — an ingest failure
+    // must not cost the history entry for a write that is already on disk.
+    await (context.write ?? writeAtomic)(path, bytes);
+
+    await snapshotReplaced({
+      objectRoot: context.layout.objectRoot(scope, schemaId, current.slug),
+      payload: current.body,
+      source: change.source,
+      reason: change.reason,
+      keepPerObject: context.keepHistoryPerObject,
+    });
+
+    await ingestFile(context.db, context.layout, path);
+
     return {
-      object: current.body,
+      object: stamped,
       contentHash,
       path,
       slug: current.slug,
       scope,
       shadowed: current.shadowed,
     };
-  }
-
-  // Snapshot the state being replaced, *then* write. Automatic, not requested
-  // ([02 §11.1]) — the moment someone wants history is after the edit they
-  // regret.
-  await snapshotReplaced({
-    objectRoot: context.layout.objectRoot(scope, schemaId, current.slug),
-    payload: current.body,
-    source: change.source,
-    reason: change.reason,
-    keepPerObject: context.keepHistoryPerObject,
   });
-
-  await writeAtomic(path, bytes);
-  await ingestFile(context.db, context.layout, path);
-
-  return { object, contentHash, path, slug: current.slug, scope, shadowed: current.shadowed };
 }
 
 /**
@@ -370,9 +457,16 @@ export async function restoreVersion(
     throw new LibraryError('not-found', `The payload for version ${versionId} is missing.`);
   }
 
+  // No queue key taken here: `update` takes `obj:<id>` itself, and acquiring
+  // it twice on one call path is a self-deadlock. The reads above are safe
+  // unlocked (torn-tail-tolerant list, content-addressed payload); the hash
+  // check inside `update` is what carries correctness. `stamp: false` because
+  // restoring is not authoring — and because a stamp would change the restored
+  // bytes, so restoring the state you are on would stop being a no-op.
   return update(context, handle, id, payload, expectedHash, {
     source: { kind: 'restore', fromVersionId: versionId },
     reason: 'Saved before restoring an earlier version',
+    stamp: false,
   });
 }
 
@@ -468,7 +562,11 @@ export async function readCardPixels(
 }
 
 /**
- * Removes an object.
+ * Removes an object — by moving its folder, history and all, to the user's
+ * trash. Deletion is a move, not an erasure ([02 §10.2]): the retention sweep
+ * and a restore surface are P11's, but nothing should be unrecoverable in the
+ * meantime, least of all the history whose whole purpose is recovering from a
+ * regretted action.
  *
  * Also hash-checked: deleting something a second tab has since edited is the
  * same mistake as overwriting it, and rather more final.
@@ -479,20 +577,27 @@ export async function remove(
   id: string,
   expectedHash: string,
 ): Promise<void> {
-  const current = read(context, handle, id);
-  if (current.scope === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be deleted.');
-  }
-  if (current.contentHash !== expectedHash) {
-    throw new LibraryError('stale', 'The object has changed since it was read.', current);
-  }
+  return writes.run(`obj:${id}`, async () => {
+    const current = read(context, handle, id);
+    if (current.scope === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be deleted.');
+    }
+    if (current.contentHash !== expectedHash) {
+      throw new LibraryError('stale', 'The object has changed since it was read.', current);
+    }
 
-  await removeTree(
-    context.layout.objectRoot(
-      userScope(handle),
-      current.schemaId as PortableSchemaId,
-      current.slug,
-    ),
-  );
-  removeFile(context.db, current.path);
+    // Same disk verification as `update`: the index cannot vouch for a file a
+    // hand edit touched moments ago, and a delete is the last place to guess.
+    const onDisk = await readFileBytes(current.path);
+    if (onDisk === null || contentHashOf(onDisk) !== current.contentHash) {
+      throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    }
+
+    const schemaId = current.schemaId as PortableSchemaId;
+    await moveTree(
+      context.layout.objectRoot(userScope(handle), schemaId, current.slug),
+      context.layout.trashDestination(handle, schemaId, current.slug, uuidv7()),
+    );
+    removeFile(context.db, current.path);
+  });
 }

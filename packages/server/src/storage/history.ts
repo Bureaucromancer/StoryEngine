@@ -9,6 +9,7 @@ import { uuidv7 } from '@storyengine/shared';
 
 import { writeAtomic } from './atomic.js';
 import { fileExists, listEntryNames, readFileBytes, removeTree } from './files.js';
+import { KeyedQueue } from './keyed-queue.js';
 import { resolveWithin } from './paths.js';
 
 /**
@@ -71,6 +72,17 @@ export interface VersionRecord {
 }
 
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * Serialises the mutators per object root. Two producers write history
+ * concurrently — the API write path (`library.ts`) and the watcher's
+ * external-edit snapshots — and the index file mixes an append
+ * (`recordVersion`) with whole-file rewrites (`patchVersion`,
+ * `pruneVersions`): an append landing between a rewrite's read and its write
+ * would be silently discarded. Reads (`listVersions`) stay unlocked; the
+ * torn-tail tolerance already covers reading mid-append.
+ */
+const mutations = new KeyedQueue();
 
 function indexFile(objectRoot: string): string {
   return resolveWithin(objectRoot, 'history', 'index.jsonl');
@@ -151,6 +163,15 @@ export async function recordVersion(
   source: VersionSource,
   reason: string,
 ): Promise<VersionRecord | null> {
+  return mutations.run(objectRoot, () => recordVersionUnlocked(objectRoot, payload, source, reason));
+}
+
+async function recordVersionUnlocked(
+  objectRoot: string,
+  payload: unknown,
+  source: VersionSource,
+  reason: string,
+): Promise<VersionRecord | null> {
   const bytes = encodePayload(payload);
   const digest = digestOf(bytes);
 
@@ -197,6 +218,14 @@ export async function patchVersion(
   versionId: string,
   patch: { reason?: string; pinned?: boolean },
 ): Promise<VersionRecord | null> {
+  return mutations.run(objectRoot, () => patchVersionUnlocked(objectRoot, versionId, patch));
+}
+
+async function patchVersionUnlocked(
+  objectRoot: string,
+  versionId: string,
+  patch: { reason?: string; pinned?: boolean },
+): Promise<VersionRecord | null> {
   const records = await listVersions(objectRoot);
   const target = records.find((record) => record.id === versionId);
   if (!target) return null;
@@ -215,6 +244,10 @@ export async function patchVersion(
  * bookkeeping and not deletion of content.
  */
 export async function pruneVersions(objectRoot: string, keepPerObject: number): Promise<number> {
+  return mutations.run(objectRoot, () => pruneVersionsUnlocked(objectRoot, keepPerObject));
+}
+
+async function pruneVersionsUnlocked(objectRoot: string, keepPerObject: number): Promise<number> {
   const records = await listVersions(objectRoot);
   let excess = records.length - keepPerObject;
   if (excess <= 0) return 0;
@@ -254,6 +287,10 @@ async function rewriteIndex(objectRoot: string, records: VersionRecord[]): Promi
  * The one call the write paths make: record the replaced state, then hold the
  * history to its cap. Skips (returns null) when the newest entry already holds
  * this state.
+ *
+ * One critical section spanning both halves — record-then-prune through the
+ * separately-locked publics would let a concurrent `patchVersion` slip in
+ * between them and be pruned away.
  */
 export async function snapshotReplaced(input: {
   objectRoot: string;
@@ -262,7 +299,14 @@ export async function snapshotReplaced(input: {
   reason: string;
   keepPerObject: number;
 }): Promise<VersionRecord | null> {
-  const record = await recordVersion(input.objectRoot, input.payload, input.source, input.reason);
-  if (record) await pruneVersions(input.objectRoot, input.keepPerObject);
-  return record;
+  return mutations.run(input.objectRoot, async () => {
+    const record = await recordVersionUnlocked(
+      input.objectRoot,
+      input.payload,
+      input.source,
+      input.reason,
+    );
+    if (record) await pruneVersionsUnlocked(input.objectRoot, input.keepPerObject);
+    return record;
+  });
 }

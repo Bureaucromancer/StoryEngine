@@ -152,7 +152,17 @@ export class Accounts {
       return this.#cache;
     }
 
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      // A truncated or hand-mangled file is the same refusal as a mis-shaped
+      // one — but a raw SyntaxError names neither the file nor the decision.
+      throw new AccountError(
+        'invalid',
+        `${this.#layout.accountsFile} is not valid JSON. Refusing to start rather than guess.`,
+      );
+    }
     const validate = createValidator().compile(AccountsFile);
     if (!validate(parsed)) {
       // Refusing to start is the right failure here. Every other store in this

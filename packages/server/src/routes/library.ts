@@ -111,8 +111,12 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const schemaId = schemaFor(request.params as { kind: string }, reply);
     if (!schemaId) return;
 
-    const body = request.body as { object?: unknown };
-    const object = body.object ?? body;
+    const object = objectFromBody(request.body);
+    if (object === null) {
+      return reply
+        .code(400)
+        .send({ error: 'invalid', message: 'The request body is not an object.' });
+    }
     if (!isKnownSchema(String((object as { schema?: unknown }).schema))) {
       return reply.code(400).send({ error: 'invalid', message: 'Unrecognised object schema.' });
     }
@@ -161,8 +165,12 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       });
     }
 
-    const body = request.body as { object?: unknown };
-    const object = body.object ?? body;
+    const object = objectFromBody(request.body);
+    if (object === null) {
+      return reply
+        .code(400)
+        .send({ error: 'invalid', message: 'The request body is not an object.' });
+    }
 
     try {
       const stored = await update(
@@ -389,6 +397,20 @@ function schemaFor(params: { kind: string }, reply: FastifyReply): PortableSchem
     return null;
   }
   return schemaId;
+}
+
+/**
+ * The object out of a request body — `{object: …}` or the object bare — or
+ * null when the body is not an object at all. `JSON.parse('null')` is a valid
+ * body as far as Fastify is concerned, and dereferencing it was a 500; a
+ * malformed request deserves a 400 that says so. (Full body schemas are the
+ * P2.0 validation item; this is only the guard.)
+ */
+function objectFromBody(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null) return null;
+  const inner: unknown = (body as { object?: unknown }).object;
+  const object: unknown = inner ?? body;
+  return typeof object === 'object' && object !== null ? object : null;
 }
 
 /**

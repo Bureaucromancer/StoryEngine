@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import type { JSX } from 'react';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
 import { ActorEditorPage } from './editor/ActorEditorPage.js';
@@ -50,7 +51,35 @@ const actorEditorRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([libraryRoute, objectRoute, actorEditorRoute]);
 
-export const router = createRouter({ routeTree });
+/**
+ * The last line of defence for a render throw — without it a bad object is a
+ * white screen, in an app whose storage design *invites* hand-edited input.
+ * The router's own boundary rather than a hand-rolled class component: it
+ * renders inside the Shell's outlet (header and navigation stay usable) and it
+ * resets on navigation, which a hand-rolled boundary forgets to.
+ */
+function RouteErrorCard(props: { error: unknown }): JSX.Element {
+  const message = props.error instanceof Error ? props.error.message : String(props.error);
+  return (
+    <div
+      role="alert"
+      className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900"
+    >
+      <p className="mb-2 font-medium">This page could not be rendered.</p>
+      <p className="mb-2">{message}</p>
+      <p>
+        <a href="/" className="underline">
+          Back to the library
+        </a>
+      </p>
+    </div>
+  );
+}
+
+export const router = createRouter({
+  routeTree,
+  defaultErrorComponent: RouteErrorCard,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

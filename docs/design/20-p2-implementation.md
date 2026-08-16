@@ -178,19 +178,19 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | # | Finding | Disposition | Where |
 |---|---|---|---|
 | F1 | Symlink resolver has no production callers | **P2.0** | Wire `resolveWithinReal` into the real read/write path; the corpus already exists |
-| F2 | No body validation; `:kind` decorative | **P2.0** | Named P1.5 deliverable; the pattern must exist before session/turn routes multiply it |
-| F3 | Stale-hash TOCTOU | **P2.0** | Compare-and-write in one serialized critical section per object (shares F5's utility); P2.3 clones this pattern for sessions — fix before clone |
-| F4 | Watcher `ignored` broken on Windows | **P2.0** (trivial) | One-line fix + a test that runs on the F17 Windows job |
-| F5 | History append/rewrite race; phantom version | **P2.0** | Per-file write queue; snapshot committed only on successful write. The utility P2.3's turn segments reuse |
-| F6 | `authoredAt` correct only via the React editor | **P2.0** | Stamp `provenance.updatedAt` server-side on write (§2.3); wrong records never heal, and P4 is the consumer |
-| F7 | DELETE destroys history; trash unimplemented | **Split** | P2.0: stop deleting `history/`, add DELETE tests. Trash proper: defer, **home P11** |
+| F2 | No body validation; `:kind` decorative | **P2.0** | Named P1.5 deliverable; the pattern must exist before session/turn routes multiply it. *The null-body 500 was guard-fixed at P1 closeout; the schemas remain.* |
+| F3 | Stale-hash TOCTOU | **Fixed at P1 closeout** | Per-object write queue (`KeyedQueue`) + a disk re-hash inside the critical section, with the verified bytes threaded into the encode. P2.3 clones the *fixed* pattern |
+| F4 | Watcher `ignored` broken on Windows | **Fixed at P1 closeout** | `isContained` over index/state/accounts/config, with a watcher test. The F17 Windows CI job still lands at P2.0 |
+| F5 | History append/rewrite race; phantom version | **Fixed at P1 closeout** | History mutators serialised per object root; `snapshotReplaced` one critical section; write→snapshot→ingest reorder. The queue is the utility P2.3's turn segments reuse |
+| F6 | `authoredAt` correct only via the React editor | **Fixed at P1 closeout** | `provenance.updatedAt` stamped server-side on real changes (§2.3); restore exempt; create exempt (imports keep original authorship) |
+| F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11** |
 | F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** |
 | F9 | Tombstone maturation watcher-only; ingest not transactional | **Fix-when-touched** | P2.3 extends ingest for sessions/turns anyway: transactional after I/O, maturation on startup + timer |
-| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | P2.0 sweep: docstring/`accountFile`/setup token/slug race (covered by F3/F5 serialization). FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
-| F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full |
-| F12 | False conflict on the user's own save | **P2.0** | Cache invalidation on save/restore; the conflict dialog must be trustworthy before sessions reuse it |
-| F13 | Unchecked cast + no error boundary | **P2.0** | Validate-on-read fallback card + app-shell boundary; the invited input must not white-screen |
-| F14 | Silent save-as-copy / bodyless 412 | **P2.0** sweep | Same files as F12; do together |
+| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout.* P2.0 sweep: docstring/`accountFile`/setup token. FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
+| F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
+| F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
+| F13 | Unchecked cast + no error boundary | **Fixed at P1 closeout** | `actorFormShape` guard before every cast + the router's `defaultErrorComponent` |
+| F14 | Silent save-as-copy / bodyless 412 | **Fixed at P1 closeout** | Copy errors render in the dialog; the banner filter excludes only dialog-owned 412s |
 | F15 | Two missing day-one lint rules | **P2.0** | Write both, fix the four violations in the same commit; day-one rules get more expensive per day |
 | F16 | Component tests silently impossible | **P2.0** | Config + DOM env + one smoke component test proving the pipe, before P2.6 ships the first complex surface |
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
@@ -379,32 +379,31 @@ the record types and their tests exist before anything produces records.
 
 Every item cites a finding; the clusters are the work plan.
 
-- **Write-path serialization** (F3, F5, F6, F10-slug): one per-object write
-  queue in `storage/`; stale-hash compare-and-write becomes a single critical
-  section (and re-hashes the file on disk, closing the unprocessed-foreign-edit
-  hole); history append/rewrite goes through the same queue with the snapshot
-  committed only on successful write; `provenance.updatedAt` stamped
-  server-side (§2.3); slug allocation serialized.
+**The P1 closeout already absorbed the live-bug half of this stage** — the
+write-path serialization cluster (F3, F5, F6, F10-slug: the `KeyedQueue`, the
+disk re-hash, the write→snapshot reorder, server-side stamping,
+delete-to-trash) and the client-trust cluster (F12, F13, F14), each with its
+regression tests. What remains here is the hardening-and-debt half:
+
 - **Resolver and routes** (F1, F2): `resolveWithinReal` wired into the real
   read/write path; body schemas on every object route via the shared JSON
   Schemas; `:kind` checked against the object's own `schema` field (mismatch
   is a 400, not a silent lie).
 - **Logging** (F8): Fastify logger on, structured per `log.format`,
   `log.level` live-reloadable — the first real live-tier consumer.
-- **Client trust** (F12, F13, F14): editor cache invalidated on save and
-  restore; validate-on-read with a fallback error card plus an app-shell error
-  boundary; save-as-copy and bodyless-412 failures surfaced.
-- **Test, CI and lint sweep** (F4, F11, F15, F16, F17, F18-subset): watcher
-  `ignored` fixed with a Windows-exercised test; the P1 gate completed —
-  manual-vs-external asserted in one history, the rebuild property test
-  (randomised write/edit/rename/delete/copy sequences), the
-  login-after-index-delete half, DELETE coverage including
-  history-preservation (F7's first half); the two missing day-one lint rules
-  written and their four violations fixed; `.test.tsx` + DOM environment + one
-  smoke component test; Windows CI job, `format:check`, `--max-warnings 0`,
-  the rebuild gate as a named step; Package factory and fixture, denylist over
-  the emitted JSON, `$id`-matching filenames, fresh-clone `pnpm dev`, the
-  conflict dialog's focus trap, and a step-17-via-API test.
+- **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset): the P1 gate
+  completed — manual-vs-external asserted in one history, the rebuild
+  property test (randomised write/edit/rename/delete/copy sequences), the
+  login-after-index-delete half; the two missing day-one lint rules written
+  and their four violations fixed; `.test.tsx` + DOM environment + one smoke
+  component test; Windows CI job (which is what would have caught F4),
+  `format:check`, `--max-warnings 0`, the rebuild gate as a named step;
+  Package factory and fixture, denylist over the emitted JSON, `$id`-matching
+  filenames, fresh-clone `pnpm dev`, the conflict dialog's focus trap, and a
+  step-17-via-API test.
+- **Trap removal** (F10 remainder): the dead `Accounts.invalidate()` docstring
+  honesty, `layout.accountFile()` deleted, the setup token enforced or
+  removed.
 
 *Ends at:* **[19 §3](19-p1-implementation.md), all nineteen steps, as green
 automated tests on both OSes.** The audit paid, in one legible unit.
@@ -578,24 +577,24 @@ stable part.
 | # | Where | Detail |
 |---|---|---|
 | F1 | `storage/paths.ts:270` | `resolveAssetPath` (the only caller of `resolveWithinReal`) has zero production callers; every live path uses lexical `resolveWithin`. The symlink corpus (incl. escape-via-nonexistent-target, root-is-a-link) tests dead code |
-| F2 | `routes/library.ts:111,144,168,354` | `:kind` resolved then never checked against the object; no body schemas on POST/PUT (params/history-PATCH only); `:114`/`:164` dereference the body unguarded → 500 on null; `respondToLibraryError` rethrows non-`LibraryError` (a `PathEscapeError` from a bad slug is a 500 + stack) |
-| F3 | `library.ts:294` | Hash compared against the index row, then `encodeObject`/`writeAtomic`/`ingestFile` with three awaits between check and write. Loses to a concurrent PUT and to a foreign edit younger than the 150 ms `awaitWriteFinish` window. Also: `If-Match: *` and weak etags treated as literal hashes; etag header emitted unquoted |
-| F4 | `index-db/watcher.ts:97` | `ignored: (path) => path.includes(`${dataRoot}/index`)` — mixed separators, never matches on win32; index SQLite/WAL/SHM watched on the dev platform. Nothing ignores `state/`, `accounts.json`, or per-object `history/` |
-| F5 | `storage/history.ts:185,207,234` | `recordVersion` appends while `patchVersion`/`pruneVersions` read-whole → rewrite-whole with no lock: a PATCH from a stale read clobbers an interleaved append. `library.ts:326` snapshots *before* the write, so a failed write leaves a phantom version |
-| F6 | `storage/history.ts:164` | `authoredAt` read from client-supplied `provenance.updatedAt`; the only stamping in the repo is `client/src/editor/ActorEditorPage.tsx:102`. Any other writer collapses `authoredAt` to `recordedAt` |
-| F7 | `library.ts:490` | `remove()` = `removeTree` of the object folder including `history/`; `trash.retentionDays` configured, `Layout.trashRoot()` exists, no trash implementation; zero DELETE tests |
+| F2 | `routes/library.ts:111,144,168,354` | `:kind` resolved then never checked against the object; no body schemas on POST/PUT (params/history-PATCH only); `:114`/`:164` dereference the body unguarded → 500 on null (**guard-fixed at P1 closeout**, `objectFromBody`); `respondToLibraryError` rethrows non-`LibraryError` (a `PathEscapeError` from a bad slug is a 500 + stack) |
+| F3 | `library.ts:294` | Hash compared against the index row, then `encodeObject`/`writeAtomic`/`ingestFile` with three awaits between check and write. Loses to a concurrent PUT and to a foreign edit younger than the 150 ms `awaitWriteFinish` window. Also: `If-Match: *` and weak etags treated as literal hashes; etag header emitted unquoted. **Race fixed at P1 closeout** (per-object queue + disk re-hash); the etag-syntax quirks stand |
+| F4 | `index-db/watcher.ts:97` | `ignored: (path) => path.includes(`${dataRoot}/index`)` — mixed separators, never matches on win32; index SQLite/WAL/SHM watched on the dev platform. Nothing ignores `state/`, `accounts.json`, or per-object `history/`. **Fixed at P1 closeout** (`isContained` over index/state/accounts/config; per-object `history/` still traverses to a harmless 'ignored') |
+| F5 | `storage/history.ts:185,207,234` | `recordVersion` appends while `patchVersion`/`pruneVersions` read-whole → rewrite-whole with no lock: a PATCH from a stale read clobbers an interleaved append. `library.ts:326` snapshots *before* the write, so a failed write leaves a phantom version. **Fixed at P1 closeout** (mutators serialised per object root; write→snapshot→ingest reorder) |
+| F6 | `storage/history.ts:164` | `authoredAt` read from client-supplied `provenance.updatedAt`; the only stamping in the repo is `client/src/editor/ActorEditorPage.tsx:102`. Any other writer collapses `authoredAt` to `recordedAt`. **Fixed at P1 closeout** (server stamps on real changes; restore and create exempt) |
+| F7 | `library.ts:490` | `remove()` = `removeTree` of the object folder including `history/`; `trash.retentionDays` configured, `Layout.trashRoot()` exists, no trash implementation; zero DELETE tests. **First half fixed at P1 closeout** (delete moves to trash via `moveTree`, tested); retention/restore stay P11 |
 | F8 | `app.ts:97`, `main.ts` | `logger: false`, raw `console.log`; `log.level`/`log.format` consumed by nothing; `pendingRestart()` (config.ts:161) has no callers outside its test; no `live` key is re-read live; `ReloadTier` declares an unused `'reconnect'`; `main.ts:33` mutates `dataDir` post-validation |
 | F9 | `index-db/ingest.ts`, `watcher.ts:150` | `matureTombstones` called only from the watcher — with `watch: false`, tombstones accumulate forever. `ingestFile`/`dropVanishedDuplicates` await mid-DB-mutation with no transaction; watcher and API ingests can interleave on the same `DatabaseSync` |
-| F10 | various | `Accounts.invalidate()` (accounts.ts:279) dead, docstring claims hand-edit pickup; `layout.accountFile()` (layout.ts:184) points at the per-user account-file anti-pattern 19 §1.3 overturned; setup token (main.ts:71) printed, stored nowhere, enforced nowhere; `secure=false` hardcoded (routes/auth.ts:44); CSRF checked only when `request.account` truthy (app.ts:132) and the setup-gate uses `startsWith` (app.ts:180); FTS5 `search()` (query.ts:144) has no route; `create()` slug resolution is read-then-write (library.ts:236); `accounts.ts:155` uncaught `JSON.parse`; Ajv validator recompiled per read (accounts.ts:156); five unvalidated `as PortableSchemaId` casts; stale module docstring (index.ts:7) |
-| F11 | test suite | Gate step 16 (manual vs external in one history) split across files, never asserted together; rebuild==incremental is three fixed examples (two driving ingest directly, not through the watcher), not the named property test; step 11's login-after-index-delete half untested; DELETE untested; no malformed-body tests; no concurrency tests |
+| F10 | various | `Accounts.invalidate()` (accounts.ts:279) dead, docstring claims hand-edit pickup; `layout.accountFile()` (layout.ts:184) points at the per-user account-file anti-pattern 19 §1.3 overturned; setup token (main.ts:71) printed, stored nowhere, enforced nowhere; `secure=false` hardcoded (routes/auth.ts:44); CSRF checked only when `request.account` truthy (app.ts:132) and the setup-gate uses `startsWith` (app.ts:180); FTS5 `search()` (query.ts:144) has no route; `create()` slug resolution is read-then-write (library.ts:236, **fixed at P1 closeout** — per-kind queue); `accounts.ts:155` uncaught `JSON.parse` (**fixed at P1 closeout**); Ajv validator recompiled per read (accounts.ts:156); five unvalidated `as PortableSchemaId` casts; stale module docstring (index.ts:7) |
+| F11 | test suite | Gate step 16 (manual vs external in one history) split across files, never asserted together; rebuild==incremental is three fixed examples (two driving ingest directly, not through the watcher), not the named property test; step 11's login-after-index-delete half untested; DELETE untested; no malformed-body tests; no concurrency tests. **DELETE and concurrency coverage landed at P1 closeout** (`routes/concurrency.test.ts`); step 16, the rebuild property and the login half remain |
 
 ### A.2 Shared, client, tooling
 
 | # | Where | Detail |
 |---|---|---|
-| F12 | `client/src/queries.ts:90-97,144,174` | `['editor', kind, id]` cached with `staleTime: Infinity`; save/restore invalidate only `['library']` → returning within `gcTime` loads the pre-save `contentHash` → spurious 412 dialog for the user's own change |
-| F13 | `client/src/editor/form.ts:49-63` | `object as unknown as Actor`, no runtime guard, reads `actor.profile.traits` etc.; no error boundary anywhere in the client → white screen on a malformed hand-edited actor |
-| F14 | `ActorEditorPage.tsx:150-158,118`, `api.ts:131` | `createCopy.mutate` has no `onError` and `isError` never rendered; a 412 whose body lacks `code:'stale'`+`current` opens no dialog, and the general banner filters all 412s → nothing shown |
+| F12 | `client/src/queries.ts:90-97,144,174` | `['editor', kind, id]` cached with `staleTime: Infinity`; save/restore invalidate only `['library']` → returning within `gcTime` loads the pre-save `contentHash` → spurious 412 dialog for the user's own change. **Fixed at P1 closeout** |
+| F13 | `client/src/editor/form.ts:49-63` | `object as unknown as Actor`, no runtime guard, reads `actor.profile.traits` etc.; no error boundary anywhere in the client → white screen on a malformed hand-edited actor. **Fixed at P1 closeout** (`actorFormShape` guard + router `defaultErrorComponent`) |
+| F14 | `ActorEditorPage.tsx:150-158,118`, `api.ts:131` | `createCopy.mutate` has no `onError` and `isError` never rendered; a 412 whose body lacks `code:'stale'`+`current` opens no dialog, and the general banner filters all 412s → nothing shown. **Fixed at P1 closeout** |
 | F15 | `eslint.config.js` / `eslint.rules.js` | Two of 16 §2's five day-one rules never written (bare user-facing strings; Intl-only). Violations they would catch: `api.ts:129` status-sentence, `HistoryPanel.tsx:140` `Revision {n}`, `:151` `v{authorVersion}`, `ActorEditorPage.tsx:149` `` `${name} (copy)` `` |
 | F16 | `vitest.config.ts:22-23` | Includes `.test.ts` only — not `.test.tsx` — while eslint and tsconfig include `.tsx` tests: the first component test would lint, typecheck, and never run. No jsdom/happy-dom/@testing-library anywhere; zero component tests exist |
 | F17 | `.github/workflows/ci.yml`, `package.json:22` | ubuntu-only (paths/watcher/layout tests never run on the dev platform); rebuild gate not a named step (a `test.skip` retires it silently); `format:check` defined, never run; `eslint .` without `--max-warnings 0` while `exhaustive-deps` is warn-level |

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 /**
  * The read side of the storage layer.
@@ -102,4 +103,19 @@ export async function ensureDirectory(path: string): Promise<void> {
  */
 export async function removeTree(path: string): Promise<void> {
   await rm(path, { recursive: true, force: true });
+}
+
+/**
+ * Moves a directory, creating the destination's parent.
+ *
+ * Deletion is a move ([02 §10.2](docs/design/02-data-model.md)): `remove()`
+ * sends object folders to the user's trash through this rather than erasing
+ * them, history and all. Both ends live under one data directory, so the
+ * rename is same-volume by construction; a cross-volume symlink or a handle
+ * held on the folder (a scanner, an open explorer window) surfaces as a loud
+ * error with the source intact — the right failure mode for a deletion path.
+ */
+export async function moveTree(from: string, to: string): Promise<void> {
+  await mkdir(dirname(to), { recursive: true });
+  await rename(from, to);
 }

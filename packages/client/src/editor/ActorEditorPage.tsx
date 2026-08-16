@@ -9,6 +9,7 @@ import { uuidv7 } from '@storyengine/shared';
 import { api, ApiError, type LibraryObject } from '../api.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
 import {
+  actorFormShape,
   applyForm,
   formChanges,
   formFromActor,
@@ -64,6 +65,32 @@ function EditorLoader(props: { id: string }): JSX.Element {
       <p role="alert" className="text-slate-700">
         System library objects are read-only. Copy it to your library to edit it.
       </p>
+    );
+  }
+  // The guard before the cast: a hand-edited card is the storage thesis
+  // working, and the one answer the editor may not give it is a white screen.
+  const problem = actorFormShape(base.data.object);
+  if (problem !== null) {
+    return (
+      <div
+        role="alert"
+        className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900"
+      >
+        <p className="mb-2 font-medium">This actor cannot be opened in the editor.</p>
+        <p className="mb-2">
+          The file on disk does not have the shape the form needs: {problem}. This usually means a
+          hand edit went wrong. The file itself is untouched — fix it on disk and it will load.
+        </p>
+        <p>
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'actors', id: props.id }}
+            className="underline"
+          >
+            Back to the actor
+          </Link>
+        </p>
+      </div>
     );
   }
   return <Editor initial={base.data} />;
@@ -131,6 +158,16 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
    */
   function reloadAndReapply(): void {
     if (conflict === null) return;
+    // The 412 body is parsed without validation, so guard before the cast —
+    // the same rule as the loader, for the same hand-edited input.
+    const problem = actorFormShape(conflict.object);
+    if (problem !== null) {
+      setConflict(null);
+      setNotice(
+        `The newer version could not be loaded into the form: ${problem}. Fix the file on disk, then reload this page.`,
+      );
+      return;
+    }
     const fresh = formFromActor(conflict.object);
     setForm(reapplyEdits(pristineForm, form, fresh));
     setPristineForm(fresh);
@@ -195,7 +232,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         </p>
       ) : null}
 
-      {save.isError && !(save.error instanceof ApiError && save.error.status === 412) ? (
+      {/* Every 412 used to be filtered here, on the assumption the dialog had
+          it — but the dialog only opens when the body carried `current`, so a
+          412 without one vanished entirely. Filter only what the dialog owns. */}
+      {save.isError &&
+      !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
         <p
           role="alert"
           className="mb-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
@@ -342,6 +383,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             setConflict(null);
           }}
           copyPending={createCopy.isPending}
+          copyError={createCopy.isError ? createCopy.error.message : null}
         />
       ) : null}
     </>
@@ -358,6 +400,8 @@ function ConflictDialog(props: {
   onSaveAsCopy: () => void;
   onCancel: () => void;
   copyPending: boolean;
+  /** Why the copy failed, if it did — the user's escape hatch must not fail silently. */
+  copyError: string | null;
 }): JSX.Element {
   return (
     <div
@@ -374,6 +418,14 @@ function ConflictDialog(props: {
           Something else wrote to this object since it was loaded — another tab, or a text editor
           working on the file. Saving now would overwrite that change, so it was refused.
         </p>
+        {props.copyError !== null ? (
+          <p
+            role="alert"
+            className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
+          >
+            {props.copyError}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-2">
           <button
             type="button"

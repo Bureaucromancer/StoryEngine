@@ -141,7 +141,15 @@ export function useSaveObject(): UseMutationResult<
   return useMutation({
     mutationFn: (input: SaveInput) =>
       api.updateObject(input.kind, input.id, input.object, input.contentHash),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
+    // The editor's base too — it sits outside the `['library']` prefix by
+    // design, so without this the cached entry kept its pre-save contentHash
+    // and the *next* visit to the editor raised the conflict dialog against
+    // the user's own change. Invalidate rather than remove: the query is
+    // active while the editor is open, and removing it would unmount the form.
+    onSuccess: (_result, input) => {
+      void client.invalidateQueries({ queryKey: ['library'] });
+      void client.invalidateQueries({ queryKey: ['editor', input.kind, input.id] });
+    },
   });
 }
 
@@ -171,7 +179,12 @@ export function useRestoreVersion(): UseMutationResult<
       versionId: string;
       contentHash: string;
     }) => api.restoreVersion(input.kind, input.id, input.versionId, input.contentHash),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
+    // Same pair as a save — a restore is an ordinary write ([02 §11.1]), and
+    // it moves the contentHash just the same.
+    onSuccess: (_result, input) => {
+      void client.invalidateQueries({ queryKey: ['library'] });
+      void client.invalidateQueries({ queryKey: ['editor', input.kind, input.id] });
+    },
   });
 }
 
