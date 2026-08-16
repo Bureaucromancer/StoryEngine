@@ -9,9 +9,16 @@ import { useLibrary } from '../queries.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
- * The library list — **one surface for all six kinds with a kind filter**, not
- * six pages ([05 §5](docs/design/05-ui-surfaces.md)). The filter lives in the
- * URL's search params, so a filtered view is a link like any other.
+ * The library list, as P1.6 built it: one surface for all six kinds with a kind
+ * filter, the filter living in the URL's search params so a filtered view is a
+ * link like any other.
+ *
+ * **The position this was built from has since been reversed.**
+ * [05 §5](docs/design/05-ui-surfaces.md) now calls for one panel per kind — the
+ * kinds are distinct by design and a merged table teaches otherwise — with the
+ * all-kinds view kept behind a preference. The routing and the shared list
+ * machinery here are what that is built out of; see
+ * [25 §4](docs/design/25-polish.md) for the change.
  */
 
 const routeApi = getRouteApi('/');

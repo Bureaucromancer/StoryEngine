@@ -61,7 +61,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | [10-branching.md](10-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
 | [14-cross-session-memory.md](14-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
-| [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, library and workbench, file access, editors |
+| [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and workbench, file access, editors |
 
 ### Implementation and process
 
@@ -85,6 +85,7 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | Doc | What it covers |
 |---|---|
 | [11-roadmap.md](11-roadmap.md) | Post-1.0 roadmap, plus desired extensions — hints for expansion authors |
+| [25-polish.md](25-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [06-open-questions.md](06-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
 
 **02 and 13 are a pair.** 02 carries the reasoning and the alternatives

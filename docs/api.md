@@ -163,8 +163,11 @@ Every read returns:
 
 ### `GET /api/library` and `GET /api/library/:kind`
 
-`{ "objects": [ …envelope ] }`, sorted by name. The first is every kind at once
-— the library is one surface with a kind filter, not six pages.
+`{ "objects": [ …envelope ] }`, sorted by name. The first is every kind at once.
+The kind is a path segment rather than a mode: one handler set answers both, and
+the unfiltered form exists because cross-kind queries — search, counts, an
+export sweep — are a real thing to want. It is not a claim about the UI, which
+browses per kind ([05 §5](design/05-ui-surfaces.md)).
 
 ### `POST /api/library/:kind`
 

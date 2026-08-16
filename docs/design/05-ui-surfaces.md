@@ -53,6 +53,90 @@ The one legitimate secondary interface is **direct file access to the data
 directory** — which is not a client at all, it's the storage design working as
 intended. See §4.
 
+### 1.1 Density, and the aesthetic position
+
+Stated because it is doing work in every other section and has never been
+written down, so it keeps getting re-derived — usually as its opposite, since
+the opposite is what most current design writing assumes.
+
+> **Application style to the tooling; clean prose first.**
+>
+> Or at length: a sophisticated, high-density interface for the surfaces where
+> work happens, and a quiet typographic one for the surfaces where the story is.
+
+On the tooling side, both words carry weight. **Modern**: current CSS, real
+typography, proper focus and keyboard handling, responsive down to a phone (§1),
+no skeuomorphic gradients, no 1994 business software. **Dense**: a lot of
+information on screen at once, laid out so it can be *read* rather than hunted
+for. The question this design asks of any borrowed pattern is *"how would that
+dense style be clarified and modernised"* — not *"how do modern phone apps do
+this"*.
+
+**Who this is for, since it is a real choice and not a neutral one.** The people
+who will run a server on their own LAN, hand-edit an object folder in a text
+editor and enjoy it — the crowd for whom a well-structured `.md` file is a thing
+of beauty. That audience is not incidental: the storage thesis
+([02 §5](02-data-model.md)) recruits it directly, and designing past it to chase
+a mass-market posture would cost the users this project actually has without
+winning the ones it does not.
+
+**What is being rejected on the tooling surfaces**, specifically, because it is
+the prevailing default and the default is wrong there:
+
+- **Whitespace as a substitute for hierarchy.** Space is one tool for showing
+  structure. Typography, weight, rule lines and alignment are others, and they
+  cost no room. A layout that can only express *these things are different* by
+  pushing them apart runs out of screen immediately.
+- **Progressive disclosure as a reflex.** Hiding a control behind a click makes
+  a screenshot calmer and the actual work slower. Disclosure has to be earned by
+  the thing being genuinely rare or genuinely dangerous — not by a designer's
+  discomfort at seeing eight things at once.
+- **Infinite layers of click-through.** Every layer is a place to get lost in
+  and a thing to hold in your head. Depth is a cost paid for by the user, and it
+  is charged per visit.
+
+**Which surfaces this governs, because it is not all of them.** The split is by
+what the user is doing at that moment, not by taste:
+
+| Dense — tooling | Quiet — story and arrival |
+|---|---|
+| Workbench (§3), library (§5), editors (§11), cast panel (§13.2), search (§14) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
+| Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
+
+**The reading view is the case that proves the rule**, and it is already written
+that way: §12 strips the machinery on purpose. Nothing here softens that. A dense
+workbench and a calm reading view are not a contradiction — they are the same
+design answering two different questions, and §2 says as much about the pair.
+
+**Where the two meet, tooling gives way.** The play surfaces carry controls, and
+the temptation is to treat them as tool surfaces because there is a lot the
+engine could show. They are not: what the engine understands belongs in §13's
+affordances and the workbench, on demand.
+
+**What this is not.** Not an excuse for clutter: density and noise are
+different, and the difference is entirely in whether the layout has a structure
+you can learn — which is a real cost in typographic discipline and consistent
+affordances, and dense done badly is worse than sparse done badly. Not a
+rejection of the phone (§1) — a dense desktop layout and a usable phone layout
+are the same design at two sizes, which is a real constraint and is meant to be.
+And not a rejection of defaults: sensible defaults are how someone survives a
+dense surface on day one.
+
+**Why this order, even if the end state is calmer than this.** Dense converts to
+sparse; sparse does not convert back. Adding space, splitting a panel or hiding
+a control behind a disclosure is mechanical work. Recovering an information
+architecture from a design that never needed one is a rewrite, because the
+question *"how do these forty things relate on one screen"* was never asked. So
+the dense layout is the one to build first regardless of where the argument
+below lands.
+
+**[OPEN]** Whether the tooling surfaces eventually need a **simple/advanced
+split**, or **a user-rearrangeable layout** so density is something a user dials.
+Carried as [06 E10](06-open-questions.md), where the caution that matters is
+recorded: **neither is a licence to skip designing the surface now.** Themes
+move look, not information architecture, and "the user can rearrange it later"
+is how a UI ends up never having been designed at all.
+
 ---
 
 ## 2. Three peer surfaces
@@ -60,7 +144,7 @@ intended. See §4.
 | Surface | What it is |
 |---|---|
 | **Play** | The modes' chat, scene and adventure views |
-| **Library** | Actors, lorebooks, settings, setups, presets, packages — browse, edit, organise, import, export |
+| **Library** | Actors, lorebooks, settings, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
 | **Workbench** | What the engine sent, why, what it cost, and what to change |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
@@ -73,6 +157,32 @@ the source projects that have workbench-ish features arrived at them as debug
 panels (Marinara's Injections tab is gated behind Debug mode; Aventuras'
 `retrievalSnapshot` is annotated "Diagnostic only — nothing reads it back"), and
 that origin shows.
+
+### 2.1 Home, and what arrival is for
+
+The three peers are where work happens. None of them answers the question a
+person actually arrives with, which is not *"find me a thing"* but **"what is
+this, and what was I doing?"**
+
+**Home is the arrival point, and it is not one of the peers.** It owns no
+editing, computes nothing of its own, and every element on it is a link into a
+surface that does the real work. What it holds, in order of how much it matters:
+
+1. **Resume.** The overwhelmingly common reason to open the app is to continue
+   something. Recent sessions, straight back into the reading surface.
+2. **Start.** The presented kinds (§5.1) as entry points, with Game emphasised,
+   because starting a Setup is what someone with nothing in progress is trying
+   to do.
+3. **Notice.** Shadowed objects, failed loads, anything the watcher flagged —
+   already visible per-object, and here made countable.
+4. **Recent work.** The bridge back into whatever was half-written yesterday.
+
+**The library does not own arrival.** It is where you go to find a thing you are
+already thinking of, which is a different question, and answering the first with
+the second is how an app ends up opening on a list of everything you own. This
+matters more once the library is per-kind panels (§5): there is no single list
+left to land on, and picking one kind arbitrarily would be worse than the list
+was. See [25 §5](25-polish.md) for the build-level detail.
 
 ---
 
@@ -297,16 +407,45 @@ be inventive.
 
 Where it should differ:
 
-- **One library surface for all portable kinds**, with a kind filter — not five
-  panels behind five buttons. ("Portable" as in exportable
-  ([13 §1](13-schemas.md)); libraries themselves are per-user and nothing is
-  shared between accounts on one install.)
+- **One library, one panel per portable kind.** Not one merged list with a kind
+  filter. ("Portable" as in exportable ([13 §1](13-schemas.md)); libraries
+  themselves are per-user and nothing is shared between accounts on one
+  install.) **The kinds
+  are distinct on purpose and the browsing surface should say so.** An Actor is
+  deliberately not a prompt configuration file ([00 §2.4](00-stance.md));
+  personas and NPCs are flags on one kind rather than separate types
+  ([02 §2.2](02-data-model.md)); Setting and Setup are split because conflating
+  them is the mistake every source made ([13 §7](13-schemas.md)). A single
+  undifferentiated table puts that mush straight back, at the exact moment a
+  user is forming their model of what these things are — and it is also the one
+  view where no column but *Kind* can be load-bearing, because an actor, a
+  lorebook and a preset share almost no attributes. Per-kind panels can carry
+  the columns, sort and empty state that each kind actually wants.
+- **What is being rejected is separate implementations, not separate panels.**
+  This section used to say *"not five panels behind five buttons"*, and the
+  objection underneath that phrasing stands: list widgets that drift apart, a
+  search box per kind, a different set of bulk actions in each — a real failure,
+  and the reason "one surface" got written in the first place. **Shared
+  handling, distinct surfaces** — one list component, one set of badges,
+  filters, sorting and bulk actions, one detail route, one import and export
+  path. The panels are presentations of one library, not six libraries.
 - **The user's library and the system library render as one list**, with a
-  source badge and a filter, not as two panels. Hunting in two places to find a
+  source badge and a filter, not as two panels. This is a *scope* merge, not a
+  kind merge, and it survives the bullets above intact: within an Actors panel,
+  yours and the system's appear together. Hunting in two places to find a
   character is worse than a badge. Read-only system objects show a **Copy to my
   library** action in place of edit — which forks a real copy they own
   ([04 §4.3](04-server-multiuser-deployment.md)). Objects link across kinds constantly and the
   cross-links should be navigable inline.
+- **A mixed all-kinds list is a preference, off by default — and really it
+  belongs to search.** There is a genuine use for one list of everything, but
+  its organising principle is a query rather than "everything you own": a search
+  result set is a mixed list nobody has to be taught to read. FTS5 is already in
+  the stack for library search ([07 §7.1](07-tech-stack.md)). So *browse* takes
+  a kind and *find* does not, and the unfiltered browse view is kept as a
+  machinery-visible preference alongside the rest of them. None of this is a
+  contract change: the API goes on accepting an absent kind
+  ([api.md](../api.md)), because cross-kind queries are a real thing to want.
 - **Links are visible and bidirectional.** From a lorebook: which settings,
   actors and packages reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
@@ -331,32 +470,47 @@ SillyTavern has priors for exactly two of them — a character card and world in
 — and no prior at all for Setting, Setup, Preset or Package. Every one of those
 splits is *correct* and none should be undone; the Setting/Setup split in
 particular is what Marinara's own scenario design identified and never built
-([13 §7](13-schemas.md)). But correct is not the same as learnable, and "one
-surface with a kind filter" helps someone *browse* eight kinds without helping
-them *understand* eight kinds.
+([13 §7](13-schemas.md)). But correct is not the same as learnable: a browsing
+surface can let someone *move through* eight kinds without helping them
+*understand* eight kinds, and that is the failure to design against.
 
-**Present three, reveal the rest:**
+**Present three, reveal the rest** — which under §5 is a statement about
+*naming and prominence*, not about merging. Every portable kind gets its own
+panel; three of the six are the ones offered.
 
-| Presented as | Actually | Why |
+| Panel | The kind | Why this name |
 |---|---|---|
-| **Actor** | Actor | Already familiar. Personas and NPCs are flags, so there is nothing extra to explain ([02 §2.2](02-data-model.md)). |
-| **World** | Setting, and the lorebooks it links | The pairing people already hold in their heads. The link structure surfaces when they open it. |
-| **Game** | Setup | *"How to start playing"* is a thing people want a name for and currently do not have one for. |
+| **Actors** | Actor | Already familiar. Personas and NPCs are flags, so there is nothing extra to explain ([02 §2.2](02-data-model.md)). |
+| **Worlds** | Setting | The word people already use for the thing. Its lorebooks are one click away as links, not folded in. |
+| **Games** | Setup | *"How to start playing"* is a thing people want a name for and currently do not have one for. |
 
-**Preset and Package are advanced surfaces**, reached deliberately. A preset is
-a thing you acquire, not a thing you make on day one; a package is transport, and
-transport should appear at the moment you export rather than sit in the way
-beforehand.
+**Lorebooks, Presets and Packages are present but demoted** — reachable, not on
+the shelf. A lorebook is usually met through the World that links it rather than
+sought on its own; a preset is a thing you acquire, not a thing you make on day
+one; a package is transport, and transport should appear at the moment you
+export rather than sit in the way beforehand.
+
+**Six panels rather than a collapsed three** is deliberate, and it follows from
+§1.1: density is the position, so the answer to "this is a lot to arrive at" is
+a shelf that shows every kind legibly, not one that shows three and hides the
+rest behind a mode. Folding Lorebook into World would also mean one panel with
+two kinds in it — the merged-list problem in miniature, and applied to the pair
+most often confused. **Marked as *for now*:** six is the shape to build against,
+and the simple/advanced-versus-rearrangeable question in §1.1 is where any
+reduction should be settled, not here.
 
 **The distinction that has to survive** is Setting versus Setup, since it is the
 one doing real work: *Rain City* is a world, *The Fixer's Debt* is a game played
 in it, and one world carries many games. The way to teach it is not a label — it
 is the moment a second Setup appears under a World the user already has, which
-makes the relationship self-evident and needs no explanation at all.
+makes the relationship self-evident and needs no explanation at all. Separate
+Worlds and Games panels make that easier to stage than a filtered list did: the
+one-to-many is visible as structure rather than as two rows that happen to
+differ in a Kind column.
 
-**What this is not:** a data model change, and not a merged type. The
-presentation collapses; the storage, the schemas and the export boundaries do
-not.
+**What this is not:** a data model change, not a merged type, and now also not a
+merged surface. The naming collapses; the storage, the schemas, the panels and
+the export boundaries do not.
 
 ---
 
