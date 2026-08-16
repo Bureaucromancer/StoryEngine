@@ -755,3 +755,48 @@ logic.
 ### E9. Testing — done
 
 Now [16](16-testing.md).
+
+### E10. Simple/advanced, or a rearrangeable layout — open, and not blocking
+
+The density stance is settled: [05 §1.1](05-ui-surfaces.md) commits the *tooling*
+surfaces to a high-density interface in a modern implementation, and the story
+and arrival surfaces to a quiet one. What is not settled is what happens for
+people who want less density on the tooling side — a real constituency, and one
+that will make itself heard the moment the library shows a panel per kind
+([05 §5.1](05-ui-surfaces.md)).
+
+**Two candidate answers, an order of magnitude apart in cost:**
+
+- **A simple/advanced split** — two presentations of the same surfaces, one
+  culled. Cheap to state, expensive to keep honest: every surface acquires a
+  second layout to design, test and keep in step, and the cull is our taste
+  imposed on someone else's workflow.
+- **A rearrangeable layout** — density becomes a thing a user dials. The more
+  attractive answer and much the larger. **Not a theme.** Theming reaches
+  colour, type scale and spacing; *what is on the screen and how it is grouped*
+  is layout and component structure, and exposing that to users is a dashboard
+  builder, not a stylesheet. Nothing in the design provides either today:
+  [05 §8](05-ui-surfaces.md) deliberately gives extensions no UI surface, so this
+  would be ours to build rather than something to delegate.
+
+**The caution, which is the reason this entry exists at all.** *"Ship it dense,
+users can dial it back later"* is a trap with a worked example: SillyTavern's
+configurability is extensive, and its reputation for being overwhelming is not
+in spite of that but partly because of it — configuration stood in for design,
+and the settings surface became one more overwhelming thing. **Neither answer
+here licenses shipping an undesigned surface.** Every surface has to be right at
+its default before it is worth making adjustable, and each one built before a
+layout system exists is one to retrofit into it later.
+
+**Why it is still not blocking.** Both answers are presentation layers over the
+dense layout, and the dense layout is the one to build first — a culled view
+derives from a full one, never the reverse ([05 §1.1](05-ui-surfaces.md)). The
+cost of deferring is that surfaces built now should avoid hard-coding their own
+arrangement where a cheap alternative exists; that is a coding-standards note,
+not a design decision waiting on this.
+
+**What would force it early:** evidence that the dense default actually loses
+people at first run, which is exactly what the PLAYABLE checkpoint
+([15 §4.1](15-work-plan.md)) exists to produce. Note what that evidence would
+*not* justify — the first-run and setup flows are already on the quiet side of
+the split, so losing people there is a §6 problem before it is a density one.

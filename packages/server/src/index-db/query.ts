@@ -83,7 +83,11 @@ export interface ListQuery {
    * merged list a library surface shows ([05 §5](docs/design/05-ui-surfaces.md)).
    */
   scopes: LibraryScope[];
-  /** Omit for every kind — the library list is one surface with a kind filter. */
+  /**
+   * Omit for every kind. Cross-kind reads are a real thing to want — search,
+   * counts, an export sweep — and this is not a statement about the browsing
+   * surface, which is per kind ([05 §5](docs/design/05-ui-surfaces.md)).
+   */
   schemaId?: PortableSchemaId;
 }
 

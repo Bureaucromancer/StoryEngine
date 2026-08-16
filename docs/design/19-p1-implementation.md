@@ -399,8 +399,11 @@ hot-reload thesis has against silently eating a hand-edit.
 ### P1.6 — The library list, and login
 
 React + Vite + TanStack ([07 §6](07-tech-stack.md)). Deliberately small: **one
-surface for all six kinds with a kind filter** ([05 §5](05-ui-surfaces.md)), a
-source badge for user versus system, and a detail view.
+surface for all six kinds with a kind filter**, a source badge for user versus
+system, and a detail view. *Built as specified, but the position it was built
+from has since been reversed: [05 §5](05-ui-surfaces.md) now calls for one panel
+per kind, and the client change is [25 §4](25-polish.md). What P1.6 delivered is
+unaffected and stays as it is until then.*
 
 **Plus login and first-run** (§1.3): no accounts on disk routes every request to
 create-the-first-admin; otherwise a login form. Small, but it is the reason this

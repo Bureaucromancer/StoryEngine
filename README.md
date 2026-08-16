@@ -9,7 +9,7 @@ index and its watcher, auth, the library API, a web client, and a prototype
 actor editor with version history.
 
 **The UI browses everything and edits actors.** Sign in, browse all six kinds
-of library object on one surface, open an actor and edit it — with automatic
+of library object, open an actor and edit it — with automatic
 version history behind a History control: every change snapshots the state it
 replaced, hand edits included, and any version can be restored, diffed, pinned
 or renamed. The other five kinds stay read-only for now, and *creating* objects
