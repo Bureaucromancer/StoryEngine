@@ -16,7 +16,7 @@ import { findByPath } from './query.js';
 /**
  * The watcher — **foreign writes only**.
  *
- * [02 §5.1.1](docs/design/02-data-model.md) is the whole design of this file.
+ * [02 §5.1.1](../../../../docs/design/02-data-model.md) is the whole design of this file.
  * An earlier draft of the data model had *all* index updates come from here,
  * which is appealing — one path, the index provably a function of the disk — and
  * wrong in a way that would not have surfaced until the P1 demo: it makes every
@@ -71,7 +71,7 @@ export class LibraryWatcher {
    * chokidar does not wait for a handler, so a rename firing unlink-then-add
    * could otherwise have the add's tombstone lookup run before the unlink's
    * update commits — turning a move into a delete plus a create, which is the
-   * exact failure [19 §1.1](docs/design/19-p1-implementation.md) exists to
+   * exact failure [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) exists to
    * prevent. Ordering is not an optimisation here; it is the mechanism.
    */
   #queue: Promise<void> = Promise.resolve();

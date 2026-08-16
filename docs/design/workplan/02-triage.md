@@ -1,7 +1,7 @@
-# 08 — Triage: adopt, port, rebuild, discard
+# 02 — Triage: adopt, port, rebuild, discard
 
 **Status: proposal.** A per-subsystem verdict on all three sources. Read
-[01-source-survey.md](01-source-survey.md) first for what each thing *is*; this
+[01-source-survey.md](../01-source-survey.md) first for what each thing *is*; this
 document is about what to *do* with it.
 
 ---
@@ -22,7 +22,7 @@ this section records what that settles and what it newly raises.
   remotely must be offered the corresponding source. In practice a "Source" link
   in the UI footer resolving to the repository, plus the ability to serve the
   exact running version. **This is a 1.0 requirement, not a nicety** — see
-  [04 §8](04-server-multiuser-deployment.md).
+  [04 §8](../04-server-multiuser-deployment.md).
 - **Dependencies must be AGPL-compatible.** Permissive licences (MIT, Apache-2.0,
   BSD, ISC) are fine and cover everything on the BUY list in §7. Watch for
   SSPL, BUSL, "source-available", and non-commercial terms, which are not.
@@ -49,7 +49,7 @@ courting to enable a proprietary-extension case nobody has asked for.
 - **No linking exception, so no deadline.** An exception can only be granted by
   the copyright holders, which made it a decide-before-the-first-outside-PR
   question. Declining it removes that time bomb entirely.
-- **[06 A1](06-open-questions.md) is now purely technical again.** The extension
+- **[06 A1](../06-open-questions.md) is now purely technical again.** The extension
   execution model — in-process modules versus sandboxed workers — was carrying a
   licensing dimension it no longer has. Decide it on safety, blast radius and
   API ergonomics alone. In-process is licence-viable, which is the simpler
@@ -57,7 +57,7 @@ courting to enable a proprietary-extension case nobody has asked for.
 - **The SDK package must itself be AGPL**, deliberately. This is the mechanism
   by which the decision actually holds: extensions import `sdk`, so `sdk`'s
   licence is what makes them combined works. Publishing it permissively "to be
-  friendly" would quietly undo the decision. See [07 §10](07-tech-stack.md).
+  friendly" would quietly undo the decision. See [07 §10](../07-tech-stack.md).
 - **Extension manifests should declare a licence field**, surfaced by the
   installer. Not enforcement — legibility. It makes the expectation visible at
   the point of authoring and lets a user see what they are installing.
@@ -71,7 +71,7 @@ produce exactly the perception the decision exists to avoid.
 |---|---|
 | Code extensions and modes (import the SDK, run in our process) | **AGPL-3.0, required** |
 | Actors, lorebooks, settings, presets, sessions | **The author's own. Any licence, including none.** |
-| Packages — including their **authored rules** ([09 §2](09-infinite-worlds.md)) | **The author's own.** |
+| Packages — including their **authored rules** ([08 §2](../08-infinite-worlds.md)) | **The author's own.** |
 
 Rules are the case worth being explicit about, because they *look* like code.
 They are not: a rule is a term in a closed vocabulary that our evaluator
@@ -83,12 +83,12 @@ This has a pleasant consequence. The authored-rules tier is not merely an
 expressiveness feature, it is also **the escape hatch for anyone who wants to
 ship something they control**: build it as a package of rules and content rather
 than as a code extension, and the copyleft question never arises. That makes
-[09](09-infinite-worlds.md)'s third tier more valuable under this decision than
+[08](../08-infinite-worlds.md)'s third tier more valuable under this decision than
 it was before it, and it is worth saying so publicly rather than leaving people
 to discover it.
 
 Both halves of the table belong somewhere user-facing — the About surface in
-[04 §7](04-server-multiuser-deployment.md) is the natural home.
+[04 §7](../04-server-multiuser-deployment.md) is the natural home.
 
 ---
 
@@ -124,8 +124,8 @@ permissive licence, and they are where most of the value sits:
   secondary keys" means, the order entries are trimmed in, what `sticky` does.
 - **Documented parameters and defaults** — scan depth 2, token budget 2048,
   entry limit 100.
-- **Architectural ideas** — everything in [00](00-stance.md) and
-  [03](03-modes-and-turn-pipeline.md).
+- **Architectural ideas** — everything in [00](../00-stance.md) and
+  [03](../03-modes-and-turn-pipeline.md).
 
 The practical consequence: **the specification is free, the implementation is
 not.** Most of the value in these three codebases is specification — which is
@@ -188,23 +188,23 @@ and no plan below should be built on the assumption that it did.
 | PNG card chunk read/write | ST `character-card-parser.js` | **ADOPT/BUY** | ~120 lines over two npm packages. Technique matters more than code: splice chunks, never re-encode pixels. |
 | Card V2/V3 + CHARX import | ST + Marinara `st-character.importer.ts` (869 ln) | **PORT** | The edge cases are the asset, not the code. |
 | ST lorebook / chat / preset import | Marinara `import/` (~4,450 ln total) | **PORT** | The single largest body of "someone already found the edge cases" in any of the three. |
-| ST chat-completion **prompt manager** — `prompts[]` + `prompt_order[]` | ST `public/scripts/PromptManager.js`, `openai.js` | **PORT the model, rebuild the code** | The closest prior art to our block assembler, and it independently arrived at the slot-versus-text split we need ([13 §8.1](13-schemas.md)). Its `prompts[]` already separates `marker: true` placeholders from authored `content`. The conversion path is mostly renaming ([13 §8.4](13-schemas.md)). |
-| ST preset `sensitiveFields` handling | ST `openai.js` | **REBUILD, harder** | ST detects proxy URLs and passwords in presets on import *and* export, and offers to strip them — with "Import as-is" among the options. Ours drops them unconditionally, because `Preset` has nowhere to put them ([13 §8.4.4](13-schemas.md)). |
-| Instruct / context / reasoning presets | ST | **DISCARD** | Raw-completion plumbing ([00 §2.2](00-stance.md)) and reasoning-block parsing nothing consumes at 1.0. |
+| ST chat-completion **prompt manager** — `prompts[]` + `prompt_order[]` | ST `public/scripts/PromptManager.js`, `openai.js` | **PORT the model, rebuild the code** | The closest prior art to our block assembler, and it independently arrived at the slot-versus-text split we need ([10 §8.1](../10-schemas.md)). Its `prompts[]` already separates `marker: true` placeholders from authored `content`. The conversion path is mostly renaming ([10 §8.4](../10-schemas.md)). |
+| ST preset `sensitiveFields` handling | ST `openai.js` | **REBUILD, harder** | ST detects proxy URLs and passwords in presets on import *and* export, and offers to strip them — with "Import as-is" among the options. Ours drops them unconditionally, because `Preset` has nowhere to put them ([10 §8.4.4](../10-schemas.md)). |
+| Instruct / context / reasoning presets | ST | **DISCARD** | Raw-completion plumbing ([00 §2.2](../00-stance.md)) and reasoning-block parsing nothing consumes at 1.0. |
 | Text-completion sampler presets | ST `presets/textgen/` | **PARTIAL** | Converts to `params` only; most fields are backend-specific samplers with no chat-API equivalent. Report the ratio rather than implying fidelity. |
-| Character card *format* | all three | **REBUILD** | [02 §2](02-data-model.md). |
-| Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](02-data-model.md). Four scoped changes only. |
+| Character card *format* | all three | **REBUILD** | [02 §2](../02-data-model.md). |
+| Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](../02-data-model.md). Four scoped changes only. |
 | Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
-| Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §11.3](05-ui-surfaces.md) |
-| Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §11.2](05-ui-surfaces.md) |
-| Structured `VisualDescriptors` | Aventuras `types/index.ts` | **PORT** | face/hair/eyes/build/clothing/accessories/distinguishing. Prose appearance is for the narrator; this is for image pipelines. [02 §2.1](02-data-model.md) |
-| Media embedded in the card, with typed roles | — *none of the three* | **NEW** | V2/V3 caps a card at one picture, which is why every tool bolts sprites on the side. [02 §5.2.2](02-data-model.md) |
-| Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [10 §8](10-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
+| Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §11.3](../05-ui-surfaces.md) |
+| Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §11.2](../05-ui-surfaces.md) |
+| Structured `VisualDescriptors` | Aventuras `types/index.ts` | **PORT** | face/hair/eyes/build/clothing/accessories/distinguishing. Prose appearance is for the narrator; this is for image pipelines. [02 §2.1](../02-data-model.md) |
+| Media embedded in the card, with typed roles | — *none of the three* | **NEW** | V2/V3 caps a card at one picture, which is why every tool bolts sprites on the side. [02 §5.2.2](../02-data-model.md) |
+| Branching | Aventuras COW+tombstones vs Marinara pointer | **REBUILD** — *verdict revised, see [09 §8](../09-branching.md)* | Aventuras' is the better engineering and the wrong fit: COW exists to branch mutable rows, which we don't have. Take Marinara's UX, derive state from the effect log. |
 | `PersistentRetryState` | Aventuras | **DISCARD** | Hand-maintained undo snapshot; replaced by reversible effects. |
-| Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](01-source-survey.md). |
+| Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](../01-source-survey.md). |
 | `GameSetupConfig` | Marinara | **REBUILD** | ~70 fields mixing narrative and production. |
-| Per-user directory islands | ST `USER_DIRECTORY_TEMPLATE` | **REBUILD** | Layout idea yes; isolation model no ([04 §4.3](04-server-multiuser-deployment.md)). |
+| Per-user directory islands | ST `USER_DIRECTORY_TEMPLATE` | **REBUILD** | Layout idea yes; isolation model no ([04 §4.3](../04-server-multiuser-deployment.md)). |
 | Four backend settings dirs | ST | **DISCARD** | Completion-era fossil. |
 
 ### Retrieval and context
@@ -213,14 +213,14 @@ and no plan below should be built on the assumption that it did.
 |---|---|---|---|
 | Keyword matching semantics | Marinara `keyword-scanner.ts` / ST `world-info.js` | **PORT** | Behaviour spec. Marinara's is ST's superset and better organised. |
 | Regex ReDoS guard | Marinara `regex-timeout.ts` (~60 ln) | **ADOPT** | See §5.1 — the strongest single lift candidate in all three repos. |
-| Two-tier token budget + trim order + skip reporting | Marinara | **PORT** | Already the budgeter [00 §2.6](00-stance.md) argues for. |
-| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; Retrieval tiers pair with the rolling summary ([06 E1](06-open-questions.md)). |
+| Two-tier token budget + trim order + skip reporting | Marinara | **PORT** | Already the budgeter [00 §2.6](../00-stance.md) argues for. |
+| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; Retrieval tiers pair with the rolling summary ([06 E1](../06-open-questions.md)). |
 | Stickiness tuning constants | Aventuras `STICKINESS_BY_TYPE` | **PORT** | See §5.2 — empirical tuning is the asset. |
 | Chapter summarisation + batching | Aventuras `ChapterBatchPlanner/Service` | **PORT** | Unexamined in detail; flagged as the next design doc. |
-| Agentic retrieval (tool-driven search) | Aventuras `AgenticRetrievalService` | **REBUILD** | Right idea; ours is a pipeline step ([03 §6](03-modes-and-turn-pipeline.md)). |
+| Agentic retrieval (tool-driven search) | Aventuras `AgenticRetrievalService` | **REBUILD** | Right idea; ours is a pipeline step ([03 §6](../03-modes-and-turn-pipeline.md)). |
 | Prompt assembly | Marinara `assembler.ts` + `marker-expander.ts` | **REBUILD** | The central thing we are redesigning. |
 | Macro system | ST `macros.js` | **DISCARD** | See §6.1. |
-| Instruct / context templates | ST | **DISCARD** | [00 §2.2](00-stance.md). |
+| Instruct / context templates | ST | **DISCARD** | [00 §2.2](../00-stance.md). |
 | Tokenizers | ST `src/tokenizers/` + 9 bundled model files | **BUY/DISCARD** | See §7. |
 | Embedding backends (9 providers) | ST `src/vectors/` | **BUY** | See §7. |
 
@@ -229,39 +229,39 @@ and no plan below should be built on the assumption that it did.
 | Subsystem | Best source | Verdict | Note |
 |---|---|---|---|
 | Three-mode concept | Marinara `ChatMode` | **PORT** | The organising idea. |
-| `GroupChatMode: merged \| individual` | Marinara | **PORT** | Split into two axes ([03 §3](03-modes-and-turn-pipeline.md)). |
+| `GroupChatMode: merged \| individual` | Marinara | **PORT** | Split into two axes ([03 §3](../03-modes-and-turn-pipeline.md)). |
 | Group activation strategies | ST `group_activation_strategy` | **PORT** | Taxonomy yes; card-swapping implementation no. |
-| Group generation by card swap | ST `group_generation_mode.SWAP` | **DISCARD** | [00 §2.10](00-stance.md). |
+| Group generation by card swap | ST `group_generation_mode.SWAP` | **DISCARD** | [00 §2.10](../00-stance.md). |
 | Conversation feature set | Marinara | **PORT** | Presence, schedules, autonomous messages, reactions, profiles, gated commands. |
-| Adventure/RPG systems | Marinara Game Mode | **REBUILD as channels** | [03 §4](03-modes-and-turn-pipeline.md). |
+| Adventure/RPG systems | Marinara Game Mode | **REBUILD as channels** | [03 §4](../03-modes-and-turn-pipeline.md). |
 | Typed input (do/say/story) + chapters | Aventuras | **PORT** | The Freeform preset. |
-| Duplicated RP-vs-Game combat & HUD | Marinara | **DISCARD one of each** | [00 §2.7](00-stance.md). |
-| Big-bang world gen + Repair JSON modal | Marinara | **DISCARD the mechanism** | [00 §2.3](00-stance.md). |
+| Duplicated RP-vs-Game combat & HUD | Marinara | **DISCARD one of each** | [00 §2.7](../00-stance.md). |
+| Big-bang world gen + Repair JSON modal | Marinara | **DISCARD the mechanism** | [00 §2.3](../00-stance.md). |
 | Hidden GM state / Secret Plot | Marinara | **PORT as a channel** | Generalises to all modes for free. |
-| Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real `Setup` object emitted from a running session, not a text file ([13 §7](13-schemas.md)). |
+| Setup snapshot | Marinara | **PORT, strengthened** | Becomes a real `Setup` object emitted from a running session, not a text file ([10 §7](../10-schemas.md)). |
 | Seed → expand → edit → accept | Aventuras wizard | **PORT** | The right interaction for authoring. |
-| **Card version history** | Marinara `characters.storage.ts`, `CharacterCardVersion` | **PORT, generalised** | Automatic snapshot-on-change, no-op suppression, the replaced state's own timestamp, and non-destructive restore are all the non-obvious choice and all correct. Widened from two card types to every library object, and moved from a database table to files in the object's folder ([02 §11](02-data-model.md)). Add a retention cap, which Marinara lacks. |
-| Character panel with active/inactive/dead | Aventuras | **PORT, corrected** | The state tracking is the valuable part. Split the one enum into presence and status channels, and make the panel *editable* so it repairs identity errors rather than only reporting them ([05 §13.2](05-ui-surfaces.md)). |
-| NPC identity resolution | Aventuras | **REBUILD** | Splits one character into several and merges several into one — notably worse at it than the models are. Ours proposes rather than auto-materialising, and surfaces its conclusions as linked mentions ([05 §13.1](05-ui-surfaces.md)). |
+| **Card version history** | Marinara `characters.storage.ts`, `CharacterCardVersion` | **PORT, generalised** | Automatic snapshot-on-change, no-op suppression, the replaced state's own timestamp, and non-destructive restore are all the non-obvious choice and all correct. Widened from two card types to every library object, and moved from a database table to files in the object's folder ([02 §11](../02-data-model.md)). Add a retention cap, which Marinara lacks. |
+| Character panel with active/inactive/dead | Aventuras | **PORT, corrected** | The state tracking is the valuable part. Split the one enum into presence and status channels, and make the panel *editable* so it repairs identity errors rather than only reporting them ([05 §13.2](../05-ui-surfaces.md)). |
+| NPC identity resolution | Aventuras | **REBUILD** | Splits one character into several and merges several into one — notably worse at it than the models are. Ours proposes rather than auto-materialising, and surfaces its conclusions as linked mentions ([05 §13.1](../05-ui-surfaces.md)). |
 | Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. |
-| Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [11 §4.6](11-roadmap.md) |
+| Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [14 §4.6](../14-roadmap.md) |
 
 ### Platform
 
 | Subsystem | Best source | Verdict | Note |
 |---|---|---|---|
 | Multi-user auth (scrypt, cookies, CSRF, admin flag) | ST `users.js` | **PORT** | Shape is right; ~200 lines of standard practice. |
-| Header-SSO behind `trustedProxies` | ST `users.js` | **PORT** | Directly reusable for Tailscale ([04 §5.2](04-server-multiuser-deployment.md)). |
+| Header-SSO behind `trustedProxies` | ST `users.js` | **PORT** | Directly reusable for Tailscale ([04 §5.2](../04-server-multiuser-deployment.md)). |
 | Provider adapters | Marinara (9) / Aventuras (AI SDK) | **BUY** | Aventuras already made this call correctly. |
 | Generation pipeline phases | Aventuras `services/generation/phases/` | **PORT the structure** | Closest thing to our turn pipeline. |
 | Agent/step execution | Marinara `agents/agent-executor.ts` etc. | **REBUILD** | Unify agent and pipeline step. |
 | Extension capability API | Marinara `CapabilityRuntime` | **PORT the design** | Including its typed-union instinct. |
-| Baked-in assistant | Marinara Professor Mari | **PORT the shape, REBUILD on sessions** | Suggestion chips and change-review are worth taking directly. [03 §7.4](03-modes-and-turn-pipeline.md) |
+| Baked-in assistant | Marinara Professor Mari | **PORT the shape, REBUILD on sessions** | Suggestion chips and change-review are worth taking directly. [03 §7.4](../03-modes-and-turn-pipeline.md) |
 | Assistant shell/filesystem tools (`bash`, `write`, shell sandbox) | Marinara | **DISCARD** | A coding-agent tool surface. On a multi-user LAN server it is privilege escalation wearing a friendly hat. Domain tools only. |
 | Folder-package export | Marinara `folder-packages/` | **PORT** | Good shape for our `.sepack`. |
-| Browser-side orchestration | ST | **DISCARD** | [00 §2.9](00-stance.md). |
-| Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [05 §1](05-ui-surfaces.md). |
-| In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [05 §11.1](05-ui-surfaces.md) |
+| Browser-side orchestration | ST | **DISCARD** | [00 §2.9](../00-stance.md). |
+| Desktop/mobile shells | Aventuras Tauri, Marinara `.exe`/Android | **DISCARD** | [05 §1](../05-ui-surfaces.md). |
+| In-editor field assist (generate / refine-with-guidance / revert) | Aventuras wizard | **PORT, widened** | Wizard-only upstream; becomes a primitive every editor is built from. [05 §11.1](../05-ui-surfaces.md) |
 | In-UI image crop and generate on any image slot | Marinara | **PORT, widened** | Available wherever an image appears, not only avatars. |
 | Regression-script pattern | Marinara `scripts/regressions/` | **PORT** | Especially `context-fit`. |
 
@@ -333,7 +333,7 @@ precise measurement of what string-substitution macros cost once an ecosystem
 depends on them.
 
 We inherit none of it. Macros are an *import-time transform*
-([00 §2.1](00-stance.md)): a `{{char}}` in an imported card becomes a structured
+([00 §2.1](../00-stance.md)): a `{{char}}` in an imported card becomes a structured
 reference, once, at the boundary. **[OPEN]** whether any macro syntax survives
 into authoring — some template-level substitution inside a block is probably
 unavoidable, and Liquid already provides it.
@@ -350,7 +350,7 @@ We need token counts for budgeting, but not that precision. Providers return
 real usage; a fast local approximation is enough for *pre*-flight budgeting, and
 the turn record stores actual counts afterward. Shipping tokenizer model files
 is a large maintenance surface for accuracy we do not need. **DISCARD**, revisit
-Now unconditional: raw-completion support is dropped ([07 §5.5](07-tech-stack.md)),
+Now unconditional: raw-completion support is dropped ([07 §5.5](../07-tech-stack.md)),
 so the one thing that might have argued for exact tokenisation is gone.
 
 ### 6.3 Marinara's peripheral feature surface
@@ -363,12 +363,12 @@ The verdict is not "these are bad" — it is that **the correct response is to
 make them buildable, not to build them.** If the mode and channel contracts are
 right, a table game is an extension: a channel holding board state, a step that
 validates moves, a declared widget. If a motivated person cannot build UNO
-against the extension API without engine changes, [03 §9](03-modes-and-turn-pipeline.md)
+against the extension API without engine changes, [03 §9](../03-modes-and-turn-pipeline.md)
 has failed — which makes this list a useful acceptance test rather than a
 backlog.
 
 The desirable ones are picked up as **desired extensions** in
-[11 §4](11-roadmap.md), with the seam each should use and where the naive
+[14 §4](../14-roadmap.md), with the seam each should use and where the naive
 version goes wrong. Two in particular — table games and music — are genuinely
 natural in some modes, and are *better* as extensions than they would be in
 core, because the whole point is to let a real engine do work the model only
@@ -376,7 +376,7 @@ pretends to do.
 
 ### 6.4 The Repair JSON modal
 
-Discarding the *modal* means fixing the *mechanism* ([00 §2.3](00-stance.md)):
+Discarding the *modal* means fixing the *mechanism* ([00 §2.3](../00-stance.md)):
 structured outputs against a declared schema, a bounded automatic re-ask, and
 partial application. A manual repair editor may still exist as a fourth
 resort — it must not be the first thing a user meets.
@@ -416,7 +416,7 @@ The triage suggests an order, because some verdicts depend on others being right
    the block/budget model.
 4. **Import.** Early, not late — it is how you get a realistic library to test
    retrieval and budgeting against, and it is the largest PORT in the document.
-5. **The modes** — Scene and Adventure–Freeform at 1.0 ([15 §0](15-work-plan.md)),
+5. **The modes** — Scene and Adventure–Freeform at 1.0 ([01 §0](01-work-plan.md)),
    each as a separate package against the public contract.
 6. **Retrieval and memory.** The Aventuras PORT. Needs a real library and real
    long sessions to tune, so it wants to come after import.
@@ -435,12 +435,12 @@ Stated so the gaps are known. Verdicts above do not cover these and should not
 be assumed to:
 
 - ~~Marinara's Noodle subsystem~~ — **now examined**, notes in
-  [11 §4.6](11-roadmap.md). An in-app fake social timeline, ~6,400 lines of
+  [14 §4.6](../14-roadmap.md). An in-app fake social timeline, ~6,400 lines of
   server services. Verdict: post-1.0, extension, probably not by us — but its
   *carryover* mechanism generalises into something worth having, and attempting
   it reveals two gaps in the extension model.
 - **ST's extension runtime and the `third-party` loading path** — relevant to
-  [06 A1](06-open-questions.md) and worth a look before deciding the extension
+  [06 A1](../06-open-questions.md) and worth a look before deciding the extension
   execution model. The remaining item most worth closing.
 - **Client component trees** in all three.
 - **Marinara's `bot-browser`** service.
@@ -452,8 +452,8 @@ detail:
 
 | | Verdict |
 |---|---|
-| **Tactical combat engine**, spatial context, hierarchical maps | **Out of scope.** Grid battle is a desired extension at most ([11 §4.3](11-roadmap.md)), and the largest one there. Not examined further because nothing in core depends on the answer. |
+| **Tactical combat engine**, spatial context, hierarchical maps | **Out of scope.** Grid battle is a desired extension at most ([14 §4.3](../14-roadmap.md)), and the largest one there. Not examined further because nothing in core depends on the answer. |
 | **Achievements** | **DISCARD.** No plans, no roadmap entry, no seam owed to it. |
-| **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [07 §5.2](07-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
-| **`professor-mari`** | Examined for the assistant design; see [03 §7.4](03-modes-and-turn-pipeline.md). General-purpose assistant yes, its tool surface no, its default tone no, and the card is swappable. |
-| **Image / video / TTS pipelines** | Not ported, but the *requirement* is now designed: per-turn and on-demand illustration is a 1.0 feature, with video and speech as further kinds of the same mechanism ([03 §10](03-modes-and-turn-pipeline.md)). |
+| **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [07 §5.2](../07-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
+| **`professor-mari`** | Examined for the assistant design; see [03 §7.4](../03-modes-and-turn-pipeline.md). General-purpose assistant yes, its tool surface no, its default tone no, and the card is swappable. |
+| **Image / video / TTS pipelines** | Not ported, but the *requirement* is now designed: per-turn and on-demand illustration is a 1.0 feature, with video and speech as further kinds of the same mechanism ([03 §10](../03-modes-and-turn-pipeline.md)). |

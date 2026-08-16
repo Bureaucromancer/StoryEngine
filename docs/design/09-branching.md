@@ -1,4 +1,4 @@
-# 10 — Branching
+# 09 — Branching
 
 **Status: capability requirement, with a proposed design.**
 
@@ -260,7 +260,7 @@ Retention is [06 C9](06-open-questions.md); the storage argument for keeping
 everything is strong, so the question is really about presentation.
 
 That "deliberate action" is the branch tree visualiser, specified as a post-1.0
-item in [11 §1](11-roadmap.md). It is pure addition — everything it draws is
+item in [14 §1](14-roadmap.md). It is pure addition — everything it draws is
 already recorded — with one obligation on 1.0: turn storage must tolerate
 removal, so pruning is possible later without a migration.
 
@@ -306,7 +306,7 @@ thing discovered late.
 
 ## 8. Correction to the triage
 
-[08](08-triage.md) lists Aventuras' branching (COW + tombstones) as
+[triage](workplan/02-triage.md) lists Aventuras' branching (COW + tombstones) as
 **PORT — "best-in-class among the three; nothing comparable elsewhere"**.
 
 **That verdict was wrong for this requirement, and is revised to REBUILD.**

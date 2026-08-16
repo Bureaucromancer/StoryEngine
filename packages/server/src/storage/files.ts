@@ -16,7 +16,7 @@ import { dirname } from 'node:path';
  * The veneer is thin on purpose. These are not clever, and the point is not
  * abstraction: it is that there is exactly one directory to audit, one place to
  * add a permission check when `fileAccess`
- * ([05 §4.2](docs/design/05-ui-surfaces.md)) grows teeth, and no second opinion
+ * ([05 §4.2](../../../../docs/design/05-ui-surfaces.md)) grows teeth, and no second opinion
  * about what "read a file" means.
  *
  * **Paths arriving here are already resolved** by `paths.ts`. Nothing in this
@@ -96,7 +96,7 @@ export async function ensureDirectory(path: string): Promise<void> {
  * Removes a directory and everything under it.
  *
  * Used for deleting an object, which is a *folder* rather than a file — the
- * card plus its assets travel together ([02 §5.2](docs/design/02-data-model.md)).
+ * card plus its assets travel together ([02 §5.2](../../../../docs/design/02-data-model.md)).
  * Recursive deletion is the one operation here worth being nervous about, which
  * is why it takes a path that has already been through the resolver and why it
  * lives beside the rest of the filesystem access rather than at a call site.
@@ -108,7 +108,7 @@ export async function removeTree(path: string): Promise<void> {
 /**
  * Moves a directory, creating the destination's parent.
  *
- * Deletion is a move ([02 §10.2](docs/design/02-data-model.md)): `remove()`
+ * Deletion is a move ([02 §10.2](../../../../docs/design/02-data-model.md)): `remove()`
  * sends object folders to the user's trash through this rather than erasing
  * them, history and all. Both ends live under one data directory, so the
  * rename is same-volume by construction; a cross-volume symlink or a handle

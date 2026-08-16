@@ -18,7 +18,7 @@ import { DEFAULT_CONFIG } from './config.js';
  * because the suite runs several of these at once and because binding is the one
  * thing a test should not be doing on somebody's machine.
  *
- * The filesystem underneath is real. [16 §8](docs/design/16-testing.md) is
+ * The filesystem underneath is real. [testing §8](../../../docs/design/workplan/10-testing.md) is
  * blunt: *do not mock the filesystem* — the storage layer is the thing under
  * test.
  */

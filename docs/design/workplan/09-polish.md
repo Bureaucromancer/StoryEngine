@@ -1,8 +1,8 @@
-# 25 — Polish list
+# 09 — Polish list
 
 **Status: intent, not a proposal.** A running list of things that are worth
 doing and are not roadmap items. The distinction matters, because
-[11](11-roadmap.md) has a bar — an entry there is a *feature* deferred past 1.0,
+[14](../14-roadmap.md) has a bar — an entry there is a *feature* deferred past 1.0,
 and it earns its place by being additive to the data model. Nothing here clears
 that bar and nothing here should have to. These are the small differences
 between a surface that works and a surface that is pleasant, and every one of
@@ -12,7 +12,7 @@ and invisible while reading the spec.
 **The house rule for this file:** an item belongs here if it changes what a user
 sees or does, is bounded, and needs no schema change and no new contract. If an
 item turns out to need either, it stops being polish — move it to
-[11](11-roadmap.md) or to the phase plan it actually belongs to.
+[14](../14-roadmap.md) or to the phase plan it actually belongs to.
 
 Order is intent, not priority. Two of these are arcs and should land in order:
 items 1 and 2, and items 4 and 5 — 4 takes a landing place away, so 5 has to
@@ -59,7 +59,7 @@ of kinds.
 **Keep it.** The `As stored` block on the detail page stays after item 1 lands.
 It is not a placeholder for the by-field view and it is not developer debris —
 it is the surface that teaches the storage model, and that is a deliberate
-position ([05 §5](05-ui-surfaces.md)): the folder *is* the object, and a user who
+position ([05 §5](../05-ui-surfaces.md)): the folder *is* the object, and a user who
 can see exactly what is on disk is a user who will confidently open the file. It
 is also the only view that shows fields the client does not know how to render
 yet — extension-written keys, newer schema fields, anything a hand edit added.
@@ -70,7 +70,8 @@ edits and app edits meet, and being able to check what the save actually wrote
 is the answer to a whole class of "did that take?" doubt.
 
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
-its state remembered per user rather than per object. In the library that is a
+its state remembered per user rather than per object — which needs somewhere to
+put a preference, and that is [06 B13](../06-open-questions.md), not this item. In the library that is a
 change from today, where the block is always open — and that is correct once the
 by-field view exists, because the by-field view becomes the thing you came to
 read and the JSON becomes the thing you go looking for.
@@ -93,10 +94,10 @@ snapshot (`authorVersion` in
 [history.ts](packages/server/src/storage/history.ts)) and the panel can pin,
 rename and restore ([HistoryPanel.tsx](packages/client/src/editor/HistoryPanel.tsx)).
 The version string is theirs, the revision counter is ours, and the two are kept
-apart on purpose ([02 §11.5](02-data-model.md)).
+apart on purpose ([02 §11.5](../02-data-model.md)).
 
 **What is missing is the gesture that connects pinning to that string.** Pinning
-already means *this one matters, do not prune it* ([02 §11.3](02-data-model.md)).
+already means *this one matters, do not prune it* ([02 §11.3](../02-data-model.md)).
 In practice the versions people pin are the ones they would also like to *name
 with a number* — "1.0", "1.2", "the one I shared" — and today the only way to
 attach a number is to have happened to set `provenance.version` before making
@@ -131,11 +132,11 @@ document depending on whether you can see only those four.
 
 "Send them 1.2" is the obvious thing to want once versions carry numbers, and it
 is the one part of this item that is not polish — it sets a default on the
-export flow, which is P4's ([22](22-p4-implementation.md)) and belongs in
-[02 §11.6](02-data-model.md) once settled. The intended shape:
+export flow, which is P4's ([06](06-p4-implementation.md)) and belongs in
+[02 §11.6](../02-data-model.md) once settled. The intended shape:
 
 - **Native export (`.seactor`, `.sepack`) sends the active version**, with
-  **full history as an opt-in** on the export. This is [02 §11.6](02-data-model.md)
+  **full history as an opt-in** on the export. This is [02 §11.6](../02-data-model.md)
   unchanged, and its reasons hold: forty drafts make the file large for no
   benefit to most recipients, and a working record carries false starts nobody
   agreed to publish. Sharing is the common case and collaboration is the
@@ -164,11 +165,11 @@ state, and it is what `/` renders on arrival
 ([LibraryPage.tsx](packages/client/src/library/LibraryPage.tsx)). Every object
 the user has, of every kind, in one table sorted by nothing in particular.
 
-**The position is settled and lives in [05 §5](05-ui-surfaces.md)** — one panel
+**The position is settled and lives in [05 §5](../05-ui-surfaces.md)** — one panel
 per kind, because the kinds are distinct by design and a merged table teaches
 otherwise; the all-kinds view behind a preference, because a cross-kind list is
 a search result rather than a way to browse; the naming and prominence in
-[05 §5.1](05-ui-surfaces.md). What is left here is the client work.
+[05 §5.1](../05-ui-surfaces.md). What is left here is the client work.
 
 **What the change is.**
 
@@ -183,7 +184,9 @@ a search result rather than a way to browse; the naming and prominence in
 - **The all-kinds view moves behind a preference**, off by default, alongside
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
-  preference plumbing is what stands between this and shipping.
+  preference plumbing is what stands between this and shipping. Where a
+  preference persists is [06 B13](../06-open-questions.md), shared with item 2;
+  the surface that eventually shows them is [05 §15.1](../05-ui-surfaces.md).
 - **`/` moves to home** (item 5). Landing on an arbitrarily chosen single kind
   instead — actors, because there are usually most of those — would be a worse
   answer than today's mixed list, not a better one.
@@ -194,7 +197,7 @@ decision and should stay one.
 
 **One thing the panels must carry over.** P2.0 makes a shadowed duplicate-id row
 individually addressable — the row links by a path discriminator rather than by
-id alone, because id-addressing always opens the winner ([20 §1.3](20-p2-implementation.md),
+id alone, because id-addressing always opens the winner ([04 §1.3](04-p2-implementation.md),
 F19). That lives in the read route and the link contract, so the panels inherit
 it by using the same detail route; what would lose it is a panel building its
 own links from `{kind, id}`. The duplicate warning without the link is the bug
@@ -202,7 +205,7 @@ F19 already fixed once.
 
 ## 5. A home, so arrival is not an arbitrary library view
 
-**What home is and what it holds is [05 §2.1](05-ui-surfaces.md)** — resume,
+**What home is and what it holds is [05 §2.1](../05-ui-surfaces.md)** — resume,
 start, notice, recent work, in that order, and the library not owning arrival.
 This item is the build, and the reason it is urgent is item 4: today `/` answers
 *"what was I doing?"* with a table of everything, and after item 4 there is no

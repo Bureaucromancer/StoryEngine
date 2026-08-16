@@ -11,10 +11,10 @@ import { ingestFile } from './ingest.js';
 
 /**
  * Full scan from disk — the startup option
- * ([02 §5.1](docs/design/02-data-model.md)).
+ * ([02 §5.1](../../../../docs/design/02-data-model.md)).
  *
  * This is what makes deleting `index.sqlite` a non-event
- * ([18 §5](docs/design/18-internal-contracts.md)), and it is also half of this
+ * ([13 §5](../../../../docs/design/13-internal-contracts.md)), and it is also half of this
  * phase's CI gate: **rebuild-from-disk equals the incrementally maintained
  * index**. Two producers held to one answer is a sharper assertion than one
  * producer agreeing with itself, and it is the reason the duplicate-id rule is

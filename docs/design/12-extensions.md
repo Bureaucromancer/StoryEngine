@@ -1,4 +1,4 @@
-# 17 — Extensions: the boundary and the interface
+# 12 — Extensions: the boundary and the interface
 
 **Status: proposal.** Resolves [06 A1](06-open-questions.md) and
 [06 A1c](06-open-questions.md), and expands [03 §9](03-modes-and-turn-pipeline.md).
@@ -40,7 +40,7 @@ model, and tightening later is additive — it removes reachability without
 changing the interface.
 
 **The licence is not part of this argument**, though an earlier draft counted it.
-Extensions being AGPL and therefore source-available ([08 §1.1](08-triage.md))
+Extensions being AGPL and therefore source-available ([triage §1.1](workplan/02-triage.md))
 means auditable *by someone who audits*, which is not a control and stops
 nothing on its own. Treating source availability as mitigation is a common and
 comfortable error, and it would let the deferral look better-supported than it
@@ -134,7 +134,7 @@ interface HostApi {
   model: {
     call(role: ModelRole, req: ModelRequest): Promise<ModelResponse>
   }
-  random: RandomApi                        // the one RNG source — [07 §14]
+  random: RandomApi                        // the one RNG source — [07 §11]
   storage: ExtensionStorage                // §5
   log(level, message, meta?): void
 }
@@ -210,7 +210,7 @@ CI running built-ins through the worker path so drift still surfaces.
 
 ## 5. Extension storage — resolving A1c
 
-Noodle surfaced the gap ([11 §4.6](11-roadmap.md)): an extension can own session
+Noodle surfaced the gap ([14 §4.6](14-roadmap.md)): an extension can own session
 state via channels and can read the library, but has nowhere to keep durable
 data of its own.
 
@@ -252,7 +252,7 @@ before enabling anything.
   "id": "com.example.weather",
   "name": "Weather Engine",
   "version": "1.2.0",
-  "license": "AGPL-3.0",            // [08 §1.1] — required and displayed
+  "license": "AGPL-3.0",            // [triage §1.1] — required and displayed
   "sdk": "^1.0.0",                  // API version range — §8
   "modes": [ /* … */ ],
   "channels": [ /* … */ ],
@@ -300,7 +300,7 @@ Three mitigations, all cheap:
 - **Version the SDK API and widen additively.** Extensions declare a range;
   widening never breaks anyone.
 - **Ship the reference extensions against the same API.** Dice and poker
-  ([11 §4.4](11-roadmap.md)) exist partly to surface gaps before third parties
+  ([14 §4.4](14-roadmap.md)) exist partly to surface gaps before third parties
   hit them. Poker in particular reaches for per-actor hidden state and
   multi-participant sequencing, which is where an API is most likely to be found
   wanting.

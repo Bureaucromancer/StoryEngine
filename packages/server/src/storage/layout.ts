@@ -19,7 +19,7 @@ import { listEntryNames } from './files.js';
 import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from './paths.js';
 
 /**
- * The data directory, from [02 §5.1](docs/design/02-data-model.md).
+ * The data directory, from [02 §5.1](../../../../docs/design/02-data-model.md).
  *
  * ```
  * /data
@@ -32,12 +32,12 @@ import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from '
  * ```
  *
  * **The path is the owner.** There is no `owner` field and no shared user area
- * ([04 §4.3](docs/design/04-server-multiuser-deployment.md)), which is why every
+ * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), which is why every
  * route resolves its root from the session rather than from a parameter — and
  * why `userRoot` treats its handle as hostile input.
  *
  * `system/library/` has the same shape as a user's, so the merge is a query
- * rather than a special case ([02 §5.1](docs/design/02-data-model.md)). That is
+ * rather than a special case ([02 §5.1](../../../../docs/design/02-data-model.md)). That is
  * the entire reason `LibraryScope` exists instead of two sets of functions.
  */
 
@@ -54,7 +54,7 @@ export function userScope(handle: string): LibraryScope {
  *
  * Actors are the odd one out and deliberately so: `card.png` is canonical, not a
  * mirror of a JSON file, because two sources of truth is the failure mode being
- * avoided ([02 §5.2](docs/design/02-data-model.md)).
+ * avoided ([02 §5.2](../../../../docs/design/02-data-model.md)).
  */
 export const OBJECT_FILENAMES = {
   [ACTOR_SCHEMA]: 'card.png',
@@ -62,7 +62,7 @@ export const OBJECT_FILENAMES = {
   [SETTING_SCHEMA]: 'setting.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
-  // [02 §5.1](docs/design/02-data-model.md) gives packages a folder and defers
+  // [02 §5.1](../../../../docs/design/02-data-model.md) gives packages a folder and defers
   // its contents to §7, which describes the *format* rather than the on-disk
   // shape. A stored package also holds embedded copies of its contents, so this
   // filename is the manifest rather than the whole object — and the arrangement
@@ -76,7 +76,7 @@ export const OBJECT_FILENAMES = {
  *
  * Stricter than `slugify` produces, on purpose: this is the one user-supplied
  * string that becomes a path component at first-run
- * ([19 §1.3](docs/design/19-p1-implementation.md)), and the cost of a mistake is
+ * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)), and the cost of a mistake is
  * one account reaching another's directory.
  */
 const HANDLE_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -106,7 +106,7 @@ export function assertValidHandle(handle: string): void {
  * Every path in the data directory, derived from one root.
  *
  * A class rather than loose functions taking `dataRoot` everywhere, because the
- * root comes from config ([18 §4](docs/design/18-internal-contracts.md)) and
+ * root comes from config ([13 §4](../../../../docs/design/13-internal-contracts.md)) and
  * threading it through every call site is how one caller ends up using a
  * default and writing somewhere nobody expects.
  */
@@ -124,7 +124,7 @@ export class Layout {
 
   /**
    * `data/accounts.json`. Authoritative state, so a file and never an index row
-   * ([19 §1.3](docs/design/19-p1-implementation.md)) — and deliberately outside
+   * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)) — and deliberately outside
    * every user directory, so the file browser can never serve a password hash
    * whatever `fileAccess` a user is granted.
    */
@@ -145,7 +145,7 @@ export class Layout {
   /**
    * Operational state: jobs, idempotency keys, the notification inbox. **Not**
    * derived, not rebuildable, and therefore not in the index
-   * ([18 §5.1](docs/design/18-internal-contracts.md)).
+   * ([13 §5.1](../../../../docs/design/13-internal-contracts.md)).
    */
   get stateRoot(): string {
     return resolveWithin(this.dataRoot, 'state');
@@ -323,7 +323,7 @@ function relativeWithin(root: string, path: string): string | null {
  *
  * **Derived at creation and then frozen** — renaming an object changes the name
  * *inside the file* and the folder keeps the name it was born with
- * ([19 §1.1](docs/design/19-p1-implementation.md)). The engine never moves the
+ * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). The engine never moves the
  * user's directories, so this runs exactly once per object and is the only place
  * a slug is chosen.
  *

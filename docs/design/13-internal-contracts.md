@@ -1,18 +1,18 @@
-# 18 — Internal contracts
+# 13 — Internal contracts
 
 **Status: proposal.** The structures that never leave the install but that
 everything is built against.
 
-**Why this document exists.** [13](13-schemas.md) covers portable structures and
+**Why this document exists.** [10](10-schemas.md) covers portable structures and
 deliberately stops there — a turn record never crosses an install boundary, so it
-is free to migrate ([13 §1](13-schemas.md)) and defining it early buys no
+is free to migrate ([10 §1](10-schemas.md)) and defining it early buys no
 compatibility. That reasoning is right and produced a gap: *free to move* was
 read as *need not exist*, and four of the turn record's substructures ended up
 referenced across eight documents and defined nowhere.
 
 They are not incidental. The turn record is described as the artefact everything
 reads ([00 §1](00-stance.md)), the highest-value test surface
-([15 P2](15-work-plan.md)), and what branching, replay and the workbench are all
+([work plan P2](workplan/01-work-plan.md)), and what branching, replay and the workbench are all
 built on. **P2 cannot be written without these types.**
 
 > **The tier is unchanged: internal, migrate at will.** Nothing here carries a
@@ -32,7 +32,7 @@ depend on called out.
 
 Currently two vocabularies describing the same thing:
 `AssembledBlock.source.kind` ([02 §8](02-data-model.md)) and `SlotSource.of`
-([13 §8.2](13-schemas.md)). They overlap, disagree, and nothing relates them —
+([10 §8.2](10-schemas.md)). They overlap, disagree, and nothing relates them —
 which would mean the workbench's block list and a preset's slot list disagreeing
 about what anything *is*, while golden-file tests snapshot the former and authors
 edit the latter.
@@ -70,9 +70,9 @@ feature, not a debug string" needs this to be true of the source as well.
 ### 1.2 `ChannelEffect` — the one to get right
 
 **The most load-bearing type in this document.** It carries reversibility
-([10 §2](10-branching.md)), it crosses the worker boundary
-([17 §4](17-extensions.md)), it is what a branch replays
-([10 §4](10-branching.md)), and it is what undo inverts
+([09 §2](09-branching.md)), it crosses the worker boundary
+([12 §4](12-extensions.md)), it is what a branch replays
+([09 §4](09-branching.md)), and it is what undo inverts
 ([00 §2.8](00-stance.md)). An effect that cannot state its own inverse breaks all
 four at once.
 
@@ -107,8 +107,8 @@ interface ChannelEffect {
   /** Whether the effect stayed inside the session or escaped it — a library
    *  write, a generated asset, anything a branch cannot un-write. Escaped
    *  effects are recorded like everything else but never replayed or
-   *  reverted ([10 §7]). Added ahead of P2 so P6 needs a field, not a
-   *  migration ([20 §2.7], closing [24 §1.5]); P2 writes only "session". */
+   *  reverted ([09 §7]). Added ahead of P2 so P6 needs a field, not a
+   *  migration ([P2 §2.7], closing [P6 §1.5]); P2 writes only "session". */
   scope: "session" | "escaped"
 }
 
@@ -129,7 +129,7 @@ three things cheap:
   `before`, not replaying 0..N-1. [00 §2.8](00-stance.md)'s promise, in place of
   Aventuras' hand-maintained `PersistentRetryState`.
 - **The workbench can show a diff** without materialising two full states.
-- **A snapshot disagreement is diagnosable.** [10 §4](10-branching.md) requires
+- **A snapshot disagreement is diagnosable.** [09 §4](09-branching.md) requires
   CI to assert replay-from-zero equals snapshot-plus-replay; when that fails,
   `before`/`after` pairs say *which effect* diverged rather than only that the
   end states differ.
@@ -152,7 +152,7 @@ the operative word — the value is plausible, so nothing surfaces.
 | | Mechanism |
 |---|---|
 | **Undo the tip** | Apply `before`. Local, O(1), what the undo button does. |
-| **Change something further back** | **Branch and replay** ([10 §3](10-branching.md)) |
+| **Change something further back** | **Branch and replay** ([09 §3](09-branching.md)) |
 
 The second is not a limitation to apologise for — it is the design's existing
 answer. "Go back to turn N and do it differently" is a pointer move plus new
@@ -254,7 +254,7 @@ first question anyone asks about a turn that came out wrong.
 interface BudgetVerdict {
   /** The window, and where the number came from — a provider capability, a
    *  preset ceiling, or a user override. Presets carry absolute ceilings from
-   *  ST import ([13 §8.4.1]) and a 4k number must not silently apply at 200k. */
+   *  ST import ([10 §8.4.1]) and a 4k number must not silently apply at 200k. */
   limit: { tokens: number; source: "provider" | "preset" | "user" }
   reserved: number                // held back for the completion
   spent: number
@@ -420,7 +420,7 @@ interface Config {
   trash: { retentionDays: number }          // [02 §10.2]
   history: { keepPerObject: number }        // [02 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
-  dev: { enabled: boolean }                  // [07 §11]
+  dev: { enabled: boolean }                  // [07 §14]
 }
 ```
 
@@ -432,7 +432,7 @@ interface Config {
 | `server.trustProxy` | `restart` | `false` | |
 | `log.level` | `live` | `info` | |
 | `log.format` | `restart` | `pretty` | `json` in the container |
-| `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([15 P1](15-work-plan.md)) |
+| `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([06 C8](06-open-questions.md)) |
 | `limits.*` | `live` | — | |
 | `trash.retentionDays` | `live` | `30` | |
@@ -461,7 +461,7 @@ tables are an implementation detail. What is *not* an implementation detail is
 what must be true of it.
 
 - **Rebuild-from-disk equals incremental.** The CI assertion from
-  [15 P1](15-work-plan.md), and now sharper because there are two producers to
+  [work plan P1](workplan/01-work-plan.md), and now sharper because there are two producers to
   agree ([02 §5.1.1](02-data-model.md)).
 - **Read-after-write for the server's own writes.** A `GET` after a `POST`
   reflects it. Foreign writes have no such guarantee and need none.
@@ -484,7 +484,7 @@ been put there or implied into it:
 | **Auth sessions** | [07 §9](07-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
 | **Notification inbox** | "Persist until seen" ([04 §3.2](04-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
 | **Jobs and idempotency keys** | A turn in flight, and the keys that stop a retry charging twice, are facts about work — not restatements of anything on disk. |
-| **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([20 §2.10](20-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([02 §5.5](02-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
+| **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([P2 §2.10](workplan/04-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([02 §5.5](02-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
 
 **So: a small operational store, separate from the index**, at
 `/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
@@ -506,11 +506,11 @@ disk; anything else has its own home.
 
 | Structure | Why not here |
 |---|---|
-| Preset internals beyond [13 §8](13-schemas.md) | Portable; 13 owns it |
+| Preset internals beyond [10 §8](10-schemas.md) | Portable; 13 owns it |
 | `InitPolicy`, `WidgetSpec` | Want the mode contract built first |
-| Rule vocabulary (`Predicate`, `Effect`) | 2.0 ([15 §0.4](15-work-plan.md)) |
+| Rule vocabulary (`Predicate`, `Effect`) | 2.0 ([work plan §0.4](workplan/01-work-plan.md)) |
 | The SSE wire format | [04 §3.3](04-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
-| Extension `HostApi` | [17 §4](17-extensions.md) owns it |
+| Extension `HostApi` | [12 §4](12-extensions.md) owns it |
 
 **The rule for adding to this document:** a type belongs here when something is
 *built against it* and it never leaves the install. A type that only one module

@@ -16,7 +16,7 @@
 //   restart   anything establishing a listener or a file handle
 //
 // The server derives its own "restart required" notice from these tiers rather
-// than from a list someone maintains by hand — see docs/design/18 §4.
+// than from a list someone maintains by hand — see docs/design/13 §4.
 
 {
   // restart — where everything lives. Relative paths resolve against the

@@ -9,7 +9,7 @@ import { newActor, newLorebook } from '@storyengine/shared';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * The HTTP surface — docs/design/19-p1-implementation.md §P1.5.
+ * The HTTP surface — docs/design/workplan/03-p1-implementation.md §P1.5.
  *
  * The claims worth testing here are the ones that are properties of the *write
  * path* rather than of the UI: read-after-write, the stale-hash rejection, and
@@ -28,7 +28,7 @@ afterEach(async () => {
 
 describe('first-run setup gates everything', () => {
   it('refuses the library until an admin exists', async () => {
-    // [04 §5.1](docs/design/04-server-multiuser-deployment.md): until an admin
+    // [04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md): until an admin
     // account exists, every route except setup reports that setup is needed.
     // Combined with the loopback default this closes the window in which anyone
     // on the network could claim the install.
@@ -53,7 +53,7 @@ describe('first-run setup gates everything', () => {
     expect(response.body.account).toMatchObject({ handle: 'ned', role: 'admin', enabled: true });
     // The Capabilities record is written now even though nothing enforces it —
     // it is a persisted shape, and adding one later is a migration over user
-    // data ([15 §2.1](docs/design/15-work-plan.md)).
+    // data ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)).
     expect(response.body.account.capabilities).toEqual({
       privateConnections: true,
       fileAccess: 'none',
@@ -167,7 +167,7 @@ describe('library CRUD', () => {
   });
 
   it('is read-after-write consistent', async () => {
-    // The guarantee [02 §5.1.1](docs/design/02-data-model.md) exists to protect,
+    // The guarantee [02 §5.1.1](../../../../docs/design/02-data-model.md) exists to protect,
     // and step 4 of the P1 exit gate: *if it needs a retry, P1.4 is wrong.*
     const actor = newActor('Vera Solano');
     const created = await server.request({
@@ -183,7 +183,7 @@ describe('library CRUD', () => {
 
   it('writes the actor as a card on disk', async () => {
     // `card.png` is canonical for an actor, not a mirror of a JSON file
-    // ([02 §5.2](docs/design/02-data-model.md)).
+    // ([02 §5.2](../../../../docs/design/02-data-model.md)).
     const actor = newActor('Vera Solano');
     const created = await server.request({
       method: 'POST',
@@ -201,7 +201,7 @@ describe('library CRUD', () => {
   });
 
   it('handles every kind through one route shape', async () => {
-    // One handler set, not six ([13 §9](docs/design/13-schemas.md)).
+    // One handler set, not six ([10 §9](../../../../docs/design/10-schemas.md)).
     await server.request({ method: 'POST', url: '/api/library/actors', payload: newActor('Vera') });
     await server.request({
       method: 'POST',
@@ -223,7 +223,7 @@ describe('library CRUD', () => {
   });
 
   it('carries a content hash on every read', async () => {
-    // [04 §4.4](docs/design/04-server-multiuser-deployment.md).
+    // [04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md).
     const actor = newActor('Vera Solano');
     await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
 
@@ -254,7 +254,7 @@ describe('the stale-hash rejection', () => {
     // The harder half of the P1 demo, and the reason the editor exists at all:
     // hand-edit an object on disk while it is open, then save, and watch the
     // write be *rejected* rather than silently eat one of the two edits
-    // ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+    // ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
     const book = newLorebook('Rain City');
     const created = await server.request({
       method: 'POST',
@@ -313,7 +313,7 @@ describe('a rename is an ordinary write', () => {
   });
 
   it('changes the name inside the file and leaves the folder alone', async () => {
-    // [19 §1.1](docs/design/19-p1-implementation.md): the slug is derived at
+    // [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md): the slug is derived at
     // creation and frozen. The engine never moves the user's directories — if
     // they want the folder tidied they rename it themselves and the watcher
     // follows. There is no rename route because there is no rename.
@@ -342,7 +342,7 @@ describe('a rename is an ordinary write', () => {
 describe('the path is the owner', () => {
   it('never lets one account reach another library', async () => {
     // There is no `:handle` in any route — every one resolves its root from the
-    // session ([04 §4.3](docs/design/04-server-multiuser-deployment.md)). This
+    // session ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)). This
     // is the version of the P1.2 containment check that matters once there is
     // more than one root.
     await setUpAdmin(server, 'ned');

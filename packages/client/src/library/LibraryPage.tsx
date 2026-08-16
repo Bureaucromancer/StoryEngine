@@ -14,11 +14,11 @@ import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
  * link like any other.
  *
  * **The position this was built from has since been reversed.**
- * [05 §5](docs/design/05-ui-surfaces.md) now calls for one panel per kind — the
+ * [05 §5](../../../../docs/design/05-ui-surfaces.md) now calls for one panel per kind — the
  * kinds are distinct by design and a merged table teaches otherwise — with the
  * all-kinds view kept behind a preference. The routing and the shared list
  * machinery here are what that is built out of; see
- * [25 §4](docs/design/25-polish.md) for the change.
+ * [polish §4](../../../../docs/design/workplan/09-polish.md) for the change.
  */
 
 const routeApi = getRouteApi('/');

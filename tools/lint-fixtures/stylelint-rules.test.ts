@@ -10,7 +10,7 @@ import { FIXTURE_ROOT } from './fixture-config.js';
 
 /**
  * The CSS half of the logical-properties rule. Written before there was any CSS
- * in the project (docs/design/19-p1-implementation.md §P1.0), which is why the
+ * in the project (docs/design/workplan/03-p1-implementation.md §P1.0), which is why the
  * first stylesheet could not have been written the wrong way — and why this
  * test is the only thing that would have noticed if the rule did not work.
  */

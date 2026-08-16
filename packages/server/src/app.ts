@@ -24,7 +24,7 @@ import { registerLibraryRoutes } from './routes/library.js';
 import { Layout } from './storage/layout.js';
 
 /**
- * The HTTP app — Fastify, per [07 §3](docs/design/07-tech-stack.md).
+ * The HTTP app — Fastify, per [07 §3](../../../docs/design/07-tech-stack.md).
  *
  * The deciding argument there was that this design already needs runtime JSON
  * Schema in four places, so route validation becomes a *fifth* use of the same
@@ -66,7 +66,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
 
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
-  // ([18 §5](docs/design/18-internal-contracts.md)).
+  // ([13 §5](../../../docs/design/13-internal-contracts.md)).
   if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
     await rebuild(index.db, layout);
   }
@@ -117,7 +117,7 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
 
     // CSRF before anything else acts on the request. Double-submit: a token in
     // a script-readable cookie, echoed in a header a cross-site caller cannot
-    // set ([04 §4.1](docs/design/04-server-multiuser-deployment.md)).
+    // set ([04 §4.1](../../../docs/design/04-server-multiuser-deployment.md)).
     //
     // **Only when there is a session to protect.** CSRF is an attack on ambient
     // authority — it makes the victim's browser spend credentials it is already
@@ -138,7 +138,7 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
 
     // **First-run setup gates everything.** Until an admin exists, every route
     // except setup reports that setup is needed
-    // ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Combined with
+    // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)). Combined with
     // the loopback default this closes the window in which anyone on the
     // network could claim the admin account.
     if (

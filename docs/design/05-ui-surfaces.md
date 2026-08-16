@@ -182,7 +182,7 @@ already thinking of, which is a different question, and answering the first with
 the second is how an app ends up opening on a list of everything you own. This
 matters more once the library is per-kind panels (§5): there is no single list
 left to land on, and picking one kind arbitrarily would be worse than the list
-was. See [25 §5](25-polish.md) for the build-level detail.
+was. See [polish §5](workplan/09-polish.md) for the build-level detail.
 
 ---
 
@@ -212,7 +212,7 @@ What it shows for any turn, current or historical:
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
-  ([11 §3](11-roadmap.md)) — the people running this at the development stage
+  ([14 §3](14-roadmap.md)) — the people running this at the development stage
   are power users who already monitor their provider usage, and a usage
   dashboard is a very nice feature that is not core functionality.
 
@@ -243,7 +243,7 @@ beside every message is not.
 ## 4. File access as a permission level
 
 **Deprioritised. Experimental at best, and on the roadmap rather than in 1.0
-([11 §3](11-roadmap.md)).** The reasoning below stands and the feature is still
+([14 §3](14-roadmap.md)).** The reasoning below stands and the feature is still
 wanted; what changed is its position. Import and export UIs exist for a reason,
 in-app library management matters more, and a file-management UI is a
 disproportionate amount of surface — and of risk — for something most people
@@ -339,7 +339,7 @@ roots**, and account, credential, job and operational state are outside it.
 may change their display name and password and not their role.
 
 **The general rule this establishes**, since more operational state is coming
-([18 §5](18-internal-contracts.md)): *the file browser exposes what the user
+([13 §5](13-internal-contracts.md)): *the file browser exposes what the user
 authored, never what the server decides with.* Anything the engine reads to make
 an authorisation or scheduling decision is out of scope by construction, and new
 files under the user directory are excluded by default rather than included by
@@ -408,14 +408,14 @@ be inventive.
 Where it should differ:
 
 - **One library, one panel per portable kind.** Not one merged list with a kind
-  filter. ("Portable" as in exportable ([13 §1](13-schemas.md)); libraries
+  filter. ("Portable" as in exportable ([10 §1](10-schemas.md)); libraries
   themselves are per-user and nothing is shared between accounts on one
   install.) **The kinds
   are distinct on purpose and the browsing surface should say so.** An Actor is
   deliberately not a prompt configuration file ([00 §2.4](00-stance.md));
   personas and NPCs are flags on one kind rather than separate types
   ([02 §2.2](02-data-model.md)); Setting and Setup are split because conflating
-  them is the mistake every source made ([13 §7](13-schemas.md)). A single
+  them is the mistake every source made ([10 §7](10-schemas.md)). A single
   undifferentiated table puts that mush straight back, at the exact moment a
   user is forming their model of what these things are — and it is also the one
   view where no column but *Kind* can be load-bearing, because an actor, a
@@ -470,7 +470,7 @@ SillyTavern has priors for exactly two of them — a character card and world in
 — and no prior at all for Setting, Setup, Preset or Package. Every one of those
 splits is *correct* and none should be undone; the Setting/Setup split in
 particular is what Marinara's own scenario design identified and never built
-([13 §7](13-schemas.md)). But correct is not the same as learnable: a browsing
+([10 §7](10-schemas.md)). But correct is not the same as learnable: a browsing
 surface can let someone *move through* eight kinds without helping them
 *understand* eight kinds, and that is the failure to design against.
 
@@ -527,7 +527,7 @@ Both sources use wizards and both wizards are good. Worth taking:
 - **From Marinara:** the immutable setup snapshot, so a good combination can be
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
-  ([13 §7](13-schemas.md)) rather than a text file — editable, re-runnable, and
+  ([10 §7](10-schemas.md)) rather than a text file — editable, re-runnable, and
   shareable by dropping it in a package.
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
@@ -609,7 +609,7 @@ result consistent.
 
 **The signal to build it anyway** is a genuine class of thing the vocabulary
 cannot reach without becoming a rendering engine in disguise. Tactical combat and
-anything map-shaped are the likely triggers ([11 §4.3](11-roadmap.md)) — and
+anything map-shaped are the likely triggers ([14 §4.3](14-roadmap.md)) — and
 both are things we have already decided not to build ourselves, so the pressure
 would be coming from outside, which is the right kind of evidence to act on.
 
@@ -863,7 +863,7 @@ before they are discovered:
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
-  to [11 §3](11-roadmap.md).
+  to [14 §3](14-roadmap.md).
 - **They produce no turn record.** §8.2's provenance is the record, which is
   another reason it is not optional.
 
@@ -922,7 +922,7 @@ and it round-trips into every other tool people already use.
 
 Worth separating before they get conflated:
 
-| | **Reading view** | **Session export** ([06 B12](06-open-questions.md)) |
+| | **Reading view** | **Session export** ([06 B13](06-open-questions.md)) |
 |---|---|---|
 | For | A person to read | Another install to load |
 | Fidelity | Lossy by design — the machinery is stripped | Lossless |
@@ -934,7 +934,7 @@ records would be broken; a reading view that included them would be unreadable.
 ### 12.4 Why it belongs at 1.0
 
 Beyond being cheap: **"full readability and rollback" is the pair that makes a
-long session feel safe.** Rollback is branching ([10](10-branching.md)) — you can
+long session feel safe.** Rollback is branching ([09](09-branching.md)) — you can
 always go back. Readability is this — you can always see what you have. Together
 they are what makes someone willing to commit two hundred turns to a story, and
 either one alone is noticeably less reassuring.
@@ -998,7 +998,7 @@ is annotated, the authored bytes are not touched.
 | Method | Source | Rendering |
 |---|---|---|
 | `explicit` | The user typed it with `@` | Certain — full-strength link |
-| `matched` | Exact hit on `name` or `aliases` ([13 §4](13-schemas.md)) | Confident |
+| `matched` | Exact hit on `name` or `aliases` ([10 §4](10-schemas.md)) | Confident |
 | `proposed` | Fuzzy, or a model-proposed resolution | **Visibly tentative**, clickable to confirm or reject |
 
 Collapsing these into one appearance throws away the whole diagnostic value. A
@@ -1017,7 +1017,7 @@ UI that nags about every one is a UI people switch off. Visible, non-blocking,
 ignorable ([00 §3.3](00-stance.md)).
 
 **It shares the lorebook keyword pass.** `Actor.aliases` is already specified as
-the default keyword set for lore matching ([13 §4](13-schemas.md)), so mention
+the default keyword set for lore matching ([10 §4](10-schemas.md)), so mention
 resolution and lorebook keyword activation are scanning the same text for the
 same strings. One pass, two consumers. Two matchers that can disagree about
 whether *the fixer* means Vera is a bug waiting to happen — and the shared pass
@@ -1065,10 +1065,10 @@ the screen.
 **Presence and status are channels** ([03 §4](03-modes-and-turn-pipeline.md)),
 model-proposed and engine-decided, which buys three properties with no new
 machinery: changes are effects in the turn record, invertible at the tip and
-otherwise revisited by branching ([18 §1.2.1](18-internal-contracts.md));
+otherwise revisited by branching ([13 §1.2.1](13-internal-contracts.md));
 panel state is reconstructible at any node; and **a branch gets it right** —
 someone dead on one line and alive on another is a requirement, not a bug, and it
-falls out of effects being per-node ([10 §4](10-branching.md)).
+falls out of effects being per-node ([09 §4](09-branching.md)).
 
 **Party is a subset, not a second list.** The party already exists as a timeline
 ([03 §8](03-modes-and-turn-pipeline.md)). The panel marks party members
@@ -1135,10 +1135,10 @@ on the current path.
 The one genuinely tricky part, and the answer follows an existing rule rather
 than a new one.
 
-Abandoned branches are still real history — [10 §6](10-branching.md) makes
+Abandoned branches are still real history — [09 §6](09-branching.md) makes
 discarded swipes permanently recoverable, which is a feature none of the sources
 offers, and a search that pretends they do not exist throws it away. But
-[10 §7](10-branching.md) is equally clear that content from a discarded line
+[09 §7](09-branching.md) is equally clear that content from a discarded line
 must not surface as though it were current.
 
 **So: hits off the current path are returned, visually distinguished, and
@@ -1170,9 +1170,131 @@ same results list, one more retriever behind it.
 
 - **Not a replacement for memory.** Search is what *you* do; summarisation and
   retrieval are what the *engine* does ([06 E1](06-open-questions.md),
-  [14](14-cross-session-memory.md)). They meet at the index and nowhere else, and
+  [11](11-cross-session-memory.md)). They meet at the index and nowhere else, and
   a search result never enters a prompt because a search happened.
 - **Not full-corpus search over other people's libraries.** Per-user scoping
   ([04 §4.3](04-server-multiuser-deployment.md)) applies unchanged; the system
   library is searchable because it is readable, and another account's sessions
   are neither.
+
+---
+
+## 15. Administration, accounts and settings
+
+**Written because four other documents already refer to "the admin screen" as
+though it were specified.** [04 §4.5](04-server-multiuser-deployment.md) wants it
+to say *"2 users have no usable connection"*; [04 §6.3](04-server-multiuser-deployment.md)
+puts the restart control there; [04 §6.5](04-server-multiuser-deployment.md)
+routes connectivity failures to admins; [04 §7](04-server-multiuser-deployment.md)
+says the Source link must *not* be buried in it. The capability model
+([04 §4.2](04-server-multiuser-deployment.md)) is enumerated and admin-granted
+and never says where the granting happens. This section is that where.
+
+**It is one surface with two halves**, not two surfaces. Everyone gets *Settings*
+about themselves; admins additionally get *Administration* about the install. One
+route, one navigation entry, the admin half absent rather than disabled for
+people who do not have it.
+
+### 15.1 The user half: settings about yourself
+
+Available to every account, admin or not.
+
+- **Display name, and locale.** Both already on `Account`
+  ([04 §4.2](04-server-multiuser-deployment.md)); locale defaults from
+  `Accept-Language` on first login and this is where it stops being a guess.
+- **Change your own password.** Requires the current one. **This is not account
+  recovery** and does not weaken the position that there is none
+  ([04 §5.1](04-server-multiuser-deployment.md)): it is a logged-in user
+  rotating a secret they already hold. Someone locked out is still recovered
+  from the console with `--reset-password`, which is the whole design.
+- **Your connections** ([04 §4.5](04-server-multiuser-deployment.md)) and role
+  bindings, if `privateConnections` is granted. The one place a user sees which
+  of their bindings are personal and which fall back to system defaults.
+- **Preferences** — the presentation choices the app accumulates. §1.1's
+  density question will eventually land here, and two exist already: the
+  *As stored* pane state ([polish §2](workplan/09-polish.md)) and the all-kinds
+  library view ([polish §4](workplan/09-polish.md)). **Where these persist is
+  [06 B12](06-open-questions.md)** — `Account` has no preferences field today,
+  and the answer is needed before the first one ships, not before this surface
+  does.
+- **What is deliberately not here:** the Source link. It is required to be
+  visible to every logged-in user without hunting
+  ([04 §7](04-server-multiuser-deployment.md)), which a settings page is not.
+
+### 15.2 The admin half: accounts
+
+**The list is the surface.** Every account, with handle, display name, role,
+enabled state, and — the part that makes it worth building — *what is wrong with
+this account*, inline. The dead-end state from
+[04 §4.5](04-server-multiuser-deployment.md) is the motivating case: a user with
+no private connections allowed and no system connection available cannot do
+anything at all, and today that is discovered as a bug report from someone who
+cannot send a message.
+
+- **Create an account.** Handle, display name, initial password, role,
+  capabilities. All accounts are manually provisioned
+  ([04 §4.2](04-server-multiuser-deployment.md)) — no invites, no
+  self-registration — so this is the only way anyone but the first admin exists.
+- **Capabilities are granted here**, and they are the enumerated three:
+  `privateConnections`, `fileAccess` (`none` / `read` / `write`, default `none`,
+  §4.2), `enableExtensions`. Each with the consequence written next to it rather
+  than in a manual — *"may add their own provider keys"*, *"may browse and edit
+  their own files in the app"*.
+- **Disable, and reset a password.** Disable is reversible and does not delete;
+  the console reset stays the break-glass for the admin who cannot log in.
+- **Removing an account is a deletion of a person's library**, and the surface
+  has to say so in those words, with the same honesty the trash gets
+  ([02 §10.2](02-data-model.md)). **[OPEN]** whether removal offers *keep the
+  data, disable the login* as the default action — which is what most people
+  mean — with hard removal as the deliberate second choice.
+- **Revoking `privateConnections` disables rather than deletes**, and the user
+  is told ([04 §4.5](04-server-multiuser-deployment.md)). The surface that does
+  the revoking is the one that owes that explanation.
+
+### 15.3 The admin half: the install
+
+The system-scope and server controls, which are admin capabilities rather than
+account ones:
+
+- **System connections** ([04 §4.5](04-server-multiuser-deployment.md)) — the
+  household's shared keys, and the default role bindings everyone inherits.
+- **The system library** ([04 §4.3](04-server-multiuser-deployment.md)) — a scope
+  an admin administers, explicitly **not** an account and with no system login.
+- **Extensions**: install is admin-only, enable is per-user
+  ([12 §7](12-extensions.md)). Both halves of that live in their respective
+  halves of this surface.
+- **Restart, and server notices** ([04 §6.3](04-server-multiuser-deployment.md)) —
+  including the two things restart must not do naively.
+- **Connectivity and bind state** ([04 §6.5](04-server-multiuser-deployment.md)),
+  shown here because a regular user cannot act on it.
+
+### 15.4 What this is not
+
+**Not a dashboard, and not a place to put anything that is nobody's job.** The
+test for a panel here is that an admin has an *action*: grant, revoke, create,
+disable, restart, install. Statistics that lead to no action belong in the
+workbench (§3) or nowhere.
+
+**Not a permission system.** [04 §4.2.1](04-server-multiuser-deployment.md)
+enumerates three capabilities and two roles on purpose — no groups, no
+per-object ACLs, no custom roles. If this surface starts to want a matrix, the
+answer is that the model is right and the matrix is wrong.
+
+**Not where the density argument gets tested.** This is tooling by §1.1's split,
+so it is dense: the account list shows state inline rather than behind a
+per-account drill-down, which is the whole reason the dead-end warning is
+visible at all.
+
+### 15.5 When it gets built
+
+**P10** ([work plan §4](workplan/01-work-plan.md)), which is where account
+management, capability *enforcement* and deployment already live — accounts,
+login and first-run moved forward to P1 but management deliberately did not
+([P1 §1.3](workplan/03-p1-implementation.md)).
+
+**Two pieces are wanted earlier, and neither needs the rest of the surface.**
+The user half is small and mostly ordinary forms; the preferences store is a
+dependency of near-term client work ([polish §2, §4](workplan/09-polish.md)),
+not of P10. Building a minimal *Settings* with display name, locale, password
+and preferences ahead of the admin half is legitimate — the split in §15 is by
+audience, so the halves can land separately.

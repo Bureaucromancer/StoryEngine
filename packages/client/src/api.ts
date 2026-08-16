@@ -10,7 +10,7 @@ import { LIBRARY_DIRECTORIES } from '@storyengine/shared';
  * ids inside objects; both come from the shared registry, so the client never
  * maintains its own list of kinds. Adding a kind should not touch this file.
  *
- * CSRF is double-submit ([04 §4.1](docs/design/04-server-multiuser-deployment.md)):
+ * CSRF is double-submit ([04 §4.1](../../../docs/design/04-server-multiuser-deployment.md)):
  * the `se_csrf` cookie is script-readable precisely so this file can echo it in
  * the `x-csrf-token` header on anything state-changing.
  */
@@ -67,7 +67,7 @@ export class ApiError extends Error {
   /**
    * On a 412, the object as it is *now* (docs/api.md). Carried so the UI can
    * offer reload-and-reapply or save-as-a-copy rather than guessing
-   * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+   * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
    */
   readonly current?: LibraryObject;
 

@@ -15,7 +15,7 @@ import type { Layout, LibraryScope, ParsedObjectPath } from '../storage/layout.j
  *
  * Two things live here that look small and are the whole of P1.4's risk.
  *
- * **Tombstone-and-match** ([19 §1.1](docs/design/19-p1-implementation.md)). The
+ * **Tombstone-and-match** ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). The
  * engine never renames a user's folders, so the only way a path under a stable
  * id changes is a *foreign* rename — and a foreign rename reaches us as an
  * unlink followed by an add, in that order, with nothing connecting them. So an
@@ -24,7 +24,7 @@ import type { Layout, LibraryScope, ParsedObjectPath } from '../storage/layout.j
  * mechanism, one caller: there is no rename special case anywhere else in the
  * system, and a rename through the API is an ordinary write.
  *
- * **Duplicate ids** ([19 §1.2](docs/design/19-p1-implementation.md)). Folders
+ * **Duplicate ids** ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)). Folders
  * are copy-pasteable, which is a feature, so two files may claim one uuid. The
  * lexicographically first path wins, the other is flagged, and nothing blocks.
  * Path order rather than mtime because mtime is unstable in exactly the ways
@@ -40,7 +40,7 @@ import type { Layout, LibraryScope, ParsedObjectPath } from '../storage/layout.j
  * checkout`, short enough that a genuine delete does not linger. Erring long is
  * the safe direction: a stale tombstone costs a row nobody can see, whereas
  * maturing too early turns a rename into a delete followed by a create — which
- * is precisely the flicker [19 §1.1](docs/design/19-p1-implementation.md) exists
+ * is precisely the flicker [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) exists
  * to prevent.
  */
 export const TOMBSTONE_TTL_MS = 5000;
@@ -76,7 +76,7 @@ export function contentHashOf(bytes: Uint8Array): string {
  * Reads whatever the kind keeps on disk and hands back the portable object.
  *
  * The actor is the only kind that is not plain JSON — `card.png` is canonical
- * rather than a mirror ([02 §5.2](docs/design/02-data-model.md)) — so this is
+ * rather than a mirror ([02 §5.2](../../../../docs/design/02-data-model.md)) — so this is
  * where the card codec attaches. Everything else is a file read and a parse.
  */
 function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unknown {
@@ -93,7 +93,7 @@ function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unknown {
  * Indexes one file.
  *
  * Called synchronously by the application's own write path, so that a `GET`
- * after a `POST` reflects it ([02 §5.1.1](docs/design/02-data-model.md)), and
+ * after a `POST` reflects it ([02 §5.1.1](../../../../docs/design/02-data-model.md)), and
  * asynchronously by the watcher for foreign writes. Same function both times —
  * the two writers share the loader, the schema and the index, which is what
  * makes hand-editing safe rather than merely tolerated.
@@ -174,11 +174,11 @@ export async function ingestFile(
  * unlink-first; this handles add-first, by asking the only question that
  * actually distinguishes a move from a copy — **is the other file still
  * there?** A copied folder has both, and stays a flagged duplicate
- * ([19 §1.2](docs/design/19-p1-implementation.md)); a renamed one does not.
+ * ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)); a renamed one does not.
  *
  * It is also a quiet repair for a row whose file vanished without an event at
  * all, which is the kind of divergence a crash between write and index leaves
- * behind ([02 §5.1.1](docs/design/02-data-model.md)).
+ * behind ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
  */
 async function dropVanishedDuplicates(
   db: DatabaseSync,

@@ -1,12 +1,12 @@
-# 14 — Cross-session memory
+# 11 — Cross-session memory
 
 **Status: proposal.**
 
 Characters should remember you between sessions. This document covers memory
 *across* sessions. Memory *within* a long session is settled elsewhere: a
-**rolling summary, built as an immutable chain** ([10 §5.1](10-branching.md),
+**rolling summary, built as an immutable chain** ([09 §5.1](09-branching.md),
 [06 E1](06-open-questions.md)), with manual chapterisation a roadmap item
-([11 §3](11-roadmap.md)).
+([14 §3](14-roadmap.md)).
 
 Worth noting which way the dependency runs. Semantic retrieval is weak medicine
 for lorebooks and strong medicine here — cross-session memories are numerous,
@@ -110,7 +110,7 @@ interface SessionMemoryConfig {
 
 **This pattern is not unique to memory.** Marinara's Noodle carryover uses the
 same shape — a toggle pushing activity *into* chats, a separate per-chat toggle
-letting activity flow *back* ([11 §4.6](11-roadmap.md)) — and Messages mode's
+letting activity flow *back* ([14 §4.6](14-roadmap.md)) — and Messages mode's
 autonomous messages are the same idea with the toggles implicit. Three features
 converging on **two opt-in switches governing context flow between separate
 activity streams** suggests the mechanism is worth naming and sharing rather

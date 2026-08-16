@@ -28,7 +28,7 @@ afterEach(async () => {
 
 describe('the tier table is the source', () => {
   it('gives every key a tier', () => {
-    // [06 D0](docs/design/06-open-questions.md) requires every key to be
+    // [06 D0](../../../docs/design/06-open-questions.md) requires every key to be
     // annotated. Adding a key without deciding how it applies should be a test
     // failure rather than a silent `undefined` that reads as "live".
     const missing = configKeys().filter((key) => tierOf(key) === null);
@@ -49,7 +49,7 @@ describe('the tier table is the source', () => {
 
 describe('the restart-required notice is derived', () => {
   it('names the specific keys that changed', () => {
-    // [04 §6.3](docs/design/04-server-multiuser-deployment.md): the banner lists
+    // [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md): the banner lists
     // *what* is pending, because "restart required" alone invites people to
     // restart and hope.
     const next = {
@@ -82,7 +82,7 @@ describe('loading', () => {
 
   it('binds loopback by default', async () => {
     // The one default that decides first-run safety
-    // ([04 §5.1](docs/design/04-server-multiuser-deployment.md)): between first
+    // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)): between first
     // boot and first-run setup, anyone who can reach the port can claim the
     // admin account.
     const { config } = await loadConfig(join(dir, 'nothing.json'));
@@ -135,7 +135,7 @@ describe('loading', () => {
 describe('config has nowhere to put a credential', () => {
   it('declares no key that looks like one', () => {
     // The same structural enforcement the portable schemas get
-    // ([00 §3.2](docs/design/00-stance.md), [18 §4]): connections live in
+    // ([00 §3.2](../../../docs/design/00-stance.md), [18 §4]): connections live in
     // `connections/`, and a check can be forgotten where a missing field
     // cannot.
     const denied = /key|secret|password|token|credential|proxy|auth|url|endpoint|host/i;

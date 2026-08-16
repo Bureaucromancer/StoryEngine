@@ -1,10 +1,10 @@
-# 15 — Work plan to beta
+# 01 — Work plan to beta
 
 **Status: first pass.** A sequence, not a schedule. There are no time estimates
 here on purpose: a solo project with unknown availability makes them fiction, and
 fiction in a plan is worse than an ordering with honest dependencies.
 
-**Beta is defined as feature-complete to the 1.0 spec** ([12 §0](12-repo-and-releases.md)).
+**Beta is defined as feature-complete to the 1.0 spec** ([11 §0](11-repo-and-releases.md)).
 That definition is about to widen — release engineering, automation and workflow
 stabilisation belong in it too, and §8 holds the space for that rather than
 guessing at it.
@@ -33,7 +33,7 @@ than feature count:
 
 **The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0.**
 1.0 is a real release with a `release/1.0` branch that persists
-([12 §2](12-repo-and-releases.md)); 2.0 work continues on `main`.
+([11 §2](11-repo-and-releases.md)); 2.0 work continues on `main`.
 
 ### 0.1 What this removes from 1.0
 
@@ -48,11 +48,11 @@ Deferring a mode removes more than the mode:
 
 **Notifications stay at 1.0 but shrink.** The Messages argument for them goes
 away; the other two do not — completion sounds, and awaiting-input when a turn
-suspends for the player ([06 C5](06-open-questions.md)). In-app plus the browser
+suspends for the player ([06 C5](../06-open-questions.md)). In-app plus the browser
 Notification API covers 1.0. Web Push, ntfy and the delivery-channel spread move
 to 2.0 with Messages.
 
-**The event schema does not shrink** ([06 A2c](06-open-questions.md)). Class,
+**The event schema does not shrink** ([06 A2c](../06-open-questions.md)). Class,
 target user, `{key, params}` summary, dedupe key and coalescing window are the
 retrofit cost, and they are as cheap now with two event classes as with ten.
 
@@ -62,7 +62,7 @@ The scope cut is also a test, and it is worth stating as a commitment rather
 than a hope:
 
 > **Adding Campaign and Messages at 2.0 must require no changes to the 1.0
-> portable schemas** ([13](13-schemas.md)).
+> portable schemas** ([10](../10-schemas.md)).
 
 The design says it should not: Messages-specific fields live in `modeData` under
 a namespaced key, and Campaign's state lives in channels the mode declares.
@@ -76,13 +76,13 @@ Cutting a mode also cuts a forcing function, and two seams go into 1.0 designed
 but unexercised:
 
 - **Background scheduling and presence** were Messages' to prove. They are
-  specified ([04 §3](04-server-multiuser-deployment.md)) and nothing at 1.0 will
+  specified ([04 §3](../04-server-multiuser-deployment.md)) and nothing at 1.0 will
   test them.
 - **Heavy channels and engine-computed effects** were Campaign's to prove.
   Freeform uses channels lightly by design, so the model is under-exercised.
 
 The mitigation for the second is real: the dice reference extension
-([11 §4.4](11-roadmap.md)) exercises engine-computed channels and
+([14 §4.4](../14-roadmap.md)) exercises engine-computed channels and
 evaluate-before-narrate on a small surface, which is a reason to keep it at 1.0
 even though Freeform defaults to no mechanics. The first has no mitigation
 short of building Messages, and is simply a risk carried into 2.0.
@@ -95,19 +95,19 @@ question §2.1 exists to ask — *what is additive, and can therefore wait?*
 
 **Authored rules: the vocabulary and evaluator move to 2.0.**
 
-The third extensibility tier ([03 §4.1](03-modes-and-turn-pipeline.md)) stays a
+The third extensibility tier ([03 §4.1](../03-modes-and-turn-pipeline.md)) stays a
 committed direction. What moves is the part that is a language design project
 wearing a feature's clothes: a predicate and effect vocabulary, an evaluator, and
 the authoring surface that makes either usable.
 
 Three reasons, and the third is the strongest:
 
-- [06 C7](06-open-questions.md) already held the vocabulary open, and two stable
+- [06 C7](../06-open-questions.md) already held the vocabulary open, and two stable
   schemas were carrying ⚠ warnings because they depended on something
   unspecified — `PlotHook.requires`/`onFire` and `Goal.completion`. Deferring
   removes both warnings and makes those schemas honestly stable.
 - Infinite Worlds — the entire evidence base for this tier
-  ([09](09-infinite-worlds.md)) — ran on triggers and tracked items for years
+  ([08](../08-infinite-worlds.md)) — ran on triggers and tracked items for years
   before arriving at PawScript, and arrived at it *with a corpus of real authored
   worlds to design against.*
 - **We have no such corpus.** Designing an expression language against
@@ -138,11 +138,11 @@ What moves is *catalogue extraction*, which becomes a pre-beta sweep rather than
 a per-component obligation. Extraction over a codebase that never concatenated
 is mechanical work; extraction over one that did is a rewrite. Keeping the
 discipline and dropping the ceremony holds nearly all the value
-([07 §12](07-tech-stack.md)).
+([07 §12](../07-tech-stack.md)).
 
 **Packaging at beta is container plus tarball.**
 
-[04 §5.4](04-server-multiuser-deployment.md) lists six artifacts and §8 made all
+[04 §5.4](../04-server-multiuser-deployment.md) lists six artifacts and §8 made all
 six a beta requirement. Container and tarball are enough to have users, and the
 audience for a pre-1.0 release of this can run a container. `.deb`, AUR,
 Homebrew and the Windows service are a substantial build chain to stand up and
@@ -163,7 +163,7 @@ that have never met.
 
 **Order by what unblocks learning, not by what sounds foundational.** Two items
 land far earlier here than instinct suggests, both flagged in
-[08 §8](08-triage.md):
+[02 §8](02-triage.md):
 
 - **Import**, because it is how a realistic library exists to test retrieval and
   budgeting against. Synthetic fixtures will not surface what real cards do.
@@ -181,69 +181,69 @@ probably the most useful single list in the document.
 ### Data and identity
 
 - **uuidv7 ids, globally unique**, never namespaced per user — a future shared
-  library merges without collisions ([04 §4.3](04-server-multiuser-deployment.md)).
+  library merges without collisions ([04 §4.3](../04-server-multiuser-deployment.md)).
 - **No `owner` / `visibility` fields.** The path is the owner. Adding them later
   is a feature; removing them later is churn.
 - **Per-user directory structure from the first write** — `users/<handle>/…`.
   Retrofitting user scoping into a flat store is miserable.
 - **Every portable object self-describes** with a `schema` field, so containers
-  never enumerate kinds ([13 §9](13-schemas.md)).
+  never enumerate kinds ([10 §9](../10-schemas.md)).
 - **Channel state records its schema version** — one integer, never the schema
-  itself ([03 §4.2](03-modes-and-turn-pipeline.md)). Without it, a later
+  itself ([03 §4.2](../03-modes-and-turn-pipeline.md)). Without it, a later
   migration cannot tell what it is migrating from.
 - **Turn segments append in creation order, never rewritten**, with reading order
-  resolved through the index ([02 §5.5](02-data-model.md)). Making file order
+  resolved through the index ([02 §5.5](../02-data-model.md)). Making file order
   resemble tree order is the mistake that makes branching a storage problem.
 - **Readers preserve unknown fields.** The single rule that lets formats evolve
-  ([13 §2](13-schemas.md)).
-- **Reserve the `se.*` section-id namespace** ([13 §4](13-schemas.md)).
+  ([10 §2](../10-schemas.md)).
+- **Reserve the `se.*` section-id namespace** ([10 §4](../10-schemas.md)).
 - **Typed media roles** on embedded media, even if only two are populated
-  ([02 §5.2.2](02-data-model.md)).
+  ([02 §5.2.2](../02-data-model.md)).
 - **Structured `VisualDescriptors`** alongside prose appearance.
 - **Per-media generation provenance including the seed** — a reference image
-  whose seed was not recorded cannot be regenerated ([11 §2.4](11-roadmap.md)).
+  whose seed was not recorded cannot be regenerated ([14 §2.4](../14-roadmap.md)).
 - **Crop as a stored normalised rectangle**, never a destructive edit.
 
 ### The turn record
 
 - **Blocks recorded with source, reason, token cost and budget verdict.** Not a
   debug feature; the workbench, replay and branching all read it
-  ([02 §8](02-data-model.md)).
+  ([02 §8](../02-data-model.md)).
 - **Effects complete and reversible.** The sharp test is not undo, it is that
-  branching is a pointer rather than a copy ([10 §2](10-branching.md)).
+  branching is a pointer rather than a copy ([09 §2](../09-branching.md)).
 - **`advisory: true` on guidance-class blocks**, refused by any effect-producing
-  call ([03 §5.2](03-modes-and-turn-pipeline.md)).
+  call ([03 §5.2](../03-modes-and-turn-pipeline.md)).
 - **Cost recorded even though nothing displays aggregates at 1.0** — a spend view
-  built later over uncaptured data shows nothing ([05 §3](05-ui-surfaces.md)).
+  built later over uncaptured data shows nothing ([05 §3](../05-ui-surfaces.md)).
 - **Turn storage tolerates removal** — tombstone plus compaction, no UI needed
-  ([11 §1.6](11-roadmap.md)).
+  ([14 §1.6](../14-roadmap.md)).
 - **Summaries content-addressed by their inputs**, never a rolling mutable total
-  ([10 §5](10-branching.md)).
+  ([09 §5](../09-branching.md)).
 
 ### Runtime
 
 - **One RNG service; every draw recorded; draws keyed by site, not position**
-  ([07 §14](07-tech-stack.md)).
-- **Steps name model *roles*, never models** ([07 §5.1](07-tech-stack.md)).
+  ([07 §14](../07-tech-stack.md)).
+- **Steps name model *roles*, never models** ([07 §5.1](../07-tech-stack.md)).
 - **Prompt caps declared per provider; composed prompts built from ranked
-  fragments** ([07 §5.3](07-tech-stack.md)).
+  fragments** ([07 §5.3](../07-tech-stack.md)).
 - **Server events carry `{key, params}`, never English prose**
-  ([04 §3.4](04-server-multiuser-deployment.md)).
+  ([04 §3.4](../04-server-multiuser-deployment.md)).
 - **Notification event schema complete from the first producer** — class, target
-  user, dedupe key, coalescing window ([06 A2c](06-open-questions.md)).
-- **`locale` on the account** ([04 §4.2](04-server-multiuser-deployment.md)).
+  user, dedupe key, coalescing window ([06 A2c](../06-open-questions.md)).
+- **`locale` on the account** ([04 §4.2](../04-server-multiuser-deployment.md)).
 - **The step contract async and serialisable from the first step** — the worker
-  boundary ([17](17-extensions.md)) is not something to convert to later.
+  boundary ([12](../12-extensions.md)) is not something to convert to later.
 - **One audited path-resolution helper**, used by every filesystem-touching
-  route ([07 §9](07-tech-stack.md)).
+  route ([07 §9](../07-tech-stack.md)).
 
 ### Client
 
 - **CSS logical properties from the first stylesheet.** `margin-inline-start`,
   never `margin-left`. Skip this and RTL is permanently foreclosed
-  ([07 §12.6](07-tech-stack.md)).
+  ([07 §12.6](../07-tech-stack.md)).
 - **Never concatenate sentences from fragments, and never put a user-visible
-  string in logic** ([07 §12.6a](07-tech-stack.md)). Wrapping strings and
+  string in logic** ([07 §12.6a](../07-tech-stack.md)). Wrapping strings and
   extracting the catalogue is a pre-beta task; *these two* are habits, and a
   codebase that broke them has to be reworked component by component with nothing
   flagging where (§0.4).
@@ -253,9 +253,9 @@ probably the most useful single list in the document.
   Landmarks and headings that mean something, focus moved deliberately on view
   change and returned on dismiss, every play-loop action reachable without a
   mouse, and **no state encoded in colour alone** — the turn status indicators
-  ([05 §9](05-ui-surfaces.md)), the mention confidence tiers
-  ([05 §13.1](05-ui-surfaces.md)) and the cast badges
-  ([05 §13.2](05-ui-surfaces.md)) all need a second channel. Same argument as CSS
+  ([05 §9](../05-ui-surfaces.md)), the mention confidence tiers
+  ([05 §13.1](../05-ui-surfaces.md)) and the cast badges
+  ([05 §13.2](../05-ui-surfaces.md)) all need a second channel. Same argument as CSS
   logical properties: cheap now, a rewrite later, and there is no native client
   to fall back on if the web app is unusable.
 
@@ -306,7 +306,7 @@ The two halves are easy to confuse, so the distinction is worth drawing sharply:
 
 - **A minimal demonstration is the real thing, scoped small.** It is not
   discarded later; it grows. P1's actor editor
-  ([19 §P1.7](19-p1-implementation.md)) has a real write path and an empty slot
+  ([03 §P1.7](03-p1-implementation.md)) has a real write path and an empty slot
   where assist will attach — not a mock editor, an editor missing a feature that
   cannot exist yet. The `system/library/` merge ships in P1 with nothing in it:
   the query is real, the content is absent. Neither gets rewritten when the phase
@@ -319,12 +319,12 @@ The two halves are easy to confuse, so the distinction is worth drawing sharply:
 **The test to apply before writing a placeholder: cost the real thing first.**
 Often it is not much larger, because the placeholder has to satisfy the same
 callers. Auth is the case that made this explicit and is worth carrying as the
-worked example ([19 §1.3](19-p1-implementation.md)): a stub user context was one
+worked example ([03 §1.3](03-p1-implementation.md)): a stub user context was one
 file, but it would have been threaded through every route in P1 through P9 and
 then torn out at P10, which is every one of those routes written twice. The real
 thing — scrypt, a session cookie, CSRF, a first-run admin — is not much more code
 than the stub *plus* its eventual removal, and the design had already ruled out
-everything that makes auth large ([04 §4.1](04-server-multiuser-deployment.md)).
+everything that makes auth large ([04 §4.1](../04-server-multiuser-deployment.md)).
 
 Three qualifications, because this rule is the easiest one here to abuse:
 
@@ -336,7 +336,7 @@ Three qualifications, because this rule is the easiest one here to abuse:
   the record is a persisted shape (§2's first cost), the enforcement is additive
   (§2.1). Splitting on that line is the point.
 - **Test doubles are exempt.** Fakes, fixtures and harnesses are supposed to be
-  disposable, and [16](16-testing.md) governs them. This is about production
+  disposable, and [10](10-testing.md) governs them. This is about production
   scaffolding only.
 
 **The real counter-argument, recorded rather than dismissed:** a placeholder
@@ -357,21 +357,21 @@ between a stub and the genuine article is never narrower than at P1.
 
 ## 3. Before any code: close the A-series
 
-[06 §A](06-open-questions.md) exists precisely because these constrain
+[06 §A](../06-open-questions.md) exists precisely because these constrain
 everything downstream.
 
 **The A-series is closed.** A1/A1c: a worker-thread
-boundary with a namespaced storage API ([17](17-extensions.md)). A3: connections
+boundary with a namespaced storage API ([12](../12-extensions.md)). A3: connections
 are account-scoped with a system scope, mirroring the library
-([04 §4.5](04-server-multiuser-deployment.md)). A4: raw completion is legacy and
-unsupported ([07 §5.5](07-tech-stack.md)). That resolves the one item this plan
+([04 §4.5](../04-server-multiuser-deployment.md)). A4: raw completion is legacy and
+unsupported ([07 §5.5](../07-tech-stack.md)). That resolves the one item this plan
 called genuinely unretrofittable, and it changes P2 and P7: the step contract is
 async and serialisable from the first step written, not converted later. A5–A8
 are confirmed: multiplayer stays "don't preclude, don't build"; React + Vite +
 TanStack; TypeBox; Node LTS with `node:sqlite`.
 
 **A2c is closed too**, by separating progress events from notifications
-([04 §3.2](04-server-multiuser-deployment.md)) — granular status turns out to
+([04 §3.2](../04-server-multiuser-deployment.md)) — granular status turns out to
 cost nothing in notification classes.
 
 **Nothing in §A now blocks the first commit.**
@@ -403,10 +403,10 @@ something one person can sit down and use is a small amount of work on top.
 
 | Claim | Where it is asserted | How PLAYABLE tests it |
 |---|---|---|
-| The turn record is *legible*, not just complete | [00 §1](00-stance.md), [05 §3](05-ui-surfaces.md) | Use the workbench to answer a real "why did it say that" |
-| Files on disk beat a database for this | [00 §3.4](00-stance.md), [02 §5](02-data-model.md) | Hand-edit a card mid-session and watch it take |
-| One budgeter over everything is comprehensible | [00 §2.6](00-stance.md), [03 §5](03-modes-and-turn-pipeline.md) | Watch it under pressure against an imported library, not fixtures |
-| Inclusion reasons are a product feature | [03 §5](03-modes-and-turn-pipeline.md) | Read them and see whether they explain anything |
+| The turn record is *legible*, not just complete | [00 §1](../00-stance.md), [05 §3](../05-ui-surfaces.md) | Use the workbench to answer a real "why did it say that" |
+| Files on disk beat a database for this | [00 §3.4](../00-stance.md), [02 §5](../02-data-model.md) | Hand-edit a card mid-session and watch it take |
+| One budgeter over everything is comprehensible | [00 §2.6](../00-stance.md), [03 §5](../03-modes-and-turn-pipeline.md) | Watch it under pressure against an imported library, not fixtures |
+| Inclusion reasons are a product feature | [03 §5](../03-modes-and-turn-pipeline.md) | Read them and see whether they explain anything |
 
 The fourth is the one most likely to be wrong, and the cheapest to fix at this
 point.
@@ -426,36 +426,36 @@ beyond P4, it has been misunderstood.
 
 ### P1 — Skeleton and storage spine
 
-**Expanded into a working plan: [19](19-p1-implementation.md)** — stages, the
+**Expanded into a working plan: [03](03-p1-implementation.md)** — stages, the
 decisions the design documents left open (folder naming and rename, duplicate ids
 on disk), the phasing revision that pulls auth forward from P10, and the exit
 gate.
 
-Repo shape ([07 §10](07-tech-stack.md)), workspaces, CI, schema tooling, licence
+Repo shape ([07 §10](../07-tech-stack.md)), workspaces, CI, schema tooling, licence
 headers. Then the part everything else stands on:
 
-- Portable object schemas ([13](13-schemas.md)) as TypeBox, emitting JSON Schema.
+- Portable object schemas ([10](../10-schemas.md)) as TypeBox, emitting JSON Schema.
 - Files on disk, atomic writes, per-user layout, the PNG card envelope.
 - Derived index, filesystem watcher, **rebuild-from-disk as a startup option**.
-- Library CRUD, with accounts and login ([19 §1.3](19-p1-implementation.md)).
-- **Version history on write** ([02 §11](02-data-model.md)) — cheap here and
+- Library CRUD, with accounts and login ([03 §1.3](03-p1-implementation.md)).
+- **Version history on write** ([02 §11](../02-data-model.md)) — cheap here and
   awkward later, because the trigger points are every write path there will ever
   be. The watcher makes *hand-edits* snapshot too, which no source can offer and
   which this phase's demo exercises directly.
 - A library list, and **a prototype actor editor**
-  ([19 §P1.7](19-p1-implementation.md)) — actor only, real write path, no assist.
+  ([03 §P1.7](03-p1-implementation.md)) — actor only, real write path, no assist.
   The editor is also where the history panel first appears
-  ([05 §11.2a](05-ui-surfaces.md)): restore and diff are the parts worth having
+  ([05 §11.2a](../05-ui-surfaces.md)): restore and diff are the parts worth having
   early, since they are what make a prototype editor safe to experiment in.
 
 **Demonstrable:** create an actor through the API, see the folder appear, edit
 the JSON on disk by hand, watch the change reflected without a restart. That
 last step is the whole storage thesis in one gesture — if it does not work, the
-design has already failed ([05 §4.1](05-ui-surfaces.md)).
+design has already failed ([05 §4.1](../05-ui-surfaces.md)).
 
 **And then the harder version of the same demo:** hand-edit an object on disk
 *while it is open in the editor*, and watch the save be rejected rather than
-silently eat one of the two edits ([04 §4.4](04-server-multiuser-deployment.md)).
+silently eat one of the two edits ([04 §4.4](../04-server-multiuser-deployment.md)).
 The first demo proves the storage model reads honestly; this one proves it
 survives a second writer, which is the claim that actually has to hold once
 anyone uses it. It is the reason P1 carries an editor at all.
@@ -484,7 +484,7 @@ and reattach to the finished result. Read the whole turn record as JSON.
 **CI from here on:** golden-file assembly tests. Given a fixture library and
 session, assemble and snapshot the turn record. This is the highest-value test
 surface in the project and it exists as soon as the record does
-([16](16-testing.md)).
+([10](10-testing.md)).
 
 ### P3 — The workbench
 
@@ -493,20 +493,20 @@ effects, per-turn cost, diff between two turns.
 
 **Why here:** everything after this is debugged through it. It is also nearly
 free at this point, because the turn record already holds everything — the
-workbench is a *reader*, not a second assembler ([05 §3](05-ui-surfaces.md)).
+workbench is a *reader*, not a second assembler ([05 §3](../05-ui-surfaces.md)).
 
 ### P4 — Import
 
 Cards, lorebooks and presets from SillyTavern, Marinara and Aventuras. The
-largest PORT in the triage ([08 §4](08-triage.md)) and the reason to do it now:
+largest PORT in the triage ([02 §4](02-triage.md)) and the reason to do it now:
 it turns an empty install into a realistic library.
 
 **Presets are the load-bearing half and the one to sequence first**, because they
 are what makes the imported library *playable* rather than merely present, and
-because the conversion is already designed ([13 §8.4](13-schemas.md)) against
+because the conversion is already designed ([10 §8.4](../10-schemas.md)) against
 ST's actual format rather than against a guess. Three things it must do from the
 first version: drop connection fields unconditionally and report them
-([13 §8.4.4](13-schemas.md)), preserve depth-injected blocks at their depth
+([10 §8.4.4](../10-schemas.md)), preserve depth-injected blocks at their depth
 rather than flattening them to the top, and name every lossy conversion in the
 review instead of implying fidelity.
 
@@ -536,78 +536,79 @@ migration.
 ### P7 — Modes and channels
 
 - The mode contract as a real interface; built-ins as separate packages
-  consuming the published SDK ([07 §10](07-tech-stack.md)).
+  consuming the published SDK ([07 §10](../07-tech-stack.md)).
 - Channels, effects, engine-computed updates. **Not the authored-rule vocabulary
   or evaluator** — deferred to 2.0 (§0.4), which is the single largest thing this
   phase lost and the reason it is merely large rather than impossible.
 - Setup objects and the declarative setup wizard.
-- Party as a timeline, always non-empty ([03 §8](03-modes-and-turn-pipeline.md)).
+- Party as a timeline, always non-empty ([03 §8](../03-modes-and-turn-pipeline.md)).
 - Plot hooks and the selector.
 - **Goals** — the chain, the progress channel, narrative completion, and the
-  three offers at conclusion ([03 §7.3.3](03-modes-and-turn-pipeline.md)).
+  three offers at conclusion ([03 §7.3.3](../03-modes-and-turn-pipeline.md)).
 - **Presence and status channels**, and the editable cast panel over them
-  ([03 §8.1](03-modes-and-turn-pipeline.md), [05 §13.2](05-ui-surfaces.md)).
+  ([03 §8.1](../03-modes-and-turn-pipeline.md), [05 §13.2](../05-ui-surfaces.md)).
 - **Mention resolution** as an `extract` step sharing the lorebook keyword pass,
-  with spans on the turn record ([03 §8.2](03-modes-and-turn-pipeline.md)).
+  with spans on the turn record ([03 §8.2](../03-modes-and-turn-pipeline.md)).
   `explicit` and `matched` at 1.0; `proposed` can follow, but the span overlay
   and the never-auto-create rule must land now — both are structural.
 - **Difficulty and directedness** as two settings, with levels supplied by the
-  prompt pack rather than engine code ([03 §7.3.1](03-modes-and-turn-pipeline.md)).
+  prompt pack rather than engine code ([03 §7.3.1](../03-modes-and-turn-pipeline.md)).
 - **Scene** and **Adventure–Freeform** (§0).
 
 Still the largest phase and still the one where the contract either holds or is
 revealed as wrong. If a built-in mode needs a back door, stop and fix the
-contract ([03 §2](03-modes-and-turn-pipeline.md)).
+contract ([03 §2](../03-modes-and-turn-pipeline.md)).
 
 Two modes rather than four is a smaller phase but a weaker test, since the two
 retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P8 — Memory
 
-Cross-session memory as an auto-maintained lorebook ([14](14-cross-session-memory.md))
+Cross-session memory as an auto-maintained lorebook ([11](../11-cross-session-memory.md))
 is designed and buildable.
 
-**Within-session summarisation is a rolling summary** ([06 E1](06-open-questions.md)),
+**Within-session summarisation is a rolling summary** ([06 E1](../06-open-questions.md)),
 which is schedulable here rather than needing its own design pass. The one
 constraint that must be honoured on the first commit: it is an **immutable
 chain**, `summary(n) = f(summary(n-1), turns[a..b])`, each link keyed by the hash
-of its inputs ([10 §5.1](10-branching.md)). The mutate-one-record version is the
+of its inputs ([09 §5.1](../09-branching.md)). The mutate-one-record version is the
 obvious implementation, is indistinguishable from the UI, and quietly breaks
 cheap branching — so it is a review item, not a detail.
 
 Summaries are derived and disposable, so a bad summariser is a regeneration
 rather than lost history. That is what makes shipping a simple version in P8
-safe. Chapterisation is roadmap ([11 §3](11-roadmap.md)), not P8.
+safe. Chapterisation is roadmap ([14 §3](../14-roadmap.md)), not P8.
 
 ### P9 — Renditions
 
-Per-turn and on-demand illustration ([03 §10](03-modes-and-turn-pipeline.md)),
+Per-turn and on-demand illustration ([03 §10](../03-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.
 
 ### P10 — Multi-user, notifications, deployment
 
-**Accounts, login and first-run moved to P1** ([19 §1.3](19-p1-implementation.md))
+**Accounts, login and first-run moved to P1** ([03 §1.3](03-p1-implementation.md))
 — they were always small, and the alternative was a stub identity threaded
 through every route until this phase. The per-user *storage layout* was already
 in P1 because that part is not retrofittable; auth turned out to be cheaper to
-build than to fake. What lands here: admin and account management, capability
-enforcement, the notification router and delivery channels, the loopback bind and
-its container inversion, mDNS, the About surface and §13 source link.
+build than to fake. What lands here: admin and account management
+([05 §15](../05-ui-surfaces.md)), capability enforcement, the notification router
+and delivery channels, the loopback bind and its container inversion, mDNS, the
+About surface and §13 source link.
 
 ### P11 — Beta hardening
 
 Everything left that the 1.0 spec commits to and the phases above did not
 absorb: the assistant, editors-are-not-dumb-forms across every editor, the
-reading view ([05 §12](05-ui-surfaces.md)), impersonation in Scene
-([03 §3.1](03-modes-and-turn-pipeline.md)), the plot-hook selector, the in-app
+reading view ([05 §12](../05-ui-surfaces.md)), impersonation in Scene
+([03 §3.1](../03-modes-and-turn-pipeline.md)), the plot-hook selector, the in-app
 update check, and the localisation catalogue extraction sweep (§0.4).
 
 **Packaging here is the container and the tarball only** (§0.4). The other four
-artifacts ([04 §5.4](04-server-multiuser-deployment.md)) are a 1.0 requirement,
+artifacts ([04 §5.4](../04-server-multiuser-deployment.md)) are a 1.0 requirement,
 not a beta one.
 
 **No longer here:** the file
-browser ([06 D3](06-open-questions.md)) and Tailscale ([06 D1](06-open-questions.md)),
+browser ([06 D3](../06-open-questions.md)) and Tailscale ([06 D1](../06-open-questions.md)),
 both moved to the roadmap.
 
 ---
@@ -621,8 +622,8 @@ background scheduling, autonomous messaging and the delivery-channel spread that
 Web Push and ntfy belong to.
 
 Both are **committed**, not speculative, which distinguishes them from the
-deferred items in [11 §3](11-roadmap.md) and the desired extensions in
-[11 §4](11-roadmap.md). The roadmap items may never happen; these are scheduled.
+deferred items in [14 §3](../14-roadmap.md) and the desired extensions in
+[14 §4](../14-roadmap.md). The roadmap items may never happen; these are scheduled.
 
 The 2.0 series is also when the §0.2 check gets answered — whether either mode
 needed a portable schema change. That answer is worth recording either way.
@@ -650,15 +651,15 @@ Things that are wrong to schedule because they must happen inside every phase:
 - **Watcher and index consistency** under rapid or concurrent writes. The
   mitigation is architectural — the index is disposable — but the failure mode
   is confusing while it lasts. **Reduced, not removed**, by the dual write path
-  ([02 §5.1.1](02-data-model.md)): the server indexes its own writes
+  ([02 §5.1.1](../02-data-model.md)): the server indexes its own writes
   synchronously, so the API is read-after-write consistent and only *foreign*
   edits go through the watcher. What remains is self-write suppression getting
   its `(path, mtime, size)` token wrong, which shows up as double-indexing rather
   than as missing data.
-- ~~A1, the extension execution model~~ — **closed** ([17](17-extensions.md)).
+- ~~A1, the extension execution model~~ — **closed** ([12](../12-extensions.md)).
   The remaining risk is not structural but velocity: a boundary means anything
   the API does not expose is blocked until it grows. Watch the signals in
-  [17 §9](17-extensions.md).
+  [12 §9](../12-extensions.md).
 - **Import fidelity** across three sources with years of edge cases. Expect this
   to take longer than it looks and to keep producing bug reports after P4.
 - **P7 is where the mode contract is tested** — where it meets two real modes and
@@ -674,7 +675,7 @@ Things that are wrong to schedule because they must happen inside every phase:
 
 ## 8. What "beta" means — to be expanded
 
-[12 §0](12-repo-and-releases.md) currently defines beta as **feature complete to
+[11 §0](11-repo-and-releases.md) currently defines beta as **feature complete to
 the 1.0 spec**, which is a good completeness gate and an incomplete definition of
 readiness.
 
@@ -691,9 +692,9 @@ extended:
   progress while delaying the thing being packaged.
 - The release cut itself automated: tag → build → publish → changelog.
 - Channels wired (`latest`, `testing`, `nightly`) and *boring* — a nightly that
-  is often broken is worse than none ([12 §4](12-repo-and-releases.md)).
+  is often broken is worse than none ([11 §4](11-repo-and-releases.md)).
 - Version and commit embedded in the build, which AGPL §13 already requires
-  ([04 §7](04-server-multiuser-deployment.md)).
+  ([04 §7](../04-server-multiuser-deployment.md)).
 - Upgrade tested, not assumed: an install from the previous release upgrading
   with its data intact.
 - Backup and restore actually exercised.

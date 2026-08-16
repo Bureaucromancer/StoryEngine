@@ -21,7 +21,7 @@ import { Field } from './Field.js';
 import { HistoryPanel } from './HistoryPanel.js';
 
 /**
- * The prototype actor editor — [19 §P1.7](docs/design/19-p1-implementation.md).
+ * The prototype actor editor — [P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md).
  *
  * Actor only, deliberately: the kind with the richest shape, so it is the
  * honest test rather than the easy one. Text and simple structured fields,
@@ -34,7 +34,7 @@ import { HistoryPanel } from './HistoryPanel.js';
  * moved underneath (the likelier conflict is not two tabs but one tab and a
  * text editor), the 412 carries the current object and the dialog offers
  * reload-and-reapply or save-as-a-copy
- * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)). Nothing here
+ * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)). Nothing here
  * guesses.
  */
 
@@ -393,7 +393,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 /**
  * The stale-hash dialog — the only defence the hot-reload thesis has against
  * silently eating a hand edit, surfaced instead of swallowed
- * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
  */
 function ConflictDialog(props: {
   onReload: () => void;

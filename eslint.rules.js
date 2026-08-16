@@ -7,7 +7,7 @@
  * hand-copied approximation of them.
  *
  * That indirection is the whole point. P1.0's deliverable is a set of claims
- * about what is a build error (docs/design/19-p1-implementation.md §P1.0), and
+ * about what is a build error (docs/design/workplan/03-p1-implementation.md §P1.0), and
  * an untested lint rule is a claim, not a check.
  *
  * The path-dependent rules take a prefix so the tests can root them at a
@@ -137,7 +137,7 @@ const TAILWIND_MESSAGE =
  * object, and the two exempt files (`ids.ts`, `secrets.ts`) need the Tailwind
  * bans without the Web Crypto ban — `crypto.getRandomValues` is how they draw
  * randomness portably, since `shared` must also run in a browser (the
- * `client → shared` edge in docs/design/16-testing.md §2).
+ * `client → shared` edge in docs/design/workplan/10-testing.md §2).
  *
  * @param {{ allowRandomness?: boolean }} options
  */
@@ -169,7 +169,7 @@ export function restrictedSyntax({ allowRandomness = false } = {}) {
 // ---------------------------------------------------------------------------
 
 const BOUNDARY_MESSAGE =
-  'Architectural boundary violated. The graph is docs/design/16-testing.md §2: ' +
+  'Architectural boundary violated. The graph is docs/design/workplan/10-testing.md §2: ' +
   'modes → sdk, shared; client → shared; sdk → shared; server → shared, sdk.';
 
 /** @param {string} type */
@@ -179,7 +179,7 @@ const from = (type) => ({ element: { type } });
 const to = (types) => ({ to: { element: { types: { anyOf: types } } } });
 
 /**
- * The graph from docs/design/16-testing.md §2, as eslint-plugin-boundaries
+ * The graph from docs/design/workplan/10-testing.md §2, as eslint-plugin-boundaries
  * settings and rules.
  *
  * `modes` is defined here even though `packages/modes/` does not exist. That is
@@ -259,6 +259,6 @@ export const forbiddenPackages = {
 export function bannedPackagesFor(from) {
   return forbiddenPackages[from].map((name) => ({
     name,
-    message: `${from} may not import ${name}. See docs/design/16-testing.md §2.`,
+    message: `${from} may not import ${name}. See docs/design/workplan/10-testing.md §2.`,
   }));
 }

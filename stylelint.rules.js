@@ -3,13 +3,13 @@
 
 /**
  * The CSS half of the logical-properties rule
- * (docs/design/07-tech-stack.md §12.6, docs/design/15-work-plan.md §2).
+ * (docs/design/07-tech-stack.md §12.6, docs/design/workplan/01-work-plan.md §2).
  *
  * Split out of `stylelint.config.js` for the same reason the ESLint rules are:
  * the fixture tests in `tools/lint-fixtures/` run against these objects.
  *
  * Written before there is any CSS to check, which is the point — this is
- * docs/design/19-p1-implementation.md §P1.0's ordering, and it is why the first
+ * docs/design/workplan/03-p1-implementation.md §P1.0's ordering, and it is why the first
  * stylesheet in the project could not have been written the wrong way.
  */
 

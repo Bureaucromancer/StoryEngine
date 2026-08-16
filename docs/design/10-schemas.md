@@ -1,4 +1,4 @@
-# 13 — Proposed schemas
+# 10 — Proposed schemas
 
 **Status: proposal, but the tightest one here.** These are the structures worth
 agreeing before code, because other people's data ends up in them.
@@ -114,7 +114,7 @@ interface Provenance {
   /** Author's own version string. Free text; not our schema version. */
   version: string | null
   /** Licence the *author* places on this content. Never inherited from the
-   *  app's licence — content is not a derivative work. [08 §1.2] */
+   *  app's licence — content is not a derivative work. [triage §1.2] */
   license: string | null
   originalFilename: string | null
   createdAt: string        // ISO 8601. Never epoch ms.
@@ -191,7 +191,7 @@ type MediaRole =
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
 // conditioning generation — which is what lets a later feature treat a
 // location's reference image the way it already treats an actor's
-// ([11 §3](11-roadmap.md)). `map` is the only addition lore needed, because a
+// ([14 §3](14-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
 
@@ -440,7 +440,7 @@ interface LoreEntry {
   selective: boolean
   matchWholeWords: boolean
   caseSensitive: boolean
-  /** Patterns run under a hard execution timeout. [08 §5.1] */
+  /** Patterns run under a hard execution timeout. [triage §5.1] */
   useRegex: boolean
   scanDepth: number | null         // null = inherit from the book
 
@@ -537,7 +537,7 @@ unchanged. Adding images later without roles means guessing afterwards what each
 one was for, and the guess is not recoverable.
 
 The intended first real consumer is rendition conditioning
-([11 §3](11-roadmap.md)): a location's `reference` image is the same shape of
+([14 §3](14-roadmap.md)): a location's `reference` image is the same shape of
 input to *illustrate this scene* that an actor's already is
 ([03 §10.3](03-modes-and-turn-pipeline.md)). That is why `reference` carries the
 same meaning across both kinds rather than lore getting a vocabulary of its own.
@@ -654,7 +654,7 @@ interface PlotHook {
 **Fully stable, because the rule-typed fields are gone.** An earlier draft
 carried `requires?: Predicate[]` and `onFire?: Effect[]` with ⚠ warnings, since
 both belonged to the authored-rule vocabulary. That vocabulary is now 2.0
-([15 §0.4](15-work-plan.md)), and rather than ship a `/1` schema with two fields
+([work plan §0.4](workplan/01-work-plan.md)), and rather than ship a `/1` schema with two fields
 typed against something unwritten, they are removed.
 
 **Little is lost, which is part of why the deferral was affordable.**
@@ -794,7 +794,7 @@ interface Goal {
 
   /** "mechanical" — completion computed from channel state — waits on the
    *  authored-rule vocabulary and arrives as a third variant at 2.0
-   *  ([15 §0.4](15-work-plan.md)). Adding a variant is additive. */
+   *  ([work plan §0.4](workplan/01-work-plan.md)). Adding a variant is additive. */
   completion:
     | { kind: "narrative" }        // an evaluation step judges it
     | { kind: "manual" }           // the player says when
@@ -810,7 +810,7 @@ interface Goal {
 **Both completion kinds are stable**, because the one that depended on the rule
 vocabulary is not here yet. Campaign is where mechanical completion actually
 earns its place — a quest whose state is real data — and Campaign is 2.0
-([15 §0](15-work-plan.md)), so the vocabulary and its first serious consumer
+([work plan §0](workplan/01-work-plan.md)), so the vocabulary and its first serious consumer
 arrive together rather than one waiting on the other.
 
 **Why `Goal` sits on Setup rather than Setting.** A Setting is a world and a
@@ -844,7 +844,7 @@ round-trip guarantee inverts the priority §1 sets out.
 |---|---|
 | Content rating is advisory ([§6.2](#62-contentrating-is-advisory--and-says-so)) | *"Where enforcement actually belongs is prompt packs and upstream system prompts"* |
 | Difficulty is a sycophancy dial ([03 §7.3.1](03-modes-and-turn-pipeline.md)) | *"The levels live in the prompt pack, not in engine code"* |
-| Model-behaviour patching ([09 §5](09-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
+| Model-behaviour patching ([08 §5](08-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
 
 Each is a good decision. Together they mean the layer three arguments rest on
 cannot be the one layer left undefined — that is how a delegation becomes a hole.
@@ -982,7 +982,7 @@ type SlotSource =
   | { of: "setting"; part: "framing" | "tone" }
   | { of: "goal" }                          // [03 §7.3.3]
 
-// SlotSource is BlockSource ([18 §1.1](18-internal-contracts.md)) minus its two
+// SlotSource is BlockSource ([13 §1.1](13-internal-contracts.md)) minus its two
 // assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
 // contribution did not exist when the preset was authored. One vocabulary, used
@@ -1109,7 +1109,7 @@ hidden it.
 > other*. Verified separately, both look right.
 
 The check is cheap and belongs in the fixture suite
-([16 §5](16-testing.md)): import a real ST directory, assemble one turn, and
+([testing §5](workplan/10-testing.md)): import a real ST directory, assemble one turn, and
 assert that **no slot resolves empty**. It is the kind of failure that produces
 silence rather than an error, which is exactly what a golden-file test is for.
 
@@ -1136,7 +1136,7 @@ named consequence, never as a silent drop.
   per-character orders gets **one preset plus a warning naming the characters**,
   rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
-  ([00 §2.2](00-stance.md), [08 §6.1](08-triage.md)). They exist to serve raw
+  ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
   completion, which is unsupported ([07 §5.5](07-tech-stack.md)).
 - **Text-completion presets** convert to `params` only, and most of their fields
   drop: `dry_*`, `smoothing_*`, `mirostat_*`, `xtc_*`, `tfs`, `eta_cutoff`,
@@ -1349,9 +1349,9 @@ warning with a degraded-start option rather than a hard block where possible.
 
 | Structure | Why not |
 |---|---|
-| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [18](18-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
-| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [18 §1.3](18-internal-contracts.md). |
-| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 2.0 ([15 §0.4](15-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
+| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [13](13-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
+| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [13 §1.3](13-internal-contracts.md). |
+| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 2.0 ([work plan §0.4](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
 

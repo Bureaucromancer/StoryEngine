@@ -18,7 +18,7 @@ import { LibraryWatcher, type WatchEvent } from './watcher.js';
  *
  * Slower than the rest of the suite and worth it: **this is the path the P1
  * demo's central gesture runs through** — hand-edit a file on disk, watch the
- * change appear without a restart. [05 §4.1](docs/design/05-ui-surfaces.md) is
+ * change appear without a restart. [05 §4.1](../../../../docs/design/05-ui-surfaces.md) is
  * blunt about the stakes: *if editing a file on disk does not reflect, the
  * storage design has already failed on its own terms.* Testing the ingest
  * function alone would leave the half that actually notices untested.
@@ -151,7 +151,7 @@ describe('the watcher ignores its own writes', () => {
   it('suppresses a write the application made', async () => {
     // Atomic writes are temp-then-rename, so chokidar reports an add and an
     // unlink for every save. Without suppression the index does every job twice
-    // ([02 §5.1.1](docs/design/02-data-model.md)).
+    // ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
 
     await eventually(() => events.some((event) => event.type === 'suppressed'));
@@ -245,7 +245,7 @@ describe('a hand edit leaves history behind', () => {
 
 describe('a foreign rename through the watcher', () => {
   it('is a move, and the row keeps its id', async () => {
-    // The end-to-end form of [19 §1.1](docs/design/19-p1-implementation.md).
+    // The end-to-end form of [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md).
     // Renaming a folder in a file manager reaches the watcher as an unlink and
     // an add with nothing connecting them, and the tombstone is what connects
     // them — including across the ordering chokidar happens to deliver.

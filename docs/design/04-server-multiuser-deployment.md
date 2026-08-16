@@ -61,7 +61,7 @@ client  ──intent──▶  server
   Messages mode's scheduler is a server-side timer that starts a turn; the fact
   that no client is connected is uninteresting.
 
-~~[OPEN]~~ **Closed at the P2 plan** ([20 §2.10](20-p2-implementation.md)),
+~~[OPEN]~~ **Closed at the P2 plan** ([P2 §2.10](workplan/04-p2-implementation.md)),
 along this lean and stronger: turns are not resumed across restart — recovery
 resumes *finalisation*, never generation. A job left running becomes a failed
 terminal turn with its blocks and calls checkpointed so far; a job interrupted
@@ -80,7 +80,7 @@ away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
 The large pressure: **Messages mode does not work without it** — though Messages
-is now a 2.0 mode ([15 §0](15-work-plan.md)), so this argument lands later than
+is now a 2.0 mode ([work plan §0](workplan/01-work-plan.md)), so this argument lands later than
 the others. Autonomous
 messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
@@ -153,7 +153,7 @@ wait, a reconnecting client replays from its last acknowledged id, and "persist
 until seen" becomes a property of storage rather than a hope about timing.
 
 **That inbox is operational state, not derived** — it goes with jobs and auth
-sessions in the store described in [18 §5.1](18-internal-contracts.md), never in
+sessions in the store described in [13 §5.1](13-internal-contracts.md), never in
 the disposable index. A notification that vanishes when someone deletes
 `index.sqlite` was never durable.
 
@@ -231,7 +231,7 @@ settings.
 | `turn.failed` | **yes** | 1.0 |
 | `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([06 C5](06-open-questions.md)); the strongest argument for push |
 | `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
-| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([17 §7](17-extensions.md)) |
+| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([12 §7](12-extensions.md)) |
 | `message.received` | no | **2.0**, with Messages |
 
 **`artifact.ready` rather than `rendition-ready`.** Renditions are the only
@@ -274,7 +274,7 @@ rather than in-app-only.
    configuration, not server configuration.
 
 The 1.0 pair covers everything 1.0 generates, because without Messages nothing
-reaches you when no browser is open ([15 §0.1](15-work-plan.md)). Push and
+reaches you when no browser is open ([work plan §0.1](workplan/01-work-plan.md)). Push and
 webhooks arrive with the mode that needs them.
 
 #### Channels 2 and 3 require a secure context, and plain LAN HTTP is not one
@@ -375,7 +375,7 @@ interface Capabilities {
   /** In-UI file browser over their own directory. [05 §4.2] */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
-   *  remains admin-only. [17 §7] */
+   *  remains admin-only. [12 §7] */
   enableExtensions: boolean
 }
 ```
@@ -424,7 +424,7 @@ than scattering booleans as they arise, is that **a future role system then
 becomes a move rather than an invention** — capabilities relocate from the
 account to a role, and accounts reference roles. Additive, and only if wanted.
 
-**A real role system is post-2.0** ([11 §3](11-roadmap.md)). The signals that it
+**A real role system is post-2.0** ([14 §3](14-roadmap.md)). The signals that it
 is needed: a capability that is not a simple boolean, wanting to apply the same
 set to several people, or wanting permissions scoped to particular objects
 rather than to the account. None of those is true yet, and building an RBAC
@@ -493,12 +493,12 @@ rather than a schema migration:
 1. **Object ids are globally unique** (uuidv7), not namespaced per user. Alice's
    Vera and Bob's Vera are different objects with different ids, so a future
    merge has no collisions to resolve.
-2. **Provenance already records origin** ([13 §3](13-schemas.md)), so a copy can
+2. **Provenance already records origin** ([10 §3](10-schemas.md)), so a copy can
    say where it came from and a future dedupe has something to match on.
 3. **When sharing arrives it should be a new *location*, not a new field** — a
    `/data/shared/library/` alongside the per-user ones, with objects copied or
    moved into it. That is additive and leaves every schema in
-   [13](13-schemas.md) untouched.
+   [10](10-schemas.md) untouched.
 4. **No visibility or ownership fields until then.** Not having them is free;
    removing them later is churn.
 
@@ -591,7 +591,7 @@ Three details that decide whether it works:
   ([05 §4](05-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
   loader must ignore personal connections for a user without the capability.
   That also means the same rule covers extensions for free, since they request
-  calls by role and the host resolves ([17 §4](17-extensions.md)).
+  calls by role and the host resolves ([12 §4](12-extensions.md)).
 - **Revoking disables, never deletes.** Existing personal connections stay on
   disk and stop resolving, and the user is *told* rather than left wondering why
   a model call started failing. Role bindings pointing at them dangle and fall
@@ -599,16 +599,16 @@ Three details that decide whether it works:
   mechanism.
 - **The dead-end state needs surfacing.** A user with no private connections
   allowed and no system connection available cannot do anything at all. The
-  admin screen should say so plainly — *"2 users have no usable connection"* —
-  because it is otherwise discovered as a bug report from someone who cannot
-  send a message.
+  admin screen ([05 §15.2](05-ui-surfaces.md)) should say so plainly — *"2 users
+  have no usable connection"* — because it is otherwise discovered as a bug
+  report from someone who cannot send a message.
 
 #### Two things this makes more pressing
 
 - **Cost attribution stops being optional at 2.0.** With everyone spending one
   key, "who used what" becomes a real question. Turns already record cost and
   already belong to a user ([05 §3](05-ui-surfaces.md)), so the data exists —
-  the aggregate view deferred to [11 §3](11-roadmap.md) is where it surfaces.
+  the aggregate view deferred to [14 §3](14-roadmap.md) is where it surfaces.
 - **Rate limits become shared.** Several users against one key will hit provider
   limits that a single user would not. The answer is a **queue per connection
   with a concurrency cap** rather than hammering and failing — a turn that waits
@@ -854,7 +854,7 @@ optionality** — Tier 3 is no longer "as capacity allows". Everything outside t
 six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
 build-from-source stays first-class.
 
-**Which are needed *when* has been re-cut** ([15 §0.4](15-work-plan.md)):
+**Which are needed *when* has been re-cut** ([work plan §0.4](workplan/01-work-plan.md)):
 
 | Milestone | Artifacts |
 |---|---|
@@ -872,7 +872,7 @@ home-server product people cannot install is a home-server product nobody uses,
 and an unclaimed AUR slot gets claimed by someone else. Both are true of a
 release; neither is true of a beta.
 
-**Auto-update — settled in [12 §4](12-repo-and-releases.md).** We publish a
+**Auto-update — settled in [releases §4](workplan/11-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container
 users through unraid auto-update or watchtower, package users through their
 package manager, and everyone else through an in-app check that notices a
@@ -881,7 +881,7 @@ release and links to it. That check pairs with the version-awareness the AGPL
 data directory is not planned.
 
 **None of this packaging work is alpha-phase.** Per
-[12 §0](12-repo-and-releases.md), release engineering begins at beta — defined
+[releases §0](workplan/11-repo-and-releases.md), release engineering begins at beta — defined
 as feature-complete to the 1.0 spec. Until then the distribution strategy is
 build-it-yourself, and the tiers above are a plan rather than a backlog.
 
@@ -961,7 +961,7 @@ cleaner lifecycle depends on [06 A1](06-open-questions.md).
 ### 6.5 Update check, and using it as a connectivity signal
 
 **An in-app update check ships.** It queries the release feed for the configured
-channel ([12 §4](12-repo-and-releases.md)), compares against the running version
+channel ([releases §4](workplan/11-repo-and-releases.md)), compares against the running version
 — which the build already embeds for AGPL §13 (§5) — and surfaces a quiet
 indicator. Daily, cached, never on page load.
 
@@ -1024,7 +1024,7 @@ never work.
 
 ## 7. Licence obligations that are actually features
 
-StoryEngine is AGPL-3.0 ([08 §1](08-triage.md)), and §13 — the network clause —
+StoryEngine is AGPL-3.0 ([triage §1](workplan/02-triage.md)), and §13 — the network clause —
 applies squarely to a multi-user server reached over a LAN: people interacting
 with it remotely must be offered the corresponding source for the version they
 are interacting with.
@@ -1037,7 +1037,7 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
   embeds its tag and commit hash and the link is version-aware. A link to `main`
   is not strictly compliant when the operator is running a patched build — and
   the patched-build case is exactly the one §13 exists for. The permanent
-  release branches and tags in [12 §2](12-repo-and-releases.md) are what keep
+  release branches and tags in [releases §2](workplan/11-repo-and-releases.md) are what keep
   those links resolving years later.
 - An **About** surface showing version, commit, licence, and the dependency
   licence manifest. Cheap to generate at build time and independently useful for
@@ -1045,7 +1045,7 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
 
 The same surface should state the licence boundary plainly, because the
 project asks copyleft of one category and nothing of the other
-([08 §1.2](08-triage.md)):
+([triage §1.2](workplan/02-triage.md)):
 
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.

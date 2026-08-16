@@ -12,7 +12,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * Version history through the HTTP surface — the CI equivalents of exit-gate
- * steps 13–19 ([19 §3](docs/design/19-p1-implementation.md)).
+ * steps 13–19 ([P1 §3](../../../../docs/design/workplan/03-p1-implementation.md)).
  *
  * Each of these fails silently otherwise: mis-attributed sources look like a
  * working feature, no-op suppression is invisible until the list is unusable,

@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { Compat, GeneratedMap, Id, Metadata, ModelHint, Provenance } from './common.js';
 
 /**
- * Preset — docs/design/13-schemas.md §8. **The prompt pack.**
+ * Preset — docs/design/10-schemas.md §8. **The prompt pack.**
  *
  * At `/0`, and that is the honest number: §8.5 lists four things still
  * genuinely unsettled, and three of them are in this file. What `/0` buys over
@@ -49,7 +49,7 @@ export type CallKind = Static<typeof CallKind>;
  *
  * `in-history` is the expensive one and worth paying for: it forces history to
  * be a *splittable* source rather than an atomic block. It is not what
- * [00 §2.1](docs/design/00-stance.md) rejects — that objection is to character
+ * [00 §2.1](../../../../docs/design/00-stance.md) rejects — that objection is to character
  * offsets into an assembled string, which are unrepresentable and break whenever
  * anything upstream changes length. "After the Nth-newest message" is a
  * structural position over a list the engine owns, and it survives edits,
@@ -83,7 +83,7 @@ export type Placement = Static<typeof Placement>;
  * What fills a slot. Closed for now, and expected to grow as modes declare
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
- * This is `BlockSource` ([18 §1.1](docs/design/18-internal-contracts.md)) minus
+ * This is `BlockSource` ([13 §1.1](../../../../docs/design/13-internal-contracts.md)) minus
  * its two assembler-only origins: `preset`, because a preset's own prose *is* a
  * TextBlock rather than a reference to one, and `step`, because a step's
  * contribution did not exist when the preset was authored.
@@ -141,7 +141,7 @@ const BlockCommon = {
 
   /**
    * Budget priority. "Never trim" is a value here, never the absence of a budget
-   * ([00 §2.6](docs/design/00-stance.md)).
+   * ([00 §2.6](../../../../docs/design/00-stance.md)).
    */
   priority: Type.Number(),
   /**
@@ -151,7 +151,7 @@ const BlockCommon = {
   appliesTo: Type.Array(CallKind),
   /**
    * Guidance-class blocks are refused by effect-producing calls
-   * ([03 §5.2](docs/design/03-modes-and-turn-pipeline.md)).
+   * ([03 §5.2](../../../../docs/design/03-modes-and-turn-pipeline.md)).
    */
   advisory: Type.Boolean(),
   /** Drop the block rather than emit a heading with nothing under it. */
@@ -238,10 +238,10 @@ export type BudgetPolicy = Static<typeof BudgetPolicy>;
 
 /**
  * **Sampling only. Never a model id, never a connection**
- * ([00 §3.2](docs/design/00-stance.md)).
+ * ([00 §3.2](../../../../docs/design/00-stance.md)).
  *
  * The portable subset — the parameters an OpenAI-compatible chat endpoint
- * understands ([07 §5.5](docs/design/07-tech-stack.md)). Backend-specific
+ * understands ([07 §5.5](../../../../docs/design/07-tech-stack.md)). Backend-specific
  * sampler controls (`dry_*`, `mirostat_*`, `xtc_*`, `tfs`, and the rest of the
  * text-completion family) have no chat-API equivalent and land in `compat` with
  * a named loss in the import review, never here.
@@ -272,7 +272,7 @@ export type GenerationParams = Static<typeof GenerationParams>;
 /**
  * Author-declared variables the templates interpolate, with defaults and help
  * text. The Aventuras `CustomVariable` shape
- * ([05 §6](docs/design/05-ui-surfaces.md)) — typed, enum options, required flag,
+ * ([05 §6](../../../../docs/design/05-ui-surfaces.md)) — typed, enum options, required flag,
  * defaults, sort order, help text — which is a working precedent rather than a
  * guess.
  */
@@ -301,7 +301,7 @@ export type PresetVariable = Static<typeof PresetVariable>;
 
 /**
  * Named levels the mode's difficulty setting resolves against
- * ([03 §7.3.1](docs/design/03-modes-and-turn-pipeline.md)).
+ * ([03 §7.3.1](../../../../docs/design/03-modes-and-turn-pipeline.md)).
  *
  * **The levels live in the prompt pack, not in engine code**, which is the
  * whole point: "hard" meaning something different in one prompt pack than
@@ -309,7 +309,7 @@ export type PresetVariable = Static<typeof PresetVariable>;
  * with a source rather than buried in a conditional.
  *
  * Fragments are *ranked* rather than a single string, so the prompt-cap
- * machinery ([07 §5.3](docs/design/07-tech-stack.md)) can drop the lowest-ranked
+ * machinery ([07 §5.3](../../../../docs/design/07-tech-stack.md)) can drop the lowest-ranked
  * rather than cutting mid-sentence.
  */
 export const DifficultyLevel = Type.Object(

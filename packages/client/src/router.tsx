@@ -15,7 +15,7 @@ import { Shell } from './Shell.js';
  * filter is a search param on the list, so a filtered library is an address
  * like any other. The editor's path is actor-specific because the editor is —
  * the other five kinds stay read-only in P1
- * ([19 §P1.7](docs/design/19-p1-implementation.md)).
+ * ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)).
  *
  * Code-based rather than file-based routing — at three routes the generator
  * would be more machinery than route.

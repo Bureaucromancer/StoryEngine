@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
  * The one file in the server allowed to draw cryptographic randomness.
  *
  * Same exemption as `shared/src/ids.ts` and the same argument: the randomness
- * rule ([07 §14](docs/design/07-tech-stack.md)) protects **replay and
+ * rule ([07 §14](../../../../docs/design/07-tech-stack.md)) protects **replay and
  * branching** — every draw that can change what happens must be recorded, or a
  * reconstructed branch silently diverges. A password salt and a session key are
  * not draws. Nothing replays them, no narrative outcome depends on them, and
@@ -26,11 +26,11 @@ const scrypt = promisify(scryptCallback) as (
 ) => Promise<Buffer>;
 
 /**
- * scrypt, per [07 §9](docs/design/07-tech-stack.md).
+ * scrypt, per [07 §9](../../../../docs/design/07-tech-stack.md).
  *
  * argon2id is marginally better and costs a native module. Given a threat model
  * of *access separation among people who already trust each other*
- * ([04 §4.1](docs/design/04-server-multiuser-deployment.md)) that trade is not
+ * ([04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md)) that trade is not
  * close — and it is also what SillyTavern uses, which matters for a project
  * whose users may migrate between them.
  *
@@ -74,7 +74,7 @@ export function generateSecret(bytes = 32): string {
 /**
  * The one-time setup token printed to the console when the server is reachable
  * beyond loopback and no admin exists yet
- * ([04 §5.1](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
  * Short enough to retype from a `docker logs` line, long enough that guessing it
  * inside the setup window is not a plan.

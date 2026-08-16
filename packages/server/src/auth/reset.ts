@@ -19,7 +19,7 @@ import { createInterface } from 'node:readline';
  *   only complicate it.
  *
  * Messages here are developer/operator-facing console output, deliberately
- * untranslated ([07 §12.7](docs/design/07-tech-stack.md)).
+ * untranslated ([07 §12.7](../../../../docs/design/07-tech-stack.md)).
  */
 
 /** Mirrors the setup route's minimum (routes/auth.ts). */

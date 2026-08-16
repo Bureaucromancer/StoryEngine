@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 StoryEngine contributors
 #
-# The per-PR tier from docs/design/16-testing.md §6: typecheck, lint, build,
+# The per-PR tier from docs/design/workplan/10-testing.md §6: typecheck, lint, build,
 # test. It has one job — to be fast enough that it is never skipped.
 #
 # The nightly and on-tag tiers, the dependency-licence scan and the forward-port
@@ -32,7 +32,7 @@ jobs:
       - uses: pnpm/action-setup@v4
 
       # Node 26 — LTS from October 2026, which lands inside P1. It is also where
-      # docs/design/19-p1-implementation.md §1.4 verified node:sqlite's FTS5
+      # docs/design/workplan/03-p1-implementation.md §1.4 verified node:sqlite's FTS5
       # support, and that is what retires the better-sqlite3 fallback.
       - uses: actions/setup-node@v6
         with:

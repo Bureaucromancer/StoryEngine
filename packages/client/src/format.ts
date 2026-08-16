@@ -3,7 +3,7 @@
 
 /**
  * Date formatting — `Intl` only, from the first component
- * ([07 §12.6](docs/design/07-tech-stack.md)). No hand-rolled "2 minutes ago".
+ * ([07 §12.6](../../../docs/design/07-tech-stack.md)). No hand-rolled "2 minutes ago".
  *
  * `locale` is the account's, when there is one; `undefined` falls back to the
  * browser's. Passing it explicitly rather than reading a global keeps these

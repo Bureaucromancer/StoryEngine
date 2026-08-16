@@ -18,7 +18,7 @@ import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
  * 2 is the same number whether it arrives through the API, an import or a
  * fixture.
  *
- * `newActor` is where [13 §4](docs/design/13-schemas.md)'s *"the editor creates
+ * `newActor` is where [10 §4](../../../docs/design/10-schemas.md)'s *"the editor creates
  * all four on a new actor"* actually happens. Conventional sections are enforced
  * at three layers and none of them is the schema, so this is the first of the
  * three.
@@ -118,7 +118,7 @@ export function newLorebook(name: string): Lorebook {
 
 /**
  * A lore entry with the doc's stated defaults
- * ([13 §5](docs/design/13-schemas.md)).
+ * ([10 §5](../../../docs/design/10-schemas.md)).
  *
  * Here for the same reason the others are — the defaults belong to the schema
  * rather than to whatever creates an entry — and it earns its place immediately:
@@ -193,7 +193,7 @@ export function newSetting(name: string): Setting {
       pov: 'second',
       tense: 'present',
       // null, not "sfw". Unspecified means *ask*, and the difference is
-      // deliberate ([13 §2](docs/design/13-schemas.md)).
+      // deliberate ([10 §2](../../../docs/design/10-schemas.md)).
       contentRating: null,
       styleNotes: '',
     },

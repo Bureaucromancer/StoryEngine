@@ -1,4 +1,4 @@
-# 12 — Repository and release model
+# 11 — Repository and release model
 
 **Status: proposal.** Process rather than architecture. This document is the
 draft of what eventually becomes `CONTRIBUTING.md`; it lives here while the
@@ -14,13 +14,13 @@ what is deferred rather than forgotten.
 | Phase | Definition | Distribution |
 |---|---|---|
 | **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No release artifacts, no channels, no packages. |
-| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](04-server-multiuser-deployment.md). |
+| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
-| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — Adventure–Campaign and Messages ([15 §0](15-work-plan.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
+| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — Adventure–Campaign and Messages ([01 §0](01-work-plan.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
 
 **1.0 is a real release, not a staging post.** It ships two modes — Scene and
 Adventure–Freeform — chosen as the ones this project has opinions about, with
-Campaign and Messages held for a 2.0 series ([15 §0](15-work-plan.md)). The
+Campaign and Messages held for a 2.0 series ([01 §0](01-work-plan.md)). The
 release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.
 
@@ -33,11 +33,11 @@ rather than negotiable, and it puts the argument about whether something ships
 build chains, release automation, and workflows stable enough that shipping is
 repeatable rather than an event. That belongs *in* the beta gate rather than
 after it. One piece is settled: the canonical build must deliver **the OCI image
-and the tarball** ([04 §5.4](04-server-multiuser-deployment.md)) for beta to
+and the tarball** ([04 §5.4](../04-server-multiuser-deployment.md)) for beta to
 count. The other four packaging artifacts moved to the 1.0 bar
-([15 §0.4](15-work-plan.md)) — enough to have users is the beta test, and four
+([01 §0.4](01-work-plan.md)) — enough to have users is the beta test, and four
 more build chains is work that reads as progress while delaying the thing being
-packaged. The rest is sketched pending expansion in [15 §8](15-work-plan.md).
+packaged. The rest is sketched pending expansion in [01 §8](01-work-plan.md).
 
 Two consequences worth naming:
 
@@ -45,7 +45,7 @@ Two consequences worth naming:
   signing, and CI matrices are all beta-phase concerns. Building them now would
   be maintaining a distribution for software that has no users.
 - **"Build it yourself" is the alpha distribution strategy, not a permanent
-  philosophy.** [04 §5.4](04-server-multiuser-deployment.md) argues that
+  philosophy.** [04 §5.4](../04-server-multiuser-deployment.md) argues that
   build-from-source should stay genuinely first-class forever — that remains
   true, but during alpha it is the *only* path, which is a different claim.
 
@@ -95,7 +95,7 @@ Release branches are per **minor line**, not per patch — `release/1.2` carries
 
 **This model directly serves an obligation we already have.** AGPL §13 requires
 offering the source corresponding to *the running version*
-([04 §7](04-server-multiuser-deployment.md)), which means builds embed their tag
+([04 §7](../04-server-multiuser-deployment.md)), which means builds embed their tag
 and commit and the About surface links to them. Permanent release branches and
 permanent tags are what make that link resolve years later. A model that deleted
 release history would quietly make §13 compliance harder over time.
@@ -138,7 +138,7 @@ automated and reliable" — and the automation condition is the tell.
   automated fast-forward that can drift or fail silently. The genuine use case
   is convenience for install instructions — `git clone -b latest` reading better
   than "look up the newest tag". But per
-  [04 §5.4](04-server-multiuser-deployment.md) the real install paths are a
+  [04 §5.4](../04-server-multiuser-deployment.md) the real install paths are a
   container image and a tarball, and both already have a `:latest` concept that
   is not a git ref.
 - A **`nightly` branch** is a category error in the same way: nightly builds are
@@ -175,7 +175,7 @@ rewrite itself, and every mechanism above already delivers the outcome without
 that risk.
 
 The in-app check is specified in
-[04 §6.5](04-server-multiuser-deployment.md), including the deliberate limits
+[04 §6.5](../04-server-multiuser-deployment.md), including the deliberate limits
 that keep it from becoming telemetry, and its secondary use as a connectivity
 signal that improves generation error messages.
 
@@ -220,7 +220,7 @@ protecting from merge volume rather than from individual mistakes.
 - **Semantic versioning**, with the caveat that pre-1.0 it means little and the
   data formats are the thing that actually needs a compatibility story — package
   and card schema versions are independent of the app version
-  ([02 §7](02-data-model.md)).
+  ([02 §7](../02-data-model.md)).
 - **Every release tag needs a changelog entry**, because the About surface links
   to it and because §13 makes "what am I running" a user-facing question rather
   than a maintainer one.

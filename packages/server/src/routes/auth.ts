@@ -19,7 +19,7 @@ import type { AppServices } from '../app.js';
 /**
  * Login, logout, and first-run setup.
  *
- * **Auth ships whole rather than stubbed** ([19 §1.3](docs/design/19-p1-implementation.md)),
+ * **Auth ships whole rather than stubbed** ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)),
  * and the reason it is affordable is that there is very little of it: doc 04
  * §4.1 already rules out rate limiting, lockout, complexity policy, email
  * verification and 2FA, and §4.2 rules out self-registration and identity
@@ -63,7 +63,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
         password: body.password,
         // Defaulted from Accept-Language, per [04 §4.2]. The server localises
         // notifications with the app closed, so it has to know
-        // ([07 §12.5](docs/design/07-tech-stack.md)).
+        // ([07 §12.5](../../../../docs/design/07-tech-stack.md)).
         locale: localeFrom(request.headers['accept-language']),
         ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
       });

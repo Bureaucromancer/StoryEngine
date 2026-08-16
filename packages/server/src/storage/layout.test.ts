@@ -31,14 +31,14 @@ describe('the data directory', () => {
   });
 
   it('keeps accounts.json outside every user directory', () => {
-    // [19 §1.3](docs/design/19-p1-implementation.md): so the file browser can
+    // [P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md): so the file browser can
     // never serve a password hash, whatever `fileAccess` a user is granted.
     expect(layout.accountsFile).toBe(join(DATA, 'accounts.json'));
     expect(layout.accountsFile.startsWith(layout.usersRoot)).toBe(false);
   });
 
   it('keeps operational state out of the index', () => {
-    // [18 §5.1](docs/design/18-internal-contracts.md): deleting the index must
+    // [13 §5.1](../../../../docs/design/13-internal-contracts.md): deleting the index must
     // cost time and nothing else. Anything for which that is false — jobs,
     // idempotency keys, the notification inbox — needs its own home.
     expect(layout.stateFile).toBe(join(DATA, 'state', 'state.sqlite'));
@@ -49,7 +49,7 @@ describe('the data directory', () => {
 describe('library scopes', () => {
   it('gives system and user libraries the same shape', () => {
     // The merge is a query, not a special case
-    // ([02 §5.1](docs/design/02-data-model.md)) — which is only true if both
+    // ([02 §5.1](../../../../docs/design/02-data-model.md)) — which is only true if both
     // sides have the same layout underneath.
     expect(layout.libraryRoot(SYSTEM_SCOPE)).toBe(join(DATA, 'system', 'library'));
     expect(layout.libraryRoot(ned)).toBe(join(DATA, 'users', 'ned', 'library'));
@@ -72,7 +72,7 @@ describe('library scopes', () => {
   it('makes the actor a PNG and everything else JSON', () => {
     // `card.png` is canonical for an actor, not a mirror of a JSON file — two
     // sources of truth is the failure mode being avoided
-    // ([02 §5.2](docs/design/02-data-model.md)).
+    // ([02 §5.2](../../../../docs/design/02-data-model.md)).
     expect(OBJECT_FILENAMES[ACTOR_SCHEMA]).toBe('card.png');
     expect(OBJECT_FILENAMES[PRESET_SCHEMA]).toBe('preset.json');
     expect(OBJECT_FILENAMES[PACKAGE_SCHEMA]).toBe('package.json');
@@ -86,7 +86,7 @@ describe('library scopes', () => {
 
 describe('handles are hostile input', () => {
   // A handle becomes a directory name under `users/`, and the path is the owner
-  // ([04 §4.3](docs/design/04-server-multiuser-deployment.md)). The cost of
+  // ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)). The cost of
   // getting this wrong is one account reaching another's library.
   it.each(['ned', 'ned-2', 'a', 'x'.repeat(63)])('accepts %s', (handle) => {
     expect(isValidHandle(handle)).toBe(true);
@@ -158,7 +158,7 @@ describe('slug resolution', () => {
   it('counts a folder someone copied in by hand', async () => {
     // De-duplication reads the disk rather than the index, because the index is
     // derived and a hand-copied folder is just as real as one we wrote
-    // ([19 §1.2](docs/design/19-p1-implementation.md)).
+    // ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
     await mkdir(join(dir, 'vera-solano'));
     await writeFile(join(dir, 'vera-solano-2'), 'not even a directory');
     await expect(resolveFreeSlug(dir, 'Vera Solano')).resolves.toBe('vera-solano-3');

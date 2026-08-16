@@ -22,13 +22,13 @@ import {
 } from './api.js';
 
 /**
- * Server state, through TanStack Query ([07 §6](docs/design/07-tech-stack.md)):
+ * Server state, through TanStack Query ([07 §6](../../../docs/design/07-tech-stack.md)):
  * nearly all client state *is* server state here, and these hooks are the whole
  * of the client's model layer.
  *
  * Library queries poll. Nothing pushes yet — SSE is P2 — and the watcher's
  * pick-up of a hand edit on disk is the storage thesis's demo
- * ([19 §3](docs/design/19-p1-implementation.md) step 8), so the browser has to
+ * ([P1 §3](../../../docs/design/workplan/03-p1-implementation.md) step 8), so the browser has to
  * ask often enough for "without a restart" to read as "by itself".
  */
 
@@ -47,7 +47,7 @@ export const queryClient = new QueryClient({
        * anything. For an app on the public web that is the right trade.
        *
        * Here it is simply wrong. This server is on loopback or on the LAN
-       * ([04 §5.1](docs/design/04-server-multiuser-deployment.md)), and
+       * ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)), and
        * `navigator.onLine` describes the *internet*, which has no bearing on
        * whether a box in the next room is reachable. A laptop with its Wi-Fi
        * off can still reach `127.0.0.1:8080` perfectly well.

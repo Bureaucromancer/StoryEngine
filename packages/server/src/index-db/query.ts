@@ -12,9 +12,9 @@ import { scopeKey } from './ingest.js';
  * Reading the index.
  *
  * Everything here is a restatement of what is on disk
- * ([02 §5.1](docs/design/02-data-model.md)) — **nothing is answerable only from
+ * ([02 §5.1](../../../../docs/design/02-data-model.md)) — **nothing is answerable only from
  * the index**, and a feature that needed something to be would be storing data
- * in the wrong place ([18 §5](docs/design/18-internal-contracts.md)).
+ * in the wrong place ([13 §5](../../../../docs/design/13-internal-contracts.md)).
  *
  * The merge of a user's library with `system/library/` is a *query*, not a
  * special case, which is the whole reason both have the same layout on disk.
@@ -32,7 +32,7 @@ export interface IndexedObject {
   contentHash: string;
   /**
    * True when another file holds this id at a lexicographically earlier path
-   * ([19 §1.2](docs/design/19-p1-implementation.md)).
+   * ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
    *
    * Surfaced rather than filtered: the library shows both with a warning on the
    * shadowed one. Refusing to load either would punish a user for copying a
@@ -80,13 +80,13 @@ function hydrate(row: RawRow): IndexedObject {
 export interface ListQuery {
   /**
    * Which libraries to read. Pass the user's *and* the system scope to get the
-   * merged list a library surface shows ([05 §5](docs/design/05-ui-surfaces.md)).
+   * merged list a library surface shows ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
    */
   scopes: LibraryScope[];
   /**
    * Omit for every kind. Cross-kind reads are a real thing to want — search,
    * counts, an export sweep — and this is not a statement about the browsing
-   * surface, which is per kind ([05 §5](docs/design/05-ui-surfaces.md)).
+   * surface, which is per kind ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
    */
   schemaId?: PortableSchemaId;
 }
@@ -114,7 +114,7 @@ export function listObjects(db: DatabaseSync, query: ListQuery): IndexedObject[]
 /**
  * The live row for an id, or null.
  *
- * Resolves by **id, never by slug** ([19 §1.1](docs/design/19-p1-implementation.md)).
+ * Resolves by **id, never by slug** ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)).
  * That is what keeps a foreign rename an update to an existing row rather than
  * the creation of a second object, and it is why the folder name is free to
  * drift from the object's name.
@@ -142,7 +142,7 @@ export function findByPath(db: DatabaseSync, path: string): IndexedObject | null
 /**
  * Full-text search across the indexed objects.
  *
- * FTS5 ([07 §7](docs/design/07-tech-stack.md)). Turn text joins this at P2 —
+ * FTS5 ([07 §7](../../../../docs/design/07-tech-stack.md)). Turn text joins this at P2 —
  * the table exists, nothing writes to it yet.
  */
 export function search(db: DatabaseSync, term: string, limit = 50): IndexedObject[] {

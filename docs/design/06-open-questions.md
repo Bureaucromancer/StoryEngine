@@ -11,11 +11,11 @@ one document. Ordered by how expensive they are to answer late.
 `LICENSE` is in the repository root. Lifting code from the sources is permitted
 with notices preserved, §13 obliges us to offer source to LAN users
 ([04 §7](04-server-multiuser-deployment.md)), dependencies must be
-AGPL-compatible, and user content is unaffected. See [08 §1](08-triage.md).
+AGPL-compatible, and user content is unaffected. See [triage §1](workplan/02-triage.md).
 Spawns A1b, below.
 
 **A1. Extension execution model. — RESOLVED: worker-thread boundary from 1.0.**
-Specified in [17](17-extensions.md). The decision turns on separating two things
+Specified in [12](12-extensions.md). The decision turns on separating two things
 that get bundled under "sandbox": **fault isolation** (a crash, hang or runaway
 loop not taking the server down) is cheap and shapes the API, so take it now;
 **authority isolation** (an extension unable to reach the filesystem at all) is
@@ -26,7 +26,7 @@ The reason this costs less than instinct suggests: **the extension surface
 already serialises.** Five of the seven things [03 §9] requires are declarative
 and cross no boundary at all; the remaining two are a function over JSON-shaped
 data and async host calls. Built-in modes run through the same boundary, so the
-contract cannot drift. *[03 §9, 17]*
+contract cannot drift. *[03 §9, 12]*
 
 **A1b. May extensions be non-AGPL? — RESOLVED 2026-08-09: no. Extensions and
 modes are AGPL-3.0, with no linking exception.** The friction of requiring
@@ -36,26 +36,26 @@ exception means no decide-before-first-PR deadline; the SDK package must itself
 be AGPL for this to hold; extension manifests should carry a declared licence
 field for legibility. Content — including packages and their authored rules —
 is explicitly *not* covered and stays the author's own. See
-[08 §1.1–1.2](08-triage.md).
+[triage §1.1–1.2](workplan/02-triage.md).
 
 **A1c. Extension-owned durable storage. — RESOLVED: a namespaced key/value host
-API, not a directory.** Specified in [17 §5](17-extensions.md). The worker
+API, not a directory.** Specified in [12 §5](12-extensions.md). The worker
 boundary from A1 makes this cleaner than the directory the question assumed:
 storage is a host call namespaced per (user, extension), so cross-user and
 cross-extension reach are impossible by construction rather than by check. Backed
 by files under the user's directory so it inherits the watcher, index and backup
 story; quota declared in the manifest; removed on uninstall with an explicit
 keep-the-data prompt. Values are JSON — bulk bytes go through a separate asset
-call returning a handle. *[03 §9, 11 §4.6, 17 §5]*
+call returning a handle. *[03 §9, 14 §4.6, 12 §5]*
 
-**A2. Can a package ship code? — SHARPENED by [09 §2.1](09-infinite-worlds.md):
+**A2. Can a package ship code? — SHARPENED by [08 §2.1](08-infinite-worlds.md):
 packages may ship *rules*, never *code*.** Declarative rules are terms in a
 closed vocabulary our evaluator interprets, so importing one grants no capability
 the importer lacks — which is what makes shared content far more expressive
 without touching A1's execution question. Still open: bundling an actual mode or
 extension implementation remains a no for 1.0, and the rule vocabulary needs
 versioning so a package authored against v2 fails legibly on a v1 host.
-*[02 §7, 09 §2]*
+*[02 §7, 08 §2]*
 
 **A2b. Randomness. — RESOLVED 2026-08-09: one canonical server-local RNG
 service, no network dependency, every draw recorded in the turn's effects.**
@@ -106,7 +106,7 @@ contributors. Two items are load-bearing before code: **CSS logical properties
 from the first stylesheet** (otherwise RTL is permanently foreclosed), and
 **server events carrying `{key, params}` rather than English prose**. Both are
 free now. Docs translation is explicitly out of scope — Marinara's `docs-i18n`
-branch shows the real ongoing cost. *[07 §12, 04 §3.2]*
+branch shows the real ongoing cost. *[07 §releases, 04 §3.2]*
 
 **A2e. Sharing content between users on one install — deferred, deliberately.**
 [04 §4.3](04-server-multiuser-deployment.md) reverses an earlier draft: every
@@ -147,7 +147,7 @@ a session ([05 §11.4](05-ui-surfaces.md)).
 account capability**, default true, enforced at resolution rather than creation
 so the file browser is not a bypass. Revoking disables rather than deletes.
 Beyond that, a general role system is post-2.0 ([04 §4.2.1](04-server-multiuser-deployment.md),
-[11 §3](11-roadmap.md)). *[04 §4.5, 04 §4.2, 07 §5.1]*
+[14 §3](14-roadmap.md)). *[04 §4.5, 04 §4.2, 07 §5.1]*
 
 **A4. Raw-completion support. — RESOLVED: legacy, dropped, no adapter.**
 Specified in [07 §5.5](07-tech-stack.md). Not "chat-shaped by default with a
@@ -165,7 +165,7 @@ Cheap to unmake: [03 §5](03-modes-and-turn-pipeline.md) already isolates
 rendering as a single step, so a completion renderer would be a second
 implementation of one seam rather than a rewrite. Two conditionals elsewhere now
 close firmly — bundled tokenizers and the instruct/context template surface both
-stay discarded. *[00 §2.2, 07 §5.5, 08 §6.2]*
+stay discarded. *[00 §2.2, 07 §5.5, triage §6.2]*
 
 **A5. Multiplayer posture. — CONFIRMED: don't preclude, don't build.**
 `participants` is a list, `control: "player"` is not structurally limited to one,
@@ -216,7 +216,7 @@ custom section is the same operation as editing a built-in one. *[02 §2.1,
 primary lorebook would block many settings over one lorebook — a noir and a
 comedy drawing on the same world — and create an ownership question on delete.
 `LoreLink.required` is the concession: mark a link load-bearing and a consumer
-warns loudly when it will not resolve, still without blocking. *[02 §4, 13 §3]*
+warns loudly when it will not resolve, still without blocking. *[02 §4, 10 §3]*
 
 **B3. Turn record retention. — RESOLVED: keep everything.** No compaction, no
 automatic pruning. The cost is disk and the benefit is that every question about
@@ -276,7 +276,7 @@ The real work is the **error surface** — a per-session health record, a
 persistent banner that says the story is unaffected, and recovery offered rather
 than applied. The same path covers channels orphaned by an uninstalled
 extension. Migrations must be pure and deterministic, because they sit inside the
-replay path. *[03 §4.2, 10 §4]*
+replay path. *[03 §4.2, 09 §4]*
 
 **B8. Translated play. — RESOLVED: not attempted, and explicitly not a blocker
 for 1.0 or 2.0.** Translating *content* — cards, lorebooks, narration — is
@@ -289,13 +289,13 @@ approach — `translated*` columns smeared across every entity — is what would
 have to be avoided, and simply not adding them costs nothing now. If it is ever
 attempted, a sidecar keyed by (objectId, field, language) needs no schema change
 at all, because readers already preserve unknown fields
-([13 §2](13-schemas.md)). *[01 §2, 07 §12]*
+([10 §2](10-schemas.md)). *[01 §2, 07 §releases]*
 
 **B9. Can an expanded opening seed be promoted back? — RESOLVED: yes.** That is
 the point of carrying seeds and written openings as two lists: a seed is reusable
 machinery, a good expansion is content worth keeping. The loop closes —
 seed → expand → edit → accept → promote — and the promoted opening records
-`fromSeedId`. Promotion targets the source object, not the session. *[02 §6, 13 §3]*
+`fromSeedId`. Promotion targets the source object, not the session. *[02 §6, 10 §3]*
 
 **B11. Lorebook revisions. — CONFIRMED as proposed.** All four:
 (a) entry state — `dynamicState`, quests, relationships, disposition — moves to
@@ -305,11 +305,11 @@ lorebook cannot carry somebody's playthrough; (b) `activationConditions` and
 derived index; (d) the five overlapping book-level scoping mechanisms collapse
 to one `LoreScope` union. Everything else — matching, timing, recursion,
 placement, grouping, gating and the two-tier budget — is taken from Marinara
-essentially unchanged. *[02 §3, 13 §5]*
+essentially unchanged. *[02 §3, 10 §5]*
 
 **B12. Are sessions exportable? — RESOLVED in principle: yes, eventually. Not an
 early priority.** Sessions are marked internal and free-to-migrate
-([13 §1](13-schemas.md)) *because* nothing exports them, so this has a
+([10 §1](10-schemas.md)) *because* nothing exports them, so this has a
 consequence worth carrying: **the turn record may churn freely now and should be
 expected to freeze when export ships.** Better to know that is coming than to
 discover it. Export drags along `localActors`, channel state, branch structure
@@ -322,8 +322,37 @@ install loading one.
 **B10. Prologue packages — good concept, worth doing, unblocked once B12 lands.**
 A package shipping a partially-played session as a starting state. Conceptually
 welcome and no longer blocked on an undecided question, only on a sequenced one.
-The [13 §7](13-schemas.md) split makes it clean: a prologue is a *session*
+The [10 §7](10-schemas.md) split makes it clean: a prologue is a *session*
 travelling in a package, not a variant of Setup. *[02 §7]*
+
+**B13. Where per-user UI preferences live. — OPEN, and needed sooner than it
+looks.** `Account` ([04 §4.2](04-server-multiuser-deployment.md)) carries
+`locale` and `capabilities` and nothing else presentational, but the client has
+already accumulated preferences with nowhere to go: the *As stored* pane state
+and the all-kinds library view ([polish §2, §4](workplan/09-polish.md)), with
+§1.1's density question likely to follow. The settings surface that shows them
+is [05 §15](05-ui-surfaces.md) and is P10's; **the store is not, and blocks the
+first preference that ships.**
+
+Three candidate answers, in increasing order of commitment:
+
+- **`localStorage`, client-only.** Free, and wrong for anything a user would
+  expect to follow them to another browser — which is most of it, on a LAN
+  server people reach from a laptop and a phone.
+- **A `preferences` map on `Account`.** Small, obvious, and consistent with
+  `locale` already living there. The cost is that `accounts.json` is
+  security-sensitive, hand-editable and written on every preference toggle,
+  which is a poor fit for a chatty write path next to a password hash.
+- **A separate per-user preferences file**, under the user's own directory like
+  everything else ([04 §4.3](04-server-multiuser-deployment.md)), so it
+  inherits the watcher, the backup story and the folder-is-yours position.
+
+**Leaning to the third**, with the shape of the value deliberately loose:
+namespaced string keys and JSON values, unvalidated by the server, because a
+preference the client stops using should rot quietly rather than need a
+migration. What must be decided before the first one ships is only *where* —
+moving them later means either a migration or silently losing everyone's
+settings. *[04 §4.2, 05 §15]*
 
 ---
 
@@ -342,7 +371,7 @@ stats, legible from both tabletop and RP culture. *Solo* was the other contender
 and overclaims, since companions are allowed.
 
 `freeform` is the **identifier**, which is the part that needed settling now:
-preset ids travel inside Setup objects ([13 §7](13-schemas.md)), so changing one
+preset ids travel inside Setup objects ([10 §7](10-schemas.md)), so changing one
 later is a content migration rather than a rename. The **user-facing label**
 stays free until Campaign ships — there is one Adventure preset at 1.0 and the
 UI can simply say *Adventure*. *[03 §1]*
@@ -388,8 +417,8 @@ as the single-language constraint holds. *[03 §5, 07]*
 
 **C7. Authored rule vocabulary. — RE-SCOPED: deferred to 2.0.** The direction is
 unchanged — take Infinite Worlds' conditions and effects close to wholesale
-([09 §3](09-infinite-worlds.md)) — but the vocabulary, its evaluator and its
-authoring surface leave 1.0 entirely ([15 §0.4](15-work-plan.md)).
+([08 §3](08-infinite-worlds.md)) — but the vocabulary, its evaluator and its
+authoring surface leave 1.0 entirely ([work plan §0.4](workplan/01-work-plan.md)).
 
 The argument that moved it: IW itself ran on triggers and tracked items for years
 before arriving at PawScript, **and arrived at it with a corpus of real authored
@@ -414,7 +443,7 @@ would be borrowed rather than reasoned. But they are slow, they cost a call, and
 IW's own documentation warns they produce false positives — so the editor should
 warn on use, the documentation should say plainly why they are a last resort, and
 the workbench should show when one misfired. **Making the cost visible is better
-discouragement than a limit.** *[09 §3]*
+discouragement than a limit.** *[08 §3]*
 
 **C7b. Plot hooks — scope at 1.0. — RESOLVED: data structures from the
 beginning, and a simple selector early.** Both ship. The structures because they
@@ -450,29 +479,29 @@ source and editing navigates to the owner. Compatible export to third-party
 lorebook formats drops them, like everything else we add. The real risk is
 conceptual drift, so it is documented as being for hooks genuinely inseparable
 from a piece of lore, with Settings staying the default answer.
-*[02 §4.1, 13 §5]*
+*[02 §4.1, 10 §5]*
 
 **C8. Branch snapshot interval. — RESOLVED: tuneable, and generous during
 alpha.** Snapshot often and keep many; they are derived and disposable
-([10 §4](10-branching.md)), so the cost is disk and the benefit is that branch
+([09 §4](09-branching.md)), so the cost is disk and the benefit is that branch
 materialisation stays fast while the real access patterns are still unknown.
-Tighten once there is evidence, not before. *[10 §4]*
+Tighten once there is evidence, not before. *[09 §4]*
 
-**C9. Unnamed-sibling retention.** [10 §6](10-branching.md) is now **decided**:
+**C9. Unnamed-sibling retention.** [09 §6](09-branching.md) is now **decided**:
 swipes and branches are one mechanism, so discarded swipes are permanently
 recoverable — something none of the sources offers. What remains open is
 presentation, not storage: a long session accumulates many unnamed siblings, and
 the history view must not become a tree browser by default. Inline
 sibling affordance on the node, full tree behind a deliberate action, prune
-available. *[10 §6]*
+available. *[09 §6]*
 
 **C10. Cross-branch merge.** Out of scope for 1.0. Recorded only to confirm
-nothing in [10](10-branching.md) precludes it — merging is a question about
+nothing in [09](09-branching.md) precludes it — merging is a question about
 reconciling two effect sequences, which the log makes expressible even if it is
-not easy. *[10 §9]*
+not easy. *[09 §9]*
 
 **C11. Branch anchor within a multi-message turn. — RESOLVED** by the turn tree
-in [10 §3](10-branching.md). A turn is one node however many messages it emits,
+in [09 §3](09-branching.md). A turn is one node however many messages it emits,
 so branching from any of them is an operation on that node. The related
 ambiguity also resolves cleanly rather than needing a convention: *redo* adds a
 sibling, *continue differently* adds a child. Both are offered explicitly.
@@ -503,11 +532,11 @@ required rather than as-capacity-allows, which rewrites the earlier tiering — 
 tiers now describe order of value, not optionality. Declined stays declined:
 Flatpak, AppImage, Snap, `.rpm`, LXC.
 
-**Re-cut on the milestone, not on the list** ([15 §0.4](15-work-plan.md)): the
+**Re-cut on the milestone, not on the list** ([work plan §0.4](workplan/01-work-plan.md)): the
 OCI image and the tarball are the **beta** requirement; the other four join the
 in-app update **check** as **1.0 release** requirements. Tiers 1 and 2 are enough
 to have users, and four more build chains before there are any is work that reads
-as progress. *[04 §5.4, 12 §0]*
+as progress. *[04 §5.4, releases §0]*
 
 **D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. All
 post-2.0.** An embedded `tsnet` node is a real component for a convenience the
@@ -541,7 +570,7 @@ single audited path-resolution helper — needed by every filesystem-touching ro
 regardless, and having one from the start is the difference between a security
 property and a hope. **Hand-editing on disk keeps working**, because that was
 never about the UI: [05 §4.1](05-ui-surfaces.md)'s forcing function is unchanged.
-*[05 §4, 11 §3]*
+*[05 §4, 14 §3]*
 
 **D4. Mobile layout, and the stance on native clients. — RESOLVED.**
 Responsive-and-usable at 1.0; a distinct mobile-optimised layout stays later.
@@ -553,7 +582,7 @@ and not ours to build; pitch it if you want to contribute one, but nothing ships
 that is not a feature-complete client with a real advantage over the web app.*
 A partial native client is worse than none — it splits the surface, halves the
 testing, and teaches people that some features live in one place and some in the
-other. *[05 §1, 11 §3]*
+other. *[05 §1, 14 §3]*
 
 ---
 
@@ -573,7 +602,7 @@ few thousand words, and a mode whose memory quality depends on the user making
 that call reliably will have bad memory.
 
 **But "rolling" must not mean "mutating".** This is the part that would silently
-break something. [10 §5](10-branching.md) requires summaries to be
+break something. [09 §5](09-branching.md) requires summaries to be
 content-addressed values keyed by their inputs, because that is what makes a
 fork cheap. A naive rolling summary — one record, updated in place — violates it
 directly.
@@ -589,7 +618,7 @@ Each link is a value keyed by the hash of its inputs. "Rolling" describes the
 chain, not mutation. Forking at turn *f* leaves every link up to *f*
 byte-identical — same inputs, same key — so the whole prefix is shared, exactly
 one straddling link is recomputed, and the branch's chain continues from there.
-This is the property [10 §5](10-branching.md) promised, and it is only available
+This is the property [09 §5](09-branching.md) promised, and it is only available
 if the chain is built this way from the start.
 
 **Summaries are derived and disposable**, like the index ([02 §5.1](02-data-model.md)).
@@ -619,7 +648,7 @@ reason a human can act on.** The turn record's plain-language inclusion reasons
 ([02 §8](02-data-model.md)) are worth more than the extra recall.
 
 Where it *does* earn its keep is **cross-session memory**
-([14](14-cross-session-memory.md)): memories are numerous, keyword-poor, and
+([11](11-cross-session-memory.md)): memories are numerous, keyword-poor, and
 exactly the case where "what is relevant here?" has no lexical answer. So when
 this arrives, aim it there first and at lorebooks second.
 
@@ -666,14 +695,14 @@ every source has years of edge cases, and a **half-working importer generates
 more support burden than no importer at all**. Better none than one that rots.
 
 Distinct from **card, lorebook and preset import**, which is committed and early
-([15](15-work-plan.md) P4). That is a bounded, well-understood surface against
+([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.
 
 ### E5. Tokenisation — one approximator and a margin
 
 **Opinionated: stop trying to be exact.**
 
-Bundled per-model tokenisers are already discarded ([08 §6.2](08-triage.md)).
+Bundled per-model tokenisers are already discarded ([triage §6.2](workplan/02-triage.md)).
 What replaces them is not a better estimate but a different posture: **budget
 with a margin, not with precision.** If a pre-flight estimate is within ~10% and
 the budget reserves headroom, exactness buys nothing — and the turn record stores
@@ -697,7 +726,7 @@ restore that puts it back and rebuilds. The index being derived
 
 **The part that actually matters is testing restore.** An untested restore is not
 a backup, and this belongs in CI beside the upgrade test
-([15 §8](15-work-plan.md)): populate a data directory, back it up, restore into a
+([work plan §8](workplan/01-work-plan.md)): populate a data directory, back it up, restore into a
 clean install, assert the library and sessions are intact.
 
 ### E7. Error and rate-limit handling — a taxonomy, then a policy
@@ -750,11 +779,11 @@ layer where the effect is visible in the turn record rather than hidden in engin
 logic.
 
 `contentRating: null` continues to mean *unspecified, ask* rather than *safe*
-([13 §6](13-schemas.md)).
+([10 §6](10-schemas.md)).
 
 ### E9. Testing — done
 
-Now [16](16-testing.md).
+Now [testing](workplan/10-testing.md).
 
 ### E10. Simple/advanced, or a rearrangeable layout — open, and not blocking
 
@@ -797,6 +826,6 @@ not a design decision waiting on this.
 
 **What would force it early:** evidence that the dense default actually loses
 people at first run, which is exactly what the PLAYABLE checkpoint
-([15 §4.1](15-work-plan.md)) exists to produce. Note what that evidence would
+([work plan §4.1](workplan/01-work-plan.md)) exists to produce. Note what that evidence would
 *not* justify — the first-run and setup flows are already on the quiet side of
 the split, so losing people there is a §6 problem before it is a density one.

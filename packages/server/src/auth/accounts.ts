@@ -13,13 +13,13 @@ import { hashPassword, verifyPassword } from './secrets.js';
  * Accounts — docs/design/04-server-multiuser-deployment.md §4.2.
  *
  * **Authoritative state, so a file and never an index row**
- * ([19 §1.3](docs/design/19-p1-implementation.md)). Deleting `index.sqlite` has
- * to stay a non-event ([18 §5](docs/design/18-internal-contracts.md)), and it
+ * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)). Deleting `index.sqlite` has
+ * to stay a non-event ([13 §5](../../../../docs/design/13-internal-contracts.md)), and it
  * cannot be if losing it logs everyone out — or worse, loses the only admin.
  *
  * It sits at `data/accounts.json`, **outside every user directory**, so the file
  * browser can never serve a password hash whatever `fileAccess` a user is
- * granted ([05 §4.2.1](docs/design/05-ui-surfaces.md)). That section is worth
+ * granted ([05 §4.2.1](../../../../docs/design/05-ui-surfaces.md)). That section is worth
  * reading: an earlier draft rooted file access at the user's own directory and
  * thereby handed anyone with write access a one-line path to `role: "admin"`.
  *
@@ -29,12 +29,12 @@ import { hashPassword, verifyPassword } from './secrets.js';
 
 /**
  * Flat, enumerated, and deliberately not a role system
- * ([04 §4.2.1](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.2.1](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
  * **Nothing enforces these at P1** — none of the gated features exist yet. The
  * record is written now because it is a persisted shape, and a persisted shape
  * added later is a migration over user data
- * ([15 §2.1](docs/design/15-work-plan.md)). Enforcement is additive and waits
+ * ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)). Enforcement is additive and waits
  * for P10. Splitting on exactly that line is the point.
  */
 export const Capabilities = Type.Object(
@@ -79,7 +79,7 @@ export const Account = Type.Object(
      *
      * Here at P1 because push notifications are rendered by the server with the
      * app closed, so it must know each user's language
-     * ([07 §12.5](docs/design/07-tech-stack.md)) — cheap now, a migration later.
+     * ([07 §12.5](../../../../docs/design/07-tech-stack.md)) — cheap now, a migration later.
      */
     locale: Type.Union([Type.String(), Type.Null()]),
     capabilities: Capabilities,
@@ -210,7 +210,7 @@ export class Accounts {
    *
    * **First-run setup gates everything** — until an admin account exists, every
    * route except setup returns the setup flow
-   * ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Combined with
+   * ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md)). Combined with
    * the loopback default this closes the claim window on bare-metal installs.
    */
   async needsSetup(): Promise<boolean> {
@@ -304,7 +304,7 @@ export class Accounts {
    * **The break-glass path.** Its only caller is the `--reset-password` flag
    * on the server binary, which means the authority behind it is host access —
    * and anyone who can read `data/` owns the install already
-   * ([04 §4.1](docs/design/04-server-multiuser-deployment.md)), so this adds no
+   * ([04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md)), so this adds no
    * authority that did not exist. At 1.0 the *norm* is an admin resetting an
    * account through the UI (P10); this remains the rung beneath it, for when
    * no usable admin account exists.

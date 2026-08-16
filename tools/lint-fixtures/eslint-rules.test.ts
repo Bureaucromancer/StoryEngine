@@ -11,7 +11,7 @@ import { FIXTURE_ROOT, fixtureConfig } from './fixture-config.js';
 
 /**
  * P1.0 ships a set of claims about what is a build error
- * (docs/design/19-p1-implementation.md §P1.0). These tests are what turn each
+ * (docs/design/workplan/03-p1-implementation.md §P1.0). These tests are what turn each
  * claim into a check.
  *
  * The negative cases matter as much as the positive ones. A rule that fires on
@@ -39,7 +39,7 @@ async function rulesFiredIn(fixture: string): Promise<string[]> {
   return result.messages.map((m) => m.ruleId ?? '<no rule>');
 }
 
-describe('the architectural boundary graph (docs/design/16-testing.md §2)', () => {
+describe('the architectural boundary graph (docs/design/workplan/10-testing.md §2)', () => {
   // The graph rule classifies an import by its *resolved* path, and workspace
   // packages resolve through their `types`/`main` entry into `dist`. If the
   // packages have not been built, every import resolves to nothing, every

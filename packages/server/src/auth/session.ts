@@ -9,17 +9,17 @@ import type { Layout } from '../storage/layout.js';
 import { generateSecret, secretsMatch } from './secrets.js';
 
 /**
- * Sessions — [07 §9](docs/design/07-tech-stack.md).
+ * Sessions — [07 §9](../../../../docs/design/07-tech-stack.md).
  *
  * **Signed, stateless cookies.** No session table, and that is a decision rather
- * than a shortcut: [18 §5.1](docs/design/18-internal-contracts.md) points out
+ * than a shortcut: [13 §5.1](../../../../docs/design/13-internal-contracts.md) points out
  * that an earlier draft put session records in the index, which is defined as
  * deletable without consequence — and logging every user out *is* a consequence.
  * A signed cookie removes the table rather than relocating it.
  *
  * **What that costs, stated plainly.** Logout clears the cookie on the client;
  * a cookie already copied elsewhere stays valid until it expires. Under
- * [04 §4.1](docs/design/04-server-multiuser-deployment.md)'s threat model —
+ * [04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md)'s threat model —
  * access separation among people who already trust each other — that is an
  * acceptable trade, and the honest upgrade when it stops being one is a
  * revocation denylist in the operational store, which is small and additive.
@@ -49,7 +49,7 @@ export interface SessionPayload {
  * **Not in `config.json`** — doc 18 §4 says config has nowhere to put a
  * credential, and this is one. **Not in the index** — the index is deletable
  * without consequence and losing this logs everyone out. So it lives beside the
- * operational store ([18 §5.1](docs/design/18-internal-contracts.md)), which is
+ * operational store ([13 §5.1](../../../../docs/design/13-internal-contracts.md)), which is
  * exactly the category of thing whose loss would surprise a user.
  *
  * Generated on first use. Deleting it is survivable and its consequence is
@@ -169,7 +169,7 @@ export { generateSecret as generateCsrfToken };
  *
  * Hand-rolled rather than a plugin because it is fifteen lines and the
  * alternative is a dependency whose configuration surface is larger than the
- * mechanism. [04 §4.1](docs/design/04-server-multiuser-deployment.md) lists CSRF
+ * mechanism. [04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md) lists CSRF
  * among the things whose absence is *embarrassing rather than defensible*, which
  * is the bar being cleared here — not a general-purpose framework.
  */

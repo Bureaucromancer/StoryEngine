@@ -7,11 +7,11 @@ import { createValidator } from '@storyengine/shared';
 import { readFileBytes } from './storage/files.js';
 
 /**
- * `config.json` — docs/design/18-internal-contracts.md §4.
+ * `config.json` — docs/design/13-internal-contracts.md §4.
  *
  * **The reload tier is declared per key, and that declaration is the source.**
- * [06 D0](docs/design/06-open-questions.md) asks for every key to carry one, and
- * [04 §6.3](docs/design/04-server-multiuser-deployment.md) derives the
+ * [06 D0](../../../docs/design/06-open-questions.md) asks for every key to carry one, and
+ * [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md) derives the
  * restart-required banner from it rather than from a parallel list. The reason
  * is stated plainly there and worth repeating: *a hand-maintained list of
  * settings that need a restart is wrong within two releases*, and wrong in the
@@ -23,9 +23,9 @@ import { readFileBytes } from './storage/files.js';
  * change needs one.
  *
  * **No credentials here.** Connections live in `connections/`
- * ([04 §4.5](docs/design/04-server-multiuser-deployment.md)) and this type has
+ * ([04 §4.5](../../../docs/design/04-server-multiuser-deployment.md)) and this type has
  * nowhere to put a key — the same structural enforcement the portable schemas
- * get ([00 §3.2](docs/design/00-stance.md)), and for the same reason: a check
+ * get ([00 §3.2](../../../docs/design/00-stance.md)), and for the same reason: a check
  * can be forgotten, a missing field cannot.
  */
 
@@ -42,7 +42,7 @@ export const ConfigSchema = Type.Object(
     server: Type.Object({
       /**
        * **Loopback on first boot**, and the one default that decides first-run
-       * safety ([04 §5.1](docs/design/04-server-multiuser-deployment.md)).
+       * safety ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)).
        * Between first boot and first-run setup there is a window in which
        * anyone who can reach the port can claim the admin account; binding
        * loopback closes it, and LAN exposure becomes an explicit act.
@@ -64,7 +64,7 @@ export const ConfigSchema = Type.Object(
       format: Type.Union([Type.Literal('pretty'), Type.Literal('json')], { default: 'pretty' }),
     }),
     index: Type.Object({
-      /** The rebuild-from-disk startup option ([15 P1](docs/design/15-work-plan.md)). */
+      /** The rebuild-from-disk startup option ([work plan P1](../../../docs/design/workplan/01-work-plan.md)). */
       rebuildOnStart: Type.Boolean({ default: false }),
     }),
     sessions: Type.Object({
@@ -78,7 +78,7 @@ export const ConfigSchema = Type.Object(
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
     }),
     history: Type.Object({
-      /** Pinned versions are exempt ([02 §11.3](docs/design/02-data-model.md)). */
+      /** Pinned versions are exempt ([02 §11.3](../../../docs/design/02-data-model.md)). */
       keepPerObject: Type.Integer({ minimum: 0, default: 50 }),
     }),
     updates: Type.Object({
@@ -154,7 +154,7 @@ export function tierOf(key: string): ReloadTier | null {
  * Every key that changed between two configs and needs a restart to apply.
  *
  * This *is* the restart-required notice
- * ([04 §6.3](docs/design/04-server-multiuser-deployment.md)) — it names the
+ * ([04 §6.3](../../../docs/design/04-server-multiuser-deployment.md)) — it names the
  * specific pending changes rather than saying "restart required", because the
  * bare notice invites people to restart and hope.
  */

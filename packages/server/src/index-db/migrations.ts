@@ -7,14 +7,14 @@ import type { DatabaseSync } from 'node:sqlite';
  * Schema versioning for the index itself.
  *
  * **The index is derived and disposable, and that changes what a migration is.**
- * [18 §5](docs/design/18-internal-contracts.md) states the property plainly —
+ * [13 §5](../../../../docs/design/13-internal-contracts.md) states the property plainly —
  * deleting `index.sqlite` costs time and nothing else — so when this schema
  * changes, the correct response is to throw the old one away and rescan rather
  * than to hand-write a migration.
  *
  * That is not laziness dressed up. A migration exists to preserve facts that
  * exist nowhere else; every fact in here is a restatement of something on disk
- * ([02 §5.1](docs/design/02-data-model.md)), so preserving it buys nothing and
+ * ([02 §5.1](../../../../docs/design/02-data-model.md)), so preserving it buys nothing and
  * costs a hand-written script per change that has to be correct forever. The
  * one thing this must never become is a place where a migration is *required*,
  * because that would mean the index had stopped being derived.
@@ -48,7 +48,7 @@ const SCHEMA = `
 -- One row per portable object found on disk.
 --
 -- The primary key is the PATH, not the id. That is forced by
--- [19 §1.2](docs/design/19-p1-implementation.md): folders are copy-pasteable, so
+-- [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md): folders are copy-pasteable, so
 -- the same uuid legitimately appears in two places, and a schema that made id
 -- unique would have to refuse one of them — punishing a user for using the
 -- filesystem the way the design explicitly invites.
@@ -81,7 +81,7 @@ create index object_by_id on object(id);
 create index object_by_scope_kind on object(scope, schema_id);
 create index object_tombstoned on object(tombstoned_at) where tombstoned_at is not null;
 
--- Search across cards, entries and turn text ([07 §7](docs/design/07-tech-stack.md)).
+-- Search across cards, entries and turn text ([07 §7](../../../../docs/design/07-tech-stack.md)).
 -- Not an external-content table: keeping it standalone costs a little space and
 -- removes a whole class of desynchronisation bug, which is the right trade for a
 -- store that can be rebuilt whenever it is doubted.
@@ -95,12 +95,12 @@ create virtual table object_fts using fts5(
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
 -- Scaffolded and unused: no turns exist until P2. Present now because
--- [07 §7.1](docs/design/07-tech-stack.md) makes three requirements that are
+-- [07 §7.1](../../../../docs/design/07-tech-stack.md) makes three requirements that are
 -- cheap here and awkward later — turn text is indexed on write rather than
 -- lazily, the row stores turn and session ids rather than an offset into a
 -- rendered transcript, and records off the current path stay indexed but carry
 -- their branch so a hit can be labelled rather than hidden
--- ([10 §7](docs/design/10-branching.md)).
+-- ([09 §7](../../../../docs/design/09-branching.md)).
 create table turn (
   turn_id     text primary key,
   session_id  text not null,

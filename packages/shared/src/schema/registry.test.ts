@@ -36,7 +36,7 @@ describe('the registry', () => {
   it('covers every portable kind, so a container never enumerates them', () => {
     // The registry is the mechanism behind "every portable object
     // self-describes, so containers never enumerate kinds"
-    // ([15 §2](docs/design/15-work-plan.md)). If a kind is added to the design
+    // ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). If a kind is added to the design
     // and not here, a Package would carry it as unrecognised.
     expect(Object.keys(PORTABLE_SCHEMAS).sort()).toEqual(
       [
@@ -51,7 +51,7 @@ describe('the registry', () => {
   });
 
   it('gives every portable kind a library directory', () => {
-    // [02 §5.1](docs/design/02-data-model.md) lists all six under
+    // [02 §5.1](../../../../docs/design/02-data-model.md) lists all six under
     // users/<handle>/library/, `packages/` included. A kind added to the
     // registry without a directory would have nowhere to be written.
     expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
@@ -91,7 +91,7 @@ describe('the registry', () => {
   });
 });
 
-describe('unknown-field preservation (docs/design/13-schemas.md §2)', () => {
+describe('unknown-field preservation (docs/design/10-schemas.md §2)', () => {
   it('accepts fields the schema does not declare', () => {
     // "A file written by a newer version must survive a round trip through an
     // older one." A /1 reader meeting a field added in /2 must not reject it.
@@ -144,7 +144,7 @@ describe('timestamps', () => {
     expect(isTimestamp('2026-08-13T12:00:00+01:00')).toBe(true);
     expect(isTimestamp('yesterday')).toBe(false);
     expect(isTimestamp('2026-08-13')).toBe(false);
-    // Never epoch milliseconds ([13 §3](docs/design/13-schemas.md)).
+    // Never epoch milliseconds ([10 §3](../../../../docs/design/10-schemas.md)).
     expect(isTimestamp('1786622400000')).toBe(false);
   });
 

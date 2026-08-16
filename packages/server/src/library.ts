@@ -41,7 +41,7 @@ import {
  * Library CRUD, one handler set rather than six.
  *
  * **The registry is what makes this kind-agnostic**
- * ([13 §9](docs/design/13-schemas.md)): every portable object self-describes, so
+ * ([10 §9](../../../docs/design/10-schemas.md)): every portable object self-describes, so
  * nothing here enumerates kinds. Adding Campaign at 2.0 should not touch this
  * file.
  *
@@ -49,16 +49,16 @@ import {
  * properties of the *write path* and a route is only one caller of it:
  *
  * - **The server indexes its own writes synchronously**, so a `GET` after a
- *   `POST` reflects it ([02 §5.1.1](docs/design/02-data-model.md)). The watcher
+ *   `POST` reflects it ([02 §5.1.1](../../../docs/design/02-data-model.md)). The watcher
  *   is for foreign writes and has no such guarantee, nor needs one.
  * - **Every read carries a content hash and every write must present one**
- *   ([04 §4.4](docs/design/04-server-multiuser-deployment.md)). A stale hash is
+ *   ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)). A stale hash is
  *   rejected with the current object, so the caller can offer a choice rather
  *   than guess. It is also the only defence the hot-reload thesis has against
  *   silently eating a hand edit.
  * - **A rename is an ordinary write.** Changing `name` changes the field inside
  *   the file; the folder keeps the slug it was born with
- *   ([19 §1.1](docs/design/19-p1-implementation.md)). There is no rename route
+ *   ([P1 §1.1](../../../docs/design/workplan/03-p1-implementation.md)). There is no rename route
  *   and there is nothing here that moves a directory.
  */
 
@@ -109,7 +109,7 @@ export interface StoredObject {
  * The scopes a request may read: the caller's own library and the system one.
  *
  * **`system/library/` is loaded and merged from P1**, shipped empty
- * ([19 §1.3](docs/design/19-p1-implementation.md)). The merge is a query rather
+ * ([P1 §1.3](../../../docs/design/workplan/03-p1-implementation.md)). The merge is a query rather
  * than a special case, and retrofitting it into every list endpoint later is the
  * annoying version — so it lands now, with nothing in it.
  */
@@ -148,10 +148,10 @@ function scopeKeyOf(scope: LibraryScope): string {
  *
  * The actor is the only kind that is not plain JSON, and the card is spliced
  * into whatever pixels are already there — never re-encoded
- * ([02 §5.2](docs/design/02-data-model.md)).
+ * ([02 §5.2](../../../docs/design/02-data-model.md)).
  *
  * Encoding is separate from writing so the caller can apply the no-op rule
- * ([02 §11.1](docs/design/02-data-model.md)): a save that changes nothing must
+ * ([02 §11.1](../../../docs/design/02-data-model.md)): a save that changes nothing must
  * produce neither a write nor a history entry, and the only honest way to know
  * is to build the exact bytes and compare.
  */
@@ -188,7 +188,7 @@ async function encodeObject(
  * The pixels a brand-new card starts with: 1×1, fully transparent.
  *
  * Deliberately not a generated placeholder portrait. The card's pixels are *the
- * portrait as intended* ([02 §5.2.1](docs/design/02-data-model.md)) — what any
+ * portrait as intended* ([02 §5.2.1](../../../docs/design/02-data-model.md)) — what any
  * tool that only knows "a card is a picture" will render — so inventing one
  * would put a face nobody chose in front of every such tool. An empty card is
  * honest; a stock avatar is a small lie that travels with the file.
@@ -318,7 +318,7 @@ function stampProvenance(object: unknown): unknown {
  * second tab, a hand edit, the file browser — the write is refused and the
  * *current* object comes back with the error, so the UI can offer reload-and-
  * reapply or save-as-a-copy rather than guessing
- * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
  */
 export async function update(
   context: LibraryContext,
@@ -426,7 +426,7 @@ export async function update(
 
 /**
  * Restores an earlier version — **an ordinary write, not a special one**
- * ([02 §11.1](docs/design/02-data-model.md)): it goes through `update`, so the
+ * ([02 §11.1](../../../docs/design/02-data-model.md)): it goes through `update`, so the
  * current state is snapshotted first and going back never destroys what you
  * were on. Restoring the state you are already on falls into the no-op rule
  * and records nothing.
@@ -542,7 +542,7 @@ export async function amendVersion(
 
 /**
  * The raw stored bytes of an actor's card — the avatar the editor shows and
- * does not replace ([19 §P1.7](docs/design/19-p1-implementation.md)). Only
+ * does not replace ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)). Only
  * actors have pixels; any other kind is not-found rather than empty.
  */
 export async function readCardPixels(

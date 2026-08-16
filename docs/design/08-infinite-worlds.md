@@ -1,4 +1,4 @@
-# 09 — Infinite Worlds as a fourth reference
+# 08 — Infinite Worlds as a fourth reference
 
 **Status: proposal.** Infinite Worlds (infiniteworlds.app, Friendly Fox Games) is
 a closed-source commercial browser service in the same genre as Aventuras'
@@ -81,7 +81,7 @@ author *declare a variable* but not *state a rule about it*. Declaring
 "Corruption: 0–100, purple, pinned" is a fraction of the way to "when corruption
 reaches 50, change the objective and swap in a different instruction block".
 
-**Scheduled for 2.0, not 1.0** ([15 §0.4](15-work-plan.md)) — and this document
+**Scheduled for 2.0, not 1.0** ([work plan §0.4](workplan/01-work-plan.md)) — and this document
 is the reason why, in both directions. It makes the case for the tier, and it
 also records that IW ran on triggers and tracked items for years before adding
 PawScript (§6), designing that language against a corpus of real authored worlds.
@@ -316,12 +316,12 @@ retrofit into a prompt assembler that concatenates all lore into one block.
 Not proposed for 1.0. Proposed as a **test case**: if a community member could
 build lightweight anti-omniscience out of channels and rules without engine
 changes, the extensibility design is working. Recorded as an acceptance test
-alongside [08 §6.3](08-triage.md).
+alongside [triage §6.3](workplan/02-triage.md).
 
 There is a cheaper way to find out early. Poker needs exactly this mechanism in
 miniature — hole cards are per-actor hidden state, and the call generating a
 character's action must see that character's cards and no one else's. Building
-poker as a first-party reference extension ([11 §4.4](11-roadmap.md)) therefore
+poker as a first-party reference extension ([14 §4.4](14-roadmap.md)) therefore
 settles whether per-actor visibility works at all, on a bounded problem, long
 before anyone attempts it over a whole session's accumulated knowledge.
 
@@ -360,11 +360,11 @@ thing that comes from retrofitting.
 
 | Change | Where | Size |
 |---|---|---|
-| Add authored rules as a third extensibility tier — **2.0** ([15 §0.4](15-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
+| Add authored rules as a third extensibility tier — **2.0** ([work plan §0.4](workplan/01-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
 | "Packages may ship rules, never code" resolves A2 | [06 A2](06-open-questions.md) | Clarification |
 | Channels declarable by authors, not only modes | [03 §4](03-modes-and-turn-pipeline.md) | Moderate |
 | Steps may suspend for player input | [03 §6](03-modes-and-turn-pipeline.md) | Moderate — new C5 |
 | Name the evaluate-before-narrate pattern | [03 §6](03-modes-and-turn-pipeline.md) | Small |
 | Add a mutable Objective block | [02](02-data-model.md), [03](03-modes-and-turn-pipeline.md) | Small |
 | One expression language for templates and rules — **decided when rules are** | [03 §5](03-modes-and-turn-pipeline.md), [07](07-tech-stack.md) | Decision, deferred with §2 |
-| Per-actor knowledge scope as an acceptance test | [08 §6.3](08-triage.md) | Test, not feature |
+| Per-actor knowledge scope as an acceptance test | [triage §6.3](workplan/02-triage.md) | Test, not feature |

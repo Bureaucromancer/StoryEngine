@@ -14,7 +14,7 @@ import {
 } from '../queries.js';
 
 /**
- * The history panel — [05 §11.2a](docs/design/05-ui-surfaces.md), interaction
+ * The history panel — [05 §11.2a](../../../../docs/design/05-ui-surfaces.md), interaction
  * copied closely from the source it credits. Revisions newest first with the
  * live object pinned on top as *current*; restore, rename, pin, and diff.
  *

@@ -6,7 +6,7 @@
  *
  * The two are deliberately unrelated. The uuid inside the file is identity; the
  * slug is a human-readable folder name that is frozen at creation and never
- * resolved against (docs/design/19-p1-implementation.md §1.1). A renamed folder
+ * resolved against (docs/design/workplan/03-p1-implementation.md §1.1). A renamed folder
  * is an update to an existing row, not a second object, precisely because
  * nothing here derives one from the other.
  *
@@ -17,7 +17,7 @@
  *
  * The randomness comes from the **Web Crypto global**, not `node:crypto`:
  * `shared` is on the client's side of the boundary graph (client → shared,
- * docs/design/16-testing.md §2), and a `node:crypto` import is the one thing
+ * docs/design/workplan/10-testing.md §2), and a `node:crypto` import is the one thing
  * that would make this package unloadable in a browser.
  */
 
@@ -114,7 +114,7 @@ export function createUuidv7(): (now?: number) => string {
  * so the `now` argument is a *floor*, not a promise, and a caller that needs the
  * timestamp honoured exactly should use a fresh `createUuidv7()`.
  *
- * uuidv7 rather than v4 because [15 §2](docs/design/15-work-plan.md) requires
+ * uuidv7 rather than v4 because [work plan §2](../../../docs/design/workplan/01-work-plan.md) requires
  * ids to be globally unique and never namespaced per user — a future shared
  * library merges without collisions.
  */
@@ -182,7 +182,7 @@ const WINDOWS_RESERVED = new Set([
  * Derives a folder name from an object's name.
  *
  * **Derived once, at creation, and then frozen**
- * (docs/design/19-p1-implementation.md §1.1). Renaming an object changes the
+ * (docs/design/workplan/03-p1-implementation.md §1.1). Renaming an object changes the
  * name inside the file; the folder keeps the name it was born with, and the
  * engine never moves the user's directories. Drift is bounded and legible: the
  * folder reads the way the library did when the object was created.

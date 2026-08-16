@@ -4,7 +4,7 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha.** The design is written down in
 [`docs/design/`](docs/design/); the code is through
-[P1.7](docs/design/19-p1-implementation.md) — the storage spine, the derived
+[P1.7](docs/design/workplan/03-p1-implementation.md) — the storage spine, the derived
 index and its watcher, auth, the library API, a web client, and a prototype
 actor editor with version history.
 
@@ -28,7 +28,7 @@ if you want to know why.
 
 ## Building it
 
-Alpha distribution is build-it-yourself ([12 §0](docs/design/12-repo-and-releases.md)).
+Alpha distribution is build-it-yourself ([releases §0](docs/design/workplan/11-repo-and-releases.md)).
 There are no release artifacts, channels or packages yet.
 
 Requires **Node 26** and **pnpm 11**.
@@ -186,7 +186,7 @@ is the point ([07 §10](docs/design/07-tech-stack.md)).
 ## The rules that are build errors
 
 Several claims in the design documents are only true if breaking them fails the
-build ([16 §2](docs/design/16-testing.md)). Each is enforced, and each has a
+build ([testing §2](docs/design/workplan/10-testing.md)). Each is enforced, and each has a
 fixture test asserting the enforcement actually fires:
 
 - **The dependency graph.** `modes → sdk, shared`; `client → shared`;
@@ -204,9 +204,9 @@ fixture test asserting the enforcement actually fires:
 ## Licence
 
 AGPL-3.0-or-later. See [`LICENSE`](LICENSE), and
-[08 §1](docs/design/08-triage.md) for why — including why the SDK is AGPL too,
+[triage §1](docs/design/workplan/02-triage.md) for why — including why the SDK is AGPL too,
 deliberately rather than incidentally.
 
 Your characters, lorebooks and stories are yours. The licence covers this
 software, not the content authored with it
-([08 §1.2](docs/design/08-triage.md)).
+([triage §1.2](docs/design/workplan/02-triage.md)).

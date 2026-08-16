@@ -6,7 +6,7 @@ intent ([docs/README.md](README.md)).
 
 Everything is under `/api`. Responses are JSON. The client is the only consumer
 today, but nothing here is client-specific: `curl` is a first-class way to drive
-it, and the P1 exit gate ([19 §3](design/19-p1-implementation.md)) is written in
+it, and the P1 exit gate ([P1 §3](design/workplan/03-p1-implementation.md)) is written in
 terms of it.
 
 ---
@@ -127,7 +127,7 @@ the known ones.
 
 These are **one handler set, not six**. The registry makes it kind-agnostic —
 every portable object self-describes, so nothing enumerates kinds
-([13 §9](design/13-schemas.md)). Adding a kind should not touch the routes.
+([10 §9](design/10-schemas.md)). Adding a kind should not touch the routes.
 
 **No route takes a handle.** Every one resolves its root from the session,
 because the path is the owner ([04 §4.3](design/04-server-multiuser-deployment.md)).
@@ -156,7 +156,7 @@ Every read returns:
   special case. The badge needs a second channel beyond colour
   ([05 §5](design/05-ui-surfaces.md)).
 - **`shadowed`** means another file holds this id at a lexicographically earlier
-  path ([19 §1.2](design/19-p1-implementation.md)). Both are listed; the shadowed
+  path ([P1 §1.2](design/workplan/03-p1-implementation.md)). Both are listed; the shadowed
   one carries a warning. Copying a folder is a feature, so this never blocks.
 - **`slug`** is the folder name. **It is frozen at creation and nothing resolves
   by it** — resolve by `id`.
@@ -205,7 +205,7 @@ conflict is not two tabs but one tab and a text editor.
 
 **There is no rename route.** Changing `name` is an ordinary `PUT`. The folder
 keeps the slug it was born with, and the engine never moves a user's directories
-([19 §1.1](design/19-p1-implementation.md)).
+([P1 §1.1](design/workplan/03-p1-implementation.md)).
 
 An object cannot change its `id` or its `schema`. System-scope objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.

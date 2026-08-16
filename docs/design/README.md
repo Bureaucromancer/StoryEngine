@@ -5,17 +5,17 @@ These are design notes, not documentation of what exists — see [../](../) for
 that distinction, and treat anything here as intent rather than as a description
 of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
-[06](06-open-questions.md), and [19](19-p1-implementation.md) is a plan being
+[06](06-open-questions.md), and [P1](workplan/03-p1-implementation.md) is a plan being
 worked from rather than argued with.
 
 **Phase: alpha, building P1** — see the [root README](../../README.md) for what
 actually runs today. **1.0 ships Scene and Adventure–Freeform; Adventure–Campaign
-and Messages are 2.0** ([15 §0](15-work-plan.md)), as is the authored-rule
-vocabulary ([15 §0.4](15-work-plan.md)). Distribution, when there is something to
+and Messages are 2.0** ([work plan §0](workplan/01-work-plan.md)), as is the authored-rule
+vocabulary ([work plan §0.4](workplan/01-work-plan.md)). Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
-complete to the 1.0 spec*. See [12 §0](12-repo-and-releases.md).
+complete to the 1.0 spec*. See [releases §0](workplan/11-repo-and-releases.md).
 
-**The first checkpoint is PLAYABLE** ([15 §4.1](15-work-plan.md)) — well before
+**The first checkpoint is PLAYABLE** ([work plan §4.1](workplan/01-work-plan.md)) — well before
 beta, and the point at which the design gets tested by use rather than completed
 on paper.
 
@@ -23,7 +23,7 @@ These are working documents for a clean-sheet engine that takes the *feature
 territory* of Aventuras, Marinara Engine and SillyTavern without inheriting
 their accumulated structure. Infinite Worlds — closed-source, and in the same
 genre as the Adventure mode — is a fourth reference, surveyed in
-[09](09-infinite-worlds.md). They are deliberately **not comprehensive**. They
+[08](08-infinite-worlds.md). They are deliberately **not comprehensive**. They
 record an initial set of positions on where StoryEngine should *diverge* from
 the obvious approach — "port the three feature sets into one server" — and they
 leave large areas untouched on purpose.
@@ -32,10 +32,27 @@ Where a document takes a position, it is a proposal to argue with, not a
 decision. Open questions are collected in [06-open-questions.md](06-open-questions.md)
 and also flagged inline as **[OPEN]**.
 
+## Two folders, and how they are cited
+
+**This folder is the design; [`workplan/`](workplan/) is the sequence for
+building it.** The split is by what a document answers. Design documents answer
+*what this is and why* — they change when a position changes. Work-plan
+documents answer *what gets built, in what order, and what is left to do* — they
+change as work lands, and several of them are worked from rather than argued
+with. [14 — roadmap](14-roadmap.md) sits at the end of the design side on
+purpose: it is where intent stops being design and starts pointing at the
+mechanical lists next door.
+
+**Citations differ by folder, deliberately.** Design documents are cited by
+number — `[02 §5]`, `[13 §1]`. Work-plan documents are cited by **name** —
+`[P1 §1.3]`, `[work plan §4.1]`, `[triage §6.2]`, `[polish §4]`,
+`[testing §2]`, `[releases §2]` — because both folders number from `01` and a
+bare `02` would otherwise mean two different documents.
+
 ## Reading order
 
-File numbers reflect the order documents were written, not the order to read
-them in. The groups below are the reading order; **start with 00, then 01**.
+Numbers are the reading order within each folder, not the order the documents
+were written in. **Start with 00, then 01.**
 
 ### Start here
 
@@ -48,51 +65,47 @@ them in. The groups below are the reading order; **start with 00, then 01**.
 | Doc | What it covers |
 |---|---|
 | [01-source-survey.md](01-source-survey.md) | What Aventuras, Marinara and SillyTavern actually do |
-| [09-infinite-worlds.md](09-infinite-worlds.md) | The fourth reference, and the authored-rules tier it exposes as missing |
-| [08-triage.md](08-triage.md) | Per-subsystem verdicts: adopt, port, rebuild, discard, buy |
+| [08-infinite-worlds.md](08-infinite-worlds.md) | The fourth reference, and the authored-rules tier it exposes as missing |
+| [workplan/02-triage.md](workplan/02-triage.md) | Per-subsystem verdicts: adopt, port, rebuild, discard, buy |
 
 ### The design
 
 | Doc | What it covers |
 |---|---|
 | [02-data-model.md](02-data-model.md) | **Why** the objects are shaped as they are; storage on disk |
-| [13-schemas.md](13-schemas.md) | **What** they are — definitions, and the stability boundary |
+| [10-schemas.md](10-schemas.md) | **What** they are — definitions, and the stability boundary |
 | [03-modes-and-turn-pipeline.md](03-modes-and-turn-pipeline.md) | The mode contract, the modes, channels, party, assembly, renditions |
-| [10-branching.md](10-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
-| [14-cross-session-memory.md](14-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
+| [09-branching.md](09-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
+| [11-cross-session-memory.md](11-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
 | [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and workbench, file access, editors |
 
-### Implementation and process
+### The technical ground
 
 | Doc | What it covers |
 |---|---|
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
-| [18-internal-contracts.md](18-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
-| [15-work-plan.md](15-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
-| [19-p1-implementation.md](19-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
-| [20-p2-implementation.md](20-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
-| [21-p3-implementation.md](21-p3-implementation.md) | P3 skeleton — the workbench as a reader over the record |
-| [22-p4-implementation.md](22-p4-implementation.md) | P4 skeleton — import from the three sources, presets first; ends at PLAYABLE |
-| [23-p5-implementation.md](23-p5-implementation.md) | P5 skeleton — lore activation, budgets, trim order, skip reporting |
-| [24-p6-implementation.md](24-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
-| [16-testing.md](16-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
-| [17-extensions.md](17-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
-| [12-repo-and-releases.md](12-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
+| [13-internal-contracts.md](13-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
+| [12-extensions.md](12-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 
 ### What comes after, and what is unresolved
 
 | Doc | What it covers |
 |---|---|
-| [11-roadmap.md](11-roadmap.md) | Post-1.0 roadmap, plus desired extensions — hints for expansion authors |
-| [25-polish.md](25-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
+| [14-roadmap.md](14-roadmap.md) | Post-1.0 roadmap, plus desired extensions — hints for expansion authors |
 | [06-open-questions.md](06-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
 
-**02 and 13 are a pair.** 02 carries the reasoning and the alternatives
-considered; 13 carries the definitions. Where they disagree, 13 is current.
+### Then the work plan
 
-**13 and 18 split by portability, not by importance.** 13 holds structures that
-travel between installs and are therefore committed; 18 holds structures that
+[`workplan/`](workplan/) has its own index. In reading order it is the work plan
+itself, the triage the plan is built on, the six phase documents, the polish
+list, testing, and the release model.
+
+**02 and 10 are a pair.** 02 carries the reasoning and the alternatives
+considered; 10 carries the definitions. Where they disagree, 10 is current.
+
+**10 and 13 split by portability, not by importance.** 10 holds structures that
+travel between installs and are therefore committed; 13 holds structures that
 never leave and are free to migrate — but which everything is built against, so
 they still have to exist before code does.
 
@@ -112,7 +125,7 @@ they still have to exist before code does.
    what we add is the substrate beneath it, while Messages is presentationally
    expensive for what it adds mechanically. Modes are specified as an *extension
    point* rather than a fixed feature set, so the 2.0 pair should need no change
-   to the 1.0 schemas ([15 §0.2](15-work-plan.md)).
+   to the 1.0 schemas ([work plan §0.2](workplan/01-work-plan.md)).
 4. **Data objects that make sense for LLM workflows**, stored as files on disk,
    with character cards stored natively as cards — drag a folder out of the
    storage directory and you have exported it.

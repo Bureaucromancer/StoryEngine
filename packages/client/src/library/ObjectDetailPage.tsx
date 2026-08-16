@@ -12,11 +12,11 @@ import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 /**
  * The detail view. Read-only at this stage — editing is P1.7, and keeping the
  * stages separate is deliberate: this one is what the hot-reload demo runs on
- * ([19 §P1.6](docs/design/19-p1-implementation.md)).
+ * ([P1 §P1.6](../../../../docs/design/workplan/03-p1-implementation.md)).
  *
  * The disk layout is shown on purpose. The folder *is* the object, and exposing
  * that is how a user learns the storage model is theirs to touch
- * ([05 §5](docs/design/05-ui-surfaces.md)).
+ * ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
  */
 
 const routeApi = getRouteApi('/library/$kind/$id');

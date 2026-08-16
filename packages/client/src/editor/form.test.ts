@@ -18,7 +18,7 @@ import {
 
 /**
  * The editor's two promises, tested where they live
- * ([19 §P1.7](docs/design/19-p1-implementation.md)): unknown fields survive a
+ * ([P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md)): unknown fields survive a
  * round trip through the form, and an unchanged form is detected as unchanged
  * — the client half of the no-op rule.
  */

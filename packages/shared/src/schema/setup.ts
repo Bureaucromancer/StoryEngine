@@ -16,7 +16,7 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Setup — docs/design/13-schemas.md §7.
+ * Setup — docs/design/10-schemas.md §7.
  *
  * **Setting is to Setup as a world is to a game played in it.** One Setting,
  * many Setups: *Rain City* is the world; *The Fixer's Debt*, Adventure mode,
@@ -25,7 +25,7 @@ import { PlotHook } from './hook.js';
  * A Setup is useful without ever being shared, which is the strongest argument
  * for it being a plain library object rather than part of a transport artefact.
  * Sessions are created from one **by copy** — editing a Setup afterwards cannot
- * reach a running session ([00 §3.1](docs/design/00-stance.md)).
+ * reach a running session ([00 §3.1](../../../../docs/design/00-stance.md)).
  */
 
 export const SETUP_SCHEMA = 'storyengine.setup/1';
@@ -99,7 +99,7 @@ export const Setup = Type.Object(
        * Whatever the mode's own setup collected. Stored verbatim, never
        * interpreted by the host, so a game can always recover the options it was
        * created with — and subject to the no-production-settings rule all the
-       * same ([00 §3.2](docs/design/00-stance.md)).
+       * same ([00 §3.2](../../../../docs/design/00-stance.md)).
        */
       config: Type.Unknown(),
     }),
@@ -111,7 +111,7 @@ export const Setup = Type.Object(
     cast: Type.Object({
       /** Offered as the played character. */
       personaOptions: Type.Array(Ref),
-      /** The party always contains the persona ([03 §8](docs/design/03-modes-and-turn-pipeline.md)). */
+      /** The party always contains the persona ([03 §8](../../../../docs/design/03-modes-and-turn-pipeline.md)). */
       partyDefault: Type.Array(Ref),
       /** null = the mode's default narrator. */
       narrator: Type.Union([Ref, Type.Null()]),

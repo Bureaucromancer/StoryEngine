@@ -4,7 +4,7 @@
 import { type Static, Type } from '@sinclair/typebox';
 
 /**
- * The shared substructures, from docs/design/13-schemas.md §3.
+ * The shared substructures, from docs/design/10-schemas.md §3.
  *
  * "Getting these right matters more than any individual entity, because a flaw
  * here appears everywhere."
@@ -36,7 +36,7 @@ const Timestamp = Type.String({
  *
  * Ours are uuidv7, but an imported object arrives with whatever its source
  * minted and a `Ref` may point at one. Rejecting those would strand exactly the
- * data the import path exists to rescue ([00 §3.3](docs/design/00-stance.md)).
+ * data the import path exists to rescue ([00 §3.3](../../../../docs/design/00-stance.md)).
  */
 const Id = Type.String({ minLength: 1 });
 
@@ -95,7 +95,7 @@ export const Provenance = Type.Object(
     /**
      * The licence the *author* places on this content. Never inherited from the
      * application's licence — content is not a derivative work
-     * ([08 §1.2](docs/design/08-triage.md)).
+     * ([triage §1.2](../../../../docs/design/workplan/02-triage.md)).
      */
     license: Type.Union([Type.String(), Type.Null()]),
     originalFilename: Type.Union([Type.String(), Type.Null()]),
@@ -217,7 +217,7 @@ export type VisualDescriptors = Static<typeof VisualDescriptors>;
  * lorebook entry as on an actor — *this is what it looks like*, suitable for
  * conditioning generation — which is what lets a later feature treat a
  * location's reference image the way it already treats an actor's
- * ([11 §3](docs/design/11-roadmap.md)). `map` is the only addition lore needed,
+ * ([14 §3](../../../../docs/design/14-roadmap.md)). `map` is the only addition lore needed,
  * because a diagram is genuinely not a likeness. `illustration` was considered
  * and rejected as a synonym for `reference` that would leave authors guessing.
  */

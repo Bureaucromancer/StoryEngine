@@ -7,9 +7,9 @@ import { dirname, isAbsolute, resolve, sep } from 'node:path';
 /**
  * **The audited path helper.**
  *
- * [07 §9](docs/design/07-tech-stack.md) calls this *"the single most important
+ * [07 §9](../../../../docs/design/07-tech-stack.md) calls this *"the single most important
  * piece of security code in the project"*, and
- * [05 §4.4](docs/design/05-ui-surfaces.md) is why: every filesystem-touching
+ * [05 §4.4](../../../../docs/design/05-ui-surfaces.md) is why: every filesystem-touching
  * route resolves through here, so containment is a property of one function
  * rather than a habit spread across handlers. The no-direct-`fs` lint rule from
  * P1.0 exists to keep it that way — see the README beside this file.
@@ -90,7 +90,7 @@ function segmentsOf(relative: string): string[] {
  * Rejects a single path segment.
  *
  * Exported because the same rules apply to a slug being minted
- * ([19 §1.1](docs/design/19-p1-implementation.md)) and to a handle being
+ * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)) and to a handle being
  * accepted at first run — and a check that lives in two places drifts.
  */
 export function assertSafeSegment(segment: string, whole: string = segment): void {
@@ -259,7 +259,7 @@ export async function resolveWithinReal(root: string, ...segments: string[]): Pr
 }
 
 /**
- * The asset-manifest rule from [02 §5.3](docs/design/02-data-model.md): a
+ * The asset-manifest rule from [02 §5.3](../../../../docs/design/02-data-model.md): a
  * manifest holds *relative paths within the object's folder*, never absolute and
  * never escaping it.
  *

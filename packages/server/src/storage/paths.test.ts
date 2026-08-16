@@ -15,7 +15,7 @@ import {
 } from './paths.js';
 
 /**
- * The adversarial corpus [16 §3.2](docs/design/16-testing.md) asks for.
+ * The adversarial corpus [testing §3.2](../../../../docs/design/workplan/10-testing.md) asks for.
  *
  * *"Path resolution deserves an adversarial corpus of its own. It is the most
  * security-sensitive code in the project and it is pure, so it is cheap to

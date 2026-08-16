@@ -1,6 +1,6 @@
-# 16 — Testing, validation and automation
+# 10 — Testing, validation and automation
 
-**Status: proposal.** Expands [07 §13](07-tech-stack.md), which is now a pointer
+**Status: proposal.** Expands [07 §13](../07-tech-stack.md), which is now a pointer
 here.
 
 Written for a solo developer and a very small team, which is the constraint that
@@ -18,7 +18,7 @@ leaned on hard.
 **The turn record makes prompt assembly snapshot-testable.** In all three source
 projects, "what did the engine actually send, and why" is the hardest thing to
 verify. Here it is a persisted artefact with every block, its source, its reason,
-its token cost and the budget verdict ([02 §8](02-data-model.md)). The hardest
+its token cost and the budget verdict ([02 §8](../02-data-model.md)). The hardest
 thing to test becomes the easiest.
 
 **The architecture states unusually crisp invariants.** Several are properties
@@ -26,13 +26,13 @@ rather than examples, and properties make better tests than cases:
 
 | Invariant | Where it comes from |
 |---|---|
-| Rebuild-from-disk index equals the incrementally-maintained index | [02 §5.1](02-data-model.md) |
-| Replay-from-zero state equals nearest-snapshot-plus-replay, at every turn | [10 §4](10-branching.md) |
-| Summaries shared across a fork are byte-identical to the parent's | [10 §5](10-branching.md) |
-| Object → embedded PNG chunk → object is identity | [02 §5.2](02-data-model.md) |
-| Export → import preserves unknown fields | [13 §2](13-schemas.md) |
-| No advisory block ever appears in an effect-producing call | [03 §5.2](03-modes-and-turn-pipeline.md) |
-| No portable object contains a connection or credential | [00 §3.2](00-stance.md) |
+| Rebuild-from-disk index equals the incrementally-maintained index | [02 §5.1](../02-data-model.md) |
+| Replay-from-zero state equals nearest-snapshot-plus-replay, at every turn | [09 §4](../09-branching.md) |
+| Summaries shared across a fork are byte-identical to the parent's | [09 §5](../09-branching.md) |
+| Object → embedded PNG chunk → object is identity | [02 §5.2](../02-data-model.md) |
+| Export → import preserves unknown fields | [10 §2](../10-schemas.md) |
+| No advisory block ever appears in an effect-producing call | [03 §5.2](../03-modes-and-turn-pipeline.md) |
+| No portable object contains a connection or credential | [00 §3.2](../00-stance.md) |
 
 These are cheap to assert and they fail loudly when a refactor breaks the design
 rather than the code.
@@ -41,20 +41,20 @@ rather than the code.
 
 ## 2. Encode the day-one checklist as lint rules
 
-[15 §2](15-work-plan.md) lists a couple of dozen decisions that are free early
+[01 §2](01-work-plan.md) lists a couple of dozen decisions that are free early
 and expensive late. A useful fraction are **mechanically checkable**, and a lint
 rule is worth more than a paragraph in a document nobody re-reads.
 
 | Rule | Enforces |
 |---|---|
-| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [07 §14.4](07-tech-stack.md) |
-| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [07 §12.6](07-tech-stack.md) |
+| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [07 §14.4](../07-tech-stack.md) |
+| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [07 §12.6](../07-tech-stack.md) |
 | No bare user-facing string literals in components | i18n from the first component |
-| No hand-rolled date/relative-time formatting; `Intl` only | [07 §12.6](07-tech-stack.md) |
+| No hand-rolled date/relative-time formatting; `Intl` only | [07 §12.6](../07-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
 
 **Architectural boundaries deserve the same treatment**, and here it is not
-hygiene but the enforcement of a stated design bet. [07 §10](07-tech-stack.md)
+hygiene but the enforcement of a stated design bet. [07 §10](../07-tech-stack.md)
 says built-in modes must consume the published SDK exactly as a third party
 would — "a discipline mechanism, not organisation". That only holds if
 `modes/*` importing `server` is a **build error**. `dependency-cruiser` or
@@ -112,7 +112,7 @@ none of which need a model:
 - Ref resolution: id → name-fallback → dangle.
 
 **Path resolution deserves an adversarial corpus of its own.** It is the most
-security-sensitive code in the project ([05 §4.4](05-ui-surfaces.md)) and it is
+security-sensitive code in the project ([05 §4.4](../05-ui-surfaces.md)) and it is
 pure, so it is cheap to hammer: `..` in every position, symlinks escaping the
 root, absolute paths, UNC paths, Windows reserved device names, alternate data
 streams, unicode normalisation, case-folding collisions, and null bytes.
@@ -132,10 +132,10 @@ regeneration and undo simultaneously.
 
 - Validate every fixture and every shipped system-library object against the
   JSON Schemas, in CI. Free, given schemas are the artefact
-  ([07 §4](07-tech-stack.md)).
+  ([07 §4](../07-tech-stack.md)).
 - **Schema evolution tests**: an object written against `schema/1` must still
   load once `/2` exists, and unknown fields must survive a round trip
-  ([13 §2](13-schemas.md)). Most projects skip this and discover the problem from
+  ([10 §2](../10-schemas.md)). Most projects skip this and discover the problem from
   users.
 - A **wild corpus** of real third-party exports that must import without
   crashing. See §5 for the licensing wrinkle.
@@ -167,10 +167,10 @@ deterministically, including the paths that are hardest to trigger for real:
 
 - tool calls and structured-output responses;
 - malformed structured output, and the bounded re-ask loop
-  ([00 §2.3](00-stance.md));
+  ([00 §2.3](../00-stance.md));
 - provider errors, rate limits, timeouts, mid-stream disconnection;
 - prompt-cap overrun and the fragment-dropping behaviour
-  ([07 §5.3](07-tech-stack.md));
+  ([07 §5.3](../07-tech-stack.md));
 - a step failing without failing the turn.
 
 Because it records requests, it also *is* the golden-file harness from §3.1.
@@ -224,8 +224,8 @@ the repository.
 
 **A converted card and a converted preset have to meet**, and testing each
 importer alone will not find out whether they do. The card importer routes ST's
-`personality` one way ([02 §2.7](02-data-model.md)); the preset importer points
-the `charPersonality` slot somewhere ([13 §8.4.1](13-schemas.md)). Both can be
+`personality` one way ([02 §2.7](../02-data-model.md)); the preset importer points
+the `charPersonality` slot somewhere ([10 §8.4.1](../10-schemas.md)). Both can be
 individually correct and disagree, and an earlier draft of the two did exactly
 that — producing a slot that would have resolved empty forever, hidden by
 `omitWhenEmpty`.
@@ -262,20 +262,20 @@ longer property-test budgets, and a rebuild-from-disk consistency run over a
 large generated library.
 
 **On tag** — reproducible build, artifact publish, changelog
-([12 §4](12-repo-and-releases.md)).
+([11 §4](11-repo-and-releases.md)).
 
 Two project-specific automations worth having beyond the usual:
 
 - **Dependency licence scanning.** Dependencies must be AGPL-compatible
-  ([08 §1](08-triage.md)), and SSPL/BUSL/source-available terms appear in this
+  ([02 §1](02-triage.md)), and SSPL/BUSL/source-available terms appear in this
   space. A CI check on the dependency licence set is cheap and catches it at PR
   time rather than at release.
 - **Forward-port check.** Flag any commit on a `release/*` branch with no
   counterpart on `main` — the one failure the branching model is prone to
-  ([12 §3](12-repo-and-releases.md)).
+  ([11 §3](11-repo-and-releases.md)).
 - **Restore test**, nightly, beside the upgrade test. Populate a data directory,
   back it up, restore into a clean install, assert the library and sessions come
-  back. **An untested restore is not a backup** ([06 E6](06-open-questions.md)),
+  back. **An untested restore is not a backup** ([06 E6](../06-open-questions.md)),
   and this is the whole reason the backup story can stay as small as it is — the
   index being derived means the archive excludes it and the restore rebuilds it.
 
@@ -285,7 +285,7 @@ Renovate or Dependabot for updates, grouped so the noise stays manageable.
 
 ## 7. The extension test kit
 
-Extensions are third-party code running in our process ([06 A1](06-open-questions.md)),
+Extensions are third-party code running in our process ([06 A1](../06-open-questions.md)),
 so giving authors the means to test is partly self-defence. Published with the
 SDK:
 
@@ -294,10 +294,10 @@ SDK:
 - **Manifest and channel-schema validation.**
 - **The replay-determinism check** — replay an extension's recorded effects and
   assert its behaviour reproduces. This is what catches unrecorded randomness
-  ([11 §4.5](11-roadmap.md)), and it is a better guarantee than a lint rule we
+  ([14 §4.5](../14-roadmap.md)), and it is a better guarantee than a lint rule we
   cannot apply to code we do not own.
 
-If the first-party dice and poker extensions ([11 §4.4](11-roadmap.md)) are
+If the first-party dice and poker extensions ([14 §4.4](../14-roadmap.md)) are
 written against this kit, it stays honest.
 
 ---

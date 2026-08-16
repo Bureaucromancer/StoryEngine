@@ -25,13 +25,13 @@ import {
  * ones, re-serialise — and every other chunk passes through byte-identical.
  *
  * That is not a micro-optimisation. `card.png` is the actor
- * ([02 §5.2](docs/design/02-data-model.md)), not a thumbnail of it, and the
+ * ([02 §5.2](../../../../../docs/design/02-data-model.md)), not a thumbnail of it, and the
  * pixels are what a tool that only knows "a card is a picture" will render.
  * Decoding and re-compressing on every save would degrade the user's art a
  * little at a time, invisibly, which is the sort of loss nobody notices until it
  * is many saves deep.
  *
- * **Two chunks**, per [06 B5](docs/design/06-open-questions.md):
+ * **Two chunks**, per [06 B5](../../../../../docs/design/06-open-questions.md):
  *
  * - `tEXt` with base64 JSON, under our own keyword. Base64 costs ~33% and buys
  *   readability by any tool that can list PNG text chunks, and the JSON is the
@@ -78,7 +78,7 @@ export const CARD_MEDIA_CHUNK = 'seMd';
  * descriptions of one character in one file, and the V2 shape cannot hold what
  * an Actor carries — so the copy that other tools read would drift from the copy
  * we read, which is the two-sources-of-truth failure
- * ([02 §5.2](docs/design/02-data-model.md)) inside a single file.
+ * ([02 §5.2](../../../../../docs/design/02-data-model.md)) inside a single file.
  */
 const LEGACY_KEYWORDS = ['ccv3', 'chara'] as const;
 

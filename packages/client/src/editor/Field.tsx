@@ -5,13 +5,13 @@ import { useId, type JSX } from 'react';
 
 /**
  * The field primitive every editor is built from
- * ([05 §11](docs/design/05-ui-surfaces.md)): one component owning label,
+ * ([05 §11](../../../../docs/design/05-ui-surfaces.md)): one component owning label,
  * value, validation, and the place assist will attach — so that "does this
  * field have AI assist?" is never a question anyone asks.
  *
  * **The assist slot renders nothing in P1.** Deliberately empty rather than
  * disabled-with-a-promise: a greyed "Generate" button that cannot work is a
- * placeholder in the [15 §2.2](docs/design/15-work-plan.md) sense and also a
+ * placeholder in the [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) sense and also a
  * bad UI. What P1 commits to is this *component boundary*, not the assist
  * contract — the four operations of [05 §11.1] attach here when providers
  * exist at P2, and if this component starts growing an assist mechanism before

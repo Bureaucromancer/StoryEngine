@@ -9,11 +9,11 @@ import writeFileAtomic from 'write-file-atomic';
 /**
  * Every canonical write goes through here.
  *
- * **Temp file, fsync, rename** ([07 §7](docs/design/07-tech-stack.md)). The
+ * **Temp file, fsync, rename** ([07 §7](../../../../docs/design/07-tech-stack.md)). The
  * failure it prevents is a truncated character card: a crash or a full disk
  * halfway through a direct write leaves a file that is neither the old actor nor
  * the new one, and `card.png` is the only copy of that actor
- * ([02 §5.2](docs/design/02-data-model.md)).
+ * ([02 §5.2](../../../../docs/design/02-data-model.md)).
  *
  * The library rather than thirty lines of our own, because the fiddly parts are
  * not the temp-and-rename — they are the retry on Windows `EPERM` when a virus
@@ -29,7 +29,7 @@ import writeFileAtomic from 'write-file-atomic';
  * `write-file-atomic` does temp-then-rename, so chokidar sees an add and an
  * unlink for every single write. Without suppression the index re-does every
  * job the application already did synchronously
- * ([02 §5.1.1](docs/design/02-data-model.md)) — which is not a correctness bug
+ * ([02 §5.1.1](../../../../docs/design/02-data-model.md)) — which is not a correctness bug
  * so much as a doubling of all indexing work, and it is why the token is
  * `(path, mtime, size)` rather than just the path: a *foreign* write to the same
  * file moments later must not be swallowed by our own token.
@@ -160,7 +160,7 @@ export async function writeAtomic(
   return token;
 }
 
-/** JSON, formatted for humans — [02 §5.4](docs/design/02-data-model.md). */
+/** JSON, formatted for humans — [02 §5.4](../../../../docs/design/02-data-model.md). */
 export async function writeJsonAtomic(
   path: string,
   value: unknown,

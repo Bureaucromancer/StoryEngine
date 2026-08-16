@@ -18,7 +18,7 @@ import { Layout } from './storage/layout.js';
  * where the server is, and whether it is exposed.
  *
  * Log output is developer-facing and deliberately untranslated
- * ([07 §12.7](docs/design/07-tech-stack.md)).
+ * ([07 §12.7](../../../docs/design/07-tech-stack.md)).
  */
 
 async function main(): Promise<void> {
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
     } else {
       // **The claim window.** Bound beyond loopback with no admin, anyone who
       // can reach the port can claim the install
-      // ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). The console
+      // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)). The console
       // is the one channel only someone with host access can read — `docker
       // logs` is exactly the audience — so the token goes here.
       //
