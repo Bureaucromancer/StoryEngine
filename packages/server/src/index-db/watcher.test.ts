@@ -119,7 +119,7 @@ describe("the watcher never watches the engine's own state", () => {
   it('produces no events for the index, the state store, accounts or config', async () => {
     // The pre-closeout predicate compared mixed path separators and never
     // matched on Windows — the development platform — so every SQLite write
-    // fed the event queue (doc 20 Appendix A, F4). Ignored means *no event at
+    // fed the event queue (P2 Appendix A, F4). Ignored means *no event at
     // all*, so a real object write is the fence that proves the junk writes
     // had their chance to surface.
     await mkdir(library.layout.indexRoot, { recursive: true });

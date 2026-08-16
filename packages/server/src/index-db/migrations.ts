@@ -68,11 +68,11 @@ create table object (
   -- statement instead of N file reads.
   body          text not null,
 
-  -- [19 §1.2] Lexicographically later duplicate of an id held elsewhere. Shown
+  -- [P1 §1.2] Lexicographically later duplicate of an id held elsewhere. Shown
   -- with a warning rather than hidden, and nothing blocks.
   shadowed      integer not null default 0,
 
-  -- [19 §1.1] An unlink tombstones rather than deletes, so that an add carrying
+  -- [P1 §1.1] An unlink tombstones rather than deletes, so that an add carrying
   -- the same uuid can be recognised as a move. Null for a live row.
   tombstoned_at real
 ) strict;

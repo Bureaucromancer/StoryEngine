@@ -49,9 +49,21 @@ rule is worth more than a paragraph in a document nobody re-reads.
 |---|---|
 | Ban `Math.random` and direct `node:crypto` random outside the RNG service | [07 §14.4](../07-tech-stack.md) |
 | Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [07 §12.6](../07-tech-stack.md) |
-| No bare user-facing string literals in components | i18n from the first component |
+| No sentence assembled from fragments, and no branching on displayed text | [01 §2](01-work-plan.md)'s reduced i18n discipline |
 | No hand-rolled date/relative-time formatting; `Intl` only | [07 §12.6](../07-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
+
+**The strings rule is the reduced one, deliberately.** [01 §2](01-work-plan.md)
+kept the half of i18n discipline that cannot be retrofitted — never build a
+sentence by assembling clauses in code, never branch on a displayed string — and
+moved catalogue extraction to a pre-beta sweep. An earlier draft of this table
+said "no bare user-facing string literals", which is the *unreduced* rule: it
+fails on some ninety strings across a client that has no `t()` to put them in,
+and it would be satisfied by wrapping each one in a helper that is a catalogue in
+everything but name. The narrow rule has a handful of violations, each of them
+the thing that actually forecloses translation. Recorded at
+[P2 §1.4](04-p2-implementation.md), because the wider rule was on this list from
+day one and is being narrowed rather than quietly dropped.
 
 **Architectural boundaries deserve the same treatment**, and here it is not
 hygiene but the enforcement of a stated design bet. [07 §10](../07-tech-stack.md)
@@ -255,11 +267,18 @@ GitHub Actions, three tiers:
 
 **On every pull request** — must be fast enough that it is never skipped:
 typecheck, lint including the boundary rules, unit, golden-file, schema
-validation, build.
+validation, build. **On both ubuntu and Windows**, from
+[P2 §3](04-p2-implementation.md)'s P2.0 — the paths, the watcher and the layout
+are exactly the code most likely to be wrong on the platform the CI never ran,
+and F4 is the proof of what that costs. And **the rebuild-equals-incremental
+property test as a named step**, rather than folded anonymously into the suite:
+a gate that can be retired by a `test.skip` nobody notices is not a gate.
 
-**Nightly** — provider conformance (live), the full wild-corpus import run,
-longer property-test budgets, and a rebuild-from-disk consistency run over a
-large generated library.
+**Nightly** — provider conformance (live), the full wild-corpus import run, and
+longer property-test budgets, including a rebuild-from-disk consistency run over
+a large generated library. *The rebuild property test itself moved to the per-PR
+tier above; what stays here is the same property at a corpus size that would
+make the per-PR tier slow. Small budget every PR, large budget nightly.*
 
 **On tag** — reproducible build, artifact publish, changelog
 ([11 §4](11-repo-and-releases.md)).

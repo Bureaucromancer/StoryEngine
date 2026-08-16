@@ -52,7 +52,7 @@ export const Capabilities = Type.Object(
     fileAccess: Type.Union([Type.Literal('none'), Type.Literal('read'), Type.Literal('write')], {
       default: 'none',
     }),
-    /** May enable installed extensions. Installing stays admin-only ([17 §7]). */
+    /** May enable installed extensions. Installing stays admin-only ([12 §7]). */
     enableExtensions: Type.Boolean({ default: false }),
   },
   { title: 'Capabilities' },

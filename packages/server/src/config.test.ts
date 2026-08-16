@@ -135,7 +135,7 @@ describe('loading', () => {
 describe('config has nowhere to put a credential', () => {
   it('declares no key that looks like one', () => {
     // The same structural enforcement the portable schemas get
-    // ([00 §3.2](../../../docs/design/00-stance.md), [18 §4]): connections live in
+    // ([00 §3.2](../../../docs/design/00-stance.md), [13 §4]): connections live in
     // `connections/`, and a check can be forgotten where a missing field
     // cannot.
     const denied = /key|secret|password|token|credential|proxy|auth|url|endpoint|host/i;

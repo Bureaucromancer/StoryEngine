@@ -18,7 +18,7 @@ import { readFileBytes } from './storage/files.js';
  * direction where a user changes something, sees nothing happen, and concludes
  * the software is broken.
  *
- * So {@link CONFIG_TIERS} is not documentation of the table in doc 18 — it is
+ * So {@link CONFIG_TIERS} is not documentation of the table in 13 §4 — it is
  * the table, and {@link pendingRestart} is the only thing that decides whether a
  * change needs one.
  *
@@ -98,7 +98,7 @@ export const ConfigSchema = Type.Object(
 export type Config = Static<typeof ConfigSchema>;
 
 /**
- * The tier table from doc 18 §4, by dotted path.
+ * The tier table from 13 §4, by dotted path.
  *
  * Exhaustive by construction: {@link configKeys} walks the defaults and
  * {@link assertTiersComplete} fails if a key has no tier, so adding a config key

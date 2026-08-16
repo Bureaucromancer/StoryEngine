@@ -24,11 +24,11 @@ import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from '
  * ```
  * /data
  *   config.json
- *   accounts.json          authoritative, never derived — [19 §1.3]
+ *   accounts.json          authoritative, never derived — [P1 §1.3]
  *   system/library/        shipped, read-only, loaded for everyone
  *   users/<handle>/library/…
  *   index/index.sqlite     derived. Deleting it must be a non-event.
- *   state/state.sqlite     operational. Deleting it is *not* a non-event — [18 §5.1]
+ *   state/state.sqlite     operational. Deleting it is *not* a non-event — [13 §5.1]
  * ```
  *
  * **The path is the owner.** There is no `owner` field and no shared user area
@@ -137,7 +137,7 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'index');
   }
 
-  /** Derived and disposable. Deleting it must be a non-event ([18 §5]). */
+  /** Derived and disposable. Deleting it must be a non-event ([13 §5]). */
   get indexFile(): string {
     return resolveWithin(this.indexRoot, 'index.sqlite');
   }
@@ -160,7 +160,7 @@ export class Layout {
    *
    * Operational rather than derived, by the same test: losing it would surprise
    * a user — everyone is logged out. Not in `config.json`, which has nowhere to
-   * put a credential ([18 §4]), and not in the index, which is deletable
+   * put a credential ([13 §4]), and not in the index, which is deletable
    * without consequence.
    */
   get sessionKeyFile(): string {

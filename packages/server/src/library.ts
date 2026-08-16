@@ -101,7 +101,7 @@ export interface StoredObject {
   path: string;
   slug: string;
   scope: LibraryScope;
-  /** True when another file holds this id at an earlier path ([19 §1.2]). */
+  /** True when another file holds this id at an earlier path ([P1 §1.2]). */
   shadowed: boolean;
 }
 
@@ -259,7 +259,7 @@ export async function create(
       throw new LibraryError('conflict', `An object with id ${id} already exists.`);
     }
 
-    // The slug is derived here, once, and then frozen ([19 §1.1]). Nothing ever
+    // The slug is derived here, once, and then frozen ([P1 §1.1]). Nothing ever
     // resolves by it.
     const name =
       typeof (object as { name?: unknown }).name === 'string'
@@ -292,7 +292,7 @@ export interface ChangeAttribution {
   /**
    * Whether the server stamps `provenance.updatedAt` on a real change.
    * Defaults on: `authoredAt` correctness must not depend on the client
-   * remembering to stamp ([18 §1.6]). Restore turns it off — restoring is not
+   * remembering to stamp ([13 §1.6]). Restore turns it off — restoring is not
    * authoring, and stamping would change the restored bytes and so break
    * "restoring the state you are on is a no-op".
    */

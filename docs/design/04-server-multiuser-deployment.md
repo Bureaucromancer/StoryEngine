@@ -662,6 +662,17 @@ Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §4.3's container default safe rather than merely
 unavoidable.
 
+*Not built, and deliberately not half-built.* P1 printed a freshly generated
+token on every non-loopback boot and stored it nowhere, so it was never checked
+— security theatre in the one place theatre is worst, since an operator who sees
+a token printed reasonably concludes something is enforcing it. P2.0 removes the
+print rather than implementing the check, because the check is a new field on
+two auth routes and the setup form, and P2.0 forbids feature work
+([P2 §2.1](workplan/04-p2-implementation.md)). It lands with **P10**, beside the
+container inversion in §5.3 that is the reason it exists: until an image ships,
+nothing binds non-loopback without someone typing the bind address, and the
+loopback default is what carries the safety in the meantime.
+
 **And the same console is the break-glass for a lost password.** `--reset-password
 <handle>` replaces an account's password and re-enables it if it was disabled,
 then exits without starting the server. It reads the new password from **stdin
@@ -722,11 +733,11 @@ plus a plain `node` install for people who prefer it. No launcher `.exe`, no
 Tauri shell, no Android build at 1.0. If a native wrapper is ever wanted it
 should be a thin client pointing at a server, not a second copy of the engine.
 
-Full target list in [§4.4](#54-which-packages-are-first-class).
+Full target list in [§5.4](#54-which-packages-are-first-class).
 
 **Inside a container, binding loopback is simply broken.** `127.0.0.1` in a
 container is the *container's* loopback, so the process is unreachable from the
-host no matter how the port is mapped. A container image that shipped §4.1's
+host no matter how the port is mapped. A container image that shipped §5.1's
 default would appear completely dead on first run, and the resulting bug reports
 would all say "it doesn't work".
 
@@ -734,10 +745,12 @@ So the container image binds `0.0.0.0`, and the security argument shifts rather
 than disappearing:
 
 - **The port mapping is the user's explicit act.** `-p 8080:8080` is the
-  deliberate exposure decision that §4.1 is trying to force; in a container the
+  deliberate exposure decision that §5.1 is trying to force; in a container the
   runtime already forces it.
-- **The console setup token (§4.1) covers the rest** — `docker logs` is exactly
-  the host-access-only channel it assumes.
+- **The console setup token (§5.1) covers the rest** — `docker logs` is exactly
+  the host-access-only channel it assumes. This image is also the token's first
+  real consumer, which is why §5.1 homes it at P10 rather than deferring it
+  indefinitely.
 
 This should be a single, documented environment variable rather than a hidden
 build difference, so that a bare-metal user can opt into the same behaviour and

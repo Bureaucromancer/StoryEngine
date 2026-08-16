@@ -413,7 +413,7 @@ behaviour.
 interface Config {
   dataDir: string
   server: { host: string; port: number; trustProxy: boolean }
-  log: { level: "error" | "warn" | "info" | "debug"; format: "pretty" | "json" }
+  log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
   sessions: { snapshotEveryNTurns: number }
   limits: { maxUploadMb: number; extensionStorageQuotaMb: number }
@@ -430,8 +430,8 @@ interface Config {
 | `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([04 §5.1](04-server-multiuser-deployment.md)) |
 | `server.port` | `restart` | `8080` | |
 | `server.trustProxy` | `restart` | `false` | |
-| `log.level` | `live` | `info` | |
-| `log.format` | `restart` | `pretty` | `json` in the container |
+| `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/04-p2-implementation.md)) |
+| `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
 | `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([06 C8](06-open-questions.md)) |
 | `limits.*` | `live` | — | |
@@ -451,6 +451,71 @@ restart" is wrong within two releases.
 ([04 §4.5](04-server-multiuser-deployment.md)), and config has nowhere to put a
 key — the same structural enforcement as the portable types
 ([00 §3.2](00-stance.md)).
+
+### 4.1 The log record
+
+`log.format` had two literals and no meaning behind either. This is the meaning,
+written before the first line is emitted, because
+[P2 §4](workplan/04-p2-implementation.md)'s gate step 19 asks the log to answer a
+question — *a turn was killed mid-flight; reconstruct its lifecycle* — and a log
+answers that only if the fields were decided in advance.
+
+**One JSON object per line on stdout.** Not a file: the process does not own its
+own destination, because every way of running it already has one — a terminal, a
+service manager, a container runtime. A log file would also be the only writer
+outside the storage package, against the day-one rule that keeps
+path resolution behind one door ([testing §2](workplan/10-testing.md)).
+
+Every line carries `level`, `time`, `msg`. Beyond that, the contract is
+**bindings, not prose**: a value a later reader will filter on is a field, never
+a phrase inside `msg`. The bindings that matter are the ones that name a subject
+someone will grep for — `requestId`, `account`, `sessionId`, `jobId`, `turnId`,
+`objectId`, `kind` — and the rule is that a child logger binds them once at the
+point the subject comes into existence rather than each call site repeating
+them. `jobId` is the one gate step 19 turns on: the turn job binds it when the
+job is created ([P2 §2.10](workplan/04-p2-implementation.md)) and every line from
+that job inherits it, which is what makes *filter by job id* a complete
+lifecycle rather than a sample of one.
+
+Levels mean what an operator would expect, and the boundary that matters is
+`warn` versus `error`: **`error` is for what the server could not do**, `warn`
+for what it refused. A rejected write, a stale hash, a refused path and an
+invalid foreign file are all `warn` — they are the system working. `silent`
+exists for tests and is not an operational setting.
+
+**What never appears**: credentials of any kind (there are none here to leak,
+which is the point of the paragraph above), portable object bodies (a log is not
+a backup and user prose is not diagnostic), and **absolute filesystem paths** —
+a path is named relative to the data root, because the log is the thing people
+paste into issues.
+
+### 4.2 What a reload does, including when it cannot
+
+`log.level` is the first key re-read live ([P2 §2.2](workplan/04-p2-implementation.md)),
+so the reload path stops being hypothetical and needs its failure states stated.
+Three, and only the third is the happy one:
+
+- **The file is unreadable, unparsable, or violates the schema.** The running
+  config stands, unchanged and complete. The failure is logged at `error` naming
+  the file and the reason; nothing is partially applied. A config that fails to
+  parse is a typo mid-edit, and a server that reverts to defaults on a typo is a
+  server that silently unbinds itself from its port.
+- **The file is absent.** On *startup* that is the ordinary first-run case and
+  the defaults are correct. On *reload* it is not: a delete or a rename-away is
+  an editor mid-save, and treating it as "every key reverts to its default"
+  would silently rewrite every setting the operator has — and then report the
+  `restart`-tier ones as genuine pending changes. So a reload over an absent
+  file keeps the running config and is treated as the first case.
+- **The file is valid.** `live` keys apply immediately. `restart`-tier
+  differences are collected by `pendingRestart` and surfaced as the
+  restart-required notice ([04 §6.3](04-server-multiuser-deployment.md)) — the
+  notice is the *only* thing that fires; nothing restarts itself.
+
+**A reload is never triggered by the server's own write.** The settings UI
+([05 §15](05-ui-surfaces.md)) writes this file, and the write is atomic, so the
+config source must consume the same self-write suppression the object watcher
+uses ([P1 §1.4](workplan/03-p1-implementation.md)) rather than reacting to its
+own rename.
 
 ---
 

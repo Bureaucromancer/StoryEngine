@@ -72,7 +72,7 @@ describe('a lorebook carrying images', () => {
   });
 
   it('round-trips through JSON unchanged', () => {
-    // The whole of the coverage doc 19 promises. If a field is dropped by the
+    // The whole of the coverage P1 promises. If a field is dropped by the
     // codec or the schema, it shows up here as a diff rather than as silence.
     const book = illustratedLorebook();
     const roundTripped: unknown = JSON.parse(JSON.stringify(book));

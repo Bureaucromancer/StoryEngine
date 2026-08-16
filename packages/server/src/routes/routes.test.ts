@@ -377,7 +377,7 @@ describe('the path is the owner', () => {
 
 describe('the system library merges into the list', () => {
   it('is a query rather than a special case', async () => {
-    // Shipped empty at P1 ([19 §1.3]), so what is tested is the merge — the
+    // Shipped empty at P1 ([P1 §1.3]), so what is tested is the merge — the
     // source badge needs a second channel beyond colour ([05 §5]).
     await setUpAdmin(server);
     await server.request({ method: 'POST', url: '/api/library/actors', payload: newActor('Vera') });

@@ -14,7 +14,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * The write path under a second writer — the P1-closeout regression suite for
- * the races the audit found (doc 20 Appendix A: F3, F5, F6, F7, F10-slug).
+ * the races the audit found (P2 Appendix A: F3, F5, F6, F7, F10-slug).
  * Every test here raced or lost data on the pre-closeout code.
  */
 

@@ -46,7 +46,7 @@ export interface SessionPayload {
 /**
  * The signing key.
  *
- * **Not in `config.json`** — doc 18 §4 says config has nowhere to put a
+ * **Not in `config.json`** — 13 §4 says config has nowhere to put a
  * credential, and this is one. **Not in the index** — the index is deletable
  * without consequence and losing this logs everyone out. So it lives beside the
  * operational store ([13 §5.1](../../../../docs/design/13-internal-contracts.md)), which is
