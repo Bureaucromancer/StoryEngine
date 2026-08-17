@@ -25,6 +25,12 @@ export interface LibrarySearch {
   kind?: LibraryKind;
 }
 
+/** Which copy of a duplicated id the detail page is showing (F19). */
+export interface ObjectSearch {
+  slug?: string;
+  source?: 'user' | 'system';
+}
+
 const rootRoute = createRootRoute({ component: Shell });
 
 const libraryRoute = createRoute({
@@ -40,6 +46,19 @@ const libraryRoute = createRoute({
 const objectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/$kind/$id',
+  /**
+   * `?source=&slug=` names *one copy* of a duplicated id (F19).
+   *
+   * Dropped rather than rejected when malformed, the same way the library's
+   * `kind` is: without it the address still means something — the winning copy
+   * — and a broken link should land somewhere real rather than on an error.
+   */
+  validateSearch: (search: Record<string, unknown>): ObjectSearch => ({
+    ...(typeof search['slug'] === 'string' ? { slug: search['slug'] } : {}),
+    ...(search['source'] === 'user' || search['source'] === 'system'
+      ? { source: search['source'] }
+      : {}),
+  }),
   component: ObjectDetailPage,
 });
 

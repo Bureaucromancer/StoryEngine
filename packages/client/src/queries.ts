@@ -17,6 +17,7 @@ import {
   type Credentials,
   type LibraryKind,
   type LibraryObject,
+  type ObjectAddress,
   type ObjectVersion,
   type SetupInput,
 } from './api.js';
@@ -72,10 +73,23 @@ export function useLibrary(kind?: LibraryKind): UseQueryResult<{ objects: Librar
   });
 }
 
-export function useLibraryObject(kind: LibraryKind, id: string): UseQueryResult<LibraryObject> {
+/**
+ * `at` is part of the key, and that is the whole point of it being here.
+ *
+ * Once one id is readable two ways, a single cache entry would serve the
+ * winner under both addresses — and the poll below would then rewrite it under
+ * whichever page happened to be mounted. The shadowed copy would look like it
+ * opened and show the wrong object, which is the bug F19 exists to fix wearing
+ * a different hat.
+ */
+export function useLibraryObject(
+  kind: LibraryKind,
+  id: string,
+  at?: ObjectAddress,
+): UseQueryResult<LibraryObject> {
   return useQuery({
-    queryKey: ['library', kind, id],
-    queryFn: () => api.readObject(kind, id),
+    queryKey: ['library', kind, id, at ? `${at.source}:${at.slug}` : 'winner'],
+    queryFn: () => api.readObject(kind, id, at),
     refetchInterval: LIBRARY_POLL_MS,
   });
 }

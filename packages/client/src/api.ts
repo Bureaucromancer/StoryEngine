@@ -159,6 +159,18 @@ export interface ObjectVersion {
   pinned: boolean;
 }
 
+/**
+ * Which copy of a duplicated id to read — the shadowed one, by where it lives.
+ *
+ * Two files can hold the same id; the list shows both and flags the loser.
+ * Without this the loser's link opened the winner while the page claimed
+ * otherwise. Read-only: writes stay id-only and resolve to the winner.
+ */
+export interface ObjectAddress {
+  source: 'user' | 'system';
+  slug: string;
+}
+
 function objectUrl(kind: LibraryKind, id: string): string {
   return `/api/library/${kind}/${encodeURIComponent(id)}`;
 }
@@ -181,8 +193,22 @@ export const api = {
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 
-  readObject: (kind: LibraryKind, id: string): Promise<LibraryObject> =>
-    request('GET', objectUrl(kind, id)),
+  /**
+   * `at` reads one *specific* copy of a duplicated id (docs/api.md, Library).
+   *
+   * Deliberately a parameter on this call rather than something `objectUrl`
+   * appends: that helper is the base for every write, every history call and
+   * every restore, and sending the discriminator on those would look like it
+   * worked while the server ignored it. A shadowed copy is readable and
+   * nothing else.
+   */
+  readObject: (kind: LibraryKind, id: string, at?: ObjectAddress): Promise<LibraryObject> =>
+    request(
+      'GET',
+      at === undefined
+        ? objectUrl(kind, id)
+        : `${objectUrl(kind, id)}?source=${at.source}&slug=${encodeURIComponent(at.slug)}`,
+    ),
 
   createObject: (
     kind: LibraryKind,

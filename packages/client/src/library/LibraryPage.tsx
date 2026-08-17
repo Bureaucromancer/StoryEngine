@@ -122,6 +122,15 @@ function ObjectRow(props: { object: LibraryObject }): JSX.Element {
             <Link
               to="/library/$kind/$id"
               params={{ kind, id: props.object.id }}
+              // A shadowed row carries where it lives, because the id alone
+              // resolves to the winner — which is what made this link open the
+              // wrong object while the page insisted otherwise (F19). Ordinary
+              // rows stay id-only: one object, one address.
+              search={
+                props.object.shadowed
+                  ? { source: props.object.source, slug: props.object.slug }
+                  : {}
+              }
               className="font-medium text-slate-900 underline decoration-slate-300 hover:decoration-slate-700"
             >
               {props.object.name}

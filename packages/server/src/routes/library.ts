@@ -65,6 +65,26 @@ const VersionPatch = Type.Object({
 });
 
 /**
+ * How to reach *one specific copy* of a duplicated id — F19.
+ *
+ * Two files can hold the same id (a folder copied in a file manager, which is
+ * a thing this design invites). The list shows both and flags the loser, and
+ * until now following that row's link opened the winner while the page said it
+ * was showing the shadowed one: the warning existed, the object it warned
+ * about did not have an address.
+ *
+ * A **query parameter on the read route**, not a second path segment. The
+ * canonical address of an object is its id and stays so — this narrows a read,
+ * the way a filter does, and nothing else in the API accepts it. It is
+ * `(source, slug)` rather than the stored path because the path is native and
+ * platform-divergent (F23); the slug is the same string everywhere.
+ */
+const ObjectQuery = Type.Object({
+  slug: Type.Optional(Type.String()),
+  source: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('system')])),
+});
+
+/**
  * The **envelope** a write arrives in — not the object inside it.
  *
  * The split is deliberate and F2 records it. What a route schema is good at is
@@ -184,26 +204,37 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     },
   );
 
-  app.get('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
+  app.get(
+    '/library/:kind/:id',
+    { schema: { params: ObjectParams, querystring: ObjectQuery } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
 
-    const schemaId = schemaFor(request.params as { kind: string }, reply);
-    if (!schemaId) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
-    try {
-      const row = read(
-        services.library,
-        account.handle,
-        (request.params as { id: string }).id,
-        schemaId,
-      );
-      return await reply.header('etag', row.contentHash).send(present(row));
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
+      const query = request.query as { slug?: string; source?: 'user' | 'system' };
+
+      try {
+        const row = read(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+          // Only when the caller asks for a specific copy. Everything else —
+          // every write, every reference — stays id-only and winner-resolving.
+          query.slug === undefined
+            ? undefined
+            : { slug: query.slug, source: query.source ?? 'user' },
+        );
+        return await reply.header('etag', row.contentHash).send(present(row));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
 
   app.put(
     '/library/:kind/:id',

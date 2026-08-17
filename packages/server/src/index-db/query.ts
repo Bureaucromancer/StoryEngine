@@ -131,6 +131,36 @@ export function findById(db: DatabaseSync, id: string): IndexedObject | null {
   return row ? hydrate(row) : null;
 }
 
+/**
+ * A specific copy of a duplicated id, addressed by where it lives.
+ *
+ * `findById` answers with the *winner* — the earliest path — which is right for
+ * every ordinary reference and wrong for exactly one case: the list shows both
+ * copies of a duplicated id, warns about the shadowed one, and then had no way
+ * to open it (F19). Following that row's link opened the winner while the page
+ * said otherwise.
+ *
+ * Discriminated by `(scope, slug)` rather than by the stored path, because the
+ * path is the *native* absolute one — it differs by platform, and ordering over
+ * it is why the shadow winner itself is platform-divergent (F23). The slug is
+ * the folder name, which is the portable half and the same string on both.
+ */
+export function findByIdAt(
+  db: DatabaseSync,
+  id: string,
+  at: { scope: string; slug: string },
+): IndexedObject | null {
+  const row = db
+    .prepare(
+      `select * from object
+        where id = ? and scope = ? and slug = ? and tombstoned_at is null
+        limit 1`,
+    )
+    .get(id, at.scope, at.slug) as RawRow | undefined;
+
+  return row ? hydrate(row) : null;
+}
+
 export function findByPath(db: DatabaseSync, path: string): IndexedObject | null {
   const row = db
     .prepare('select * from object where path = ? and tombstoned_at is null')

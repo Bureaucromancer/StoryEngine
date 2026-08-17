@@ -4,7 +4,13 @@
 import { getRouteApi, Link } from '@tanstack/react-router';
 import type { JSX, ReactNode } from 'react';
 
-import { ApiError, isLibraryKind, type LibraryKind, type LibraryObject } from '../api.js';
+import {
+  ApiError,
+  isLibraryKind,
+  type LibraryKind,
+  type LibraryObject,
+  type ObjectAddress,
+} from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
@@ -23,6 +29,7 @@ const routeApi = getRouteApi('/library/$kind/$id');
 
 export function ObjectDetailPage(): JSX.Element {
   const params = routeApi.useParams();
+  const search = routeApi.useSearch();
   if (!isLibraryKind(params.kind)) {
     return (
       <>
@@ -33,11 +40,19 @@ export function ObjectDetailPage(): JSX.Element {
       </>
     );
   }
-  return <ObjectDetail kind={params.kind} id={params.id} />;
+  return (
+    <ObjectDetail
+      kind={params.kind}
+      id={params.id}
+      {...(search.slug === undefined
+        ? {}
+        : { at: { source: search.source ?? 'user', slug: search.slug } })}
+    />
+  );
 }
 
-function ObjectDetail(props: { kind: LibraryKind; id: string }): JSX.Element {
-  const query = useLibraryObject(props.kind, props.id);
+function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress }): JSX.Element {
+  const query = useLibraryObject(props.kind, props.id, props.at);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
 
@@ -80,7 +95,7 @@ function ObjectView(props: {
         <h1 className="text-2xl font-semibold">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
-        {kind === 'actors' && object.source === 'user' ? (
+        {kind === 'actors' && object.source === 'user' && !object.shadowed ? (
           <Link
             to="/library/actors/$id/edit"
             params={{ id: object.id }}

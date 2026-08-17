@@ -17,7 +17,7 @@ import {
 } from '@storyengine/shared';
 
 import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
-import { findById, type IndexedObject, listObjects } from './index-db/query.js';
+import { findById, findByIdAt, type IndexedObject, listObjects } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
 import { moveTree, readFileBytes } from './storage/files.js';
@@ -144,6 +144,19 @@ export function list(
 }
 
 /**
+ * Which copy of a duplicated id to read — a specific one, by where it lives.
+ *
+ * **Reads only.** Every write and every reference between objects stays
+ * id-only and resolves to the winner ([P1 §1.1]): a duplicate is a mistake to
+ * be shown, not a second address to build on. Making it writable would turn a
+ * warning into a fork.
+ */
+export interface ObjectAddress {
+  source: 'user' | 'system';
+  slug: string;
+}
+
+/**
  * The one door every by-id operation goes through.
  *
  * `inKind` is the kind the *caller's URL* claimed, and checking it here rather
@@ -156,13 +169,17 @@ export function list(
  * side that collection genuinely does not contain that id, and saying "wrong
  * kind" would confirm the object exists somewhere, which is the same leak the
  * scope check below exists to avoid.
+ *
+ * `at` narrows to one copy of a duplicated id (F19); without it, the winner.
  */
 export function read(
   context: LibraryContext,
   handle: string,
   id: string,
   inKind?: PortableSchemaId,
+  at?: ObjectAddress,
 ): IndexedObject {
+  if (at) return readAt(context, handle, id, inKind, at);
   const row = findById(context.db, id);
   if (!row || !readableScopes(handle).some((scope) => scopeKeyOf(scope) === row.scope)) {
     // Not-found rather than forbidden for another user's object: the handle is
@@ -172,6 +189,25 @@ export function read(
   }
   if (inKind !== undefined && row.schemaId !== inKind) {
     throw new LibraryError('not-found', `No object with id ${id} in that kind.`);
+  }
+  return row;
+}
+
+function readAt(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  inKind: PortableSchemaId | undefined,
+  at: ObjectAddress,
+): IndexedObject {
+  const scope = at.source === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const row = findByIdAt(context.db, id, { scope: scopeKeyOf(scope), slug: at.slug });
+  if (!row || (inKind !== undefined && row.schemaId !== inKind)) {
+    // The same answer as an id that does not exist. An address that named
+    // somebody else's library would resolve to this user's scope and find
+    // nothing, which is the containment rule doing its job rather than a
+    // separate check to remember.
+    throw new LibraryError('not-found', `No object with id ${id} at that address.`);
   }
   return row;
 }

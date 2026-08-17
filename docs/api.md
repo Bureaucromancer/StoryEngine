@@ -165,8 +165,9 @@ Every read returns:
 - **`shadowed`** means another file holds this id at a lexicographically earlier
   path ([P1 §1.2](design/workplan/03-p1-implementation.md)). Both are listed; the shadowed
   one carries a warning. Copying a folder is a feature, so this never blocks.
-- **`slug`** is the folder name. **It is frozen at creation and nothing resolves
-  by it** — resolve by `id`.
+- **`slug`** is the folder name, frozen at creation. **Nothing *writes* by it
+  and no reference between objects uses it** — resolve by `id`. The one
+  exception is reading a duplicate, below.
 
 ### `GET /api/library` and `GET /api/library/:kind`
 
@@ -191,6 +192,20 @@ is wrong.
 ### `GET /api/library/:kind/:id`
 
 The envelope, plus an `ETag` header equal to `contentHash`.
+
+**`?source=&slug=` reads one specific copy of a duplicated id.** Without it, an
+id resolves to the winner — the earlier path — which is right for every
+ordinary reference and wrong for exactly one case: the list shows both copies
+and flags the loser, and the loser needs an address or the warning points at
+nothing. An address that matches no row is `404`, including one that names the
+`system` source for a user's object.
+
+Three things it deliberately is not. It is **read-only**: no write takes it, so
+a `PUT` still resolves to the winner and a duplicate stays a warning rather than
+becoming a fork. It is **not the canonical address**: an object is its id, and
+this narrows a read the way a filter does. And it is **`slug`, not the path** —
+the stored path is the native absolute one and differs by platform, while the
+folder name is the same string everywhere.
 
 ### `PUT /api/library/:kind/:id`
 
