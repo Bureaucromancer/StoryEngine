@@ -7,6 +7,7 @@ import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared'
 
 import { listDirectoryNames } from '../storage/files.js';
 import { type Layout, type LibraryScope, SYSTEM_SCOPE, userScope } from '../storage/layout.js';
+import { PathEscapeError } from '../storage/paths.js';
 import { ingestFile } from './ingest.js';
 
 /**
@@ -51,7 +52,25 @@ export async function rebuild(
       const kindRoot = layout.kindRoot(scope, schemaId);
       for (const slug of await listDirectoryNames(kindRoot)) {
         result.scanned += 1;
-        const outcome = await ingestFile(db, layout, layout.objectFile(scope, schemaId, slug), now);
+
+        // A folder whose *name* this build refuses — `con`, a trailing space —
+        // is one skipped object, not the end of the scan (F22). The names are
+        // legal on the filesystem that produced them, and hand-made folders are
+        // the point of this storage model, so a rebuild that aborted on one
+        // would leave the whole library unindexed because of a single
+        // directory. The watcher does index these, and reconciling that
+        // asymmetry is P2.3's, beside F20's invalid-file state — both are the
+        // same question of how the index represents something it cannot open.
+        let objectFile: string;
+        try {
+          objectFile = layout.objectFile(scope, schemaId, slug);
+        } catch (error) {
+          if (!(error instanceof PathEscapeError)) throw error;
+          result.skipped += 1;
+          continue;
+        }
+
+        const outcome = await ingestFile(db, layout, objectFile, now);
         if (outcome.kind === 'indexed') result.indexed += 1;
         else result.skipped += 1;
       }

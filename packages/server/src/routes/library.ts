@@ -22,6 +22,7 @@ import {
   versionsOf,
 } from '../library.js';
 import type { VersionRecord } from '../storage/history.js';
+import { PathEscapeError } from '../storage/paths.js';
 
 /**
  * Library CRUD — **one handler set, not six**.
@@ -430,6 +431,19 @@ function expectedHash(ifMatch: unknown, body: unknown): string | null {
 }
 
 /**
+ * A refused path, as a message safe to send.
+ *
+ * {@link PathEscapeError}'s own message is for a log, not a client: the
+ * symlink-escape case appends the resolved candidate and the real root, both
+ * absolute. What the caller needs is *which* segment was refused and *why* —
+ * the reason is a closed vocabulary, and `attempted` is relative at every throw
+ * site. So the message is rebuilt rather than forwarded (P2 §1.2, F22).
+ */
+function refusedPathMessage(error: PathEscapeError): string {
+  return `Refused path (${error.reason}): ${JSON.stringify(error.attempted)}`;
+}
+
+/**
  * Maps a library failure onto a status.
  *
  * The interesting one is `stale` → **412 with the current object in the body**.
@@ -437,8 +451,20 @@ function expectedHash(ifMatch: unknown, body: unknown): string | null {
  * than guessing ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)) — and
  * it is the only defence the hot-reload thesis has against silently eating a
  * hand edit.
+ *
+ * **A `PathEscapeError` is answered here rather than rethrown** (F22). It used
+ * to fall through to Fastify's default handler, which meant a 500 whose body
+ * carried two absolute filesystem paths — and it is reachable without anyone
+ * attacking anything: `parseObjectPath` takes a slug from a folder name on
+ * disk, so a directory hand-named `con` or `evil.` is indexed happily and then
+ * refused the moment a route rebuilds a path from it. That is a 422: the
+ * request is well-formed and the thing it names is not usable.
  */
 function respondToLibraryError(error: unknown, reply: FastifyReply): void {
+  if (error instanceof PathEscapeError) {
+    void reply.code(422).send({ error: 'refused-path', message: refusedPathMessage(error) });
+    return;
+  }
   if (!(error instanceof LibraryError)) throw error;
 
   switch (error.code) {
@@ -460,6 +486,12 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
       return;
     case 'invalid':
       void reply.code(400).send({ error: 'invalid', message: error.message });
+      return;
+    case 'refused-path':
+      // Nothing throws this as a `LibraryError` yet; the code exists so that a
+      // route resolving a caller-supplied path segment can refuse it in the
+      // same vocabulary the escape above answers in.
+      void reply.code(422).send({ error: 'refused-path', message: error.message });
       return;
   }
 }

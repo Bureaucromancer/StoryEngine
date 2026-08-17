@@ -63,7 +63,7 @@ import {
  */
 
 export class LibraryError extends Error {
-  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict';
+  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict' | 'refused-path';
   readonly current?: IndexedObject;
 
   constructor(code: LibraryError['code'], message: string, current?: IndexedObject) {

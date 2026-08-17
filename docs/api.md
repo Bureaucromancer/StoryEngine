@@ -293,6 +293,7 @@ object, oldest unpinned first.
 | 404 | `not-found` / `unknown-kind` | No such object, or no such kind |
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now |
+| 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 503 | `setup-required` | No accounts exist yet |
 

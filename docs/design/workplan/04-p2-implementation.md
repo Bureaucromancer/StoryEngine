@@ -204,7 +204,11 @@ times to argue about scope is a stage that stops being bounded.
   lifts `slug` straight off the on-disk folder name and never checks it, so a
   hand-made folder named `con` or `evil.` — legal on Linux, and hand-making
   folders is this design's headline feature — is indexed happily and then 500s
-  on history, restore and delete.
+  on history and every other read that rebuilds a path from the slug. *And the
+  worse half, found by writing the test: `rebuild` builds each path through the
+  same guard with nothing catching it, so one such folder **aborts the whole
+  scan** — every object after it left unindexed because of a directory nobody
+  asked the server to open.*
 - **F23.** The shadowed duplicate is chosen differently on different platforms.
   The index stores the **native** absolute path and orders duplicates by it
   under SQLite's default BINARY collation, so the byte that decides is the path
@@ -259,7 +263,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [05 §5](../05-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [09 §4](09-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
 | F20 | Invalid foreign edit remains invisible | **Fix-when-touched** | **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not P1's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
 | F21 | `--reset-password`'s CLI wrapper untested | **P2.0** | One test beside the existing `auth/reset.test.ts`: argv parsing, the missing-handle path, exit codes. It rides in the test sweep — a credential-changing entry point is not the place to leave the typed half unasserted |
-| F22 | `PathEscapeError` → 500 disclosing absolute paths | **P2.0, first** | Map it onto the `LibraryError` code union; the message names relative segments only. Ahead of F1 and F19 because both open this code and neither should have to carry it |
+| F22 | `PathEscapeError` → 500 disclosing absolute paths; and it aborts a rebuild | **P2.0, first** | A refused path answers **422 `refused-path`**, message naming the reason and the segment and nothing else; a rebuild counts one and steps over it. Ahead of F1 and F19 because both open this code and neither should have to carry it. *The leftover — a rebuild skips such a folder while the watcher indexes it, so the two producers F11's property test holds to one answer disagree — is **P2.3**'s, beside F20: the same question of how the index represents a file it cannot open. A test asserts the divergence so the fix is found by failing* |
 | F23 | Shadow winner is platform-divergent | **P2.0, in the doc** | Recorded here now; the fix — ordering duplicates by the portable relative path, which the layout already computes — belongs with **P2.3**'s ingest rework beside F9/F20. Until then F11's step-12 fixture avoids prefix-pair slugs, and says why |
 | F24 | `--reset-password` as the last argument boots the server | **P2.0** | One-line guard, and it is F21's test that proves it. The two land together |
 | F25 | Lint config: `test-*.tsx` unmatched; test override drops the package bans | **P2.0** | Both in the F16 infrastructure commit, before the first file that would land in the gap |
