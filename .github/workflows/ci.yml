@@ -83,3 +83,10 @@ jobs:
         run: git diff --exit-code -- packages/shared/schemas
 
       - run: pnpm test
+
+      # Named, because [work plan P1] calls this the phase's CI assertion and a
+      # gate folded anonymously into the suite is one a `test.skip` can retire
+      # without anyone noticing (F11). It runs inside `pnpm test` above as well
+      # — this step is about the name in the checks list, and it is cheap.
+      - name: Rebuild from disk equals the incremental index
+        run: pnpm test:gate

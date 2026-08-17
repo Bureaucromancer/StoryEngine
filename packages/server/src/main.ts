@@ -110,9 +110,29 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ * The value after a flag, or undefined when the flag is absent.
+ *
+ * **A flag with no value is an error, not an absence** (F24). `--reset-password`
+ * as the final argument used to read as `undefined`, which is indistinguishable
+ * from not passing it — so the guard fell through and *the server booted*,
+ * having reset nothing, in front of someone who had just typed a password-reset
+ * command. The same shape would have made `--data` silently use `./data`.
+ *
+ * Another flag counts as missing rather than as a value: `--data
+ * --reset-password ned` should not name a directory `--reset-password`.
+ */
+class UsageError extends Error {}
+
 function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
+  if (index === -1) return undefined;
+
+  const value = process.argv[index + 1];
+  if (value === undefined || value.startsWith('--')) {
+    throw new UsageError(`${flag} needs a value.`);
+  }
+  return value;
 }
 
 /**
@@ -141,4 +161,11 @@ async function resetPassword(handle: string, layout: Layout): Promise<void> {
   }
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  if (!(error instanceof UsageError)) throw error;
+  // Before the logger exists, and addressed to whoever typed the command.
+  console.error(error.message);
+  process.exit(1);
+}
