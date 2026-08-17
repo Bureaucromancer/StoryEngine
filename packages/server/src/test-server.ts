@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import type { FastifyInstance } from 'fastify';
 
-import { type AppServices, buildApp, buildServices } from './app.js';
+import { type AppServices, buildApp, buildServices, disposeServices } from './app.js';
 import { type Config, DEFAULT_CONFIG } from './config.js';
 
 /**
@@ -137,13 +137,8 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     cookies,
     request,
     dispose: async () => {
-      // Order matters, and more so on Windows: the app first so no request is
-      // mid-flight, then the watcher so no handle is open on the tree, then the
-      // index so the SQLite file is closed before anything tries to unlink it.
       await app.close();
-      services.maturation.stop();
-      await services.watcher?.stop();
-      services.index.close();
+      await disposeServices(services);
       if (!borrowed) await rm(dataDir, { recursive: true, force: true });
     },
   };

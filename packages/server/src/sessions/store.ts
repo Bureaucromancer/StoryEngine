@@ -25,6 +25,24 @@ import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js'
 /** Serialises writes per session. Unrelated sessions never wait on each other. */
 const writes = new KeyedQueue();
 
+/**
+ * Runs a task under one session's write lock.
+ *
+ * Exported because the turn-submission protocol
+ * ([P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md)) runs *under the session's
+ * keyed write queue* by name: it re-reads the head, decides, and reserves in a
+ * sequence that means nothing if another writer can land between the read and
+ * the decision. Sharing this queue is what makes "the head I checked" and "the
+ * head I wrote against" the same head.
+ *
+ * **The lock is not reentrant**, so anything called from inside a task must be
+ * an `…Locked` function rather than the public wrapper — which is why the pair
+ * below is split the way it is.
+ */
+export function withSessionLock<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+  return writes.run(`session:${sessionId}`, task);
+}
+
 export interface SessionContext {
   layout: Layout;
   /** Test seam; production uses the defaults. */
@@ -106,26 +124,40 @@ export async function appendTurnToSession(
   sessionId: string,
   turn: Turn,
 ): Promise<{ location: TurnLocation; session: SessionFile }> {
-  return writes.run(`session:${sessionId}`, async () => {
-    const session = await readSession(context, handle, sessionId);
-    if (session === null) {
-      throw new Error(`No session with id ${sessionId}.`);
-    }
+  return withSessionLock(sessionId, () => appendTurnLocked(context, handle, sessionId, turn));
+}
 
-    const root = turnsRoot(context.layout, handle, sessionId);
-    await context.layout.assertReal(root);
-    const location = await appendTurn(root, turn, context.limits);
+/**
+ * The body of the append, for a caller that already holds the session lock.
+ *
+ * The commit protocol is the caller that needs this: steps 2 and 3 are an append
+ * and a head advance that must not be separable, and it is already holding the
+ * lock it took to decide the job was its to commit.
+ */
+export async function appendTurnLocked(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turn: Turn,
+): Promise<{ location: TurnLocation; session: SessionFile }> {
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) {
+    throw new Error(`No session with id ${sessionId}.`);
+  }
 
-    const next: SessionFile = {
-      ...session,
-      updatedAt: new Date().toISOString(),
-      headTurnId: turn.id,
-      channels: applyEffects(session.channels, turn.effects),
-    };
-    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+  const root = turnsRoot(context.layout, handle, sessionId);
+  await context.layout.assertReal(root);
+  const location = await appendTurn(root, turn, context.limits);
 
-    return { location, session: next };
-  });
+  const next: SessionFile = {
+    ...session,
+    updatedAt: new Date().toISOString(),
+    headTurnId: turn.id,
+    channels: applyEffects(session.channels, turn.effects),
+  };
+  await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+
+  return { location, session: next };
 }
 
 /**

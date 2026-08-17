@@ -9,6 +9,7 @@ import { ACTOR_SCHEMA, schemaIdOf, validate } from '@storyengine/shared';
 import { requireCodecFor } from '../storage/card/index.js';
 import { fileExists, readFileBytes, statFile } from '../storage/files.js';
 import type { Layout, LibraryScope, ParsedObjectPath } from '../storage/layout.js';
+import { inTransaction } from '../storage/transaction.js';
 
 /**
  * File → rows.
@@ -204,31 +205,6 @@ export async function ingestFile(
   });
 
   return { kind: 'indexed', row, moved: movedFromTombstone || vanished.length > 0 };
-}
-
-/**
- * Runs a mutation as one unit — F9.
- *
- * Synchronous by construction, and that is the point rather than an accident:
- * `node:sqlite` is synchronous, so a body with no `await` in it cannot be
- * interleaved by another ingest on the same handle. Anything that needs the
- * filesystem does it before the transaction opens.
- *
- * It returns the body's value rather than taking a `void` callback, because the
- * alternative is assigning to a `let` from inside a closure — which works and
- * which the type checker cannot follow, so the variable stays narrowed to its
- * initialiser and every use of it reads as dead.
- */
-function inTransaction<T>(db: DatabaseSync, mutate: () => T): T {
-  db.exec('begin immediate');
-  try {
-    const result = mutate();
-    db.exec('commit');
-    return result;
-  } catch (error) {
-    db.exec('rollback');
-    throw error;
-  }
 }
 
 function messageOf(error: unknown): string {

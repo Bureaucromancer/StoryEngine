@@ -3,7 +3,7 @@
 
 import { resolve } from 'node:path';
 
-import { buildApp, buildServices } from './app.js';
+import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { loadConfig } from './config.js';
@@ -104,9 +104,7 @@ async function main(): Promise<void> {
   async function shutdown(): Promise<void> {
     app.log.info('Shutting down.');
     await app.close();
-    services.maturation.stop();
-    await services.watcher?.stop();
-    services.index.close();
+    await disposeServices(services);
     process.exit(0);
   }
 }

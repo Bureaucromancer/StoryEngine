@@ -565,6 +565,20 @@ The general rule, since the operational surface will grow: **if losing it would
 surprise a user, it is not derived.** The index holds restatements of what is on
 disk; anything else has its own home.
 
+**What the split cost, now that both exist** (P2.3). Three differences fell out
+of the rule rather than being chosen separately, and they are the whole of why
+this is a second database rather than four more tables:
+
+| | `index.sqlite` | `state.sqlite` |
+|---|---|---|
+| Schema change | drop everything, rescan | stepwise migration, may not drop |
+| `synchronous` | `normal` — a lost transaction is a rescan | `full` — a lost transaction is a double charge |
+| A version from the future | rebuild over it | refuse to open |
+
+The `full` fsync is affordable only because streaming deltas **coalesce** into
+checkpoints ([P2 §2.10](workplan/04-p2-implementation.md)); a durable transaction
+per token would make this the wrong trade.
+
 ---
 
 ## 6. What is deliberately still absent

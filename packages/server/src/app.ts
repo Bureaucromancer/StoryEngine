@@ -29,6 +29,7 @@ import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
+import { openState, type OpenedState } from './state/open.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -51,6 +52,13 @@ export interface AppServices {
   config: Config;
   layout: Layout;
   index: OpenedIndex;
+  /**
+   * The operational store — jobs, reservations, drafts, events ([13 §5.1]).
+   *
+   * Beside the index and emphatically not part of it: deleting `index.sqlite`
+   * is a non-event, and deleting this one loses an uncommitted turn.
+   */
+  state: OpenedState;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
   /**
@@ -72,6 +80,7 @@ export interface BuildAppOptions {
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
   const layout = new Layout(options.config.dataDir);
   const index = await openIndex({ path: layout.indexFile });
+  const state = await openState({ path: layout.stateFile });
   const library: LibraryContext = {
     db: index.db,
     layout,
@@ -100,12 +109,34 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
     config: options.config,
     layout,
     index,
+    state,
     accounts: new Accounts(layout),
     watcher,
     maturation,
     sessionKey: await loadOrCreateSessionKey(layout),
     library,
   };
+}
+
+/**
+ * Releases everything `buildServices` acquired, in the order that works.
+ *
+ * **The order is not stylistic, and it bites hardest on Windows.** The watcher
+ * holds handles on the library tree, and both databases hold their own file plus
+ * a `-wal` and a `-shm`; a test that removes its temporary directory before
+ * those are closed fails with `EBUSY` on a file it never named. Close the app
+ * first so no request is mid-flight, then the watcher, then the stores.
+ *
+ * One function rather than the same four lines in `main`, the test harness and
+ * every suite that builds services directly — that duplication had already
+ * silently dropped the maturation timer and the operational store from two of
+ * the three, and each omission surfaced as a locked file rather than as a leak.
+ */
+export async function disposeServices(services: AppServices): Promise<void> {
+  services.maturation.stop();
+  await services.watcher?.stop();
+  services.index.close();
+  services.state.close();
 }
 
 export async function buildApp(services: AppServices): Promise<FastifyInstance> {

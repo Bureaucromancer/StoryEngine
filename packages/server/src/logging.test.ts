@@ -9,7 +9,7 @@ import { Writable } from 'node:stream';
 import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { applyLiveConfig, type AppServices, buildServices } from './app.js';
+import { applyLiveConfig, type AppServices, buildServices, disposeServices } from './app.js';
 import { type Config, DEFAULT_CONFIG } from './config.js';
 
 /**
@@ -57,7 +57,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  services.index.close();
+  await disposeServices(services);
   await rm(dataDir, { recursive: true, force: true });
 });
 
