@@ -7,12 +7,7 @@ import type { CallPurpose } from '../assembly/assemble.js';
 import type { Candidate } from '../assembly/types.js';
 import type { ModelRole, TokenUsage } from '../providers/types.js';
 import type { Rng } from '../rng/rng.js';
-import type {
-  ChannelState,
-  StepSkipReason,
-  StepStage,
-  Turn,
-} from '../sessions/types.js';
+import type { ChannelState, StepSkipReason, StepStage, Turn } from '../sessions/types.js';
 import type { EffectProposal } from './effects.js';
 
 /**
