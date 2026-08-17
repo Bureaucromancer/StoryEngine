@@ -303,6 +303,30 @@ object, oldest unpinned first.
 
 ---
 
+## Providers, and what "supported" means
+
+There are no provider routes yet — P2.5 is where a turn is submitted — but the
+compatibility surface is a decision rather than a gap, and it is stated here
+because it is the kind of thing people should read rather than discover:
+
+> **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
+
+There is no raw-completion path, no instruct templates, no context templates and
+no stop-sequence machinery ([07 §5.5](design/07-tech-stack.md)). A local model
+is a connection with a `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM
+Studio and KoboldCpp all expose the same shape. A completion-only service needs
+a translating proxy in front of it, which is an off-the-shelf thing to point at
+rather than a path this server maintains.
+
+**Connections are usable but never readable.** A user sees a label, a provider
+type and which models it offers. Not the key, and not the endpoint URL — which
+can itself carry a token or name a private host
+([04 §4.5](design/04-server-multiuser-deployment.md)). There is no
+copy-to-my-library for a connection, because copying would mean copying the
+credential.
+
+---
+
 ## Errors
 
 | Status | `error` | Means |
