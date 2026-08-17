@@ -5,10 +5,13 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared';
 
+import { readAllTurns } from '../sessions/segments.js';
+import { listSessions, readSession, type SessionContext } from '../sessions/store.js';
 import { listDirectoryNames } from '../storage/files.js';
 import { type Layout, type LibraryScope, SYSTEM_SCOPE, userScope } from '../storage/layout.js';
-import { PathEscapeError } from '../storage/paths.js';
+import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import { ingestFile } from './ingest.js';
+import { indexSession, indexTurn } from './sessions.js';
 
 /**
  * Full scan from disk — the startup option
@@ -27,6 +30,9 @@ export interface RebuildResult {
   scanned: number;
   indexed: number;
   skipped: number;
+  /** Sessions found, with their turns. Counted separately; they are a different kind. */
+  sessions: number;
+  turns: number;
 }
 
 /**
@@ -44,8 +50,11 @@ export async function rebuild(
 ): Promise<RebuildResult> {
   db.exec('delete from object');
   db.exec('delete from object_fts');
+  db.exec('delete from turn_fts');
+  db.exec('delete from turn');
+  db.exec('delete from session');
 
-  const result: RebuildResult = { scanned: 0, indexed: 0, skipped: 0 };
+  const result: RebuildResult = { scanned: 0, indexed: 0, skipped: 0, sessions: 0, turns: 0 };
 
   for (const scope of await scopes(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
@@ -75,9 +84,56 @@ export async function rebuild(
         else result.skipped += 1;
       }
     }
+
+    // Sessions are a user's, never the system's — and a rebuild has to cover
+    // them or *rebuild equals incremental* stops being true the moment anyone
+    // plays a turn ([13 §5]).
+    if (scope.kind === 'user') {
+      const found = await rebuildSessions(db, layout, scope.handle);
+      result.sessions += found.sessions;
+      result.turns += found.turns;
+    }
   }
 
   return result;
+}
+
+/**
+ * Re-derives one user's session rows from their folders.
+ *
+ * A session whose `session.json` will not parse is skipped, and deliberately
+ * *not* recorded as a file error: `file_error` is keyed by the library's
+ * `(scope, kind, slug)` shape and a session has none of those. Making that table
+ * carry two shapes to save a skip is the wrong trade — a broken session file is
+ * P2.6's surface to report, when there is one.
+ */
+async function rebuildSessions(
+  db: DatabaseSync,
+  layout: Layout,
+  handle: string,
+): Promise<{ sessions: number; turns: number }> {
+  const context: SessionContext = { layout, index: db };
+  let sessions = 0;
+  let turns = 0;
+
+  for (const sessionId of await listSessions(context, handle)) {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) continue;
+
+    indexSession(db, `user:${handle}`, session);
+    sessions += 1;
+
+    // The cold read, which is exactly what this is: every turn in creation
+    // order with the location the index is supposed to hold.
+    for (const { turn, location } of await readAllTurns(
+      resolveWithin(layout.sessionRoot(handle, sessionId), 'turns'),
+    )) {
+      indexTurn(db, turn, location);
+      turns += 1;
+    }
+  }
+
+  return { sessions, turns };
 }
 
 /**

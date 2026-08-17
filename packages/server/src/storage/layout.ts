@@ -257,6 +257,17 @@ export class Layout {
     );
   }
 
+  /**
+   * Where a deleted session's folder lands.
+   *
+   * `trash/sessions/<id>-<suffix>` — beside the library kinds rather than inside
+   * one, because a session is not a library object and the trash is organised
+   * the way the live tree is ([02 §10.3](../../../../docs/design/02-data-model.md)).
+   */
+  sessionTrashDestination(handle: string, sessionId: string, suffix: string): string {
+    return resolveWithin(this.trashRoot(handle), 'sessions', `${sessionId}-${suffix}`);
+  }
+
   libraryRoot(scope: LibraryScope): string {
     return scope.kind === 'system'
       ? resolveWithin(this.systemRoot, 'library')

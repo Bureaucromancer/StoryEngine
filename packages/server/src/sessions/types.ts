@@ -80,6 +80,21 @@ export interface Turn {
   parentTurnId: string | null;
   createdAt: string;
   status: 'complete' | 'failed' | 'suspended';
+  /**
+   * What the player sent and what came back — [02 §8]'s `input` and `output`.
+   *
+   * The two searchable fields, which is why they land at P2.3 rather than with
+   * the rest of the record: turn text goes into FTS **on write**
+   * ([07 §7.1](../../../../docs/design/07-tech-stack.md)), and a field that arrives later
+   * would mean either a reindex or a search that silently misses old turns.
+   *
+   * Both optional, and not out of laziness: a turn recording a hand edit to
+   * `session.json` has neither ([02 §8.1]), and writing empty strings there
+   * would be a record claiming an empty message was sent. `mentions`,
+   * `request` and `cost` are the rest of §8's record and land with P2.4/P2.5.
+   */
+  input?: { actorId: string | null; kind: string; text: string; raw: string };
+  output?: { text: string; reasoning?: string };
   /** Applied and rejected alike — a rejected effect is part of the record. */
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([07 §14.6]). */
@@ -114,4 +129,18 @@ export interface SessionFile {
   headTurnId: string | null;
   /** State at `headTurnId`. Derived. Hand-editing it writes an effect. */
   channels: Record<string, ChannelState>;
+  /**
+   * Set when the session is archived — [02 §10.3].
+   *
+   * **Archive is not deletion**, and it is here because most sessions people
+   * stop playing are not sessions they want gone; they are sessions they want
+   * out of the way. Offering only Delete for that pushes people into a
+   * destructive action to solve a cosmetic problem.
+   *
+   * A field in the file rather than a marker file or a directory move: it is
+   * legible to somebody who opens `session.json`, it survives a copy, and — the
+   * deciding reason — an archived session is *fully intact*, so moving it would
+   * make "restorable, never swept" a second code path instead of a flag.
+   */
+  archivedAt?: string;
 }

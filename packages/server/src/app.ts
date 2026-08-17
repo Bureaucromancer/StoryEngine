@@ -29,6 +29,7 @@ import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
+import { registerSearchRoutes } from './routes/search.js';
 import type { SessionContext } from './sessions/store.js';
 import { reconcile, type Reconciliation } from './state/commit.js';
 import { openState, type OpenedState } from './state/open.js';
@@ -111,7 +112,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   await watcher?.start();
   const maturation = startMaturation(index.db, layout);
 
-  const sessions: SessionContext = { layout };
+  const sessions: SessionContext = { layout, index: index.db };
 
   /**
    * **Every job still active at startup was interrupted**, because nothing else
@@ -292,6 +293,7 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerLibraryRoutes(api, services);
+      registerSearchRoutes(api, services);
       done();
     },
     { prefix: '/api' },

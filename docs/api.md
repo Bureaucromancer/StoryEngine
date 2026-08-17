@@ -324,6 +324,29 @@ object, oldest unpinned first.
 
 ---
 
+## Search
+
+### `GET /api/search?q=&limit=`
+
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ] }`
+
+Full-text across both, because a person looking for *the cathedral* does not know
+or care whether they wrote it in a lorebook or said it in a turn.
+
+`q` is FTS5 syntax and a query it cannot parse — an unbalanced quote, a bare `*`
+— is `400 invalid` rather than a 500: it is the caller's to fix.
+
+**Turn text is what was typed and what came back**, not the assembled prompt. A
+search that matched the blocks would return every turn in a session the moment a
+lorebook entry used the word. **Archived sessions are searched**; they are hidden
+from the default list, not gone ([02 §10.3](design/02-data-model.md)), and a
+search that skipped them would make archiving a quiet way of losing things.
+Trashed ones are not.
+
+API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation.md)).
+
+---
+
 ## Providers, and what "supported" means
 
 There are no provider routes yet — P2.5 is where a turn is submitted — but the

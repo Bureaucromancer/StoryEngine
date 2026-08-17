@@ -8,14 +8,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
+import { openIndex, type OpenedIndex } from '../index-db/open.js';
+import { listDirectoryNames } from '../storage/files.js';
 import { Layout } from '../storage/layout.js';
-import { listSegments, walkPath } from './segments.js';
+import { listSegments, readAllTurns, walkPath } from './segments.js';
 import {
   appendTurnToSession,
   createSession,
+  deleteSession,
+  listSessionFiles,
+  listSessions,
   readSession,
   readTurns,
   replayChannels,
+  setArchived,
   type SessionContext,
 } from './store.js';
 import type { ChannelEffect, Turn } from './types.js';
@@ -31,14 +37,21 @@ import type { ChannelEffect, Turn } from './types.js';
  */
 
 let dataDir: string;
+let index: OpenedIndex;
 let context: SessionContext;
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-sessions-'));
-  context = { layout: new Layout(dataDir), limits: { maxTurns: 3, maxBytes: 1_000_000 } };
+  index = await openIndex({ path: ':memory:' });
+  context = {
+    layout: new Layout(dataDir),
+    index: index.db,
+    limits: { maxTurns: 3, maxBytes: 1_000_000 },
+  };
 });
 
 afterEach(async () => {
+  index.close();
   await rm(dataDir, { recursive: true, force: true });
 });
 
@@ -266,5 +279,74 @@ describe('the head snapshot', () => {
     expect(replayed[CLOCK]?.value).toEqual({ hour: 1 });
     // Still on the record, though.
     expect(byId.get(escaped.id)?.effects[0]?.scope).toBe('escaped');
+  });
+});
+
+describe('deleting a session is a move, and archiving is neither', () => {
+  it('moves the folder to the trash rather than erasing it', async () => {
+    // F7's lesson applied rather than re-learned. The finding was a hard delete
+    // that took an object's *history* with it — and a session's turns are its
+    // history, so an erasure here would be the same bug in the kind that has
+    // more to lose. [02 §10.3] settles it: a session is a folder too.
+    const { sessionId, turns } = await aSessionOf(2);
+
+    expect(await deleteSession(context, 'ned', sessionId)).toBe(true);
+
+    expect(await readSession(context, 'ned', sessionId)).toBeNull();
+    expect(await listSessions(context, 'ned')).toEqual([]);
+
+    // Still there, turns and all, which is what makes a restore a move back.
+    const trashed = await listDirectoryNames(join(dataDir, 'users', 'ned', 'trash', 'sessions'));
+    expect(trashed).toHaveLength(1);
+    const recovered = await readAllTurns(
+      join(dataDir, 'users', 'ned', 'trash', 'sessions', trashed[0]!, 'turns'),
+    );
+    expect(recovered.map(({ turn }) => turn.id)).toEqual(turns.map((turn) => turn.id));
+  });
+
+  it('does not collide when a session id is deleted, recreated and deleted', async () => {
+    const { sessionId } = await aSessionOf(1);
+    await deleteSession(context, 'ned', sessionId);
+    await aSessionOf(1);
+    const { sessionId: second } = await aSessionOf(1);
+    await deleteSession(context, 'ned', second);
+
+    expect(
+      await listDirectoryNames(join(dataDir, 'users', 'ned', 'trash', 'sessions')),
+    ).toHaveLength(2);
+  });
+
+  it('reports a session that was not there rather than throwing', async () => {
+    expect(await deleteSession(context, 'ned', uuidv7())).toBe(false);
+  });
+
+  it('hides an archived session from the default list, intact', async () => {
+    // Most sessions people stop playing are not sessions they want gone — they
+    // are sessions they want out of the way ([02 §10.3]).
+    const { sessionId, turns } = await aSessionOf(2);
+    await createSession(context, 'ned', 'Still Playing');
+
+    const archived = await setArchived(context, 'ned', sessionId, true);
+    expect(archived?.archivedAt).toBeTruthy();
+
+    expect((await listSessionFiles(context, 'ned')).map((each) => each.name)).toEqual([
+      'Still Playing',
+    ]);
+    expect(await listSessionFiles(context, 'ned', { includeArchived: true })).toHaveLength(2);
+
+    // Fully intact: nothing moved, nothing swept, the head still points where
+    // it did.
+    expect(archived?.headTurnId).toBe(turns.at(-1)?.id);
+    expect(await readTurns(context, 'ned', sessionId)).toHaveLength(2);
+  });
+
+  it('unarchives by removing the field, not by writing a false', async () => {
+    const { sessionId } = await aSessionOf(1);
+    await setArchived(context, 'ned', sessionId, true);
+
+    const restored = await setArchived(context, 'ned', sessionId, false);
+
+    expect(restored && 'archivedAt' in restored).toBe(false);
+    expect(await listSessionFiles(context, 'ned')).toHaveLength(1);
   });
 });

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { DatabaseSync } from 'node:sqlite';
+
 import { uuidv7 } from '@storyengine/shared';
 
+import { indexSession, indexTurn, removeSessionRows } from '../index-db/sessions.js';
+
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory, listDirectoryNames, readFileBytes } from '../storage/files.js';
+import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '../storage/files.js';
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
@@ -52,8 +56,23 @@ export function withSessionLock<T>(sessionId: string, task: () => Promise<T>): P
 
 export interface SessionContext {
   layout: Layout;
+  /**
+   * The index, written synchronously by this store's own writes.
+   *
+   * The same rule the library follows ([02 §5.1.1]): the server indexes what it
+   * writes as it writes it, so a read straight after a write reflects it. Not
+   * optional, because an optional index is one that a caller forgets and then
+   * cannot explain why search is empty.
+   */
+  index: DatabaseSync;
+  /** Which scope the sessions belong to — `user:<handle>`, for the index rows. */
+  scope?: (handle: string) => string;
   /** Test seam; production uses the defaults. */
   limits?: SegmentLimits;
+}
+
+function scopeOf(context: SessionContext, handle: string): string {
+  return (context.scope ?? ((each: string) => `user:${each}`))(handle);
 }
 
 export function sessionRoot(layout: Layout, handle: string, sessionId: string): string {
@@ -88,6 +107,7 @@ export async function createSession(
   await ensureDirectory(root);
   await context.layout.assertReal(root);
   await writeJsonAtomic(sessionFilePath(context.layout, handle, session.id), session);
+  indexSession(context.index, scopeOf(context, handle), session);
 
   return session;
 }
@@ -115,6 +135,98 @@ export async function readSession(
 
 export async function listSessions(context: SessionContext, handle: string): Promise<string[]> {
   return listDirectoryNames(context.layout.sessionsRoot(handle));
+}
+
+/**
+ * The sessions themselves, archived ones hidden unless asked for.
+ *
+ * A folder that is not a readable session is skipped rather than fatal — the
+ * same posture the library takes to a file it cannot parse, and for the same
+ * reason: one bad folder must not make somebody's session list unopenable.
+ */
+export async function listSessionFiles(
+  context: SessionContext,
+  handle: string,
+  options: { includeArchived?: boolean } = {},
+): Promise<SessionFile[]> {
+  const found: SessionFile[] = [];
+  for (const id of await listSessions(context, handle)) {
+    const session = await readSession(context, handle, id);
+    if (session === null) continue;
+    if (session.archivedAt !== undefined && options.includeArchived !== true) continue;
+    found.push(session);
+  }
+  return found.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * Archives or unarchives a session — [02 §10.3](../../../../docs/design/02-data-model.md).
+ *
+ * *Hidden from the default list, fully intact, restorable, never swept.* All
+ * four of those are properties of doing nothing except setting a field, which is
+ * why it is a field.
+ */
+export async function setArchived(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  archived: boolean,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const { archivedAt: wasArchived, ...rest } = session;
+    void wasArchived;
+    const next: SessionFile = {
+      ...rest,
+      updatedAt: new Date().toISOString(),
+      ...(archived ? { archivedAt: new Date().toISOString() } : {}),
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
+/**
+ * Deletes a session by **moving its folder to the user's trash**.
+ *
+ * [02 §10.3](../../../../docs/design/02-data-model.md) is explicit that a session is a folder
+ * too and that §10.2 covers it unchanged — so this is the library's delete, not
+ * a second mechanism. That is F7's lesson applied rather than re-learned: the
+ * finding was a hard delete that took an object's history with it, and a
+ * session's turns *are* its history. An erasure here would be the same bug in a
+ * kind that has more to lose.
+ *
+ * Deletion is a move, so restore is a move back; the retention sweep and the
+ * restore surface are P11's, and nothing is unrecoverable in the meantime.
+ *
+ * **It does not reach into other sessions.** An actor this session promoted to
+ * the library, or a cross-session memory it wrote, stays — those are separate
+ * objects that the library owns, and removing them because their origin was
+ * deleted would be a far worse surprise than leaving them (§10.3).
+ */
+export async function deleteSession(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<boolean> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return false;
+
+    const root = sessionRoot(context.layout, handle, sessionId);
+    await context.layout.assertReal(root);
+    // The suffix is what keeps delete-recreate-delete from colliding in the
+    // trash, exactly as it does for library objects.
+    await moveTree(root, context.layout.sessionTrashDestination(handle, sessionId, uuidv7()));
+    // The index treats a trashed session as absent, exactly as it does a
+    // trashed object ([02 §10.2]) — it does not appear in a list and does not
+    // match a search. Restoring re-indexes it.
+    removeSessionRows(context.index, sessionId);
+    return true;
+  });
 }
 
 /**
@@ -173,7 +285,9 @@ export async function appendTurnOnly(
 ): Promise<TurnLocation> {
   const root = turnsRoot(context.layout, handle, sessionId);
   await context.layout.assertReal(root);
-  return appendTurn(root, turn, context.limits);
+  const location = await appendTurn(root, turn, context.limits);
+  indexTurn(context.index, turn, location);
+  return location;
 }
 
 /**
@@ -201,6 +315,7 @@ export async function advanceHead(
     channels: applyEffects(session.channels, turn.effects),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+  indexSession(context.index, scopeOf(context, handle), next);
   return next;
 }
 

@@ -17,6 +17,7 @@ import {
   sessionRoot,
 } from '../sessions/store.js';
 import type { ChannelEffect, Turn } from '../sessions/types.js';
+import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import {
   advanceCommit,
@@ -40,6 +41,7 @@ import { openState, type OpenedState } from './open.js';
  */
 
 let dataDir: string;
+let index: OpenedIndex;
 let state: OpenedState;
 let context: CommitContext;
 let sessionId: string;
@@ -48,7 +50,8 @@ const ACCOUNT = 'ned';
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-commit-'));
-  const sessions = { layout: new Layout(dataDir) };
+  index = await openIndex({ path: ':memory:' });
+  const sessions = { layout: new Layout(dataDir), index: index.db };
   state = await openState({ path: ':memory:' });
   context = { db: state.db, sessions };
   sessionId = (await createSession(sessions, ACCOUNT, 'Rain City')).id;
@@ -56,6 +59,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   state.close();
+  index.close();
   await rm(dataDir, { recursive: true, force: true });
 });
 

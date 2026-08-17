@@ -25,7 +25,7 @@ import type { DatabaseSync } from 'node:sqlite';
  */
 
 /** Bump on any change below. There is no compatibility window, by design. */
-export const INDEX_SCHEMA_VERSION = 2;
+export const INDEX_SCHEMA_VERSION = 3;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -92,9 +92,31 @@ create virtual table object_fts using fts5(
   tokenize = 'unicode61'
 );
 
+-- ── Sessions ─────────────────────────────────────────────────────────────────
+--
+-- The hot path for a session list, and the only thing that gives a turn a
+-- *scope*: search has to be scoped like every other read
+-- ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), and a turn row knows
+-- its session rather than its owner.
+--
+-- Derived like everything else here: the session file on disk is the truth, and
+-- deleting this database costs a rescan.
+create table session (
+  session_id    text primary key,
+  scope         text not null,
+  name          text not null,
+  head_turn_id  text,
+  -- Archived sessions stay indexed. They are hidden from the default list, not
+  -- gone ([02 §10.3](../../../../docs/design/02-data-model.md)) — and a search that could not
+  -- find them would make archiving a way to lose things.
+  archived      integer not null default 0,
+  updated_at    text not null
+) strict;
+
+create index session_by_scope on session(scope, updated_at);
+
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
--- Scaffolded and unused: no turns exist until P2. Present now because
 -- [07 §7.1](../../../../docs/design/07-tech-stack.md) makes three requirements that are
 -- cheap here and awkward later — turn text is indexed on write rather than
 -- lazily, the row stores turn and session ids rather than an offset into a
@@ -152,6 +174,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists object',
     'drop table if exists turn_fts',
     'drop table if exists turn',
+    'drop table if exists session',
     'drop table if exists file_error',
   ]) {
     db.exec(statement);

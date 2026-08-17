@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
+import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import { advance, clockEffect, readClock, SE_CLOCK } from './channels.js';
 import { walkPath } from './segments.js';
@@ -34,6 +35,7 @@ import type { SessionFile, Turn } from './types.js';
  */
 
 let dataDir: string;
+let index: OpenedIndex;
 let context: SessionContext;
 let session: SessionFile;
 
@@ -41,11 +43,13 @@ const ACCOUNT = 'ned';
 
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'se-channels-'));
-  context = { layout: new Layout(dataDir) };
+  index = await openIndex({ path: ':memory:' });
+  context = { layout: new Layout(dataDir), index: index.db };
   session = await createSession(context, ACCOUNT, 'Rain City');
 });
 
 afterEach(async () => {
+  index.close();
   await rm(dataDir, { recursive: true, force: true });
 });
 
