@@ -141,6 +141,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
       // mid-flight, then the watcher so no handle is open on the tree, then the
       // index so the SQLite file is closed before anything tries to unlink it.
       await app.close();
+      services.maturation.stop();
       await services.watcher?.stop();
       services.index.close();
       if (!borrowed) await rm(dataDir, { recursive: true, force: true });

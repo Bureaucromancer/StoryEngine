@@ -23,6 +23,7 @@ import {
 } from './auth/session.js';
 import { type Config, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
+import { startMaturation, type Maturation } from './index-db/maturation.js';
 import { rebuild } from './index-db/rebuild.js';
 import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
@@ -52,6 +53,12 @@ export interface AppServices {
   index: OpenedIndex;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
+  /**
+   * The tombstone sweep (F9). Runs whether or not the watcher does — it used to
+   * run only from the watcher, so `watch: false` meant tombstones accumulated
+   * forever.
+   */
+  maturation: Maturation;
   sessionKey: string;
   library: LibraryContext;
 }
@@ -87,6 +94,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
           keepHistoryPerObject: options.config.history.keepPerObject,
         });
   await watcher?.start();
+  const maturation = startMaturation(index.db, layout);
 
   return {
     config: options.config,
@@ -94,6 +102,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
     index,
     accounts: new Accounts(layout),
     watcher,
+    maturation,
     sessionKey: await loadOrCreateSessionKey(layout),
     library,
   };

@@ -295,6 +295,24 @@ export class Layout {
    * not. That is what keeps a gallery of forty images from producing forty
    * spurious index events.
    */
+  /**
+   * A path inside the data directory, in its portable form — F23.
+   *
+   * `users/ned/library/actors/vera/card.png`: relative to the root and always
+   * `/`-separated, whatever the platform stored.
+   *
+   * The index keeps the **native absolute** path, because that is what opens a
+   * file. Anything that *orders* or *compares* paths has to use this instead:
+   * the duplicate rule is "earliest path wins", and under SQLite's BINARY
+   * collation the byte that decides is the separator — `/` is 0x2F and `\` is
+   * 0x5C. Where one slug is a prefix of another, `vera` beats `vera2` on Linux
+   * and loses on Windows, which would make the shadowed copy platform-dependent
+   * and gate step 12 answer differently on the two CI legs.
+   */
+  portablePath(path: string): string | null {
+    return relativeWithin(this.dataRoot, path);
+  }
+
   parseObjectPath(path: string): ParsedObjectPath | null {
     const relative = relativeWithin(this.dataRoot, path);
     if (!relative) return null;

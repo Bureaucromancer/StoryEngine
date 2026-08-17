@@ -11,6 +11,7 @@ import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
   create,
+  fileErrors,
   LibraryError,
   list,
   read,
@@ -150,6 +151,24 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const account = await requireAccount(request, reply);
     if (!account) return;
     return reply.send({ objects: list(services.library, account.handle).map(present) });
+  });
+
+  /**
+   * The files that could not be read — F20.
+   *
+   * **Registered before `/library/:kind` and static, so it is not a kind.** The
+   * router prefers a static segment over a parameter, and `errors` is not in
+   * `LIBRARY_DIRECTORIES`, so the two cannot collide from either direction.
+   *
+   * A list rather than a badge count: "one of your files is broken" is not
+   * actionable, and the whole argument for a folder of JSON is that when
+   * something goes wrong you can open the file and look. So the answer names the
+   * file, the reason, and — for a schema failure — which field.
+   */
+  app.get('/library/errors', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    return reply.send({ errors: fileErrors(services.library, account.handle) });
   });
 
   app.get('/library/:kind', { schema: { params: KindParams } }, async (request, reply) => {

@@ -177,6 +177,27 @@ the unfiltered form exists because cross-kind queries — search, counts, an
 export sweep — are a real thing to want. It is not a claim about the UI, which
 browses per kind ([05 §5](design/05-ui-surfaces.md)).
 
+### `GET /api/library/errors`
+
+`{ "errors": [ { path, source, kind, slug, reason, detail, seenAt } ] }` — the
+files that sit where an object should and cannot be read as one.
+
+Static, so it is not a `:kind`; `errors` is not a library directory either.
+
+`reason` is `unparsable` (the bytes are not JSON, or not a card), `wrong-kind`
+(it parses, but declares another schema or has no id), or `schema` (it is that
+kind and fails validation). `detail` is the parser's or the validator's own
+complaint, which is the part anyone can act on. `path` is **relative to the data
+directory**: the client needs to know which file, not where the server keeps its
+disk.
+
+This exists because the alternative was silence. A hand edit that breaks a file
+is skipped by the index — the last good version stays readable and the write
+path refuses to overwrite bytes it cannot read — but until this route the person
+who saved the file got no error, no toast, and a stale object
+([02 §5.1](design/02-data-model.md)). An entry clears when the file parses again,
+or when it is deleted.
+
 ### `POST /api/library/:kind`
 
 Body is the portable object, or `{ object }`. → `201 { id, slug, contentHash, object }`.

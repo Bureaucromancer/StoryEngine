@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { relative, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook } from '@storyengine/shared';
+import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
+import { ingestFile } from '../index-db/ingest.js';
+import { userScope } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -372,6 +375,72 @@ describe('the path is the owner', () => {
       url: `/api/library/lorebooks/${mine.id}`,
     });
     expect(direct.status).toBe(404);
+  });
+});
+
+describe('a file that cannot be read is reported to the client', () => {
+  // F20's other half. The index records the failure; this is where the person
+  // who made the edit can actually find out about it.
+
+  async function breakTheFile(): Promise<string> {
+    const book = newLorebook('Rain City');
+    await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: book });
+    const path = server.services.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, 'rain-city');
+
+    // What a half-saved file looks like. Re-indexed directly rather than
+    // through the watcher, which has its own suite and its own timing.
+    await writeFile(path, '{ "name": "Rain City", truncated');
+    await ingestFile(server.services.index.db, server.services.layout, path);
+    return path;
+  }
+
+  it('names the file relative to the data root, never the disk (F22)', async () => {
+    await setUpAdmin(server, 'ned');
+    const absolute = await breakTheFile();
+
+    const listed = await server.request({ method: 'GET', url: '/api/library/errors' });
+    expect(listed.status).toBe(200);
+    expect(listed.body.errors).toHaveLength(1);
+
+    const [error] = listed.body.errors;
+    expect(error.reason).toBe('unparsable');
+    expect(error.slug).toBe('rain-city');
+    expect(error.source).toBe('user');
+    // The client needs to know *which file*, which the relative path answers.
+    // Where the server keeps its disk is not part of that answer.
+    expect(error.path).toBe(relative(server.dataDir, absolute).split(sep).join('/'));
+    expect(error.path).not.toContain(server.dataDir);
+  });
+
+  it('is scoped like every other read', async () => {
+    await setUpAdmin(server, 'ned');
+    await breakTheFile();
+
+    await server.services.accounts.create({
+      handle: 'sister',
+      password: 'correct horse battery',
+      role: 'user',
+    });
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'sister', password: 'correct horse battery' },
+    });
+
+    // A path is a fact about somebody else's library, and this route would be a
+    // silly way to leak one.
+    const theirs = await server.request({ method: 'GET', url: '/api/library/errors' });
+    expect(theirs.body.errors).toEqual([]);
+  });
+
+  it('is not a kind', async () => {
+    // `/library/errors` is static and `/library/:kind` is not, so the router
+    // prefers it — and `errors` is not a directory in the registry, so the
+    // collision cannot happen from the other direction either.
+    await setUpAdmin(server);
+    const notAKind = await server.request({ method: 'GET', url: '/api/library/sessions' });
+    expect(notAKind.status).toBe(404);
   });
 });
 

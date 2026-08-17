@@ -63,6 +63,19 @@ export type IngestOutcome =
   | { kind: 'indexed'; row: ObjectRow; moved: boolean }
   | { kind: 'skipped'; reason: 'not-an-object' | 'unreadable' | 'invalid'; path: string };
 
+/** Why a file that *is* in an object's place could not be read as one — F20. */
+export type FileErrorReason = 'unparsable' | 'wrong-kind' | 'schema';
+
+export interface FileError {
+  path: string;
+  scope: string;
+  schemaId: string;
+  slug: string;
+  reason: FileErrorReason;
+  detail: string | null;
+  seenAt: number;
+}
+
 export function scopeKey(scope: LibraryScope): string {
   return scope.kind === 'system' ? 'system' : `user:${scope.handle}`;
 }
@@ -126,8 +139,8 @@ export async function ingestFile(
   let payload: unknown;
   try {
     payload = decodeObject(parsed, bytes);
-  } catch {
-    return { kind: 'skipped', reason: 'invalid', path };
+  } catch (error) {
+    return recordInvalid(db, parsed, 'unparsable', messageOf(error), now);
   }
 
   const id = readId(payload);
@@ -135,15 +148,25 @@ export async function ingestFile(
     // A file in `actors/` that does not describe an actor, or one with no id.
     // Left out of the index rather than guessed at; it is still on disk and
     // still the user's.
-    return { kind: 'skipped', reason: 'invalid', path };
+    return recordInvalid(
+      db,
+      parsed,
+      'wrong-kind',
+      id === null ? 'no id' : `declares ${String(schemaIdOf(payload))}`,
+      now,
+    );
   }
 
-  if (!validate(payload).valid) {
-    return { kind: 'skipped', reason: 'invalid', path };
+  const result = validate(payload);
+  if (!result.valid) {
+    return recordInvalid(
+      db,
+      parsed,
+      'schema',
+      result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; '),
+      now,
+    );
   }
-
-  // Unlink-first ordering: the tombstone is already waiting for us.
-  const movedFromTombstone = claimTombstone(db, id, path, now);
 
   const row: ObjectRow = {
     path,
@@ -159,13 +182,128 @@ export async function ingestFile(
     shadowed: false,
   };
 
-  upsert(db, row);
-  // Add-first ordering: the row we are replacing is still live, and its file is
-  // already gone.
-  const movedFromVanished = await dropVanishedDuplicates(db, id, path);
-  resolveDuplicates(db, id);
+  // **Every read of the filesystem happens before the transaction opens** (F9).
+  // The mutation below used to straddle an `await` — the row was upserted, then
+  // the code went off to stat some files, then it deleted and re-resolved — and
+  // the watcher and an API write share one `DatabaseSync`, so a second ingest
+  // could land in that gap and see an index that was halfway through somebody
+  // else's update.
+  const vanished = await findVanishedDuplicates(db, id, path);
 
-  return { kind: 'indexed', row, moved: movedFromTombstone || movedFromVanished };
+  const movedFromTombstone = inTransaction(db, () => {
+    // The file parses, so whatever was wrong with it before is not wrong now.
+    clearFileError(db, path);
+    // Unlink-first ordering: the tombstone is already waiting for us.
+    const claimed = claimTombstone(db, id, path, now);
+    upsert(db, row);
+    // Add-first ordering: the row we are replacing is still live, and its file
+    // is already gone.
+    dropRows(db, vanished);
+    resolveDuplicates(db, layout, id);
+    return claimed;
+  });
+
+  return { kind: 'indexed', row, moved: movedFromTombstone || vanished.length > 0 };
+}
+
+/**
+ * Runs a mutation as one unit — F9.
+ *
+ * Synchronous by construction, and that is the point rather than an accident:
+ * `node:sqlite` is synchronous, so a body with no `await` in it cannot be
+ * interleaved by another ingest on the same handle. Anything that needs the
+ * filesystem does it before the transaction opens.
+ *
+ * It returns the body's value rather than taking a `void` callback, because the
+ * alternative is assigning to a `let` from inside a closure — which works and
+ * which the type checker cannot follow, so the variable stays narrowed to its
+ * initialiser and every use of it reads as dead.
+ */
+function inTransaction<T>(db: DatabaseSync, mutate: () => T): T {
+  db.exec('begin immediate');
+  try {
+    const result = mutate();
+    db.exec('commit');
+    return result;
+  } catch (error) {
+    db.exec('rollback');
+    throw error;
+  }
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Records a file that is in an object's place and cannot be read as one — F20.
+ *
+ * **The previous valid row is left alone**, deliberately. The bytes on disk are
+ * not an object any more, but the last good version of it is still the most
+ * useful thing to show — and the write path refuses to overwrite the file it
+ * cannot read (the closeout's disk re-hash), so nothing is at risk of being
+ * eaten. What changes is that the failure is now *visible* instead of being a
+ * return value nobody stored.
+ */
+function recordInvalid(
+  db: DatabaseSync,
+  parsed: ParsedObjectPath,
+  reason: FileErrorReason,
+  detail: string,
+  now: number,
+): IngestOutcome {
+  db.prepare(
+    `insert into file_error (path, scope, schema_id, slug, reason, detail, seen_at)
+       values (?, ?, ?, ?, ?, ?, ?)
+       on conflict(path) do update set reason = excluded.reason,
+                                       detail = excluded.detail,
+                                       seen_at = excluded.seen_at`,
+  ).run(
+    parsed.path,
+    scopeKey(parsed.scope),
+    parsed.schemaId,
+    parsed.slug,
+    reason,
+    detail.slice(0, 2000),
+    now,
+  );
+
+  return { kind: 'skipped', reason: 'invalid', path: parsed.path };
+}
+
+/** Clears the error for a path — the file was fixed, or it is gone. */
+export function clearFileError(db: DatabaseSync, path: string): void {
+  db.prepare('delete from file_error where path = ?').run(path);
+}
+
+/** Every file that could not be read, for the scopes a caller may see. */
+export function listFileErrors(db: DatabaseSync, scopes: readonly string[]): FileError[] {
+  if (scopes.length === 0) return [];
+  const placeholders = scopes.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `select path, scope, schema_id, slug, reason, detail, seen_at
+         from file_error where scope in (${placeholders}) order by path`,
+    )
+    .all(...scopes) as {
+    path: string;
+    scope: string;
+    schema_id: string;
+    slug: string;
+    reason: FileErrorReason;
+    detail: string | null;
+    seen_at: number;
+  }[];
+
+  return rows.map((row) => ({
+    path: row.path,
+    scope: row.scope,
+    schemaId: row.schema_id,
+    slug: row.slug,
+    reason: row.reason,
+    detail: row.detail,
+    seenAt: row.seen_at,
+  }));
 }
 
 /**
@@ -188,26 +326,28 @@ export async function ingestFile(
  * all, which is the kind of divergence a crash between write and index leaves
  * behind ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
  */
-async function dropVanishedDuplicates(
+async function findVanishedDuplicates(
   db: DatabaseSync,
   id: string,
   keepPath: string,
-): Promise<boolean> {
+): Promise<string[]> {
   const others = db
     .prepare('select path from object where id = ? and path != ? and tombstoned_at is null')
     .all(id, keepPath) as { path: string }[];
 
   // The common case is no duplicates at all, and it costs one indexed lookup.
-  let removedAny = false;
+  const vanished: string[] = [];
   for (const { path } of others) {
-    if (!(await fileExists(path))) {
-      db.prepare('delete from object where path = ?').run(path);
-      db.prepare('delete from object_fts where path = ?').run(path);
-      removedAny = true;
-    }
+    if (!(await fileExists(path))) vanished.push(path);
   }
+  return vanished;
+}
 
-  return removedAny;
+function dropRows(db: DatabaseSync, paths: readonly string[]): void {
+  for (const path of paths) {
+    db.prepare('delete from object where path = ?').run(path);
+    db.prepare('delete from object_fts where path = ?').run(path);
+  }
 }
 
 /**
@@ -216,7 +356,18 @@ async function dropVanishedDuplicates(
  * **Tombstone, not delete.** The row stays so that an add arriving moments
  * later with the same uuid can be recognised as the second half of a rename.
  */
-export function removeFile(db: DatabaseSync, path: string, now: number = Date.now()): boolean {
+export function removeFile(
+  db: DatabaseSync,
+  layout: Layout,
+  path: string,
+  now: number = Date.now(),
+): boolean {
+  // Unconditionally, and before the tombstone: deleting the broken file is the
+  // other way a person fixes it, and an error that outlived its file would be a
+  // complaint about nothing with no way to dismiss it. Not gated on `changes`
+  // either — a file that never indexed *only* has an error row.
+  clearFileError(db, path);
+
   const result = db
     .prepare('update object set tombstoned_at = ? where path = ? and tombstoned_at is null')
     .run(now, path);
@@ -224,7 +375,7 @@ export function removeFile(db: DatabaseSync, path: string, now: number = Date.no
   if (result.changes > 0) {
     const row = db.prepare('select id from object where path = ?').get(path) as
       { id: string } | undefined;
-    if (row) resolveDuplicates(db, row.id);
+    if (row) resolveDuplicates(db, layout, row.id);
   }
 
   return result.changes > 0;
@@ -270,7 +421,11 @@ function clearTombstone(db: DatabaseSync, path: string): void {
 }
 
 /** Deletes tombstones old enough that no rename is coming. */
-export function matureTombstones(db: DatabaseSync, now: number = Date.now()): number {
+export function matureTombstones(
+  db: DatabaseSync,
+  layout: Layout,
+  now: number = Date.now(),
+): number {
   const cutoff = now - TOMBSTONE_TTL_MS;
   const doomed = db
     .prepare('select path, id from object where tombstoned_at is not null and tombstoned_at < ?')
@@ -281,7 +436,7 @@ export function matureTombstones(db: DatabaseSync, now: number = Date.now()): nu
     db.prepare('delete from object_fts where path = ?').run(path);
   }
   for (const id of new Set(doomed.map((row) => row.id))) {
-    resolveDuplicates(db, id);
+    resolveDuplicates(db, layout, id);
   }
 
   return doomed.length;
@@ -290,14 +445,26 @@ export function matureTombstones(db: DatabaseSync, now: number = Date.now()): nu
 /**
  * Decides which of several files claiming one id is the live one.
  *
- * **Lexicographically first path wins.** Deterministic, immune to editing, and
- * identical whether reached incrementally or by a full scan — which is what
- * makes this phase's CI gate hold by construction rather than by luck.
+ * **Lexicographically first path wins** — by the *portable* path, not the
+ * native one (F23). Deterministic, immune to editing, and identical whether
+ * reached incrementally or by a full scan, which is what makes the rebuild gate
+ * hold by construction rather than by luck.
+ *
+ * The portable form is what makes it identical across *platforms* too. Ordering
+ * the stored absolute paths under SQLite's BINARY collation puts the separator
+ * into the comparison — `/` is 0x2F, `\` is 0x5C — so wherever one slug is a
+ * prefix of another, `vera` beats `vera2` on Linux and loses on Windows.
+ * Copying `vera/` to `vera2/` is precisely the user action gate step 12
+ * describes, and the two CI legs would have answered it differently.
  */
-function resolveDuplicates(db: DatabaseSync, id: string): void {
-  const rows = db
-    .prepare('select path from object where id = ? and tombstoned_at is null order by path')
-    .all(id) as { path: string }[];
+function resolveDuplicates(db: DatabaseSync, layout: Layout, id: string): void {
+  const rows = (
+    db.prepare('select path from object where id = ? and tombstoned_at is null').all(id) as {
+      path: string;
+    }[]
+  )
+    .map((row) => ({ ...row, order: layout.portablePath(row.path) ?? row.path }))
+    .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
 
   rows.forEach((row, position) => {
     db.prepare('update object set shadowed = ? where path = ?').run(

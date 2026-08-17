@@ -16,7 +16,13 @@ import {
   type ValidationIssue,
 } from '@storyengine/shared';
 
-import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
+import {
+  contentHashOf,
+  type FileErrorReason,
+  ingestFile,
+  listFileErrors,
+  removeFile,
+} from './index-db/ingest.js';
 import { findById, findByIdAt, type IndexedObject, listObjects } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
@@ -141,6 +147,45 @@ export function list(
     scopes: readableScopes(handle),
     ...(schemaId ? { schemaId } : {}),
   });
+}
+
+/**
+ * A file that is in an object's place and cannot be read as one — F20.
+ *
+ * The reason this is a *read* rather than a log line: the failure belongs to the
+ * person who made the edit, and they are looking at the app, not at the server's
+ * stdout. [02 §5.1](../../../docs/design/02-data-model.md) promises that hand-editing is
+ * supported; a promise like that is only kept if a typo says so out loud.
+ *
+ * `path` is portable — relative to the data root — for the same reason every
+ * other error message is (F22). The client needs to know *which file*, which the
+ * relative path answers; it does not need to know where the server keeps its
+ * disk.
+ */
+export interface LibraryFileError {
+  path: string;
+  source: 'user' | 'system';
+  kind: string;
+  slug: string;
+  reason: FileErrorReason;
+  detail: string | null;
+  seenAt: number;
+}
+
+export function fileErrors(context: LibraryContext, handle: string): LibraryFileError[] {
+  const scopes = readableScopes(handle).map(scopeKeyOf);
+  return listFileErrors(context.db, scopes).map((row) => ({
+    // A row whose path escaped the root is not addressable by a client, and
+    // silently rewriting it to something that looks relative would be worse
+    // than admitting the path is unknown.
+    path: context.layout.portablePath(row.path) ?? '(outside the data directory)',
+    source: row.scope === 'system' ? ('system' as const) : ('user' as const),
+    kind: row.schemaId,
+    slug: row.slug,
+    reason: row.reason,
+    detail: row.detail,
+    seenAt: row.seenAt,
+  }));
 }
 
 /**
@@ -704,6 +749,6 @@ export async function remove(
       context.layout.objectRoot(userScope(handle), schemaId, current.slug),
       context.layout.trashDestination(handle, schemaId, current.slug, uuidv7()),
     );
-    removeFile(context.db, current.path);
+    removeFile(context.db, context.layout, current.path);
   });
 }

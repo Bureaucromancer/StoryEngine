@@ -250,7 +250,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F6 | `authoredAt` correct only via the React editor | **Fixed at P1 closeout** | `provenance.updatedAt` stamped server-side on real changes (§2.3); restore exempt; create exempt (imports keep original authorship) |
 | F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11** |
 | F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** |
-| F9 | Tombstone maturation watcher-only; ingest not transactional | **Fix-when-touched** | P2.3 extends ingest for sessions/turns anyway: transactional after I/O, maturation on startup + timer |
+| F9 | Tombstone maturation watcher-only; ingest not transactional | **Fixed at P2.3** | Both halves as planned: every filesystem read moved ahead of a `begin immediate`, and `startMaturation` runs once at startup and then on an unref'd timer, wired into `buildServices` so it does not depend on the watcher. Two tests, each verified to fail with its half removed |
 | F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
 | F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
 | F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
@@ -261,10 +261,10 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
 | F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap. *The step-17-via-API test in this row was already written at P1.7 and miscounted as debt — see Appendix A.* `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P11** ([05 §4](05-p3-implementation.md) declines it; [09 §1–§2](09-polish.md) takes its polish half) |
 | F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [05 §5](../05-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [09 §4](09-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
-| F20 | Invalid foreign edit remains invisible | **Fix-when-touched** | **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not P1's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
+| F20 | Invalid foreign edit remains invisible | **Fixed at P2.3** | A `file_error` table (index schema 2) with `unparsable`/`wrong-kind`/`schema` and the parser's own detail, cleared on a successful ingest **and on deletion** — the plan's test only covered repair, and a deleted broken file left a permanent complaint. `GET /api/library/errors` reads it, scoped like every other read, with the path relative to the data root (F22). Originally: **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not P1's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
 | F21 | `--reset-password`'s CLI wrapper untested | **P2.0** | One test beside the existing `auth/reset.test.ts`: argv parsing, the missing-handle path, exit codes. It rides in the test sweep — a credential-changing entry point is not the place to leave the typed half unasserted |
 | F22 | `PathEscapeError` → 500 disclosing absolute paths; and it aborts a rebuild | **P2.0, first** | A refused path answers **422 `refused-path`**, message naming the reason and the segment and nothing else; a rebuild counts one and steps over it. Ahead of F1 and F19 because both open this code and neither should have to carry it. *The leftover — a rebuild skips such a folder while the watcher indexes it, so the two producers F11's property test holds to one answer disagree — is **P2.3**'s, beside F20: the same question of how the index represents a file it cannot open. A test asserts the divergence so the fix is found by failing* |
-| F23 | Shadow winner is platform-divergent | **P2.0, in the doc** | Recorded here now; the fix — ordering duplicates by the portable relative path, which the layout already computes — belongs with **P2.3**'s ingest rework beside F9/F20. Until then F11's step-12 fixture avoids prefix-pair slugs, and says why |
+| F23 | Shadow winner is platform-divergent | **Fixed at P2.3** | `resolveDuplicates` sorts in JS on `layout.portablePath()` rather than in SQL on the native path — no `order by` expression can fix it, because the separator is inside the string being compared. Regression test is a prefix pair, measured picking the wrong file on Windows before the fix. F11's step-12 fixture can stop avoiding prefix-pair slugs |
 | F24 | `--reset-password` as the last argument boots the server | **P2.0** | One-line guard, and it is F21's test that proves it. The two land together |
 | F25 | Lint config: `test-*.tsx` unmatched; test override drops the package bans | **P2.0** | Both in the F16 infrastructure commit, before the first file that would land in the gap |
 
@@ -740,6 +740,38 @@ banning randomness everywhere and starts pointing here.
 
 ### P2.3 — Session and turn storage
 
+**Status: the session store and the ingest rework are built; the operational
+store, terminal commit, divergence, delete and search are not.** What exists is
+the sessions layer — `session.json`, JSONL segments with rollover, the head
+snapshot, all through P2.0's `KeyedQueue` — and the whole of the ingest opening
+this stage was carrying: F23's portable-path ordering, F9's transaction and
+scheduled maturation, and F20's file-error state with a route to read it. What
+remains, in the order below: `state.sqlite` (jobs, idempotency reservations,
+in-flight drafts, sequenced events), §2.10's terminal commit and startup
+reconciliation, `se.clock` and hand-edit divergence, session delete as a
+tombstone, and the session/turn index rows that the FTS search route needs.
+
+Three notes on what the ingest opening actually took, because each differs from
+what §1.3's table predicted:
+
+- **F23 needed a comparison, not a collation.** The plan said "order duplicates
+  by the portable relative path", which is right, but the ordering has to happen
+  **in JavaScript**: `order by path` is SQLite's byte order over the native
+  absolute path, and no `order by` expression over that column fixes it, because
+  the separator is inside the string being compared. `layout.portablePath()`
+  gives the relative form and the winner is picked from it. The regression test
+  is a prefix pair (`vera` / `vera2`) — measured picking the wrong file on
+  Windows before the fix, which is the divergence F23 named.
+- **F20's error had to clear on deletion, not only on repair.** The plan's test —
+  "clears when the file is fixed" — passes with `clearFileError` on the ingest
+  path alone. Deleting the broken file is the other way out and it left a
+  permanent complaint about a file that no longer existed; `removeFile` clears
+  unconditionally, before its tombstone, because a file that never indexed has
+  an error row and nothing else.
+- **F22's leftover is still open.** The rebuild/watcher divergence over a refused
+  path is not fixed here; the file-error table gives it somewhere to land, and
+  the test that asserts the divergence is not yet written.
+
 Session CRUD under `users/<handle>/sessions/`, `session.json` with the head
 snapshot, JSONL segments per §2.5 — written through P2.0's serialization
 utility — ingest into the index, FTS on turn text on write, and the FTS
@@ -964,7 +996,10 @@ P1 closeout* is fixed in the code as described (F3's `KeyedQueue` plus the
 in-section disk re-hash, F4's `isContained`, F5's serialised history mutators
 and the write→snapshot→ingest order, F6's server-side stamping with restore and
 create exempt, F7's `moveTree` to trash, F12/F13/F14 client-side), and every
-finding assigned to P2.0 or P2.3 is genuinely open — no P2.0 work has landed.
+finding assigned to P2.0 or P2.3 was genuinely open — no P2.0 work had landed
+**at the time of that run**, which is what this appendix records. The triage
+table in §1.3 is the live status; where a row now says *Fixed at P2.x*, this
+paragraph is the state it was fixed from.
 The three §1.4 corrections are annotated in P1 with pointers back, and
 `ChannelEffect.scope` landed in [13 §1.2](../13-internal-contracts.md) as §2.7
 promised. Two items were **struck** rather than confirmed: the step-17-via-API

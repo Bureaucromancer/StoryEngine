@@ -38,9 +38,11 @@ const KIND_ROOT = ['users', 'ned', 'library', 'lorebooks'] as const;
  * One id in two folders, the way a person makes it: copy the directory.
  *
  * The names are chosen so the winner is decided by the *slug* and not by a
- * prefix relationship — `vera` versus `vera2` is where the BINARY ordering over
- * a native path flips between platforms (F23), and this test should be about
- * F19 rather than about that.
+ * prefix relationship — `vera` versus `vera2` is where a binary ordering over a
+ * native path flips between platforms (F23), and this test should be about F19
+ * rather than about that. F23 is fixed and the prefix case has its own test in
+ * `index-db.test.ts`; the choice stays because a fixture that leans on the fix
+ * would fail here for a reason that has nothing to do with what it asserts.
  */
 async function duplicateOnDisk(): Promise<{ id: string; winner: string; shadowed: string }> {
   const book = newLorebook('Rain City');

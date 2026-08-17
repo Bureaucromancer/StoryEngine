@@ -5,10 +5,11 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
+import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { listVersions } from '../storage/history.js';
+import { listFileErrors, scopeKey } from './ingest.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
 import { LibraryWatcher, type WatchEvent } from './watcher.js';
@@ -240,6 +241,62 @@ describe('a hand edit leaves history behind', () => {
     await eventually(() => findById(library.db, book.id)?.path === to);
 
     expect(await listVersions(dirname(to))).toHaveLength(0);
+  });
+});
+
+describe('a file that cannot be read says so', () => {
+  // F20. The skip was correct and silent, which for the one gesture this design
+  // is built around — open the file, edit it, save — is the wrong half of the
+  // trade: the user gets no error, no toast and a stale object, and the only
+  // record of what happened was a return value the caller discarded.
+
+  it('surfaces a broken hand edit as a path-scoped error, and clears it when fixed', async () => {
+    const book = newLorebook('Rain City');
+    const path = await library.saveObject(book, 'rain-city');
+    await seenBy(path);
+
+    await writeFile(path, '{ "name": "Rain City", truncated');
+    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
+
+    const [error] = listFileErrors(library.db, [scopeKey(library.scope)]);
+    expect(error?.path).toBe(path);
+    expect(error?.reason).toBe('unparsable');
+    expect(error?.slug).toBe('rain-city');
+    // The detail is the parser's own complaint, which is the only thing anyone
+    // can act on — "invalid" alone does not find the missing brace.
+    expect(error?.detail).toBeTruthy();
+
+    // And the last good row is still there: the object did not disappear from
+    // the library because its file briefly stopped being JSON.
+    expect(findById(library.db, book.id)?.name).toBe('Rain City');
+
+    await writeFile(path, JSON.stringify({ ...book, name: 'Rain City, repaired' }));
+    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 0);
+    expect(findById(library.db, book.id)?.name).toBe('Rain City, repaired');
+  });
+
+  it('clears the error when the broken file is deleted rather than fixed', async () => {
+    // The other way out, and the one that would otherwise leave a permanent
+    // complaint about a file that no longer exists.
+    const path = await library.saveObject(newLorebook('Rain City'), 'rain-city');
+    await seenBy(path);
+
+    await writeFile(path, 'not json at all');
+    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
+
+    await rm(dirname(path), { recursive: true });
+    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 0);
+  });
+
+  it('reports a file whose contents are valid JSON but not the kind it sits in', async () => {
+    // Distinct from unparsable, and worth its own reason: the file is fine, it
+    // is in the wrong folder — which is a mistake a person makes by dragging.
+    const path = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'misfiled');
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify({ ...newActor('Vera'), schema: 'storyengine.actor/1' }));
+
+    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
+    expect(listFileErrors(library.db, [scopeKey(library.scope)])[0]?.reason).toBe('wrong-kind');
   });
 });
 

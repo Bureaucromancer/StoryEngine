@@ -238,7 +238,7 @@ describe('rebuild equals incremental, as a property', () => {
         // delete-and-create. Mature them, or the incremental index is mid-flight
         // and a rebuild — which has no such concept — is being compared against
         // a state that is still deciding what it is.
-        matureTombstones(library.db, Date.now() + TOMBSTONE_TTL_MS + 1);
+        matureTombstones(library.db, library.layout, Date.now() + TOMBSTONE_TTL_MS + 1);
 
         const incremental = snapshot(library.db);
         await rebuild(library.db, library.layout);

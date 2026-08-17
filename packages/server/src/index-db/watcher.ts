@@ -166,7 +166,7 @@ export class LibraryWatcher {
     // The state a foreign edit is replacing, read *before* the index moves on.
     const previous = findByPath(this.#db, path);
 
-    matureTombstones(this.#db);
+    matureTombstones(this.#db, this.#layout);
     const outcome = await ingestFile(this.#db, this.#layout, path);
 
     // **Hand-edits get history for free** ([02 §11.2]) — the strongest argument
@@ -204,7 +204,7 @@ export class LibraryWatcher {
     // No self-write check: the unlink half of temp-then-rename is on the *temp*
     // file, which is not an object path and was ignored above. An unlink on the
     // object path is somebody deleting it.
-    const removed = removeFile(this.#db, path);
+    const removed = removeFile(this.#db, this.#layout, path);
     this.#onChange({ type: removed ? 'removed' : 'ignored', path });
   }
 

@@ -25,7 +25,7 @@ import type { DatabaseSync } from 'node:sqlite';
  */
 
 /** Bump on any change below. There is no compatibility window, by design. */
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 2;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -117,6 +117,32 @@ create virtual table turn_fts using fts5(
   text,
   tokenize = 'unicode61'
 );
+
+-- ── Files that could not be read as objects ──────────────────────────────────
+--
+-- F20. A file that fails to parse or validate used to be *skipped*: the ingest
+-- returned a reason nobody stored, the previous valid row stayed live, and
+-- every read went on serving believable stale content. The user had edited
+-- their file, seen no error, and been shown the old version — which is the
+-- visible-filesystem thesis failing quietly, in the one situation where it most
+-- needs not to.
+--
+-- So the failure gets a row of its own. Keyed by path rather than by id,
+-- because a file that will not parse has no id to key by — that is what is
+-- wrong with it.
+create table file_error (
+  path        text primary key,
+  scope       text not null,
+  schema_id   text not null,
+  slug        text not null,
+  -- The vocabulary a client can act on, rather than a parser's words.
+  reason      text not null,
+  -- The parser's words, for a person reading the detail.
+  detail      text,
+  seen_at     real not null
+) strict;
+
+create index file_error_by_scope on file_error(scope, schema_id);
 `;
 
 /** Drops everything this module owns, leaving a database it can recreate into. */
@@ -126,6 +152,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists object',
     'drop table if exists turn_fts',
     'drop table if exists turn',
+    'drop table if exists file_error',
   ]) {
     db.exec(statement);
   }

@@ -104,6 +104,7 @@ async function main(): Promise<void> {
   async function shutdown(): Promise<void> {
     app.log.info('Shutting down.');
     await app.close();
+    services.maturation.stop();
     await services.watcher?.stop();
     services.index.close();
     process.exit(0);
