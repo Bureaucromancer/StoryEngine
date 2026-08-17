@@ -607,7 +607,23 @@ the record types and their tests exist before anything produces records.
 
 ### P2.0 — Hardening: pay the P1 debt
 
-Every item cites a finding; the clusters are the work plan.
+**Status: built.** Every item cites a finding; the clusters are the work plan.
+What the stage actually found is worth reading before P2.1 opens, because three
+of the findings were differently shaped than written: F2's route schemas cannot
+validate the object (Fastify's Ajv rewrites the body that gets written to
+disk), F22's refused path aborted a whole rebuild rather than one request, and
+F15's rule had to be narrowed further than the plan already narrowed it — a
+template literal with a placeholder is one message, not assembly. Each is
+recorded in §1.4 or beside its finding.
+
+Two clauses of the exit are **not** closed and are named here rather than left
+to be discovered: the client halves of gate steps 8 and 13 have no component
+test. Step 19's does (`HistoryPanel.test.tsx`), step 15's dialog is covered by
+`ConflictDialog.test.tsx`, and both of those exist because F16's infrastructure
+now does. The two that remain are the library poll and the editor's save round
+trip, and they are P2.6's neighbours — the stage that builds a real play
+surface is the honest place for a client harness that mounts a page rather than
+a component.
 
 **The P1 closeout already absorbed the live-bug half of this stage** — the
 write-path serialization cluster (F3, F5, F6, F10-slug: the `KeyedQueue`, the
