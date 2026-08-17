@@ -1,6 +1,6 @@
 # The HTTP API
 
-**Status: as built at P1.7.** This describes what exists, not what is
+**Status: as built at P2.0.** This describes what exists, not what is
 planned — where the two differ, this file is right and the design notes record
 intent ([docs/README.md](README.md)).
 
@@ -124,6 +124,13 @@ oracle.
 `:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `settings`,
 `setups`, `presets`, `packages`. An unknown kind is `404` and the message lists
 the known ones.
+
+**And it is checked.** Posting an object to the wrong kind is `400`, naming both
+what you sent and where you sent it — both halves came from the caller, so
+saying so discloses nothing. Reaching an existing object through the wrong kind
+is `404`, the same answer as another user's object and for the same reason:
+that collection does not hold that id, and "wrong kind" would confirm it exists
+somewhere.
 
 These are **one handler set, not six**. The registry makes it kind-agnostic —
 every portable object self-describes, so nothing enumerates kinds
@@ -285,7 +292,7 @@ object, oldest unpinned first.
 
 | Status | `error` | Means |
 |---|---|---|
-| 400 | `invalid` | The object failed schema validation, or named a schema this build does not know |
+| 400 | `invalid` | The object failed schema validation, named a schema this build does not know, or was posted to a kind that is not its own. Carries `issues` — `{path, message}` per field — whichever validator refused it |
 | 401 | `unauthenticated` | No session |
 | 401 | `invalid-credentials` | Login failed |
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
@@ -296,6 +303,7 @@ object, oldest unpinned first.
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 503 | `setup-required` | No accounts exist yet |
+| 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 
 ---
 

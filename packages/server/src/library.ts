@@ -13,6 +13,7 @@ import {
   schemaIdOf,
   uuidv7,
   validate,
+  type ValidationIssue,
 } from '@storyengine/shared';
 
 import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
@@ -65,12 +66,26 @@ import {
 export class LibraryError extends Error {
   readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict' | 'refused-path';
   readonly current?: IndexedObject;
+  /**
+   * Per-field validation failures, when there are any.
+   *
+   * Structured as well as written into the message, because the route layer's
+   * schema rejections answer with an `issues` array (F2) and a caller should
+   * not have to parse prose to find out which of the two validators refused it.
+   */
+  readonly issues?: ValidationIssue[];
 
-  constructor(code: LibraryError['code'], message: string, current?: IndexedObject) {
+  constructor(
+    code: LibraryError['code'],
+    message: string,
+    current?: IndexedObject,
+    issues?: ValidationIssue[],
+  ) {
     super(message);
     this.name = 'LibraryError';
     this.code = code;
     if (current) this.current = current;
+    if (issues) this.issues = issues;
   }
 }
 
@@ -128,13 +143,35 @@ export function list(
   });
 }
 
-export function read(context: LibraryContext, handle: string, id: string): IndexedObject {
+/**
+ * The one door every by-id operation goes through.
+ *
+ * `inKind` is the kind the *caller's URL* claimed, and checking it here rather
+ * than in each route is the point: `/library/actors/<lorebook-id>` used to
+ * return the lorebook, because the `:kind` segment was read, resolved, and then
+ * never compared to anything (F2). One funnel means a new route cannot forget
+ * the check — which matters because P2.3 adds several.
+ *
+ * A mismatch is **not-found rather than a mismatch error**: from the caller's
+ * side that collection genuinely does not contain that id, and saying "wrong
+ * kind" would confirm the object exists somewhere, which is the same leak the
+ * scope check below exists to avoid.
+ */
+export function read(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  inKind?: PortableSchemaId,
+): IndexedObject {
   const row = findById(context.db, id);
   if (!row || !readableScopes(handle).some((scope) => scopeKeyOf(scope) === row.scope)) {
     // Not-found rather than forbidden for another user's object: the handle is
     // the owner ([04 §4.3]), and confirming that an id exists elsewhere would
     // leak the one fact this separation exists to keep.
     throw new LibraryError('not-found', `No object with id ${id}.`);
+  }
+  if (inKind !== undefined && row.schemaId !== inKind) {
+    throw new LibraryError('not-found', `No object with id ${id} in that kind.`);
   }
   return row;
 }
@@ -232,6 +269,8 @@ function assertValidObject(object: unknown): PortableSchemaId {
     throw new LibraryError(
       'invalid',
       `The object is not valid: ${result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; ')}`,
+      undefined,
+      result.issues,
     );
   }
   return schemaId;
@@ -241,8 +280,20 @@ export async function create(
   context: LibraryContext,
   handle: string,
   object: unknown,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
+  if (inKind !== undefined && schemaId !== inKind) {
+    // `POST /library/lorebooks` with an actor body used to create an actor: the
+    // URL segment picked the route and then decided nothing (F2). Here the
+    // mismatch is the caller's error and worth saying plainly — unlike the read
+    // side, nothing is disclosed by naming it, because the caller sent both
+    // halves.
+    throw new LibraryError(
+      'invalid',
+      `This is a ${schemaId} and the URL says ${inKind}. Post it to its own kind.`,
+    );
+  }
   const scope = userScope(handle);
   const kindRoot = context.layout.kindRoot(scope, schemaId);
 
@@ -327,6 +378,7 @@ export async function update(
   object: unknown,
   expectedHash: string,
   change: ChangeAttribution = MANUAL,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
 
@@ -334,7 +386,7 @@ export async function update(
   // a second writer through the same server waits its turn and then fails the
   // check honestly, instead of racing through the awaits and winning silently.
   return writes.run(`obj:${id}`, async () => {
-    const current = read(context, handle, id);
+    const current = read(context, handle, id, inKind);
 
     if (current.scope === 'system') {
       // App-shipped and read-only; an update would be overwritten by the next
@@ -437,8 +489,9 @@ export async function restoreVersion(
   id: string,
   versionId: string,
   expectedHash: string,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
-  const current = read(context, handle, id);
+  const current = read(context, handle, id, inKind);
   if (current.scope === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
@@ -478,8 +531,9 @@ export async function versionsOf(
   context: LibraryContext,
   handle: string,
   id: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ current: IndexedObject; versions: VersionRecord[] }> {
-  const current = read(context, handle, id);
+  const current = read(context, handle, id, inKind);
   const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
   const objectRoot = context.layout.objectRoot(
     scope,
@@ -495,8 +549,9 @@ export async function versionPayload(
   handle: string,
   id: string,
   versionId: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ record: VersionRecord; object: unknown }> {
-  const { current, versions } = await versionsOf(context, handle, id);
+  const { current, versions } = await versionsOf(context, handle, id, inKind);
   const record = versions.find((version) => version.id === versionId);
   if (!record) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
@@ -523,8 +578,9 @@ export async function amendVersion(
   id: string,
   versionId: string,
   patch: { reason?: string; pinned?: boolean },
+  inKind?: PortableSchemaId,
 ): Promise<VersionRecord> {
-  const current = read(context, handle, id);
+  const current = read(context, handle, id, inKind);
   if (current.scope === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
@@ -549,8 +605,9 @@ export async function readCardPixels(
   context: LibraryContext,
   handle: string,
   id: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ bytes: Uint8Array; contentHash: string }> {
-  const current = read(context, handle, id);
+  const current = read(context, handle, id, inKind);
   if (current.schemaId !== ACTOR_SCHEMA) {
     throw new LibraryError('not-found', 'Only actors have a card image.');
   }
@@ -576,9 +633,10 @@ export async function remove(
   handle: string,
   id: string,
   expectedHash: string,
+  inKind?: PortableSchemaId,
 ): Promise<void> {
   return writes.run(`obj:${id}`, async () => {
-    const current = read(context, handle, id);
+    const current = read(context, handle, id, inKind);
     if (current.scope === 'system') {
       throw new LibraryError('read-only', 'System library objects cannot be deleted.');
     }

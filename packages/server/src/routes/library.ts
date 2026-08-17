@@ -65,6 +65,45 @@ const VersionPatch = Type.Object({
 });
 
 /**
+ * The **envelope** a write arrives in — not the object inside it.
+ *
+ * The split is deliberate and F2 records it. What a route schema is good at is
+ * the wrapper: is this an object at all, is `contentHash` a string, is the
+ * whole thing not `null` (which Fastify happily accepts and which used to be a
+ * 500). What it is bad at is the object, because the six portable schemas
+ * behind an `anyOf` collapse every per-field error into "must match a schema in
+ * anyOf" — and `assertValidObject` already validates the object against *its
+ * own* schema and answers with the path and the reason. Same document
+ * (`PORTABLE_SCHEMAS`), better error, and no duplicated `$id` for Ajv to refuse.
+ *
+ * `additionalProperties` stays open because a bare portable object is a legal
+ * body here: the P1 gate posts one with `curl`.
+ */
+const WriteBody = Type.Object(
+  {
+    object: Type.Optional(Type.Object({}, { additionalProperties: true })),
+    contentHash: Type.Optional(Type.String()),
+  },
+  { additionalProperties: true },
+);
+
+/**
+ * **Restore and delete have no body schema, deliberately.**
+ *
+ * Their hash travels in `If-Match` — [the API doc](../../../../docs/api.md)
+ * calls that the preferred spelling — and restore has no object in its body at
+ * all, so the ordinary request to both is *bodyless*. Fastify validates an
+ * absent body against whatever schema is attached and answers `body must be
+ * object`, and `Type.Optional` at the top level does not change that (measured,
+ * not assumed). So "body schemas on every object route", taken literally, turns
+ * the documented and tested path into a 400 — recorded at [P2 §1.4].
+ *
+ * What guards them instead is `expectedHash`, which already accepts a hash from
+ * either place and type-checks the body field before believing it. A body that
+ * is nonsense yields no hash, and the route answers 428 asking for one.
+ */
+
+/**
  * The public shape of an indexed object.
  *
  * Carries `contentHash` because **every read carries one and every write must
@@ -105,48 +144,60 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     });
   });
 
-  app.post('/library/:kind', { schema: { params: KindParams } }, async (request, reply) => {
+  app.post(
+    '/library/:kind',
+    { schema: { params: KindParams, body: WriteBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const object = objectFromBody(request.body);
+      if (object === null) {
+        return reply
+          .code(400)
+          .send({ error: 'invalid', message: 'The request body is not an object.' });
+      }
+      if (!isKnownSchema(String((object as { schema?: unknown }).schema))) {
+        return reply.code(400).send({ error: 'invalid', message: 'Unrecognised object schema.' });
+      }
+
+      try {
+        const stored = await create(services.library, account.handle, object, schemaId);
+        // 201 with the object as stored, so the client has the content hash it
+        // will need for the first edit without a second round trip.
+        return await reply
+          .code(201)
+          .header('etag', stored.contentHash)
+          .send({
+            id: (object as { id: string }).id,
+            slug: stored.slug,
+            contentHash: stored.contentHash,
+            object,
+          });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  app.get('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
     const schemaId = schemaFor(request.params as { kind: string }, reply);
     if (!schemaId) return;
 
-    const object = objectFromBody(request.body);
-    if (object === null) {
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'The request body is not an object.' });
-    }
-    if (!isKnownSchema(String((object as { schema?: unknown }).schema))) {
-      return reply.code(400).send({ error: 'invalid', message: 'Unrecognised object schema.' });
-    }
-
     try {
-      const stored = await create(services.library, account.handle, object);
-      // 201 with the object as stored, so the client has the content hash it
-      // will need for the first edit without a second round trip.
-      return await reply
-        .code(201)
-        .header('etag', stored.contentHash)
-        .send({
-          id: (object as { id: string }).id,
-          slug: stored.slug,
-          contentHash: stored.contentHash,
-          object,
-        });
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
-
-  app.get('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
-
-    try {
-      const row = read(services.library, account.handle, (request.params as { id: string }).id);
+      const row = read(
+        services.library,
+        account.handle,
+        (request.params as { id: string }).id,
+        schemaId,
+      );
       return await reply.header('etag', row.contentHash).send(present(row));
     } catch (error) {
       respondToLibraryError(error, reply);
@@ -154,41 +205,52 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     }
   });
 
-  app.put('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
+  app.put(
+    '/library/:kind/:id',
+    { schema: { params: ObjectParams, body: WriteBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
 
-    const expected = expectedHash(request.headers['if-match'], request.body);
-    if (!expected) {
-      return reply.code(428).send({
-        error: 'hash-required',
-        message: 'Send the content hash you last read, as If-Match or as contentHash in the body.',
-      });
-    }
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
-    const object = objectFromBody(request.body);
-    if (object === null) {
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'The request body is not an object.' });
-    }
+      const expected = expectedHash(request.headers['if-match'], request.body);
+      if (!expected) {
+        return reply.code(428).send({
+          error: 'hash-required',
+          message:
+            'Send the content hash you last read, as If-Match or as contentHash in the body.',
+        });
+      }
 
-    try {
-      const stored = await update(
-        services.library,
-        account.handle,
-        (request.params as { id: string }).id,
-        object,
-        expected,
-      );
-      return await reply
-        .header('etag', stored.contentHash)
-        .send({ contentHash: stored.contentHash, object: stored.object });
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
+      const object = objectFromBody(request.body);
+      if (object === null) {
+        return reply
+          .code(400)
+          .send({ error: 'invalid', message: 'The request body is not an object.' });
+      }
+
+      try {
+        const stored = await update(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          object,
+          expected,
+          // Default attribution; the kind is the argument after it.
+          undefined,
+          schemaId,
+        );
+        return await reply
+          .header('etag', stored.contentHash)
+          .send({ contentHash: stored.contentHash, object: stored.object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
 
   /**
    * The version history routes — [02 §11](../../../../docs/design/02-data-model.md).
@@ -204,13 +266,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       try {
         const { versions } = await versionsOf(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
+          schemaId,
         );
         return await reply.send({
           versions: versions.map((record, position) => presentVersion(record, position)).reverse(),
@@ -228,7 +292,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const params = request.params as { id: string; versionId: string };
       try {
@@ -237,6 +302,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           account.handle,
           params.id,
           params.versionId,
+          schemaId,
         );
         return await reply.send({ version: presentVersion(record), object });
       } catch (error) {
@@ -257,7 +323,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const expected = expectedHash(request.headers['if-match'], request.body);
       if (!expected) {
@@ -276,6 +343,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           params.id,
           params.versionId,
           expected,
+          schemaId,
         );
         return await reply
           .header('etag', stored.contentHash)
@@ -294,7 +362,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const params = request.params as { id: string; versionId: string };
       const body = request.body as { reason?: string; pinned?: boolean };
@@ -308,6 +377,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
             ...(body.reason === undefined ? {} : { reason: body.reason }),
             ...(body.pinned === undefined ? {} : { pinned: body.pinned }),
           },
+          schemaId,
         );
         return await reply.send({ version: presentVersion(record) });
       } catch (error) {
@@ -328,13 +398,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       try {
         const { bytes, contentHash } = await readCardPixels(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
+          schemaId,
         );
         return await reply
           .header('content-type', 'image/png')
@@ -351,6 +423,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const account = await requireAccount(request, reply);
     if (!account) return;
 
+    const schemaId = schemaFor(request.params as { kind: string }, reply);
+    if (!schemaId) return;
+
     const expected = expectedHash(request.headers['if-match'], request.body);
     if (!expected) {
       return reply.code(428).send({ error: 'hash-required' });
@@ -362,6 +437,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         account.handle,
         (request.params as { id: string }).id,
         expected,
+        schemaId,
       );
       return await reply.code(204).send();
     } catch (error) {
@@ -485,7 +561,11 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
       void reply.code(409).send({ error: 'conflict', message: error.message });
       return;
     case 'invalid':
-      void reply.code(400).send({ error: 'invalid', message: error.message });
+      void reply.code(400).send({
+        error: 'invalid',
+        message: error.message,
+        ...(error.issues ? { issues: error.issues } : {}),
+      });
       return;
     case 'refused-path':
       // Nothing throws this as a `LibraryError` yet; the code exists so that a

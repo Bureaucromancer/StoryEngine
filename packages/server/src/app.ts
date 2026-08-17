@@ -2,7 +2,14 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import cookie from '@fastify/cookie';
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import Fastify, {
+  type FastifyError,
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from 'fastify';
+
+import { createValidator } from '@storyengine/shared';
 
 import { Accounts, type PublicAccount } from './auth/accounts.js';
 import {
@@ -93,6 +100,11 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
 }
 
 export async function buildApp(services: AppServices): Promise<FastifyInstance> {
+  // One instance for the whole app: Ajv caches by `$id`, and compiling the same
+  // schema through two instances is how a second, differently-configured
+  // validator sneaks in.
+  const validator = createValidator();
+
   const app = Fastify({
     /**
      * Fastify's own logger, configured rather than replaced (F8, [P2 §2.2]).
@@ -108,6 +120,55 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
     logger: { level: services.config.log.level },
     trustProxy: services.config.server.trustProxy,
     bodyLimit: services.config.limits.maxUploadMb * 1024 * 1024,
+  });
+
+  /**
+   * **The routes validate with the storage layer's Ajv, not Fastify's** (F2).
+   *
+   * Fastify's default compiler sets `useDefaults` and `coerceTypes`, and Ajv
+   * applies both **in place**. The body it rewrites is the object that gets
+   * written to disk, so the defaults are not a convenience — they manufacture
+   * validity: a `POST` omitting `provenance.source` was accepted, and the
+   * handler received an authorship claim nobody made. `assertValidObject`
+   * cannot catch it either, because it validates the same mutated reference.
+   *
+   * `createValidator()` is Ajv with those off, and with `date-time` registered
+   * as an actual check rather than an ignored unknown format — the one place in
+   * the repo that gets that right ([10 §3](../../../docs/design/10-schemas.md)),
+   * now shared instead of imitated.
+   */
+  app.setValidatorCompiler(({ schema }) => validator.compile(schema as object));
+
+  /**
+   * Two failures the framework would otherwise answer in its own words.
+   *
+   * **A schema rejection keeps the documented shape.** Fastify's default is
+   * `{statusCode, code: "FST_ERR_VALIDATION", error, message}`, and
+   * [the API doc](../../../docs/api.md)'s error table says a bad body is
+   * `400 invalid` with a `message` — the shape every hand-written 400 in the
+   * routes already uses. Adding schemas (F2) without this would have made the
+   * published contract false for exactly the requests the schemas newly reject.
+   *
+   * **And anything unhandled says nothing.** The default handler sends the
+   * error's message, which is how F22 leaked absolute filesystem paths to a
+   * client. The message goes to the log, where it is useful and where the
+   * `err` binding carries the stack; the caller gets a status.
+   */
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    if (error.validation) {
+      const issues = error.validation.map((issue) => ({
+        path: issue.instancePath === '' ? '/' : issue.instancePath,
+        message: issue.message ?? 'is invalid',
+      }));
+      return reply.code(400).send({ error: 'invalid', message: error.message, issues });
+    }
+
+    const status = error.statusCode ?? 500;
+    if (status >= 500) {
+      request.log.error({ err: error }, 'Unhandled error');
+      return reply.code(status).send({ error: 'internal', message: 'The request failed.' });
+    }
+    return reply.code(status).send({ error: 'invalid', message: error.message });
   });
 
   await app.register(cookie);
