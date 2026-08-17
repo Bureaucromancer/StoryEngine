@@ -57,7 +57,9 @@ const FS_MESSAGE =
 const RANDOM_MESSAGE =
   'Every random draw comes from the single RNG service and is recorded, or replay ' +
   'and branching break silently (docs/design/07-tech-stack.md §14). The service ' +
-  'does not exist until P2, so this is banned everywhere until it does.';
+  'is packages/server/src/rng — draw through `rng.at(site, purpose)`, which is ' +
+  'what puts the value on the turn tape. An unrecorded draw does not fail here; ' +
+  'it fails much later, as a branch that reconstructs wrong.';
 
 const CRYPTO_RANDOM_NAMES = [
   'randomInt',

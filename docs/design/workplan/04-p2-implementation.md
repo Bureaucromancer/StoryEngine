@@ -724,6 +724,13 @@ provider conformance is scheduled, not per-commit ([10 §4.2](10-testing.md)).
 
 ### P2.2 — RNG service
 
+**Status: built.** One shape decided in the writing: a draw is made through
+`rng.at(site, purpose)` rather than through a bare `rng.int(…)`. There is
+deliberately **no unkeyed draw** — a draw with no site cannot be replayed, and
+an API that offered one would be an API whose invariant depends on remembering
+to pass a key. The tape is keyed, JSON-round-trippable, and carries
+`replayed: true|false` per draw, so a rewrite that partly diverged says so.
+
 `int/float/bool/chance/pick/weightedPick/shuffle/dice`, `node:crypto` uniform
 draws, injectable generator, every draw recorded keyed **by site**
 ([07 §14](../07-tech-stack.md)). The tape and replay mode are built now even

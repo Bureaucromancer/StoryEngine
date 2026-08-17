@@ -153,6 +153,22 @@ describe('no randomness outside the RNG service (docs/design/07-tech-stack.md §
     expect(fired).not.toContain('no-restricted-syntax');
   });
 
+  it('permits it in the RNG service, which is where the rule has been pointing', async () => {
+    // P2.2 landed the destination. Every draw above this file goes through
+    // `rng.at(site, purpose)` and onto the turn tape; this is the one place the
+    // numbers may actually come from.
+    const fired = await rulesFiredIn('packages/server/src/rng/source.ts');
+    expect(fired).not.toContain('no-restricted-imports');
+  });
+
+  it('still catches the file beside it, so the service is not a folder-wide pass', async () => {
+    // A `dice.ts` that drew its own numbers is exactly the unrecorded draw the
+    // rule exists to stop, and it would sit one directory entry away from the
+    // exemption.
+    const fired = await rulesFiredIn('packages/server/src/rng/dice.ts');
+    expect(fired).toContain('no-restricted-imports');
+  });
+
   it('permits it in the secrets module — a salt is not a draw either', async () => {
     // The second exemption, and the same argument: nothing replays a password
     // salt or a session key, and routing them through a recorded generator

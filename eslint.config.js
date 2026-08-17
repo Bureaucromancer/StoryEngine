@@ -214,15 +214,35 @@ export default tseslint.config(
   packageTestOverride('server', 'packages/server'),
   packageTestOverride('client', 'packages/client'),
 
+  // **The RNG service itself** — the destination the rule has been pointing at
+  // since P1.0, landed at P2.2. It is the one place allowed to call
+  // `node:crypto`'s random functions, because everything above it draws through
+  // `rng.at(site, purpose)` and lands on the turn tape.
+  //
+  // Two files wide rather than a whole package: `source.ts` holds the
+  // generator, `rng.ts` holds the service. The directory's other files —
+  // `dice.ts` and the tests — have no business drawing, and a directory-wide
+  // exemption would quietly permit it.
+  {
+    files: ['packages/server/src/rng/source.ts', 'packages/server/src/rng/rng.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+    },
+  },
+
   // Id generation. The randomness rule protects replay and branching: every
   // draw that can change what happens must be recorded, or a reconstructed
   // branch silently diverges (docs/design/07-tech-stack.md §14.1). A uuidv7 is
   // not a draw — nothing replays it, no outcome depends on its value, and it is
   // written into the object it identifies before anything else sees it.
   //
-  // Deliberately one file wide. When the RNG service lands at P2 this stays
-  // separate from it, because routing identity through a recorded, replayable
-  // generator would put uuids on the tape and make a rewrite mint new ids.
+  // Deliberately separate from the RNG service above, and it stays that way:
+  // routing identity through a recorded, replayable generator would put uuids
+  // on the tape and make a rewrite mint new ids.
   //
   // The syntax rule is relaxed alongside the import rule because this file
   // draws through the *Web Crypto* global — `shared` runs in the browser too

@@ -107,6 +107,22 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // The RNG service: the destination the randomness rule points at, and
+  // deliberately two files wide rather than a directory.
+  {
+    files: [
+      `${FIXTURE_ROOT}/packages/server/src/rng/source.ts`,
+      `${FIXTURE_ROOT}/packages/server/src/rng/rng.ts`,
+    ],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+    },
+  },
+
   // Cryptographic material: randomness allowed, and deliberately one file wide.
   {
     files: [`${FIXTURE_ROOT}/packages/server/src/auth/secrets.ts`],
