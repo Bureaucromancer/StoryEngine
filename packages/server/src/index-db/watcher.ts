@@ -95,6 +95,12 @@ export class LibraryWatcher {
         stabilityThreshold: this.#stabilityThresholdMs,
         pollInterval: 20,
       },
+      // **Links are not followed** (F1). chokidar's default is to follow them,
+      // which would make a link inside the library a second path to content
+      // outside it — indexed as an object, with the escaping path stored in a
+      // row that later reads open. The audited resolver refuses such a path
+      // when asked; not following the link means it is never even offered.
+      followSymlinks: false,
       // What the watcher must never watch: its own index (whose SQLite/WAL
       // writes would otherwise feed the event queue on every ingest), the
       // operational store, and the two root files that are not content —

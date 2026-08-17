@@ -107,6 +107,14 @@ export async function ingestFile(
   const parsed = layout.parseObjectPath(path);
   if (!parsed) return { kind: 'skipped', reason: 'not-an-object', path };
 
+  // The watcher's door (F1). Every other path in the system was built by
+  // `Layout`; this one arrives from chokidar, which reports what it found on
+  // disk. A folder under the library that links out of the data root would
+  // otherwise be indexed as an object, and the row's path is what later reads
+  // open. The watcher itself no longer follows links — this is the second lock
+  // on the same door, and it also covers a rebuild's scan.
+  await layout.assertReal(path);
+
   // Gone between the event and the read is normal, not exceptional: the
   // unlink handler will deal with it, or a rebuild will.
   const bytes = await readFileBytes(path);

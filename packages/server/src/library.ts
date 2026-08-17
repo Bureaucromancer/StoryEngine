@@ -244,6 +244,12 @@ async function encodeObject(
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(scope, schemaId, slug);
 
+  // The write path's door (F1). Lexically this path is already safe; what the
+  // string cannot say is whether a directory along it is a link out of the data
+  // root. Checked here rather than at each caller because every write — create,
+  // update, restore — is encoded through this function first.
+  await layout.assertReal(path);
+
   let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
     const existing = existingBytes !== undefined ? existingBytes : await readFileBytes(path);
@@ -443,6 +449,10 @@ export async function update(
     // alone cannot vouch for the file. Read the bytes once, verify they still
     // hash to what the caller saw, and thread them through the encode below —
     // a hand edit made moments ago is refused here instead of eaten.
+    // The index's own door: this path came out of SQLite, so it was checked
+    // when it was indexed and not since. A link planted in between is exactly
+    // the case the lexical rules cannot see.
+    await context.layout.assertReal(current.path);
     const existingBytes = await readFileBytes(current.path);
     if (existingBytes === null || contentHashOf(existingBytes) !== current.contentHash) {
       // Vanished-underneath lands here too: stale rather than not-found, so
@@ -647,6 +657,7 @@ export async function readCardPixels(
   if (current.schemaId !== ACTOR_SCHEMA) {
     throw new LibraryError('not-found', 'Only actors have a card image.');
   }
+  await context.layout.assertReal(current.path);
   const bytes = await readFileBytes(current.path);
   if (bytes === null) {
     throw new LibraryError('not-found', 'The card file is missing from disk.');
@@ -682,6 +693,7 @@ export async function remove(
 
     // Same disk verification as `update`: the index cannot vouch for a file a
     // hand edit touched moments ago, and a delete is the last place to guess.
+    await context.layout.assertReal(current.path);
     const onDisk = await readFileBytes(current.path);
     if (onDisk === null || contentHashOf(onDisk) !== current.contentHash) {
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);

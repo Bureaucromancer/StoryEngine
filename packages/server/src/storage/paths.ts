@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 /**
  * **The audited path helper.**
@@ -242,6 +242,32 @@ async function realpathOfNearestExisting(target: string): Promise<string> {
  * data directory on another volume is a normal deployment, and comparing a real
  * candidate against a symlinked root would reject every path in it.
  */
+/**
+ * The real-path check on a path that is already built — F1's other half.
+ *
+ * {@link resolveWithinReal} is for a caller holding a root and some segments.
+ * Most of this server is not: `Layout` composes paths in sync chained steps,
+ * and the index hands back an absolute path it stored earlier. Those are the
+ * paths that actually reach `open()`, so this is the form the check has to take
+ * to be *called* — the audit's finding was never that the resolver was wrong,
+ * only that nothing used it.
+ *
+ * Both sides are realpath'd, for the same reason as `resolveWithinReal`: a data
+ * directory that is itself a link is an ordinary deployment.
+ */
+export async function assertRealContained(root: string, target: string): Promise<void> {
+  const realRoot = await realpathOfNearestExisting(resolve(root));
+  const realTarget = await realpathOfNearestExisting(resolve(target));
+
+  if (!isContained(realRoot, realTarget)) {
+    throw new PathEscapeError(
+      'symlink-escape',
+      relative(root, target) || target,
+      `resolves to ${JSON.stringify(realTarget)}, outside ${JSON.stringify(realRoot)}`,
+    );
+  }
+}
+
 export async function resolveWithinReal(root: string, ...segments: string[]): Promise<string> {
   const candidate = resolveWithin(root, ...segments);
   const realRoot = await realpathOfNearestExisting(resolve(root));

@@ -16,7 +16,13 @@ import {
 } from '@storyengine/shared';
 
 import { listEntryNames } from './files.js';
-import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from './paths.js';
+import {
+  assertRealContained,
+  assertSafeSegment,
+  isContained,
+  PathEscapeError,
+  resolveWithin,
+} from './paths.js';
 
 /**
  * The data directory, from [02 §5.1](../../../../docs/design/02-data-model.md).
@@ -115,6 +121,25 @@ export class Layout {
 
   constructor(dataRoot: string) {
     this.dataRoot = resolveWithin(dataRoot, '.');
+  }
+
+  /**
+   * The check the lexical rules cannot make — F1.
+   *
+   * Every path this class builds passes {@link resolveWithin}, which is a
+   * string test: it refuses `..`, absolute paths, device names and the rest,
+   * and it cannot refuse `library/actors/vera` when `actors` turns out to be a
+   * link to somewhere else. Only the filesystem knows that, and only after the
+   * path is built — which is why this is a separate call rather than part of
+   * the builders, and why it is async while they are not.
+   *
+   * Call it where a path becomes I/O: before a write, before reading bytes at a
+   * path that came out of the index, and when ingest is handed one by the
+   * watcher. Those are the three doors — a path that never opens a file cannot
+   * escape anything.
+   */
+  async assertReal(path: string): Promise<void> {
+    await assertRealContained(this.dataRoot, path);
   }
 
   /** `data/config.json` — commented example shipped alongside ([02 §5.4]). */
