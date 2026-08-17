@@ -86,6 +86,18 @@ export class TurnRunner {
   }
 
   /**
+   * Hands the runner the app's logger.
+   *
+   * Set rather than injected because `buildServices` runs before `buildApp`,
+   * and the logger is Fastify's ([13 §4.1] — one mechanism, one format). The
+   * alternative was building the runner lazily on first use, which would make
+   * "is there a runner?" a question with a timing-dependent answer.
+   */
+  setLogger(log: Logger): void {
+    this.#options.log = log;
+  }
+
+  /**
    * Starts a turn. Fire-and-forget by design — the HTTP response is a job id,
    * and the stream is how a client watches.
    *

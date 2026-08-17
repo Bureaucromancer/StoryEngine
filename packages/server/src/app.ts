@@ -75,6 +75,8 @@ export interface AppServices {
   bus: TurnStream;
   /** Drives a reserved job to a committed turn. */
   runner: TurnRunner;
+  /** The commit protocol's context — shared with the runner, so one logger reaches both. */
+  commit: CommitContext;
   providers: ProviderFactory;
   /**
    * Every open stream's closer.
@@ -84,7 +86,16 @@ export interface AppServices {
    * interval is a hung process rather than a failed test.
    */
   streams: Set<() => void>;
-  /** What startup reconciliation did, for the log line and for a test to read. */
+  /**
+   * What startup reconciliation did, for the log line and for a test to read.
+   *
+   * Assigned by `buildApp` rather than `buildServices`, because recovery has to
+   * be able to *narrate itself*: the recovering process is where the interesting
+   * half of a killed turn's lifecycle happens, and `buildServices` runs before
+   * any logger exists. Reconciling there wrote nothing, so a log filtered by a
+   * killed turn's job id held only the dying process's lines — which satisfies a
+   * much weaker claim than the one this stage makes.
+   */
   reconciliation: Reconciliation;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
@@ -148,19 +159,6 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   const providers = options.providers ?? createProviderFactory();
   const runner = new TurnRunner({ commit, bus, providers, config: options.config });
 
-  /**
-   * **Every job still active at startup was interrupted**, because nothing else
-   * can leave one active across a restart ([P2 §2.10]). Reconciliation resumes
-   * their *finalisation* — never their generation — so a turn that died
-   * mid-stream lands as a failed record somebody can re-run, and a session is
-   * never left blocked by a job that will never finish.
-   *
-   * Before the listener accepts anything, deliberately: a submission arriving
-   * against a session whose previous job is still marked active would be told
-   * the session is busy, which would be true and wrong.
-   */
-  const reconciliation = await reconcile(commit);
-
   return {
     config: options.config,
     layout,
@@ -170,9 +168,11 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
     jobs,
     bus,
     runner,
+    commit,
     providers,
     streams: new Set<() => void>(),
-    reconciliation,
+    // Filled in by `buildApp`, which is the first point a logger exists.
+    reconciliation: { finalised: [], abandoned: [], failed: [] },
     accounts: new Accounts(layout),
     watcher,
     maturation,
@@ -208,7 +208,15 @@ export async function disposeServices(services: AppServices): Promise<void> {
   services.state.close();
 }
 
-export async function buildApp(services: AppServices): Promise<FastifyInstance> {
+export interface BuildOptions {
+  /** Where log lines go. A test reads them back; production uses stdout. */
+  logStream?: NodeJS.WritableStream;
+}
+
+export async function buildApp(
+  services: AppServices,
+  options: BuildOptions = {},
+): Promise<FastifyInstance> {
   // One instance for the whole app: Ajv caches by `$id`, and compiling the same
   // schema through two instances is how a second, differently-configured
   // validator sneaks in.
@@ -226,7 +234,10 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
      * resolves a child's level through its prototype, so assigning
      * `app.log.level` reaches every logger derived from it.
      */
-    logger: { level: services.config.log.level },
+    logger: {
+      level: services.config.log.level,
+      ...(options.logStream === undefined ? {} : { stream: options.logStream }),
+    },
     trustProxy: services.config.server.trustProxy,
     bodyLimit: services.config.limits.maxUploadMb * 1024 * 1024,
   });
@@ -287,6 +298,35 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
     services.streams.clear();
     done();
   });
+
+  /**
+   * Everything that outlives a request logs through the app's logger.
+   *
+   * Bound here rather than at construction because `buildServices` runs first —
+   * and gate 19's claim, that a killed turn's lifecycle is reconstructable from
+   * the log by job id alone, needs the *recovering* process's lines too, not
+   * only the dying one's.
+   */
+  services.runner.setLogger(app.log);
+  services.commit.log = app.log;
+  services.bus.onListenerError = (error: unknown) => {
+    app.log.error({ err: error, event: 'stream.listener-failed' }, 'A stream listener threw');
+  };
+
+  /**
+   * **Every job still active at startup was interrupted**, because nothing else
+   * can leave one active across a restart ([P2 §2.10]). Reconciliation resumes
+   * their *finalisation* — never their generation — so a turn that died
+   * mid-stream lands as a failed record somebody can re-run, and a session is
+   * never left blocked by a job that will never finish.
+   *
+   * Here rather than in `buildServices`: it must run before the listener accepts
+   * anything (a submission against a session whose previous job is still marked
+   * active would be refused as busy, which would be true and wrong), and it must
+   * run *after* the logger exists, or the recovering half of a killed turn's
+   * lifecycle is written nowhere.
+   */
+  services.reconciliation = await reconcile(services.commit);
 
   await app.register(cookie);
 

@@ -99,6 +99,8 @@ export interface TestServerOptions {
   config?: Partial<Config>;
   /** Substitute the provider factory — how `FakeProvider` becomes the E2E backend. */
   providers?: ProviderFactory;
+  /** Capture the log, so a test can assert on what a turn actually narrated about itself. */
+  logStream?: NodeJS.WritableStream;
 }
 
 export async function makeTestServer(options: TestServerOptions = {}): Promise<TestServer> {
@@ -117,7 +119,10 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     watch: options.watch ?? false,
     ...(options.providers === undefined ? {} : { providers: options.providers }),
   });
-  const app = await buildApp(services);
+  const app = await buildApp(
+    services,
+    options.logStream === undefined ? {} : { logStream: options.logStream },
+  );
   await app.ready();
 
   const cookies = new Map<string, string>();
