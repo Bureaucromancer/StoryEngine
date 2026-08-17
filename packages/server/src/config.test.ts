@@ -144,7 +144,17 @@ describe('config has nowhere to put a credential', () => {
     // `server.host` is a bind address, not a destination. Listed rather than
     // pattern-matched away, so that a *new* key with a credential-shaped name
     // still fails this and has to be argued for here.
-    const knownSafe = ['server.trustProxy', 'server.host'];
+    //
+    // The two `…Tokens` keys are counts of tokens in the *language-model* sense
+    // — a context window and a completion reserve, both integers with minimums.
+    // The word collides with the credential sense and the denylist is right to
+    // stop on it; this is the argument it asks for.
+    const knownSafe = [
+      'server.trustProxy',
+      'server.host',
+      'limits.contextTokens',
+      'limits.reservedCompletionTokens',
+    ];
 
     const suspicious = configKeys().filter((key) => denied.test(key) && !knownSafe.includes(key));
     expect(suspicious).toEqual([]);

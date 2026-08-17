@@ -89,10 +89,42 @@ export const ConfigSchema = Type.Object(
     }),
     sessions: Type.Object({
       snapshotEveryNTurns: Type.Integer({ minimum: 1, default: 10 }),
+      /**
+       * How often the session stream sends a comment frame — [07 §8].
+       *
+       * `reconnect` rather than `live`: a keepalive is a property of a
+       * *connection*, and an open stream keeps the interval it opened with. It
+       * is the first real consumer of that tier, which F8 found declared and
+       * unused.
+       */
+      streamKeepaliveMs: Type.Integer({ minimum: 1000, default: 15000 }),
+      /**
+       * How long streamed deltas accumulate before a durable checkpoint — [P2 §2.10].
+       *
+       * The operational store runs `synchronous = full`, so a transaction per
+       * token would be an fsync storm; the snapshot already carries the
+       * accumulated text, so coalescing loses a client nothing it cannot
+       * recover. `0` in a test forces one checkpoint per chunk and makes event
+       * ordering deterministic.
+       */
+      streamCoalesceMs: Type.Integer({ minimum: 0, default: 250 }),
     }),
     limits: Type.Object({
       maxUploadMb: Type.Integer({ minimum: 1, default: 64 }),
       extensionStorageQuotaMb: Type.Integer({ minimum: 1, default: 32 }),
+      /**
+       * The context window a turn may assemble into, when the endpoint does not
+       * say — [13 §1.5].
+       *
+       * No `KNOWN_PROVIDERS` entry sets `maxContextTokens`, because
+       * `capabilities.ts` refuses to invent a number it cannot verify. Without
+       * this, every turn would be unbudgetable. A per-connection override wins,
+       * and reads as `provider` rather than `user` — it is a statement about
+       * that endpoint.
+       */
+      contextTokens: Type.Integer({ minimum: 256, default: 8192 }),
+      /** Held back for the answer when a call does not say how long it may be. */
+      reservedCompletionTokens: Type.Integer({ minimum: 0, default: 1024 }),
     }),
     trash: Type.Object({
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
@@ -134,8 +166,12 @@ export const CONFIG_TIERS = {
   'log.format': 'restart',
   'index.rebuildOnStart': 'restart',
   'sessions.snapshotEveryNTurns': 'live',
+  'sessions.streamKeepaliveMs': 'reconnect',
+  'sessions.streamCoalesceMs': 'live',
   'limits.maxUploadMb': 'live',
   'limits.extensionStorageQuotaMb': 'live',
+  'limits.contextTokens': 'live',
+  'limits.reservedCompletionTokens': 'live',
   'trash.retentionDays': 'live',
   'history.keepPerObject': 'live',
   'updates.checkEnabled': 'live',
@@ -148,8 +184,13 @@ export const DEFAULT_CONFIG: Config = {
   server: { host: '127.0.0.1', port: 8080, trustProxy: false },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },
-  sessions: { snapshotEveryNTurns: 10 },
-  limits: { maxUploadMb: 64, extensionStorageQuotaMb: 32 },
+  sessions: { snapshotEveryNTurns: 10, streamKeepaliveMs: 15000, streamCoalesceMs: 250 },
+  limits: {
+    maxUploadMb: 64,
+    extensionStorageQuotaMb: 32,
+    contextTokens: 8192,
+    reservedCompletionTokens: 1024,
+  },
   trash: { retentionDays: 30 },
   history: { keepPerObject: 50 },
   updates: { checkEnabled: true, channel: 'latest' },

@@ -47,7 +47,7 @@ const DEFAULT_PRIORITY = 50;
  * and `verdict` are the two that may not see advisory content, and they are
  * separate names because they are separate claims a step makes about itself.
  *
- * **`CallPurpose`, not `CallPurpose`.** `CallPurpose` is taken, by a *portable*
+ * **`CallPurpose`, not `CallKind`.** That name is taken, by a *portable*
  * type: [10 §8.2](../../../../docs/design/10-schemas.md)'s deliberately-open string
  * (`"narrate" | "impersonate" | … | (string & {})`) that a preset block's
  * `appliesTo` filters on, exported from `@storyengine/shared`. Two
