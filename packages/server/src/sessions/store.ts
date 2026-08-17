@@ -130,9 +130,13 @@ export async function appendTurnToSession(
 /**
  * The body of the append, for a caller that already holds the session lock.
  *
- * The commit protocol is the caller that needs this: steps 2 and 3 are an append
- * and a head advance that must not be separable, and it is already holding the
- * lock it took to decide the job was its to commit.
+ * **It is the two halves below, composed** — which is the point rather than an
+ * implementation detail. The commit protocol
+ * ([P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md)) must be able to be
+ * interrupted *between* the append and the head advance and resume from either,
+ * so the two have to be separately callable. Building the ordinary path out of
+ * the same two pieces is what stops the recoverable version from drifting into a
+ * second implementation of appending a turn.
  */
 export async function appendTurnLocked(
   context: SessionContext,
@@ -140,14 +144,48 @@ export async function appendTurnLocked(
   sessionId: string,
   turn: Turn,
 ): Promise<{ location: TurnLocation; session: SessionFile }> {
-  const session = await readSession(context, handle, sessionId);
-  if (session === null) {
-    throw new Error(`No session with id ${sessionId}.`);
-  }
+  const location = await appendTurnOnly(context, handle, sessionId, turn);
+  const session = await advanceHead(context, handle, sessionId, turn);
+  if (session === null) throw new Error(`No session with id ${sessionId}.`);
+  return { location, session };
+}
 
+/**
+ * Writes the turn to a segment and touches nothing else.
+ *
+ * **The durable thing before the derived one**, which is the same order the
+ * library's write path uses and for the same reason: a turn on disk with a head
+ * that has not caught up is recoverable, because the head is a snapshot. A head
+ * pointing at a turn nobody wrote is not.
+ */
+export async function appendTurnOnly(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turn: Turn,
+): Promise<TurnLocation> {
   const root = turnsRoot(context.layout, handle, sessionId);
   await context.layout.assertReal(root);
-  const location = await appendTurn(root, turn, context.limits);
+  return appendTurn(root, turn, context.limits);
+}
+
+/**
+ * Points the head at a turn that is already on disk, applying its effects.
+ *
+ * Idempotent by construction: it *sets* rather than advances, and the channel
+ * map is recomputed from the turn's effects rather than mutated by them, so
+ * running it twice produces the state it produced the first time. That is what
+ * makes step 3 of the commit protocol safe to resume without knowing whether it
+ * already ran.
+ */
+export async function advanceHead(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turn: Turn,
+): Promise<SessionFile | null> {
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) return null;
 
   const next: SessionFile = {
     ...session,
@@ -156,8 +194,7 @@ export async function appendTurnLocked(
     channels: applyEffects(session.channels, turn.effects),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
-
-  return { location, session: next };
+  return next;
 }
 
 /**

@@ -74,6 +74,18 @@ async function main(): Promise<void> {
     'StoryEngine listening',
   );
 
+  // Only when it did something. A restart that interrupted nothing should not
+  // print a line about turns — but one that finalised a turn the last process
+  // was in the middle of should say so, because the user will see a failed turn
+  // in their session and deserves to know why ([P2 §2.10]).
+  const { finalised, abandoned } = services.reconciliation;
+  if (finalised.length > 0 || abandoned.length > 0) {
+    app.log.info(
+      { finalised: finalised.length, abandoned: abandoned.length },
+      'Recovered turns interrupted by the last shutdown',
+    );
+  }
+
   if (await services.accounts.needsSetup()) {
     if (loopback) {
       app.log.info('No accounts yet. Open the address above to create the first admin.');

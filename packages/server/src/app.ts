@@ -29,6 +29,8 @@ import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
+import type { SessionContext } from './sessions/store.js';
+import { reconcile, type Reconciliation } from './state/commit.js';
 import { openState, type OpenedState } from './state/open.js';
 import { Layout } from './storage/layout.js';
 
@@ -59,6 +61,10 @@ export interface AppServices {
    * is a non-event, and deleting this one loses an uncommitted turn.
    */
   state: OpenedState;
+  /** Where sessions live. One context, so the write lock is genuinely shared. */
+  sessions: SessionContext;
+  /** What startup reconciliation did, for the log line and for a test to read. */
+  reconciliation: Reconciliation;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
   /**
@@ -105,11 +111,28 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   await watcher?.start();
   const maturation = startMaturation(index.db, layout);
 
+  const sessions: SessionContext = { layout };
+
+  /**
+   * **Every job still active at startup was interrupted**, because nothing else
+   * can leave one active across a restart ([P2 §2.10]). Reconciliation resumes
+   * their *finalisation* — never their generation — so a turn that died
+   * mid-stream lands as a failed record somebody can re-run, and a session is
+   * never left blocked by a job that will never finish.
+   *
+   * Before the listener accepts anything, deliberately: a submission arriving
+   * against a session whose previous job is still marked active would be told
+   * the session is busy, which would be true and wrong.
+   */
+  const reconciliation = await reconcile({ db: state.db, sessions });
+
   return {
     config: options.config,
     layout,
     index,
     state,
+    sessions,
+    reconciliation,
     accounts: new Accounts(layout),
     watcher,
     maturation,
