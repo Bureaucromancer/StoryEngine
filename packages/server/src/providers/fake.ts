@@ -48,6 +48,31 @@ export interface ScriptedReply {
   failAfterChunks?: number;
   /** How many pieces to stream the text in. One means a single chunk. */
   chunks?: number;
+  /**
+   * Milliseconds to wait between chunks — **the seam that makes "mid-stream"
+   * mean anything.**
+   *
+   * Without it this generator has no `await` between `yield`s, so the entire
+   * stream drains inside one macrotask: measured, forty chunks in under a
+   * millisecond, before a `setTimeout(…, 0)` scheduled beforehand ever ran. That
+   * is not a fast double, it is a double with no *time* in it — a test that
+   * cancels "mid-stream", or asserts that a coalescing window fired, or kills a
+   * server "mid-generation", has no window in which to act and passes or fails
+   * for reasons unrelated to what it claims.
+   *
+   * Left at zero by default so existing tests keep their timing.
+   */
+  chunkDelayMs?: number;
+  /**
+   * Distinguishes *the provider reported nothing* from *this script says
+   * nothing about usage*.
+   *
+   * `usage: null` and an absent `usage` are different claims — the first is what
+   * a provider that does not report tokens actually returns, and the record is
+   * required to keep it as null rather than synthesise a number ([13 §1.4]).
+   * Optional-with-a-null-member cannot express that on its own, so this says it.
+   */
+  reportsNoUsage?: true;
 }
 
 export interface FakeProviderOptions {
@@ -111,7 +136,6 @@ export class FakeProvider implements Provider {
     return this.#result(reply, request);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- as above.
   async *stream(
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
@@ -124,6 +148,16 @@ export class FakeProvider implements Provider {
     const pieces = splitInto(text, reply.chunks ?? DEFAULT_REPLY.chunks);
 
     for (const [index, piece] of pieces.entries()) {
+      // **The signal is honoured here, not only by the caller.** A real adapter
+      // passes it to `fetch` and the request dies at the socket; a double that
+      // ignored it would leave the whole abort path — the one a user's Stop
+      // button rides on — shipped and never exercised.
+      if (request.signal?.aborted === true) {
+        throw new ProviderError('transient', 'The request was aborted.');
+      }
+      if (reply.chunkDelayMs !== undefined && reply.chunkDelayMs > 0 && index > 0) {
+        await new Promise((tick) => setTimeout(tick, reply.chunkDelayMs));
+      }
       if (reply.failAfterChunks !== undefined && index >= reply.failAfterChunks) {
         // Mid-stream disconnection: the caller has already been handed text,
         // and now the stream ends without a result. Everything downstream has
@@ -159,9 +193,10 @@ export class FakeProvider implements Provider {
       // Honest about the capability: a provider that says it does not report
       // usage must not report it, or the budgeter is tested against a world
       // that does not exist.
-      usage: this.capabilities.reportsUsage
-        ? (reply.usage ?? { promptTokens: 0, completionTokens: 0 })
-        : null,
+      usage:
+        this.capabilities.reportsUsage && reply.reportsNoUsage !== true
+          ? (reply.usage ?? { promptTokens: 0, completionTokens: 0 })
+          : null,
       cost: reply.cost ?? null,
       modelId: request.modelId,
       ...(reply.object === undefined ? {} : { object: reply.object }),

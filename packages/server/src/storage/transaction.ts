@@ -20,8 +20,20 @@ import type { DatabaseSync } from 'node:sqlite';
  * alternative is assigning to a `let` from inside a closure — which works and
  * which the type checker cannot follow, so the variable stays narrowed to its
  * initialiser and every use of it reads as dead.
+ *
+ * **The `PromiseLike` exclusion in the signature is the whole guarantee.** The
+ * paragraph above says an `await` cannot be interleaved here, and other code now
+ * *depends* on that: the SSE attach argues it needs no lock because a
+ * checkpoint's write-and-publish is one indivisible block. But an unconstrained
+ * `T` infers happily to `Promise<X>` for an `async` body — `commit` would run
+ * before the body finished, and the `catch` could never see a rejection to roll
+ * back. The conditional type makes that a compile error rather than a comment
+ * somebody believed.
  */
-export function inTransaction<T>(db: DatabaseSync, mutate: () => T): T {
+export function inTransaction<T>(
+  db: DatabaseSync,
+  mutate: () => T extends PromiseLike<unknown> ? never : T,
+): T {
   db.exec('begin immediate');
   try {
     const result = mutate();

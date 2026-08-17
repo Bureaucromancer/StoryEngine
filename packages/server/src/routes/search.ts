@@ -24,17 +24,43 @@ import { readableScopes } from '../library.js';
  * reader, so it can slip without anything else moving. It did not need to.
  */
 
+/**
+ * **A querystring number is a `String` here, and that is not a shortcut.**
+ *
+ * Every value in a query string arrives as text. Fastify's default validator
+ * coerces it, and this app deliberately replaced that validator with the storage
+ * layer's Ajv — `coerceTypes: false` — because coercion is what let a `POST`
+ * body be rewritten on its way to disk (F2, `app.ts`'s `setValidatorCompiler`).
+ * One Ajv, one setting, and the cost lands here: `Type.Integer()` on a
+ * querystring rejects `?limit=10` with *must be integer*, because the value it
+ * is handed is `"10"`.
+ *
+ * Measured rather than reasoned about — this route shipped with `Type.Integer`
+ * and answered 400 to its own documented parameter. So the schema states what is
+ * actually on the wire and the handler converts, which is also the only place
+ * that can answer usefully when the text is not a number.
+ */
 const SearchQuery = Type.Object({
   q: Type.String({ minLength: 1, maxLength: 200 }),
-  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+  limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,3}$' })),
 });
+
+const MAX_RESULTS = 200;
+
+/** Clamped rather than trusted: a caller does not get to ask for everything. */
+function resultLimit(raw: string | undefined): number {
+  if (raw === undefined) return 50;
+  return Math.min(Math.max(Number(raw), 1), MAX_RESULTS);
+}
 
 export function registerSearchRoutes(app: FastifyInstance, services: AppServices): void {
   app.get('/search', { schema: { querystring: SearchQuery } }, async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const { q, limit = 50 } = request.query as { q: string; limit?: number };
+    const query = request.query as { q: string; limit?: string };
+    const q = query.q;
+    const limit = resultLimit(query.limit);
     const scopes = readableScopes(account.handle).map((scope) =>
       scope.kind === 'system' ? 'system' : `user:${scope.handle}`,
     );

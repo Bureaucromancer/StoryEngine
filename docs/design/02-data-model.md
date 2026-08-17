@@ -1102,6 +1102,13 @@ interface Turn {
   }
 
   output: { text: string; reasoning?: string; toolCalls: ToolCall[] }
+  /** What each step did — the durable counterpart of the `step.*` progress
+   *  events. [04 §3.3](04-server-multiuser-deployment.md) opens by saying the live view *is*
+   *  this record being built, which only holds if every event has somewhere
+   *  durable to land; without this, `step.skipped` and `step.failed` are
+   *  live-only and the history view disagrees with the live one about what
+   *  happened. Added at P2.5, with the runner that produces them. */
+  steps: StepOutcome[]
   effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [13 §1.2.1]
   /** Resolved actor mentions in `input.text` and `output.text`, as an overlay.
    *  The text itself is never rewritten with markup. [03 §8.2, 05 §13.1] */
@@ -1135,6 +1142,12 @@ interface AssembledBlock {
   droppedBy?: string             // which budget rule dropped it
 }
 ```
+
+**`request`, `output`, `cost` and `steps` are absent rather than empty when
+nothing happened.** A turn recording a hand edit to `session.json` (§8.1) made no
+request, ran no steps and sent no message — and an empty `request` there would
+be a record claiming a prompt was built. *Absent* and *empty* are different
+claims, and the workbench renders the difference.
 
 **`ModelCall`, `BudgetVerdict`, `ChannelEffect`, `ChannelState` and `BlockSource`
 are defined in [13](13-internal-contracts.md).** They are internal and free to

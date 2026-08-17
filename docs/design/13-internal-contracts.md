@@ -50,6 +50,14 @@ type BlockSource =
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "setting"; part: "framing" | "tone" }
   | { kind: "goal"; goalId: string }
+  /** The guidance slot ([03 §5.1](03-modes-and-turn-pipeline.md)). `producer` because that
+   *  section is explicit that one slot has several — the user's box, a rule's
+   *  `giveGuidance`, a Narrative Director push — and the workbench should be
+   *  able to say which without three sources to keep in step. */
+  | { kind: "guidance"; producer: "user" | "rule" | "step" }
+  /** What the player just did. Not `history`: history is turns that happened,
+   *  and this is the one that is happening. */
+  | { kind: "input" }
   // ── The two a slot can never name, because no preset positions them ──
   | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
@@ -61,6 +69,14 @@ prose" — that is a `TextBlock`, which *is* a block rather than a reference to
 one. Likewise a step's contribution has no slot because it did not exist when the
 preset was authored. `SlotSource` is therefore **`BlockSource` minus those two**,
 which is a derivation rather than a second list.
+
+**`guidance` and `input` were added at P2.5, and their absence was a real
+gap rather than an omission.** [03 §5.1](03-modes-and-turn-pipeline.md) says the guidance
+block is *"positioned by the preset"* — which makes it slot-nameable by
+definition — but the only source it could have claimed was `step`, one of the
+two `SlotSource` excludes. So a preset could not position the one block that
+section says it positions. Found when the first real producer needed a source to
+declare.
 
 The identifiers (`actorId`, `entryId`, `stepId`) are what make a block's
 provenance clickable in the workbench — *which* lore entry, not just "a lore

@@ -1,16 +1,105 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { GenerationParams } from '@storyengine/shared';
+
+import type { AssembledBlock, BudgetVerdict } from '../assembly/types.js';
+import type { ErrorClass, ModelRole, RenderedMessage, TokenUsage } from '../providers/types.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
  * Sessions and turns on disk — [02 §5.5](../../../../docs/design/02-data-model.md),
  * [13 §1](../../../../docs/design/13-internal-contracts.md).
  *
- * These are the shapes P2.3 persists. The rest of the turn record — blocks,
- * calls, the budget verdict — is filled in by P2.4 and P2.5 and lands in the
- * same JSONL line; the fields below are the ones storage itself depends on.
+ * P2.3 wrote the shapes storage itself depends on; P2.5 fills in the rest of
+ * [02 §8](../../../../docs/design/02-data-model.md)'s record — what was assembled, what was
+ * called, what each step did, and what it cost.
+ *
+ * **`mentions` is the one field of §8 still absent**, and deliberately: it is
+ * an overlay of resolved actor spans over `input.text` and `output.text`
+ * ([03 §8.2](../../../../docs/design/03-modes-and-turn-pipeline.md)), and nothing resolves an
+ * actor mention until there is a cast — which is P2.6's. Naming it here rather
+ * than leaving the omission to be rediscovered.
  */
+
+/**
+ * One model call — [13 §1.4](../../../../docs/design/13-internal-contracts.md), verbatim.
+ *
+ * `resolved` records what the role actually became, because the binding can
+ * change between turns and *"why is this turn different"* needs an answer.
+ *
+ * **It carries the connection's id and never the connection.** A `Connection`
+ * holds `apiKey` and `baseUrl`, and this record is a line in a JSONL file on
+ * somebody's disk — a spread here would write a credential into the story.
+ */
+export interface ModelCall {
+  id: string;
+  stepId: string;
+  role: ModelRole;
+  resolved: { connectionId: string; modelId: string };
+  messages: RenderedMessage[];
+  params: GenerationParams;
+  /** Provider-reported, or null. Never estimated — the estimate decides, the measurement records. */
+  usage: TokenUsage | null;
+  cost: { amount: number; currency: string } | null;
+  wallMs: number;
+  /** `refused` has no producer at P2: no adapter reports a content refusal distinctly. */
+  outcome: 'ok' | 'refused' | 'error';
+  /** Classified, so the UI can offer the right recovery rather than a provider string. */
+  error: { class: ErrorClass; message: string } | null;
+  retries: number;
+}
+
+/**
+ * Why a step failed, in the vocabulary a client can act on.
+ *
+ * The provider's own words go to the log ([07 §12.7] keeps that untranslated);
+ * a class is what crosses to a reader.
+ */
+export type StepFailureReason =
+  ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
+
+/** Why a step did not run. [03 §6]'s three condition arms, from the other side. */
+export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
+
+export type StepStage = 'pre' | 'assemble' | 'generate' | 'extract' | 'post';
+
+/**
+ * What one step did — the durable counterpart of the `step.*` progress events.
+ *
+ * [04 §3.3](../../../../docs/design/04-server-multiuser-deployment.md) opens by saying the live
+ * view **is** the turn record being built, which only holds if every progress
+ * event has somewhere durable to land. Without this, `step.skipped` and
+ * `step.failed` are live-only, and the history view silently disagrees with the
+ * live one about what happened — the exact failure that section exists to
+ * prevent.
+ */
+export interface StepOutcome {
+  stepId: string;
+  stage: StepStage;
+  state: 'ok' | 'skipped' | 'failed';
+  /** How the definition declared a failure should be handled. */
+  failure?: 'abort' | 'warn' | 'ignore';
+  skipReason?: StepSkipReason;
+  error?: { reason: StepFailureReason; message: string };
+  contributed: { blocks: number; effects: number };
+  wallMs: number;
+}
+
+/** What was assembled and asked for — [02 §8]'s `request`. */
+export interface TurnRequest {
+  blocks: AssembledBlock[];
+  /** The verdict of the most recent assembly. Null until something is assembled. */
+  budget: BudgetVerdict | null;
+  calls: ModelCall[];
+}
+
+export interface TurnCost {
+  promptTokens: number;
+  completionTokens: number;
+  wallMs: number;
+  model: string;
+}
 
 /**
  * One effect on one channel — [13 §1.2](../../../../docs/design/13-internal-contracts.md).
@@ -90,11 +179,23 @@ export interface Turn {
    *
    * Both optional, and not out of laziness: a turn recording a hand edit to
    * `session.json` has neither ([02 §8.1]), and writing empty strings there
-   * would be a record claiming an empty message was sent. `mentions`,
-   * `request` and `cost` are the rest of §8's record and land with P2.4/P2.5.
+   * would be a record claiming an empty message was sent. `mentions` is the
+   * one field of §8 still absent — see this module's header.
    */
   input?: { actorId: string | null; kind: string; text: string; raw: string };
   output?: { text: string; reasoning?: string };
+  /**
+   * What was assembled, called and run — all optional for the same reason.
+   *
+   * A hand-edit divergence turn made no request, ran no steps and cost nothing
+   * ([02 §8.1]); an empty `request` there would be a record claiming a prompt
+   * was built. Absent means *this never happened*, which is a different claim
+   * from *this happened and was empty*, and the distinction is exactly what the
+   * workbench renders.
+   */
+  request?: TurnRequest;
+  cost?: TurnCost;
+  steps?: StepOutcome[];
   /** Applied and rejected alike — a rejected effect is part of the record. */
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([07 §14.6]). */

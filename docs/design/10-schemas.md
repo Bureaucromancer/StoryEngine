@@ -981,6 +981,12 @@ type SlotSource =
   | { of: "channel"; channelId: ChannelId }
   | { of: "setting"; part: "framing" | "tone" }
   | { of: "goal" }                          // [03 §7.3.3]
+  /** The guidance slot. [03 §5.1] positions this one by preset explicitly; the
+   *  producer is recorded on the block, not chosen by the slot. */
+  | { of: "guidance" }
+  /** The player's current action — not `history`, which is turns that already
+   *  happened. Every preset decides where it sits relative to the lore. */
+  | { of: "input" }
 
 // SlotSource is BlockSource ([13 §1.1](13-internal-contracts.md)) minus its two
 // assembler-only origins — `preset`, because a preset's own prose *is* a

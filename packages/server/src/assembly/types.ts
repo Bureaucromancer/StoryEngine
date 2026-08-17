@@ -34,6 +34,28 @@ export type BlockSource =
   | { kind: 'channel'; channelId: string }
   | { kind: 'setting'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
+  /**
+   * The guidance slot — [03 §5.1](../../../../docs/design/03-modes-and-turn-pipeline.md).
+   *
+   * **A source of its own, and it had to become one.** That section says the
+   * guidance block is *"positioned by the preset"*, which makes it slot-nameable
+   * by definition — but it was reachable only as `{kind: 'step'}`, one of the
+   * two `SlotSource` deliberately excludes. So a preset could not position the
+   * one block the section says it positions. Found at P2.5, when the first real
+   * producer needed a source to declare.
+   *
+   * `producer` because §5.1 is explicit that one slot has several producers —
+   * the user's box, a rule's `giveGuidance`, a Narrative Director push — and the
+   * workbench should say which, without three sources to keep in step.
+   */
+  | { kind: 'guidance'; producer: 'user' | 'rule' | 'step' }
+  /**
+   * What the player just did. Not `history`: history is turns that happened, and
+   * this is the one that is happening. A preset positions it — every preset
+   * decides where the player's action sits relative to the lore and the
+   * instructions — so it is a slot source for the same reason guidance is.
+   */
+  | { kind: 'input' }
   // The two a slot can never name, because no preset positions them.
   | { kind: 'preset'; blockId: string }
   | { kind: 'step'; stepId: string };

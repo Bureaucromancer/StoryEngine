@@ -179,7 +179,7 @@ describe('guidance is advisory, and the assembler enforces it', () => {
     const { blocks } = assemble({
       candidates: candidates(),
       policy: GENEROUS,
-      callKind: 'prose',
+      purpose: 'prose',
     });
     expect(blocks.find((block) => block.id === 'guidance')?.included).toBe(true);
   });
@@ -188,8 +188,8 @@ describe('guidance is advisory, and the assembler enforces it', () => {
     // The sharp case: a fuzzy rule condition *is* a model call, and "the player
     // has clearly betrayed her by now" typed into the guidance box would
     // otherwise trip a rule — talking past a mechanic without touching it.
-    for (const callKind of ['effects', 'verdict'] as const) {
-      expect(() => assemble({ candidates: candidates(), policy: GENEROUS, callKind })).toThrow(
+    for (const purpose of ['effects', 'verdict'] as const) {
+      expect(() => assemble({ candidates: candidates(), policy: GENEROUS, purpose })).toThrow(
         AdvisoryLeakError,
       );
     }
@@ -199,7 +199,7 @@ describe('guidance is advisory, and the assembler enforces it', () => {
     // A context that silently lost its guidance and one that never had it are
     // indistinguishable afterwards, and only one of them is a caller bug.
     try {
-      assemble({ candidates: candidates(), policy: GENEROUS, callKind: 'effects' });
+      assemble({ candidates: candidates(), policy: GENEROUS, purpose: 'effects' });
       expect.unreachable('should have refused');
     } catch (error) {
       expect((error as Error).message).toContain('guidance');

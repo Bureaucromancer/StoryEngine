@@ -60,6 +60,25 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
   budget: null,
 };
 
+/**
+ * Every channel this build knows — the thing `update` is enforced against.
+ *
+ * A registry with one entry looks like ceremony, and is not: `ChannelDefinition`
+ * declares `update: 'model-proposed' | 'engine-computed' | 'user-only'`, and
+ * until something can *look a channel up* that field is a comment. The clock is
+ * `engine-computed`, so a model proposing a time change must be recorded and
+ * refused rather than applied — which needs a definition to consult.
+ *
+ * P2.6's modes register their own ([03 §4]); this is the built-in set.
+ */
+export const CHANNELS: Readonly<Record<string, ChannelDefinition>> = {
+  [SE_CLOCK]: CLOCK_CHANNEL,
+};
+
+export function channelDefinition(id: string): ChannelDefinition | null {
+  return CHANNELS[id] ?? null;
+}
+
 /** Where a session's clock starts. Morning, because a story usually does. */
 export const CLOCK_START: ClockValue = { day: 1, hour: 8, minute: 0 };
 

@@ -102,3 +102,27 @@ describe('search', () => {
     expect(found.body.error).toBe('invalid');
   });
 });
+
+describe('a querystring number', () => {
+  it('is accepted, because the validator does not coerce', async () => {
+    // This route shipped with `Type.Integer()` on `limit` and answered
+    // *must be integer* to its own documented parameter: a query string carries
+    // text, and this app's validator has `coerceTypes: false` on purpose (F2).
+    // The rule generalises to every route added after this one.
+    await aTurnSaying('The cathedral was three streets east.');
+
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral&limit=10' });
+    expect(found.status).toBe(200);
+    expect(found.body.turns).toHaveLength(1);
+  });
+
+  it('is refused when it is not a number at all', async () => {
+    const found = await server.request({ method: 'GET', url: '/api/search?q=x&limit=lots' });
+    expect(found.status).toBe(400);
+  });
+
+  it('clamps rather than trusting the caller about how much to return', async () => {
+    const found = await server.request({ method: 'GET', url: '/api/search?q=x&limit=999' });
+    expect(found.status).toBe(200);
+  });
+});

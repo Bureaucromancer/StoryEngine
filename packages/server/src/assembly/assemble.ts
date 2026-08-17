@@ -46,14 +46,23 @@ const DEFAULT_PRIORITY = 50;
  * A step says what it is, and the assembler enforces what follows. `effects`
  * and `verdict` are the two that may not see advisory content, and they are
  * separate names because they are separate claims a step makes about itself.
+ *
+ * **`CallPurpose`, not `CallPurpose`.** `CallPurpose` is taken, by a *portable*
+ * type: [10 §8.2](../../../../docs/design/10-schemas.md)'s deliberately-open string
+ * (`"narrate" | "impersonate" | … | (string & {})`) that a preset block's
+ * `appliesTo` filters on, exported from `@storyengine/shared`. Two
+ * incompatible types under one name is how a preset importing
+ * `appliesTo: ["narrate"]` comes to match no call the engine ever makes — so
+ * the internal one, which nothing outside this repo has ever seen, yields the
+ * name.
  */
-export type CallKind = 'prose' | 'effects' | 'verdict';
+export type CallPurpose = 'prose' | 'effects' | 'verdict';
 
 export interface AssembleOptions {
   candidates: readonly Candidate[];
   policy: BudgetPolicy;
   /** What the call this context is for produces. Defaults to prose. */
-  callKind?: CallKind;
+  purpose?: CallPurpose;
 }
 
 export interface Assembly {
@@ -70,8 +79,8 @@ export interface Assembly {
  * reorder. What it decides is what survives.
  */
 export function assemble(options: AssembleOptions): Assembly {
-  const callKind = options.callKind ?? 'prose';
-  const admissible = admit(options.candidates, callKind);
+  const purpose = options.purpose ?? 'prose';
+  const admissible = admit(options.candidates, purpose);
 
   const annotated = admissible.map((candidate) => ({
     candidate,
@@ -158,9 +167,9 @@ function nextToDrop(
 }
 
 export class AdvisoryLeakError extends Error {
-  constructor(blockId: string, callKind: CallKind) {
+  constructor(blockId: string, purpose: CallPurpose) {
     super(
-      `Advisory block ${JSON.stringify(blockId)} cannot enter a ${callKind} call. ` +
+      `Advisory block ${JSON.stringify(blockId)} cannot enter a ${purpose} call. ` +
         'Guidance influences prose and must never reach a systematic outcome ' +
         '(docs/design/03-modes-and-turn-pipeline.md §5.2).',
     );
@@ -177,12 +186,12 @@ export class AdvisoryLeakError extends Error {
  * are indistinguishable afterwards, and only one of them is a bug in the
  * caller.
  */
-function admit(candidates: readonly Candidate[], callKind: CallKind): readonly Candidate[] {
-  if (callKind === 'prose') return candidates;
+function admit(candidates: readonly Candidate[], purpose: CallPurpose): readonly Candidate[] {
+  if (purpose === 'prose') return candidates;
 
   for (const candidate of candidates) {
     if (candidate.advisory === true) {
-      throw new AdvisoryLeakError(candidate.id, callKind);
+      throw new AdvisoryLeakError(candidate.id, purpose);
     }
   }
   return candidates;

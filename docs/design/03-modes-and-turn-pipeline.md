@@ -485,6 +485,26 @@ interface StepDefinition {
 }
 ```
 
+**What the three failure modes do**, because the list above names them and P2.5
+had to make them genuinely distinguishable — an enum with two identical members
+is decoration:
+
+| `failure` | the pipeline | the turn | `step.failed` on the stream | in `Turn.steps` |
+|---|---|---|---|---|
+| `abort` | stops | `failed`, and still **appended with its blocks** | yes | yes |
+| `warn` | continues | unchanged — may still be `complete` | yes | yes |
+| `ignore` | continues | unchanged | no | yes |
+
+`abort` is not job abandonment. An abandoned job writes no turn at all, and the
+partial record — what was assembled, what was called, how far it got — is the
+thing somebody needs in order to re-run it. **A user's cancellation overrides the
+declared mode**: a stop is not a warn.
+
+`ignore` still appears in the record. Silence about a step that ran is the
+failure [04 §3.3](04-server-multiuser-deployment.md) calls out for `skipped`, and it is no
+better here; what `ignore` buys is not showing a *live* alarm for something the
+author already decided is unremarkable.
+
 **`StepCondition` is deliberately not an expression language.** At 1.0 it is a
 small closed set — a cadence, a stage flag, an explicit arm by the user — and
 `StepDefinition` is internal ([10 §10](10-schemas.md)) rather than portable, so it

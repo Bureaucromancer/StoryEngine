@@ -161,3 +161,57 @@ describe('degradation', () => {
     expect(provider.capabilities.mergeSameRole).toBe('required');
   });
 });
+
+describe('the double has time in it, and honours a stop', () => {
+  it('leaves a window between chunks that a caller can act in', async () => {
+    // Without `chunkDelayMs` this generator has no `await` between yields, so
+    // the whole stream drains inside one macrotask — measured, forty chunks in
+    // under a millisecond, before a `setTimeout(…, 0)` scheduled first ever
+    // ran. Every test that claims to do something "mid-stream" would be acting
+    // after the stream had already finished.
+    const provider = new FakeProvider({ script: [{ text: 'abcdef', chunks: 3, chunkDelayMs: 5 }] });
+
+    let ticked = false;
+    setTimeout(() => (ticked = true), 0);
+
+    const seen: string[] = [];
+    for await (const chunk of provider.stream(ask())) {
+      seen.push(chunk.text);
+    }
+
+    expect(seen.join('')).toBe('abcdef');
+    expect(ticked, 'the stream never yielded to the event loop').toBe(true);
+  });
+
+  it('stops when the request is aborted, the way a socket would', async () => {
+    // A real adapter hands the signal to `fetch` and the request dies at the
+    // socket. A double that ignored it would leave the abort path — the one a
+    // user's Stop button rides on — shipped and never exercised.
+    const provider = new FakeProvider({ script: [{ text: 'abcdef', chunks: 6, chunkDelayMs: 2 }] });
+    const controller = new AbortController();
+
+    const seen: string[] = [];
+    const consume = async (): Promise<void> => {
+      for await (const chunk of provider.stream({ ...ask(), signal: controller.signal })) {
+        seen.push(chunk.text);
+        if (seen.length === 2) controller.abort();
+      }
+    };
+
+    await expect(consume()).rejects.toThrow(/aborted/i);
+    expect(seen).toHaveLength(2);
+  });
+
+  it('can report no usage at all, distinctly from reporting zero', async () => {
+    // `usage: null` and an absent `usage` are different claims, and [13 §1.4]
+    // requires the record to keep the first as null rather than synthesise a
+    // number.
+    const provider = new FakeProvider({ script: [{ text: 'x', reportsNoUsage: true }] });
+
+    expect((await provider.generate(ask())).usage).toBeNull();
+    expect((await new FakeProvider({ script: [{ text: 'x' }] }).generate(ask())).usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+    });
+  });
+});
