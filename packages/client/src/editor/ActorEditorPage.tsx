@@ -395,7 +395,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
  * silently eating a hand edit, surfaced instead of swallowed
  * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
  */
-function ConflictDialog(props: {
+export function ConflictDialog(props: {
   onReload: () => void;
   onSaveAsCopy: () => void;
   onCancel: () => void;

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, buildApp, buildServices } from './app.js';
-import { DEFAULT_CONFIG } from './config.js';
+import { type Config, DEFAULT_CONFIG } from './config.js';
 
 /**
  * An app on a real temporary data directory, driven through `inject`.
@@ -40,16 +40,47 @@ export interface TestServer {
   dispose: () => Promise<void>;
 }
 
-export async function makeTestServer(): Promise<TestServer> {
-  const dataDir = await mkdtemp(join(tmpdir(), 'se-app-'));
+/**
+ * Everything a test can vary about the server it is given.
+ *
+ * One options object rather than four patches. Five separate P2.0 items each
+ * need this helper to take a different thing — the watcher on, an existing data
+ * directory to restart against, a clock, a level, a config override — and
+ * discovering that one at a time turns the file every route suite imports into
+ * a pile of special cases. Every field is optional and the defaults are the
+ * behaviour this helper had before it took options at all.
+ */
+export interface TestServerOptions {
+  /**
+   * Reuse a directory instead of making one — which is how a test restarts a
+   * server against the data it already wrote (exit-gate step 11). A reused
+   * directory is not removed on dispose; whoever made it owns it.
+   */
+  dataDir?: string;
+  /**
+   * Run the filesystem watcher. Off by default: the watcher has its own suite,
+   * and route tests that do not need foreign writes should not be subject to
+   * filesystem event timing.
+   */
+  watch?: boolean;
+  /** Anything else about the config — a level to hear, a retention to test. */
+  config?: Partial<Config>;
+}
+
+export async function makeTestServer(options: TestServerOptions = {}): Promise<TestServer> {
+  const borrowed = options.dataDir !== undefined;
+  const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), 'se-app-')));
   const services = await buildServices({
-    // `silent`, because several of these run at once and a suite that prints a
-    // request log per assertion buries its own failures. This is the level's
-    // reason for existing ([13 §4]).
-    config: { ...DEFAULT_CONFIG, dataDir, log: { ...DEFAULT_CONFIG.log, level: 'silent' } },
-    // The watcher has its own suite; leaving it off here keeps these tests
-    // deterministic rather than subject to filesystem event timing.
-    watch: false,
+    config: {
+      ...DEFAULT_CONFIG,
+      // `silent`, because several of these run at once and a suite that prints
+      // a request log per assertion buries its own failures. This is the
+      // level's reason for existing ([13 §4]).
+      ...{ log: { ...DEFAULT_CONFIG.log, level: 'silent' as const } },
+      ...options.config,
+      dataDir,
+    },
+    watch: options.watch ?? false,
   });
   const app = await buildApp(services);
   await app.ready();
@@ -106,10 +137,13 @@ export async function makeTestServer(): Promise<TestServer> {
     cookies,
     request,
     dispose: async () => {
+      // Order matters, and more so on Windows: the app first so no request is
+      // mid-flight, then the watcher so no handle is open on the tree, then the
+      // index so the SQLite file is closed before anything tries to unlink it.
       await app.close();
       await services.watcher?.stop();
       services.index.close();
-      await rm(dataDir, { recursive: true, force: true });
+      if (!borrowed) await rm(dataDir, { recursive: true, force: true });
     },
   };
 }

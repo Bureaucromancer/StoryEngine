@@ -36,6 +36,31 @@ function packageOverride(name, files) {
   };
 }
 
+/**
+ * The same bans, for a package's test files, which are allowed the filesystem.
+ *
+ * This layer exists because the boundary graph resolves `@storyengine/*`
+ * through pnpm's symlinks into `dist`, and a graph rule that silently stops
+ * matching is worse than no graph rule. Turning it off in test files — the
+ * files most likely to reach for something they should not, since a test is
+ * where "just import the server to build a fixture" is tempting — left the
+ * backup missing exactly where it was wanted.
+ *
+ * @param {keyof typeof forbiddenPackages} name
+ * @param {string} dir
+ */
+function packageTestOverride(name, dir) {
+  return {
+    files: [`${dir}/**/*.test.{ts,tsx}`, `${dir}/**/test-*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowFs: true,
+        bannedPackages: bannedPackagesFor(name),
+      }),
+    },
+  };
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -113,7 +138,7 @@ export default tseslint.config(
   // response type per route, which would be ceremony that tests nothing. In
   // production code these rules stay on, which is where they earn their keep.
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts', '**/test-*.tsx'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
@@ -167,14 +192,27 @@ export default tseslint.config(
   // and would grow the production surface with a `rename` and an `rm` that
   // nothing in the server needs.
   //
-  // Deliberately last, so it wins over the per-package overrides above; the
-  // cross-package bans are restated here rather than lost.
+  // Deliberately last, so it wins over the per-package overrides above — which
+  // is why the cross-package bans have to be restated rather than inherited. A
+  // flat-config block *replaces* a rule's options; it does not merge them. The
+  // comment here used to claim the bans were restated and they were not
+  // (F25): every test file in the repo had them switched off, in the stage
+  // that writes the most test files, on the platform where the resolver the
+  // graph rule depends on is least proven.
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts', '**/test-*.tsx'],
     rules: {
       'no-restricted-imports': restrictedImports({ allowFs: true }),
     },
   },
+
+  // So the package bans come back, per package, after it. Fixture files under
+  // tools/ keep the block above: they belong to no package and have no edge to
+  // violate.
+  packageTestOverride('shared', 'packages/shared'),
+  packageTestOverride('sdk', 'packages/sdk'),
+  packageTestOverride('server', 'packages/server'),
+  packageTestOverride('client', 'packages/client'),
 
   // Id generation. The randomness rule protects replay and branching: every
   // draw that can change what happens must be recorded, or a reconstructed

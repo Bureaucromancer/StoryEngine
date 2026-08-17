@@ -27,7 +27,7 @@ const eslint = new ESLint({
   cwd: process.cwd(),
 });
 
-async function rulesFiredIn(fixture: string): Promise<string[]> {
+async function reportsIn(fixture: string): Promise<{ rule: string; message: string }[]> {
   const [result] = await eslint.lintFiles([`${FIXTURE_ROOT}/${fixture}`]);
   if (!result) {
     throw new Error(`No lint result for ${fixture} — is the path right?`);
@@ -36,7 +36,27 @@ async function rulesFiredIn(fixture: string): Promise<string[]> {
     const fatal = result.messages.find((m) => m.fatal);
     throw new Error(`${fixture} failed to parse (${fatal?.message ?? 'unknown'}).`);
   }
-  return result.messages.map((m) => m.ruleId ?? '<no rule>');
+  return result.messages.map((m) => ({ rule: m.ruleId ?? '<no rule>', message: m.message }));
+}
+
+async function rulesFiredIn(fixture: string): Promise<string[]> {
+  return (await reportsIn(fixture)).map((report) => report.rule);
+}
+
+/**
+ * Reports from one *selector*, not one rule id.
+ *
+ * `no-restricted-syntax` is a single slot holding every syntactic day-one rule,
+ * so counting by rule id counts them together: the moment a second selector
+ * lands in that slot, an exact-count assertion silently absorbs its reports and
+ * a `not.toContain` assertion starts meaning "and none of the other rule
+ * either". The message is what distinguishes them, so the message is what these
+ * assertions match on.
+ */
+async function syntaxReportsMatching(fixture: string, pattern: RegExp): Promise<string[]> {
+  return (await reportsIn(fixture))
+    .filter((report) => report.rule === 'no-restricted-syntax' && pattern.test(report.message))
+    .map((report) => report.message);
 }
 
 describe('the architectural boundary graph (docs/design/workplan/10-testing.md §2)', () => {
@@ -167,17 +187,20 @@ describe('the AGPL header', () => {
 });
 
 describe('physical-direction Tailwind utilities (docs/design/07-tech-stack.md §12.6)', () => {
+  /** This rule's own reports, told apart from anything else in the same slot. */
+  const PHYSICAL = /Physical-direction utility/;
+
   it('blocks every form a physical utility can arrive in', async () => {
-    const fired = await rulesFiredIn('packages/client/src/physical-utility.tsx');
     // Five elements in the fixture: a plain literal, several classes in one
     // literal, a literal inside a helper call, a template literal, and one
     // behind variant prefixes. One report each — the rule reports the
     // expression, not the individual class.
-    expect(fired.filter((r) => r === 'no-restricted-syntax')).toHaveLength(5);
+    const fired = await syntaxReportsMatching('packages/client/src/physical-utility.tsx', PHYSICAL);
+    expect(fired).toHaveLength(5);
   });
 
   it('permits the logical equivalents, including behind a variant prefix', async () => {
-    const fired = await rulesFiredIn('packages/client/src/logical-utility.tsx');
-    expect(fired).not.toContain('no-restricted-syntax');
+    const fired = await syntaxReportsMatching('packages/client/src/logical-utility.tsx', PHYSICAL);
+    expect(fired).toEqual([]);
   });
 });
