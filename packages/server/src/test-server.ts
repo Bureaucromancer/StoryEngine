@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, buildApp, buildServices, disposeServices } from './app.js';
 import { type Config, DEFAULT_CONFIG } from './config.js';
+import type { ProviderFactory } from './providers/factory.js';
 
 /**
  * An app on a real temporary data directory, driven through `inject`.
@@ -37,7 +38,38 @@ export interface TestServer {
     /** Omit the CSRF header, to prove the check is real. */
     skipCsrf?: boolean;
   }) => Promise<{ status: number; body: any; headers: Record<string, unknown> }>;
+  /**
+   * Opens an SSE stream — a **sibling** of `request`, not a flag on it.
+   *
+   * Plain `inject` never resolves for a response that does not end, and under
+   * `payloadAsStream` the response has no `body` and `json()` throws — which
+   * is exactly what `request` depends on. One helper that does the other thing
+   * is clearer than one that does both badly.
+   */
+  stream: (options: { url: string; headers?: Record<string, string> }) => Promise<StreamHandle>;
   dispose: () => Promise<void>;
+}
+
+export interface SseFrame {
+  event: string;
+  id?: string;
+  data: unknown;
+}
+
+export interface StreamHandle {
+  status: number;
+  headers: Record<string, unknown>;
+  /** Every frame parsed so far. */
+  frames: () => SseFrame[];
+  /**
+   * Waits for a frame, and **is the only synchronisation primitive** — there
+   * are no sleeps in the stream tests. On timeout it reports what it did see, so
+   * a failure reads as *"waited for turn.finished, got [turn.started]"* rather
+   * than as an unexplained hang.
+   */
+  until: (predicate: (frame: SseFrame) => boolean, ms?: number) => Promise<SseFrame>;
+  /** What a tab closing looks like. */
+  abort: () => Promise<void>;
 }
 
 /**
@@ -65,6 +97,8 @@ export interface TestServerOptions {
   watch?: boolean;
   /** Anything else about the config — a level to hear, a retention to test. */
   config?: Partial<Config>;
+  /** Substitute the provider factory — how `FakeProvider` becomes the E2E backend. */
+  providers?: ProviderFactory;
 }
 
 export async function makeTestServer(options: TestServerOptions = {}): Promise<TestServer> {
@@ -81,6 +115,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
       dataDir,
     },
     watch: options.watch ?? false,
+    ...(options.providers === undefined ? {} : { providers: options.providers }),
   });
   const app = await buildApp(services);
   await app.ready();
@@ -130,18 +165,132 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     return { status: response.statusCode, body, headers: response.headers };
   }
 
+  async function stream(options: {
+    url: string;
+    headers?: Record<string, string>;
+  }): Promise<StreamHandle> {
+    const headers: Record<string, string> = { ...options.headers };
+    if (cookies.size > 0) {
+      headers['cookie'] = [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    }
+
+    const controller = new AbortController();
+    const response = await app.inject({
+      method: 'GET',
+      url: options.url,
+      headers,
+      // Resolves inside `writeHead` rather than at the end of the body, which
+      // is the only way to see a response that never ends.
+      payloadAsStream: true,
+      signal: controller.signal,
+    });
+
+    const frames: SseFrame[] = [];
+    const waiters: {
+      predicate: (frame: SseFrame) => boolean;
+      resolve: (frame: SseFrame) => void;
+    }[] = [];
+    let buffer = '';
+
+    const offer = (frame: SseFrame): void => {
+      frames.push(frame);
+      for (const [index, waiter] of [...waiters.entries()].reverse()) {
+        if (waiter.predicate(frame)) {
+          waiters.splice(index, 1);
+          waiter.resolve(frame);
+        }
+      }
+    };
+
+    if (response.headers['content-type'] === 'text/event-stream') {
+      response.stream().on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf8');
+        let at = buffer.indexOf('\n\n');
+        while (at !== -1) {
+          const raw = buffer.slice(0, at);
+          buffer = buffer.slice(at + 2);
+          const frame = parseFrame(raw);
+          if (frame) offer(frame);
+          at = buffer.indexOf('\n\n');
+        }
+      });
+    }
+
+    return {
+      status: response.statusCode,
+      headers: response.headers,
+      frames: () => [...frames],
+      until: async (predicate, ms = 2000) => {
+        const found = frames.find(predicate);
+        if (found) return found;
+        return new Promise<SseFrame>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(
+              new Error(
+                `no frame matched within ${String(ms)}ms. Saw: ${JSON.stringify(
+                  frames.map((frame) => frame.event),
+                )}`,
+              ),
+            );
+          }, ms);
+          waiters.push({
+            predicate,
+            resolve: (frame) => {
+              clearTimeout(timer);
+              resolve(frame);
+            },
+          });
+        });
+      },
+      abort: async () => {
+        controller.abort();
+        // The handler's `close` fires a tick later, so a caller that asserts on
+        // the subscriber count immediately would read it before the detach ran.
+        // Measured: not after a microtask, but after `nextTick`.
+        await new Promise((tick) => {
+          process.nextTick(tick);
+        });
+      },
+    };
+  }
+
   return {
     app,
     services,
     dataDir,
     cookies,
     request,
+    stream,
     dispose: async () => {
       await app.close();
       await disposeServices(services);
       if (!borrowed) await rm(dataDir, { recursive: true, force: true });
     },
   };
+}
+
+/** `event:`, `id:` and `data:` out of one SSE frame. Comments yield nothing. */
+function parseFrame(raw: string): SseFrame | null {
+  let event = 'message';
+  let id: string | undefined;
+  const data: string[] = [];
+
+  for (const line of raw.split('\n')) {
+    if (line.startsWith(':')) continue;
+    if (line.startsWith('event: ')) event = line.slice(7);
+    else if (line.startsWith('id: ')) id = line.slice(4);
+    else if (line.startsWith('data: ')) data.push(line.slice(6));
+  }
+  if (data.length === 0 && event === 'message') return null;
+
+  const text = data.join('\n');
+  let parsed: unknown = text;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // A frame whose data is not JSON is still a frame worth reporting.
+  }
+  return { event, ...(id === undefined ? {} : { id }), data: parsed };
 }
 
 /** Runs first-run setup and leaves the client signed in as that admin. */

@@ -30,8 +30,13 @@ import type { LibraryContext } from './library.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerSearchRoutes } from './routes/search.js';
+import { registerSessionRoutes } from './routes/sessions.js';
 import type { SessionContext } from './sessions/store.js';
-import { reconcile, type Reconciliation } from './state/commit.js';
+import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
+import { reconcile, type CommitContext, type Reconciliation } from './state/commit.js';
+import type { JobContext } from './state/jobs.js';
+import { TurnStream } from './stream/bus.js';
+import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { Layout } from './storage/layout.js';
 
@@ -64,6 +69,21 @@ export interface AppServices {
   state: OpenedState;
   /** Where sessions live. One context, so the write lock is genuinely shared. */
   sessions: SessionContext;
+  /** The operational store's context — jobs, drafts, events. */
+  jobs: JobContext;
+  /** In-process fan-out for the session stream. */
+  bus: TurnStream;
+  /** Drives a reserved job to a committed turn. */
+  runner: TurnRunner;
+  providers: ProviderFactory;
+  /**
+   * Every open stream's closer.
+   *
+   * `app.close()` resolves in zero milliseconds with a hijacked response open,
+   * so an `onClose` hook has to end them — otherwise a surviving keepalive
+   * interval is a hung process rather than a failed test.
+   */
+  streams: Set<() => void>;
   /** What startup reconciliation did, for the log line and for a test to read. */
   reconciliation: Reconciliation;
   accounts: Accounts;
@@ -82,6 +102,15 @@ export interface BuildAppOptions {
   config: Config;
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
+  /**
+   * Where a connection becomes a provider.
+   *
+   * The one seam an end-to-end turn test needs, and it belongs here rather than
+   * as a mutable field: the runner captures the factory when it is built, so a
+   * test that reassigned `services.providers` afterwards would swap something
+   * nothing reads and then assert against the real adapter without noticing.
+   */
+  providers?: ProviderFactory;
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
@@ -113,6 +142,11 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   const maturation = startMaturation(index.db, layout);
 
   const sessions: SessionContext = { layout, index: index.db };
+  const bus = new TurnStream();
+  const jobs: JobContext = { db: state.db, sessions, events: bus };
+  const commit: CommitContext = { ...jobs };
+  const providers = options.providers ?? createProviderFactory();
+  const runner = new TurnRunner({ commit, bus, providers, config: options.config });
 
   /**
    * **Every job still active at startup was interrupted**, because nothing else
@@ -125,7 +159,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * against a session whose previous job is still marked active would be told
    * the session is busy, which would be true and wrong.
    */
-  const reconciliation = await reconcile({ db: state.db, sessions });
+  const reconciliation = await reconcile(commit);
 
   return {
     config: options.config,
@@ -133,6 +167,11 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
     index,
     state,
     sessions,
+    jobs,
+    bus,
+    runner,
+    providers,
+    streams: new Set<() => void>(),
     reconciliation,
     accounts: new Accounts(layout),
     watcher,
@@ -157,6 +196,12 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
  * the three, and each omission surfaced as a locked file rather than as a leak.
  */
 export async function disposeServices(services: AppServices): Promise<void> {
+  // **Runs first, and waits.** A detached turn touching a closed
+  // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
+  // file the caller never named, two layers from where it was caused.
+  await services.runner.drain();
+  for (const close of services.streams) close();
+  services.streams.clear();
   services.maturation.stop();
   await services.watcher?.stop();
   services.index.close();
@@ -235,6 +280,14 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
     return reply.code(status).send({ error: 'invalid', message: error.message });
   });
 
+  // A hijacked stream survives `app.close()` — measured at zero milliseconds
+  // with one open — so the app has to end them itself.
+  app.addHook('onClose', (_instance, done) => {
+    for (const close of services.streams) close();
+    services.streams.clear();
+    done();
+  });
+
   await app.register(cookie);
 
   app.decorateRequest('account', null);
@@ -294,6 +347,7 @@ export async function buildApp(services: AppServices): Promise<FastifyInstance> 
       registerAuthRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerSearchRoutes(api, services);
+      registerSessionRoutes(api, services);
       done();
     },
     { prefix: '/api' },

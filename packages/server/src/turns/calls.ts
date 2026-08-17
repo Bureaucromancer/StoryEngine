@@ -124,7 +124,7 @@ export async function performCall(
   let retries = 0;
 
   for (;;) {
-    if (context.signal.aborted) throw new Cancelled();
+    if (stopped(context.signal)) throw new Cancelled();
 
     // A holder rather than two `let`s: both are assigned from inside the
     // stream callback, and the type checker cannot follow a closure — so a bare
@@ -171,7 +171,12 @@ export async function performCall(
         },
       };
     } catch (error) {
-      if (context.signal.aborted) throw new Cancelled();
+      // Checked again, because the abort can land *during* the call — which is
+      // the ordinary case for a user pressing Stop. Read through a function
+      // rather than directly: `aborted` is a getter whose value changes across
+      // an await, and the type checker narrows it to the value it had at the
+      // top of the loop and then calls this line dead.
+      if (stopped(context.signal)) throw new Cancelled();
 
       const classified = classify(error);
       const attempt = RETRY_BACKOFF_MS[retries];
@@ -242,6 +247,11 @@ export class CallFailed extends Error {
     this.partialText = partialText;
     this.call = call;
   }
+}
+
+/** Reads the signal now, past the narrowing described above. */
+function stopped(signal: AbortSignal): boolean {
+  return signal.aborted;
 }
 
 function classify(error: unknown): ProviderError['class'] {

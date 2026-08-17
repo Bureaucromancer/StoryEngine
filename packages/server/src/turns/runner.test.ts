@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
-import type { Connection } from '../providers/connections.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { readClock, SE_CLOCK } from '../sessions/channels.js';
@@ -80,7 +79,7 @@ function makeRunner(
   options: { script?: ScriptedReply[]; plan?: TurnPlan; config?: Partial<Config> } = {},
 ): void {
   provider = new FakeProvider(options.script === undefined ? {} : { script: options.script });
-  const providers: ProviderFactory = (_connection: Connection) => provider;
+  const providers: ProviderFactory = () => provider;
   runner = new TurnRunner({
     commit,
     bus,
@@ -177,9 +176,11 @@ describe('a turn goes all the way through', () => {
 
     await Promise.race([
       until(() => readJob(state.db, job.id)?.status === 'committed', 'commit', 2500),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('deadlocked: the runner never finalised')), 3000),
-      ),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('deadlocked: the runner never finalised'));
+        }, 3000);
+      }),
     ]);
   });
 

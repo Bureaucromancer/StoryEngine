@@ -43,7 +43,7 @@ export async function readBindings(layout: Layout, handle: string): Promise<Role
     // for a binding whose connection is gone, and that is the same answer a
     // nonsense one deserves. A schema here would turn a typo into a startup
     // failure instead of a legible per-role refusal.
-    return value as RoleBindings;
+    return value;
   } catch {
     return {};
   }

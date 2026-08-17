@@ -41,8 +41,16 @@ export type StepCondition =
 export interface StepDefinition {
   id: string;
   stage: StepStage;
-  /** Channel ids, plus the two pseudo-sources [03 §6] names. */
-  reads: (string | 'history' | 'output')[];
+  /**
+   * Channel ids, plus the two pseudo-sources [03 §6] names — `history` and
+   * `output`.
+   *
+   * Typed as bare `string` rather than `string | 'history' | 'output'`: a
+   * union with `string` in it collapses to `string` anyway, so the literals
+   * would be documentation pretending to be types. A channel id is an open
+   * vocabulary ([03 §4] lets a mode declare its own), so this cannot be closed.
+   */
+  reads: string[];
   /** Channel ids this step may propose effects on. */
   writes: string[];
   contributes?: 'blocks' | 'effects' | 'messages';

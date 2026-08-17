@@ -131,6 +131,17 @@ export class TurnRunner {
   }
 
   /**
+   * Waits for every in-flight turn to finish **without stopping any of them**.
+   *
+   * Separate from `drain` because *wait* and *stop and wait* are different
+   * things, and conflating them is a trap: a caller that just wanted to know
+   * when the work was done would silently cancel it instead.
+   */
+  async settle(): Promise<void> {
+    await Promise.allSettled([...this.#live.values()].map((live) => live.promise));
+  }
+
+  /**
    * Stops everything and waits for it, which shutdown must do **before** the
    * stores close.
    *
@@ -140,7 +151,7 @@ export class TurnRunner {
    */
   async drain(): Promise<void> {
     for (const live of this.#live.values()) live.controller.abort();
-    await Promise.allSettled([...this.#live.values()].map((live) => live.promise));
+    await this.settle();
   }
 
   /**

@@ -361,3 +361,31 @@ export function readEvents(context: JobContext, jobId: string, afterSeq = 0): Pr
     at: row.at,
   }));
 }
+
+/** The most recent job for a session, active or not. */
+export function latestJob(db: DatabaseSync, sessionId: string): Job | null {
+  const row = db
+    .prepare(`select ${JOB_COLUMNS} from job where session_id = ? order by created_at desc limit 1`)
+    .get(sessionId) as JobRow | undefined;
+  return row ? toJob(row) : null;
+}
+
+/**
+ * Every job for a session from an anchor onwards, oldest first.
+ *
+ * The reattach path's walk. A client that dropped during one turn and came back
+ * during the next has to be caught up on both, and `activeJob` answers only the
+ * second — so the cursor's own job is the anchor and this is what follows it.
+ *
+ * One indexed query on `job_by_session(session_id, created_at)`, which the
+ * schema created and nothing has read until now.
+ */
+export function sessionJobsFrom(db: DatabaseSync, sessionId: string, createdAt: number): Job[] {
+  const rows = db
+    .prepare(
+      `select ${JOB_COLUMNS} from job
+        where session_id = ? and created_at >= ? order by created_at`,
+    )
+    .all(sessionId, createdAt) as unknown as JobRow[];
+  return rows.map(toJob);
+}
