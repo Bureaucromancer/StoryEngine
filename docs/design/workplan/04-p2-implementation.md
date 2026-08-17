@@ -248,10 +248,10 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F4 | Watcher `ignored` broken on Windows | **Fixed at P1 closeout** | `isContained` over index/state/accounts/config, with a watcher test. The F17 Windows CI job still lands at P2.0 |
 | F5 | History append/rewrite race; phantom version | **Fixed at P1 closeout** | History mutators serialised per object root; `snapshotReplaced` one critical section; write→snapshot→ingest reorder. The queue is the utility P2.3's turn segments reuse |
 | F6 | `authoredAt` correct only via the React editor | **Fixed at P1 closeout** | `provenance.updatedAt` stamped server-side on real changes (§2.3); restore exempt; create exempt (imports keep original authorship) |
-| F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11** |
+| F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11**. *Sessions delete the same way at P2.3, plus the archive state [02 §10.3] asks for — this section had said tombstone, and the design section wins* |
 | F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** |
 | F9 | Tombstone maturation watcher-only; ingest not transactional | **Fixed at P2.3** | Both halves as planned: every filesystem read moved ahead of a `begin immediate`, and `startMaturation` runs once at startup and then on an unref'd timer, wired into `buildServices` so it does not depend on the watcher. Two tests, each verified to fail with its half removed |
-| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **P2.3**. Cookie flags: defer, **home P10** (loopback default makes it safe) |
+| F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **done at P2.3** — `GET /api/search`, objects and turns together, scoped by the session→scope join. Cookie flags: defer, **home P10** (loopback default makes it safe) |
 | F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
 | F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
 | F13 | Unchecked cast + no error boundary | **Fixed at P1 closeout** | `actorFormShape` guard before every cast + the router's `defaultErrorComponent` |
@@ -740,19 +740,19 @@ banning randomness everywhere and starts pointing here.
 
 ### P2.3 — Session and turn storage
 
-**Status: the session store and the ingest rework are built; the operational
-store, terminal commit, divergence, delete and search are not.** What exists is
-the sessions layer — `session.json`, JSONL segments with rollover, the head
-snapshot, all through P2.0's `KeyedQueue` — and the whole of the ingest opening
-this stage was carrying: F23's portable-path ordering, F9's transaction and
-scheduled maturation, and F20's file-error state with a route to read it. What
-remains, in the order below: `state.sqlite` (jobs, idempotency reservations,
-in-flight drafts, sequenced events), §2.10's terminal commit and startup
-reconciliation, `se.clock` and hand-edit divergence, session delete as a
-tombstone, and the session/turn index rows that the FTS search route needs.
+**Status: built.** The sessions layer (`session.json`, JSONL segments with
+rollover, the head snapshot, all through P2.0's `KeyedQueue`); the ingest opening
+this stage carried (F23, F9, F20); the operational store with §2.10's submission
+protocol; terminal commit and startup reconciliation; `se.clock` and hand-edit
+divergence; delete and archive; session/turn index rows, turn text in FTS, and
+the search route that finally gives F10's `search()` a caller.
 
-Three notes on what the ingest opening actually took, because each differs from
-what §1.3's table predicted:
+What is **not** here, and is not this stage's: the collectors that would give a
+turn its `request` and `cost` fields (P2.4/P2.5 — `input` and `output` land now
+because FTS needs them on write), the runner that would produce a draft from a
+provider (P2.5), and F22's leftover below.
+
+Six notes on where the work differed from what §1.3 and this section predicted:
 
 - **F23 needed a comparison, not a collation.** The plan said "order duplicates
   by the portable relative path", which is right, but the ordering has to happen
@@ -770,7 +770,29 @@ what §1.3's table predicted:
   an error row and nothing else.
 - **F22's leftover is still open.** The rebuild/watcher divergence over a refused
   path is not fixed here; the file-error table gives it somewhere to land, and
-  the test that asserts the divergence is not yet written.
+  the test that asserts the divergence is not yet written. It moves to **P2.6**,
+  which opens the same code for the session-file error surface.
+- **"Session delete tombstones" is not what the design says.** This section said
+  tombstone; [02 §10.3](../02-data-model.md) says *a session is a folder too, so
+  §10.2 covers it unchanged* — a move to the user's trash. The section wins, and
+  it is also the better reading of F7: the finding was a hard delete that took an
+  object's history with it, and a session's turns **are** its history. The
+  addition §10.3 actually asks for is **archive**, which this section did not
+  mention at all: hidden from the default list, fully intact, restorable, never
+  swept. It is a field in `session.json`, because all four of those are
+  properties of doing nothing else.
+- **The commit protocol wanted the append split from the head advance.**
+  `appendTurnToSession` did both, which is right for the ordinary path and wrong
+  for a protocol whose value is that an interruption *between* them is
+  recoverable. The two halves are now separately callable and the ordinary append
+  is them composed — so the recoverable version cannot drift into a second
+  implementation of appending a turn.
+- **A divergence effect needs a turn of its own.** [02 §8.1] says the effect is
+  "appended at the head", and a segment is append-only: rewriting the head turn's
+  line to carry somebody's edit is exactly what the format forbids. So the edit
+  becomes a turn with no calls and no tape, its effects attributed to the user —
+  which is also the reading that keeps §8.1's other promise, *visible in the turn
+  record*.
 
 Session CRUD under `users/<handle>/sessions/`, `session.json` with the head
 snapshot, JSONL segments per §2.5 — written through P2.0's serialization
