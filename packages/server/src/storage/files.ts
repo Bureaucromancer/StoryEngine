@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
@@ -61,6 +61,21 @@ export async function statFile(path: string): Promise<FileFacts | null> {
     if (isMissing(error)) return null;
     throw error;
   }
+}
+
+/**
+ * Appends a line to a file, creating it if it is not there.
+ *
+ * The one write in this package that is deliberately **not** atomic. An
+ * append-only turn segment ([02 §5.5](../../../../docs/design/02-data-model.md))
+ * is never rewritten, and routing an append through temp-then-rename would copy
+ * the whole segment on every turn — turning an O(1) write into O(n) and
+ * throwing away the immutability the format is built on. A torn append costs
+ * the last line of one segment, which is the bounded loss that trade buys.
+ */
+export async function appendLine(path: string, line: string): Promise<void> {
+  await ensureDirectory(dirname(path));
+  await appendFile(path, line, 'utf8');
 }
 
 export async function fileExists(path: string): Promise<boolean> {
