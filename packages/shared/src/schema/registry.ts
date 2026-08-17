@@ -4,7 +4,7 @@
 import type { TSchema } from '@sinclair/typebox';
 import { Ajv, type ValidateFunction } from 'ajv';
 
-import { Actor, ACTOR_SCHEMA } from './actor.js';
+import { Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, RESERVED_SECTION_PREFIX } from './actor.js';
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
 import { Package, PACKAGE_SCHEMA } from './package.js';
 import { Preset, PRESET_SCHEMA } from './preset.js';
@@ -169,7 +169,10 @@ export function validate(value: unknown): ValidationResult {
     return { valid: true };
   }
 
-  if (validator(value)) return { valid: true };
+  if (validator(value)) {
+    const reserved = reservedNamespaceIssues(value);
+    return reserved.length === 0 ? { valid: true } : { valid: false, issues: reserved };
+  }
 
   return {
     valid: false,
@@ -178,4 +181,45 @@ export function validate(value: unknown): ValidationResult {
       message: error.message ?? 'invalid',
     })),
   };
+}
+
+/**
+ * The `se.` namespace is the engine's — [01 §2](../../../../docs/design/workplan/01-work-plan.md).
+ *
+ * Reserved since P1.0 and enforced nowhere until now (F18), which is the state
+ * a reservation cannot stay in for long: the four conventional sections are
+ * `se.*`, P2 adds `se.clock`, and every phase after this one adds more. An
+ * author who has already shipped a card with an `se.mine` section is a
+ * compatibility problem that grows with the corpus.
+ *
+ * Checked here rather than in a route, because it is a property of the object:
+ * the same rule then covers an API write, an import, and a hand-edited file
+ * picked up by the watcher, without three places remembering it.
+ *
+ * **Expressed as a check rather than as schema**, because JSON Schema can say
+ * "matches this pattern" and cannot say "matches it unless it is one of these
+ * four" without a `not`/`anyOf` construction that would report as
+ * `must match a schema in anyOf` — and a reader of an emitted artefact deserves
+ * better than that.
+ */
+function reservedNamespaceIssues(value: unknown): ValidationIssue[] {
+  const sections = (value as { profile?: { sections?: unknown } }).profile?.sections;
+  if (!Array.isArray(sections)) return [];
+
+  const conventional = new Set<string>(Object.values(CONVENTIONAL_SECTION_IDS));
+
+  return sections.flatMap((section, index) => {
+    const id = (section as { id?: unknown }).id;
+    if (typeof id !== 'string') return [];
+    if (!id.startsWith(RESERVED_SECTION_PREFIX) || conventional.has(id)) return [];
+
+    return [
+      {
+        path: `/profile/sections/${String(index)}/id`,
+        message:
+          `the ${RESERVED_SECTION_PREFIX} namespace is reserved for the engine — ` +
+          'rename this section, or use one of the conventional ids',
+      },
+    ];
+  });
 }

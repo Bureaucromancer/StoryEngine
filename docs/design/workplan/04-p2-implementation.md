@@ -769,6 +769,14 @@ is fixed (F20).
 
 ### P2.4 — Assembler, budgeter, render
 
+**Status: built**, minus the collectors. What exists is the pipeline —
+annotate, budget, render — with the advisory refusal enforced structurally and
+the golden-file suite started. What does not is the *collect* half: nothing yet
+reads a persona, an actor's sections or a preset's blocks and turns them into
+candidates, because there is no mode to ask for them until P2.6. The seam is
+`Candidate[]` in, `AssembledBlock[]` and a `BudgetVerdict` out, and the
+collectors land beside the Scene mode that needs them.
+
 The four steps of [03 §5](../03-modes-and-turn-pipeline.md). Collect from the
 sources that exist (persona, actors, history, preset blocks, the guidance
 block); annotate with `BlockSource` + reason; budget with a full

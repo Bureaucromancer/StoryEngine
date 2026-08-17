@@ -172,3 +172,44 @@ describe('timestamps', () => {
     expect(validate(object).valid).toBe(false);
   });
 });
+
+describe('the reserved `se.` namespace', () => {
+  // Reserved since P1.0 and enforced nowhere until P2.4 (F18) — the stage where
+  // the first `se.*` ids appear in anger. A reservation nothing checks is one
+  // that gets discovered by a card that already violates it.
+  it('refuses an author-defined section in it', () => {
+    const actor = newActor('Vera Solano') as unknown as {
+      profile: { sections: { id: string; title: string; body: string; disposition: string }[] };
+    };
+    actor.profile.sections.push({
+      id: 'se.mine',
+      title: 'Mine',
+      body: '',
+      disposition: 'always',
+    });
+
+    const result = validate(actor);
+    expect(result.valid).toBe(false);
+    expect(result.valid ? [] : result.issues[0]?.message).toContain('reserved');
+  });
+
+  it('permits the four conventional ids, which are themselves `se.*`', () => {
+    // The rule is a namespace reservation, not a ban: the engine's own ids live
+    // in it, and `newActor` creates all four.
+    expect(validate(newActor('Vera Solano')).valid).toBe(true);
+  });
+
+  it('leaves an author-defined section outside the namespace alone', () => {
+    const actor = newActor('Vera Solano') as unknown as {
+      profile: { sections: { id: string; title: string; body: string; disposition: string }[] };
+    };
+    actor.profile.sections.push({
+      id: 'combat-notes',
+      title: 'Combat notes',
+      body: '',
+      disposition: 'always',
+    });
+
+    expect(validate(actor).valid).toBe(true);
+  });
+});
