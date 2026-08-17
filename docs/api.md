@@ -1,6 +1,6 @@
 # The HTTP API
 
-**Status: as built at P2.0.** This describes what exists, not what is
+**Status: as built at P2.5.** This describes what exists, not what is
 planned — where the two differ, this file is right and the design notes record
 intent ([docs/README.md](README.md)).
 
@@ -347,6 +347,106 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ---
 
+## Sessions
+
+### `POST /api/sessions` · `GET /api/sessions?archived=true`
+
+`201 { session }`, and a list. **`archived` is the string `"true"`, not a
+boolean** — see the note under the turn routes.
+
+### `GET /api/sessions/:sessionId`
+
+`{ session, activeJob | null }`. The job travels with the session because a
+client reloading mid-turn needs to know there *is* one before it decides whether
+to open a stream or offer an input box.
+
+A session that is not there and one that is not yours are the **same 404**. The
+path is the owner ([04 §4.3](design/04-server-multiuser-deployment.md)), and
+confirming an id exists elsewhere would leak the one fact that separation keeps.
+
+### `PATCH /api/sessions/:sessionId` · `DELETE /api/sessions/:sessionId`
+
+`{ archived: boolean }` toggles archive — hidden from the default list, fully
+intact, restorable, never swept. `DELETE` answers `204` and **moves the folder
+to the user's trash** rather than erasing it ([02 §10.3](design/02-data-model.md)); a
+session's turns are its history, and deletion is a move.
+
+### `GET /api/sessions/:sessionId/turns?limit=`
+
+`{ turns }` — the path from the head, oldest last, not every turn in the file. A
+session is a tree that P2 happens to use linearly, and a transcript is one walk
+of it.
+
+### `POST /api/sessions/:sessionId/turns`
+
+```
+{ idempotencyKey, headTurnId: string|null, input: { text, actorId?, kind? }, guidance? }
+```
+
+→ **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
+is reserved; **200** with the same body when the idempotency key already names a
+job; **409 `busy`** carrying the active `job`; **412 `stale-head`** carrying the
+current `head`.
+
+Both refusals carry what a client needs to recover. A bare "no" leaves a UI able
+to offer only *try again*, which produces the same "no".
+
+**`guidance` is its own field and is never concatenated into `input.text`.**
+That is the entire point of the guidance slot
+([03 §5.1](design/03-modes-and-turn-pipeline.md)): typed into the action it lands in history
+permanently, is summarised as narrative, is scanned by keyword matching, can be
+read back as dialogue, and appears in exports — none of which the person typing
+it intended. It is also **advisory**: it may shape prose and can never reach a
+call that produces effects (§5.2), which the engine enforces structurally rather
+than by convention.
+
+**A query-string number or boolean is a string here.** This server replaced
+Fastify's validator with the storage layer's Ajv, which does not coerce (F2) —
+so `?limit=10` against `Type.Integer()` is rejected as *must be integer*. The
+schemas say what is actually on the wire.
+
+### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
+
+`202`, or `409 finished` if the turn is already over. Cancelling **commits a
+failed turn** with whatever it produced — it does not abandon the job, because an
+abandoned job writes no turn at all and a stop after real prose had arrived would
+make it silently never have happened.
+
+### `GET /api/sessions/:sessionId/stream`
+
+`text/event-stream`. Frames:
+
+```
+event: snapshot     { sessionId, job, turn, text, cursor }   once, at open
+id: <jobId>.<seq>
+event: progress     { jobId, seq, key, params, at }          durable, sequenced
+event: delta        { jobId, text }                          ephemeral — no id
+event: overflow     { cursor }                               then the stream ends
+event: error        { error }                                a class, never a message
+: keepalive
+```
+
+Resume with `?after=<jobId>.<seq>` or the `Last-Event-ID` header a browser
+resends by itself. The cursor is **exclusive** — it names the last event you
+have — and an unparseable one is treated as *absent* rather than rejected, so a
+bad `Last-Event-ID` cannot brick a reconnect.
+
+`progress` keys are [04 §3.3](design/04-server-multiuser-deployment.md)'s vocabulary:
+`turn.started`, `step.started`, `step.skipped`, `step.failed`, `step.finished`,
+`call.started`, `call.streaming`, `call.finished`, `effect.applied`,
+`turn.finished`. They are **structural** — the client renders them — and carry a
+failure *class*, never a provider's words.
+
+**Deltas are not durable and carry no id.** A reattach may see coalesced text
+rather than every delta that painted it live, which [P2 §2.10](design/workplan/04-p2-implementation.md)
+states as the trade; the snapshot's `text` is what makes that lossless.
+
+The stream authenticates by cookie and requires no CSRF header, because that is
+what `EventSource` can do — it sends cookies and cannot set headers. Nothing may
+later add a header requirement to this route.
+
+---
+
 ## Providers, and what "supported" means
 
 There are no provider routes yet — P2.5 is where a turn is submitted — but the
@@ -392,6 +492,8 @@ credential.
 
 ## Not here yet
 
-No session or turn routes (P2), no workbench (P3), no import (P4), no account
-management or capability *enforcement* (P10), and no static file serving — the
-client runs on Vite's dev server and talks to this over `/api`.
+No workbench (P3), no import (P4), no mode or preset selection on a session
+(P2.6), no provider settings surface (P7 — bindings are read here and
+hand-written on disk), no account management or capability *enforcement* (P10),
+and no static file serving — the client runs on Vite's dev server and talks to
+this over `/api`.

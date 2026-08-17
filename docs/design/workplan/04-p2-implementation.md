@@ -846,6 +846,47 @@ The golden-file suite starts with this stage and is CI from here on.
 
 ### P2.5 — The turn job and the event stream
 
+**Status: built.** The runner, the transport, the session and turn routes, and
+the one step P2.5 ships. What is deliberately absent: the collectors beyond
+history/guidance/input (P2.6 — there is no mode, preset, persona or cast to
+collect from yet), `Turn.mentions` (needs a cast to resolve against), a writer
+for role bindings (P7's provider settings surface; the reader ships and
+hand-editing is [05 §4](../05-ui-surfaces.md) working as designed), and the
+notification stream and its classes (P10 — this stage ships the *session*
+stream, which [04 §3.1](../04-server-multiuser-deployment.md) is explicit is a different
+thing with a different audience).
+
+Six things the stage settled that the plan had not:
+
+- **A step never chooses what its call is for.** The assembler's purpose is
+  *derived* from the step's own declaration — guidance is admitted only to a step
+  that contributes to the visible message and writes no channel. If a step could
+  pass its own, §5.2 would be one honest declaration deep. The derivation fails
+  closed, so a step kind added later is refused until somebody argues otherwise.
+  **And guidance never enters `StepInput` at all**: a step handed the text could
+  re-emit it as an ordinary candidate, and `assemble` keys its refusal on
+  `Candidate.advisory` rather than on where the words came from.
+- **`BlockSource` was missing two members.** [03 §5.1](../03-modes-and-turn-pipeline.md) says
+  the guidance block is *positioned by the preset*, which makes it slot-nameable
+  — but the only source it could claim was `step`, one of the two `SlotSource`
+  excludes. A preset could not position the one block that section says it
+  positions. The player's current action had the same problem. Both added, with
+  13 §1.1 and 10 §8.2 edited in the same commit.
+- **`CallKind` was two incompatible types under one name** — the assembler's
+  internal one and [10 §8.2]'s portable open string that `appliesTo` filters on.
+  A preset importing `appliesTo: ["narrate"]` would have matched no call the
+  engine ever makes. The internal one is `CallPurpose` now.
+- **The three failure modes had to be made three.** [03 §6] specifies only
+  `warn`; `abort` and `ignore` are now written down there, with the rule that
+  `abort` still *commits* the turn — job abandonment writes no turn at all, and
+  the partial record is what somebody needs to re-run it.
+- **The clock is not a step.** A `failure: 'warn'` clock step would leave a turn
+  with no time advance and route an engine computation through the step path.
+- **A query-string number is a string.** `coerceTypes: false` (F2) is deliberate,
+  and `Type.Integer()` on a query parameter rejects `?limit=10`. Found as a live
+  defect in P2.3's search route, which had shipped that way with no test that
+  passed the parameter.
+
 Turn as a job with an id in the operational store; SSE per
 [07 §8](../07-tech-stack.md); the progress-event vocabulary of
 [04 §3.3](../04-server-multiuser-deployment.md) (`turn.started` …
