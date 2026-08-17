@@ -697,6 +697,17 @@ in one legible unit.
 
 ### P2.1 — Provider layer
 
+**Status: built**, with one contract question answered by the SDK rather than
+by us: AI SDK 7 refuses a `system` role inside `messages` and takes
+`instructions` instead. That is `ProviderCapabilities.systemMessage`'s seam
+arriving a layer earlier than [13 §2](../13-internal-contracts.md) expected —
+the engine above the adapter still thinks in `RenderedMessage` including its
+system blocks, because that is what the record shows, and the translation stops
+at the adapter. No doc change: the contract is unaffected, only where it is
+honoured. **[07 §5.1](../07-tech-stack.md)'s `[OPEN]` is closed** as the
+convenience reading — `hi`/`lo` are the first-run question, not tiers in the
+data model; `roles.ts` records the argument.
+
 `packages/server/src/providers/`: the AI SDK behind the thin internal
 interface ([07 §5](../07-tech-stack.md)); `ProviderCapabilities` per
 [13 §3](../13-internal-contracts.md) with known-provider defaults; model **roles**

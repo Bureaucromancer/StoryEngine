@@ -182,7 +182,15 @@ session override → step override → actor hint.** Most people set two models 
 never see the rest; someone who wants a different narrator for one session, or a
 cheap model for one noisy step, has a place to say so.
 
-**[OPEN]** Whether `hi`/`lo` are real named tiers in the data model or purely a
+~~**[OPEN]**~~ **Closed at P2.1, as the convenience reading.** The data model is
+eight independent bindings; `hi` and `lo` are what the first-run flow asks for
+and then spreads across them. A tier would be a third thing to keep consistent —
+a binding, a tier, and the mapping between them — and the moment somebody
+overrides one role it is either a lie or recomputed from the bindings, at which
+point it was a view of them all along. The tier reading's one advantage has no
+consumer in P2, and a tier stays derivable from bindings later while the reverse
+is not true. The original question, for the record: whether `hi`/`lo` are real
+named tiers in the data model or purely a
 setup-flow convenience over eight independent bindings. The convenience reading
 is simpler and probably right; the tier reading makes "use the cheap one for
 this" expressible without knowing which roles are involved.
