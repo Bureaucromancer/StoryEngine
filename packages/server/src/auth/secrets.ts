@@ -71,18 +71,6 @@ export function generateSecret(bytes = 32): string {
   return randomBytes(bytes).toString('base64url');
 }
 
-/**
- * The one-time setup token printed to the console when the server is reachable
- * beyond loopback and no admin exists yet
- * ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md)).
- *
- * Short enough to retype from a `docker logs` line, long enough that guessing it
- * inside the setup window is not a plan.
- */
-export function generateSetupToken(): string {
-  return randomBytes(12).toString('base64url');
-}
-
 /** Constant-time string comparison, for tokens that are not password hashes. */
 export function secretsMatch(a: string, b: string): boolean {
   const left = Buffer.from(a);

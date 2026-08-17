@@ -14,7 +14,7 @@ import {
   readSession,
   SESSION_COOKIE,
 } from './auth/session.js';
-import type { Config } from './config.js';
+import { type Config, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { rebuild } from './index-db/rebuild.js';
 import { LibraryWatcher } from './index-db/watcher.js';
@@ -94,7 +94,18 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
 
 export async function buildApp(services: AppServices): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: false,
+    /**
+     * Fastify's own logger, configured rather than replaced (F8, [P2 §2.2]).
+     *
+     * pino already travels with Fastify, so taking the option instead of
+     * declaring and injecting an instance keeps this stage from silently
+     * choosing a logging library that no design section names. JSON is the only
+     * format ([13 §4.1]), which is pino's default, so `level` is the whole
+     * configuration — and it is also what makes the `live` tier real: pino
+     * resolves a child's level through its prototype, so assigning
+     * `app.log.level` reaches every logger derived from it.
+     */
+    logger: { level: services.config.log.level },
     trustProxy: services.config.server.trustProxy,
     bodyLimit: services.config.limits.maxUploadMb * 1024 * 1024,
   });
@@ -178,6 +189,41 @@ function isApi(url: string): boolean {
  */
 function survivesSetupGate(url: string): boolean {
   return url.startsWith('/api/auth/setup') || url.startsWith('/api/auth/state');
+}
+
+/**
+ * Applies a re-read config to a running app, and names what it could not.
+ *
+ * The `live` tier stops being a data-only annotation here: `log.level` is its
+ * first real consumer ([P2 §2.2]), and the return value *is* the
+ * restart-required notice ([04 §6.3]) — the specific keys, because a bare
+ * "restart required" invites people to restart and hope.
+ *
+ * Deliberately not a subscription mechanism. One assignment reaches every
+ * logger pino derived from this one, and the other `live` keys are read at the
+ * point of use rather than cached, so there is nothing to notify. A registry of
+ * listeners would be machinery in front of an assignment.
+ *
+ * The caller decides *when* — this function does not watch anything. What it
+ * must never be handed is a config that failed to load: a reload that cannot
+ * read a valid file keeps the running one ([13 §4.2]), because a server that
+ * reverted to defaults on a typo would unbind itself from its own port.
+ */
+export function applyLiveConfig(
+  app: FastifyInstance,
+  services: AppServices,
+  next: Config,
+): string[] {
+  const pending = pendingRestart(services.config, next);
+
+  // Assigned unconditionally rather than only on a difference. Comparing
+  // against `services.config` would make this correct only while that record
+  // and the running logger agree, and the whole job of this function is to be
+  // the thing that keeps them agreeing.
+  app.log.level = next.log.level;
+
+  services.config = next;
+  return pending;
 }
 
 /** Rejects a request with no session. The routes' single authentication point. */

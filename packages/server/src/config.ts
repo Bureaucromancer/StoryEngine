@@ -57,11 +57,31 @@ export const ConfigSchema = Type.Object(
       trustProxy: Type.Boolean({ default: false }),
     }),
     log: Type.Object({
+      /**
+       * `silent` is not an operational setting — it exists because the test
+       * suite builds whole apps and a level union with no off switch leaves it
+       * nowhere to turn them down ([13 §4](../../../docs/design/13-internal-contracts.md)).
+       */
       level: Type.Union(
-        [Type.Literal('error'), Type.Literal('warn'), Type.Literal('info'), Type.Literal('debug')],
+        [
+          Type.Literal('silent'),
+          Type.Literal('error'),
+          Type.Literal('warn'),
+          Type.Literal('info'),
+          Type.Literal('debug'),
+        ],
         { default: 'info' },
       ),
-      format: Type.Union([Type.Literal('pretty'), Type.Literal('json')], { default: 'pretty' }),
+      /**
+       * One value, deliberately. `pretty` was documented as the default and
+       * implemented nowhere; honouring it means a second dependency and a
+       * transport for an ergonomic gain in development only, and a terminal
+       * that wants it pretty can pipe it
+       * ([13 §4.1](../../../docs/design/13-internal-contracts.md), [P2 §2.2](../../../docs/design/workplan/04-p2-implementation.md)).
+       * The key stays a union so that adding a format later is not a type
+       * change at every call site.
+       */
+      format: Type.Union([Type.Literal('json')], { default: 'json' }),
     }),
     index: Type.Object({
       /** The rebuild-from-disk startup option ([work plan P1](../../../docs/design/workplan/01-work-plan.md)). */
@@ -126,7 +146,7 @@ export const CONFIG_TIERS = {
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
   server: { host: '127.0.0.1', port: 8080, trustProxy: false },
-  log: { level: 'info', format: 'pretty' },
+  log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },
   sessions: { snapshotEveryNTurns: 10 },
   limits: { maxUploadMb: 64, extensionStorageQuotaMb: 32 },

@@ -43,7 +43,10 @@ export interface TestServer {
 export async function makeTestServer(): Promise<TestServer> {
   const dataDir = await mkdtemp(join(tmpdir(), 'se-app-'));
   const services = await buildServices({
-    config: { ...DEFAULT_CONFIG, dataDir },
+    // `silent`, because several of these run at once and a suite that prints a
+    // request log per assertion buries its own failures. This is the level's
+    // reason for existing ([13 §4]).
+    config: { ...DEFAULT_CONFIG, dataDir, log: { ...DEFAULT_CONFIG.log, level: 'silent' } },
     // The watcher has its own suite; leaving it off here keeps these tests
     // deterministic rather than subject to filesystem event timing.
     watch: false,

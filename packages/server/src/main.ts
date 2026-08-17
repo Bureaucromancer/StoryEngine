@@ -6,7 +6,6 @@ import { resolve } from 'node:path';
 import { buildApp, buildServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
-import { generateSetupToken } from './auth/secrets.js';
 import { loadConfig } from './config.js';
 import { Layout } from './storage/layout.js';
 
@@ -16,6 +15,12 @@ import { Layout } from './storage/layout.js';
  * Everything interesting is elsewhere; this exists to read the config, start
  * the listener, and say the two things a first-time operator needs to hear —
  * where the server is, and whether it is exposed.
+ *
+ * **Server output goes through the logger** ([13 §4.1]), which is why the
+ * startup lines come after `buildApp` rather than before it: one mechanism, one
+ * format, one level to turn down. The exception is `--reset-password`, which
+ * talks to a person at a terminal and returns before any of this exists —
+ * a prompt and its answer are a conversation, not a log.
  *
  * Log output is developer-facing and deliberately untranslated
  * ([07 §12.7](../../../docs/design/07-tech-stack.md)).
@@ -34,15 +39,6 @@ async function main(): Promise<void> {
   const { config, fileFound, unknownKeys } = await loadConfig(configPath);
   if (dataDirArgument) config.dataDir = dataDirArgument;
 
-  console.log(
-    fileFound ? `Config: ${configPath}` : `Config: none at ${configPath}, using defaults`,
-  );
-  if (unknownKeys.length > 0) {
-    // Kept, not rejected — but said out loud, because a typo'd key is silently
-    // doing nothing and that is worth one line.
-    console.warn(`Config: ignoring unrecognised keys: ${unknownKeys.join(', ')}`);
-  }
-
   // The break-glass path: reset a password from the console and exit, without
   // starting the server. Host access is the authority — see
   // Accounts.resetPassword for the argument, and the README for when to reach
@@ -56,32 +52,46 @@ async function main(): Promise<void> {
   const services = await buildServices({ config });
   const app = await buildApp(services);
 
+  // Said after the logger exists rather than before, so that everything this
+  // process reports goes through one mechanism ([13 §4.1]) — including the
+  // config path, which is the first thing anyone asks when a setting does not
+  // seem to be taking effect.
+  app.log.info({ configPath, fileFound }, fileFound ? 'Config loaded' : 'No config file; defaults');
+  if (unknownKeys.length > 0) {
+    // Kept, not rejected — but said out loud, because a typo'd key is silently
+    // doing nothing and that is worth one line.
+    app.log.warn({ unknownKeys }, 'Config: ignoring unrecognised keys');
+  }
+
   await app.listen({ host: config.server.host, port: config.server.port });
 
   const loopback = config.server.host === '127.0.0.1' || config.server.host === 'localhost';
-  console.log(
-    `StoryEngine listening on http://${config.server.host}:${String(config.server.port)}`,
+  app.log.info(
+    {
+      url: `http://${config.server.host}:${String(config.server.port)}`,
+      dataRoot: services.layout.dataRoot,
+    },
+    'StoryEngine listening',
   );
-  console.log(`Data directory: ${services.layout.dataRoot}`);
 
   if (await services.accounts.needsSetup()) {
     if (loopback) {
-      console.log('No accounts yet. Open the address above to create the first admin.');
+      app.log.info('No accounts yet. Open the address above to create the first admin.');
     } else {
       // **The claim window.** Bound beyond loopback with no admin, anyone who
       // can reach the port can claim the install
-      // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)). The console
-      // is the one channel only someone with host access can read — `docker
-      // logs` is exactly the audience — so the token goes here.
+      // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)).
       //
-      // Printed but not yet *enforced*: wiring it into the setup route is a
-      // P10 item alongside the rest of deployment. Until then this is a warning
-      // rather than a gate, and saying so is better than implying otherwise.
-      console.warn('');
-      console.warn(`  ⚠ Bound to ${config.server.host} with no admin account yet.`);
-      console.warn('    Anyone who can reach this port can claim this install.');
-      console.warn(`    Setup token (not yet enforced — see 04 §5.1): ${generateSetupToken()}`);
-      console.warn('');
+      // The token that is supposed to close it is **not printed here** (F10).
+      // It used to be — freshly generated on every boot, stored nowhere, and
+      // checked by nothing, which is the worst version: an operator who reads
+      // "setup token" in a console reasonably concludes something is enforcing
+      // it. The warning is true; the token was not. It lands with the container
+      // image that needs it, at P10.
+      app.log.warn(
+        { host: config.server.host },
+        'Bound beyond loopback with no admin account yet — anyone who can reach this port can claim this install',
+      );
     }
   }
 
@@ -92,7 +102,7 @@ async function main(): Promise<void> {
   }
 
   async function shutdown(): Promise<void> {
-    console.log('\nShutting down.');
+    app.log.info('Shutting down.');
     await app.close();
     await services.watcher?.stop();
     services.index.close();

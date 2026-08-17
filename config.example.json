@@ -49,10 +49,11 @@
   },
 
   "log": {
-    // live
+    // live — "silent" also works, and is what the test suite runs at.
     "level": "info",
-    // restart — "json" in the container.
-    "format": "pretty"
+    // restart — one value today. Pipe it through a formatter if you want it
+    // pretty in a terminal; the server does not carry one.
+    "format": "json"
   },
 
   "index": {
