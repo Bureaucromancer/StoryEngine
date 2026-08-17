@@ -137,7 +137,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
           {history.data.versions.map((version) => (
             <li key={version.id} className="rounded-md border border-slate-200 p-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">Revision {String(version.revision)}</span>
+                <span className="font-medium">{`Revision ${String(version.revision)}`}</span>
                 <SourceBadge kind={version.source.kind} />
                 {version.pinned ? (
                   <span className="rounded-md bg-slate-200 px-1.5 text-xs text-slate-700">

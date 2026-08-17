@@ -78,8 +78,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
       >
         <p className="mb-2 font-medium">This actor cannot be opened in the editor.</p>
         <p className="mb-2">
-          The file on disk does not have the shape the form needs: {problem}. This usually means a
-          hand edit went wrong. The file itself is untouched — fix it on disk and it will load.
+          {`The file on disk does not have the shape the form needs: ${problem}. This usually means a hand edit went wrong. The file itself is untouched — fix it on disk and it will load.`}
         </p>
         <p>
           <Link

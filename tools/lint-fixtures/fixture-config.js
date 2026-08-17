@@ -97,6 +97,16 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // The client writes what people read, so the assembly rule applies to it and
+  // not to the server — the same split `eslint.config.js` makes, mirrored here
+  // so the fixtures can prove *both* halves.
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true }),
+    },
+  },
+
   // Cryptographic material: randomness allowed, and deliberately one file wide.
   {
     files: [`${FIXTURE_ROOT}/packages/server/src/auth/secrets.ts`],

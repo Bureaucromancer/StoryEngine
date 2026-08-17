@@ -141,7 +141,53 @@ const TAILWIND_MESSAGE =
  *
  * @param {{ allowRandomness?: boolean }} options
  */
-export function restrictedSyntax({ allowRandomness = false } = {}) {
+/**
+ * Prose, for the purposes of the assembly rule.
+ *
+ * Two plain words in a row — three letters or more each, neither continuing
+ * into a hyphen, digit or underscore — or a parenthesised word after a space.
+ *
+ * The lookaheads are what keep this off **class lists**, which are the other
+ * thing in a component that is a long string full of spaces:
+ * `border border-slate-300 bg-white` has word-space-word in it, and every
+ * candidate is followed by a hyphen. That distinction is the whole reason this
+ * pattern is fussier than "letters and a space" — a rule that fired on every
+ * Tailwind string would be worked around within a day, and a day-one rule that
+ * gets worked around is worse than no rule.
+ *
+ * The second alternative catches ` (copy)` where it is *joined* to a name — the
+ * same mistake in miniature.
+ *
+ * And note what is deliberately **not** caught: a template literal with a
+ * placeholder. One message with a value substituted into it is exactly the
+ * shape ICU MessageFormat wants (docs/design/07-tech-stack.md §12.3) and
+ * exactly what an extraction sweep turns into a catalogue entry. The
+ * unretrofittable mistake is the sentence that only exists in pieces, which is
+ * why both selectors below are about *joins* rather than about interpolation.
+ */
+const PROSE_PATTERN = String.raw`(?:(?:^|\s)[A-Za-z]{3,}(?![\w-])\s+[A-Za-z]{3,}(?![\w-])|\s\([A-Za-z])`;
+
+const ASSEMBLY_MESSAGE =
+  'A user-facing sentence assembled from fragments. Put the whole sentence in ' +
+  'one string with the value substituted into it, and keep helpers like ' +
+  '`revisionLabel(n)` for the whole phrase rather than half of it. Word order ' +
+  'differs between languages, so a sentence built by concatenation cannot be ' +
+  'translated at all — docs/design/workplan/01-work-plan.md §2 keeps this part ' +
+  'of i18n discipline on day one precisely because it is the unretrofittable ' +
+  'part.';
+
+const DISPLAYED_TEXT_MESSAGE =
+  'Branching on displayed text. Compare a code or an enum, never a sentence: ' +
+  'the moment a label is also an identifier, translating it changes what the ' +
+  'program does (docs/design/workplan/01-work-plan.md §2).';
+
+const INTL_MESSAGE =
+  'Hand-rolled date, time or number formatting. Use `Intl` — see ' +
+  'packages/client/src/format.ts. A locale is a property of the reader, and ' +
+  'a format assembled from parts bakes in one (docs/design/07-tech-stack.md ' +
+  '§12.6).';
+
+export function restrictedSyntax({ allowRandomness = false, userFacing = false } = {}) {
   const entries = [
     {
       selector: `JSXAttribute[name.name="className"] Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
@@ -151,7 +197,42 @@ export function restrictedSyntax({ allowRandomness = false } = {}) {
       selector: `JSXAttribute[name.name="className"] TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
       message: TAILWIND_MESSAGE,
     },
+    // `Intl` only. Everywhere, not only in user-facing code: a formatted date
+    // that reaches a person through an API response is the same problem one
+    // step further away, and nothing in this repo formats for display outside
+    // the client anyway — so the rule costs nothing and closes the door.
+    {
+      selector:
+        'MemberExpression[property.name=/^(toLocaleString|toLocaleDateString|toLocaleTimeString|toDateString|toTimeString|toUTCString)$/]',
+      message: INTL_MESSAGE,
+    },
   ];
+
+  if (userFacing) {
+    // A sentence joined with `+`, from either side: the clauses are separate
+    // strings, so a translator is handed half a sentence at a time and cannot
+    // reorder them.
+    entries.push({
+      selector: `BinaryExpression[operator="+"] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: ASSEMBLY_MESSAGE,
+    });
+    // A sentence split across JSX children: `<span>Revision {n}</span>`. Worse
+    // than the `+` case, because there is no single string to hand anybody —
+    // the sentence exists only as a shape in the tree. The element must hold
+    // *both* words and an expression, so `<span>{name}</span>` is a value and
+    // `<code>{kind}/{slug}/</code>` is a path, and neither fires.
+    entries.push({
+      selector: 'JSXElement:has(> JSXText[value=/[A-Za-z]{2,}/]):has(> JSXExpressionContainer)',
+      message: ASSEMBLY_MESSAGE,
+    });
+    // Branching on displayed text — the rule's other half. A comparison against
+    // a sentence turns a label into an identifier, and then translating the
+    // label changes what the program does.
+    entries.push({
+      selector: `BinaryExpression[operator=/^[=!]==?$/] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: DISPLAYED_TEXT_MESSAGE,
+    });
+  }
 
   if (!allowRandomness) {
     entries.push({

@@ -186,6 +186,71 @@ describe('the AGPL header', () => {
   });
 });
 
+describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.md §2)', () => {
+  const ASSEMBLY = /assembled from fragments/;
+  const DISPLAYED = /Branching on displayed text/;
+
+  it('catches a sentence joined with +, in both directions', async () => {
+    const fired = await syntaxReportsMatching('packages/client/src/assembled-prose.tsx', ASSEMBLY);
+    // Four, not three: `'You have ' + n + ' unread messages'` nests as
+    // `('You have ' + n) + ' unread messages'`, so both halves of the sentence
+    // are reported. That is the right answer — each is a fragment — and it is
+    // worth pinning, because a selector that reported the outermost expression
+    // once would also report a class list once.
+    expect(fired).toHaveLength(4);
+  });
+
+  it('catches a sentence split across JSX children', async () => {
+    const fired = await syntaxReportsMatching('packages/client/src/assembled-prose.tsx', ASSEMBLY);
+    // The `<span>Revision {count}</span>` case is the third of the three: it is
+    // the one with no single string to hand a translator at all.
+    expect(fired.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('catches a comparison against displayed text', async () => {
+    const fired = await syntaxReportsMatching('packages/client/src/assembled-prose.tsx', DISPLAYED);
+    expect(fired).toHaveLength(1);
+  });
+
+  it('leaves whole messages, class lists, values and paths alone', async () => {
+    // The negative case, and the one that decides whether the rule survives
+    // contact with a real component. A template literal with a placeholder is
+    // *not* assembly — it is one message with a value in it.
+    const assembly = await syntaxReportsMatching(
+      'packages/client/src/whole-messages.tsx',
+      ASSEMBLY,
+    );
+    const displayed = await syntaxReportsMatching(
+      'packages/client/src/whole-messages.tsx',
+      DISPLAYED,
+    );
+    expect(assembly).toEqual([]);
+    expect(displayed).toEqual([]);
+  });
+
+  it('does not apply to the server, whose strings are log lines', async () => {
+    // docs/design/07-tech-stack.md §12.7 keeps those deliberately untranslated,
+    // and a rule that fired on them would teach people to work around it.
+    const fired = await syntaxReportsMatching('packages/server/src/uses-fs.ts', ASSEMBLY);
+    expect(fired).toEqual([]);
+  });
+});
+
+describe('Intl only (docs/design/07-tech-stack.md §12.6)', () => {
+  const INTL = /Hand-rolled date, time or number formatting/;
+
+  it('catches every way of baking a locale in', async () => {
+    const fired = await syntaxReportsMatching('packages/client/src/hand-rolled-dates.ts', INTL);
+    expect(fired).toHaveLength(4);
+  });
+
+  it('permits Intl, and permits toISOString — which is storage, not display', async () => {
+    const reports = await reportsIn('packages/client/src/hand-rolled-dates.ts');
+    const good = reports.filter((report) => /Good/.test(report.message));
+    expect(good).toEqual([]);
+  });
+});
+
 describe('physical-direction Tailwind utilities (docs/design/07-tech-stack.md §12.6)', () => {
   /** This rule's own reports, told apart from anything else in the same slot. */
   const PHYSICAL = /Physical-direction utility/;

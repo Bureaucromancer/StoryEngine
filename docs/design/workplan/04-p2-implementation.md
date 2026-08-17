@@ -256,7 +256,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
 | F13 | Unchecked cast + no error boundary | **Fixed at P1 closeout** | `actorFormShape` guard before every cast + the router's `defaultErrorComponent` |
 | F14 | Silent save-as-copy / bodyless 412 | **Fixed at P1 closeout** | Copy errors render in the dialog; the banner filter excludes only dialog-owned 412s |
-| F15 | Two missing day-one lint rules | **P2.0** | Write both, fix the five violations in the same commit; day-one rules get more expensive per day. *The strings rule is [testing §2](10-testing.md)'s narrowed one — §1.4 records why, and why the count is five rather than the four the audit found* |
+| F15 | Two missing day-one lint rules | **P2.0** | Write both, fix their violations in the same commit; day-one rules get more expensive per day. *The strings rule is [testing §2](10-testing.md)'s narrowed one — §1.4 records why, and why the honest count is two rather than the four the audit found* |
 | F16 | Component tests silently impossible | **P2.0** | Config + DOM env + one smoke component test proving the pipe, before P2.6 ships the first complex surface |
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
 | F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap. *The step-17-via-API test in this row was already written at P1.7 and miscounted as debt — see Appendix A.* `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P11** ([05 §4](05-p3-implementation.md) declines it; [09 §1–§2](09-polish.md) takes its polish half) |
@@ -339,9 +339,16 @@ instructions it enforces are true:
   already narrowed to *never assemble a sentence from fragments, never branch on
   displayed text*, with catalogue extraction moved to P11. The wide rule has
   some ninety violations and no catalogue to land them in; the narrow rule has
-  five, and they are the ones that actually foreclose translation. Rewritten
-  there, and F15's own row corrected: **five** violations, not four — one was
-  added by the P1 closeout after the audit counted.
+  the handful that actually foreclose translation. Rewritten there.
+  *Corrected again while writing the rule: the count is **two**, not four or
+  five. A template literal with a placeholder — `` `${name} (copy)` `` — is one
+  message with a value substituted into it, which is precisely the shape ICU
+  MessageFormat wants ([07 §12.3](../07-tech-stack.md)) and precisely what an
+  extraction sweep turns into a catalogue entry. The audit counted those as
+  concatenation; they are not. What is unretrofittable is the sentence that
+  exists only in pieces — joined with `+`, or split across JSX children where
+  there is no single string to hand a translator at all — and there were two of
+  those.*
 
 ---
 
@@ -884,7 +891,7 @@ stable part.
 | F12 | `client/src/queries.ts:90-97,144,174` | `['editor', kind, id]` cached with `staleTime: Infinity`; save/restore invalidate only `['library']` → returning within `gcTime` loads the pre-save `contentHash` → spurious 412 dialog for the user's own change. **Fixed at P1 closeout** |
 | F13 | `client/src/editor/form.ts:49-63` | `object as unknown as Actor`, no runtime guard, reads `actor.profile.traits` etc.; no error boundary anywhere in the client → white screen on a malformed hand-edited actor. **Fixed at P1 closeout** (`actorFormShape` guard + router `defaultErrorComponent`) |
 | F14 | `ActorEditorPage.tsx:150-158,118`, `api.ts:131` | `createCopy.mutate` has no `onError` and `isError` never rendered; a 412 whose body lacks `code:'stale'`+`current` opens no dialog, and the general banner filters all 412s → nothing shown. **Fixed at P1 closeout** |
-| F15 | `eslint.config.js` / `eslint.rules.js` | Two of testing §2's five day-one rules never written (bare user-facing strings; Intl-only). Violations they would catch: `api.ts:129` status-sentence, `HistoryPanel.tsx:140` `Revision {n}`, `:151` `v{authorVersion}`, `ActorEditorPage.tsx:149` `` `${name} (copy)` `` |
+| F15 | `eslint.config.js` / `eslint.rules.js` | Two of testing §2's five day-one rules never written (bare user-facing strings; Intl-only). Violations listed at the time: `api.ts:129` status-sentence, `HistoryPanel.tsx:140` `Revision {n}`, `:151` `v{authorVersion}`, `ActorEditorPage.tsx:149` `` `${name} (copy)` ``. *Three of those four are template literals with a placeholder, which is one message rather than assembly — §1.4 records the correction* |
 | F16 | `vitest.config.ts:22-23` | Includes `.test.ts` only — not `.test.tsx` — while eslint and tsconfig include `.tsx` tests: the first component test would lint, typecheck, and never run. No jsdom/happy-dom/@testing-library anywhere; zero component tests exist |
 | F17 | `.github/workflows/ci.yml`, `package.json:22` | ubuntu-only (paths/watcher/layout tests never run on the dev platform); rebuild gate not a named step (a `test.skip` retires it silently); `format:check` defined, never run; `eslint .` without `--max-warnings 0` while `exhaustive-deps` is warn-level |
 | F18 | various | Package: no factory, absent from round-trip and minimal-instance fixtures (5 of 6). Denylist walks TypeBox objects, not emitted JSON — `emit-schemas.ts` is the untested link. `$id` (`…/storyengine.actor/1.json`) ≠ emitted filename (`storyengine.actor.1.json`). `RESERVED_SECTION_PREFIX` exported, enforced nowhere. `shared` has 2 runtime deps vs P1.0's line, argued only in a package.json note; `"types":["node"]` on the browser-safe package. Editor: sections not addable/removable, `visual`/`roles`/`openings`/`lore`/`modelHint` absent, save-disabled-when-unchanged makes gate step 17 unreachable via UI (*the API half is covered — `routes/history.test.ts` 'a save that changes nothing records no version and keeps the hash', from P1.7; the audit inventory missed it*), conflict dialog lacks focus trap/Escape/restore, `index.html` `lang`/`dir` static. eslint Tailwind rule permits `mt-*`/`mb-*` while stylelint bans block-axis physical properties — the two halves disagree. `pnpm dev` on a fresh clone fails (shared not built first). `format.ts:44` dead; duplicated input class strings; `formChanges` runs `structuredClone`+2× `JSON.stringify` per keystroke |

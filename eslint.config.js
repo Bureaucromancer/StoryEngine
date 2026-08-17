@@ -260,6 +260,22 @@ export default tseslint.config(
     files: ['packages/server/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
+
+  /**
+   * The client writes what people read, so the assembly rule applies here.
+   *
+   * Not to the server, and that is a decision rather than an oversight: its
+   * strings are log lines and error messages, which
+   * docs/design/07-tech-stack.md §12.7 keeps deliberately untranslated. A rule
+   * that fired on `Refused path (${reason})` would teach people to work around
+   * it, and a day-one rule that gets worked around is worse than none.
+   */
+  {
+    files: ['packages/client/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true }),
+    },
+  },
   {
     files: ['packages/client/**/*.{ts,tsx}'],
     languageOptions: { globals: globals.browser },
