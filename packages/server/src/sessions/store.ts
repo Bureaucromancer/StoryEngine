@@ -8,7 +8,14 @@ import { ensureDirectory, listDirectoryNames, readFileBytes } from '../storage/f
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { appendTurn, readAllTurns, type SegmentLimits, type TurnLocation } from './segments.js';
+import { divergenceEffects, divergenceTurn } from './channels.js';
+import {
+  appendTurn,
+  readAllTurns,
+  type SegmentLimits,
+  type TurnLocation,
+  walkPath,
+} from './segments.js';
 import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
@@ -195,6 +202,44 @@ export async function advanceHead(
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   return next;
+}
+
+/**
+ * Reconciles a hand-edited `session.json` into the effect log — [02 §8.1].
+ *
+ * The load-time half of the rule. It replays the channels the log says are true
+ * at head, compares them with what the file holds, and — if a person has been in
+ * there — appends a turn whose effects carry their edit, attributed to them.
+ *
+ * **This is why the file may be edited at all.** [05 §4](../../../../docs/design/05-ui-surfaces.md)
+ * promises that editing your own data on disk works, and without this it would
+ * work for library objects and silently not for sessions: the next head advance
+ * would recompute `channels` from the log and the edit would vanish with no
+ * error, which is the worst of the three possible behaviours.
+ *
+ * Returns the effects it recorded — empty when the file and the log agree, which
+ * is the ordinary case and costs one replay.
+ */
+export async function reconcileHandEdits(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<ChannelEffect[]> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return [];
+
+    const turns = await readTurns(context, handle, sessionId);
+    const replayed = replayChannels(walkPath(turns, session.headTurnId));
+
+    const effects = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
+    if (effects.length === 0) return [];
+
+    const turn = divergenceTurn(sessionId, session.headTurnId, effects);
+    await appendTurnOnly(context, handle, sessionId, turn);
+    await advanceHead(context, handle, sessionId, turn);
+    return turn.effects;
+  });
 }
 
 /**
