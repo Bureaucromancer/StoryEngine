@@ -6,6 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { uuidv7 } from '@storyengine/shared';
 
 import { readSession, type SessionContext, withSessionLock } from '../sessions/store.js';
+import type { EventSink } from '../stream/bus.js';
 import type { Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 
@@ -68,6 +69,8 @@ export type SubmitOutcome =
 export interface JobContext {
   db: DatabaseSync;
   sessions: SessionContext;
+  /** Where progress goes when anybody is watching. Absent in a store-only test. */
+  events?: EventSink;
 }
 
 interface JobRow {
@@ -232,6 +235,22 @@ export interface ProgressEvent {
   at: number;
 }
 
+/**
+ * The session a job belongs to, read from the **job row**.
+ *
+ * Not from the draft. `checkpoint`'s only trustworthy input is `jobId`; the
+ * draft is opaque JSON the runner assembled, and the bus is keyed by session id
+ * — so a draft whose `sessionId` was wrong would fan one user's progress
+ * frames, including the text in the snapshot path, to another user's
+ * subscribers. The job row carries the authoritative value and the lookup is one
+ * indexed read inside a transaction that is already open.
+ */
+function sessionOf(db: DatabaseSync, jobId: string): string | null {
+  const row = db.prepare('select session_id from job where id = ?').get(jobId) as
+    { session_id: string } | undefined;
+  return row?.session_id ?? null;
+}
+
 export interface Checkpoint {
   /**
    * The turn as it would be written **if it ended now**.
@@ -268,7 +287,7 @@ export function checkpoint(
   change: Checkpoint,
   now: number = Date.now(),
 ): ProgressEvent[] {
-  return inTransaction(context.db, () => {
+  const { events, sessionId } = inTransaction(context.db, () => {
     context.db
       .prepare(
         `insert into draft (job_id, turn, updated_at) values (?, ?, ?)
@@ -292,8 +311,28 @@ export function checkpoint(
         .run(jobId, seq, event.key, JSON.stringify(params), now);
       written.push({ seq, key: event.key, params, at: now });
     }
-    return written;
+    return { events: written, sessionId: sessionOf(context.db, jobId) };
   });
+
+  /**
+   * **Published after the transaction commits, and still synchronously.**
+   *
+   * After, because publishing from inside the body would fan out a change that
+   * a rollback then undid — a client shown a step that never happened. Still
+   * synchronously, because the attach path's whole no-gap argument is that a
+   * checkpoint's write-and-publish pair cannot be interleaved: `node:sqlite` is
+   * synchronous and `inTransaction` forbids an `await` in its body, so every
+   * event is either already in a reader's backlog or still in its buffer, never
+   * in between.
+   *
+   * Fed from **inside** `checkpoint` rather than at its call sites because
+   * `advanceCommit` discards this function's return value at both of its calls
+   * — including the one that emits `turn.finished`. A bus wired at call sites
+   * would silently never publish the stream's closing frame, and startup
+   * reconciliation would publish nothing at all.
+   */
+  if (sessionId !== null) context.events?.publish(sessionId, jobId, events);
+  return events;
 }
 
 /** The draft as last checkpointed. The SSE snapshot is a rendering of this. */

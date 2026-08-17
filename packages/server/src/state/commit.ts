@@ -43,6 +43,24 @@ export const COMMIT_STEPS = 4;
 
 export interface CommitContext extends JobContext {
   sessions: SessionContext;
+  /**
+   * Where recovery narrates itself.
+   *
+   * The recovering process is where the interesting half of a killed turn's
+   * lifecycle happens, so a log filtered by that turn's job id has to contain
+   * *these* lines too — otherwise the falsifiable claim P2.5 makes about
+   * reconstructing a lifecycle from the log holds only for the process that
+   * died.
+   */
+  log?: Logger;
+}
+
+/** The slice of the logger this module uses. Structurally typed, so pino fits. */
+export interface Logger {
+  child(bindings: Record<string, unknown>): Logger;
+  info(object: Record<string, unknown>, message: string): void;
+  warn(object: Record<string, unknown>, message: string): void;
+  error(object: Record<string, unknown>, message: string): void;
 }
 
 /**
@@ -61,6 +79,26 @@ export async function advanceCommit(
   turn: Turn,
   now: number = Date.now(),
 ): Promise<Job> {
+  /**
+   * **The draft must be the turn this job reserved.**
+   *
+   * `finaliseTurn` keys the session lock on `turn.sessionId` while the steps
+   * below do their filesystem work with `job.account` and `job.sessionId`. If
+   * those disagreed, the lock would be taken on one key and the writes made
+   * against another — not a crash, but a turn appended with no mutual exclusion
+   * at all, silently. So the identity fields come from the job row and never
+   * from anything a client supplied, and this is where that is checked.
+   *
+   * Safe to throw here only because `reconcile` isolates each job: this runs in
+   * the recovery path, over a `draft.turn` the store treats as opaque JSON.
+   */
+  if (turn.id !== job.turnId || turn.sessionId !== job.sessionId) {
+    throw new Error(
+      `Draft for job ${job.id} names turn ${turn.id} in session ${turn.sessionId}, ` +
+        `but the job reserved ${job.turnId} in ${job.sessionId}.`,
+    );
+  }
+
   switch (job.commitStep) {
     case 0: {
       // **Step 1 — the draft becomes terminal.** After this the operational
@@ -107,6 +145,10 @@ export async function advanceCommit(
         job.id,
         { turn, events: [{ key: 'turn.finished', params: { state: turn.status } }] },
         now,
+      );
+      context.log?.info(
+        { event: 'job.committed', jobId: job.id, turnId: turn.id, status: turn.status },
+        'Turn committed',
       );
       return setStep(context, job, COMMIT_STEPS, 'committed', now);
     }
@@ -160,6 +202,14 @@ export interface Reconciliation {
   finalised: string[];
   /** Jobs with nothing to commit, released so the session is not stuck. */
   abandoned: string[];
+  /**
+   * Jobs that could not be reconciled and are still active.
+   *
+   * Reported rather than swallowed or fatal. Their sessions stay busy, which is
+   * a real cost — but a startup that refuses to boot over one malformed draft
+   * costs the whole install, and a startup that pretended would lose a turn.
+   */
+  failed: string[];
 }
 
 /**
@@ -192,27 +242,57 @@ export async function reconcile(
     .prepare('select id from job where finished_at is null order by created_at')
     .all() as { id: string }[];
 
-  const result: Reconciliation = { finalised: [], abandoned: [] };
+  const result: Reconciliation = { finalised: [], abandoned: [], failed: [] };
 
   for (const { id } of active) {
     const job = readJob(context.db, id);
     if (!job) continue;
 
-    const draft = readDraft(context, job.id);
-    const session = await readSession(context.sessions, job.account, job.sessionId);
+    const log = context.log?.child({ jobId: job.id, sessionId: job.sessionId, turnId: job.turnId });
 
-    if (draft === null || session === null) {
-      setStep(context, job, job.commitStep, 'abandoned', now);
-      result.abandoned.push(job.id);
-      continue;
+    /**
+     * **One job's failure must not stop the rest.**
+     *
+     * This loop is the whole of recovery, and everything in it can reject: the
+     * filesystem work in steps 2 and 3, a draft that will not parse, a session
+     * folder that has been renamed under the server. Without isolation the
+     * first rejection abandons every job after it in the ordering — and because
+     * `job_one_active_per_session` is partial on `finished_at is null`, each of
+     * those sessions then refuses every submission as busy, forever, with the
+     * only remedy being another restart that hits the same bad row again.
+     *
+     * A job that cannot be reconciled is left active and reported. That is the
+     * honest outcome: it is not committed and it is not abandoned, and saying so
+     * is better than either lie.
+     */
+    try {
+      const draft = readDraft(context, job.id);
+      const session = await readSession(context.sessions, job.account, job.sessionId);
+
+      if (draft === null || session === null) {
+        setStep(context, job, job.commitStep, 'abandoned', now);
+        result.abandoned.push(job.id);
+        log?.warn(
+          { event: 'job.abandoned', reason: draft === null ? 'no-draft' : 'no-session' },
+          'Released a job with nothing to commit',
+        );
+        continue;
+      }
+
+      // A job that never reached step 1 has a draft that generation was still
+      // writing into. Its status is whatever the last checkpoint said, and for an
+      // interrupted turn that is `failed` — the value the draft is initialised
+      // with, for exactly this moment.
+      await finaliseTurn(context, job.id, draft, now);
+      result.finalised.push(job.id);
+      log?.info(
+        { event: 'job.recovered', fromStep: job.commitStep, status: draft.status },
+        'Resumed finalisation of an interrupted turn',
+      );
+    } catch (error) {
+      result.failed.push(job.id);
+      log?.error({ event: 'job.unreconciled', err: error }, 'Could not reconcile a job');
     }
-
-    // A job that never reached step 1 has a draft that generation was still
-    // writing into. Its status is whatever the last checkpoint said, and for an
-    // interrupted turn that is `failed` — the value the draft is initialised
-    // with, for exactly this moment.
-    await finaliseTurn(context, job.id, draft, now);
-    result.finalised.push(job.id);
   }
 
   return result;

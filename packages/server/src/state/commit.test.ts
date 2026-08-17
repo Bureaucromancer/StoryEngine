@@ -303,7 +303,7 @@ describe('startup reconciliation resumes finalisation, never generation', () => 
     const second = await reconcile(context);
 
     // A committed job is not active, so the second pass has nothing to look at.
-    expect(second).toEqual({ finalised: [], abandoned: [] });
+    expect(second).toEqual({ finalised: [], abandoned: [], failed: [] });
     expect((await stateOnDisk()).turns).toHaveLength(1);
   });
 });
