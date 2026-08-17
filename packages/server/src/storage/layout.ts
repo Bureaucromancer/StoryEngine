@@ -210,10 +210,13 @@ export class Layout {
     return resolveWithin(this.usersRoot, handle);
   }
 
-  /** Holds the password hash and `role`, so it is never content ([05 §4.2.1]). */
-  accountFile(handle: string): string {
-    return resolveWithin(this.userRoot(handle), 'account.json');
-  }
+  // No `accountFile`. There is no `users/<handle>/account.json` (F10): P1 §1.3
+  // moved every account into one `accounts.json` at the data root, deliberately
+  // outside every user directory, so that a file browser cannot serve a
+  // password hash whatever `fileAccess` a user is granted. The method survived
+  // the decision that overturned it and pointed at a path nothing writes —
+  // which is worse than a missing helper, because it reads as a supported
+  // location.
 
   userConnectionsRoot(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'connections');

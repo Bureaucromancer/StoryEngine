@@ -136,7 +136,7 @@ export const Setup = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${SETUP_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${SETUP_SCHEMA.replace('/', '.')}.json`,
     title: 'Setup',
     description:
       'How to start playing. No connections, no credentials, no endpoint URLs, ' +

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.actor/1.json",
+  "$id": "https://storyengine.dev/schemas/storyengine.actor.1.json",
   "title": "Actor",
   "description": "A character. Deliberately absent: system_prompt, post_history_instructions, depth_prompt, talkativeness, mes_example and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. Per-session numbers live in channels and must never appear here.",
   "type": "object",

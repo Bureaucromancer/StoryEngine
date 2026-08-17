@@ -32,7 +32,18 @@ import { PORTABLE_SCHEMAS } from '../dist/index.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const outputDir = join(here, '..', 'schemas');
 
-/** `storyengine.actor/1` → `storyengine.actor.1.json` — `/` is not a filename. */
+/**
+ * `storyengine.actor/1` → `storyengine.actor.1.json` — `/` is not a filename.
+ *
+ * Each schema's `$id` applies the same replacement, so the URL a consumer
+ * resolves is the file that is actually here (F18). They disagreed: the `$id`
+ * said `…/storyengine.actor/1.json` while the artefact was
+ * `storyengine.actor.1.json`, which makes a published identifier a 404 — and
+ * the artefact is published precisely so a third-party tool can fetch one
+ * without building anything ([07 §4](../../../docs/design/07-tech-stack.md)).
+ * Flat filenames rather than a directory per kind, so the stale-artefact sweep
+ * below stays a one-level `readdir`.
+ */
 function filenameFor(schemaId: string): string {
   return `${schemaId.replace('/', '.')}.json`;
 }

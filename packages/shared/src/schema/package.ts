@@ -69,7 +69,7 @@ export const Package = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${PACKAGE_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${PACKAGE_SCHEMA.replace('/', '.')}.json`,
     title: 'Package',
     description:
       'No `entry` field. A package containing one or more Setups is startable, ' +

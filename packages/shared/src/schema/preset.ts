@@ -372,7 +372,7 @@ export const Preset = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${PRESET_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${PRESET_SCHEMA.replace('/', '.')}.json`,
     title: 'Preset',
     description:
       'The prompt pack. Carries no connection settings and has nowhere to put ' +

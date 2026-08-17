@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.setup/1.json",
+  "$id": "https://storyengine.dev/schemas/storyengine.setup.1.json",
   "title": "Setup",
   "description": "How to start playing. No connections, no credentials, no endpoint URLs, no per-install toggles — enforced by there being nowhere to put them.",
   "type": "object",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.preset/0.json",
+  "$id": "https://storyengine.dev/schemas/storyengine.preset.0.json",
   "title": "Preset",
   "description": "The prompt pack. Carries no connection settings and has nowhere to put them — SillyTavern’s `reverse_proxy`, `proxy_password`, `custom_url` and the rest of its `sensitiveFields` list are dropped unconditionally on import and named in the review. That is the type refusing, not a check that could be forgotten (§8.4.4).",
   "type": "object",

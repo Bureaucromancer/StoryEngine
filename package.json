@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
-    "dev": "pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
+    "dev": "pnpm run dev:shared && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
+    "dev:shared": "tsc -b packages/shared",
     "dev:client": "pnpm --filter @storyengine/client run dev",
     "dev:server": "pnpm --filter @storyengine/server run dev",
     "format": "prettier --write .",

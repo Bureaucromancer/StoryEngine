@@ -3,7 +3,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook, newPreset, newSetting, newSetup } from '../factories.js';
+import {
+  newActor,
+  newLorebook,
+  newPackage,
+  newPreset,
+  newSetting,
+  newSetup,
+} from '../factories.js';
 import { ACTOR_SCHEMA } from './actor.js';
 import { PACKAGE_SCHEMA } from './package.js';
 import {
@@ -16,12 +23,21 @@ import {
   validate,
 } from './registry.js';
 
+/**
+ * One minimal instance of every kind — **all six** (F18).
+ *
+ * Package was missing, which made "a minimal instance of every kind validates"
+ * a claim about five of them. It is the kind least like the others and so the
+ * most worth including: a container whose contents are open by design, and the
+ * one whose round trip has never been exercised.
+ */
 const library = {
   actor: newActor('Vera Solano'),
   lorebook: newLorebook('Rain City'),
   setting: newSetting('Rain City, noir'),
   setup: newSetup('The Fixer’s Debt'),
   preset: newPreset('House style'),
+  package: newPackage('The Rain City bundle'),
 };
 
 describe('the registry', () => {

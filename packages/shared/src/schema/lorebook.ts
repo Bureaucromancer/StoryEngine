@@ -269,7 +269,7 @@ export const Lorebook = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${LOREBOOK_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${LOREBOOK_SCHEMA.replace('/', '.')}.json`,
     title: 'Lorebook',
   },
 );

@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { TSchema } from '@sinclair/typebox';
 import { describe, expect, it } from 'vitest';
 
 import { PORTABLE_SCHEMAS } from './registry.js';
+
+/** The emitted artefacts, beside the sources they came from. */
+const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas');
 
 /**
  * The invariants from docs/design/workplan/10-testing.md §1 that are properties of the
@@ -23,10 +30,11 @@ interface FoundProperty {
 /**
  * Walks every property name a schema declares, at every depth.
  *
- * Deliberately walks the TypeBox objects rather than reading the emitted JSON
- * files. They are the same document — `emit-schemas` adds `$schema` and
- * serialises — so this catches a violation *before* it reaches an artefact, and
- * it needs no filesystem access in a package that has no business touching one.
+ * Used on both the TypeBox objects and the emitted JSON, which is why it takes
+ * `unknown` rather than a `TSchema`. The source walk catches a violation before
+ * it reaches an artefact; the artefact walk is the one that has anything to say
+ * about `emit-schemas` itself, which was previously the untested link between
+ * the two (F18).
  */
 function declaredProperties(kind: string, schema: unknown, path = ''): FoundProperty[] {
   if (typeof schema !== 'object' || schema === null) return [];
@@ -119,9 +127,34 @@ describe('no portable schema carries a connection or a credential', () => {
     declaredProperties(kind, schema as TSchema),
   );
 
+  /**
+   * The same walk over the **emitted** files — the artefact, not its source.
+   *
+   * Walking the TypeBox objects catches a violation one step earlier, which is
+   * why both are here, but it leaves `emit-schemas` untested (F18): the
+   * artefact is what a third party fetches and validates against
+   * ([07 §4](../../../../docs/design/07-tech-stack.md)), and an emitter that
+   * dropped, renamed or added a property would sail past a walk over the input.
+   *
+   * Read synchronously and deliberately: this package has no business touching
+   * a filesystem at runtime, and this is a test rather than runtime.
+   */
+  const emitted = readdirSync(SCHEMA_DIR)
+    .filter((file) => file.endsWith('.json'))
+    .flatMap((file) =>
+      declaredProperties(file, JSON.parse(readFileSync(join(SCHEMA_DIR, file), 'utf8'))),
+    );
+
   it('finds properties to check, so a broken walker cannot pass vacuously', () => {
     expect(everything.length).toBeGreaterThan(100);
     expect(everything.some((p) => p.name === 'preferredModelIds')).toBe(true);
+  });
+
+  it('finds them in the emitted files too, so a missing artefact cannot pass either', () => {
+    // The emitted set is not merely non-empty: it is the *same size* as the
+    // source walk. A build that emitted five of six kinds would otherwise look
+    // like a clean run.
+    expect(emitted.length).toBe(everything.length);
   });
 
   it('declares no denied property, at any depth, in any kind', () => {
@@ -135,6 +168,11 @@ describe('no portable schema carries a connection or a credential', () => {
     ).toEqual([]);
   });
 
+  it('emits no denied property either — the artefact is what strangers read', () => {
+    const violations = emitted.filter((property) => isDenied(property.name));
+    expect(violations.map((v) => `${v.kind}${v.path}`)).toEqual([]);
+  });
+
   it('catches a denied property if one is added — the walker works', () => {
     // Guards the guard. A walk that silently returned nothing would make the
     // test above pass forever.
@@ -146,6 +184,27 @@ describe('no portable schema carries a connection or a credential', () => {
     };
     const found = declaredProperties('sabotaged', sabotaged).filter((p) => isDenied(p.name));
     expect(found).toHaveLength(1);
+  });
+});
+
+describe('the emitted artefact is the document its $id names', () => {
+  // F18: the `$id` said `…/schemas/storyengine.actor/1.json` and the file was
+  // `storyengine.actor.1.json`, so the URL a consumer resolves was a 404 —
+  // in an artefact whose entire reason for being committed is that a stranger
+  // can fetch one without building anything.
+  it('ends each $id with the filename it is written to', () => {
+    const files = readdirSync(SCHEMA_DIR).filter((file) => file.endsWith('.json'));
+    expect(files.length).toBe(Object.keys(PORTABLE_SCHEMAS).length);
+
+    for (const file of files) {
+      const document = JSON.parse(readFileSync(join(SCHEMA_DIR, file), 'utf8')) as {
+        $id?: unknown;
+      };
+      expect(typeof document.$id, file).toBe('string');
+      expect(String(document.$id).endsWith(`/${file}`), `${String(document.$id)} vs ${file}`).toBe(
+        true,
+      );
+    }
   });
 });
 

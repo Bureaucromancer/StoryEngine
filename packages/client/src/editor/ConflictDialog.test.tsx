@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConflictDialog } from './ActorEditorPage.js';
@@ -23,8 +24,8 @@ import { ConflictDialog } from './ActorEditorPage.js';
  * what will catch a regression when it does.
  */
 
-function renderDialog(overrides: Partial<Parameters<typeof ConflictDialog>[0]> = {}) {
-  const props = {
+function propsFor(overrides: Partial<Parameters<typeof ConflictDialog>[0]> = {}) {
+  return {
     onReload: vi.fn(),
     onSaveAsCopy: vi.fn(),
     onCancel: vi.fn(),
@@ -32,8 +33,17 @@ function renderDialog(overrides: Partial<Parameters<typeof ConflictDialog>[0]> =
     copyError: null,
     ...overrides,
   };
+}
+
+function renderDialog(overrides: Partial<Parameters<typeof ConflictDialog>[0]> = {}) {
+  const props = propsFor(overrides);
   render(<ConflictDialog {...props} />);
   return props;
+}
+
+/** The render handle itself, for the test that needs to unmount. */
+function renderDialogRaw() {
+  return render(<ConflictDialog {...propsFor()} />);
 }
 
 describe('the conflict dialog', () => {
@@ -73,5 +83,69 @@ describe('the conflict dialog', () => {
 
     const copy = screen.getByRole('button', { name: 'Save my version as a copy instead' });
     expect(copy).toHaveProperty('disabled', true);
+  });
+});
+
+describe('the focus trap', () => {
+  // F18. `aria-modal` is a claim made to a screen reader and does nothing to
+  // the Tab key, so the form underneath stayed reachable while the dialog
+  // insisted the save had been refused.
+
+  it('wraps Tab from the last control back to the first', async () => {
+    renderDialog();
+    const buttons = screen.getAllByRole('button');
+    const first = buttons[0]!;
+    const last = buttons[buttons.length - 1]!;
+
+    last.focus();
+    await userEvent.tab();
+
+    expect(document.activeElement).toBe(first);
+  });
+
+  it('wraps Shift+Tab from the first control back to the last', async () => {
+    renderDialog();
+    const buttons = screen.getAllByRole('button');
+    const first = buttons[0]!;
+    const last = buttons[buttons.length - 1]!;
+
+    first.focus();
+    await userEvent.tab({ shift: true });
+
+    expect(document.activeElement).toBe(last);
+  });
+
+  it('pulls focus back if it escapes to the page behind', async () => {
+    // A click on the form underneath, or a browser that moves focus somewhere
+    // unexpected. The trap has to recover, not only prevent.
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    renderDialog();
+
+    outside.focus();
+    await userEvent.tab();
+
+    expect(document.activeElement).not.toBe(outside);
+    outside.remove();
+  });
+
+  it('treats Escape as Cancel, so the dialog is not a dead end', async () => {
+    const props = renderDialog();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns focus to whatever opened it', () => {
+    const opener = document.createElement('button');
+    document.body.append(opener);
+    opener.focus();
+
+    const { unmount } = renderDialogRaw();
+    unmount();
+
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
   });
 });

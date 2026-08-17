@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.setting/1.json",
+  "$id": "https://storyengine.dev/schemas/storyengine.setting.1.json",
   "title": "Setting",
   "description": "Deliberately absent: key locations, world description, NPC inline snapshots. A Setting owns no lorebook — it only links.",
   "type": "object",

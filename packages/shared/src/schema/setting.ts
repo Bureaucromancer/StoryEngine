@@ -107,7 +107,7 @@ export const Setting = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${SETTING_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${SETTING_SCHEMA.replace('/', '.')}.json`,
     title: 'Setting',
     description:
       'Deliberately absent: key locations, world description, NPC inline ' +

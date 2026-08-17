@@ -133,7 +133,7 @@ export const Actor = Type.Object(
     compat: Compat,
   },
   {
-    $id: `https://storyengine.dev/schemas/${ACTOR_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${ACTOR_SCHEMA.replace('/', '.')}.json`,
     title: 'Actor',
     description:
       'A character. Deliberately absent: system_prompt, ' +

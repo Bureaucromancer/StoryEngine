@@ -5,6 +5,7 @@ import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
+import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
 import { type Setting, SETTING_SCHEMA } from './schema/setting.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
@@ -257,6 +258,34 @@ export function newPreset(name: string): Preset {
     provenance: blankProvenance(),
     generated: null,
     compat: null,
+    metadata: {},
+  };
+}
+
+/**
+ * An empty package — the sixth kind, which had no factory (F18).
+ *
+ * Empty is the honest default and not a placeholder: a package with no contents
+ * is a container that has not been filled, and filling it is the *export* half
+ * of P4. What this proves in the round-trip fixtures is the envelope — that a
+ * Package survives a write and a read like every other kind — which is the
+ * thing all six are checked for. It says nothing about the container's job,
+ * because that job does not exist yet.
+ *
+ * `version` is the package's own, not a schema version: two people can ship
+ * `v2` of the same bundle ([10 §7](../../../docs/design/10-schemas.md)).
+ */
+export function newPackage(name: string): Package {
+  return {
+    schema: PACKAGE_SCHEMA,
+    id: uuidv7(),
+    name,
+    version: '1.0.0',
+    description: '',
+    media: [],
+    contents: [],
+    requires: { modes: [], extensions: [], capabilities: [] },
+    provenance: blankProvenance(),
     metadata: {},
   };
 }
