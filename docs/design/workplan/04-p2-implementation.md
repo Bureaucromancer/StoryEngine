@@ -952,6 +952,24 @@ so it is now unblocked rather than done.
 
 ## 4. Verification — the P2 exit gate
 
+**Status, after the first run of it.** Every step below was assessed against what
+the suite actually asserts — clause by clause, with each claim of "already
+covered" read a second time by somebody trying to refute it. Exactly one step,
+18, was covered in full. Seventeen were partial in the way this repo has learned
+to distrust: a test whose *name* matches the step, asserting one clause of three.
+Two had nothing.
+
+Steps 8–20 now hold, mutation-proven, in `routes/p2-gate.test.ts`,
+`routes/p2-gate-storage.test.ts`, `routes/p2-gate-guidance.test.ts`,
+`tools/lint-fixtures/ci-shape.test.ts`, `editor/ActorEditorPage.test.tsx`, and
+extensions to `routes/recovery.test.ts` and `turns/runner.test.ts`.
+
+What does **not** hold is written down rather than rounded off:
+[12 — what the machine cannot check](12-p2-manual-gate.md) lists the runs that
+need a person (a real provider above all — every test here uses the fake), six
+places where the gate describes behaviour that is not built, and seven steps that
+should be tests and are not yet. Read it before calling the phase done.
+
 1. **The P1 gate stays green** — [P1 §3](03-p1-implementation.md), automated to
    the three tiers §3's P2.0 entry defines, on ubuntu and Windows, as standing
    regression (P2.0).

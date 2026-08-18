@@ -26,6 +26,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
 | [11-repo-and-releases.md](11-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
+| [12-p2-manual-gate.md](12-p2-manual-gate.md) | P2's exit gate: what needs a person, what will fail because it is not built, and what should be a test |
 
 ## How to read them
 
