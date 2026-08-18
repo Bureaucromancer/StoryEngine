@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { GenerationParams } from '@storyengine/shared';
+import type { GenerationParams, Preset } from '@storyengine/shared';
 
 import type { AssembledBlock, BudgetVerdict } from '../assembly/types.js';
 import type { ErrorClass, ModelRole, RenderedMessage, TokenUsage } from '../providers/types.js';
@@ -18,8 +18,9 @@ import type { Tape } from '../rng/rng.js';
  * **`mentions` is the one field of §8 still absent**, and deliberately: it is
  * an overlay of resolved actor spans over `input.text` and `output.text`
  * ([03 §8.2](../../../../docs/design/03-modes-and-turn-pipeline.md)), and nothing resolves an
- * actor mention until there is a cast — which is P2.6's. Naming it here rather
- * than leaving the omission to be rediscovered.
+ * actor mention until there is a cast. P2.6 gives a session one, but resolving
+ * mentions is an `extract` step ([03 §8.2]) — a *second* step, which [P2 §5]
+ * fences to P7. Re-pointed there rather than left to be rediscovered.
  */
 
 /**
@@ -230,6 +231,27 @@ export interface SessionFile {
   headTurnId: string | null;
   /** State at `headTurnId`. Derived. Hand-editing it writes an effect. */
   channels: Record<string, ChannelState>;
+  /**
+   * Which mode this session plays, and how it was configured — [03 §1].
+   *
+   * Optional because every session written by P2.3 to P2.5 predates it, and a
+   * read that healed the file would need the session lock, which is not
+   * reentrant. Absent reads as the default mode.
+   */
+  mode?: { id: string; config: unknown };
+  /**
+   * The session's own copy of its prompt pack — [02 §8].
+   *
+   * **A copy, not a link**, and the asymmetry with `cast` is deliberate:
+   * editing a preset must not silently change how an ongoing game is assembled,
+   * while improving a character card *should* reach it.
+   */
+  preset?: Preset;
+  /**
+   * Who is in it. **Links, resolved fresh every turn** — see `preset` above for
+   * why this one is the opposite.
+   */
+  cast?: { persona: string | null; actors: string[] };
   /**
    * Set when the session is archived — [02 §10.3].
    *

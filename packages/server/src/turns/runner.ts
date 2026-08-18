@@ -37,7 +37,9 @@ import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
-import { collectCandidates, DEFAULT_PLAN } from './narrate.js';
+import { collectCandidates } from '../assembly/collect.js';
+import { DEFAULT_MODE_ID, modeById, planFor } from '../modes/registry.js';
+import { resolveCast } from './cast.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 /**
@@ -229,14 +231,45 @@ export class TurnRunner {
     });
     const bindings = await readBindings(commit.sessions.layout, job.account);
 
-    const candidates: Candidate[] = collectCandidates({
-      history,
-      ...(payload.input === undefined ? {} : { input: payload.input }),
-      ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
-    });
+    /**
+     * **What the session is playing decides what runs**, and an unknown mode
+     * resolves to the default rather than refusing.
+     *
+     * [00 §3.3]: a session whose mode came from a newer build, or from an
+     * extension that is not installed, is still somebody's story and should
+     * still open. The substitution is logged so that it is not silent.
+     */
+    const declared = session?.mode?.id ?? DEFAULT_MODE_ID;
+    const mode = modeById(declared) ?? modeById(DEFAULT_MODE_ID);
+    if (mode === null) throw new Error('No default mode is registered.');
+    if (declared !== mode.definition.id) {
+      log?.warn(
+        { event: 'mode.substituted', declared, using: mode.definition.id },
+        'Unknown mode; playing the default',
+      );
+    }
+
+    const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
+    const cast = resolveCast(
+      { db: commit.sessions.index, layout: commit.sessions.layout, keepHistoryPerObject: 0 },
+      job.account,
+      session?.cast,
+    );
+    const windowed = history.slice(-mode.definition.assembly.historyWindow);
+
+    /**
+     * Candidates the *steps* contributed, kept outside the loop.
+     *
+     * The preset's own are re-collected per call, because a block's
+     * `appliesTo` filters on the call kind and two steps may want different
+     * ones. What a step contributed has to survive into the next step's call —
+     * that is what `contributes: 'blocks'` means — so it accumulates here
+     * rather than in the per-call array.
+     */
+    const contributed: Candidate[] = [];
 
     let aborted = false;
-    const plan = this.#options.plan ?? DEFAULT_PLAN;
+    const plan = this.#options.plan ?? planFor(mode);
 
     for (const { definition, run } of plan.steps) {
       const decision = evaluateCondition(definition.when, {
@@ -289,6 +322,17 @@ export class TurnRunner {
             rng,
             signal,
             call: async (request) => {
+              const fromPreset = collectCandidates({
+                preset,
+                callKind: 'narrate',
+                history: windowed,
+                persona: cast.persona,
+                actors: cast.actors,
+                channels: running,
+                ...(payload.input === undefined ? {} : { input: payload.input }),
+                ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
+              });
+
               const outcome = await performCall(
                 {
                   definition,
@@ -326,7 +370,7 @@ export class TurnRunner {
                   },
                 },
                 request,
-                candidates,
+                [...fromPreset, ...contributed],
               );
 
               calls.push(outcome.call);
@@ -351,7 +395,7 @@ export class TurnRunner {
           },
         );
 
-        for (const candidate of result.candidates ?? []) candidates.push(candidate);
+        for (const candidate of result.candidates ?? []) contributed.push(candidate);
         const written: EventDraft[] = [];
         for (const proposal of result.effects ?? []) {
           const effect = acceptEffect(job.turnId, proposal, running);

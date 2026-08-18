@@ -21,7 +21,7 @@ import { Layout } from '../storage/layout.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
-import { NARRATE } from './narrate.js';
+import { NARRATE } from '../modes/scene/mode.js';
 import { TurnRunner } from './runner.js';
 
 /**
@@ -447,5 +447,53 @@ describe('the advisory guard is not decoration', () => {
     const error = new AdvisoryLeakError('se.guidance', 'effects');
     expect(error.message).toContain('se.guidance');
     expect(error.message).toContain('effects');
+  });
+});
+
+describe('the preset is what builds the prompt', () => {
+  it('emits a block per preset block that has content, with its label as the reason', async () => {
+    // Before P2.6 the candidate list was three hardcoded sources in
+    // `narrate.ts`. Now it is a walk over `preset.blocks` — so the assertion
+    // that matters is that the *preset* is visible in the record.
+    const { turn } = await runTurn();
+
+    const reasons = turn.request?.blocks.map((block) => block.reason) ?? [];
+    // The narrator instruction is a text block the preset author wrote.
+    expect(reasons).toContain('instruction');
+    // …and the player's action is a slot the preset positioned.
+    expect(reasons).toContain('input');
+
+    const instruction = turn.request?.blocks.find((block) => block.source.kind === 'preset');
+    expect(instruction?.text).toContain('narrator');
+  });
+
+  it('drops a slot that resolves empty rather than emitting a heading', async () => {
+    // `omitWhenEmpty`, read literally. A P2.6 session has no Setting and no
+    // lore, and those slots are *present* in the preset — which is what makes
+    // P5 an activation change rather than a preset change.
+    const { turn } = await runTurn();
+    const kinds = turn.request?.blocks.map((block) => block.source.kind) ?? [];
+
+    expect(kinds).not.toContain('lore');
+    expect(kinds).not.toContain('setting');
+  });
+
+  it('splits history into one block per turn, oldest cheapest', async () => {
+    // P2.4 promised history would be splittable from the start; one block for
+    // the whole transcript would make the budgeter's only move dropping all of
+    // it.
+    await runTurn('The first thing.');
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+
+    const second = await reserve('key-2', head);
+    runner.start(second, { input: { actorId: null, kind: 'do', text: 'The second.', raw: '' } });
+    await until(() => readJob(state.db, second.id)?.status === 'committed', 'the second turn');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const history = written.at(-1)?.turn.request?.blocks.filter((b) => b.source.kind === 'history');
+    expect(history).toHaveLength(1);
+    expect(history?.[0]?.text).toContain('The first thing.');
   });
 });
