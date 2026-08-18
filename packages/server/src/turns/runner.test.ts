@@ -663,3 +663,99 @@ describe("the preset's own settings reach the call", () => {
     expect(turn.request?.calls[0]?.params).toEqual(provider.requests[0]?.params);
   });
 });
+
+describe('the turn record answers what actually ran — gate step 11', () => {
+  it('gives every block a source and a reason, universally', async () => {
+    // `toContain` on one kind passed while most blocks carried neither. The
+    // record's whole job is answering *why is this in the prompt* ([02 §8]), and
+    // one block without provenance is one the workbench cannot explain.
+    const { turn } = await runTurn();
+    const blocks = turn.request?.blocks ?? [];
+
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      expect(block.source, `block ${block.id} has no source`).toBeDefined();
+      expect(block.reason.length, `block ${block.id} has an empty reason`).toBeGreaterThan(0);
+    }
+  });
+
+  it('carries a budget verdict that says what would go next', async () => {
+    // `nextToDrop` is the clause the UI promises to answer *before* pressure
+    // bites, so it has to be computed rather than inferred from a drop that has
+    // not happened.
+    const { turn } = await runTurn();
+    const budget = turn.request?.budget;
+
+    expect(budget).toBeDefined();
+    expect(budget?.limit.tokens).toBeGreaterThan(0);
+    expect(budget?.spent).toBeGreaterThan(0);
+    /**
+     * **Named, not merely an array.** `Array.isArray([])` is true, so an
+     * emptied `nextToDrop` satisfied the earlier version of this — which is the
+     * whole clause: the UI promises to answer *what falls out next* before it
+     * falls out, and an empty answer is the one it cannot render.
+     *
+     * There is always a sacrificial block here: history and the actor sections
+     * are droppable, and only the player's action is required.
+     */
+    expect(budget?.nextToDrop.length).toBeGreaterThan(0);
+    expect(budget?.nextToDrop).not.toContain('se.input');
+  });
+
+  it('names what would go next when the window is too small to hold it all', async () => {
+    // Under real pressure, which is the only state where the answer is
+    // interesting — and where a verdict that merely existed would not do.
+    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 300 } } });
+    const { turn } = await runTurn('a'.repeat(400));
+
+    const budget = turn.request?.budget;
+    const excluded = (budget?.decisions ?? []).filter((decision) => !decision.included);
+
+    expect(excluded.length).toBeGreaterThan(0);
+    // Every block appears in the decisions, included ones too — a verdict
+    // listing only drops cannot answer what falls out next.
+    expect(budget?.decisions.length).toBeGreaterThan(excluded.length);
+    // The player's action is required, so it is never what goes.
+    expect(excluded.map((decision) => decision.blockId)).not.toContain('se.input');
+    // And each drop says which rule did it, in the words the workbench shows.
+    for (const decision of excluded) expect(decision.rule.length).toBeGreaterThan(0);
+  });
+
+  it('records the cost the provider reported, not an estimate', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.cost).toBeDefined();
+    expect(turn.cost?.model).toBe('fake-hi');
+    expect(turn.cost?.wallMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps every draw on the tape, keyed by site', async () => {
+    // **The clause that was structurally vacuous**: `tape` was asserted as an
+    // array while nothing in a P2 turn draws, so an empty array satisfied it
+    // forever. A step that actually draws is what makes it mean something.
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: { ...NARRATE, id: 'se.dice', role: null },
+            run: async (_input, host) => {
+              host.rng.at('se.dice', 'opening').int(1, 6);
+              host.rng.at('se.dice', 'opening').int(1, 6);
+              return Promise.resolve({});
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.tape.length).toBe(2);
+    for (const draw of turn.tape) {
+      expect(draw.key, 'a draw with no key cannot be replayed').toContain('se.dice');
+    }
+    // Indices within a site are automatic, so two draws at one site are
+    // distinguishable — which is what makes a rewrite reproducible.
+    expect(new Set(turn.tape.map((draw) => draw.key)).size).toBe(2);
+  });
+});
