@@ -12,7 +12,7 @@ import { listVersions } from '../storage/history.js';
 import { listFileErrors, scopeKey } from './ingest.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
-import { LibraryWatcher, type WatchEvent } from './watcher.js';
+import { LibraryWatcher, type WatcherOptions, type WatchEvent } from './watcher.js';
 
 /**
  * The watcher, driven by real filesystem events.
@@ -29,6 +29,11 @@ let library: TestLibrary;
 let registry: SelfWriteRegistry;
 let watcher: LibraryWatcher;
 let events: WatchEvent[];
+/**
+ * The watcher's own options object, kept so a test can change a setting
+ * *underneath* a running watcher — which is what a live config reload does.
+ */
+let options: WatcherOptions;
 
 beforeEach(async () => {
   registry = new SelfWriteRegistry();
@@ -39,13 +44,14 @@ beforeEach(async () => {
   // creates the tree and the events arrive as directory adds.
   await mkdir(library.layout.kindRoot(library.scope, LOREBOOK_SCHEMA), { recursive: true });
 
-  watcher = new LibraryWatcher({
+  options = {
     db: library.db,
     layout: library.layout,
     registry,
     stabilityThresholdMs: 20,
     onChange: (event) => events.push(event),
-  });
+  };
+  watcher = new LibraryWatcher(options);
   await watcher.start();
 });
 
@@ -190,6 +196,45 @@ describe('a hand edit leaves history behind', () => {
   // database-backed history structurally cannot make — and the strongest
   // argument for building the mechanism in P1, while the watcher exists and no
   // editor does.
+  /**
+   * **The retention cap is read when a snapshot is taken, not when the watcher
+   * was built** — [P2A §2.5].
+   *
+   * `history.keepPerObject` is tiered `live` ([13 §4]), and the watcher used to
+   * copy it into a private field at construction — so on a running server the
+   * routes' write path and the watcher's could be trimming one object's history
+   * to two different depths, and a change to the setting reached neither. The
+   * app now hands the watcher the same `LibraryContext` the routes use, and
+   * `applyLiveConfig` assigns into that object.
+   *
+   * Driven here by mutating the options object the watcher was constructed
+   * with, which is precisely what the fan-out does one layer up.
+   *
+   * The mutation this catches: reading a field captured in the constructor
+   * instead of `this.#options` — three edits then leave three versions, because
+   * the cap the watcher trims against is still the default.
+   */
+  it('trims against the retention cap as it is now, not as it was at construction', async () => {
+    const book = newLorebook('Rain City');
+    const path = await library.saveObject(book, 'rain-city');
+    await seenBy(path);
+
+    // The live change. One object, assigned into — a config reload, in miniature.
+    options.keepHistoryPerObject = 1;
+
+    for (const name of ['after the fire', 'after the rain', 'after the bells']) {
+      await writeFile(path, JSON.stringify({ ...book, name: `Rain City, ${name}` }));
+      await eventually(
+        () =>
+          listObjects(library.db, { scopes: [library.scope] })[0]?.name === `Rain City, ${name}`,
+      );
+    }
+
+    // Three foreign edits, each snapshotting the state it replaced — and a cap
+    // of one, honoured. Without the live read this is three.
+    expect(await listVersions(dirname(path))).toHaveLength(1);
+  });
+
   it('snapshots the replaced state with an external source', async () => {
     const book = newLorebook('Rain City');
     const path = await library.saveObject(book, 'rain-city');

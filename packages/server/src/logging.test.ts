@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -9,8 +9,14 @@ import { Writable } from 'node:stream';
 import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
+
 import { applyLiveConfig, type AppServices, buildServices, disposeServices } from './app.js';
-import { type Config, DEFAULT_CONFIG } from './config.js';
+import { type Config, DEFAULT_CONFIG, pendingRestart } from './config.js';
+import { listObjects } from './index-db/query.js';
+import { create as createObject } from './library.js';
+import { listVersions } from './storage/history.js';
+import { userScope } from './storage/layout.js';
 
 /**
  * The logger, and the first key that is genuinely live — F8.
@@ -43,6 +49,32 @@ function captureStream(): { lines: () => Record<string, unknown>[]; stream: Writ
         .filter((line) => line.length > 0)
         .map((line) => JSON.parse(line) as Record<string, unknown>),
   };
+}
+
+/**
+ * Writes a lorebook through the library module, and says where it landed.
+ *
+ * Through `createObject` rather than `writeFile`, because the point of the test
+ * below is that the *application's* write path and the watcher's read the same
+ * retention cap — so the first version on disk has to come from the real one.
+ */
+async function create(
+  target: AppServices,
+  book: ReturnType<typeof newLorebook>,
+): Promise<{ file: string; root: string }> {
+  const created = await createObject(target.library, 'ned', book, LOREBOOK_SCHEMA);
+  const root = target.layout.objectRoot(userScope('ned'), LOREBOOK_SCHEMA, created.slug);
+  return { file: target.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, created.slug), root };
+}
+
+/** Filesystem events are not synchronous; poll rather than guess a delay. */
+async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((tick) => setTimeout(tick, 50));
+  }
+  expect(await check(), 'condition never held before the timeout').toBe(true);
 }
 
 let dataDir: string;
@@ -157,6 +189,159 @@ describe('the live tier, with its first real consumer', () => {
     expect(line?.['msg']).toBe('from the child');
     expect(line?.['jobId']).toBe('job-7');
   });
+
+  /**
+   * **The repair the rest of the stage rests on** — [P2A §2.5].
+   *
+   * `applyLiveConfig` used to end with `services.config = next`, and that one
+   * line is why six keys the tier table calls `live` could not change on a
+   * running server. The runner captures `config` when it is constructed, the
+   * budgeter reads through the runner's copy, and `LibraryContext` holds
+   * another — so rebinding the field left all three reading a record the server
+   * had stopped using, while `services.config` reported the new value and every
+   * test that asked *it* passed.
+   *
+   * So the assertion is deliberately made through a reference taken *before*
+   * the call, which is the position every one of those holders is in. Asserting
+   * `services.config.…` afterwards cannot distinguish the two implementations
+   * and is what let the bug live.
+   */
+  it('assigns into the running config, so a holder of the reference sees it', async () => {
+    const capture = captureStream();
+    const app = appLoggingTo(capture.stream);
+    // Exactly what `new TurnRunner({ config })` does with it.
+    const captured = services.config;
+
+    applyLiveConfig(app, services, {
+      ...services.config,
+      sessions: { ...services.config.sessions, streamCoalesceMs: 999 },
+      limits: { ...services.config.limits, contextTokens: 4242 },
+    });
+    await app.close();
+
+    expect(captured.sessions.streamCoalesceMs).toBe(999);
+    expect(captured.limits.contextTokens).toBe(4242);
+    // And the identity is preserved, which is the mechanism rather than the
+    // symptom: a nested object replaced wholesale would satisfy the two
+    // assertions above only because `captured` is the top-level object.
+    expect(services.config).toBe(captured);
+  });
+
+  /**
+   * **The notice is derived, so undoing a change clears it** — [P2A §2.5].
+   *
+   * Computed against `bootConfig` rather than against the running record. The
+   * previous version measured the delta from `services.config` and then moved
+   * it, so the answer was right exactly once: after one save the baseline had
+   * gone somewhere the listener had never been, and a second save reported the
+   * difference between two states the process was never in.
+   *
+   * Change it back and the banner should empty, because what is pending is the
+   * difference between the port this process bound and the port on disk — a
+   * property of the process. A stored pending-set would accumulate, and
+   * [13 §4] argues against a second source of truth for a derived value at
+   * length.
+   */
+  /**
+   * **The one `live` key an in-place assign cannot reach** — [P2A §2.5].
+   *
+   * `LibraryContext` carries `keepHistoryPerObject` as its own field, copied
+   * once at assembly, because the library module knows nothing about config.
+   * So `history.keepPerObject` is tiered `live` and was, until this stage,
+   * fixed for the life of the process on *both* write paths — the routes'
+   * through this context and the watcher's, which used to copy the number a
+   * second time into a private field of its own.
+   *
+   * Asserted on the context rather than on `services.config`, because the
+   * config is not what `snapshotReplaced` is handed.
+   */
+  it('reaches the library context, which holds its own copy of the retention cap', async () => {
+    const capture = captureStream();
+    const app = appLoggingTo(capture.stream);
+
+    applyLiveConfig(app, services, {
+      ...services.config,
+      history: { keepPerObject: 3 },
+    });
+    await app.close();
+
+    expect(services.library.keepHistoryPerObject).toBe(3);
+    // A live key changing is not a restart-required notice.
+    expect(pendingRestart(services.bootConfig, services.config)).toEqual([]);
+  });
+
+  it('clears the pending notice when a change is undone', async () => {
+    const capture = captureStream();
+    const app = appLoggingTo(capture.stream);
+    const bootPort = services.bootConfig.server.port;
+
+    const moved = applyLiveConfig(app, services, {
+      ...services.config,
+      server: { ...services.config.server, port: 9999 },
+    });
+    const back = applyLiveConfig(app, services, {
+      ...services.config,
+      server: { ...services.config.server, port: bootPort },
+    });
+    await app.close();
+
+    expect(moved).toEqual(['server.port']);
+    // Not `['server.port']` again, and not `[]` by accident either — the second
+    // call's baseline is the boot config, so it compares 8080 with 8080.
+    expect(back).toEqual([]);
+  });
+
+  /**
+   * **The join** — that the object `applyLiveConfig` fans out into is the object
+   * the *watcher* holds, and not a copy of it.
+   *
+   * The two halves are proved separately and cheaply: `watcher.test.ts` shows
+   * the watcher reads its retention cap at the point of use, and the test above
+   * shows the fan-out reaches `services.library`. Neither notices if
+   * `assembleWithState` hands the watcher `{ ...library }` — a spread that
+   * typechecks, reads as tidying, and quietly restores the bug this stage
+   * exists to remove, because the routes' write path and the watcher's would
+   * again be trimming one object's history to two different depths.
+   *
+   * So this one is behavioural and pays for a real watcher: change the cap on a
+   * running server, then edit a file on disk three times and count what
+   * survives.
+   */
+  it('reaches the watcher, which is the other path into an object history', async () => {
+    const watched = await buildServices({
+      config: { ...DEFAULT_CONFIG, dataDir: await mkdtemp(join(tmpdir(), 'se-live-')) },
+      watch: true,
+    });
+    const capture = captureStream();
+    const app = appLoggingTo(capture.stream);
+
+    try {
+      const book = newLorebook('Rain City');
+      const created = await create(watched, book);
+      applyLiveConfig(app, watched, { ...watched.config, history: { keepPerObject: 1 } });
+
+      // Waited for by NAME, one edit at a time. Polling for "some version
+      // exists" is satisfied by the first edit and then races the other two —
+      // which is how the first draft of this test passed against a watcher that
+      // had never seen the new cap.
+      for (const suffix of ['after the fire', 'after the rain', 'after the bells']) {
+        const name = `Rain City, ${suffix}`;
+        await writeFile(created.file, JSON.stringify({ ...book, name }));
+        await eventually(async () =>
+          Promise.resolve(
+            listObjects(watched.index.db, { scopes: [userScope('ned')] })[0]?.name === name,
+          ),
+        );
+      }
+
+      // Three foreign edits, each snapshotting what it replaced, against a cap
+      // this process was not started with. A copied object leaves three.
+      expect(await listVersions(created.root)).toHaveLength(1);
+    } finally {
+      await app.close();
+      await disposeServices(watched);
+    }
+  }, 20_000);
 
   it('names the restart-tier changes it could not apply', async () => {
     const capture = captureStream();

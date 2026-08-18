@@ -153,9 +153,10 @@ export type Config = Static<typeof ConfigSchema>;
  * The tier table from 13 §4, by dotted path.
  *
  * Exhaustive by construction: {@link configKeys} walks the defaults and
- * {@link assertTiersComplete} fails if a key has no tier, so adding a config key
- * without deciding how it applies is a test failure rather than a silent
- * `undefined` that reads as "live".
+ * `config.test.ts` fails if a key has no tier, so adding a config key without
+ * deciding how it applies is a test failure rather than a silent `undefined`
+ * that reads as "live". (The check is a test rather than a function — this
+ * docstring named `assertTiersComplete` for a while and no such thing existed.)
  */
 export const CONFIG_TIERS = {
   dataDir: 'restart',
@@ -178,6 +179,73 @@ export const CONFIG_TIERS = {
   'updates.channel': 'live',
   'dev.enabled': 'restart',
 } as const satisfies Record<string, ReloadTier>;
+
+/** Whether a `live` key is actually read by a running server, or only stored. */
+export type LiveApplier = 'applied' | 'unread';
+
+/**
+ * What each `live` key's implementation actually does — the honest half of the
+ * tier table.
+ *
+ * A tier says what a key is *for*: `limits.maxUploadMb` names uploads and will
+ * apply live when there is an upload route, so re-tiering it to `restart` to
+ * match today's construction-time read would lock the shortcut into the
+ * contract ([P2 §3](../../../docs/design/workplan/04-p2-implementation.md) made
+ * that argument and it is still right). This table says what is true *now*, and
+ * the two are allowed to disagree.
+ *
+ * **This is what stops the settings surface ever showing a control that does
+ * nothing.** `unread` keys render in a group that says the value is stored and
+ * not yet read, which is the difference between a setting and a placeholder —
+ * and [01 §2.2](../../../docs/design/workplan/01-work-plan.md) forbids the
+ * second. The alternative was remembering, per key, forever.
+ *
+ * **The rule when a tier and an implementation disagree:** this table records
+ * the disagreement; the tier moves only when the *intent* changes.
+ *
+ * Keyed by the same dotted paths as {@link CONFIG_TIERS} and covering exactly
+ * the `live` ones — `config.test.ts` fails on a `live` key with no entry and on
+ * an entry for a key that is not `live`, so a new key cannot be added without
+ * deciding, and a re-tier cannot leave a stale row behind.
+ */
+export const LIVE_APPLIERS = {
+  // Assigned onto the root logger, which every child pino derived from it
+  // inherits. The one key that was live before this table existed.
+  'log.level': 'applied',
+
+  // Snapshots are P6's. Nothing reads this.
+  'sessions.snapshotEveryNTurns': 'unread',
+
+  // Read inside the runner's streaming loop, through the config reference
+  // `applyLiveConfig` now assigns into rather than replaces.
+  'sessions.streamCoalesceMs': 'applied',
+
+  // Fastify fixes `bodyLimit` when the instance is constructed, and there is no
+  // upload route for it to bound yet. The tier stays `live` deliberately.
+  'limits.maxUploadMb': 'unread',
+
+  // Extensions appear in no phase list. Nothing reads this.
+  'limits.extensionStorageQuotaMb': 'unread',
+
+  // Read per call by the budgeter, off the same live reference.
+  'limits.contextTokens': 'applied',
+  'limits.reservedCompletionTokens': 'applied',
+
+  // The maturation sweep does not read it; trash retention is not implemented.
+  'trash.retentionDays': 'unread',
+
+  // Read per write through the shared `LibraryContext`, which the watcher now
+  // holds rather than copying a number out of.
+  'history.keepPerObject': 'applied',
+
+  // The update check is P11's.
+  'updates.checkEnabled': 'unread',
+  'updates.channel': 'unread',
+} as const satisfies Record<string, LiveApplier>;
+
+export function applierOf(key: string): LiveApplier | null {
+  return (LIVE_APPLIERS as Record<string, LiveApplier>)[key] ?? null;
+}
 
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
@@ -243,6 +311,18 @@ export interface ConfigLoadResult {
   fileFound: boolean;
   /** Keys present in the file that this build does not know. Kept, reported. */
   unknownKeys: string[];
+  /**
+   * The file exactly as it parsed, before the defaults were merged under it.
+   *
+   * `config` cannot stand in for this: it is the *merged* view, so every
+   * unset key is present there carrying a default, and a writer that round
+   * tripped through it would silently pin every default into the file. What
+   * the settings form needs to preserve is the unknown keys — a newer build's,
+   * or a typo somebody wants to keep seeing — and those exist only here.
+   *
+   * Empty when there is no file, which is the same shape as an empty one.
+   */
+  document: Record<string, unknown>;
 }
 
 export class ConfigError extends Error {
@@ -270,7 +350,12 @@ export class ConfigError extends Error {
 export async function loadConfig(path: string): Promise<ConfigLoadResult> {
   const bytes = await readFileBytes(path);
   if (bytes === null) {
-    return { config: structuredClone(DEFAULT_CONFIG), fileFound: false, unknownKeys: [] };
+    return {
+      config: structuredClone(DEFAULT_CONFIG),
+      fileFound: false,
+      unknownKeys: [],
+      document: {},
+    };
   }
 
   let parsed: unknown;
@@ -299,6 +384,7 @@ export async function loadConfig(path: string): Promise<ConfigLoadResult> {
     config: merged,
     fileFound: true,
     unknownKeys: configKeys(parsed).filter((key) => tierOf(key) === null),
+    document: parsed as Record<string, unknown>,
   };
 }
 

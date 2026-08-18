@@ -67,14 +67,45 @@
 
   "sessions": {
     // live
-    "snapshotEveryNTurns": 10
+    "snapshotEveryNTurns": 10,
+
+    // reconnect — how often an idle event stream sends a keepalive.
+    //
+    // A keepalive is a property of a connection, and an open stream keeps the
+    // interval it opened with, so changing this reaches new streams only.
+    "streamKeepaliveMs": 15000,
+
+    // live — how long streamed text accumulates before a durable checkpoint.
+    //
+    // The operational store commits with synchronous writes, so a transaction
+    // per token would be an fsync storm. Lower it if you want a killed server
+    // to lose less of an in-flight reply; 0 checkpoints every chunk.
+    "streamCoalesceMs": 250
   },
 
   "limits": {
-    // live
+    // live — the largest request body accepted, in megabytes.
+    //
+    // Honest caveat: today it is read once when the server is constructed, so
+    // changing it does need a restart. The tier is not wrong, the
+    // implementation is behind it, and the settings UI says so per key rather
+    // than quietly telling you a change took.
     "maxUploadMb": 64,
     // live
-    "extensionStorageQuotaMb": 32
+    "extensionStorageQuotaMb": 32,
+
+    // live — the context window a turn may assemble into, when the endpoint
+    // does not say how large it is.
+    //
+    // Most OpenAI-compatible endpoints do not report a context length, and
+    // StoryEngine will not invent one it cannot verify — so without this a
+    // turn has no budget to work against. A connection may override it, which
+    // is the better place to say it: the number is a fact about that endpoint.
+    "contextTokens": 8192,
+
+    // live — held back out of the context window for the reply itself, when a
+    // call does not say how long it may be.
+    "reservedCompletionTokens": 1024
   },
 
   "trash": {

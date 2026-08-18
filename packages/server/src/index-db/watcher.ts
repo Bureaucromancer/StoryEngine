@@ -45,7 +45,17 @@ export interface WatcherOptions {
    * being read half-written.
    */
   stabilityThresholdMs?: number;
-  /** Retention cap for the history a foreign edit leaves behind ([02 §11.3]). */
+  /**
+   * Retention cap for the history a foreign edit leaves behind ([02 §11.3]).
+   *
+   * **Read at the point of use, not copied here.** `history.keepPerObject` is
+   * tiered `live` ([13 §4]), and the app hands this watcher the very
+   * `LibraryContext` the routes write through — so both paths into one object's
+   * history read the same cell, and a live change reaches both. Copying the
+   * number into a field at construction is what made the tier untrue, and it
+   * made the two paths able to disagree, which is worse than either being
+   * stale.
+   */
   keepHistoryPerObject?: number;
   /** Called after each handled event. Test seam, and a logging point later. */
   onChange?: (event: WatchEvent) => void;
@@ -63,7 +73,8 @@ export class LibraryWatcher {
   readonly #registry: SelfWriteRegistry;
   readonly #onChange: (event: WatchEvent) => void;
   readonly #stabilityThresholdMs: number;
-  readonly #keepHistoryPerObject: number;
+  /** The options object itself, so `keepHistoryPerObject` stays a live read. */
+  readonly #options: WatcherOptions;
   #watcher: FSWatcher | null = null;
   /**
    * Events are serialised through one promise chain.
@@ -82,7 +93,7 @@ export class LibraryWatcher {
     this.#registry = options.registry ?? selfWrites;
     this.#onChange = options.onChange ?? (() => undefined);
     this.#stabilityThresholdMs = options.stabilityThresholdMs ?? 150;
-    this.#keepHistoryPerObject = options.keepHistoryPerObject ?? 50;
+    this.#options = options;
   }
 
   async start(): Promise<void> {
@@ -185,7 +196,7 @@ export class LibraryWatcher {
         payload: previous.body,
         source: { kind: 'external' },
         reason: '',
-        keepPerObject: this.#keepHistoryPerObject,
+        keepPerObject: this.#options.keepHistoryPerObject ?? 50,
       });
     }
 

@@ -64,7 +64,22 @@ declare module 'fastify' {
 }
 
 export interface AppServices {
+  /**
+   * The running config. **Assigned into, never replaced** — see
+   * {@link applyLiveConfig}. Everything holding this reference sees a live key
+   * change without being told.
+   */
   config: Config;
+  /**
+   * The config as it was when this process started. A clone, never reassigned.
+   *
+   * The restart notice is `pendingRestart(bootConfig, config)`, computed per
+   * request and stored nowhere — which is what makes it self-healing: change a
+   * value, change it back, and the notice clears, because it is derived rather
+   * than accumulated. A stored pending-set would be a second source of truth
+   * for a derived value, and would drift the first time a save was undone.
+   */
+  bootConfig: Config;
   layout: Layout;
   index: OpenedIndex;
   /**
@@ -194,14 +209,12 @@ async function assembleWithState(
     await rebuild(index.db, layout);
   }
 
-  const watcher =
-    options.watch === false
-      ? null
-      : new LibraryWatcher({
-          db: index.db,
-          layout,
-          keepHistoryPerObject: options.config.history.keepPerObject,
-        });
+  // **The same object, not the same number.** The watcher used to copy
+  // `keepPerObject` out of the config at construction, so the two write paths
+  // into one object's history could disagree the moment the value changed —
+  // and `history.keepPerObject` is tiered `live`. Handing it the context the
+  // routes already share makes both paths read the same cell.
+  const watcher = options.watch === false ? null : new LibraryWatcher(library);
   await watcher?.start();
   const maturation = startMaturation(index.db, layout);
 
@@ -214,6 +227,10 @@ async function assembleWithState(
 
   return {
     config: options.config,
+    // Cloned rather than aliased: `config` is mutated in place from here on, so
+    // sharing one object would make the baseline follow the thing it is the
+    // baseline for, and the notice would always be empty.
+    bootConfig: structuredClone(options.config),
     layout,
     index,
     state,
@@ -522,16 +539,92 @@ export function applyLiveConfig(
   services: AppServices,
   next: Config,
 ): string[] {
-  const pending = pendingRestart(services.config, next);
+  /**
+   * **Against the boot config, not the running one.**
+   *
+   * The previous version computed the delta against `services.config` and then
+   * replaced it, which made the answer right exactly once: after one save the
+   * baseline had already moved, so the second save's notice was measured from
+   * somewhere the listener had never been. What is pending is the difference
+   * between what this process *started* with and what is on disk now — a
+   * property of the process, so it is derived per call and stored nowhere.
+   */
+  const pending = pendingRestart(services.bootConfig, next);
 
   // Assigned unconditionally rather than only on a difference. Comparing
   // against `services.config` would make this correct only while that record
   // and the running logger agree, and the whole job of this function is to be
   // the thing that keeps them agreeing.
+  //
+  // `app.log` is the **root** logger. Fastify gives each encapsulated plugin a
+  // child, and pino children resolve their level through the parent unless one
+  // was set on them — so assigning here reaches every child, and assigning to a
+  // child would work for that child's lines and silently not for the rest.
   app.log.level = next.log.level;
 
-  services.config = next;
+  /**
+   * **Assigned into, not replaced.**
+   *
+   * `services.config = next` was the bug underneath most of this stage: the
+   * runner, the budgeter and the library context all hold *this object*, and
+   * rebinding the field left every one of them reading a record the server had
+   * stopped using. Six keys the tier table calls `live` could not change on a
+   * running server for that reason alone.
+   *
+   * A deep in-place merge instead, so every holder of the reference sees the
+   * change without being told. This function's own docstring already claimed
+   * values were read at the point of use; this is where that becomes true.
+   *
+   * Which `live` keys a running server genuinely reads is
+   * {@link LIVE_APPLIERS}, and it is a table rather than a comment because the
+   * settings surface renders it.
+   */
+  assignInPlace(services.config, next);
+
+  /**
+   * **The fan-out**, for the one `live` key an in-place assign cannot reach.
+   *
+   * `LibraryContext` carries `keepHistoryPerObject` as its own field rather than
+   * a config reference, because it is the shape the library module takes and
+   * that module knows nothing about config. So the value is copied there once at
+   * assembly, and copying is exactly what makes a `live` tier untrue.
+   *
+   * One assignment rather than a subscription: there is one consumer, it is
+   * reached from here, and the watcher holds this same object, so both write
+   * paths into an object's history see it. If a second field ever needs this,
+   * the honest move is to make {@link LIVE_APPLIERS} say so — not to grow a
+   * listener registry in front of two assignments.
+   */
+  services.library.keepHistoryPerObject = next.history.keepPerObject;
+
   return pending;
+}
+
+/**
+ * Deep-assigns `next` onto `target`, keeping every nested object's identity.
+ *
+ * Config is a fixed tree of plain objects and scalars — no arrays, no nulls,
+ * validated against {@link ConfigSchema} before it ever reaches here — so this
+ * does not need to be a general deep merge, and deliberately is not one. A
+ * general version would have to take positions on arrays and on deletion that
+ * config has no way to express.
+ */
+function assignInPlace(target: Record<string, unknown>, next: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(next)) {
+    const existing = target[key];
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      typeof existing === 'object' &&
+      existing !== null &&
+      !Array.isArray(existing)
+    ) {
+      assignInPlace(existing as Record<string, unknown>, value as Record<string, unknown>);
+    } else {
+      target[key] = value;
+    }
+  }
 }
 
 /** Rejects a request with no session. The routes' single authentication point. */

@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  applierOf,
   CONFIG_TIERS,
   ConfigError,
   configKeys,
   DEFAULT_CONFIG,
+  LIVE_APPLIERS,
   loadConfig,
   pendingRestart,
   tierOf,
@@ -26,6 +29,40 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+/**
+ * The parsed file, kept beside the merged view — [P2A §2.5].
+ *
+ * The settings form has to write back a document that preserves keys this build
+ * does not know: a newer build's key, or a typo somebody wants to keep seeing
+ * rather than have silently eaten. Those exist only in what was parsed.
+ *
+ * `config` cannot stand in for it. That is the merged view, so every unset key
+ * is present there carrying a default — a writer round-tripping through it would
+ * pin the whole default set into a file the operator had deliberately left
+ * sparse, and the next build's changed default would never reach them.
+ */
+describe('the raw document', () => {
+  it('is what the file said, not what the defaults filled in', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ server: { port: 9999 }, mystery: { key: 1 } }));
+
+    const loaded = await loadConfig(path);
+
+    // Exactly the file's own keys — the assertion that separates the parsed
+    // document from the merged one, which would carry every default here.
+    expect(configKeys(loaded.document).sort()).toEqual(['mystery.key', 'server.port']);
+    // And the merged view is still the merged view, so nothing else moved.
+    expect(loaded.config.server.host).toBe(DEFAULT_CONFIG.server.host);
+    expect(loaded.config.server.port).toBe(9999);
+  });
+
+  it('is empty when there is no file, which is the same shape as an empty one', async () => {
+    const loaded = await loadConfig(join(dir, 'absent.json'));
+    expect(loaded.document).toEqual({});
+    expect(loaded.fileFound).toBe(false);
+  });
+});
+
 describe('the tier table is the source', () => {
   it('gives every key a tier', () => {
     // [06 D0](../../../docs/design/06-open-questions.md) requires every key to be
@@ -39,6 +76,68 @@ describe('the tier table is the source', () => {
     // The other direction: a stale entry left behind after a key was removed.
     const stale = Object.keys(CONFIG_TIERS).filter((key) => !configKeys().includes(key));
     expect(stale).toEqual([]);
+  });
+
+  it('declares every key in the commented example', async () => {
+    // [01 §2.3](../../../docs/design/workplan/01-work-plan.md): configuration
+    // ships with its surface, and `config.example.json` is the surface every
+    // operator meets first — its own header calls the settings UI "the primary
+    // path", which makes this file the other one. Four keys had already drifted
+    // out of it before anybody looked, which is the argument for a test rather
+    // than a habit.
+    //
+    // Named as out of scope at [P2 §3](../../../docs/design/workplan/04-p2-implementation.md)
+    // because it cited no finding; it enters at
+    // [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+    const example = await readFile(
+      fileURLToPath(new URL('../../../config.example.json', import.meta.url)),
+      'utf8',
+    );
+    // JSON has no comments, which is the one real cost of JSON everywhere
+    // ([02 §5.4]) and the reason this file is not loadable as it stands. Strip
+    // whole-line comments only: no value in it contains `//`, and a parser that
+    // tried to be cleverer would be a second config reader.
+    const stripped = example
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('//'))
+      .join('\n');
+
+    const parsed: unknown = JSON.parse(stripped);
+    expect(configKeys(parsed).sort()).toEqual(configKeys().sort());
+  });
+
+  /**
+   * The appliers table covers exactly the `live` keys — [P2A §2.5].
+   *
+   * Both directions, for the same reason the tier table gets both: a `live` key
+   * with no entry is a key nobody decided about, and an entry for a key that is
+   * no longer `live` is a row that outlived its question. The second is the one
+   * a re-tier produces, and a re-tier is exactly when somebody is not thinking
+   * about this file.
+   */
+  it('says of every live key whether anything reads it', () => {
+    const live = configKeys().filter((key) => tierOf(key) === 'live');
+    expect(live.filter((key) => applierOf(key) === null)).toEqual([]);
+  });
+
+  it('claims no key that is not live', () => {
+    const stale = Object.keys(LIVE_APPLIERS).filter((key) => tierOf(key) !== 'live');
+    expect(stale).toEqual([]);
+  });
+
+  /**
+   * **And at least one key is honestly declared unread**, which is the assertion
+   * that keeps the table from being decorative.
+   *
+   * A table whose every row said `applied` would pass both checks above while
+   * telling the settings surface there is nothing to warn about — and the
+   * surface exists partly to warn. `limits.maxUploadMb` is the standing example
+   * ([P2A §2.5]): tiered `live` because the key names uploads, read once at
+   * construction because there is no upload route yet.
+   */
+  it('admits that some live keys are stored and not read', () => {
+    expect(applierOf('limits.maxUploadMb')).toBe('unread');
+    expect(applierOf('log.level')).toBe('applied');
   });
 
   it('keeps the bind address on restart', () => {
