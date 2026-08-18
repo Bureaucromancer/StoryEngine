@@ -12,9 +12,11 @@ import {
   listSessionFiles,
   readSession,
   reconcileHandEdits,
+  setCast,
   readTurns,
   setArchived,
 } from '../sessions/store.js';
+import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
@@ -39,8 +41,29 @@ import { PathEscapeError } from '../storage/paths.js';
 const SessionParams = Type.Object({ sessionId: Type.String() });
 const JobParams = Type.Object({ sessionId: Type.String(), jobId: Type.String() });
 
+/**
+ * What a session is created as.
+ *
+ * `mode` and `cast` are here because without them half the shipped preset is
+ * unreachable: the persona and actor slots resolve empty, so every prompt built
+ * by this server used 4 of its 12 blocks and every test over assembly asserted
+ * on absent input. The preset is **not** a parameter — a session copies its
+ * mode's default, and choosing a different pack is P7's surface.
+ */
+const CastBody = Type.Object(
+  {
+    persona: Type.Union([Type.String(), Type.Null()]),
+    actors: Type.Array(Type.String(), { maxItems: 32 }),
+  },
+  { additionalProperties: false },
+);
+
 const CreateBody = Type.Object(
-  { name: Type.String({ minLength: 1, maxLength: 200 }) },
+  {
+    name: Type.String({ minLength: 1, maxLength: 200 }),
+    mode: Type.Optional(Type.String({ maxLength: 100 })),
+    cast: Type.Optional(CastBody),
+  },
   { additionalProperties: false },
 );
 
@@ -78,9 +101,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const { name } = request.body as { name: string };
+    const body = request.body as {
+      name: string;
+      mode?: string;
+      cast?: { persona: string | null; actors: string[] };
+    };
+
+    /**
+     * An unknown mode is refused **here** rather than resolved to the default.
+     *
+     * The runner falls back for a session that is *already* playing one this
+     * build does not know — somebody else's story, which should still open
+     * ([00 §3.3]). Creating a new session naming a mode that does not exist is a
+     * different thing: nobody's story depends on it yet, and silently giving
+     * them a different mode than they asked for is the surprise.
+     */
+    const mode = modeById(body.mode ?? DEFAULT_MODE_ID);
+    if (mode === null) {
+      return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
+    }
+
+    // What the mode says it can seat ([03 §7.2]) — the first real consumer of
+    // `ParticipantPolicy`, which was a declaration nothing read.
+    const actors = body.cast?.actors ?? [];
+    if (actors.length > mode.definition.participants.maxActors) {
+      return reply.code(422).send({
+        error: 'too-many-actors',
+        message: 'That mode seats fewer actors than this session names.',
+      });
+    }
+
     try {
-      const session = await createSession(services.sessions, account.handle, name);
+      const session = await createSession(services.sessions, account.handle, {
+        name: body.name,
+        mode: { id: mode.definition.id, config: null },
+        // **Copied, not referenced** ([02 §8]): the session owns its prompt pack
+        // from here, so editing the mode's default never rewrites a game in
+        // progress.
+        preset: structuredClone(mode.definition.assembly.defaultPreset),
+        ...(body.cast === undefined ? {} : { cast: body.cast }),
+      });
       return await reply.code(201).send({ session });
     } catch (error) {
       if (error instanceof PathEscapeError) {
@@ -114,6 +174,34 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const job = activeJob(services.state.db, session.id);
     return reply.send({ session, activeJob: job });
   });
+
+  app.put(
+    '/sessions/:sessionId/cast',
+    { schema: { params: SessionParams, body: CastBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const body = request.body as { persona: string | null; actors: string[] };
+      const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID);
+      if (mode !== null && body.actors.length > mode.definition.participants.maxActors) {
+        return reply.code(422).send({
+          error: 'too-many-actors',
+          message: 'That mode seats fewer actors than this session names.',
+        });
+      }
+
+      const { sessionId } = request.params as { sessionId: string };
+      // **Ids, not objects.** A cast entry is a link resolved fresh every turn,
+      // so improving a character card reaches an ongoing game — the asymmetry
+      // with the copied preset is the design ([02 §8]).
+      const updated = await setCast(services.sessions, account.handle, sessionId, body);
+      return reply.send({ session: updated });
+    },
+  );
 
   app.patch(
     '/sessions/:sessionId',

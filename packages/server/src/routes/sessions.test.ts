@@ -5,6 +5,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { newActor } from '@storyengine/shared';
+
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
@@ -457,5 +459,135 @@ describe('a hand-edited session file reaches the log', () => {
     const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
 
     expect(after.body.turns).toHaveLength(before.body.turns.length);
+  });
+});
+
+describe('a session with a cast assembles the whole preset', () => {
+  /** An actor with real prose in the sections the preset positions. */
+  async function anActor(name: string): Promise<string> {
+    const actor = newActor(name);
+    const withProse = {
+      ...actor,
+      profile: {
+        ...actor.profile,
+        traits: ['watchful', 'unhurried'],
+        sections: actor.profile.sections.map((section) =>
+          section.id === 'se.summary'
+            ? { ...section, body: `${name} keeps the rain off other people.` }
+            : section.id === 'se.appearance'
+              ? { ...section, body: `${name} wears a long coat.` }
+              : section,
+        ),
+      },
+    };
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: withProse,
+    });
+    expect(created.status).toBe(201);
+    return actor.id;
+  }
+
+  it('fills the persona and actor slots that were unreachable before', async () => {
+    // **The measurement the audit made.** Without a cast this preset yields 4 of
+    // its 12 blocks, and every prompt test asserted on that — a prompt missing
+    // most of the only shipped preset, pinned as correct.
+    const personaId = await anActor('Ned');
+    const actorId = await anActor('Vera');
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'With a cast', cast: { persona: personaId, actors: [actorId] } },
+    });
+    expect(created.status).toBe(201);
+    const withCast = created.body.session.id as string;
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${withCast}/turns`,
+      payload: { idempotencyKey: 'k', headTurnId: null, input: { text: 'She waited.' } },
+    });
+    const stream = await server.stream({ url: `/api/sessions/${withCast}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
+    const kinds = (turns.body.turns[0].request.blocks as { source: { kind: string } }[]).map(
+      (block) => block.source.kind,
+    );
+
+    expect(kinds).toContain('persona');
+    expect(kinds).toContain('actor');
+    // And the actor's own words reached the model, rather than an empty slot.
+    const sent = provider.requests[0]?.messages.map((message) => message.content).join('\n') ?? '';
+    expect(sent).toContain('Vera wears a long coat');
+    expect(sent).toContain('Ned keeps the rain off other people');
+  });
+
+  it('copies the preset rather than referencing it', async () => {
+    // [02 §8]: the session owns its pack from creation, so editing the mode's
+    // default never rewrites a game in progress. The asymmetry with the cast —
+    // which is links — is the design.
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Owns its preset' },
+    });
+
+    expect(created.body.session.preset.blocks).toHaveLength(12);
+    expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
+  });
+
+  it('refuses a mode nobody has heard of at creation', async () => {
+    // Distinct from the runner's fallback: nobody's story depends on a session
+    // that does not exist yet, so silently substituting would be the surprise.
+    const refused = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'x', mode: 'storyengine.nope' },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toBe('unknown-mode');
+  });
+
+  it('refuses more actors than the mode seats', async () => {
+    // The first real consumer of `ParticipantPolicy`, which was a declaration
+    // nothing read. Scene seats one.
+    const refused = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'x', cast: { persona: null, actors: ['a', 'b'] } },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toBe('too-many-actors');
+  });
+
+  it('lets the cast change mid-story, unlike the mode and the preset', async () => {
+    const actorId = await anActor('Marlow');
+    const updated = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/cast`,
+      payload: { persona: null, actors: [actorId] },
+    });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.session.cast.actors).toEqual([actorId]);
+  });
+
+  it('survives a cast naming an actor that is gone', async () => {
+    // [00 §3.3]: a deleted actor must not make a session unplayable.
+    await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/cast`,
+      payload: { persona: null, actors: ['0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4aff'] },
+    });
+
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    const end = await stream.until(finished, 4000);
+    expect((end.data as { params: { state: string } }).params.state).toBe('complete');
+    await stream.abort();
   });
 });

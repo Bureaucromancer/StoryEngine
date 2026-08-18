@@ -3,7 +3,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 
-import { uuidv7 } from '@storyengine/shared';
+import { type Preset, uuidv7 } from '@storyengine/shared';
 
 import { indexSession, indexTurn, removeSessionRows } from '../index-db/sessions.js';
 
@@ -87,20 +87,42 @@ function turnsRoot(layout: Layout, handle: string, sessionId: string): string {
   return resolveWithin(sessionRoot(layout, handle, sessionId), 'turns');
 }
 
+/**
+ * What a session is created as — [03 §1].
+ *
+ * The mode and its preset are decided once, at creation, because a session that
+ * changed mode mid-story would have to answer what its existing turns meant.
+ * The cast can change later; the preset cannot, because it is a **copy** and
+ * swapping it would silently rewrite how the whole session assembles.
+ */
+export interface NewSession {
+  name: string;
+  mode?: { id: string; config: unknown };
+  /** Copied in whole. [02 §8]: the session owns its prompt pack from here on. */
+  preset?: Preset;
+  cast?: { persona: string | null; actors: string[] };
+}
+
 export async function createSession(
   context: SessionContext,
   handle: string,
-  name: string,
+  options: NewSession | string,
 ): Promise<SessionFile> {
+  // A bare name is still accepted, because most callers have nothing else to
+  // say and a required options object would be ceremony at every call site.
+  const spec: NewSession = typeof options === 'string' ? { name: options } : options;
   const now = new Date().toISOString();
   const session: SessionFile = {
     schema: 'storyengine.session/1',
     id: uuidv7(),
-    name,
+    name: spec.name,
     createdAt: now,
     updatedAt: now,
     headTurnId: null,
     channels: {},
+    ...(spec.mode === undefined ? {} : { mode: spec.mode }),
+    ...(spec.preset === undefined ? {} : { preset: spec.preset }),
+    ...(spec.cast === undefined ? {} : { cast: spec.cast }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);
@@ -157,6 +179,30 @@ export async function listSessionFiles(
     found.push(session);
   }
   return found.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * Changes who is in a session — [03 §7.2].
+ *
+ * Separate from create because a cast is the one part of a session's
+ * configuration that legitimately changes mid-story: somebody joins the scene.
+ * The mode and the preset do not, for the reasons `NewSession` gives.
+ */
+export async function setCast(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  cast: { persona: string | null; actors: string[] },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = { ...session, updatedAt: new Date().toISOString(), cast };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
 }
 
 /**
