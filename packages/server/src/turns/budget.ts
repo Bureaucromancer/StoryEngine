@@ -21,15 +21,46 @@ import type { ProviderCapabilities } from '../providers/types.js';
  * is also true: it is a statement about *that endpoint*, which is what
  * [07 §5.3](../../../../docs/design/07-tech-stack.md) says a capability override is.
  */
+export interface PresetBudget {
+  contextShare: number;
+  maxContextTokens: number | null;
+  reserveOutputTokens: number;
+}
+
 export function budgetPolicyFor(
   capabilities: ProviderCapabilities,
   params: GenerationParams,
   config: Config,
+  preset?: PresetBudget,
 ): BudgetPolicy {
-  const limit =
+  /**
+   * The window, resolved in the order the design gives.
+   *
+   * The endpoint knows best, then the config's ceiling. **A preset's
+   * `maxContextTokens` is a cap on that, not a substitute for it** — [10 §8.3]'s
+   * whole argument is that a preset written against a 4k window must not
+   * silently misbehave at 200k, which is what an absolute value from the preset
+   * *winning* would reproduce. So it can only narrow.
+   */
+  const resolved =
     capabilities.maxContextTokens === undefined
       ? { tokens: config.limits.contextTokens, source: 'user' as const }
       : { tokens: capabilities.maxContextTokens, source: 'provider' as const };
+
+  const capped =
+    preset?.maxContextTokens == null
+      ? resolved
+      : { tokens: Math.min(resolved.tokens, preset.maxContextTokens), source: 'preset' as const };
+
+  /**
+   * And the share the preset is willing to spend on context — [10 §8.3]'s
+   * *shares and floors against the resolved window*, which is what makes a
+   * preset portable across window sizes at all.
+   */
+  const limit =
+    preset === undefined
+      ? capped
+      : { tokens: Math.floor(capped.tokens * preset.contextShare), source: 'preset' as const };
 
   return {
     limit,
@@ -42,6 +73,7 @@ export function budgetPolicyFor(
      * did not say how long its answer may be gets the config's default rather
      * than nothing.
      */
-    reserved: params.maxTokens ?? config.limits.reservedCompletionTokens,
+    reserved:
+      params.maxTokens ?? preset?.reserveOutputTokens ?? config.limits.reservedCompletionTokens,
   };
 }

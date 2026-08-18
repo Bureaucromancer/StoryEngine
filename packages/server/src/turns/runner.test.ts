@@ -629,3 +629,37 @@ describe('a preset block can be scoped to a kind of call', () => {
     expect(reasons).toContain('input');
   });
 });
+
+describe("the preset's own settings reach the call", () => {
+  it('sends the temperature and token limit the preset declares', async () => {
+    // Both were written into every shipped preset and read by nothing: a pack
+    // declaring `temperature: 0.85` and `maxTokens: 800` reached the provider as
+    // `{}`, and the budget used the config default rather than the preset's
+    // three-quarter share.
+    await runTurn();
+
+    expect(provider.requests[0]?.params).toMatchObject({
+      temperature: SCENE_PRESET.params.temperature,
+      maxTokens: SCENE_PRESET.params.maxTokens,
+    });
+  });
+
+  it('budgets against the share the preset asks for', async () => {
+    const { turn } = await runTurn();
+
+    const limit = turn.request?.budget?.limit;
+    // Three quarters of the config ceiling, and labelled as the preset's — the
+    // first producer `source: 'preset'` has ever had.
+    expect(limit?.source).toBe('preset');
+    expect(limit?.tokens).toBe(
+      Math.floor(DEFAULT_CONFIG.limits.contextTokens * SCENE_PRESET.budget.contextShare),
+    );
+  });
+
+  it('records the params it actually used on the call', async () => {
+    // [13 §1.4]: the record answers "why is this turn different", which it
+    // cannot do if the params it names are not the params that were sent.
+    const { turn } = await runTurn();
+    expect(turn.request?.calls[0]?.params).toEqual(provider.requests[0]?.params);
+  });
+});

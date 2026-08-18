@@ -406,6 +406,7 @@ export class TurnRunner {
                   usable,
                   providers: this.#options.providers,
                   config,
+                  preset: { params: preset.params, budget: preset.budget },
                   signal,
                   onAssembled: (assembled, budget) => {
                     blocks = assembled;

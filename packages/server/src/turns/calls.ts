@@ -12,7 +12,7 @@ import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings } from '../providers/roles.js';
 import { ProviderError, type GenerationResult, type TokenUsage } from '../providers/types.js';
 import type { ModelCall } from '../sessions/types.js';
-import { budgetPolicyFor } from './budget.js';
+import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
 
 /**
@@ -53,6 +53,14 @@ export interface CallContext {
   usable: Connection[];
   providers: ProviderFactory;
   config: Config;
+  /**
+   * The session's prompt pack — its generation defaults and its budget policy.
+   *
+   * Both were written into every shipped preset and read by nothing: a preset
+   * declaring `temperature: 0.85` and `maxTokens: 800` reached the provider as
+   * `{}`, and its `contextShare` never narrowed anything.
+   */
+  preset?: { params: GenerationParams; budget: PresetBudget };
   signal: AbortSignal;
   /** The blocks and verdict this call produced, for the turn record. */
   onAssembled(blocks: AssembledBlock[], verdict: BudgetVerdict): void;
@@ -100,8 +108,15 @@ export async function performCall(
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 
   const provider = context.providers(resolution.connection);
-  const params: GenerationParams = request.params ?? {};
-  const policy = budgetPolicyFor(provider.capabilities, params, context.config);
+  // A step's own request wins over the preset's defaults, and the preset's win
+  // over nothing — which is the layering [10 §8] describes for everything else.
+  const params: GenerationParams = { ...context.preset?.params, ...request.params };
+  const policy = budgetPolicyFor(
+    provider.capabilities,
+    params,
+    context.config,
+    context.preset?.budget,
+  );
 
   // **The purpose comes from the definition, not from the request.** A step
   // that could name its own would be one honest declaration away from walking
