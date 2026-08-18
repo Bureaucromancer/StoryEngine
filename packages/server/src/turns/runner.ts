@@ -182,7 +182,73 @@ export class TurnRunner {
     this.#live.clear();
   }
 
+  /**
+   * Runs a turn, and **finalises whatever happens**.
+   *
+   * The wrapper is the invariant rather than a nicety. Everything between
+   * `setJobStatus('running')` and the step loop — reading the session,
+   * resolving the mode, resolving the cast, building the plan — used to sit
+   * outside every `try`. A throw there left the job `running` with
+   * `finished_at` null, and because `job_one_active_per_session` is partial
+   * on that column, **every later submission to that session was refused as
+   * busy until the process restarted** — presenting to a caller as a
+   * well-behaved 409 rather than as the bug it was.
+   *
+   * A hand-edited `session.json` reaches that region, and hand-editing is a
+   * supported way to get data into this system. So the guarantee is stated
+   * here once, in a place no future addition to `#body` can fall outside of:
+   * a turn that cannot even be set up still commits, as a failed turn that
+   * says why.
+   */
   async #run(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
+    try {
+      await this.#body(job, payload, signal);
+    } catch (error) {
+      this.#options.log?.error(
+        { event: 'job.unstartable', jobId: job.id, err: error },
+        'A turn failed before it could run',
+      );
+      await this.#finaliseUnstartable(job, payload, error);
+    }
+  }
+
+  /**
+   * Commits the least dishonest record a turn that never ran can leave.
+   *
+   * A turn, not an abandonment: the job reserved a turn id and the session
+   * is waiting on it, and `abandoned` writes nothing at all — so the session
+   * would look as though the submission had never happened.
+   */
+  async #finaliseUnstartable(job: Job, payload: TurnPayload, error: unknown): Promise<void> {
+    const draft: Turn = {
+      ...initialDraft(job, payload),
+      steps: [
+        {
+          stepId: 'se.setup',
+          stage: 'pre',
+          state: 'failed',
+          failure: 'abort',
+          error: { reason: 'internal', message: messageOf(error) },
+          contributed: { blocks: 0, effects: 0 },
+          wallMs: 0,
+        },
+      ],
+    };
+
+    try {
+      checkpoint(this.#options.commit, job.id, { turn: draft });
+      await finaliseTurn(this.#options.commit, job.id, draft);
+    } catch (fatal) {
+      // The store itself is gone — the kill case. Startup reconciliation is
+      // what picks this up; there is nothing left to write it with.
+      this.#options.log?.error(
+        { event: 'job.lost', jobId: job.id, err: fatal },
+        'Could not finalise an unstartable turn',
+      );
+    }
+  }
+
+  async #body(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
     const { commit, bus, config } = this.#options;
     const log = this.#options.log?.child({
       jobId: job.id,

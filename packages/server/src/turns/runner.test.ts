@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -495,5 +495,73 @@ describe('the preset is what builds the prompt', () => {
     const history = written.at(-1)?.turn.request?.blocks.filter((b) => b.source.kind === 'history');
     expect(history).toHaveLength(1);
     expect(history?.[0]?.text).toContain('The first thing.');
+  });
+});
+
+describe('a turn that cannot even be set up', () => {
+  it('commits a failed turn rather than wedging the session forever', async () => {
+    // **The failure mode the one-active-job index makes possible.** Everything
+    // between `setJobStatus('running')` and the step loop — reading the session,
+    // resolving the mode, resolving the cast, building the plan — used to sit
+    // outside every `try`. A throw there left the job running with `finishedAt`
+    // null, so `submitTurn` answered every later submission `409 busy` until the
+    // process restarted, and it presented to a test as a well-behaved refusal.
+    //
+    // A hand-edited `session.json` reaches it, which is a supported way to get
+    // data into this system.
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, cast: { persona: null, actors: 'nope' } }));
+
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
+
+    // Terminal, so the session is usable again…
+    expect(readJob(state.db, job.id)?.status).toBe('committed');
+    const next = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId,
+      idempotencyKey: 'key-after',
+      headTurnId: (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null,
+    });
+    expect(next.kind).toBe('created');
+  });
+
+  it('survives a cast that is not the shape it claims to be', async () => {
+    // `resolveCast` says it never throws. It is handed whatever is in the file.
+    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, cast: null }));
+
+    const { turn } = await runTurn();
+    // Not merely "did not crash": the turn still ran and still narrated.
+    expect(turn.status).toBe('complete');
+  });
+
+  it('finalises even when the failure is outside the step loop entirely', async () => {
+    // The guarantee the wrapper exists for, exercised where the step loop's own
+    // catch cannot reach: the `for` header itself. A malformed plan is the
+    // cheapest honest way to produce that — the reachable *causes* in the
+    // resolution region are guarded upstream now, so this is what keeps the
+    // wrapper falsifiable rather than decorative, and what stops a future
+    // addition to the body reintroducing the wedge unnoticed.
+    makeRunner({ plan: { steps: null as unknown as TurnPlan['steps'] } });
+
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
+
+    expect(readJob(state.db, job.id)?.status).toBe('committed');
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    // A turn, not an abandonment: the session was waiting on this id, and
+    // abandoning writes nothing — the submission would look as though it had
+    // never happened.
+    expect(written).toHaveLength(1);
+    expect(written[0]?.turn.status).toBe('failed');
+    expect(written[0]?.turn.steps?.[0]?.stepId).toBe('se.setup');
   });
 });

@@ -31,13 +31,19 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
-import type { SessionContext } from './sessions/store.js';
+import { listSessions, type SessionContext } from './sessions/store.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
-import { reconcile, type CommitContext, type Reconciliation } from './state/commit.js';
+import {
+  reconcile,
+  reconcileSession,
+  type CommitContext,
+  type Reconciliation,
+} from './state/commit.js';
 import type { JobContext } from './state/jobs.js';
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
+import { listDirectoryNames } from './storage/files.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -328,6 +334,29 @@ export async function buildApp(
    */
   services.reconciliation = await reconcile(services.commit);
 
+  /**
+   * And the turns that have no job to resume from — [P2 §2.10]'s
+   * deleted-`state.sqlite` case.
+   *
+   * `reconcile` walks *jobs*; if the operational store is gone there are
+   * none, and a turn already appended to a segment would sit there with the
+   * head never advancing over it. That is the case §2.10 says must be
+   * "reconciled into the session rather than duplicated or discarded" — and
+   * until this call existed, `reconcileSession` was exported, tested, and
+   * reached by nothing.
+   */
+  for (const handle of await listAccountHandles(services)) {
+    for (const sessionId of await listSessions(services.sessions, handle)) {
+      const advanced = await reconcileSession(services.sessions, handle, sessionId);
+      if (advanced > 0) {
+        app.log.info(
+          { event: 'session.reconciled', sessionId, advanced },
+          'Linked turns the head had not caught up to',
+        );
+      }
+    }
+  }
+
   await app.register(cookie);
 
   app.decorateRequest('account', null);
@@ -394,6 +423,18 @@ export async function buildApp(
   );
 
   return app;
+}
+
+/**
+ * Every account with a directory on disk.
+ *
+ * Read from the filesystem rather than from `accounts.json`, for the same
+ * reason the rebuild scans directories: a directory belonging to a removed
+ * account still holds somebody's sessions, and skipping it would leave a turn
+ * unlinked forever.
+ */
+async function listAccountHandles(services: AppServices): Promise<string[]> {
+  return listDirectoryNames(services.layout.usersRoot);
 }
 
 function isApi(url: string): boolean {

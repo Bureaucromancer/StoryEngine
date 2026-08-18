@@ -11,6 +11,7 @@ import {
   deleteSession,
   listSessionFiles,
   readSession,
+  reconcileHandEdits,
   readTurns,
   setArchived,
 } from '../sessions/store.js';
@@ -381,6 +382,28 @@ async function mine(
 ): Promise<Awaited<ReturnType<typeof readSession>>> {
   const { sessionId } = request.params as { sessionId: string };
   const handle = request.account?.handle ?? '';
+
+  /**
+   * **Reconciled before it is answered** — [02 §8.1].
+   *
+   * The section says the engine compares the file's channel state against the
+   * state replayed at head *on load*, and turns any divergence into a
+   * user-authored effect. Until this call existed, `reconcileHandEdits` was
+   * exported, unit-tested, and reached by nothing — so a hand edit was silently
+   * absorbed into the head snapshot on the next turn and never entered the
+   * effect log, which is the failure §8.1 exists to prevent.
+   *
+   * Here rather than inside `readSession`: the reconciler takes the session
+   * lock, which is not reentrant, and `readSession` is called from inside that
+   * lock in several places. This is the outermost read, and it holds nothing.
+   */
+  const reconciled = await reconcileHandEdits(services.sessions, handle, sessionId);
+  if (reconciled.length > 0) {
+    request.log.info(
+      { event: 'session.diverged', sessionId, effects: reconciled.length },
+      'A hand edit landed as a user-attributed effect',
+    );
+  }
 
   const session = await readSession(services.sessions, handle, sessionId);
   if (session === null) {

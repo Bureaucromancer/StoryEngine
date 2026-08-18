@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -402,5 +402,60 @@ describe('the transcript', () => {
     expect(turns.body.turns).toHaveLength(1);
     expect(turns.body.turns[0].output.text).toBe('The rain had not stopped for three days.');
     expect(turns.body.turns[0].request.calls).toHaveLength(1);
+  });
+});
+
+describe('a hand-edited session file reaches the log', () => {
+  it('turns a divergence into a user-attributed effect on read', async () => {
+    // **Gate 16, through the server rather than by calling the reconciler.**
+    // `reconcileHandEdits` was exported, unit-tested and reached by nothing, so
+    // this step was green on code the running server never executed — and a
+    // hand edit was absorbed into the head snapshot without ever entering the
+    // effect log, which is the failure [02 §8.1] exists to prevent.
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    // Open session.json in a text editor, so to speak, and set the clock.
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const onDisk = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...onDisk,
+        channels: { 'se.clock': { version: 1, value: { day: 1, hour: 19, minute: 30 } } },
+      }),
+    );
+
+    // Reading the session is what reconciles it.
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const last = turns.body.turns.at(-1) as {
+      effects: { channelId: string; proposedBy: { kind: string }; after: unknown }[];
+    };
+
+    // A turn of its own, attributed to the person who opened the file — not a
+    // silent overwrite on the next head advance.
+    const effect = last.effects.find((each) => each.channelId === 'se.clock');
+    expect(effect?.proposedBy).toEqual({ kind: 'user' });
+    expect(effect?.after).toEqual({ day: 1, hour: 19, minute: 30 });
+  });
+
+  it('does nothing when the file and the log agree', async () => {
+    // An ordinary read must not append a turn, or every page load would grow
+    // the session.
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+
+    expect(after.body.turns).toHaveLength(before.body.turns.length);
   });
 });

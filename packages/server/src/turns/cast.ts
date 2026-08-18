@@ -26,13 +26,23 @@ import type { LibraryContext } from '../library.js';
 export function resolveCast(
   library: LibraryContext,
   handle: string,
-  cast: { persona: string | null; actors: string[] } | undefined,
+  cast: { persona?: unknown; actors?: unknown } | null | undefined,
 ): { persona: Actor | null; actors: Actor[] } {
-  if (cast === undefined) return { persona: null, actors: [] };
+  /**
+   * **Shape-guarded, because this is handed whatever is in the file.**
+   * `readSession` validates nothing beyond the id being a string, and
+   * hand-editing `session.json` is a supported way to get data in — so a
+   * `cast` that is null, or whose `actors` is a string, reaches here. The
+   * never-throws claim above is only true if that is checked.
+   */
+  if (cast === null || typeof cast !== 'object') return { persona: null, actors: [] };
+  const actors = Array.isArray(cast.actors) ? cast.actors : [];
+  const persona = typeof cast.persona === 'string' ? cast.persona : null;
 
   return {
-    persona: cast.persona === null ? null : oneActor(library, handle, cast.persona),
-    actors: cast.actors
+    persona: persona === null ? null : oneActor(library, handle, persona),
+    actors: actors
+      .filter((id): id is string => typeof id === 'string')
       .map((id) => oneActor(library, handle, id))
       .filter((actor): actor is Actor => actor !== null),
   };
