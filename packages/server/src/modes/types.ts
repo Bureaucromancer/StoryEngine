@@ -114,10 +114,11 @@ export interface AssemblyPlan {
 /**
  * The wizard, declared rather than coded ([03 §2]).
  *
- * `{ kind: 'none' }` is a real state with a real consumer — session creation
- * reads it and writes no config without asking anybody anything. The field
- * vocabulary a real wizard needs is P7's, and guessing it is what [13 §6]
- * refuses to do for `WidgetSpec`.
+ * A real state, and session creation is its consumer: POST /api/sessions
+ * resolves the mode and writes a null config without asking anybody anything,
+ * which is exactly what a no-wizard mode means. The field vocabulary a *real*
+ * wizard needs is P7's, and guessing it is what [13 §6] refuses to do for
+ * `WidgetSpec`.
  */
 export interface NoSetup {
   kind: 'none';

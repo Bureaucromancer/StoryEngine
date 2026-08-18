@@ -33,6 +33,7 @@ import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
+import { assertModesRunnable } from './modes/registry.js';
 import {
   reconcile,
   reconcileSession,
@@ -131,6 +132,13 @@ export interface BuildAppOptions {
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
+  /**
+   * Before anything opens a file: a mode declaring a step it cannot run is a
+   * turn that quietly narrates nothing, and `assertModesRunnable` said it ran
+   * "at module load" while nothing invoked it.
+   */
+  assertModesRunnable();
+
   const layout = new Layout(options.config.dataDir);
   const index = await openIndex({ path: layout.indexFile });
 

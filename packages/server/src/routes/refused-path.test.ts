@@ -135,7 +135,7 @@ describe('a refused path', () => {
     // divergence between the two producers the rebuild-equals-incremental gate
     // holds to one answer (F11): `parseObjectPath` takes the slug off the
     // directory name without checking it, so the watcher indexes what a rebuild
-    // steps over. Reconciling them is P2.3's, beside F20 — the same question of
+    // steps over. Reconciling them is P2.7's, beside F20 — the same question of
     // how the index represents a file it cannot open. When that lands, this
     // test changes shape, and it should be found by failing.
     const kindRoot = join(server.dataDir, 'users', 'ned', 'library', 'lorebooks');

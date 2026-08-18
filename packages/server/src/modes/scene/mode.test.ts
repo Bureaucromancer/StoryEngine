@@ -109,6 +109,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     // registry mode-derived is P7's, where a mode with a channel of its own can
     // prove the field does something.
     expect(SCENE.channels.map((channel) => channel.id)).toEqual(['se.clock']);
+    // The owner is a literal in `channels.ts` rather than an import of this id,
+    // because naming it the other way round would be a module cycle. This is
+    // what keeps the two in step instead.
+    for (const channel of SCENE.channels) expect(channel.owner).toBe(SCENE_ID);
     for (const channel of SCENE.channels) expect(CHANNELS[channel.id]).toBe(channel);
   });
 

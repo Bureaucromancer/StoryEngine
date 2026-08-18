@@ -1101,7 +1101,17 @@ interface Turn {
     calls: ModelCall[]           // one per model call: params, model, messages, tools
   }
 
-  output: { text: string; reasoning?: string; toolCalls: ToolCall[] }
+  /** `toolCalls` is deliberately absent: no `ToolCall` type is defined anywhere
+   *  in this design, and no adapter reports one distinctly. It arrives with the
+   *  first step that needs it rather than as a field nothing can fill. */
+  output: { text: string; reasoning?: string }
+  /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
+  status: "complete" | "failed" | "suspended"
+  /** Every draw the turn consumed, keyed by site ([07 §14.6]). */
+  tape: Tape
+  /** A tombstone the reader skips. Nothing removes turns at 1.0; pruning a
+   *  branch subtree does (§5.5). */
+  removed?: true
   /** What each step did — the durable counterpart of the `step.*` progress
    *  events. [04 §3.3](04-server-multiuser-deployment.md) opens by saying the live view *is*
    *  this record being built, which only holds if every event has somewhere
@@ -1132,6 +1142,9 @@ interface MentionSpan {
 
 interface AssembledBlock {
   id: string
+  /** The rendered text. Present because the workbench maps every sent byte back
+   *  to the block that produced it, which a reference alone cannot do. */
+  text: string
   /** One vocabulary, shared with the preset's slots — [13 §1.1]. Carries the
    *  identifier too (*which* lore entry), so provenance is clickable. */
   source: BlockSource

@@ -218,6 +218,9 @@ that section describes in prose and does not show:
 ```ts
 interface ChannelDefinition {
   id: ChannelId
+  /** **Shipped at P2.6**, with the first channel definition — [03 §4.1] names
+   *  accepting a package id as something 1.0 owes from that first definition,
+   *  because widening it afterwards is a migration over every stored channel. */
   owner: ModeId | ExtensionId | PackageId   // package: [03 §4.1], 2.0
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
@@ -233,6 +236,12 @@ interface ChannelDefinition {
   migrate?: (fromVersion: number, state: unknown) => unknown
 }
 ```
+
+**What P2 actually ships of this type**: `id`, `owner`, `version`, `scope`,
+`update`, `visibility` and `budget`. `schema`, `init` and `migrate` are absent —
+`InitPolicy` is itself deferred by §6, and a `migrate` hook sits inside the
+replay path, so guessing its contract before a channel needs one is the thing §6
+refuses to do for `WidgetSpec`.
 
 ### 1.4 `ModelCall`
 

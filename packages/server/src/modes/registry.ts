@@ -57,7 +57,7 @@ export function planFor(mode: Mode): TurnPlan {
 }
 
 /**
- * Proves every built-in mode can actually run, at load rather than at play.
+ * Proves every built-in mode can actually run, at startup rather than at play.
  *
  * The cost of getting this wrong is paid by a user mid-turn; the cost of
  * checking is one pass over a record with one entry in it.

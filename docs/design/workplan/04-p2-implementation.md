@@ -242,7 +242,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 
 | # | Finding | Disposition | Where |
 |---|---|---|---|
-| F1 | Symlink resolver has no production callers | **P2.0** | Wire `resolveWithinReal` into the real read/write path; the corpus already exists |
+| F1 | Symlink resolver has no production callers | **P2.0** | Wire `resolveWithinReal` into the real read/write path; the corpus already exists *Reshaped: what was wired is `assertRealContained`/`Layout.assertReal`, at ten call sites, rather than `resolveWithinReal` — which is gone. A verifier grepping the named function finds no caller and would conclude the finding is unfixed; the coverage is `routes/escape.test.ts`.* |
 | F2 | No body validation; `:kind` decorative | **P2.0** | Named P1.5 deliverable; the pattern must exist before session/turn routes multiply it. *The null-body 500 was guard-fixed at P1 closeout; the schemas remain.* |
 | F3 | Stale-hash TOCTOU | **Fixed at P1 closeout** | Per-object write queue (`KeyedQueue`) + a disk re-hash inside the critical section, with the verified bytes threaded into the encode. P2.3 clones the *fixed* pattern |
 | F4 | Watcher `ignored` broken on Windows | **Fixed at P1 closeout** | `isContained` over index/state/accounts/config, with a watcher test. The F17 Windows CI job still lands at P2.0 |
@@ -263,7 +263,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [05 §5](../05-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [09 §4](09-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
 | F20 | Invalid foreign edit remains invisible | **Fixed at P2.3** | A `file_error` table (index schema 2) with `unparsable`/`wrong-kind`/`schema` and the parser's own detail, cleared on a successful ingest **and on deletion** — the plan's test only covered repair, and a deleted broken file left a permanent complaint. `GET /api/library/errors` reads it, scoped like every other read, with the path relative to the data root (F22). Originally: **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not P1's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
 | F21 | `--reset-password`'s CLI wrapper untested | **P2.0** | One test beside the existing `auth/reset.test.ts`: argv parsing, the missing-handle path, exit codes. It rides in the test sweep — a credential-changing entry point is not the place to leave the typed half unasserted |
-| F22 | `PathEscapeError` → 500 disclosing absolute paths; and it aborts a rebuild | **P2.0, first** | A refused path answers **422 `refused-path`**, message naming the reason and the segment and nothing else; a rebuild counts one and steps over it. Ahead of F1 and F19 because both open this code and neither should have to carry it. *The leftover — a rebuild skips such a folder while the watcher indexes it, so the two producers F11's property test holds to one answer disagree — is **P2.3**'s, beside F20: the same question of how the index represents a file it cannot open. A test asserts the divergence so the fix is found by failing* |
+| F22 | `PathEscapeError` → 500 disclosing absolute paths; and it aborts a rebuild | **P2.0, first** | A refused path answers **422 `refused-path`**, message naming the reason and the segment and nothing else; a rebuild counts one and steps over it. Ahead of F1 and F19 because both open this code and neither should have to carry it. *The leftover — a rebuild skips such a folder while the watcher indexes it, so the two producers F11's property test holds to one answer disagree — is **P2.7**'s, beside F20: the same question of how the index represents a file it cannot open. A test asserts the divergence so the fix is found by failing* |
 | F23 | Shadow winner is platform-divergent | **Fixed at P2.3** | `resolveDuplicates` sorts in JS on `layout.portablePath()` rather than in SQL on the native path — no `order by` expression can fix it, because the separator is inside the string being compared. Regression test is a prefix pair, measured picking the wrong file on Windows before the fix. F11's step-12 fixture can stop avoiding prefix-pair slugs |
 | F24 | `--reset-password` as the last argument boots the server | **P2.0** | One-line guard, and it is F21's test that proves it. The two land together |
 | F25 | Lint config: `test-*.tsx` unmatched; test override drops the package bans | **P2.0** | Both in the F16 infrastructure commit, before the first file that would land in the gap |
@@ -770,8 +770,9 @@ Six notes on where the work differed from what §1.3 and this section predicted:
   an error row and nothing else.
 - **F22's leftover is still open.** The rebuild/watcher divergence over a refused
   path is not fixed here; the file-error table gives it somewhere to land, and
-  the test that asserts the divergence is not yet written. It moves to **P2.6**,
-  which opens the same code for the session-file error surface.
+  the test that asserts the divergence is not yet written. **Still open, and now
+  owned by P2.7** — P2.6 opened the same code and did not take it, so leaving it
+  pointed at a closed stage is how it becomes nobody's.
 - **"Session delete tombstones" is not what the design says.** This section said
   tombstone; [02 §10.3](../02-data-model.md) says *a session is a folder too, so
   §10.2 covers it unchanged* — a move to the user's trash. The section wins, and
@@ -823,13 +824,13 @@ is fixed (F20).
 
 ### P2.4 — Assembler, budgeter, render
 
-**Status: built**, minus the collectors. What exists is the pipeline —
-annotate, budget, render — with the advisory refusal enforced structurally and
-the golden-file suite started. What does not is the *collect* half: nothing yet
-reads a persona, an actor's sections or a preset's blocks and turns them into
-candidates, because there is no mode to ask for them until P2.6. The seam is
-`Candidate[]` in, `AssembledBlock[]` and a `BudgetVerdict` out, and the
-collectors land beside the Scene mode that needs them.
+**Status: built, collectors included.** The pipeline — annotate, budget,
+render — with the advisory refusal enforced structurally and the golden-file
+suite started. The *collect* half landed at P2.6 as
+`assembly/collect.ts`: it walks a preset's blocks and fills persona, actor
+sections, actor traits, history, guidance and input. In-history placement is
+honoured there too, which is what P2.4's "history is a splittable source from the
+start" was for.
 
 The four steps of [03 §5](../03-modes-and-turn-pipeline.md). Collect from the
 sources that exist (persona, actors, history, preset blocks, the guidance

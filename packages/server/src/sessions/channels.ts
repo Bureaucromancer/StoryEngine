@@ -31,6 +31,22 @@ import type { ChannelEffect, ChannelState, Turn } from './types.js';
  */
 export interface ChannelDefinition {
   id: string;
+  /**
+   * Who owns this channel — a mode, an extension, or a package
+   * ([03 §4.1](../../../../docs/design/03-modes-and-turn-pipeline.md)).
+   *
+   * **Added with the first channel definition, which is what §4.1 asks for.**
+   * That section names accepting a package id as one of two things 1.0 owes
+   * *from the first channel definition written*, because widening it afterwards
+   * is a migration over every stored channel. That definition is this one, so
+   * the field costs nothing today and would cost a migration in a month.
+   *
+   * A literal rather than an import of `SCENE_ID`: `modes/scene` imports this
+   * module for `CLOCK_CHANNEL`, so naming it the other way round would be a
+   * `const` cycle — a TDZ `ReferenceError` at module load rather than a benign
+   * one. A test in the mode pins the two together instead.
+   */
+  owner: string;
   version: number;
   scope: 'session' | 'actor' | 'entry';
   update: 'model-proposed' | 'engine-computed' | 'user-only';
@@ -50,6 +66,7 @@ export const SE_CLOCK = 'se.clock';
 
 export const CLOCK_CHANNEL: ChannelDefinition = {
   id: SE_CLOCK,
+  owner: 'storyengine.scene',
   version: 1,
   scope: 'session',
   // Engine-computed: the model does not get to decide what time it is. That is

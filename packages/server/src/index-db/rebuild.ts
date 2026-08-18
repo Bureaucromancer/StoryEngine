@@ -68,7 +68,7 @@ export async function rebuild(
         // the point of this storage model, so a rebuild that aborted on one
         // would leave the whole library unindexed because of a single
         // directory. The watcher does index these, and reconciling that
-        // asymmetry is P2.3's, beside F20's invalid-file state — both are the
+        // asymmetry is P2.7's, beside F20's invalid-file state — both are the
         // same question of how the index represents something it cannot open.
         let objectFile: string;
         try {
