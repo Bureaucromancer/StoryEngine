@@ -28,6 +28,8 @@ export class SseWriter {
   readonly #options: SseOptions;
   readonly #queue: string[] = [];
   #keepalive: NodeJS.Timeout | null = null;
+  /** The id of the last durable frame the socket actually accepted. */
+  #lastWritten: string | null = null;
   #closed = false;
   #draining = false;
 
@@ -145,6 +147,18 @@ export class SseWriter {
       return;
     }
 
+    this.#emit(text);
+  }
+
+  /**
+   * Hands one frame to the socket and remembers it if it carried an id.
+   *
+   * The bookkeeping is the whole point: an overflow has to tell the client where
+   * to resume, and the only honest answer is the last thing it was actually
+   * sent.
+   */
+  #emit(text: string): void {
+    if (text.startsWith('id: ')) this.#lastWritten = text.slice(4, text.indexOf('\n'));
     // `false` under backpressure, and `false` (not a throw) after an abort.
     if (!this.#response.write(text)) this.#draining = true;
   }
@@ -153,13 +167,22 @@ export class SseWriter {
     while (this.#queue.length > 0 && !this.#draining && !this.#closed) {
       const next = this.#queue.shift();
       if (next === undefined) return;
-      if (!this.#response.write(next)) this.#draining = true;
+      this.#emit(next);
     }
   }
 
+  /**
+   * Ends the stream, naming where to resume.
+   *
+   * **The cursor is the last frame the client actually received**, not the
+   * newest one queued behind it. `attachToSession` replays strictly *after* a
+   * cursor, so naming an undelivered frame skips everything still queued — up to
+   * the bound, silently, in a stream whose whole promise is exactly-once. That
+   * is what this did before, and it turned a bounded, announced loss into an
+   * unbounded, invisible one.
+   */
   #overflow(): void {
-    const last = this.#queue.at(-1);
-    const cursor = last?.startsWith('id: ') === true ? last.slice(4, last.indexOf('\n')) : '';
+    const cursor = this.#lastWritten ?? '';
     this.#queue.length = 0;
     this.#draining = false;
     this.#response.write(`event: overflow\ndata: ${JSON.stringify({ cursor })}\n\n`);

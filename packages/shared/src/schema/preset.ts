@@ -115,6 +115,27 @@ export const SlotSource = Type.Union(
       part: Type.Union([Type.Literal('framing'), Type.Literal('tone')]),
     }),
     Type.Object({ of: Type.Literal('goal') }),
+    /**
+     * The guidance slot — [03 §5.1](../../../../docs/design/03-modes-and-turn-pipeline.md).
+     *
+     * That section says the guidance block is *positioned by the preset*, which
+     * makes it slot-nameable by definition. It was missing: the internal
+     * `BlockSource` gained it at P2.5 and both [13 §1.1] and [10 §8.2] were
+     * edited to match, but this — the schema that actually validates a preset —
+     * was not, so a preset positioning the one block §5.1 says it positions
+     * failed validation. Found at P2.6, by the first preset that needed it.
+     *
+     * One slot, several producers (the box, a rule's `giveGuidance`, a
+     * Narrative Director push). Which one is recorded on the emitted block, not
+     * chosen here.
+     */
+    Type.Object({ of: Type.Literal('guidance') }),
+    /**
+     * What the player just did. **Not `history`**, which is turns that already
+     * happened — this is the one that is happening, and every preset decides
+     * where it sits relative to the lore and the instructions.
+     */
+    Type.Object({ of: Type.Literal('input') }),
   ],
   { title: 'SlotSource' },
 );

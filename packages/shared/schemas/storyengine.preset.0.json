@@ -315,6 +315,30 @@
                         "type": "string"
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "guidance",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "input",
+                        "type": "string"
+                      }
+                    }
                   }
                 ]
               },
