@@ -390,7 +390,7 @@ export class TurnRunner {
             call: async (request) => {
               const fromPreset = collectCandidates({
                 preset,
-                callKind: 'narrate',
+                callKind: definition.callKind,
                 history: windowed,
                 persona: cast.persona,
                 actors: cast.actors,

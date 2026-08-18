@@ -26,6 +26,7 @@ const step = (over: Partial<StepDefinition> = {}): StepDefinition => ({
   stage: 'generate',
   reads: [],
   writes: [],
+  callKind: 'narrate',
   when: { when: 'cadence', everyNTurns: 1 },
   failure: 'abort',
   role: null,

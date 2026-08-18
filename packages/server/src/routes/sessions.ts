@@ -250,7 +250,16 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // one walk of it ([02 §5.5]).
       const path = walkPath(byId, session.headTurnId);
       const query = request.query as { limit?: string };
-      const limit = query.limit === undefined ? 100 : Math.min(Number(query.limit), 1000);
+      /**
+       * Floored as well as capped.
+       *
+       * `?limit=0` used to return **every turn in the file**: `slice(-0)` is
+       * `slice(0)`, which is the whole array. A caller asking for none got
+       * everything, which is the wrong direction for a parameter whose job is
+       * to bound a response.
+       */
+      const limit =
+        query.limit === undefined ? 100 : Math.min(Math.max(Number(query.limit), 1), 1000);
 
       return reply.send({ turns: path.slice(-limit) });
     },

@@ -54,6 +54,18 @@ export interface StepDefinition {
   /** Channel ids this step may propose effects on. */
   writes: string[];
   contributes?: 'blocks' | 'effects' | 'messages';
+  /**
+   * What kind of call this step makes — [10 §8.2]'s portable, open string, which
+   * a preset block's `appliesTo` filters on.
+   *
+   * Distinct from the assembler's `CallPurpose`, which is *derived* from
+   * `contributes` and `writes` and decides whether guidance is admitted. This
+   * one is authored vocabulary: it is how a preset says *this block is for
+   * narration and not for the summariser*. It was hardcoded to `'narrate'` at
+   * the collect site, which made `appliesTo` unable to filter anything and the
+   * comment justifying per-call collection false.
+   */
+  callKind: string;
   when: StepCondition;
   failure: 'abort' | 'warn' | 'ignore';
   /** The role its call asks for, or null when it makes none. */

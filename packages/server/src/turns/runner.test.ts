@@ -22,6 +22,7 @@ import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
 import { NARRATE } from '../modes/scene/mode.js';
+import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { TurnRunner } from './runner.js';
 
 /**
@@ -228,6 +229,7 @@ describe('guidance is advisory, structurally', () => {
     reads: [],
     writes: [SE_CLOCK],
     contributes: 'effects',
+    callKind: 'extract',
     when: { when: 'cadence', everyNTurns: 1 },
     failure: 'abort',
     role: 'prose',
@@ -575,5 +577,55 @@ describe('a turn that cannot even be set up', () => {
     expect(written).toHaveLength(1);
     expect(written[0]?.turn.status).toBe('failed');
     expect(written[0]?.turn.steps?.[0]?.stepId).toBe('se.setup');
+  });
+});
+
+describe('a preset block can be scoped to a kind of call', () => {
+  it('filters on the step declaration, not on a literal', () => {
+    // `callKind` was hardcoded to `'narrate'` at the collect site, which made
+    // `appliesTo` unable to filter anything — and the comment justifying
+    // per-call collection false. Scene's own step declares `'narrate'`, so the
+    // hardcode was invisible until a step declared something else.
+    expect(NARRATE.callKind).toBe('narrate');
+  });
+
+  it('drops a block whose appliesTo does not name this step kind', async () => {
+    // Driven through the runner with a session whose preset scopes one block to
+    // a call kind the step does not make.
+    const scoped = await createSession(sessions, ACCOUNT, {
+      name: 'Scoped',
+      preset: {
+        ...SCENE_PRESET,
+        blocks: [
+          {
+            ...SCENE_PRESET.blocks[0]!,
+            id: 'se.only-for-summaries',
+            label: 'only for summaries',
+            appliesTo: ['summarise'],
+          },
+          SCENE_PRESET.blocks.find((block) => block.id === 'se.input')!,
+        ],
+      },
+    });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: scoped.id,
+      idempotencyKey: 'k',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', scoped.id, 'turns'),
+    );
+    const reasons = written[0]?.turn.request?.blocks.map((block) => block.reason) ?? [];
+
+    // The narrate step does not make a `summarise` call, so that block is out…
+    expect(reasons).not.toContain('only for summaries');
+    // …and the unscoped one is still in, so this is not passing on an empty list.
+    expect(reasons).toContain('input');
   });
 });

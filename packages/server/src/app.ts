@@ -133,7 +133,46 @@ export interface BuildAppOptions {
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
   const layout = new Layout(options.config.dataDir);
   const index = await openIndex({ path: layout.indexFile });
+
+  /**
+   * **Everything after the first handle opens runs under a guard.**
+   *
+   * `openState` already closes its own handle on a failed open, for a reason
+   * its comment states: on Windows a leaked SQLite handle keeps `-wal` and
+   * `-shm` locked, so the *next* thing to touch that directory fails with
+   * `EBUSY` and the real error is two layers from where it was caused. The same
+   * argument applies to everything between the two opens and the return — a
+   * rebuild that throws, a watcher that cannot start, a reconcile that rejects —
+   * and none of it was guarded, so one failed build buried its own cause.
+   */
+  try {
+    return await assembleServices(options, layout, index);
+  } catch (error) {
+    index.close();
+    throw error;
+  }
+}
+
+async function assembleServices(
+  options: BuildAppOptions,
+  layout: Layout,
+  index: OpenedIndex,
+): Promise<AppServices> {
   const state = await openState({ path: layout.stateFile });
+  try {
+    return await assembleWithState(options, layout, index, state);
+  } catch (error) {
+    state.close();
+    throw error;
+  }
+}
+
+async function assembleWithState(
+  options: BuildAppOptions,
+  layout: Layout,
+  index: OpenedIndex,
+  state: OpenedState,
+): Promise<AppServices> {
   const library: LibraryContext = {
     db: index.db,
     layout,

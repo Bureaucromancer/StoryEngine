@@ -591,3 +591,58 @@ describe('a session with a cast assembles the whole preset', () => {
     await stream.abort();
   });
 });
+
+describe('the transcript is bounded and in order', () => {
+  async function twoTurns(): Promise<void> {
+    await submit({ input: { text: 'The first thing.' } });
+    let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    await submit({
+      idempotencyKey: 'k2',
+      headTurnId: read.body.session.headTurnId,
+      input: { text: 'The second.' },
+    });
+    stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+  }
+
+  it('returns the path oldest first', async () => {
+    // The only transcript test submitted one turn, so the order was
+    // unobservable — and `api.md` said the opposite of what the route does.
+    await twoTurns();
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns.map((each: { input: { text: string } }) => each.input.text)).toEqual([
+      'The first thing.',
+      'The second.',
+    ]);
+  });
+
+  it('keeps the newest when a limit trims', async () => {
+    await twoTurns();
+
+    const one = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns?limit=1`,
+    });
+    expect(one.body.turns).toHaveLength(1);
+    // The tail, because a transcript is read from the end.
+    expect(one.body.turns[0].input.text).toBe('The second.');
+  });
+
+  it('treats a limit of zero as one rather than as everything', async () => {
+    // `slice(-0)` is `slice(0)` — the whole array. A caller asking for none got
+    // every turn in the file, which is the wrong direction for a bound.
+    await twoTurns();
+
+    const none = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns?limit=0`,
+    });
+    expect(none.body.turns).toHaveLength(1);
+  });
+});

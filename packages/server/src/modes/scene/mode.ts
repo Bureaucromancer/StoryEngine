@@ -35,6 +35,8 @@ export const NARRATE: StepDefinition = {
    */
   writes: [],
   contributes: 'messages',
+  // What a preset's `appliesTo` matches. Scene makes one kind of call.
+  callKind: 'narrate',
   when: { when: 'cadence', everyNTurns: 1 },
   // If the call fails there is nothing else to narrate, and a turn that
   // continued would commit a record with no prose in it.

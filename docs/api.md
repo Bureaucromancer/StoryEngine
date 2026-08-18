@@ -373,7 +373,7 @@ session's turns are its history, and deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns }` — the path from the head, oldest last, not every turn in the file. A
+`{ turns }` — the path from the head, **oldest first**, not every turn in the file. A
 session is a tree that P2 happens to use linearly, and a transcript is one walk
 of it.
 
@@ -481,6 +481,9 @@ credential.
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
 | 403 | `read-only` | A system-library object |
 | 404 | `not-found` / `unknown-kind` | No such object, or no such kind |
+| 409 | `busy` | The session already has a turn in flight. Carries the active `job` |
+| 409 | `finished` | That turn is already over, so there is nothing to cancel |
+| 412 | `stale-head` | The session moved on since this was composed. Carries the current `head` |
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
