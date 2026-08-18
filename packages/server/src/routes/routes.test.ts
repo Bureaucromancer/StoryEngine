@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { relative, sep } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
@@ -453,5 +453,86 @@ describe('the system library merges into the list', () => {
 
     const listed = await server.request({ method: 'GET', url: '/api/library' });
     expect(listed.body.objects[0].source).toBe('user');
+  });
+});
+
+describe('a hand edit is not eaten by a stale save', () => {
+  beforeEach(async () => {
+    await setUpAdmin(server);
+  });
+
+  /**
+   * Writes bytes straight to the object file, the way a text editor would.
+   *
+   * Through the layout rather than a hand-built path: the filename per kind is
+   * the layout's business, and a test that guessed it would fail for a reason
+   * that has nothing to do with what it asserts.
+   */
+  function objectPath(slug: string): string {
+    return server.services.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, slug);
+  }
+
+  async function editOnDisk(slug: string, object: Record<string, unknown>): Promise<void> {
+    await writeFile(objectPath(slug), JSON.stringify(object));
+  }
+
+  it('refuses a PUT whose hash matches the index but not the disk', async () => {
+    // **The central promise of the storage thesis, and it had no test at all.**
+    // The hash is compared against the index row first; the index can be stale
+    // by up to the watcher's settle window, so the write path re-hashes the
+    // actual bytes inside the critical section. Every other stale test in this
+    // suite reaches staleness through a second *API* write, which the index row
+    // check alone already catches — so deleting the disk re-hash left the whole
+    // suite green.
+    const book = newLorebook('Rain City');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: book,
+    });
+    const hash = created.body.contentHash as string;
+    const slug = created.body.slug as string;
+
+    // Somebody edits the file in a text editor. The index has not caught up.
+    await editOnDisk(slug, { ...book, name: 'Rain City, edited by hand' });
+
+    const write = await server.request({
+      method: 'PUT',
+      url: `/api/library/lorebooks/${book.id}`,
+      payload: { object: { ...book, name: 'Rain City, from the app' }, contentHash: hash },
+    });
+
+    expect(write.status).toBe(412);
+
+    // …and the hand edit is still on disk. That is the whole point: the person
+    // who typed into their editor does not lose it to a tab that was open.
+    const onDisk = JSON.parse(await readFile(objectPath(slug), 'utf8')) as { name: string };
+    expect(onDisk.name).toBe('Rain City, edited by hand');
+  });
+
+  it('refuses a DELETE the same way', async () => {
+    // Deleting something a hand edit has since changed is the same mistake as
+    // overwriting it, and rather more final.
+    const book = newLorebook('Rain City');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: book,
+    });
+
+    await editOnDisk(created.body.slug as string, {
+      ...book,
+      name: 'Rain City, edited by hand',
+    });
+
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/library/lorebooks/${book.id}`,
+      headers: { 'if-match': created.body.contentHash as string },
+    });
+
+    expect(removed.status).toBe(412);
+    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect(listed.body.objects).toHaveLength(1);
   });
 });
