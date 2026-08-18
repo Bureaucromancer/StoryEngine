@@ -67,6 +67,11 @@ async function seedProviderConfig(): Promise<void> {
       label: 'The double',
       provider: 'openai-compatible',
       models: ['fake-hi'],
+      // **There has to be something to leak.** Without these two fields the
+      // containment test below could not fail: it asserted that a record with
+      // no credential in scope contained no credential.
+      apiKey: 'sk-test-must-never-appear',
+      baseUrl: 'https://secret-host.invalid/v1',
     }),
   );
   await writeFile(
@@ -163,8 +168,15 @@ describe('a turn goes all the way through', () => {
     const { turn } = await runTurn();
     const serialised = JSON.stringify(turn);
 
+    // The values, not the field names. A record could carry the key under any
+    // spelling — what must never reach disk is the secret itself.
+    expect(serialised).not.toContain('sk-test-must-never-appear');
+    expect(serialised).not.toContain('secret-host.invalid');
     expect(serialised).not.toContain('apiKey');
     expect(serialised).not.toContain('baseUrl');
+    // And the id, which is what [13 §1.4] says the record may carry, is there —
+    // so this is not passing because nothing was recorded at all.
+    expect(serialised).toContain(CONNECTION_ID);
   });
 
   it('finalises without deadlocking on the session lock', async () => {

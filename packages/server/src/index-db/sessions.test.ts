@@ -150,6 +150,29 @@ describe('rebuild-from-disk equals the incremental index, for sessions too', () 
     expect(incremental.filter((line) => line.startsWith('turn'))).toHaveLength(3);
   });
 
+  it('forgets a session whose folder is gone', async () => {
+    // The session half of what `rebuild`'s deletes are for. The equality test
+    // above cannot show it: rebuilding over a *consistent* index upserts every
+    // row onto itself, so removing `delete from session` left it green. The
+    // deletes only matter when the index holds something disk does not justify.
+    const kept = await aSessionWith('Rain City', ['one']);
+    const gone = await aSessionWith('Deleted Outside The App', ['two']);
+
+    await rm(join(dataDir, 'users', ACCOUNT, 'sessions', gone), { recursive: true });
+    await rebuild(index.db, context.layout);
+
+    const rows = listSessionRows(index.db, [`user:${ACCOUNT}`]);
+    expect(rows.map((row) => row.sessionId)).toEqual([kept]);
+    // …and its turns went with it. Asserted on the rows as well as on search,
+    // because the two are deleted by separate statements and a search that
+    // joins them would come up empty if either had gone.
+    const turns = index.db
+      .prepare('select count(*) c from turn where session_id = ?')
+      .get(gone) as { c: number };
+    expect(turns.c).toBe(0);
+    expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'two')).toEqual([]);
+  });
+
   it('counts what it found', async () => {
     await aSessionWith('Rain City', ['one', 'two']);
 

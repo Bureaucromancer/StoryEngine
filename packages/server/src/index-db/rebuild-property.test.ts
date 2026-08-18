@@ -12,6 +12,7 @@ import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { matureTombstones, TOMBSTONE_TTL_MS } from './ingest.js';
 import { snapshot } from './query.js';
+import { openIndex } from './open.js';
 import { rebuild } from './rebuild.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
 import { LibraryWatcher } from './watcher.js';
@@ -241,10 +242,40 @@ describe('rebuild equals incremental, as a property', () => {
         matureTombstones(library.db, library.layout, Date.now() + TOMBSTONE_TTL_MS + 1);
 
         const incremental = snapshot(library.db);
-        await rebuild(library.db, library.layout);
-        const fromDisk = snapshot(library.db);
 
-        expect(fromDisk).toEqual(incremental);
+        /**
+         * **Three snapshots, because there are two different claims.**
+         *
+         * *Rebuild equals incremental* is a claim about two **independent
+         * producers** reaching the same answer, and rebuilding in place cannot
+         * show it — the second producer inherits the first one's rows. So the
+         * comparison that carries it uses a fresh, empty database, which has
+         * nothing of the first's state and therefore holds what the *files* say
+         * and nothing else.
+         *
+         * But a fresh database is already empty, so it cannot show the other
+         * claim: that `rebuild` **clears what it finds**. Deleting its five
+         * `DELETE`s leaves a from-scratch rebuild identical and an in-place one
+         * carrying every stale row forward — which is precisely the case those
+         * lines exist for, and precisely what an in-place-only comparison
+         * (upserting each row onto itself) also could not catch.
+         *
+         * Neither comparison alone is falsifiable for both. Both together are.
+         */
+        const fresh = await openIndex({ path: ':memory:' });
+        let fromScratch: string[];
+        try {
+          await rebuild(fresh.db, library.layout);
+          fromScratch = snapshot(fresh.db);
+        } finally {
+          fresh.close();
+        }
+
+        await rebuild(library.db, library.layout);
+        const inPlace = snapshot(library.db);
+
+        expect(fromScratch).toEqual(incremental);
+        expect(inPlace).toEqual(fromScratch);
       }),
       // Small by default: this is the per-PR tier and every case pays the
       // settle window several times over. The nightly tier is where the same
@@ -253,4 +284,35 @@ describe('rebuild equals incremental, as a property', () => {
       { numRuns: 12 },
     );
   }, 120_000);
+});
+
+describe('a rebuild forgets what the disk no longer has', () => {
+  it('drops a row whose file vanished without the index being told', async () => {
+    // **What `rebuild`'s five `DELETE`s are for**, and neither half of the
+    // property above can show it: a from-scratch rebuild starts empty, and an
+    // in-place one over a *consistent* index upserts every row onto itself. The
+    // deletes only matter when the index holds something the disk does not
+    // justify — which is what a foreign delete the watcher missed leaves behind,
+    // and what somebody reaches for a rebuild to fix in the first place.
+    const library = await makeTestLibrary();
+    try {
+      await library.saveObject(newLorebook('Rain City'), 'rain-city');
+      await library.saveObject(newLorebook('Elsewhere'), 'elsewhere');
+      expect(snapshot(library.db)).toHaveLength(2);
+
+      // The file goes; nothing tells the index. This is the state a rebuild is
+      // the documented remedy for ([02 §5.1]).
+      await rm(dirname(library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'elsewhere')), {
+        recursive: true,
+      });
+
+      await rebuild(library.db, library.layout);
+
+      const after = snapshot(library.db);
+      expect(after).toHaveLength(1);
+      expect(after[0]).toContain('rain-city');
+    } finally {
+      await library.dispose();
+    }
+  });
 });

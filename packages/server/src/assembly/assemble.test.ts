@@ -271,16 +271,31 @@ describe('the golden file', () => {
     });
 
     const sent = provider.requests[0];
+    /**
+     * **The content, not its length.**
+     *
+     * This snapshotted `chars` until an audit measured what that could catch:
+     * reversing the concatenation order of merged same-role blocks — persona
+     * after lore, the instruction after the scene — left every count identical
+     * and the whole suite green. [testing §3.1] makes this the flagship suite
+     * and names *block ordering* and *prompt drift* among the regressions it is
+     * supposed to surface as a reviewable diff. A character count is not a
+     * diff anybody can review.
+     */
     const table = sent?.messages.map((message) => ({
       role: message.role,
       fromBlocks: message.fromBlocks,
-      chars: message.content.length,
+      content: message.content,
     }));
 
     expect(table).toMatchInlineSnapshot(`
       [
         {
-          "chars": 133,
+          "content": "You are Vera Solano, a fixer in Rain City.
+
+      Neon, rain, and debts that do not forgive.
+
+      The cathedral has been closed since the fire.",
           "fromBlocks": [
             "persona",
             "framing",
@@ -289,28 +304,28 @@ describe('the golden file', () => {
           "role": "system",
         },
         {
-          "chars": 63,
+          "content": "Earlier: they met on the bridge. And then: the deal went wrong.",
           "fromBlocks": [
             "history-old",
           ],
           "role": "user",
         },
         {
-          "chars": 51,
+          "content": "Write in close third person. Never break character.",
           "fromBlocks": [
             "preset-jailbreak",
           ],
           "role": "system",
         },
         {
-          "chars": 23,
+          "content": "She asks what you want.",
           "fromBlocks": [
             "history-recent",
           ],
           "role": "user",
         },
         {
-          "chars": 16,
+          "content": "Keep this short.",
           "fromBlocks": [
             "guidance",
           ],
