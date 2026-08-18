@@ -646,3 +646,61 @@ describe('the transcript is bounded and in order', () => {
     expect(none.body.turns).toHaveLength(1);
   });
 });
+
+describe('the snapshot frame carries what a client needs to render', () => {
+  it('names every field the client reducer reads', async () => {
+    // **The contract between the two halves is bound by nothing** — the client
+    // re-declares these shapes by hand, and a rename on this side turns into a
+    // plausible *idle* state over there rather than an error. Until there is a
+    // shared type, this is the assertion that at least makes the server half
+    // fail loudly.
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    const snapshot = await stream.until((frame) => frame.event === 'snapshot');
+    const data = snapshot.data as Record<string, unknown>;
+
+    expect(Object.keys(data).sort()).toEqual(['cursor', 'job', 'sessionId', 'text', 'turn']);
+    expect(data['sessionId']).toBe(sessionId);
+    // A job in flight, with the four fields the client's status derives from.
+    expect(Object.keys(data['job'] as object).sort()).toEqual([
+      'commitStep',
+      'id',
+      'status',
+      'turnId',
+    ]);
+    await stream.abort();
+  });
+
+  it('carries the accumulated text and a resumable cursor once a turn is under way', async () => {
+    // `.not.toBeNull()` on the job was the whole of the previous assertion, so
+    // `text` and `cursor` — the two fields that make a reattach lossless — were
+    // never checked at all.
+    await submit();
+    let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    const snapshot = await stream.until((frame) => frame.event === 'snapshot');
+    const data = snapshot.data as { text: string; cursor: string; turn: { status: string } };
+
+    expect(data.text).toContain('The rain had not stopped');
+    // `<jobId>.<seq>` — what `?after=` and `Last-Event-ID` both take.
+    expect(data.cursor).toMatch(/^[0-9a-f-]+\.\d+$/);
+    expect(data.turn.status).toBe('complete');
+    await stream.abort();
+  });
+
+  it('opens with a null job and no text between turns', async () => {
+    // The ordinary state of a session somebody is reading, and the one the
+    // client must not mistake for a finished turn.
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    const snapshot = await stream.until((frame) => frame.event === 'snapshot');
+    const data = snapshot.data as { job: unknown; text: unknown; cursor: unknown };
+
+    expect(data.job).toBeNull();
+    expect(data.text).toBeNull();
+    expect(data.cursor).toBeNull();
+    await stream.abort();
+  });
+});

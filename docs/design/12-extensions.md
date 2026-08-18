@@ -100,6 +100,25 @@ Another mechanism that already existed.
 
 ## 4. What the boundary looks like
 
+> **What P2 actually built, and where it differs.** The shape below is the P7
+> target. P2's step contract lives in `packages/server/src/turns/steps.ts` and
+> diverges deliberately in three places, each recorded rather than reconciled
+> because reconciling them now would be guessing at P7's boundary:
+>
+> - A step returns `candidates: Candidate[]` rather than `blocks:
+>   AssembledBlock[]`. A block is what the *assembler* produces; a step
+>   contributes to the input, not the output.
+> - Effects are `EffectProposal` — no `before`, no `applied`, no id. A step
+>   proposes; the engine decides and stamps ([13 §1.2]).
+> - `StepHost.rng` is a live `Rng` with synchronous methods, which **cannot
+>   cross a worker hop**. `HostApi` below specifies `random` supplied by the
+>   host and async throughout, and that conversion is P7's — it touches every
+>   step that draws. Nothing at P2 draws inside a step.
+>
+> `StepInput` and `StepResult` are both `structuredClone`-able today, asserted
+> in `turns/steps.test.ts`, which is the half of [01 §2]'s day-one item that can
+> be held to account before the boundary exists.
+
 ```ts
 // In the worker. The whole surface an extension implements.
 type StepFn = (ctx: StepContext) => Promise<StepResult>

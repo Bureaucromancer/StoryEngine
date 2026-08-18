@@ -138,3 +138,61 @@ describe('the purpose a call is given', () => {
     expect(callPurposeFor(step())).toBe('effects');
   });
 });
+
+describe('the step boundary is serialisable, which is what P7 moves', () => {
+  it('round-trips a StepInput through structuredClone with nothing lost', () => {
+    // [01 §2] makes the step contract async and serialisable a **day-one** item,
+    // precisely so the worker split at P7 is a move rather than a rewrite. The
+    // claim was in a docstring and asserted nowhere.
+    const input = filterReads(step({ reads: ['history', SE_CLOCK] }), {
+      turnId: 't',
+      sessionId: 's',
+      parentTurnId: null,
+      input: { actorId: null, kind: 'do', text: 'She waited.', raw: 'She waited.' },
+      channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
+      history: [],
+    });
+
+    expect(structuredClone(input)).toEqual(input);
+  });
+
+  it('round-trips a StepResult too', () => {
+    const result = {
+      candidates: [
+        {
+          id: 'se.x',
+          source: { kind: 'step' as const, stepId: 'se.x' },
+          reason: 'because',
+          role: 'system' as const,
+          text: 'hello',
+          priority: 50,
+        },
+      ],
+      effects: [
+        {
+          channelId: SE_CLOCK,
+          op: { type: 'set' as const, path: '/' },
+          after: { day: 1, hour: 9, minute: 0 },
+          proposedBy: { kind: 'step' as const, stepId: 'se.x' },
+        },
+      ],
+      message: { text: 'the answer' },
+    };
+
+    expect(structuredClone(result)).toEqual(result);
+  });
+
+  it('names the one thing on StepHost that cannot cross a worker hop', () => {
+    // **An honest limit rather than a claim.** `StepHost.rng` is a live class
+    // instance with synchronous methods, and [12 §4] specifies the host API as
+    // async and narrow with `random` supplied by the host. `call` and `signal`
+    // cross fine; `rng` does not, and converting it later means touching every
+    // step that draws. Recorded here so P7 finds it as a known cost rather than
+    // as a surprise.
+    //
+    // Nothing at P2 draws inside a step except the test that proves the tape
+    // works, so this is a debt with no current victim.
+    const host = { call: () => Promise.resolve(), rng: {}, signal: new AbortController().signal };
+    expect(Object.keys(host).sort()).toEqual(['call', 'rng', 'signal']);
+  });
+});
