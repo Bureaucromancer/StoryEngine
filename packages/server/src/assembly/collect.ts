@@ -35,18 +35,97 @@ export interface CollectContext {
 }
 
 export function collectCandidates(context: CollectContext): Candidate[] {
-  const candidates: Candidate[] = [];
+  const sequence: Candidate[] = [];
+  /** In-history blocks, held back until the history run is known. */
+  const injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[] =
+    [];
+  let historyStart: number | null = null;
+  let historyCount = 0;
 
-  for (const block of context.preset.blocks) {
+  for (const [order, block] of context.preset.blocks.entries()) {
     if (!block.enabled) continue;
     // Empty means all — which is what dissolves the eight special-cased
     // template fields [10 §8.4.3] describes.
     if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) continue;
 
-    candidates.push(...fill(block, context));
+    const filled = fill(block, context);
+    if (filled.length === 0) continue;
+
+    if (block.placement.at === 'in-history') {
+      injected.push({
+        fromEnd: block.placement.fromEnd,
+        tiebreak: block.placement.tiebreak ?? 0,
+        order,
+        candidates: filled,
+      });
+      continue;
+    }
+
+    if (block.kind === 'slot' && block.source.of === 'history') {
+      historyStart = sequence.length;
+      historyCount = filled.length;
+    }
+    sequence.push(...filled);
   }
 
-  return candidates;
+  return splice(sequence, injected, historyStart, historyCount);
+}
+
+/**
+ * Puts in-history blocks where the preset asked for them — [10 §8.2].
+ *
+ * **The one placement that is not just list order.** `fromEnd: 0` goes after
+ * the newest turn, `fromEnd: k` before the k-th from the end. P2.4 promised
+ * history would be splittable *from the start* precisely so this could work, and
+ * P4 imports presets that use it — SillyTavern's depth injection is exactly this
+ * and its files carry the depths. Until now `placement` was read by nothing, so
+ * an imported preset's depths were silently flattened into declaration order:
+ * not a refusal anybody could see, just a different prompt.
+ *
+ * With no history run to splice into, they land at the end of the sequence —
+ * which is where a depth-addressed block goes when there is nothing to be at a
+ * depth *in*.
+ */
+function splice(
+  sequence: Candidate[],
+  injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[],
+  historyStart: number | null,
+  historyCount: number,
+): Candidate[] {
+  if (injected.length === 0) return sequence;
+
+  /**
+   * **Grouped by depth, then spliced once per depth.**
+   *
+   * Two blocks at one depth cannot be spliced one after the other at the same
+   * index: the second insertion pushes the first rightwards, so they come out
+   * in the reverse of the order asked for. Building each depth's run first and
+   * inserting it whole is the only version that reads the way it is written.
+   */
+  const byDepth = new Map<number, typeof injected>();
+  for (const entry of injected) {
+    byDepth.set(entry.fromEnd, [...(byDepth.get(entry.fromEnd) ?? []), entry]);
+  }
+
+  const out = [...sequence];
+  // Deepest first, so a shallower insertion is not shifted by an earlier one.
+  for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
+    const group = (byDepth.get(depth) ?? []).sort(
+      // The author's explicit number, then declaration order. Dropping either
+      // would reorder somebody's prompt with nothing to show for it.
+      (a, b) => a.tiebreak - b.tiebreak || a.order - b.order,
+    );
+    const run = group.flatMap((entry) => entry.candidates);
+
+    if (historyStart === null) {
+      out.push(...run);
+      continue;
+    }
+    // Clamped: a depth past the start of the run lands at its start rather than
+    // outside it, which is what a preset written for a longer history means.
+    out.splice(historyStart + historyCount - Math.min(depth, historyCount), 0, ...run);
+  }
+  return out;
 }
 
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {

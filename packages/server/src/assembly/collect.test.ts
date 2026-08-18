@@ -306,3 +306,103 @@ describe('a preset from a newer build', () => {
     expect(candidates[0]?.text).toBe('still here');
   });
 });
+
+describe('in-history placement, which is the one that is not list order', () => {
+  const turn = (n: number): Turn => ({
+    id: `t${String(n)}`,
+    sessionId: 's',
+    parentTurnId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'complete',
+    input: { actorId: null, kind: 'do', text: `in ${String(n)}`, raw: '' },
+    output: { text: `out ${String(n)}` },
+    effects: [],
+    tape: [],
+  });
+
+  const history = [turn(1), turn(2), turn(3)];
+
+  function ids(depth: number, tiebreak?: number): string[] {
+    return collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.h', source: { of: 'history' } }),
+          block({
+            kind: 'text',
+            id: 'se.note',
+            template: 'a note',
+            placement:
+              tiebreak === undefined
+                ? { at: 'in-history', fromEnd: depth }
+                : { at: 'in-history', fromEnd: depth, tiebreak },
+          }),
+        ]),
+        history,
+      }),
+    ).map((candidate) => candidate.id);
+  }
+
+  it('puts a depth-zero block after the newest turn', () => {
+    // SillyTavern's depth injection is exactly this, and its files carry the
+    // depths — so an imported preset depends on the reading being right.
+    expect(ids(0)).toEqual(['se.h.0', 'se.h.1', 'se.h.2', 'se.note']);
+  });
+
+  it('puts a depth-two block before the second turn from the end', () => {
+    // Which is the case that was silently flattened: with `placement` unread,
+    // this landed at the end regardless of the depth the author wrote.
+    expect(ids(2)).toEqual(['se.h.0', 'se.note', 'se.h.1', 'se.h.2']);
+  });
+
+  it('clamps a depth deeper than the history it has', () => {
+    // A preset written for a longer transcript means "as early as possible",
+    // not "outside the run".
+    expect(ids(99)).toEqual(['se.note', 'se.h.0', 'se.h.1', 'se.h.2']);
+  });
+
+  it('breaks a tie by the number the author wrote, then by declaration order', () => {
+    const both = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.h', source: { of: 'history' } }),
+          block({
+            kind: 'text',
+            id: 'se.second',
+            template: 'b',
+            placement: { at: 'in-history', fromEnd: 1, tiebreak: 20 },
+          }),
+          block({
+            kind: 'text',
+            id: 'se.first',
+            template: 'a',
+            placement: { at: 'in-history', fromEnd: 1, tiebreak: 10 },
+          }),
+        ]),
+        history,
+      }),
+    ).map((candidate) => candidate.id);
+
+    // Declared second but numbered lower, so it goes first — dropping the
+    // number would reorder somebody's prompt with nothing to show for it.
+    expect(both.indexOf('se.first')).toBeLessThan(both.indexOf('se.second'));
+  });
+
+  it('falls to the end when there is no history to be inside', () => {
+    const none = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.input', source: { of: 'input' } }),
+          block({
+            kind: 'text',
+            id: 'se.note',
+            template: 'a note',
+            placement: { at: 'in-history', fromEnd: 2 },
+          }),
+        ]),
+        input: { text: 'She waited.' },
+      }),
+    ).map((candidate) => candidate.id);
+
+    expect(none).toEqual(['se.input', 'se.note']);
+  });
+});
