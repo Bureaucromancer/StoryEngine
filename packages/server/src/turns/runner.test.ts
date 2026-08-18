@@ -758,4 +758,338 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     // distinguishable — which is what makes a rewrite reproducible.
     expect(new Set(turn.tape.map((draw) => draw.key)).size).toBe(2);
   });
+
+  /**
+   * **"Cost captured", made falsifiable.**
+   *
+   * The clause was previously satisfied by a turn in which nothing cost
+   * anything. `FakeProvider` answers `usage: {promptTokens: 0, completionTokens: 0}`
+   * and `cost: null` when a script says nothing about either, so
+   * `turn.cost.promptTokens === 0` was both the recorded value and the value a
+   * regression that dropped usage off the `ModelCall` would produce — and
+   * `wallMs >= 0` is true of a hardcoded zero. Nothing anywhere compared what
+   * the record says against what the provider *said*.
+   *
+   * So the figures here are ones that cannot arise by accident. 137 and 42 are
+   * not defaults, not lengths of anything in this file, and not derivable from
+   * the prompt; 0.0012 USD is a price no estimator in this repo computes,
+   * because there is no estimator — [13 §1.4] says `usage` is
+   * *provider-reported, not estimated*, and `cost` is the field that says the
+   * same about money. `cost` in particular had **nothing asserting it reached
+   * the record**: the repository's only other mention of the field is
+   * `openai-compatible.test.ts` checking that *that adapter* prices nothing, so
+   * `performCall` could have written `cost: null` unconditionally and every
+   * suite stayed green.
+   *
+   * Mutations this catches: `usage: null` or `usage: {promptTokens: 0, …}` in
+   * `calls.ts`'s success record; `cost: null` there; `costOf` reading
+   * `completionTokens` for both sums; `wallMs: 0` in place of
+   * `Date.now() - startedAt`; and `costOf` summing nothing at all.
+   */
+  it('records the figures the provider reported, down to the price of the call', async () => {
+    makeRunner({
+      script: [
+        {
+          // Chunked *with a delay*, because `wallMs` is the one figure the fake
+          // cannot supply: it is measured. Without a real `await` between
+          // yields the whole stream drains inside one macrotask and a
+          // hardcoded `0` is indistinguishable from a correct measurement —
+          // which is exactly what `chunkDelayMs` exists to prevent.
+          text: 'The rain kept on.',
+          chunks: 4,
+          chunkDelayMs: 12,
+          usage: { promptTokens: 137, completionTokens: 42 },
+          cost: { amount: 0.0012, currency: 'USD' },
+        },
+      ],
+    });
+    const { turn } = await runTurn();
+
+    // The turn's totals are the provider's numbers, not zeros and not estimates.
+    expect(turn.cost?.promptTokens).toBe(137);
+    expect(turn.cost?.completionTokens).toBe(42);
+    // Asymmetric on purpose: 137 and 42 are different numbers, so a `costOf`
+    // that summed one field into both is caught by the pair rather than by
+    // either half.
+    expect(turn.cost?.model).toBe('fake-hi');
+    expect(turn.cost?.wallMs).toBeGreaterThan(0);
+
+    // …and the same numbers on the call itself, which is where [13 §1.4] puts
+    // them. The turn total is a fold over these; asserting only the fold would
+    // pass with the per-call record emptied.
+    const call = turn.request?.calls[0];
+    expect(call?.usage).toEqual({ promptTokens: 137, completionTokens: 42 });
+    expect(call?.cost).toEqual({ amount: 0.0012, currency: 'USD' });
+    expect(call?.wallMs).toBeGreaterThan(0);
+  });
+
+  /**
+   * **Two calls, so the fold is a fold and the model is the last one.**
+   *
+   * `costOf` (`runner.ts`) reduces usage across every call and takes
+   * `calls.at(-1)?.resolved.modelId` for the model. With one call per turn —
+   * which is every other test in this file, because Scene has one step — a
+   * `reduce` and a `calls[0]`, and an `.at(-1)` and an `.at(0)`, are the same
+   * program. Both mutations ship green.
+   *
+   * Two steps on **two different roles** is what separates them. The roles must
+   * differ rather than merely the steps: `resolved.modelId` comes from the
+   * binding, so two calls on `prose` resolve to one model and the `.at(-1)`
+   * stays unfalsifiable. `readBindings` is deliberately unvalidated
+   * (`bindings.ts` — a nonsense binding deserves the same `dangling` answer a
+   * missing one gets), so pointing `fast` at a second model id on the same
+   * connection needs nothing more than the file.
+   *
+   * Mutations this catches: `calls[0]` or `calls.at(0)` where `costOf` reads
+   * `.at(-1)`; a `reduce` replaced by the last call's usage; `wallMs` taken
+   * from one call rather than summed.
+   */
+  it('sums usage across every call and names the model of the one that ran last', async () => {
+    // A second role on the same connection. `usable` is resolved from the
+    // connection file, which already exists; only the binding is new.
+    await writeFile(
+      join(dataDir, 'users', ACCOUNT, 'bindings.json'),
+      JSON.stringify({
+        prose: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+        fast: { connectionId: CONNECTION_ID, modelId: 'fake-lo' },
+      }),
+    );
+
+    // Both calls stream, so both have a measurable `wallMs` — a first call of
+    // duration zero would make "sum" and "last" agree again for that field.
+    makeRunner({
+      script: [
+        {
+          text: 'a preflight',
+          chunks: 3,
+          chunkDelayMs: 8,
+          usage: { promptTokens: 137, completionTokens: 42 },
+        },
+        {
+          text: 'the answer',
+          chunks: 3,
+          chunkDelayMs: 8,
+          usage: { promptTokens: 211, completionTokens: 9 },
+        },
+      ],
+      plan: {
+        steps: [
+          {
+            // `NARRATE` minus its role: same stage, same `contributes:
+            // 'messages'`, same empty `writes` — so `callPurposeFor` still
+            // yields `prose` and the assembler behaves identically. The role is
+            // the only difference, which is the difference under test.
+            definition: { ...NARRATE, id: 'se.preflight', role: 'fast' },
+            run: async (_input, host) => {
+              await host.call({ stream: true });
+              return {};
+            },
+          },
+          {
+            definition: NARRATE,
+            run: async (_input, host) => ({
+              message: { text: (await host.call({ stream: true })).text },
+            }),
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    const calls = turn.request?.calls ?? [];
+
+    expect(calls).toHaveLength(2);
+    // The two calls really did resolve differently — without this the model
+    // assertion below would be passing on a coincidence.
+    expect(calls[0]?.resolved.modelId).toBe('fake-lo');
+    expect(calls[1]?.resolved.modelId).toBe('fake-hi');
+
+    // Sums, not the last call's figures (211 / 9) and not the first's.
+    expect(turn.cost?.promptTokens).toBe(137 + 211);
+    expect(turn.cost?.completionTokens).toBe(42 + 9);
+    expect(turn.cost?.wallMs).toBe((calls[0]?.wallMs ?? 0) + (calls[1]?.wallMs ?? 0));
+    expect(calls[0]?.wallMs).toBeGreaterThan(0);
+
+    // The *last* model, because that is the one whose answer the reader is
+    // looking at. `fake-lo` here would mean `.at(0)`.
+    expect(turn.cost?.model).toBe('fake-hi');
+  });
+
+  /**
+   * **"No nulls where [13] says data" — walked, not spot-checked.**
+   *
+   * The clause is a statement about *every* path in the record, and a spot
+   * check is the one shape of test that cannot make it. A spot check keeps
+   * passing when a field nobody thought to name starts arriving null: the
+   * assertion list is a list of fields that existed when it was written, and a
+   * record grows. So this walks the parsed turn and fails on any null at a path
+   * that is not on an allowlist derived from the contract.
+   *
+   * **Off disk, and off the *second* turn.** Two reasons, both load-bearing:
+   *
+   * - `JSON.stringify` erases `undefined` and preserves `null`, so an in-memory
+   *   draft and the line in the segment file are different objects. The record
+   *   is read by the workbench from disk ([P2 §2.6]), so disk is where the
+   *   question is asked. `readAllTurns` parses the JSONL, which is the same
+   *   round trip.
+   * - The first turn of a session has legitimately empty state:
+   *   `parentTurnId` is null by [02 §8], and the clock effect's `before` is
+   *   null because the channel had no value yet. Walking turn two puts real
+   *   data in both, so **neither needs a place on the allowlist** — which turns
+   *   two excuses into two assertions: that a turn names its parent, and that
+   *   the clock effect records the time it moved from. An effect that cannot
+   *   state where it came from is not invertible, which is [13 §1.2.1].
+   *
+   * Mutation this catches: any production change that starts writing `null`
+   * into the record — a `resolved` that stops carrying its `modelId`, a
+   * `budget` verdict dropped from the request, a `before` that is not captured,
+   * a block whose `source` is not filled in — including on a field added after
+   * this test was written, which is the property a spot check cannot have.
+   */
+  it('carries no null where [13 §1] says data, on the record as it comes off disk', async () => {
+    // Scripted, so `usage` and `cost` carry figures. They are *allowed* to be
+    // null by [13 §1.4], and are therefore on the allowlist — which means the
+    // walk alone cannot notice them going missing. The explicit assertion below
+    // is what stops the allowlist from becoming a place to hide a regression.
+    makeRunner({
+      script: [
+        {
+          text: 'The rain kept on.',
+          usage: { promptTokens: 137, completionTokens: 42 },
+          cost: { amount: 0.0012, currency: 'USD' },
+        },
+      ],
+    });
+
+    await runTurn('She opened the door.');
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+    const second = await reserve('key-2', head);
+    runner.start(second, {
+      input: { actorId: null, kind: 'do', text: 'And went through.', raw: 'And went through.' },
+    });
+    await until(() => readJob(state.db, second.id)?.status === 'committed', 'the second turn');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    expect(written).toHaveLength(2);
+    const turn = written.at(-1)?.turn;
+    if (!turn) throw new Error('the second turn was not appended');
+
+    const found = leaves(turn);
+
+    /**
+     * **Guards its own vacuous pass.** A walk over `{}` finds no nulls and
+     * passes, and so does a walk that stops at the first object it does not
+     * recognise. These five paths are the deep ones — inside a call, inside a
+     * rendered message, inside a budget decision, inside an effect's `unknown`
+     * -typed `before`, inside a step's counters — so reaching all of them
+     * proves the walk descended everywhere the assertion claims to cover.
+     */
+    const reached = new Set(found.map(([path]) => generalise(path)));
+    for (const path of [
+      'request.calls[*].resolved.modelId',
+      'request.calls[*].messages[*].content',
+      'request.budget.decisions[*].rule',
+      'effects[*].before.hour',
+      'steps[*].contributed.blocks',
+    ]) {
+      expect(reached.has(path), `the walk never reached ${path}`).toBe(true);
+    }
+
+    const offending = found
+      .filter(([, value]) => value === null)
+      .map(([path]) => path)
+      .filter((path) => !NULL_IS_DATA.has(generalise(path)));
+
+    expect(offending, `null where [13 §1] says data: ${offending.join(', ')}`).toEqual([]);
+
+    // The allowlist's two escape hatches, closed for this turn. [13 §1.4]
+    // permits both to be null — that is what "provider-reported" means when a
+    // provider reports nothing — but this provider reported, so a record that
+    // dropped the figures would be a regression the allowlist would otherwise
+    // absorb in silence.
+    for (const call of turn.request?.calls ?? []) {
+      expect(call.usage, `call ${call.id} lost the usage the provider reported`).not.toBeNull();
+      expect(call.cost, `call ${call.id} lost the cost the provider reported`).not.toBeNull();
+    }
+  });
 });
+
+/**
+ * Every leaf of a parsed record, as `[path, value]` — the machinery behind the
+ * allowlist walk above.
+ *
+ * Leaves rather than nodes, and paths rather than a boolean, because the
+ * failure has to say *which field*. "Something in the turn record is null" is
+ * not an actionable failure on a structure this size; `request.calls[0].resolved`
+ * is.
+ *
+ * An empty array or object is itself a leaf. It has no members to recurse into,
+ * and reporting it as a leaf whose value is not null is correct: `[]` is a
+ * record that legitimately holds nothing, which is a different claim from a
+ * field that holds null.
+ */
+function leaves(value: unknown, path = ''): [string, unknown][] {
+  if (value === null || typeof value !== 'object') return [[path, value]];
+
+  if (Array.isArray(value)) {
+    const items = value as unknown[];
+    if (items.length === 0) return [[path, value]];
+    return items.flatMap((item, index) => leaves(item, `${path}[${String(index)}]`));
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return [[path, value]];
+  return entries.flatMap(([key, member]) => leaves(member, path === '' ? key : `${path}.${key}`));
+}
+
+/** `request.calls[0].usage` → `request.calls[*].usage`, so the allowlist is by field. */
+function generalise(path: string): string {
+  return path.replaceAll(/\[\d+\]/gu, '[*]');
+}
+
+/**
+ * The paths a null is **data** at, derived from the contract rather than from
+ * what happens to be null today.
+ *
+ * Each entry is a place a document explicitly writes `| null` and says what the
+ * null means. Nothing else is allowed, which is the whole point: a new field
+ * arriving null is a failure until somebody decides it is a contract and adds
+ * it here, and adding it here is a visible act.
+ *
+ * - `input.actorId` — [02 §8]: an input not attributed to an actor. Scene has
+ *   a fixed participant and never attributes one.
+ * - `effects[*].scopeKey` — [13 §1.2]: *which value, when the channel is scoped
+ *   per actor or per entry*. `se.clock` declares `scope: 'session'`, so there
+ *   is no key to name.
+ * - `effects[*].rejectedReason` — [13 §1.2]: *present when `applied` is false*.
+ *   The clock effect is engine-proposed against an `engine-computed` channel,
+ *   so it is admitted and there is no refusal to state.
+ * - `request.calls[*].usage` and `.cost` — [13 §1.4]: provider-*reported*, and
+ *   a provider that reports nothing must be recorded as having reported nothing
+ *   rather than as having reported zero. The turn under test scripts both, so
+ *   the walk's caller closes these two by hand — an allowlist entry is a
+ *   permission, not a place to hide a regression.
+ * - `request.calls[*].error` — [13 §1.4]: the classified failure, null on a
+ *   call that succeeded.
+ *
+ * **Two permissions the doc grants and this record does not need**, which is
+ * why they are absent and each absence is an extra assertion. Both are granted
+ * *for the first turn of a session*, and the walk deliberately runs on the
+ * second: `parentTurnId` ([02 §8] — null for the first turn, every other turn
+ * names its parent) and `effects[*].before` ([13 §1.2.1] — the state the effect
+ * inverts back to, which does not exist before the channel has a value).
+ *
+ * **And one that is not a permission at all**: `request.budget`. It is typed
+ * `| null` for a turn that assembled nothing, and a turn that made a call is
+ * not one — a missing verdict is exactly what [13 §1.5] exists to prevent.
+ */
+const NULL_IS_DATA = new Set([
+  'input.actorId',
+  'effects[*].scopeKey',
+  'effects[*].rejectedReason',
+  'request.calls[*].usage',
+  'request.calls[*].cost',
+  'request.calls[*].error',
+]);

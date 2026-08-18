@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
 /**
  * What survives a kill, and what the log says about it — [P2 §2.10], gates 10
@@ -45,6 +45,32 @@ function parsedLog(): Record<string, unknown>[] {
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
+
+/**
+ * The one line for an event, and a failure that says so when there is not one.
+ *
+ * `find` would hand back `undefined` and every field assertion after it would
+ * then fail as *"cannot read property of undefined"* — which reads as a broken
+ * test rather than as *the lifecycle is missing its commit line*. Exactly one is
+ * asserted rather than at-least-one because a milestone logged twice is its own
+ * defect: gate 19's reader reconstructs a lifecycle by reading the sequence, and
+ * a duplicated `job.recovered` would say the turn was recovered twice.
+ */
+function lineFor(lines: Record<string, unknown>[], event: string): Record<string, unknown> {
+  const found = lines.filter((line) => line['event'] === event);
+  if (found.length !== 1) {
+    throw new Error(
+      `Expected exactly one ${event} line, saw ${String(found.length)} in ${JSON.stringify(
+        lines.map((line) => line['event']),
+      )}`,
+    );
+  }
+  return found[0]!;
+}
+
+/** The frame that ends a turn. Same predicate the session suite closes on. */
+const finished = (frame: SseFrame): boolean =>
+  frame.event === 'progress' && (frame.data as { key: string }).key === 'turn.finished';
 
 /**
  * A server on the shared data directory, with a scripted provider behind it.
@@ -113,6 +139,85 @@ async function seedAccount(): Promise<string> {
     payload: { name: 'Rain City' },
   });
   return created.body.session.id as string;
+}
+
+/**
+ * A turn killed mid-generation, and **what the client had been shown when it
+ * died** — the setup three of the tests below share.
+ *
+ * One helper rather than the same twenty lines three times, because the thing
+ * being reproduced is a *kill* and three slightly different kills would be three
+ * different tests that all claim to be gate 10's. The two subtleties are worth
+ * stating once here rather than being rediscovered in each copy:
+ *
+ * **Two delta frames, not one.** One proves only that the stream opened. Two
+ * proves the runner has been round its coalescing checkpoint at least once with
+ * real text in the draft — which is the whole of gate 10's second half, since
+ * text that reached the socket but never reached a checkpoint is text the
+ * restart cannot possibly recover.
+ *
+ * **The snapshot's text plus the deltas is exactly what the client saw**, with
+ * no overlap to subtract. `attachToSession` reads the accumulated text and
+ * flushes its buffer in one synchronous block — the function is forbidden from
+ * becoming `async` precisely so that nothing can interleave there — so a delta
+ * is either already inside the snapshot's `text` or arrives after it, never
+ * both. Concatenating them would double-count if that ever stopped being true,
+ * and the prefix assertions in the tests are what would notice.
+ *
+ * Returns with `server` **disposed**: the caller starts the next process, since
+ * what that one is scripted to say is the caller's business.
+ */
+async function killMidGeneration(script: ScriptedReply[]): Promise<{
+  sessionId: string;
+  jobId: string;
+  turnId: string;
+  /** The words already on the screen when the process died. */
+  seen: string;
+}> {
+  server = await start(script);
+  const sessionId = await seedAccount();
+
+  const accepted = await server.request({
+    method: 'POST',
+    url: `/api/sessions/${sessionId}/turns`,
+    payload: { idempotencyKey: 'k', headTurnId: null, input: { text: 'She waited.' } },
+  });
+
+  const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+  await stream.until(
+    () => stream.frames().filter((frame) => frame.event === 'delta').length >= 2,
+    4000,
+  );
+
+  const snapshot = stream.frames().find((frame) => frame.event === 'snapshot');
+  const seen =
+    ((snapshot?.data as { text?: string | null } | undefined)?.text ?? '') +
+    stream
+      .frames()
+      .filter((frame) => frame.event === 'delta')
+      .map((frame) => (frame.data as { text: string }).text)
+      .join('');
+
+  await stream.abort();
+  /**
+   * **A kill, not a shutdown**, and then no pause before the stores close.
+   *
+   * `halt()` drops the run without finalising and `dispose()` closes the
+   * databases underneath it, so the detached generation finds them gone exactly
+   * as it would find a dead process's. Waiting here for the abort to land would
+   * let the runner reach `finaliseTurn` against an open store — the turn would
+   * commit, there would be nothing left active, and these tests would be
+   * asserting that cancellation works rather than that recovery does.
+   */
+  server.services.runner.halt();
+  await server.dispose();
+
+  return {
+    sessionId,
+    jobId: accepted.body.jobId as string,
+    turnId: accepted.body.turnId as string,
+    seen,
+  };
 }
 
 describe('a turn killed mid-generation', () => {
@@ -195,7 +300,150 @@ describe('a turn killed mid-generation', () => {
       },
     });
     expect(next.status).toBe(202);
+
+    /**
+     * **And then the re-run is watched to the end, because a 202 is an
+     * acceptance and not a turn.**
+     *
+     * Gate 10's last clause is *"and can be re-run"*, and a status code is
+     * evidence only that `submitTurn` reserved a job — every interesting way for
+     * this to be broken lives after that point and leaves the 202 intact. A
+     * runner that refused to start on a session whose previous job had been
+     * recovered, a head that had not really advanced so the second turn attached
+     * to nothing, an append that overwrote the failed record rather than
+     * following it: all of them are a 202 followed by silence, so the stream is
+     * watched to `turn.finished` and the two turns are read back.
+     */
+    const watching = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    const end = await watching.until(finished, 6000);
+    expect((end.data as { params: { state: string } }).params.state).toBe('complete');
+    await watching.abort();
+
+    // Through the route, because *on the path* is what gate 10 claims and the
+    // path is a walk back from the head — a turn appended to the segment but
+    // never linked would still be in the file and absent from here.
+    const path = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(path.body.turns).toHaveLength(2);
+    const [recovered, rerun] = path.body.turns;
+
+    expect(recovered.status).toBe('failed');
+    expect(rerun.status).toBe('complete');
+    // The *second* process's script, so this is genuinely a new generation
+    // rather than the recovered draft being replayed or re-committed.
+    expect(rerun.output.text).toBe('the next one');
+    expect(rerun.id).toBe(next.body.turnId);
+    // The chain, which is what makes the failed turn part of the story rather
+    // than a thing the re-run stepped over ([09 §4] — a re-run is a child, and
+    // `parentTurnId` is written now so branching has something to read later).
+    expect(rerun.parentTurnId).toBe(recovered.id);
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),
+    );
+    expect(written.map((each) => each.turn.id)).toEqual([recovered.id, rerun.id]);
   });
+
+  it('keeps the words the user had already been shown', async () => {
+    /**
+     * **Gate 10's "with blocks intact", read as *the whole request*.**
+     *
+     * The turn record's claim is that a killed turn carries what it had, and
+     * "what it had" is two separate things: the prompt that was in flight and
+     * the prose that was already on somebody's screen. The second is the one a
+     * user would notice losing, and it is the one a plausible implementation
+     * drops — assigning `draft.output` once, from the result, at the end of the
+     * call is the obvious way to write that code and passes every test that only
+     * checks a completed turn. The runner instead assigns it inside the
+     * streaming callback, per coalescing window, and this is the assertion that
+     * makes that a requirement rather than a detail.
+     *
+     * Twenty chunks at thirty milliseconds, killed after two: six hundred
+     * milliseconds of script against a kill at roughly sixty, so *partial*
+     * stays true with a wide margin on a loaded machine.
+     */
+    const full = 'a long slow answer that keeps going and going and going';
+    const { sessionId, seen } = await killMidGeneration([
+      { text: full, chunks: 20, chunkDelayMs: 30 },
+    ]);
+
+    server = await start([{ text: 'unused' }]);
+    await signIn();
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),
+    );
+    const turn = written[0]?.turn;
+    const recorded = turn?.output?.text ?? '';
+
+    // Vacuity guard: a kill that landed before the first delta would make every
+    // prefix assertion below trivially true.
+    expect(seen).not.toBe('');
+    expect(recorded).not.toBe('');
+
+    /**
+     * **The recorded text starts with what was shown, and is itself a prefix of
+     * the script.** Written as slices rather than `startsWith` so a failure
+     * prints the two strings against each other instead of `false !== true`.
+     *
+     * `startsWith` rather than equality in the first direction because the
+     * durable text may legitimately run *ahead* of the frames this client
+     * parsed — the checkpoint is written in the same tick as the delta is
+     * published, and more deltas can land between the last frame read and the
+     * kill. Ahead is fine; behind is the bug, and behind is what this catches.
+     */
+    expect(recorded.slice(0, seen.length)).toBe(seen);
+    expect(full.slice(0, recorded.length)).toBe(recorded);
+    // Partial, not the whole answer: otherwise the kill did not land
+    // mid-generation and this test is asserting about a completed turn.
+    expect(recorded).not.toBe(full);
+
+    /**
+     * **And the request that produced those words survived with it.**
+     *
+     * `blocks.length > 0` — which is what the sibling test above asserts — is
+     * satisfied by a checkpoint that kept the array and lost everything that
+     * makes a block legible. [13 §1.1] makes the source one vocabulary the
+     * record and the preset both speak, and [03 §5] makes the reason *"a
+     * product feature, not a debug string"* — gate 11 reads both off this very
+     * field. So what is checked here is that the *player's own message* is in
+     * the recovered prompt, attributed, with the budgeter's verdict beside it.
+     * A draft that checkpointed only ids, or that wrote `budget: null` until
+     * the call returned, passes the weaker form and fails this one.
+     */
+    const request = turn?.request;
+    const input = request?.blocks.find((block) => block.id === 'se.input');
+    expect(input?.text).toBe('She waited.');
+    expect(input?.source.kind).toBe('input');
+    expect(input?.included).toBe(true);
+    for (const block of request?.blocks ?? []) expect(block.reason).not.toBe('');
+
+    const budget = request?.budget ?? null;
+    expect(budget).not.toBeNull();
+    expect(budget?.limit.source).toBe('preset');
+    expect(budget?.spent).toBeGreaterThan(0);
+    // Every block ruled on, including the kept ones ([13 §1.5]) — a verdict
+    // listing only the drops cannot answer "what falls out next", which is what
+    // `nextToDrop` is.
+    expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
+      request?.blocks.map((block) => block.id),
+    );
+    expect(budget?.nextToDrop).toContain('se.instruction');
+  });
+
+  /**
+   * The half of "blocks intact" this code does **not** deliver, left as a todo
+   * rather than as a passing test of the wrong thing.
+   *
+   * `request.calls` is empty on a killed turn. `performCall` pushes its
+   * `ModelCall` only when the call returns, and its failure path attaches one
+   * only to `CallFailed` — but an aborted signal is checked first and throws
+   * `Cancelled` (`turns/calls.ts`), which carries no record. So the recovered
+   * turn says which blocks were assembled and what the budget ruled, and cannot
+   * say which model was asked. The log knows (`call.started` binds it, asserted
+   * below); the record does not. Making this pass is a production change and
+   * belongs to whoever owns that decision.
+   */
+  it.todo('names the model call that was in flight when the process died');
 });
 
 describe('the log alone reconstructs a killed turn', () => {
@@ -268,5 +516,215 @@ describe('the log alone reconstructs a killed turn', () => {
     expect(corpus).not.toContain('the-secret-narration');
     expect(corpus).not.toContain('the-secret-guidance');
     expect(corpus).not.toContain(dataDir);
+  });
+
+  it('is an ordered lifecycle that names the model, the outcome and the turn', async () => {
+    /**
+     * **Gate 19 in full: *reconstructable*, not *present*.**
+     *
+     * The sibling test above proves the four milestone names appear somewhere in
+     * the corpus, and a set of names is not a lifecycle — it cannot say whether
+     * the call was attempted before or after the turn was committed, which model
+     * was asked, whether the turn survived, or how to get from the job id
+     * somebody was paged with to the record on disk. Those are the four things
+     * an operator actually does with this log, and they are the four blocks
+     * below.
+     */
+    const { sessionId, jobId, turnId } = await killMidGeneration([
+      { text: 'a long slow answer', chunks: 12, chunkDelayMs: 20 },
+    ]);
+
+    server = await start([{ text: 'unused' }]);
+    await signIn();
+    /**
+     * The premise, asserted before anything reads the log.
+     *
+     * If the dying process had won the race and finalised its own turn there
+     * would be no active job at startup, no recovery half, and the missing
+     * `job.recovered` line would read as *the log lost it* rather than as *the
+     * kill did not kill*. One line here turns the second failure into the
+     * message it actually is.
+     */
+    expect(server.services.reconciliation.finalised).toEqual([jobId]);
+    await server.dispose();
+
+    const mine = parsedLog().filter((line) => line['jobId'] === jobId);
+
+    /**
+     * **1. Order.** An exact equality over the milestone subsequence, not a
+     * containment check: containment passes for a log that emits the commit
+     * before the call.
+     *
+     * `step.failed` is deliberately not in the chain, and its absence is the
+     * one thing here that is about the test rather than about the system. The
+     * dying run is detached when the stores close, so its last line is written
+     * whenever its abort lands — a few tens of milliseconds later, possibly
+     * after the next process has already reconciled. Every other line in the
+     * chain is emitted before the kill or by the recovering process, so their
+     * relative order is causal rather than raced. Pinning `step.failed` here
+     * would buy a stronger-looking assertion and pay for it with a test that
+     * fails on a busy machine.
+     *
+     * **And the chain starts one step later than [13 §4.1] describes.** That
+     * section says the job binds `jobId` *"when the job is created"* — but
+     * `submitTurn` reserves the job, writes its idempotency row and returns a
+     * 202 without logging anything, and the first line carrying the id is
+     * `job.running`, written by the runner after it has already taken the job.
+     * The window between them is small and it is not empty: a process that dies
+     * inside it leaves a reserved job, a session that startup will have to
+     * release, and **no log line at all** — the one interruption this gate's
+     * claim does not cover. The chain begins where the code begins rather than
+     * where the contract says, because adding the reservation line is a change
+     * to `state/jobs.ts` and this file does not make production changes to
+     * satisfy itself.
+     */
+    const chain = ['job.running', 'step.started', 'call.started', 'job.committed', 'job.recovered'];
+    const events = mine.map((line) => String(line['event']));
+    expect(events.filter((event) => chain.includes(event))).toEqual(chain);
+    // `job.committed` before `job.recovered` is not an accident of writing
+    // order: `reconcile` logs the recovery *after* `finaliseTurn` returns,
+    // because until it has returned there is nothing true to say.
+
+    // …and the timeline agrees with the ordering. Weak alone — pino stamps and
+    // writes in one synchronous step, so arrival order is time order — but it
+    // is what makes the sequence above a timeline rather than a list, and it
+    // fails the moment a line is emitted with a captured or borrowed `time`.
+    const times = mine.map((line) => Number(line['time']));
+    expect(times).toEqual([...times].sort((first, second) => first - second));
+
+    /**
+     * **2. The call.** *Which model was attempted* is the first question asked
+     * of a turn that died mid-flight, and the turn record cannot answer it — no
+     * `ModelCall` is written until a call returns or fails with `CallFailed`,
+     * and an abort throws `Cancelled` before either (see the todo above). So
+     * this line is the only place the answer exists.
+     *
+     * `model` is pinned to the *resolved* model id rather than to the role,
+     * which is [13 §1.4]'s point about `ModelCall.resolved` one layer down:
+     * steps name roles, so a line logging `prose` would name the binding and
+     * never the endpoint, and *what actually ran* is the first question anyone
+     * asks about a turn that came out wrong. `fake-hi` is what `bindings.json`
+     * resolves to here, so the assertion is on a value the seeding chose.
+     */
+    const callStarted = lineFor(mine, 'call.started');
+    expect(callStarted['model']).toBe('fake-hi');
+    expect(callStarted['stepId']).toBe('se.narrate');
+
+    /**
+     * **3. The outcome.** Without this the log's answer to *did it survive?* is
+     * a name — `job.committed` is emitted for a turn that finished perfectly and
+     * for one that died at its first token, and only the field distinguishes
+     * them. `fromStep: 0` is the other half: it says the interruption was during
+     * generation rather than during finalisation, which is the difference
+     * between a turn that lost its prose and one that had already written it.
+     */
+    expect(lineFor(mine, 'job.recovered')['status']).toBe('failed');
+    expect(lineFor(mine, 'job.recovered')['fromStep']).toBe(0);
+    expect(lineFor(mine, 'job.committed')['status']).toBe('failed');
+
+    /**
+     * **4. The pivot keys.** [13 §4.1] makes `jobId` the binding gate 19 turns
+     * on, and names `sessionId` and `turnId` beside it — because a job id is
+     * what an alert carries and a turn record is what a human wants to read, so
+     * the log has to be the bridge. Asserted against the id of the turn actually
+     * on disk rather than against itself: a line binding a plausible-looking
+     * wrong id is exactly the failure this catches.
+     */
+    const written = await readAllTurns(
+      join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),
+    );
+    expect(written.map((each) => each.turn.id)).toEqual([turnId]);
+    expect(lineFor(mine, 'job.running')).toMatchObject({ sessionId, turnId, account: 'ned' });
+    expect(lineFor(mine, 'job.recovered')).toMatchObject({ sessionId, turnId });
+    /**
+     * **`job.committed` carries `turnId` and no `sessionId`, and that is a
+     * divergence from [13 §4.1] rather than a decision** — so it is asserted as
+     * the code behaves and reported as a finding, because a test that failed
+     * here would be reporting a fault in the contract's implementation and not
+     * in itself.
+     *
+     * The cause is one line and it has two other victims. `advanceCommit` logs
+     * through `context.log`, which `buildApp` sets to the app's *root* logger
+     * (`services.commit.log = app.log`), and the runner's `job.unstartable` and
+     * `job.lost` go through `this.#options.log` for the same reason — the child
+     * with the job's bindings is created inside `#body` and those two are
+     * written outside it. Which means the two lines that say *a turn ended
+     * without finalising*, the ones an operator chasing a lost turn searches
+     * for first, name neither the session nor the turn. Everything else here
+     * inherits its bindings from that child or from `reconcile`'s.
+     */
+    expect(lineFor(mine, 'job.committed')).toMatchObject({ turnId });
+  });
+
+  it('holds nothing of the next job, and the next job holds nothing of it', async () => {
+    /**
+     * **The negative control, done with a real second job.**
+     *
+     * *Filtering by a job id that never existed returns nothing* is a fact about
+     * the string `'not-a-job'` and survives any bug that could plausibly exist
+     * here: a child logger that leaked its bindings, a `jobId` bound from a
+     * captured variable rather than the job, a reconciler that stamped the job
+     * it was recovering onto lines belonging to another. All of those need two
+     * real jobs in one process to show up, and the second one has to be an
+     * *ordinary* turn — the interesting confusion is between the turn that died
+     * and the turn that came after it on the same session.
+     */
+    const killed = await killMidGeneration([
+      { text: 'a long slow answer', chunks: 12, chunkDelayMs: 20 },
+    ]);
+
+    server = await start([{ text: 'the second answer' }]);
+    await signIn();
+    expect(server.services.reconciliation.finalised).toEqual([killed.jobId]);
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${killed.sessionId}` });
+    const second = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${killed.sessionId}/turns`,
+      payload: {
+        idempotencyKey: 'k2',
+        headTurnId: read.body.session.headTurnId,
+        input: { text: 'again' },
+      },
+    });
+    const stream = await server.stream({ url: `/api/sessions/${killed.sessionId}/stream` });
+    await stream.until(finished, 6000);
+    await stream.abort();
+    await server.dispose();
+
+    // Parsed once, so the two filters are two views of one corpus rather than
+    // two independent readings of a file that is still being written to.
+    const corpus = parsedLog();
+    const killedLines = corpus.filter((line) => line['jobId'] === killed.jobId);
+    const secondLines = corpus.filter((line) => line['jobId'] === second.body.jobId);
+    expect(killedLines.length).toBeGreaterThan(2);
+    expect(secondLines.length).toBeGreaterThan(2);
+
+    /**
+     * Neither filter mentions the other's turn. This is the assertion the
+     * `'not-a-job'` one was standing in for: the killed turn and the re-run
+     * share a session, an account and a process, so `turnId` is the field that
+     * has to separate them, and a leaked binding puts both ids in one filter.
+     */
+    const turnsNamed = (lines: Record<string, unknown>[]): unknown[] => [
+      ...new Set(lines.map((line) => line['turnId']).filter((id) => id !== undefined)),
+    ];
+    expect(turnsNamed(killedLines)).toEqual([killed.turnId]);
+    expect(turnsNamed(secondLines)).toEqual([second.body.turnId]);
+
+    /**
+     * And the two lifecycles read as different stories, which is the point of
+     * being able to filter at all. The ordinary turn's call came back and its
+     * step finished; the killed one's did neither and needed a recovery the
+     * ordinary one has no line for.
+     */
+    const killedEvents = killedLines.map((line) => String(line['event']));
+    const secondEvents = secondLines.map((line) => String(line['event']));
+    expect(secondEvents).toContain('call.finished');
+    expect(secondEvents).toContain('step.finished');
+    expect(secondEvents).not.toContain('job.recovered');
+    expect(killedEvents).toContain('job.recovered');
+    expect(killedEvents).not.toContain('call.finished');
+    expect(killedEvents).not.toContain('step.finished');
   });
 });
