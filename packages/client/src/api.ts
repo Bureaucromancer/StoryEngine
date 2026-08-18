@@ -254,3 +254,82 @@ export const api = {
   avatarUrl: (id: string, contentHash: string): string =>
     `/api/library/actors/${encodeURIComponent(id)}/avatar?v=${encodeURIComponent(contentHash)}`,
 };
+
+/**
+ * Sessions and turns — the play surface's half of the API.
+ *
+ * The shapes are re-declared here rather than imported from the server, because
+ * the client may not depend on it. That is a real seam with a real cost: a
+ * rename on the server side becomes a silent mismatch here, which is why the
+ * server asserts its own frame shape ([routes/sessions.test.ts]). A shared
+ * package for these is the proper fix and belongs with the workbench, which is
+ * the first surface that needs more of them than this one does.
+ */
+
+export interface SessionSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  headTurnId: string | null;
+  archivedAt?: string;
+}
+
+export interface TurnRecord {
+  id: string;
+  parentTurnId: string | null;
+  createdAt: string;
+  status: 'complete' | 'failed' | 'suspended';
+  input?: { text: string; kind: string };
+  output?: { text: string };
+  [key: string]: unknown;
+}
+
+export interface ActiveJob {
+  id: string;
+  status: string;
+  turnId: string;
+  commitStep: number;
+}
+
+export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
+  return request('GET', '/api/sessions');
+}
+
+export function createSession(name: string): Promise<{ session: SessionSummary }> {
+  return request('POST', '/api/sessions', { name });
+}
+
+export function readSession(
+  sessionId: string,
+): Promise<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+  return request('GET', `/api/sessions/${sessionId}`);
+}
+
+export function readTranscript(sessionId: string): Promise<{ turns: TurnRecord[] }> {
+  return request('GET', `/api/sessions/${sessionId}/turns`);
+}
+
+export interface SubmitTurn {
+  sessionId: string;
+  idempotencyKey: string;
+  headTurnId: string | null;
+  text: string;
+  /** Its own field, never folded into the action — [03 §5.1]. */
+  guidance?: string;
+}
+
+export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cursor: string }> {
+  return request('POST', `/api/sessions/${submission.sessionId}/turns`, {
+    idempotencyKey: submission.idempotencyKey,
+    headTurnId: submission.headTurnId,
+    input: { text: submission.text },
+    ...(submission.guidance === undefined || submission.guidance.length === 0
+      ? {}
+      : { guidance: submission.guidance }),
+  });
+}
+
+export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: string }> {
+  return request('POST', `/api/sessions/${sessionId}/jobs/${jobId}/cancel`);
+}

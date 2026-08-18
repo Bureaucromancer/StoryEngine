@@ -8,6 +8,8 @@ import { isLibraryKind, type LibraryKind } from './api.js';
 import { ActorEditorPage } from './editor/ActorEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
+import { PlayPage } from './play/PlayPage.js';
+import { SessionsPage } from './play/SessionsPage.js';
 import { Shell } from './Shell.js';
 
 /**
@@ -43,6 +45,26 @@ const libraryRoute = createRoute({
   component: LibraryPage,
 });
 
+const sessionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/play',
+  component: SessionsPage,
+});
+
+/**
+ * The play surface. The session id is the whole address — a reload lands here
+ * and the stream's snapshot supplies everything else, which is what makes
+ * reattach a request rather than a race.
+ */
+const playRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/play/$sessionId',
+  component: function Play() {
+    const { sessionId } = playRoute.useParams();
+    return <PlayPage sessionId={sessionId} />;
+  },
+});
+
 const objectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/$kind/$id',
@@ -68,7 +90,13 @@ const actorEditorRoute = createRoute({
   component: ActorEditorPage,
 });
 
-const routeTree = rootRoute.addChildren([libraryRoute, objectRoute, actorEditorRoute]);
+const routeTree = rootRoute.addChildren([
+  libraryRoute,
+  objectRoute,
+  actorEditorRoute,
+  sessionsRoute,
+  playRoute,
+]);
 
 /**
  * The last line of defence for a render throw — without it a bad object is a

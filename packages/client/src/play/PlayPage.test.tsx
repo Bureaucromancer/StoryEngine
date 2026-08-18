@@ -1,0 +1,296 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { StreamHandlers } from './stream.js';
+
+/**
+ * The play surface, mounted.
+ *
+ * The transport and the reducer have their own tests and are the parts a
+ * component test is bad at; what only lives here is **the join** — that the
+ * page hands the reducer what arrives, hands the API what the form holds, and
+ * puts the result somewhere a reader can perceive.
+ *
+ * Three of P2's claims are only checkable at this level, which is why they had
+ * no test before this file: guidance travels in its own field and does not
+ * survive the turn ([03 §5.1]), a reconnect is a status and not an error
+ * ([07 §11]), and the record affordance shows the record rather than a summary
+ * of it ([P2 §3]).
+ *
+ * The API module is mocked and the query client is real. The other way round —
+ * mocking `useQuery` — would take the refetch-on-finish wiring out of the test,
+ * and that wiring is the reason a committed turn appears in the transcript at
+ * all.
+ */
+
+const listSessions = vi.fn();
+const createSession = vi.fn();
+const readSession = vi.fn();
+const readTranscript = vi.fn();
+const submitTurn = vi.fn();
+const cancelTurn = vi.fn();
+
+vi.mock('../api.js', () => ({
+  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
+  createSession: (...a: unknown[]) => createSession(...a) as unknown,
+  readSession: (...a: unknown[]) => readSession(...a) as unknown,
+  readTranscript: (...a: unknown[]) => readTranscript(...a) as unknown,
+  submitTurn: (...a: unknown[]) => submitTurn(...a) as unknown,
+  cancelTurn: (...a: unknown[]) => cancelTurn(...a) as unknown,
+}));
+
+/** The last handlers the page opened a stream with — the test's way to speak. */
+let handlers: StreamHandlers;
+const close = vi.fn();
+
+vi.mock('./stream.js', () => ({
+  openTurnStream: (_id: string, given: StreamHandlers) => {
+    handlers = given;
+    return { close };
+  },
+}));
+
+const { PlayPage } = await import('./PlayPage.js');
+
+const SESSION = {
+  id: '01a008de-7e08-70d0-899c-f6869d6b9aeb',
+  name: 'The Ashfall Road',
+  createdAt: '2026-08-18T10:00:00.000Z',
+  updatedAt: '2026-08-18T10:00:00.000Z',
+  headTurnId: 'turn-1',
+};
+
+const TURN = {
+  id: 'turn-1',
+  parentTurnId: null,
+  createdAt: '2026-08-18T10:00:00.000Z',
+  status: 'complete' as const,
+  input: { text: 'I knock twice.', kind: 'action' },
+  output: { text: 'The door opens a handspan.' },
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  readSession.mockResolvedValue({ session: SESSION, activeJob: null });
+  readTranscript.mockResolvedValue({ turns: [TURN] });
+  submitTurn.mockResolvedValue({ jobId: 'job-1', cursor: 'job-1.0' });
+  cancelTurn.mockResolvedValue({ jobId: 'job-1' });
+});
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <PlayPage sessionId={SESSION.id} />
+    </QueryClientProvider>,
+  );
+}
+
+describe('the transcript', () => {
+  it('renders the turns the session already has', async () => {
+    renderPage();
+
+    expect(await screen.findByText('I knock twice.')).toBeTruthy();
+    expect(screen.getByText('The door opens a handspan.')).toBeTruthy();
+  });
+
+  /**
+   * P2 §3's *raw view turn record JSON affordance* — one `<pre>`, and the whole
+   * record in it. The assertion is on a field the summary view does not show,
+   * because a disclosure that rendered the same two sentences again would pass
+   * a laxer test while giving a reader nothing they could not already see.
+   */
+  it('puts the whole record behind the disclosure', async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByText('Turn record'));
+
+    const raw = screen.getByText(/"parentTurnId"/);
+    expect(raw.textContent).toContain('"kind": "action"');
+  });
+});
+
+describe('submitting a turn', () => {
+  it('sends the text with the head it was written against', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I step in.', headTurnId: 'turn-1' }),
+      );
+    });
+  });
+
+  /**
+   * **Guidance is one-shot** ([03 §5.1]): it applies to the turn it was written
+   * for. A box that kept its text would silently steer every later turn, which
+   * is the failure the design calls out by name — so the clearing is asserted,
+   * not just the sending.
+   */
+  it('sends guidance in its own field and then forgets it', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByText('Guidance for this turn', { selector: 'summary' }));
+    const box = screen.getByRole('textbox', { name: /guidance/i });
+    await userEvent.type(box, 'Keep it tense.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I step in.', guidance: 'Keep it tense.' }),
+      );
+    });
+    await waitFor(() => {
+      expect((box as HTMLTextAreaElement).value).toBe('');
+    });
+  });
+
+  it('refuses an empty action rather than sending one', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(submitTurn).not.toHaveBeenCalled();
+  });
+});
+
+describe('the stream', () => {
+  it('renders arriving text where a screen reader will announce it', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'running' } } });
+      handlers.onFrame({ event: 'delta', data: { text: 'The lamp ' } });
+      handlers.onFrame({ event: 'delta', data: { text: 'gutters.' } });
+    });
+
+    // Both halves in one node: a live region announces what changed, and text
+    // split across two elements is announced as two interruptions.
+    const live = await screen.findByText('The lamp gutters.');
+    expect(live.closest('[aria-live]')).toBeTruthy();
+  });
+
+  /**
+   * A reconnect is **not** an error ([07 §11]). The cursor makes the resume
+   * lossless, so the surface says so quietly — `role="status"`, which a screen
+   * reader announces without interrupting, rather than the `alert` a real
+   * failure gets.
+   */
+  it('says reconnecting quietly, and failure loudly', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onReconnecting();
+    });
+    expect(screen.getByRole('status').textContent).toContain('Reconnect');
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    act(() => {
+      handlers.onFatal('internal');
+    });
+    expect(screen.getByRole('alert')).toBeTruthy();
+  });
+
+  /**
+   * The closing frame is what says the record is durable in all three places,
+   * so it — and not a timer — is what makes the finished turn appear. Without
+   * this the transcript would be one turn stale until something else happened
+   * to invalidate it.
+   */
+  it('refetches the transcript when the turn finishes', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    expect(readTranscript).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.4',
+        data: { jobId: 'job-1', seq: 4, key: 'turn.finished' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(readTranscript).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('closes the stream when the page goes away', async () => {
+    const { unmount } = renderPage();
+    await screen.findByText('I knock twice.');
+
+    unmount();
+
+    expect(close).toHaveBeenCalled();
+  });
+});
+
+describe('a turn in flight', () => {
+  it('offers Stop instead of Send, and cancels the job it names', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-7', status: 'running' } } });
+    });
+
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Stop' }));
+
+    expect(cancelTurn).toHaveBeenCalledWith(SESSION.id, 'job-7');
+  });
+});
+
+/**
+ * **The turn that ends before it is announced.**
+ *
+ * A step that refuses immediately takes about a millisecond, so `turn.finished`
+ * can arrive on the already-open stream before the submission's response is
+ * handled. Found by playing a turn against a session with nothing bound to the
+ * prose role, which left the surface showing *Stop* with no job to stop.
+ *
+ * The reducer has its own test for the guard; this one is here because the race
+ * is a property of the *join* — a page that dispatched `submitted` without the
+ * job id could not express the guard at all, and would pass the reducer's test
+ * while reproducing the bug.
+ */
+describe('a turn that finishes instantly', () => {
+  it('leaves the surface ready to send again', async () => {
+    submitTurn.mockImplementation(() => {
+      // Finished before the caller sees the response — the frames beat it.
+      act(() => {
+        handlers.onFrame({
+          event: 'progress',
+          id: 'job-9.1',
+          data: { jobId: 'job-9', seq: 1, key: 'turn.finished' },
+        });
+      });
+      return Promise.resolve({ jobId: 'job-9', cursor: 'job-9.1' });
+    });
+
+    renderPage();
+    await screen.findByText('I knock twice.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalled();
+    });
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+  });
+});

@@ -916,6 +916,38 @@ them. Impersonation and the axis controls are not here —
 
 *Ends at:* the demo.
 
+**Landed.** `packages/client/src/play/` — the transport (`sse.ts`, `stream.ts`),
+the reducer, `useTurnStream`, and the surfaces: `SessionsPage` (a list and one
+Start button — no cast, mode or preset picker, those are P7's) and `PlayPage`.
+Two `<details>` elements carry §2.9's guidance box and §3's raw record, both
+native so the keyboard path costs no code. Routes `/play` and
+`/play/$sessionId`; the session id is the whole address, which is what makes
+reattach a request rather than a race.
+
+**Two bugs the tests did not find and running the thing did**, both recorded as
+tests before being fixed:
+
+- A stream answered 404 — a stale bookmark, the ordinary case — called
+  `onFatal` and then **retried anyway**, because the fatal arm returned without
+  setting `closed`. Four requests and a permanent *Reconnecting…*: exactly the
+  infinite-retry failure `EventSource` was rejected for, reintroduced by hand.
+  There was no `stream.test.ts` at all; there is now, and every test in it
+  asserts what happened *next* rather than that a handler fired.
+- A turn that fails in a millisecond — nothing bound to the prose role —
+  finishes **before the submission's response is handled**, and `submitted`
+  unconditionally said `running`. The surface sat on *Stop* with no job to
+  stop, permanently. `submitted` now carries the job id and declines to reopen
+  a turn the stream already closed.
+
+Both were found by opening the page against a real server, and neither could
+have been found any other way: the first needs a route that answers 404, the
+second needs a step that refuses faster than a network round trip. The
+component tests are the regression, not the discovery.
+
+*Not done here:* gate step 8 (F12) still wants an editor-page mount rather than
+a component mount; the harness this stage built is the thing it was blocked on,
+so it is now unblocked rather than done.
+
 ---
 
 ## 4. Verification — the P2 exit gate

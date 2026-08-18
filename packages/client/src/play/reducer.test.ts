@@ -162,9 +162,34 @@ describe('the parser', () => {
 describe('submitting', () => {
   it('clears the previous answer so the reader is not watching a stale one', () => {
     const finished = run(INITIAL, [snapshot(), delta('An old answer.')]);
-    const next = reduce(finished, { kind: 'submitted' });
+    const next = reduce(finished, { kind: 'submitted', jobId: 'job-2' });
 
     expect(next.text).toBe('');
     expect(next.status).toBe('running');
+  });
+
+  /**
+   * **The turn that ends before it is announced.**
+   *
+   * Observed, not imagined: submitting against a session with nothing bound to
+   * the prose role produced a turn that failed in one millisecond, so
+   * `turn.finished` arrived on the open stream before the POST's response was
+   * handled. The surface then showed *Stop* with no job to stop, permanently.
+   */
+  it('does not reopen a turn the stream already closed', () => {
+    const already = run(INITIAL, [progress(1, 'turn.finished')]);
+    expect(already.status).toBe('finished');
+
+    const next = reduce(already, { kind: 'submitted', jobId: already.jobId ?? '' });
+
+    expect(next.status).toBe('finished');
+  });
+
+  it('still opens a different turn on the same stream', () => {
+    const already = run(INITIAL, [progress(1, 'turn.finished')]);
+    const next = reduce(already, { kind: 'submitted', jobId: 'a-later-job' });
+
+    expect(next.status).toBe('running');
+    expect(next.jobId).toBe('a-later-job');
   });
 });

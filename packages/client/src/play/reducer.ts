@@ -42,14 +42,30 @@ export const INITIAL: PlayState = {
 export type PlayAction =
   | { kind: 'frame'; frame: SseFrame }
   | { kind: 'status'; status: PlayState['status'] }
-  | { kind: 'submitted' };
+  | { kind: 'submitted'; jobId: string };
 
 export function reduce(state: PlayState, action: PlayAction): PlayState {
   if (action.kind === 'status') return { ...state, status: action.status };
   if (action.kind === 'submitted') {
-    // A fresh turn clears the previous one's text so the reader does not watch
-    // the last answer while waiting for this one.
-    return { ...state, text: '', status: 'running', error: null };
+    /**
+     * **The turn may already be over.**
+     *
+     * A step that refuses immediately — nothing bound to the prose role — takes
+     * about a millisecond, and its frames travel on a connection that was
+     * already open. So `turn.finished` can arrive and reduce *before* the POST's
+     * response is handled, and a `submitted` that unconditionally said
+     * `running` would overwrite a terminal state with a live one: the surface
+     * sits on **Stop** forever, waiting for a turn that ended before it was
+     * announced.
+     *
+     * Keyed on the job id rather than on time, because that is the only thing
+     * that distinguishes *this turn already finished* from *the previous one
+     * did*.
+     */
+    if (state.jobId === action.jobId && state.status === 'finished') return state;
+    // Otherwise a fresh turn, and its text clears the previous one's so the
+    // reader does not watch the last answer while waiting for this one.
+    return { ...state, jobId: action.jobId, text: '', status: 'running', error: null };
   }
 
   const { frame } = action;
