@@ -14,10 +14,11 @@ import { readClock, SE_CLOCK } from '../sessions/channels.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { createSession, readSession, type SessionContext } from '../sessions/store.js';
 import type { Turn } from '../sessions/types.js';
-import type { CommitContext } from '../state/commit.js';
+import type { CommitContext, Logger } from '../state/commit.js';
 import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
 import { Layout } from '../storage/layout.js';
+import { Accounts } from '../auth/accounts.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
@@ -44,6 +45,16 @@ let commit: CommitContext;
 let provider: FakeProvider;
 let runner: TurnRunner;
 let sessionId: string;
+/**
+ * A real account store over the same layout — [P2A §2.1].
+ *
+ * The runner reads `privateConnections` through this, so a fake would make
+ * every capability test assert about the fake. The account is created here for
+ * the same reason: a turn run by an account that does not exist resolves to no
+ * capabilities, which is correct and is *not* the case most of these tests are
+ * about.
+ */
+let accounts: Accounts;
 
 const ACCOUNT = 'ned';
 const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a01';
@@ -90,6 +101,7 @@ function makeRunner(
     commit,
     bus,
     providers,
+    accounts,
     config: {
       ...DEFAULT_CONFIG,
       ...options.config,
@@ -99,6 +111,33 @@ function makeRunner(
     },
     ...(options.plan === undefined ? {} : { plan: options.plan }),
   });
+  // The runner's own logger seam, so a test reads what an operator would.
+  logLines = [];
+  runner.setLogger(recorder(logLines, {}));
+}
+
+/** Structured lines the runner emitted for the turn under test. */
+let logLines: Record<string, unknown>[] = [];
+
+/**
+ * A `Logger` that keeps its lines, bindings merged in.
+ *
+ * Structural rather than a pino instance writing to a stream: `Logger` is four
+ * methods ([13 §4.1] keeps it that small on purpose), and going through a real
+ * logger would mean asserting against a serialiser instead of against what the
+ * runner passed. The bindings matter — `child()` is how a job id reaches every
+ * line — so they are merged rather than dropped.
+ */
+function recorder(into: Record<string, unknown>[], bindings: Record<string, unknown>): Logger {
+  const write = (object: Record<string, unknown>) => {
+    into.push({ ...bindings, ...object });
+  };
+  return {
+    child: (extra) => recorder(into, { ...bindings, ...extra }),
+    info: write,
+    warn: write,
+    error: write,
+  };
 }
 
 beforeEach(async () => {
@@ -108,6 +147,8 @@ beforeEach(async () => {
   sessions = { layout: new Layout(dataDir), index: index.db };
   bus = new TurnStream();
   commit = { db: state.db, sessions, events: bus };
+  accounts = new Accounts(sessions.layout);
+  await accounts.create({ handle: ACCOUNT, password: 'a long enough password', role: 'user' });
   sessionId = (await createSession(sessions, ACCOUNT, 'Rain City')).id;
   await seedProviderConfig();
   makeRunner();
@@ -143,6 +184,38 @@ async function runTurn(text = 'She opened the door.'): Promise<{ job: Job; turn:
   const turn = written.at(-1)?.turn;
   if (!turn) throw new Error('no turn was appended');
   return { job, turn };
+}
+
+/**
+ * Runs the *next* turn, and can be called repeatedly.
+ *
+ * `runTurn` reserves with a fixed key against a null head, so calling it twice
+ * is an idempotent retry rather than a second turn — correct for what it tests
+ * and wrong for anything asserting that a change took effect on the turn after
+ * it. This chains from the session's current head with a fresh key each time.
+ */
+let nextKey = 0;
+async function runNextTurn(): Promise<Turn> {
+  nextKey += 1;
+  const session = await readSession(sessions, ACCOUNT, sessionId);
+  const outcome = await submitTurn(commit, {
+    account: ACCOUNT,
+    sessionId,
+    idempotencyKey: `next-${String(nextKey)}`,
+    headTurnId: session?.headTurnId ?? null,
+  });
+  if (outcome.kind !== 'created') throw new Error(`expected a reservation, got ${outcome.kind}`);
+
+  const text = 'She opened the door.';
+  runner.start(outcome.job, { input: { actorId: null, kind: 'do', text, raw: text } });
+  await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'the job to commit');
+
+  const written = await readAllTurns(
+    join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+  );
+  const turn = written.at(-1)?.turn;
+  if (!turn) throw new Error('no turn was appended');
+  return turn;
 }
 
 describe('a turn goes all the way through', () => {
@@ -1093,3 +1166,124 @@ const NULL_IS_DATA = new Set([
   'request.calls[*].cost',
   'request.calls[*].error',
 ]);
+
+/**
+ * **Capability enforcement** — [P2A §2.1](../../../../docs/design/workplan/13-p2a-configuration-surface.md),
+ * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md), gate step 6.
+ *
+ * From P2.5 until P2A the runner passed `{ privateConnections: true }` into
+ * `resolveConnections` as a **literal**, which defeated the one check
+ * [04 §4.5] calls load-bearing. It calls it that precisely because the
+ * alternative — hiding personal connections in the UI — is a trivial bypass for
+ * anyone with `fileAccess: "write"`, and a turn is where a connection is
+ * actually used.
+ *
+ * The stage's ending is one sentence: *revoking `privateConnections` stops the
+ * next turn resolving a personal connection, with the file untouched on disk.*
+ * Both halves are here, because *revoking disables, never deletes* is the part
+ * a user has to be able to rely on before an admin will use the switch.
+ */
+describe('the privateConnections capability', () => {
+  it('is read from the account rather than assumed', async () => {
+    await accounts.update(ACCOUNT, { capabilities: { privateConnections: false } });
+
+    const turn = await runNextTurn();
+
+    // The only connection seeded is a personal one, so with the capability
+    // revoked there is nothing for the prose binding to resolve to and the turn
+    // fails rather than quietly using it.
+    expect(turn.status).toBe('failed');
+    /**
+     * **`dangling`, not `unbound`**, and the distinction is load-bearing
+     * rather than incidental. `resolveRole`'s own comment draws it: `unbound`
+     * means nothing was ever configured and the remedy is setup, while
+     * `dangling` means a binding points at a connection that is no longer
+     * resolvable and the remedy is an administrator. A revocation is the second
+     * — the binding is untouched and correct, and it is the *permission* that
+     * moved — so a UI reading this record offers the right sentence.
+     */
+    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+  });
+
+  /**
+   * **The count, and only the count.**
+   *
+   * [04 §4.5] keeps a connection opaque, so the line says how many were ignored
+   * rather than which — and that is the fact an operator needs when somebody
+   * reports "my model stopped working". Without it the symptom is a turn that
+   * fails with a role it cannot resolve, and nothing anywhere connecting that
+   * to a permission somebody changed last week.
+   */
+  it('says how many personal connections it ignored, without naming them', async () => {
+    await accounts.update(ACCOUNT, { capabilities: { privateConnections: false } });
+
+    await runNextTurn();
+
+    const line = logLines.find((entry) => entry['event'] === 'connections.disabled');
+    expect(line).toBeDefined();
+    expect(line?.['ignored']).toBe(1);
+    // Nothing identifying: not the label, not the id, and above all not the key.
+    expect(JSON.stringify(line)).not.toContain('sk-test-must-never-appear');
+    expect(JSON.stringify(line)).not.toContain('The double');
+  });
+
+  it('says nothing when there is nothing to ignore', async () => {
+    await runNextTurn();
+
+    // A line every turn would train an operator to stop reading it.
+    expect(logLines.filter((entry) => entry['event'] === 'connections.disabled')).toEqual([]);
+  });
+
+  it('leaves the connection file exactly where it was', async () => {
+    const path = join(new Layout(dataDir).userConnectionsRoot(ACCOUNT), 'fake.json');
+    const before = await readFile(path, 'utf8');
+
+    await accounts.update(ACCOUNT, { capabilities: { privateConnections: false } });
+    await runNextTurn();
+
+    // Byte identity, not "the file exists": a revocation that rewrote or
+    // truncated the file would satisfy a laxer check while destroying the thing
+    // restoring the capability is supposed to bring back.
+    expect(await readFile(path, 'utf8')).toBe(before);
+  });
+
+  it('gives it back when the capability is restored, on the very next turn', async () => {
+    await accounts.update(ACCOUNT, { capabilities: { privateConnections: false } });
+    expect((await runNextTurn()).status).toBe('failed');
+
+    await accounts.update(ACCOUNT, { capabilities: { privateConnections: true } });
+
+    // **The next turn, not the next restart.** The runner reads through the
+    // same `Accounts` instance the routes hold, so there is one cache rather
+    // than two — which is the whole reason the store is injected instead of
+    // constructed here.
+    expect((await runNextTurn()).status).toBe('complete');
+  });
+
+  /**
+   * An account that has vanished resolves to **no** capabilities rather than to
+   * the defaults.
+   *
+   * Defaulting would mean an account nobody can find ran with more authority
+   * than a live one whose capability had been revoked, which is the wrong way
+   * round — and it is exactly what a `?? DEFAULT_CAPABILITIES` would have
+   * written without anybody noticing, because that spelling reads as harmless.
+   *
+   * Reached by hand-editing `accounts.json`, which is a first-class gesture in
+   * this project rather than a contrivance ([04 §4.3]) — and the only way to
+   * reach it, since `Accounts.remove` takes the user's directory with it and
+   * the turn would then fail earlier, for a different reason, at the session
+   * read.
+   */
+  it('grants nothing to an account it cannot find', async () => {
+    await writeFile(
+      new Layout(dataDir).accountsFile,
+      JSON.stringify({ schema: 'storyengine.accounts/1', accounts: [] }),
+    );
+
+    const turn = await runNextTurn();
+
+    expect(turn.status).toBe('failed');
+    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+  });
+});

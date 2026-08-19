@@ -5,6 +5,7 @@ import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { AssembledBlock, BudgetVerdict, Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import { readBindings } from '../providers/bindings.js';
+import type { Accounts } from '../auth/accounts.js';
 import { resolveConnections } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { Rng } from '../rng/rng.js';
@@ -68,6 +69,15 @@ export interface RunnerOptions {
   commit: CommitContext;
   bus: TurnStream;
   providers: ProviderFactory;
+  /**
+   * The account store, for the `privateConnections` capability ([P2A §2.1]).
+   *
+   * **The same instance the routes hold**, though not because a second one
+   * would be stale — `Accounts` re-stats on every read, so it would not. It is
+   * so that the capability check does not *depend* on filesystem timestamp
+   * granularity to stay fresh. `app.ts` carries the argument.
+   */
+  accounts: Accounts;
   config: Config;
   log?: Logger;
   /** P2.6's modes supply their own. */
@@ -292,9 +302,44 @@ export class TurnRunner {
       ? session.channels
       : replayChannels(history);
 
-    const { usable } = await resolveConnections(commit.sessions.layout, job.account, {
-      privateConnections: true,
-    });
+    /**
+     * **The capability, not a literal** — [P2A §2.1], [04 §4.5].
+     *
+     * This passed `{ privateConnections: true }` from P2.5 until now, which
+     * defeated the one check [04 §4.5] calls load-bearing. It calls it that
+     * precisely because the alternative — hiding personal connections in the
+     * UI — is a trivial bypass for anyone with `fileAccess: "write"`, and a
+     * turn is where a connection is actually *used*.
+     *
+     * An account that has vanished between reservation and run resolves to no
+     * capabilities rather than to the defaults. Defaulting would mean a deleted
+     * account's queued turn ran with more authority than a live one whose
+     * capability had been revoked, which is the wrong way round.
+     */
+    const account = await this.#options.accounts.find(job.account);
+    const capabilities = account?.capabilities ?? { privateConnections: false };
+    const { usable, disabled } = await resolveConnections(
+      commit.sessions.layout,
+      job.account,
+      capabilities,
+    );
+
+    /**
+     * **Revoking disables; it never deletes** ([04 §4.5]).
+     *
+     * The files are still on disk and `resolveConnections` has always returned
+     * this list — nothing populated it in production, because the literal above
+     * meant the branch that fills it could not be reached. Logged as a count
+     * rather than as names: [04 §4.5] keeps a connection opaque, and the fact
+     * an operator needs when somebody reports "my model stopped working" is
+     * that connections were ignored and how many.
+     */
+    if (disabled.length > 0) {
+      log?.info(
+        { event: 'connections.disabled', ignored: disabled.length },
+        'Personal connections ignored: the account may not use its own',
+      );
+    }
     const bindings = await readBindings(commit.sessions.layout, job.account);
 
     /**

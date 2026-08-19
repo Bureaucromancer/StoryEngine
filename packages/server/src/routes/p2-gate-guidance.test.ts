@@ -438,6 +438,9 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
       commit: server.services.commit,
       bus: server.services.bus,
       providers: () => provider,
+      // The app's own store, so the capability this turn resolves under is the
+      // one the routes would report ([P2A §2.1]).
+      accounts: server.services.accounts,
       config: server.services.config,
       plan: BOTH_KINDS,
     });

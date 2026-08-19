@@ -90,16 +90,17 @@ added later cannot leak by default.
 }
 ```
 
-**Nothing enforces `capabilities` yet.** The record is written because it is a
-persisted shape and adding one later is a migration over user data; enforcement
-is additive and waits for P10 ([04 §4.2.1](design/04-server-multiuser-deployment.md)).
+**`privateConnections` is enforced where connections resolve** — never at the
+UI, which a user with write file access can bypass
+([04 §4.5](design/04-server-multiuser-deployment.md)). Revoking it stops the
+account's next turn from using its own connections; the files stay on disk, and
+the turn falls back to the system ones. Restoring the capability restores them.
 
-*Enforcement moved to [P2A](design/workplan/13-p2a-configuration-surface.md),
-because the phase that grants a capability is the phase that owes it a meaning.
-When it lands this paragraph becomes: `privateConnections` is enforced where
-connections resolve — never at the UI, which a user with write file access can
-bypass — while `fileAccess` and `enableExtensions` are recorded and gate
-features that have not shipped.*
+**`fileAccess` and `enableExtensions` are recorded and gate nothing yet.** Both
+name features that have not shipped — an in-UI file browser and extensions — so
+the settings surface groups them apart and says the setting will apply when the
+feature does, rather than presenting three switches as though they were equally
+live.
 
 ### `POST /api/auth/setup`
 

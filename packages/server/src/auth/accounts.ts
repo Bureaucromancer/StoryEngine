@@ -38,11 +38,28 @@ import { hashPassword, verifyPassword } from './secrets.js';
  * Flat, enumerated, and deliberately not a role system
  * ([04 §4.2.1](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
- * **Nothing enforces these at P1** — none of the gated features exist yet. The
- * record is written now because it is a persisted shape, and a persisted shape
- * added later is a migration over user data
- * ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)). Enforcement is additive and waits
- * for P10. Splitting on exactly that line is the point.
+ * The record was written at P1 because it is a persisted shape, and a persisted
+ * shape added later is a migration over user data
+ * ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)). Enforcement was deferred on the
+ * same reasoning — it is additive — and this comment said so until
+ * [P2A](../../../../docs/design/workplan/13-p2a-configuration-surface.md) made the deferral false.
+ *
+ * **`privateConnections` is enforced now**, in `turns/runner.ts`, where
+ * connections resolve. Never at the UI: [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)
+ * calls the loader-level check the load-bearing one precisely because a
+ * UI-level one is a trivial bypass for anyone with `fileAccess: "write"`.
+ *
+ * The move was forced rather than opportunistic. A screen that *grants* a
+ * capability changes the argument, because [01 §2.2] forbids building a system
+ * whose only purpose is to be replaced — and a switch labelled *may add their
+ * own provider keys* that adds nothing is not a small version of the real
+ * thing, it is a false front.
+ *
+ * **`fileAccess` and `enableExtensions` still gate nothing**, and the settings
+ * surface says so rather than rendering three switches as though they were
+ * equally live: `fileAccess` gates a file browser [01 §4] moved to the
+ * roadmap, and `enableExtensions` gates extensions, which appear in no phase
+ * list at all.
  */
 export const Capabilities = Type.Object(
   {

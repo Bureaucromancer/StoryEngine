@@ -233,7 +233,26 @@ async function assembleWithState(
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
   const providers = options.providers ?? createProviderFactory();
-  const runner = new TurnRunner({ commit, bus, providers, config: options.config });
+  /**
+   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+   *
+   * The runner needs it to read the account's `privateConnections` capability.
+   *
+   * The plan argues this as *two instances would be two caches and a revocation
+   * that takes effect eventually*, and that overstates what is true here, which
+   * is worth saying rather than repeating: `Accounts` revalidates against the
+   * file's `(mtime, size)` on **every** read, so a second instance would notice
+   * a revocation on its next turn too. A mutation that constructs one survives
+   * the suite, and it should.
+   *
+   * What sharing actually buys is not depending on that. A permission check
+   * whose freshness rests on filesystem timestamp granularity is one same-size
+   * write inside one clock tick away from being wrong, and it would be wrong
+   * silently and only sometimes. One instance has one answer by construction —
+   * and costs one stat per turn instead of two.
+   */
+  const accounts = new Accounts(layout);
+  const runner = new TurnRunner({ commit, bus, providers, accounts, config: options.config });
 
   return {
     config: options.config,
@@ -253,7 +272,7 @@ async function assembleWithState(
     streams: new Set<() => void>(),
     // Filled in by `buildApp`, which is the first point a logger exists.
     reconciliation: { finalised: [], abandoned: [], failed: [] },
-    accounts: new Accounts(layout),
+    accounts,
     watcher,
     maturation,
     prefs: new PrefsStore(layout),
