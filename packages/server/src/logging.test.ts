@@ -15,7 +15,7 @@ import { applyLiveConfig, type AppServices, buildServices, disposeServices } fro
 import { type Config, DEFAULT_CONFIG, pendingRestart } from './config.js';
 import { listObjects } from './index-db/query.js';
 import { create as createObject } from './library.js';
-import { listVersions } from './storage/history.js';
+import { listVersions, readVersionPayload } from './storage/history.js';
 import { userScope } from './storage/layout.js';
 
 /**
@@ -334,9 +334,31 @@ describe('the live tier, with its first real consumer', () => {
         );
       }
 
-      // Three foreign edits, each snapshotting what it replaced, against a cap
-      // this process was not started with. A copied object leaves three.
-      expect(await listVersions(created.root)).toHaveLength(1);
+      /**
+       * **Settled on by content, not asserted on a count the moment the index
+       * moves.**
+       *
+       * `handle()` calls `ingestFile` *before* `snapshotReplaced`, so the
+       * instant an edit's name is queryable its history entry is still being
+       * written — the loop above proves each edit was seen, not that its
+       * snapshot has landed. Asserting here directly saw two versions on a
+       * loaded machine.
+       *
+       * Waiting for `length === 1` alone would be worse than racy, it would be
+       * vacuous: one version is also what an *ignored* cap leaves after the
+       * first edit. What is true only when the third snapshot has landed and
+       * the cap was honoured is the pair — one surviving version, and its
+       * payload being the state the third edit replaced. With the cap ignored
+       * there are three and the count never reaches one.
+       */
+      await eventually(async () => {
+        const versions = await listVersions(created.root);
+        if (versions.length !== 1) return false;
+        const kept = (await readVersionPayload(created.root, versions[0]!.digest)) as {
+          name: string;
+        };
+        return kept.name === 'Rain City, after the rain';
+      });
     } finally {
       await app.close();
       await disposeServices(watched);
