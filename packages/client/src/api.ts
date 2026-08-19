@@ -190,6 +190,28 @@ export const api = {
 
   logout: (): Promise<undefined> => request('POST', '/api/auth/logout'),
 
+  // The user half of the settings surface ([05 §15.1]). `readMe` is deliberately
+  // separate from `authState`: that call answers *is anyone signed in and does
+  // setup need running*, and a settings form refetching it would make every save
+  // re-answer a question about the whole install.
+  readMe: (): Promise<{ account: Account }> => request('GET', '/api/me'),
+
+  updateMe: (patch: {
+    displayName?: string;
+    locale?: string | null;
+  }): Promise<{
+    account: Account;
+  }> => request('PATCH', '/api/me', patch),
+
+  changePassword: (input: { currentPassword: string; newPassword: string }): Promise<undefined> =>
+    request('POST', '/api/me/password', input),
+
+  readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
+
+  /** A shallow merge; `null` deletes. The response is the whole document. */
+  patchPrefs: (patch: Record<string, unknown>): Promise<{ prefs: Record<string, unknown> }> =>
+    request('PATCH', '/api/me/prefs', patch),
+
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
     request('GET', kind === undefined ? '/api/library' : `/api/library/${kind}`),
 

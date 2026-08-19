@@ -12,6 +12,7 @@ import Fastify, {
 import { createValidator } from '@storyengine/shared';
 
 import { Accounts, type PublicAccount } from './auth/accounts.js';
+import { PrefsStore } from './auth/prefs.js';
 import {
   CSRF_COOKIE,
   CSRF_HEADER_NAME,
@@ -29,6 +30,7 @@ import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
+import { registerMeRoutes } from './routes/me.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
@@ -129,6 +131,14 @@ export interface AppServices {
   maturation: Maturation;
   sessionKey: string;
   library: LibraryContext;
+  /**
+   * Client preferences, per user ([06 B13]).
+   *
+   * A service rather than a free function because it owns a write queue: a
+   * patch is read-modify-write across an `await`, and two of those racing lose
+   * one silently.
+   */
+  prefs: PrefsStore;
 }
 
 export interface BuildAppOptions {
@@ -246,6 +256,7 @@ async function assembleWithState(
     accounts: new Accounts(layout),
     watcher,
     maturation,
+    prefs: new PrefsStore(layout),
     sessionKey: await loadOrCreateSessionKey(layout),
     library,
   };
@@ -347,7 +358,20 @@ export async function buildApp(
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.validation) {
       const issues = error.validation.map((issue) => ({
-        path: issue.instancePath === '' ? '/' : issue.instancePath,
+        /**
+         * **The rejected key, not just the object it was in.**
+         *
+         * Ajv reports `additionalProperties` with the *parent's* path and puts
+         * the offending name in `params.additionalProperty` — so a body
+         * carrying a `role` answered `/ must NOT have additional properties`,
+         * which tells a client author to go and read the schema.
+         *
+         * That matters more since [P2A](../../../docs/design/workplan/13-p2a-configuration-surface.md):
+         * closed bodies are how the settings routes refuse a field rather than
+         * ignoring it, and *refused* only teaches a client something if the
+         * answer says which field.
+         */
+        path: pathOfIssue(issue),
         message: issue.message ?? 'is invalid',
       }));
       return reply.code(400).send({ error: 'invalid', message: error.message, issues });
@@ -478,6 +502,7 @@ export async function buildApp(
   await app.register(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
+      registerMeRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
@@ -625,6 +650,26 @@ function assignInPlace(target: Record<string, unknown>, next: Record<string, unk
       target[key] = value;
     }
   }
+}
+
+/**
+ * Where a validation issue happened, including the key an `additionalProperties`
+ * rejection is about.
+ *
+ * Ajv puts that key in `params` rather than in `instancePath`, because the path
+ * describes what was being validated and the extra property is by definition not
+ * part of it. Joining them is what turns "this object is wrong" into "this field
+ * is wrong".
+ */
+function pathOfIssue(issue: { instancePath: string; params?: unknown }): string {
+  const base = issue.instancePath === '' ? '' : issue.instancePath;
+  const params = issue.params;
+  const extra =
+    typeof params === 'object' && params !== null
+      ? (params as Record<string, unknown>)['additionalProperty']
+      : undefined;
+  if (typeof extra === 'string') return `${base}/${extra}`;
+  return base === '' ? '/' : base;
 }
 
 /** Rejects a request with no session. The routes' single authentication point. */

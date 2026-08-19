@@ -249,3 +249,109 @@ export function useLogout(): UseMutationResult<undefined, Error, void> {
     onSuccess: () => client.resetQueries(),
   });
 }
+
+/**
+ * The account's own record — [05 §15.1](../../../docs/design/05-ui-surfaces.md).
+ *
+ * Its own query rather than a read of `['auth', 'state']`, because that entry
+ * answers a question about the *install* — is anyone signed in, does setup need
+ * running — and a settings form invalidating it on every save would make each
+ * keystroke re-answer that. Both are refreshed after a profile change, which is
+ * the one place they genuinely have to agree: the shell renders the display name.
+ */
+export function useMe(): UseQueryResult<{ account: Account }> {
+  return useQuery({ queryKey: ['me'], queryFn: api.readMe });
+}
+
+export function useUpdateMe(): UseMutationResult<
+  { account: Account },
+  Error,
+  { displayName?: string; locale?: string | null }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.updateMe,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['me'] });
+      // The shell reads the display name out of the auth state, so without this
+      // the header keeps the old name until a reload — the exact "did that
+      // work?" moment gate step 2 is written to catch.
+      void client.invalidateQueries({ queryKey: ['auth', 'state'] });
+    },
+  });
+}
+
+export function useChangePassword(): UseMutationResult<
+  undefined,
+  Error,
+  { currentPassword: string; newPassword: string }
+> {
+  // No invalidation: nothing the client caches changes. In particular the
+  // session does not — sessions are signed stateless cookies with no denylist,
+  // so a password change cannot end one held elsewhere, and the surface has to
+  // say so rather than implying otherwise by logging you out here.
+  return useMutation({ mutationFn: api.changePassword });
+}
+
+export function usePrefs(): UseQueryResult<{ prefs: Record<string, unknown> }> {
+  return useQuery({ queryKey: ['prefs'], queryFn: api.readPrefs });
+}
+
+/**
+ * **The one optimistic mutation in this codebase**, and the reasons are specific
+ * enough to be worth writing down — [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ *
+ * Everywhere else this client waits for the server, and the editor goes further:
+ * its base is *deliberately unpolled*, so a save presents the hash it read and
+ * finds out whether the world moved. Optimism there would mean showing somebody
+ * their own change as saved when it was about to be refused.
+ *
+ * A preference toggle is the inverse of that on all three counts.
+ *
+ * - **It must feel instant.** A checkbox that waits for a round trip before
+ *   moving reads as broken, and the person clicks it again.
+ * - **The value is trivially reversible.** There is no merge to redo and nothing
+ *   downstream computed from it — `onError` puts the old map back and the worst
+ *   outcome is a switch that flicks and flicks back.
+ * - **There is no hash to be stale against.** The patch is a shallow merge of
+ *   named keys, so a concurrent write from another tab touching a *different*
+ *   key is not a conflict at all; it is the design.
+ *
+ * `onMutate` cancels in-flight reads first, because a `GET` that started before
+ * the toggle would otherwise land afterwards and overwrite the optimistic value
+ * with the pre-toggle one — a flicker that looks exactly like a failed save.
+ * The server's answer is the whole document, so `onSuccess` lands on the truth
+ * rather than on the client's guess.
+ */
+export function usePatchPrefs(): UseMutationResult<
+  { prefs: Record<string, unknown> },
+  Error,
+  Record<string, unknown>,
+  { previous: { prefs: Record<string, unknown> } | undefined }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.patchPrefs,
+    onMutate: async (patch) => {
+      await client.cancelQueries({ queryKey: ['prefs'] });
+      const previous = client.getQueryData<{ prefs: Record<string, unknown> }>(['prefs']);
+      client.setQueryData<{ prefs: Record<string, unknown> }>(['prefs'], (current) => ({
+        // The same merge the server does, including `null` deleting — otherwise
+        // the optimistic view and the answer disagree about a cleared key, and
+        // the switch moves twice.
+        prefs: Object.fromEntries(
+          Object.entries({ ...(current?.prefs ?? {}), ...patch }).filter(
+            ([, value]) => value !== null,
+          ),
+        ),
+      }));
+      return { previous };
+    },
+    onError: (_error, _patch, context) => {
+      if (context?.previous) client.setQueryData(['prefs'], context.previous);
+    },
+    onSuccess: (result) => {
+      client.setQueryData(['prefs'], result);
+    },
+  });
+}

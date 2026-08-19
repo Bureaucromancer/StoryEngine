@@ -37,10 +37,37 @@ export function timestampsOf(object: Record<string, unknown>): Timestamps {
 export function formatTimestamp(iso: string, locale?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return formatterFor(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 /** Epoch milliseconds (the account's `createdAt`) as a readable date. */
 export function formatEpochMs(epochMs: number, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(epochMs));
+  return formatterFor(locale, { dateStyle: 'medium' }).format(new Date(epochMs));
+}
+
+/**
+ * An `Intl` formatter that falls back rather than throwing on a bad locale.
+ *
+ * `new Intl.DateTimeFormat('not a locale')` throws a `RangeError`, and until
+ * [P2A](../../../docs/design/workplan/13-p2a-configuration-surface.md) a locale
+ * could only arrive from `Accept-Language` at setup — a header a browser
+ * generates. **P2A makes it something a person types into a form**, and the
+ * failure mode of the version above was that one bad value took out every date
+ * on every page, including the settings page holding the field that would fix
+ * it.
+ *
+ * So it falls back to the browser's rather than refusing. A date rendered in the
+ * wrong locale is legible; a page that will not render is not, and the person
+ * who typed `en_GB` instead of `en-GB` deserves a way back.
+ *
+ * Not repaired by validating the field instead: the value also arrives from
+ * `accounts.json`, which is hand-editable by design, so the check has to be
+ * here where the value is used.
+ */
+function formatterFor(locale: string | undefined, options: Intl.DateTimeFormatOptions) {
+  try {
+    return new Intl.DateTimeFormat(locale, options);
+  } catch {
+    return new Intl.DateTimeFormat(undefined, options);
+  }
 }
