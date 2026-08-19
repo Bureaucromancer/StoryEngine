@@ -23,9 +23,9 @@ provide one.
 ## 1. A by-field view in the library, without opening the editor
 
 **Today.** The library detail page
-([ObjectDetailPage.tsx](packages/client/src/library/ObjectDetailPage.tsx)) shows
-a metadata block — kind, folder, identifier, schema, timestamps, content hash —
-and then the whole object as pretty-printed JSON. To read an actor's
+([ObjectDetailPage.tsx](../../../packages/client/src/library/ObjectDetailPage.tsx))
+shows a metadata block — kind, folder, identifier, schema, timestamps, content
+hash — and then the whole object as pretty-printed JSON. To read an actor's
 personality or its greeting the way it was *written*, you open the editor.
 
 **What that costs.** Opening the editor to read is the wrong gesture in three
@@ -43,11 +43,11 @@ fields either omitted or shown as explicitly empty, and lists as lists.
 
 **The thing to get right.** It should be recognisably *the same view* as the
 editor's, not a second layout that drifts. The editor already derives its fields
-from the schema ([Field.tsx](packages/client/src/editor/Field.tsx),
-[form.ts](packages/client/src/editor/form.ts)); the read view should derive them
-the same way, so a schema addition shows up in both without a second edit. That
-is the whole design constraint — one description of a kind's fields, two
-renderings of it.
+from the schema ([Field.tsx](../../../packages/client/src/editor/Field.tsx),
+[form.ts](../../../packages/client/src/editor/form.ts)); the read view should
+derive them the same way, so a schema addition shows up in both without a second
+edit. That is the whole design constraint — one description of a kind's fields,
+two renderings of it.
 
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition
@@ -91,9 +91,10 @@ read and the JSON becomes the thing you go looking for.
 
 **Today.** History records the author's own `provenance.version` alongside each
 snapshot (`authorVersion` in
-[history.ts](packages/server/src/storage/history.ts)) and the panel can pin,
-rename and restore ([HistoryPanel.tsx](packages/client/src/editor/HistoryPanel.tsx)).
-The version string is theirs, the revision counter is ours, and the two are kept
+[history.ts](../../../packages/server/src/storage/history.ts)) and the panel can
+pin, rename and restore
+([HistoryPanel.tsx](../../../packages/client/src/editor/HistoryPanel.tsx)). The
+version string is theirs, the revision counter is ours, and the two are kept
 apart on purpose ([02 §11.5](../02-data-model.md)).
 
 **What is missing is the gesture that connects pinning to that string.** Pinning
@@ -162,8 +163,9 @@ first.
 
 **Today.** The library filter offers **All kinds** first, it is the unfiltered
 state, and it is what `/` renders on arrival
-([LibraryPage.tsx](packages/client/src/library/LibraryPage.tsx)). Every object
-the user has, of every kind, in one table sorted by nothing in particular.
+([LibraryPage.tsx](../../../packages/client/src/library/LibraryPage.tsx)). Every
+object the user has, of every kind, in one table sorted by nothing in
+particular.
 
 **The position is settled and lives in [05 §5](../05-ui-surfaces.md)** — one panel
 per kind, because the kinds are distinct by design and a merged table teaches
