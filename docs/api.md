@@ -94,6 +94,13 @@ added later cannot leak by default.
 persisted shape and adding one later is a migration over user data; enforcement
 is additive and waits for P10 ([04 §4.2.1](design/04-server-multiuser-deployment.md)).
 
+*Enforcement moved to [P2A](design/workplan/13-p2a-configuration-surface.md),
+because the phase that grants a capability is the phase that owes it a meaning.
+When it lands this paragraph becomes: `privateConnections` is enforced where
+connections resolve — never at the UI, which a user with write file access can
+bypass — while `fileAccess` and `enableExtensions` are recorded and gate
+features that have not shipped.*
+
 ### `POST /api/auth/setup`
 
 First run only. `{ handle, password, displayName? }` → `201 { account }`, and
@@ -351,8 +358,28 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`201 { session }`, and a list. **`archived` is the string `"true"`, not a
-boolean** — see the note under the turn routes.
+`{ name, mode?, cast? }` → `201 { session }`, and a list. **`archived` is the
+string `"true"`, not a boolean** — see the note under the turn routes.
+
+`cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
+Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
+a preset reachable from a session rather than only from a fixture.
+
+**An unknown `mode` is refused here rather than resolved to the default.** The
+runner falls back for a session *already* playing a mode this build does not
+know — somebody else's story, which should still open
+([00 §3.3](design/00-stance.md)) — but naming a mode that does not exist when
+creating one is a caller error, and silently substituting would produce a
+session that is not the one that was asked for.
+
+### `PUT /api/sessions/:sessionId/cast`
+
+`{ persona, actors }` → `{ session }`. `422 too-many-actors` when the session's
+mode seats fewer than the list names.
+
+**Ids, not objects.** A cast entry is a link resolved fresh every turn, so
+improving a character card reaches an ongoing game — the asymmetry with the
+copied preset is deliberate ([02 §8](design/02-data-model.md)).
 
 ### `GET /api/sessions/:sessionId`
 
@@ -495,8 +522,13 @@ credential.
 
 ## Not here yet
 
-No workbench (P3), no import (P4), no mode or preset selection on a session
-(P2.6), no provider settings surface (P7 — bindings are read here and
-hand-written on disk), no account management or capability *enforcement* (P10),
-and no static file serving — the client runs on Vite's dev server and talks to
-this over `/api`.
+No workbench (P3), no import (P4), no settings or administration routes
+([P2A](design/workplan/13-p2a-configuration-surface.md) — account management,
+own-profile changes, preferences and the config form all land there, along with
+capability *enforcement*), no provider settings surface
+([P2B](design/workplan/14-p2b-provider-configuration.md) — connections and
+bindings are read here and hand-written on disk until then), and no static file
+serving: the client runs on Vite's dev server and talks to this over `/api`.
+
+*Mode and preset selection on a session was listed here and shipped at P2.6; it
+is documented under Sessions above.*

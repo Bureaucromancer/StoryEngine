@@ -98,8 +98,10 @@ were written in. **Start with 00, then 01.**
 ### Then the work plan
 
 [`workplan/`](workplan/) has its own index. In reading order it is the work plan
-itself, the triage the plan is built on, the six phase documents, the polish
-list, testing, and the release model.
+itself, the triage the plan is built on, the eight phase documents, the polish
+list, testing, the release model, and one supplement — what P2's exit gate could
+not check. The phase documents are numbered in the order they were written, so
+P2A and P2B are 13 and 14 rather than sitting between P2 and P3.
 
 **02 and 10 are a pair.** 02 carries the reasoning and the alternatives
 considered; 10 carries the definitions. Where they disagree, 10 is current.

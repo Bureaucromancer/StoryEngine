@@ -163,12 +163,20 @@ accounts live there. It sits outside every user directory so the file browser
 `fileAccess` a user is granted. It is written through `storage/atomic.ts` like
 everything else, so P1.0's no-direct-`fs` rule needs no exemption for auth.
 
-**What stays at P10**, so this does not become the auth phase: account management
-UI ([05 §15](../05-ui-surfaces.md)), capability *enforcement*, the notification
-router, deployment and the
-Tailscale provider seam ([04 §5.2](../04-server-multiuser-deployment.md)). P10
-becomes the multi-user and deployment phase it is named for, rather than
-retrofitting an identity into a codebase that assumed one.
+**What stays out of P1**, so this does not become the auth phase: account
+management UI ([05 §15](../05-ui-surfaces.md)), capability *enforcement*, the
+notification router, deployment and the Tailscale provider seam
+([04 §5.2](../04-server-multiuser-deployment.md)). P10 becomes the multi-user
+and deployment phase it is named for, rather than retrofitting an identity into
+a codebase that assumed one.
+
+*The first two of those went to [P2A](13-p2a-configuration-surface.md) rather
+than P10, and the correction is worth reading beside the paragraph that made it:
+this section moved auth forward because a stub would have been threaded through
+every route and torn out later. It left management behind on the grounds that it
+was additive — which was true, and missed that the phases in between would each
+ship a feature with nowhere to configure it.
+[01 §2.3](01-work-plan.md) is the rule that came out of noticing.*
 
 **The honest cost.** P1.6 carries a login form and a first-run form on top of the
 list. Cheap, and neither needs anything the field-assist contract provides.
@@ -596,14 +604,20 @@ and both test a claim P1 makes and would otherwise ship unverified: that this
 storage model survives contact with a second writer, and that it does not eat
 data it does not understand.
 
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+with configuration that has no surface.** If this phase built something that
+needs a value set, name where someone sets it before calling the phase done.
+
 ---
 
 ## 4. Out of scope, deliberately
 
 Named so they do not creep in: **field assist in any form** and **editors for the
 other five kinds** (P1.7 is actor-only); the workbench (P3);
-account management, capability enforcement and deployment (P10 — but login and
-first-run land now, §1.3); the turn pipeline and providers (P2); import
+account management and capability enforcement
+([P2A](13-p2a-configuration-surface.md) — written here as P10's, and moved for
+[01 §2.3](01-work-plan.md)'s reason; login and first-run land now, §1.3);
+deployment (P10); the turn pipeline and providers (P2); import
 (P4); lorebook *activation* semantics — P1 stores lorebooks, it does not retrieve
 from them (P5); and `modes/*` (P7).
 

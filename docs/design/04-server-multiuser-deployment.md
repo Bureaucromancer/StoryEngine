@@ -372,13 +372,22 @@ interface Capabilities {
   /** May add and use their own connections. When false, only system
    *  connections resolve for this user. Default true. See §4.5. */
   privateConnections: boolean
-  /** In-UI file browser over their own directory. [05 §4.2] */
+  /** In-UI file browser over their own directory. Default "none". [05 §4.2] */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
-   *  remains admin-only. [12 §7] */
+   *  remains admin-only. Default false. [12 §7] */
   enableExtensions: boolean
 }
 ```
+
+**The defaults are part of the contract, and two of them were only in the
+code.** [05 §15.2](05-ui-surfaces.md) undertakes to render each capability with
+its consequence beside it, which is not something a surface can do from a
+definition that omits what happens when nobody chooses. `privateConnections`
+defaults **true** because the threat model is access separation among people who
+trust each other, so an admin turns it off deliberately (§4.5); the other two
+default to the closed value, because each opens something an admin should have
+had to decide about.
 
 First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
@@ -597,6 +606,15 @@ Three details that decide whether it works:
   a model call started failing. Role bindings pointing at them dangle and fall
   back to system bindings — the existing non-blocking behaviour, no new
   mechanism.
+
+  *"No new mechanism" is wrong, and the sentence is kept because it is the one
+  that hid the work. There are no system bindings: `readBindings` reads the
+  user's file and nothing else, there is no system bindings path, and
+  `resolveRole` has no layer to fall through to — so a dangling binding fails
+  the turn today rather than falling back to anything.
+  [P2B §1.2](workplan/14-p2b-provider-configuration.md) is the finding and
+  [§2.1](workplan/14-p2b-provider-configuration.md) builds the layer this
+  bullet has been assuming.*
 - **The dead-end state needs surfacing.** A user with no private connections
   allowed and no system connection available cannot do anything at all. The
   admin screen ([05 §15.2](05-ui-surfaces.md)) should say so plainly — *"2 users
@@ -683,8 +701,10 @@ authority the setup token assumes: someone who can run the binary against the
 data directory can already read it. There is no in-app recovery flow to weaken,
 which is the point — no email, no security questions, no account-recovery
 surface for an attacker to work on. Password reset from *inside* the admin UI is
-P10's, and does not remove this one: it is what recovers the admin who cannot
-log in to reach it.
+[P2A](workplan/13-p2a-configuration-surface.md)'s, and does not remove this one:
+it is what recovers the admin who cannot log in to reach it. **The console path
+is the rung beneath the UI, not an earlier version of it**, which is why it
+survives the phase that makes the UI exist.
 
 ### 5.2 Tailscale
 

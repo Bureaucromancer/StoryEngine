@@ -249,7 +249,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F5 | History append/rewrite race; phantom version | **Fixed at P1 closeout** | History mutators serialised per object root; `snapshotReplaced` one critical section; write→snapshot→ingest reorder. The queue is the utility P2.3's turn segments reuse |
 | F6 | `authoredAt` correct only via the React editor | **Fixed at P1 closeout** | `provenance.updatedAt` stamped server-side on real changes (§2.3); restore exempt; create exempt (imports keep original authorship) |
 | F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11**. *Sessions delete the same way at P2.3, plus the archive state [02 §10.3] asks for — this section had said tombstone, and the design section wins* |
-| F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** |
+| F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** — *reassigned to [P2A](13-p2a-configuration-surface.md), which found that `pendingRestart` could not have been surfaced as built* |
 | F9 | Tombstone maturation watcher-only; ingest not transactional | **Fixed at P2.3** | Both halves as planned: every filesystem read moved ahead of a `begin immediate`, and `startMaturation` runs once at startup and then on an unref'd timer, wired into `buildServices` so it does not depend on the watcher. Two tests, each verified to fail with its half removed |
 | F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **done at P2.3** — `GET /api/search`, objects and turns together, scoped by the session→scope join. Cookie flags: defer, **home P10** (loopback default makes it safe) |
 | F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
@@ -394,6 +394,8 @@ which makes the tier minimally real at the same time
 ([01 §2.2](01-work-plan.md) forbids a config key as a false front). P2.5 then
 threads job and turn ids through log context, which is the payoff. The
 `pendingRestart` notice *surface* stays at P10 with the admin UI it belongs to.
+*Reassigned to [P2A](13-p2a-configuration-surface.md), which is where the admin
+UI turned out to belong.*
 
 **Two shapes settled here rather than in code.** The logger is **Fastify's own**
 — the option, not an injected instance — because pino already travels with
@@ -587,7 +589,12 @@ here was a home that had not agreed to it. **Cookie `secure`/`trustProxy`
 hardening** (F10): home **P10** with deployment; the loopback default
 ([04 §5.1](../04-server-multiuser-deployment.md)) is what makes deferral safe.
 **Restart-notice UI** (F8's second half): home **P10** with the admin surface.
-Each is named again in §5 so the list survives this section being skimmed.
+*Landed one phase out instead, at
+[P2A](13-p2a-configuration-surface.md) — and P2A found that the notice as built
+could not have been surfaced anyway, because `applyLiveConfig` overwrites the
+baseline the delta is computed against. Deferring the surface deferred finding
+that out.* Each is named again in §5 so the list survives this section being
+skimmed.
 
 **Accessibility is not on that list, and saying so is the point.**
 [01 §2.1](01-work-plan.md) names accessible markup as one of the three things
@@ -1019,6 +1026,14 @@ should be tests and are not yet. Read it before calling the phase done.
     rendered block table, and the rebuild property test is a named CI step on
     both OSes (F11, F17).
 
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+configuration that has no surface.** *Added after the fact, and P2 is the phase
+that failed it — the provider layer shipped with its connections and role
+bindings as hand-written JSON, and nothing in the twenty steps above notices,
+because every step assumes a library and a connection already on disk. That is
+what the rule is for, and [P2A](13-p2a-configuration-surface.md) and
+[P2B](14-p2b-provider-configuration.md) are the repair.*
+
 ---
 
 ## 5. Out of scope, deliberately
@@ -1028,8 +1043,11 @@ The workbench (P3 — the JSON affordance in P2.6 is one `<pre>` tag); import
 snapshots-as-cache, rewrite/reroll surfaces (P6 — but the tape and
 `parentTurnId` are written now); channels beyond `se.clock`, hooks, the mode
 registry, the SDK boundary, setup wizards, `se.party` (P7); summarisation
-(P8); renditions (P9); notification routing and delivery, cookie hardening,
-the restart-notice UI, capability enforcement (P10); trash, editor completeness
+(P8); renditions (P9); the restart-notice UI and capability enforcement
+([P2A](13-p2a-configuration-surface.md) — *both were written here as P10's, and
+both moved one phase out rather than eight; see [01 §2.3](01-work-plan.md)*);
+notification routing and delivery, cookie hardening (P10); trash, editor
+completeness
 ([09 §1–§2](09-polish.md) for its polish half) and the systematic a11y audit
 (P11) — the *habit* of accessible markup being in scope for everything P2
 ships, per §2.11.

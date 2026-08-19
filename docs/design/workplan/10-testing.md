@@ -52,6 +52,15 @@ rule is worth more than a paragraph in a document nobody re-reads.
 | No sentence assembled from fragments, and no branching on displayed text | [01 §2](01-work-plan.md)'s reduced i18n discipline |
 | No hand-rolled date/relative-time formatting; `Intl` only | [07 §12.6](../07-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
+| `config.example.json` declares every key the schema does | [01 §2.3](01-work-plan.md)'s mechanically checkable core |
+
+**The last row is a test rather than a lint rule**, and it is in this table
+anyway because the table is a list of *claims turned into checks* and that is
+what it is. ESLint cannot compare a schema to a JSON document; a two-line
+assertion beside the config tests can, and it lives at
+[P2A §3](13-p2a-configuration-surface.md). The general shape of
+[01 §2.3](01-work-plan.md) — *does anything this phase built need a value set?*
+— is not mechanisable and stays a gate question.
 
 **The strings rule is the reduced one, deliberately.** [01 §2](01-work-plan.md)
 kept the half of i18n discipline that cannot be retrofitted — never build a

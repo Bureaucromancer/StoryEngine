@@ -130,6 +130,10 @@ Sketch; expand on revisit.
 6. A rejected effect ("the model tried to give itself 40 gold" —
    [13 §1.2.2](../13-internal-contracts.md)) is visible with its reason.
 
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+with configuration that has no surface.** If this phase built something that
+needs a value set, name where someone sets it before calling the phase done.
+
 ---
 
 ## 4. Out of scope, deliberately

@@ -168,6 +168,10 @@ Sketch; expand on revisit.
    silently.
 7. The wild corpus imports without a crash, in CI.
 
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+with configuration that has no surface.** If this phase built something that
+needs a value set, name where someone sets it before calling the phase done.
+
 ---
 
 ## 4. Out of scope, deliberately

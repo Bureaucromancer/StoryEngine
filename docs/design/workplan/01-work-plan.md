@@ -335,6 +335,14 @@ Three qualifications, because this rule is the easiest one here to abuse:
   *enforcement* stays at P10 even though the `Capabilities` record ships in P1:
   the record is a persisted shape (§2's first cost), the enforcement is additive
   (§2.1). Splitting on that line is the point.
+
+  *Enforcement moved to [P2A](13-p2a-configuration-surface.md), and the example
+  is better for it rather than spoiled. The split was correct while nothing
+  granted a capability. What changed is that P2A builds the screen that grants
+  them — and this same section forbids a system whose only purpose is to be
+  replaced, which is what a switch labelled "may add their own provider keys"
+  becomes when nothing reads it. The line is still record-versus-enforcement;
+  it just turned out that the phase which grants is the phase that owes.*
 - **Test doubles are exempt.** Fakes, fixtures and harnesses are supposed to be
   disposable, and [10](10-testing.md) governs them. This is about production
   scaffolding only.
@@ -352,6 +360,53 @@ out, which is the failure §2.1 names outright.
 **Where this bites hardest is the earliest phases**, because that is where the
 real system is smallest and the temptation to fake it is largest — the gap
 between a stub and the genuine article is never narrower than at P1.
+
+### 2.3 The fourth discipline: configuration ships with its surface
+
+§2 asks what is expensive to retrofit, §2.1 what is free to defer, §2.2 what may
+be built small. This one is about a thing all three of them let through, and it
+was found by discovering it had already happened:
+
+> **Configuration ships with the thing it configures.** If a feature cannot be
+> used without a value somebody has to set, the surface that sets it lands in
+> the same phase as the feature.
+
+**It belongs here rather than in §2's checklist because it is §2.1's third cost
+shape exactly** — *a habit rather than a feature*, done continuously or not at
+all. §2.1's own question is what let this through, and the failure is
+instructive. Asked of *the settings screen*, "what does it cost to add this a
+year later?" answers "the work itself", and the screen defers, correctly.
+Asked of *the ability to configure the thing you just built*, it answers "every
+phase between now and then ships a feature nobody can turn on without a text
+editor". Same question, right answer both times, and the noun was wrong.
+
+**What it had already cost by the time it was written.** P1 shipped accounts
+with no way to manage one; P2 shipped a provider layer whose connections and
+role bindings are hand-written JSON, and a `pendingRestart()` that is correct,
+tested and reachable from nothing. A fresh install could not take a turn without
+a text editor, and no phase had failed — each had shipped exactly what it said.
+[P2A](13-p2a-configuration-surface.md) is the repair;
+[P2B](14-p2b-provider-configuration.md) is the rest of it.
+
+Three qualifications, because a rule about surfaces attracts surface work:
+
+- **It does not mean every knob gets a form.** A value with a working default
+  that nobody has a reason to change is configured *by* that default, and
+  `config.example.json` documents it. The test is whether the feature can be
+  used at all without someone setting the value.
+- **It does not override §2.1.** If the feature is deferred, so is its surface.
+  This is not an argument for building features so that their settings can be
+  built.
+- **Developer and test values are exempt.** `dev.enabled` needs no form; the
+  person who sets it is editing the file already.
+
+**And it gets a check rather than only a paragraph.**
+[testing §2](10-testing.md)'s whole argument is that a lint rule is worth more
+than a paragraph in a document nobody re-reads, and the mechanically checkable
+core here is that **`config.example.json` declares every key the schema does** —
+a test that would have caught the four keys that had already drifted out of it.
+The rest of the rule is a question every exit gate now asks: *does anything this
+phase built need a value set, and where does someone set it?*
 
 ---
 
@@ -486,6 +541,46 @@ session, assemble and snapshot the turn record. This is the highest-value test
 surface in the project and it exists as soon as the record does
 ([10](10-testing.md)).
 
+### P2A — The configuration surface
+
+**Expanded into a working plan: [13](13-p2a-configuration-surface.md).**
+
+[05 §15](../05-ui-surfaces.md)'s core, pulled forward from P10 — not because it
+would be nice this early, but because §2.3 found that five shipped artifacts
+already describe it as existing. The user half in full, the accounts half in
+full, and the half of §15.3 that has something to configure: the whole `Config`
+shape, and the restart notice P2 built and could not surface.
+
+**Capability enforcement moves here too**, which revises §2.2's worked example.
+The record-versus-enforcement split was right while nothing granted
+capabilities; a screen that grants them makes the ungranted half a false front.
+
+**Demonstrable:** create a second account from the browser, sign in as them,
+change their password — and watch the admin list say plainly that they still
+have no usable connection.
+
+### P2B — Provider configuration
+
+**Expanded into a working plan: [14](14-p2b-provider-configuration.md)**, with a
+§6 naming what P2A has to settle before its last questions close.
+
+System connections and the install default bindings through the UI, admin-only
+for now ([04 §4.5](../04-server-multiuser-deployment.md)). The per-user half
+waits on P2A's capability enforcement and on there being a system layer to fall
+back to.
+
+**Which there is not.** Writing the plan found that the install-default layer
+[04 §4.5](../04-server-multiuser-deployment.md),
+[05 §15.3](../05-ui-surfaces.md) and [07 §5.1](../07-tech-stack.md) all rely on
+does not exist in any form — no file, no path, no layer in the resolver — so a
+dangling binding fails a turn where three documents say it falls back. That is a
+data-model gap rather than a UI one, it is independently testable, and it is the
+phase's first stage.
+
+**Demonstrable:** install fresh, paste in one API key, take a turn — no text
+editor. Which is not possible today, and is the plainest statement of what §2.3
+was written to prevent.
+
 ### P3 — The workbench
 
 Early, deliberately. Block list with sources and reasons, budget verdict, calls,
@@ -590,10 +685,17 @@ built against the general rendition shape so video and speech are later kinds.
 — they were always small, and the alternative was a stub identity threaded
 through every route until this phase. The per-user *storage layout* was already
 in P1 because that part is not retrofittable; auth turned out to be cheaper to
-build than to fake. What lands here: admin and account management
-([05 §15](../05-ui-surfaces.md)), capability enforcement, the notification router
-and delivery channels, the loopback bind and its container inversion, mDNS, the
-About surface and §13 source link.
+build than to fake.
+
+**And account management and capability enforcement moved to
+[P2A](13-p2a-configuration-surface.md)**, for the reason §2.3 gives: five
+already-shipped things described that surface as existing. What lands here is
+the remainder of [05 §15](../05-ui-surfaces.md) — the extensions panel, the
+system library panel if it ever earns an admin action, *Restart now* with the
+supervisor detection and drain it needs, and connectivity state once P11's
+update check produces the signal. Plus the notification router and delivery
+channels, the loopback bind and its container inversion, the setup token, mDNS,
+the About surface and §13 source link.
 
 ### P11 — Beta hardening
 

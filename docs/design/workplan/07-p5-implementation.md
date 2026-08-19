@@ -163,6 +163,10 @@ Sketch; expand on revisit.
 8. Timing counters reconstruct correctly at an old node (with P6 landed, this
    becomes the branch test; before P6, replay-from-zero covers it).
 
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+with configuration that has no surface.** If this phase built something that
+needs a value set, name where someone sets it before calling the phase done.
+
 ---
 
 ## 4. Out of scope, deliberately

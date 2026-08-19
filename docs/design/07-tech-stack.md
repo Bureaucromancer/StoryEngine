@@ -182,6 +182,14 @@ session override → step override → actor hint.** Most people set two models 
 never see the rest; someone who wants a different narrator for one session, or a
 cheap model for one noisy step, has a place to say so.
 
+*Three of the five have callers. `resolveRole` implements step, session and
+binding; the session and step layers are plumbed and never passed, and belong
+to P7 with the mode contract that would use them. **The install default is not
+implemented at all** — [P2B §1.2](workplan/14-p2b-provider-configuration.md),
+which is also where it is built. The order above is the design and it is not
+being revised; this note exists so nobody reads it as a description of what
+runs.*
+
 ~~**[OPEN]**~~ **Closed at P2.1, as the convenience reading.** The data model is
 eight independent bindings; `hi` and `lo` are what the first-run flow asks for
 and then spreads across them. A tier would be a third thing to keep consistent —

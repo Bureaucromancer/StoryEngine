@@ -325,14 +325,33 @@ welcome and no longer blocked on an undecided question, only on a sequenced one.
 The [10 §7](10-schemas.md) split makes it clean: a prologue is a *session*
 travelling in a package, not a variant of Setup. *[02 §7]*
 
-**B13. Where per-user UI preferences live. — OPEN, and needed sooner than it
-looks.** `Account` ([04 §4.2](04-server-multiuser-deployment.md)) carries
+**B13. Where per-user UI preferences live. — RESOLVED on the third answer, at
+[P2A §2.2](workplan/13-p2a-configuration-surface.md).** A separate per-user
+`prefs.json`, which is what
+[04 §4.3](04-server-multiuser-deployment.md)'s canonical layout block had
+already been drawing while this question stayed open — closing it was mostly
+letting two documents agree. Namespaced string keys, JSON values, unvalidated by
+the server; a patch merges shallowly and `null` deletes, because a
+whole-document write makes two open tabs a lost update; writes serialise per
+handle; and an unreadable file reads as empty rather than refusing to start,
+which is the deliberate asymmetry with `accounts.json` — a broken accounts file
+means the server cannot tell who anyone is, a broken prefs file means somebody's
+pane is collapsed wrong. **The key pattern and size cap are bounds, not
+validation**, and the code has to say which it is doing or the next reader
+improves them into the schema this answer ruled out.
+
+The question as it stood, kept because the reasoning is what makes the answer
+binding rather than arbitrary:
+
+`Account` ([04 §4.2](04-server-multiuser-deployment.md)) carries
 `locale` and `capabilities` and nothing else presentational, but the client has
 already accumulated preferences with nowhere to go: the *As stored* pane state
 and the all-kinds library view ([polish §2, §4](workplan/09-polish.md)), with
 §1.1's density question likely to follow. The settings surface that shows them
 is [05 §15](05-ui-surfaces.md) and is P10's; **the store is not, and blocks the
-first preference that ships.**
+first preference that ships.** *Both halves of that last clause moved: the
+surface is P2A's too, which is what forced this question rather than deferring
+it again.*
 
 Three candidate answers, in increasing order of commitment:
 
@@ -353,6 +372,11 @@ preference the client stops using should rot quietly rather than need a
 migration. What must be decided before the first one ships is only *where* —
 moving them later means either a migration or silently losing everyone's
 settings. *[04 §4.2, 05 §15]*
+
+*The lean is what was adopted, unchanged. It is recorded here rather than
+rewritten because the argument for the third answer is the reason it binds — a
+future proposal to move preferences onto `Account` has to answer the chatty
+write path beside a password hash, not merely prefer a different file.*
 
 ---
 

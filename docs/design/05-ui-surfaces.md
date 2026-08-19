@@ -100,7 +100,7 @@ what the user is doing at that moment, not by taste:
 
 | Dense — tooling | Quiet — story and arrival |
 |---|---|
-| Workbench (§3), library (§5), editors (§11), cast panel (§13.2), search (§14) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
+| Workbench (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
 **The reading view is the case that proves the rule**, and it is already written
@@ -1213,10 +1213,11 @@ Available to every account, admin or not.
 - **Preferences** — the presentation choices the app accumulates. §1.1's
   density question will eventually land here, and two exist already: the
   *As stored* pane state ([polish §2](workplan/09-polish.md)) and the all-kinds
-  library view ([polish §4](workplan/09-polish.md)). **Where these persist is
-  [06 B12](06-open-questions.md)** — `Account` has no preferences field today,
-  and the answer is needed before the first one ships, not before this surface
-  does.
+  library view ([polish §4](workplan/09-polish.md)). **Where these persist was
+  [06 B13](06-open-questions.md)**, and the answer is a per-user `prefs.json`
+  rather than a field on `Account`, settled at
+  [P2A §2.2](workplan/13-p2a-configuration-surface.md) — the question had to
+  close before the first preference shipped, not before this surface did.
 - **What is deliberately not here:** the Source link. It is required to be
   visible to every logged-in user without hunting
   ([04 §7](04-server-multiuser-deployment.md)), which a settings page is not.
@@ -1244,9 +1245,14 @@ cannot send a message.
   the console reset stays the break-glass for the admin who cannot log in.
 - **Removing an account is a deletion of a person's library**, and the surface
   has to say so in those words, with the same honesty the trash gets
-  ([02 §10.2](02-data-model.md)). **[OPEN]** whether removal offers *keep the
-  data, disable the login* as the default action — which is what most people
-  mean — with hard removal as the deliberate second choice.
+  ([02 §10.2](02-data-model.md)). ~~**[OPEN]**~~ **Closed at
+  [P2A §2.3](workplan/13-p2a-configuration-surface.md):** *disable the login,
+  keep the data* is the default, hard removal is the deliberate second choice,
+  and they are **two verbs rather than one verb with a flag** — a `keepData`
+  toggle that turns a delete into a not-delete is what makes a dangerous control
+  feel routine. Removal moves the directory to `data/removed/` rather than
+  erasing it, and says so: the handle frees up immediately, the data does not
+  come back through it, and nothing deletes it but a person.
 - **Revoking `privateConnections` disables rather than deletes**, and the user
   is told ([04 §4.5](04-server-multiuser-deployment.md)). The surface that does
   the revoking is the one that owes that explanation.
@@ -1287,14 +1293,38 @@ visible at all.
 
 ### 15.5 When it gets built
 
-**P10** ([work plan §4](workplan/01-work-plan.md)), which is where account
-management, capability *enforcement* and deployment already live — accounts,
-login and first-run moved forward to P1 but management deliberately did not
-([P1 §1.3](workplan/03-p1-implementation.md)).
+**The core is [P2A](workplan/13-p2a-configuration-surface.md)**, immediately
+after P2. An earlier revision of this section homed the whole surface at P10 and
+then observed that two pieces were wanted earlier; what changed is the reason.
+It is not that the user half is small — it is that five shipped artifacts
+already describe this surface as existing, from `config.example.json` calling it
+*"the primary path"* to [13 §4.2](13-internal-contracts.md) contracting the
+write against it. That makes it a missing dependency rather than an early
+feature, and [work plan §2.3](workplan/01-work-plan.md) is the rule written so
+the same gap does not open again.
 
-**Two pieces are wanted earlier, and neither needs the rest of the surface.**
-The user half is small and mostly ordinary forms; the preferences store is a
-dependency of near-term client work ([polish §2, §4](workplan/09-polish.md)),
-not of P10. Building a minimal *Settings* with display name, locale, password
-and preferences ahead of the admin half is legitimate — the split in §15 is by
-audience, so the halves can land separately.
+**What P2A closes:** §15.1 entire, §15.2 entire — including capability
+*granting*, with enforcement pulled forward from P10 so the grant is not a false
+front — and two of §15.3's five bullets, the config form and the restart notice.
+It also closes [06 B13](06-open-questions.md), because a preferences pane needs
+somewhere to put a preference.
+
+**What [P2B](workplan/14-p2b-provider-configuration.md) closes:** system
+connections and the default role bindings, admin-only. The *your connections*
+bullet in §15.1 waits with it, because a personal-connection surface that
+predates the `privateConnections` check is the trivial bypass
+[04 §4.5](04-server-multiuser-deployment.md) warns about, wearing a UI.
+
+**What genuinely remains at P10**, and not by default — each has a named
+blocker: the extensions panel (installation does not exist); *Restart now*
+(supervisor detection and drain, [04 §6.4](04-server-multiuser-deployment.md));
+connectivity state (its producer is P11's update check); and the notification
+preference rows [04 §3.5](04-server-multiuser-deployment.md) asks for (no class
+has a producer, and the router is P10's).
+
+**And §15.3's system-library bullet has no owner, which is a defect in this
+section rather than a scheduling question.** §4.2 makes that scope
+never-writable and [04 §4.3](04-server-multiuser-deployment.md) withholds admin
+write at 1.0 deliberately, so there is no *action* an admin takes there — and
+§15.4 says a panel without one does not belong. Either the bullet goes or 1.0's
+position on admin write changes; it should not sit here looking scheduled.
