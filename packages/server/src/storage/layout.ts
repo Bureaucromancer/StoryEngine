@@ -205,6 +205,54 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'users');
   }
 
+  /**
+   * Where a removed account's directory goes — `data/removed/`.
+   *
+   * **Deleting an account is a move**, which is the position `trashDestination`
+   * already takes for objects and sessions ([02 §10.2]). What is different is
+   * where it lands: the user's own trash is inside the directory being removed,
+   * so a removal that used it would be moving a folder into itself.
+   *
+   * Deliberately **outside** every user directory and outside the maturation
+   * sweep's reach. The sweep is per-user retention, and this is not a user any
+   * more — nothing should quietly collect it. [P2A §2.3] makes the surface say
+   * so in words: StoryEngine will not delete this, remove the folder yourself
+   * when you are sure.
+   */
+  get removedRoot(): string {
+    return resolveWithin(this.dataRoot, 'removed');
+  }
+
+  /**
+   * `removed/<handle>-<suffix>`.
+   *
+   * Suffixed for the same reason the trash is: remove-recreate-remove must not
+   * collide, and the handle is free for reuse the moment the record goes. That
+   * pair — the name reusable immediately, the old data not reachable through it
+   * — is the property that makes the move better than either erasing the folder
+   * or leaving it in place.
+   */
+  removedDestination(handle: string, suffix: string): string {
+    assertValidHandle(handle);
+    return resolveWithin(this.removedRoot, `${handle}-${suffix}`);
+  }
+
+  /**
+   * `users/<handle>/prefs.json` — client preferences ([06 B13]).
+   *
+   * A per-user file rather than `localStorage` or a map on `Account`: pane
+   * state that does not survive a move to another browser is not state anybody
+   * wanted, and `accounts.json` is authentication — a document every request
+   * reads and every password change rewrites is the wrong home for whether a
+   * pane is collapsed.
+   *
+   * **The server does not validate its contents.** A preference the client
+   * stops using rots quietly here rather than needing a migration.
+   */
+  prefsFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'prefs.json');
+  }
+
   userRoot(handle: string): string {
     assertValidHandle(handle);
     return resolveWithin(this.usersRoot, handle);
