@@ -57,6 +57,14 @@ Logout clears the cookie. A copy already taken elsewhere stays valid until it
 expires; that is the honest cost of having no session table, argued in
 `packages/server/src/auth/session.ts`.
 
+**A password change does not end them either**, and neither does an
+administrator disabling the account — for the second, the identity hook re-reads
+the account on every request, so a disabled account's next call is `401` even
+though its cookie is still valid. A password change has nothing equivalent: the
+cookie says who, not what they knew. Anyone reaching for a password change to
+shut somebody out needs to know that, which is why the settings form says so
+where they are doing it.
+
 ---
 
 ## Auth
@@ -499,6 +507,216 @@ credential.
 
 ---
 
+## Settings
+
+Everything a signed-in person may change about themselves
+([05 §15.1](design/05-ui-surfaces.md)). Roles, enabled flags and capabilities are
+somebody else's business and live under Administration.
+
+### `GET /api/me` · `PATCH /api/me`
+
+`{ "account": …PublicAccount }`. The patch takes `displayName` and `locale`, and
+**nothing else** — a body carrying `role`, `enabled` or `capabilities` is
+refused with `400 invalid`, naming the field.
+
+Refused rather than ignored, deliberately. Stripping the field and answering
+`200` teaches a client that the request worked; the next version of it sends the
+field on purpose, and the version after that depends on it.
+
+`locale` is nullable, and `null` is a real state distinct from `""`: it means
+*no preference*, and the client formats with the browser's.
+
+### `POST /api/me/password`
+
+`{ currentPassword, newPassword }` → `204`. The current password is wrong →
+`401 invalid-credentials`; the new one is shorter than eight characters →
+`400 invalid`.
+
+**This does not sign out other browsers.** Sessions are signed stateless cookies
+with no denylist, so nothing can revoke one that is already issued — a copy taken
+elsewhere stays valid until it expires. The settings form says so where somebody
+is changing a password, because the reason they are usually doing it is that they
+want exactly the opposite.
+
+### `GET /api/me/prefs` · `PATCH /api/me/prefs`
+
+`{ "prefs": { …namespaced keys } }` — client preferences, stored in
+`users/<handle>/prefs.json` ([06 B13](design/06-open-questions.md), resolved).
+
+A patch **merges shallowly** and `null` **deletes**. The response is the whole
+document rather than an acknowledgement, so a client lands on the truth rather
+than on its own guess — which is what makes the one optimistic mutation in the
+client safe to be optimistic about. A whole-document write would make two open
+tabs a lost update.
+
+**The server does not interpret what it holds.** A key it has never heard of is
+stored and returned unchanged, so a preference the client stops using rots
+quietly rather than needing a migration, and a newer client can store one an
+older server does not know. What it does enforce are *bounds, not validation*: a
+key must be namespaced (`library.density`, not `density`) and the document has a
+size cap. Those exist because an unvalidated store is otherwise an unbounded
+write surface for any signed-in account. A bad key is `400 invalid`; too large is
+`413 too-large`.
+
+---
+
+## Administration
+
+Everything under `/api/admin` needs an administrator, enforced by **one
+`onRequest` hook on the prefix** rather than a check per handler — two spellings
+of a guard is how the second one gets missed
+([P2A §2.4](design/workplan/13-p2a-configuration-surface.md)).
+
+- **`401 unauthenticated`** for an anonymous caller.
+- **`403 forbidden`** for a signed-in non-admin. Deliberately *not* the library's
+  404-for-another-user's-object: that hides whether an id exists, which is worth
+  hiding, while `/api/admin` is a fixed path whose existence is not a secret —
+  and a 404 would leave a client unable to tell *this build has no admin API*
+  from *you are not an admin*.
+- Identity, CSRF and the setup gate all run **before** it, so a state-changing
+  call with no token answers `403 csrf` rather than `forbidden`, and every admin
+  route is `503 setup-required` before an install has an administrator.
+
+### `GET /api/admin/accounts`
+
+```json
+{
+  "accounts": [ { "…PublicAccount": true, "hasUsableConnection": false } ],
+  "withoutUsableConnection": 2,
+  "systemConnectionCount": 0
+}
+```
+
+**Counts, never contents.** The warning
+[04 §4.5](design/04-server-multiuser-deployment.md) commissioned — *"2 users have
+no usable connection"* — needs a number, not a list of what somebody has
+configured. A connection stays opaque, so nothing here names one.
+
+An account has a usable connection if a system connection exists, or if it has a
+personal one **and** `privateConnections`. Revoking that capability therefore
+puts somebody back in the warning without touching a file.
+
+### `POST /api/admin/accounts`
+
+`{ handle, password, role, displayName?, locale?, capabilities? }` →
+`201 { account }`. A duplicate handle is `409 exists`. Unknown fields are refused,
+the same way `/api/me` refuses them.
+
+The library directory is created with the account, so `ls data/users/<handle>/`
+works immediately rather than after their first write.
+
+### `PATCH /api/admin/accounts/:handle`
+
+Everything `/api/me` takes, plus `role`, `enabled` and `capabilities`.
+Capabilities **merge**, so a form sending one switch does not clear the other
+two, and a newer build's capability survives an older client's patch.
+
+`enabled: false` is how an account is disabled, and it needs no route of its own.
+Their data is untouched and their next request is `401` — the identity hook
+re-reads the account rather than trusting the cookie.
+
+### `POST /api/admin/accounts/:handle/password` · `DELETE /api/admin/accounts/:handle`
+
+`{ newPassword }` → `204`, and a `DELETE` → `204`.
+
+A reset does **not** re-enable a disabled account: an administrator who disabled
+somebody and then reset their password should not have undone the disablement by
+accident. Re-enabling is a `PATCH`, which is a separate thing to decide and
+therefore a separate thing to do.
+
+**Deleting moves rather than erases.** `data/users/<handle>/` goes to
+`data/removed/<handle>-<suffix>/`, which no sweep touches — it is per-user
+retention and this is not a user any more. StoryEngine will not delete it; remove
+that folder yourself when you are sure. The handle is free for reuse
+immediately, and a new account with that name sees none of the old data.
+
+### Nobody can lock the install out
+
+Demoting, disabling or removing the **last usable administrator** is
+`409 last-admin`. One predicate covers all three, because they are one failure
+wearing three faces.
+
+*Usable* is the load-bearing word: an install whose only administrator is
+disabled is locked out exactly as thoroughly as one with none, and that is a
+state somebody can otherwise reach in one click while the account list still
+shows an administrator.
+
+409 rather than 403: the request is well formed and the caller is permitted — an
+administrator may demote an administrator, just not the last one — so what
+refuses it is the state of the install.
+
+### `GET /api/admin/config` · `PUT /api/admin/config`
+
+```json
+{
+  "config": { "…the running config": true },
+  "path": "/data/config.json",
+  "tiers": { "server.port": "restart", "log.level": "live" },
+  "appliers": { "log.level": "applied", "limits.maxUploadMb": "unread" },
+  "pendingRestart": []
+}
+```
+
+**The tier table travels as data.** The client may not import from the server
+package, and a duplicated copy would falsify
+[13 §4](design/13-internal-contracts.md)'s claim that the annotation *is* the
+source — so a key a newer build adds renders with the right badge without a
+client release. `appliers` is the honest half beside it: a tier says what a key
+is *for*, and this says whether anything reads it yet. The two are allowed to
+disagree, and the form puts the `unread` ones in a group that says so rather than
+telling somebody a change took when it was only stored.
+
+`PUT` takes `{ config }`, a whole document rather than a patch.
+
+- **Unknown keys in the body are dropped**; the write picks the keys this build
+  knows rather than trusting what arrived. A key the caller invents never reaches
+  disk — not because it was rejected, but because nothing looked at it.
+- **Unknown keys in the file are preserved.** A newer build's key may
+  legitimately be there, and eating it would make a downgrade destructive.
+- A value the schema refuses is `400 invalid` and **nothing is written**: the
+  document is validated by the same function the server boots on, so a save
+  cannot leave a file the process will not start on.
+
+### The stale check
+
+A config file that has changed on disk since this server read it answers
+`412 stale`, carrying `current` (what the file means) and `currentDocument` (what
+it says). That is what makes the form safe against a text editor without a
+watcher — [04 §6.2](design/04-server-multiuser-deployment.md)'s hot-reload claim
+is about *content*, and config is explicitly not content.
+
+Compared against the file as this process read it, not against the running
+config: `--data` overrides `dataDir` after the load, and an install with no
+config file runs entirely on defaults, so comparing the merged view would report
+a hand edit on every container start.
+
+**A file that will not parse does not block a write that fixes it.** Refusing
+there would trap an administrator inside the problem they are trying to leave,
+with the settings form as the one tool that could repair it and the one tool that
+will not.
+
+### `GET /api/admin/notices`
+
+`{ "pendingRestart": ["server.port"], "canRestart": false }`.
+
+Its own route because the restart banner is on **every** page rather than on the
+settings page ([04 §6.3](design/04-server-multiuser-deployment.md)) — the person
+who needs to know is often not the one looking at the form.
+
+Computed per request and stored nowhere, which is what makes it self-healing:
+change a value, change it back, and the list empties. It is also why every
+administrator sees the same list — one process, one answer, not a per-session
+note.
+
+`canRestart` is `false` and says so rather than being absent. **The server does
+not restart itself**: under no supervisor a restart control leaves the
+administrator with no server and possibly no shell
+([04 §6.4](design/04-server-multiuser-deployment.md)), so it needs supervisor
+detection and a drain, neither of which exists. A notice that invites *"so how do
+I restart it?"* is a worse answer than one that says.
+
+---
+
 ## Errors
 
 | Status | `error` | Means |
@@ -508,11 +726,15 @@ credential.
 | 401 | `invalid-credentials` | Login failed |
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
 | 403 | `read-only` | A system-library object |
+| 403 | `forbidden` | A signed-in non-admin on `/api/admin` |
 | 404 | `not-found` / `unknown-kind` | No such object, or no such kind |
 | 409 | `busy` | The session already has a turn in flight. Carries the active `job` |
 | 409 | `finished` | That turn is already over, so there is nothing to cancel |
 | 412 | `stale-head` | The session moved on since this was composed. Carries the current `head` |
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
+| 409 | `exists` | An account with that handle already exists |
+| 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
+| 413 | `too-large` | The preference document would exceed its size cap |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
@@ -523,10 +745,7 @@ credential.
 
 ## Not here yet
 
-No workbench (P3), no import (P4), no settings or administration routes
-([P2A](design/workplan/13-p2a-configuration-surface.md) — account management,
-own-profile changes, preferences and the config form all land there, along with
-capability *enforcement*), no provider settings surface
+No workbench (P3), no import (P4), no provider settings surface
 ([P2B](design/workplan/14-p2b-provider-configuration.md) — connections and
 bindings are read here and hand-written on disk until then), and no static file
 serving: the client runs on Vite's dev server and talks to this over `/api`.

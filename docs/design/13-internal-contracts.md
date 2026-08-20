@@ -440,8 +440,17 @@ interface Config {
   server: { host: string; port: number; trustProxy: boolean }
   log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
-  sessions: { snapshotEveryNTurns: number }
-  limits: { maxUploadMb: number; extensionStorageQuotaMb: number }
+  sessions: {
+    snapshotEveryNTurns: number
+    streamKeepaliveMs: number                // [P2 §2.10]
+    streamCoalesceMs: number
+  }
+  limits: {
+    maxUploadMb: number
+    extensionStorageQuotaMb: number
+    contextTokens: number                    // [06 E5]
+    reservedCompletionTokens: number
+  }
   trash: { retentionDays: number }          // [02 §10.2]
   history: { keepPerObject: number }        // [02 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
@@ -459,7 +468,12 @@ interface Config {
 | `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
 | `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([06 C8](06-open-questions.md)) |
-| `limits.*` | `live` | — | |
+| `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
+| `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
+| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
+| `limits.extensionStorageQuotaMb` | `live` | `32` | |
+| `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([06 E5](06-open-questions.md)) |
+| `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
 | `trash.retentionDays` | `live` | `30` | |
 | `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([02 §11.3](02-data-model.md)) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([04 §6.5](04-server-multiuser-deployment.md)) |
@@ -541,6 +555,42 @@ Three, and only the third is the happy one:
 config source must consume the same self-write suppression the object watcher
 uses ([P1 §1.4](workplan/03-p1-implementation.md)) rather than reacting to its
 own rename.
+
+### 4.3 What a `live` key actually does, which is not always what its tier says
+
+A tier says what a key is **for**. Whether anything reads it *yet* is a separate
+fact, and the two are allowed to disagree — `LIVE_APPLIERS`, beside
+`CONFIG_TIERS` and keyed the same way, is where the disagreement is recorded.
+Each `live` key is `applied` or `unread`, a test fails on a `live` key with no
+entry and on an entry for a key that is not `live`, and the table ships to the
+client so the settings form can put the `unread` ones in a group that says so.
+
+`limits.maxUploadMb` is the standing example. The key names uploads and will
+apply live when there is an upload route; there is not one, and Fastify fixes
+`bodyLimit` when the instance is constructed. Re-tiering it to `restart` to match
+today's implementation would lock the shortcut into the contract, which
+[P2 §3](workplan/04-p2-implementation.md) declined for that reason and
+[P2A §2.5](workplan/13-p2a-configuration-surface.md) agreed with after its first
+draft got it wrong.
+
+**The rule this settles:** where a tier and an implementation disagree, the
+appliers table records the disagreement; **the tier moves only when the *intent*
+changes.**
+
+This exists because a settings surface that shows a control doing nothing is the
+placeholder [work plan §2.2](workplan/01-work-plan.md) forbids, and remembering
+which keys are which is not a mechanism. Of the eleven keys tiered `live` at
+P2A, five are applied and six are honestly declared unread.
+
+**Two repairs P2A made so the table would not be mostly lies.**
+`applyLiveConfig` replaced the running config object rather than assigning into
+it, so the runner, the budgeter and the library context — each holding *that
+object* — kept reading a record the server had stopped using; six `live` keys
+could not change on a running server for that reason alone. And the
+restart notice computed its delta against the running config and then moved it,
+so it was right exactly once. It is now `pendingRestart(bootConfig, config)`,
+derived per request from the config this process *started* with, which is what
+makes it self-healing: change a value, change it back, and the notice clears.
 
 ---
 

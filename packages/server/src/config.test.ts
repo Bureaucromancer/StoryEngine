@@ -140,6 +140,43 @@ describe('the tier table is the source', () => {
     expect(applierOf('log.level')).toBe('applied');
   });
 
+  /**
+   * **The tier table in [13 §4] names exactly the keys the schema has, with the
+   * same tiers.**
+   *
+   * That document calls the annotation *the source, not documentation of it* —
+   * and until P2A the document's own copy of it was four keys behind, which is
+   * the ordinary fate of a table nothing checks. `config.example.json` has had a
+   * drift test since P2A.0 for the same reason; this is the other shipped
+   * description of the same keys.
+   *
+   * Read as text and parsed loosely on purpose: the assertion is about the
+   * *content* of the table, and a stricter markdown parser here would be a
+   * second thing to keep working.
+   */
+  it('matches the tier table in the internal contracts', async () => {
+    const doc = await readFile(
+      fileURLToPath(new URL('../../../docs/design/13-internal-contracts.md', import.meta.url)),
+      'utf8',
+    );
+
+    const documented = new Map<string, string>();
+    for (const line of doc.split('\n')) {
+      // `| \`dataDir\` | \`restart\` | … |` — a key and a tier, both in backticks.
+      const row = /^\|\s*`([a-z][\w.]*)`\s*\|\s*`(live|reconnect|restart)`\s*\|/i.exec(line);
+      if (row) documented.set(row[1] ?? '', row[2] ?? '');
+    }
+
+    // The table exists and was found, so a regex that stopped matching fails
+    // here rather than silently reporting agreement about nothing.
+    expect(documented.size).toBeGreaterThan(10);
+
+    expect([...documented.keys()].sort()).toEqual(configKeys().sort());
+    for (const [key, tier] of documented) {
+      expect(tierOf(key), key).toBe(tier);
+    }
+  });
+
   it('keeps the bind address on restart', () => {
     expect(tierOf('server.host')).toBe('restart');
     expect(tierOf('log.level')).toBe('live');

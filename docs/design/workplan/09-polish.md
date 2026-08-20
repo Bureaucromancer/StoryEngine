@@ -71,7 +71,10 @@ is the answer to a whole class of "did that take?" doubt.
 
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
 its state remembered per user rather than per object — which needs somewhere to
-put a preference, and that is [06 B13](../06-open-questions.md), not this item. In the library that is a
+put a preference, and that is [06 B13](../06-open-questions.md), not this item.
+*Unblocked: B13 resolved at [P2A §2.2](13-p2a-configuration-surface.md) and the
+per-user `prefs.json` store shipped with it, so this item no longer waits on
+anything.* In the library that is a
 change from today, where the block is always open — and that is correct once the
 by-field view exists, because the by-field view becomes the thing you came to
 read and the JSON becomes the thing you go looking for.
@@ -189,6 +192,8 @@ a search result rather than a way to browse; the naming and prominence in
   preference plumbing is what stands between this and shipping. Where a
   preference persists is [06 B13](../06-open-questions.md), shared with item 2;
   the surface that eventually shows them is [05 §15.1](../05-ui-surfaces.md).
+  *Both shipped at [P2A](13-p2a-configuration-surface.md), so the escape hatch in
+  the sentence above — delete the view rather than wait — is no longer needed.*
 - **`/` moves to home** (item 5). Landing on an arbitrarily chosen single kind
   instead — actors, because there are usually most of those — would be a worse
   answer than today's mixed list, not a better one.

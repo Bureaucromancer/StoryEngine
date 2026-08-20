@@ -1,7 +1,34 @@
 # 13 — P2A implementation plan
 
-**Status: plan. P2A.0 is built** — §3 carries what it found, including one
-defect the plan did not predict. Written immediately after P2 closed, against a
+**Status: built.** P2A.0 through P2A.7 have landed. §3 carries what each stage
+found; this is what the phase as a whole did that the plan did not predict.
+
+Three defects, each recorded where it happened rather than only here:
+
+- **`applyLiveConfig` replaced the running config object rather than assigning
+  into it**, so the runner, the budgeter and the library context each held a
+  record the server had stopped using — six `live` keys could not change on a
+  running server for that reason alone. §2.5 predicted the shape of this and
+  understated the size.
+- **The in-place fix then aliased the module defaults**, because `mergeDefaults`
+  shares whatever the file does not mention. One save rewrote `DEFAULT_CONFIG`
+  for the life of the process, and it surfaced as a test passing for the wrong
+  reason. Reaching it needs a *sparse* config file, which is the ordinary case —
+  an install with no config file at all cannot reproduce it.
+- **The 400 for a refused field did not name the field.** Ajv reports
+  `additionalProperties` against the parent's path, so *refused rather than
+  ignored* — this plan's own test for §2.2 — was answering `/ must NOT have
+  additional properties`. Fixed for every closed body in the API.
+
+And two of the plan's worries turned out to be **unreachable rather than
+latent**, which is worth recording because the code now says so rather than
+carrying a comment claiming a live consequence. A Fastify plugin instance's `log`
+*is* the root logger, so registering the settings routes inside `/api/admin`
+never endangered `log.level`; and a second `Accounts` instance would not have
+been stale, because it revalidates against the file on every read. Both are now
+pinned by tests, which is the useful half of having worried about them.
+
+Written immediately after P2 closed, against a
 design section that four other documents already cite as though it were built.
 Format follows [03](03-p1-implementation.md).
 

@@ -332,9 +332,9 @@ Three qualifications, because this rule is the easiest one here to abuse:
   must exist now. If nothing needs it yet, defer the whole thing — that is not
   throwaway work avoided, it is work not done, which is better.
 - **It is not permission to build the finished version.** Capability
-  *enforcement* stays at P10 even though the `Capabilities` record ships in P1:
-  the record is a persisted shape (§2's first cost), the enforcement is additive
-  (§2.1). Splitting on that line is the point.
+  *enforcement* was deferred past P1 even though the `Capabilities` record ships
+  in P1: the record is a persisted shape (§2's first cost), the enforcement is
+  additive (§2.1). Splitting on that line is the point.
 
   *Enforcement moved to [P2A](13-p2a-configuration-surface.md), and the example
   is better for it rather than spoiled. The split was correct while nothing

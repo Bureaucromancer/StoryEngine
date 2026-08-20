@@ -922,7 +922,7 @@ and it round-trips into every other tool people already use.
 
 Worth separating before they get conflated:
 
-| | **Reading view** | **Session export** ([06 B13](06-open-questions.md)) |
+| | **Reading view** | **Session export** ([06 B12](06-open-questions.md)) |
 |---|---|---|
 | For | A person to read | Another install to load |
 | Fidelity | Lossy by design — the machinery is stripped | Lossless |
