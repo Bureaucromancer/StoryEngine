@@ -53,24 +53,47 @@ rather than an accident of writing it.**
 Six readiness lenses over the built system — first contact, observability, the
 provider adapter, setup and teardown, the standing gap list, and the suite itself
 — returned seventy-nine findings between them, several verified by running the
-thing rather than reading it. **Twenty-one clear the bar below**, which makes the
+thing rather than reading it. **Twenty-two clear the bar below**, which makes the
 preparation the larger half of this phase: five or six days against the two or
 three the sessions themselves need.
 
 That is not an argument for skipping it. It is the argument for running the phase
-at all. Twenty-one defects were found by *reading* a system where nothing has ever
+at all. Twenty-two defects were found by *reading* a system where nothing has ever
 exercised the paths they sit on, and the reason every one of them was missable is
-the reason this phase exists. If reading finds twenty-one, using will find more —
+the reason this phase exists. If reading finds twenty-two, using will find more —
 and every one of them is in a layer P3 through P6 build on.
 
-**Nothing on the list is blocking, and it is worth saying because six items came
-back marked that way and every one was downgraded on inspection.** The phase can
-start today: typing `/play` reaches a working sessions page; a documented recipe
-already runs a scratch install; failure classification works on the
-non-streaming path; and the budgeter reads its own estimate rather than reported
-usage, so a null there is a *reporting* gap and not a pipeline one. **What the
-pre-work buys is not the phase. It is whether the phase's output can be
-believed.**
+**Three are blocking and nine more were claimed to be and are not**, which is
+worth recording as a ratio rather than a verdict: every *blocking* claim was
+handed to a second agent told to refute it, and three survived reproduction.
+
+The three, and none of them is a subtlety:
+
+- **A person cannot see what they type.** The play surface uses `bg-neutral-900`
+  on inputs that inherit `text-slate-900` from the light shell. Measured in a
+  browser against the project's own compiled Tailwind: **1.01 to 1**. The caret
+  and the placeholder resolve to the same colour, so the box reads as an empty
+  bordered rectangle that does nothing when typed into, and *Turn record* — which
+  [12 §2.4](12-p2-manual-gate.md) tells the tester to open and read — is a dark
+  rectangle with nothing in it.
+- **Every streaming failure escapes classification.** Five failure shapes driven
+  through the real adapter — fetch rejection, 401, 429, 400, and a genuinely
+  closed port — all produced one identical `NoOutputGeneratedError` with
+  `class: undefined` and `detail: undefined`. Streaming is the only path the play
+  surface uses.
+- **A teardown while the server runs half-completes, and the survivor is the
+  index.** So the next run starts from a state nobody chose, and the part that
+  survives is the derived part.
+
+The nine that were downgraded are worth knowing too, because each is a thing this
+document would otherwise over-claim: typing `/play` *does* reach a working
+sessions page; a documented recipe *does* run a scratch install; classification
+*does* work on the non-streaming path; and the budgeter reads its own estimate
+rather than reported usage, so a null there is a **reporting** gap and not a
+pipeline one.
+
+**For the rest of the list, what the pre-work buys is not the phase. It is
+whether the phase's output can be believed.**
 
 **And the findings have a shape, which is the most useful thing the survey
 returned.** Of the twelve a live first-contact walk produced, six are one defect
@@ -106,9 +129,17 @@ arrives anywhere.
   specifies a nav entry or defers one, so it is a gap rather than a deferral.
   *One hour, plus a Shell test that asserts the entry exists.*
 - **The play surface is dark inside a light shell, and typed text is invisible.**
-  `Shell.tsx` sets `text-slate-900` on the app root; every input under `play/`
-  sets `bg-neutral-900` and no text colour. A person cannot read what they type.
-  *Four files, half a day, mechanical.*
+  **Blocking.** `Shell.tsx` sets `text-slate-900` on the app root; four files
+  under `play/` set `bg-neutral-900` and no text colour, and Tailwind's preflight
+  gives inputs `color: inherit`. Measured at **1.01 to 1**, with the caret and
+  the placeholder resolving to the same value. The player's own line renders at
+  2.5 to 1 and the only failure message in the app at 1.7 to 1; the control that
+  opens the guidance box fades to 1.2 to 1 *on hover*.
+
+  It is a stranded assumption rather than a theme — sixteen `neutral-*` utilities
+  in the client against a hundred and seventy-two `slate-*`, and git dates the
+  light shell to P1.6 and the play surface to P2.6. *Repaint onto slate: four
+  files, two hours, mechanical.*
 - **The startup line names an address that serves no UI.** `main.ts` prints
   `http://127.0.0.1:8080` and then *"Open the address above to create the first
   admin"* — and the server serves no static files, so the client is Vite on
@@ -130,21 +161,32 @@ The provider boundary is the phase's subject, and five of its behaviours are
 wrong in ways that would make a session's observations misleading rather than
 merely incomplete. **Every one of these produces a plausible false finding.**
 
-- **Every streaming failure escapes the adapter unclassified**, and the reason
-  the boundary's own tests never noticed is the same one: `stream()` **has no
-  tests at all.** `openai-compatible.test.ts` has ten and every one drives
-  `generate()` — the path a turn never takes.
+- **Every streaming failure escapes the adapter unclassified. Blocking**, and
+  the most instructive item on this page.
 
-  Measured end to end by pointing a connection at a closed port: the turn record
-  and the log both read *"No output generated. Check the stream for errors."*
-  `await result.usage` sits outside the `try` that wraps the stream loop, and the
-  AI SDK does not throw on an HTTP error — it becomes a stream part. So a 401, a
-  429 and a 500 all arrive alike, an AI SDK developer string reaches the record,
-  and a 429 is never retried. Classification *works* on the non-streaming path,
-  which is exactly why nobody saw this. **Three of
-  [12 §2.2](12-p2-manual-gate.md)'s deliberate breakages are about this path and
-  today all three return the same wrong answer.** *Half a day for the fix, and
-  the streaming tests are the more valuable half.*
+  Five shapes driven through the real adapter — a fetch rejection, a 401, a 429,
+  a 400 and a genuinely closed port — produced one identical
+  `NoOutputGeneratedError`, `class: undefined`, `detail: undefined`, reading
+  *"No output generated. Check the stream for errors."* `await result.usage` sits
+  outside the `try` that wraps the stream loop, and the AI SDK does not throw
+  into that iterator: it calls its own `onError` and ends the stream empty, so
+  `asProviderError` never runs on the path every turn takes. Two consequences
+  beyond the message: the SDK dumps the real diagnosis to **stdout as a raw stack
+  trace, outside pino and with no `jobId`**, which breaks
+  [13 §4.1](../13-internal-contracts.md)'s one-format contract; and a transient
+  blip is classified `terminal`, so the retry never fires.
+
+  **Why the suite is green is the part worth keeping.** `stream()` has no tests —
+  `openai-compatible.test.ts` has ten and every one drives `generate()`. And
+  `FakeProvider.stream` throws a `ProviderError` *from inside the generator*,
+  which is a shape the real adapter does not have. That is
+  [12 §4.1](12-p2-manual-gate.md)'s *"a stub agrees with whatever wrote it"*,
+  instantiated — and the one test that would have caught it is one whose **fetch
+  stub** rejects rather than whose generator throws.
+
+  **Three of [12 §2.2](12-p2-manual-gate.md)'s deliberate breakages are about
+  this path and today all three return the same wrong answer.** *A day, and the
+  streaming tests are the more valuable half.*
 - **`usage` is null on every turn**, for reasons that are independent and all
   have to be fixed: `reportsUsage: false` in the conservative baseline that
   `openai-compatible` inherits verbatim, and `includeUsage` never passed to the
@@ -211,6 +253,15 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   is worse than that: the failure is invisible to the tester *and* invisible
   afterwards. **The `warn` line is pre-work; the card is not** — §1.7. *One
   hour.*
+- **The log has no destination, so [§4](#4-verification--the-p2c-exit-gate) step
+  9 cannot be checked at all.** It is JSON on stdout — deliberately, since
+  [13 §4.1](../13-internal-contracts.md) refuses a file and refuses a pretty
+  transport — and the documented way to run this is `pnpm dev`, which
+  multiplexes both packages and **prefixes every line, corrupting the JSON**. So
+  *every failure was findable in the log from its session id* is a step this
+  document wrote and could not perform. *Twenty minutes: run the server as its
+  own process with stdout redirected to a dated file in the scratch directory,
+  and say so in the brief.*
 - **Nothing bounds a provider call, so a stalled endpoint is an unending turn.**
   Only the user's cancel signal is passed; there is no timeout and no config key
   for one. On a local runtime a multi-minute first token is ordinary, and the only
@@ -221,8 +272,9 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
 ### 1.4 Setup and teardown — about a day
 
 - **Teardown half-completes while the server is running, and the survivor is the
-  index.** `rm -rf` on a live data directory removes everything unlocked and
-  fails on the SQLite files, so the next run starts from a state nobody chose.
+  index. Blocking.** `rm -rf` on a live data directory removes everything
+  unlocked and fails on the SQLite files — so the next run starts from a state
+  nobody chose, and the part that survives is the *derived* part.
   *One hour: a written procedure and a script that stops the server first and
   removes `index/` and `state/` as directories.* **And the same procedure
   inverted is how a finding becomes an artefact somebody else can open** — stop
@@ -363,14 +415,16 @@ it says does not work.
 
 The full list is five or six days and it is the honest recommendation. If it has
 to be cut, **cut whole groups rather than items within them**, and cut from the
-bottom:
+bottom — with one exception, because the three blocking items do not sit in one
+group. **§1.1's palette, §1.2's streaming classification and §1.4's teardown come
+out of any cut whatever it is**, and the table below assumes they have.
 
 | Keep | Days | What dropping the rest costs |
 |---|---|---|
 | §1.1 alone | 1 | A person arrives somewhere and can read the screen. Nothing else — the provider findings would be wrong, and unfindable |
 | §1.1 + §1.2 | 3 | **The minimum worth running.** The boundary can be tested and believed. Failures are real but hard to chase, and every run starts from a state nobody chose |
 | + §1.3 | 4½ | Findings are chaseable afterwards, which is what makes the phase's output reusable rather than a memory |
-| + §1.4, §1.5, §1.6 | 6 | Runs are repeatable and comparable, the suite can be trusted through the fix cycle, and two things that are owed anyway get paid |
+| + the rest of §1.4, §1.5, §1.6 | 6 | Runs are repeatable and comparable, the suite can be trusted through the fix cycle, and two things that are owed anyway get paid |
 
 **The one group not to cut is §1.2.** Without it the phase produces confident
 findings about a boundary that is misreporting itself, which is worse than not
@@ -520,7 +574,7 @@ the first of those numbers is the one that surprised this document. §1 is why.
 
 ### P2C.0 — Before the first session
 
-**§1's twenty-one items, in its six groups, and nothing that argues its way in
+**§1's twenty-two items, in its six groups, and nothing that argues its way in
 afterwards.** They are grouped by *what dropping them costs* rather than by
 subsystem, which is what makes [§1.8](#18-if-this-has-to-be-smaller)'s cut
 possible: reach a session, believe the provider, chase a failure, repeat a run,
@@ -531,11 +585,35 @@ is the cheapest, but §1.2 is the one whose absence is invisible: a phase that
 starts with the provider still misreporting itself produces confident findings
 that have to be thrown away, and nobody can tell which ones.
 
+**Two hours at the very top, before any of it: a throwaway smoke run.**
+
+This document's own thesis is that reading missed twenty-one defects because
+nothing had ever exercised the paths — and then it spends six days on
+reading-derived fixes before the first real turn. That is the plan arguing
+against itself, and two hours removes the argument: paint the four play files,
+point a connection at a local runtime, take three turns, and break one on
+purpose. **Its observations are not findings** — the boundary is still
+misreporting itself until §1.2 lands, so everything seen is re-taken in P2C.1 —
+and that is the point. What it produces is a *reordering*: which of §1's
+twenty-one actually bite first, and which are theory.
+
 **And one thing to set up rather than build:** somewhere for findings to go while
 the sessions run. A running file — `16-p2c-log.md` — appended to as things
-happen and emptied by P2C.4's triage. Kept afterwards rather than deleted,
-because *what a person saw the first time* is not reconstructible later and is
-the one artifact a second pass cannot produce.
+happen and emptied by P2C.4's triage, with a five-line template at the top so a
+finding arrives as a record rather than as prose: build (`git describe --tags
+--always --dirty`), endpoint and model, session id, turn id, expected, observed,
+snapshot path. Kept afterwards rather than deleted, because *what a person saw
+the first time* is not reconstructible later and is the one artifact a second
+pass cannot produce.
+
+**And one rule for how the pre-work lands, because it is the least-reviewed code
+this repository will contain.** Six days of changes in the provider adapter, the
+log, the config surface, the dev harness and the suite — under phase time
+pressure, in the layer P3 through P6 sit on. So: **every §1 item lands with a
+test that would have caught it, or a written reason it cannot have one** (a
+contrast ratio is the honest example), and the P2, P2A and P2B gates are re-run
+before P2C.1 rather than after. The alternative is a phase that repairs its
+instruments by damaging what they measure.
 
 *Ends at:* a person who has never seen this repository can reach the play
 surface from the address the server prints, read what they type into it, and take
@@ -563,6 +641,21 @@ at which you consulted the source instead of the screen. That last one is the
 signal; a person who has to read the code to configure the app has found a
 defect in the app.
 
+**The stranger is a problem this plan cannot solve by itself, and it should say
+so rather than pretend.** The tester is the person who built this. §1.6 says so
+in its own words, and the stage above calls the view perishable — which makes the
+one thing it needs the one thing the author cannot supply.
+
+*The mitigation, in order of preference:* borrow a non-author for
+forty-five minutes with the README and a URL and nothing else, while the author
+watches silently and writes; failing that, watch a screen recording of yourself a
+week later, which recovers some of it; failing that, **write down in advance what
+you expect each screen to do**, and treat every divergence as a finding, because
+a prediction made before looking is the closest an author gets to not knowing.
+The app's target user is a household member, so a stranger is not a hard thing to
+find here — it is only a thing that has to be arranged before the day, which is
+why it is written into the stage rather than left as an aspiration.
+
 *Ends at:* one turn, from an empty directory, without opening the source. Which
 is [P2B §4](14-p2b-provider-configuration.md) step 1, still the phase's plainest
 statement of what it is for.
@@ -580,6 +673,28 @@ Two things travel with every scenario:
   not reconstructed afterwards from memory.
 - **Name the turn.** Record the session id and turn id beside each observation. A
   finding without one is an anecdote, and P2C.0 exists to make the ids findable.
+
+**Five scenarios the standing list does not have**, added here because the
+readiness survey found nobody had asked for them and each is under an hour:
+
+- **Be a second user.** The account half of P2A and P2B has never had two people
+  in it. Create a non-admin, sign in from a second browser profile, take a turn
+  on the system connection, then revoke `privateConnections` and watch what the
+  turn does. That capability is enforced in the resolver and its enforcement has
+  never been seen from the outside.
+- **Hand-edit a committed turn.** No route edits, deletes or re-runs one — that
+  is P3's and P5's — but the file is on disk, and *what happens when somebody
+  changes it* is a storage question this phase can answer and no test asks.
+- **Use a real editor, not `fs`.** Every write the watcher has ever seen came
+  from node. Save once from a full editor, once from Notepad, and once as an
+  Explorer or Finder copy-over, watching an open detail page. `awaitWriteFinish`
+  has a 150 ms stability threshold and real editors write in ways `fs` does not.
+- **Two sessions at once**, against the local runtime — the case §2.3 makes
+  primary and the one with a single model slot. There is no queue and no
+  concurrency cap; whatever happens is the finding.
+- **The version history panel**, which is the app's only editing surface beyond
+  the actor form and is on nobody's list. Edit five times, restore an old one,
+  and confirm the restore is itself recorded.
 
 The deliberate breakages are the valuable half and the easy half to skip because
 nothing is going wrong yet: a wrong key, a model id that does not exist, a
@@ -699,8 +814,22 @@ somebody else can check they saw it.
    rewritten. [12 §2.4](12-p2-manual-gate.md).
 11. **`pnpm test` green on ubuntu, watched by a person**, and the result quoted.
     [12 §4.5](12-p2-manual-gate.md) has been carrying this since it was written.
-12. **Every finding has a home** by §2.5's table, and no document still says a
+12. **The token estimator has been calibrated once.** `estimateTokens` is
+    `Math.ceil(text.length / 4)` and its own comment says the provider reports
+    the real number afterwards — which nothing has ever compared it to. For ten
+    turns across ordinary prose and one code-heavy or non-English session, write
+    down the estimate and the reported prompt tokens and keep the ratio. **This
+    phase is the only opportunity before P5 budgets against that number**, and it
+    costs nothing but writing two figures down per turn.
+13. **Every finding has a home** by §2.5's table, and no document still says a
     person needs to do something this phase did.
+
+**And the success criterion, which a stop rule is not.** §2.6 says what halts the
+phase; this says when it is done: **P3 starts when the scripted pass has been run
+end to end with no fix landing in the middle of it.** If a fix landed, the pass
+is re-run rather than ticked — because a scenario that passed before the fix and
+a scenario that passed after are two different observations, and only one of them
+is about the software that ships.
 
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** P2C adds exactly one key —
@@ -756,6 +885,27 @@ seven-byte pieces that split JSON objects mid-object, CRLF line endings, and a
 usage-only final chunk. All of it handled. **Spending session time on framing
 would be spending it on the one part of the boundary that is somebody else's
 tested code**, which is the opposite of what §2.3 says the sessions are for.
+
+**Everything present but deliberately unreachable, which the brief has to list or
+the finding log fills with roadmap items.** `GET /api/search` has tests and no
+client caller (P3's); `layout.memoriesRoot` exists per user and nothing writes it
+(P8's); branching is a storage affordance with no route (P6's); sessions and
+library objects cannot be deleted or renamed from the UI; nothing creates a
+library object of any kind. Half a page in the brief, drawn from
+[12 §3](12-p2-manual-gate.md) and [01 §4](01-work-plan.md)'s phase list — thirty
+minutes, and it is the difference between a log of findings and a log of
+rediscoveries.
+
+**And the things already checked and found sound**, listed for the same reason —
+so they do not consume session time. Slug derivation handles Windows reserved
+names, CJK-only names and case collisions; the watcher's `awaitWriteFinish`
+threshold is set; sessions are fourteen-day signed tokens against a persisted key
+file, so expiry will not bite mid-phase and a wiped data directory lands a stale
+cookie on the setup form rather than a broken screen; CSRF is double-submit and
+the client echoes it on every mutation; the assembled prompt gives history turns
+real `user` and `assistant` roles, so the message shape a real model sees is
+conventional; and the step plan is fixed per mode with two retry backoffs, so no
+turn can loop into a runaway bill.
 
 **And the production topology.** The server serves no static files, so everything
 this phase exercises runs behind Vite's dev proxy. Anything that only appears
