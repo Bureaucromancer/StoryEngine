@@ -771,3 +771,76 @@ describe('two files claiming one id', () => {
     );
   });
 });
+
+/**
+ * **What a hand-written file can contain**, found by a P2B adversarial review
+ * probing values the parse accepts and the resolver did not.
+ *
+ * Both files here are hand-written by design ([05 §4]) — the per-user
+ * `bindings.json` has no writer at all — so "well-formed JSON that means
+ * nothing" is not an exotic input. It is the ordinary typo.
+ */
+describe('nonsense a person can type', () => {
+  it('does not let one null binding throw', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await mkdir(layout.userRoot('ned'), { recursive: true });
+    await writeFile(bindingsFile(layout, 'ned'), JSON.stringify({ prose: null, fast: 'nonsense' }));
+
+    const bindings = await readBindings(layout, 'ned');
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    // `{"prose": null}` is well-formed JSON. It used to clear `resolveRole`'s
+    // `undefined` check and throw on the property access — a 500 on the admin
+    // account list, from one person's file.
+    expect(resolveRole({ role: 'prose', bindings, usable })).toMatchObject({
+      ok: false,
+      reason: 'unbound',
+    });
+    expect(resolveRole({ role: 'fast', bindings, usable })).toMatchObject({ ok: false });
+  });
+
+  it('drops a binding missing half its fields and keeps its neighbours', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await mkdir(layout.userRoot('ned'), { recursive: true });
+    await writeFile(
+      bindingsFile(layout, 'ned'),
+      JSON.stringify({
+        prose: { connectionId: HOUSE.id, modelId: 'gpt-hi' },
+        fast: { connectionId: HOUSE.id },
+        vision: { modelId: 'gpt-lo' },
+      }),
+    );
+
+    // One typo takes out one role, the same posture a bad connection file gets.
+    expect(Object.keys(await readBindings(layout, 'ned'))).toEqual(['prose']);
+  });
+
+  it('survives a directory somebody named like a connection file', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await mkdir(join(layout.systemConnectionsRoot, 'notes.json'), { recursive: true });
+
+    // `assertReal` and a read of a directory both throw, and both used to
+    // escape a function whose comment promises one bad entry is survivable —
+    // which became a 500 on the account list the moment P2B.4 read this per
+    // account.
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable.map((connection) => connection.id)).toEqual([HOUSE.id]);
+  });
+
+  it('deletes a connection whose id is not a legal file name', async () => {
+    // `..` rather than a slash: `resolveWithin` resolves `a/b.json` happily
+    // enough, and a probe that does not throw proves nothing about a probe that
+    // does. This is the id somebody actually gets by pasting a path.
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, id: '../escape' },
+      'odd.json',
+    );
+
+    // `connectionFile` runs the id through `resolveWithin`, which throws — so
+    // the derived-path probe made this connection listable, editable and
+    // undeletable, answering 500. `parseConnection` accepts any string id.
+    expect(await deleteConnection(layout, layout.systemConnectionsRoot, '../escape')).toBe(1);
+    expect(await listEntryNames(layout.systemConnectionsRoot)).toEqual([]);
+  });
+});

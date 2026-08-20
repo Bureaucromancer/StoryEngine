@@ -5,6 +5,7 @@ import { readFileBytes } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import type { RoleBindings } from './roles.js';
+import { MODEL_ROLES } from './types.js';
 
 /**
  * Where a user's role bindings live — `users/<handle>/bindings.json`.
@@ -40,10 +41,11 @@ import type { RoleBindings } from './roles.js';
  * for every role that resolves and lose the one thing the surface needs, which
  * is **which layer won** ([P2B §2.1]).
  *
- * Absent or malformed reads as `{}` — every role unbound at that layer. A turn
- * whose role is unbound at both fails with `unbound`, naming the role, which is
- * the answer that tells somebody what to do; a startup error over a missing
- * optional file would not.
+ * **Absent, unparseable, or nonsense reads as nothing bound at that layer** — and
+ * the third of those was a lie until a P2B review probed it. A turn whose role
+ * is unbound at both layers fails with `unbound`, naming the role, which is the
+ * answer that tells somebody what to do; a startup error over a missing optional
+ * file would not.
  */
 
 export function bindingsFile(layout: Layout, handle: string): string {
@@ -59,6 +61,41 @@ export async function readBindings(layout: Layout, handle: string): Promise<Role
   return readBindingsAt(bindingsFile(layout, handle));
 }
 
+/**
+ * **Every entry is checked for shape, and this file used to say it was not.**
+ *
+ * The old comment argued that field-by-field validation was unnecessary because
+ * *"`resolveRole` already answers `dangling` for a binding whose connection is
+ * gone, and that is the same answer a nonsense one deserves."* The premise was
+ * false: `resolveRole` skipped only `undefined`, so a well-formed JSON file
+ * saying `{"prose": null}` reached `usable.find(c => c.id === binding.connectionId)`
+ * and threw. One person's hand-written file answered **500** on an admin page
+ * listing everybody — and hand-writing this file is the designed path
+ * ([05 §4](../../../../docs/design/05-ui-surfaces.md)) until the surface that writes the
+ * per-user one exists at all.
+ *
+ * Found by a P2B review probing what happens to values the parse accepts but
+ * the resolver does not. Nothing went red, because nothing wrote one.
+ *
+ * A malformed *entry* is dropped and its neighbours survive, which is the same
+ * posture `readConnectionsIn` takes towards one bad connection file and for the
+ * same reason: the failure a person will actually have is a typo in one place,
+ * and taking down every other role because of it is the wrong answer.
+ */
+function pickBindings(value: Record<string, unknown>): RoleBindings {
+  const picked: RoleBindings = {};
+  for (const role of MODEL_ROLES) {
+    const entry = value[role];
+    if (typeof entry !== 'object' || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    if (typeof record['connectionId'] !== 'string' || typeof record['modelId'] !== 'string') {
+      continue;
+    }
+    picked[role] = { connectionId: record['connectionId'], modelId: record['modelId'] };
+  }
+  return picked;
+}
+
 async function readBindingsAt(path: string): Promise<RoleBindings> {
   const bytes = await readFileBytes(path);
   if (bytes === null) return {};
@@ -66,11 +103,7 @@ async function readBindingsAt(path: string): Promise<RoleBindings> {
   try {
     const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
-    // Not validated field by field: `resolveRole` already answers `dangling`
-    // for a binding whose connection is gone, and that is the same answer a
-    // nonsense one deserves. A schema here would turn a typo into a startup
-    // failure instead of a legible per-role refusal.
-    return value;
+    return pickBindings(value as Record<string, unknown>);
   } catch {
     return {};
   }

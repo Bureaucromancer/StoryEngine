@@ -390,6 +390,53 @@ describe('the dead-end summary', () => {
     expect(serialised).not.toContain('My own');
     expect(serialised).not.toContain('example.invalid');
   });
+
+  /**
+   * **The admin list must not go down because of one person's file** — found by a
+   * P2B adversarial review, and new to this phase in every case: before P2B.4
+   * this page counted filenames and opened nothing.
+   */
+  describe('a hand-written file somebody got wrong', () => {
+    async function seedBindingsFor(handle: string, document: unknown): Promise<void> {
+      await mkdir(server.services.layout.userRoot(handle), { recursive: true });
+      await writeFile(
+        join(server.services.layout.userRoot(handle), 'bindings.json'),
+        JSON.stringify(document),
+      );
+    }
+
+    it('does not answer 500 for every admin because one binding is null', async () => {
+      await server.services.accounts.create({
+        handle: 'mara',
+        password: 'another long password',
+        role: 'user',
+      });
+      await seedSystemConnection();
+      await seedSystemBindings('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a09');
+      await seedBindingsFor('mara', { prose: null });
+
+      const response = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+
+      expect(response.status).toBe(200);
+      // And the install default still rescues her, because a layer that bound
+      // nothing usable bound nothing at all.
+      expect(rowFor(response.body, 'mara').hasUsableConnection).toBe(true);
+      expect(rowFor(response.body, 'ned').hasUsableConnection).toBe(true);
+    });
+
+    it('does not answer 500 because a directory is named like a connection', async () => {
+      await seedSystemConnection();
+      await seedSystemBindings('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a09');
+      await mkdir(join(server.services.layout.systemConnectionsRoot, 'notes.json'), {
+        recursive: true,
+      });
+
+      const response = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.withoutUsableConnection).toBe(0);
+    });
+  });
 });
 
 /**

@@ -221,8 +221,29 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
          * whose staleness was unreachable while nothing could write.
          */
         services.providers.invalidate?.(written.connection.id);
+
+        /**
+         * **Presented over the list, not on its own** — because an edit can
+         * change which of two files claiming one id *wins*.
+         *
+         * `shadowed` is decided by label order ([P2B §4] step 10), so renaming
+         * the winner from `A` to `Z` hands the win to the other file: a
+         * different endpoint, a different key, and the role silently repointed.
+         * Answering with `presentForAdmin` alone reported `shadowed: false`
+         * about a connection the same write had just killed — the one moment
+         * the admin had any signal at all, spent saying the opposite.
+         *
+         * Matched on the path `writeConnection` returns rather than by
+         * re-deciding the winner, so this does not become a second
+         * implementation of the order the list already computes. Found by a
+         * P2B review.
+         */
+        const after = await readSystemConnectionEntries(services.layout);
+        const rows = presentConnectionsForAdmin(after);
+        const mine = after.findIndex((entry) => entry.path === written.path);
         return await reply.send({
-          connection: presentForAdmin(written.connection, written.contentHash),
+          connection:
+            mine === -1 ? presentForAdmin(written.connection, written.contentHash) : rows[mine],
         });
       } catch (error) {
         return await respond(error, reply);

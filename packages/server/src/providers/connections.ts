@@ -179,12 +179,30 @@ async function readEntriesIn(
     if (!name.endsWith('.json')) continue;
 
     const path = resolveWithin(root, name);
-    // The same door every other read goes through (F1): a connections
-    // directory is as hand-editable as a library one, and a link out of it
-    // would be a way to read a file the server would not otherwise open.
-    await layout.assertReal(path);
 
-    const bytes = await readFileBytes(path);
+    /**
+     * **One bad entry is skipped, and "bad" now includes one that will not
+     * open** — not only one that will not parse.
+     *
+     * `assertReal` is the same door every other read goes through (F1): a
+     * connections directory is as hand-editable as a library one, and a link
+     * out of it would be a way to read a file the server would not otherwise
+     * open. It *throws*, and so does a read of a directory somebody named
+     * `x.json` — so both used to escape a function whose comment promised that
+     * a single bad file is survivable.
+     *
+     * That was harmless while only the connections list read this. P2B.4 put
+     * it under `GET /api/admin/accounts`, at which point one person's stray
+     * entry answered **500** on a page listing everybody. Found by a P2B
+     * review; nothing went red, because nothing wrote one.
+     */
+    let bytes: Uint8Array | null;
+    try {
+      await layout.assertReal(path);
+      bytes = await readFileBytes(path);
+    } catch {
+      continue;
+    }
     if (bytes === null) continue;
 
     const parsed = parseConnection(bytes, scope);
@@ -500,14 +518,29 @@ export async function findConnectionFiles(
   root: string,
   id: string,
 ): Promise<string[]> {
+  /**
+   * **A scan and nothing else.** This tried the derived `<id>.json` first, on
+   * the reasoning that it is the name this store writes — and that probe cost
+   * two defects and bought nothing, because the scan below already reaches a
+   * file living at that path.
+   *
+   * What it cost: `connectionFile` runs the id through `resolveWithin`, which
+   * **throws** for an id that is not a legal path segment. `parseConnection`
+   * accepts any string id, so a hand-written file claiming `a/b` could be
+   * listed and edited and never deleted — `DELETE` answered 500. And the
+   * `found.includes(candidate)` dedupe the probe made necessary compares paths
+   * exactly, so on a case-insensitive filesystem `<ID>.json` and `<id>.json`
+   * are one file counted twice: unlinked twice, and a count reported wrong.
+   *
+   * Both found by a P2B review. The ordering the probe gave is depended on by
+   * nothing — `deleteConnection` unlinks the whole list, and `editTarget`
+   * deliberately asks `readEntriesIn` instead precisely because it needs the
+   * *resolver's* order rather than this one.
+   */
   const found: string[] = [];
-  const derived = connectionFile(root, id);
-  if ((await readConnectionAt(derived, root, layout))?.id === id) found.push(derived);
-
   for (const name of await listEntryNames(root)) {
     if (!name.endsWith('.json')) continue;
     const candidate = resolveWithin(root, name);
-    if (found.includes(candidate)) continue;
     if ((await readConnectionAt(candidate, root, layout))?.id === id) found.push(candidate);
   }
   return found;
@@ -532,12 +565,18 @@ async function editTarget(layout: Layout, root: string, id: string): Promise<str
   return winner?.path ?? connectionFile(root, id);
 }
 
+/** One file, or `null` — for anything that will not open as well as anything that will not parse. */
 async function readConnectionAt(
   path: string,
   root: string,
   layout: Layout,
 ): Promise<Connection | null> {
-  const bytes = await readFileBytes(path);
+  let bytes: Uint8Array | null;
+  try {
+    bytes = await readFileBytes(path);
+  } catch {
+    return null;
+  }
   if (bytes === null) return null;
   return parseConnection(bytes, root === layout.systemConnectionsRoot ? 'system' : 'user');
 }

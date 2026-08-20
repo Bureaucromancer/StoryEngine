@@ -197,10 +197,31 @@ export interface ResolveOptions {
  * never change the connection — which is what stops an imported actor card
  * repointing somebody's provider.
  */
+function isBinding(value: unknown): value is Binding {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Binding).connectionId === 'string' &&
+    typeof (value as Binding).modelId === 'string'
+  );
+}
+
 export function resolveRole(options: ResolveOptions): RoleResolution {
   const { role, usable } = options;
 
-  const layered: [Binding | undefined, ResolutionSource][] = [
+  /**
+   * Typed `unknown` rather than `Binding | undefined`, which is not
+   * defensiveness for its own sake.
+   *
+   * Two of these come from **hand-written JSON** ([05 §4]), and a reader that
+   * hands back the file's own shape can hand back anything the parse accepted —
+   * `{"prose": null}` is well-formed JSON. `readBindingsAt` now drops entries
+   * that are not `{connectionId, modelId}`, so in practice this loop is handed
+   * what the type promised; declaring the promise here anyway is what stops the
+   * *next* caller reintroducing the crash a P2B review found, where `null`
+   * cleared an `undefined` check and threw on the property access below.
+   */
+  const layered: [unknown, ResolutionSource][] = [
     [options.stepOverride, 'step'],
     [options.sessionOverride, 'session'],
     [options.bindings[role], 'binding'],
@@ -226,8 +247,12 @@ export function resolveRole(options: ResolveOptions): RoleResolution {
   let chosen: { binding: Binding; via: ResolutionSource; connection: Connection } | null = null;
   let dangled: string | undefined;
 
-  for (const [binding, via] of layered) {
-    if (binding === undefined) continue;
+  for (const [entry, via] of layered) {
+    // A layer that did not bind a usable shape did not bind anything, which is
+    // the same answer a string or a number already got by accident and the one
+    // null used to throw on.
+    if (!isBinding(entry)) continue;
+    const binding = entry;
     const connection = usable.find((candidate) => candidate.id === binding.connectionId);
     if (connection) {
       chosen = { binding, via, connection };

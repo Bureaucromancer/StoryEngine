@@ -588,6 +588,46 @@ describe('a duplicated id', () => {
   });
 
   /**
+   * **An edit can change which file wins**, and the response has to say so.
+   *
+   * `shadowed` is decided by label order, so renaming the winner from `A` to `Z`
+   * hands the win to the other file — a different endpoint, a different key, and
+   * the role silently repointed. The `200` used to report `shadowed: false`
+   * about the connection the same write had just killed, which is the one moment
+   * the admin has any signal at all. Found by a P2B adversarial review.
+   */
+  it('says so in the response when an edit hands the win to the other file', async () => {
+    const id = await create({ label: 'A first by label' });
+    await seedDuplicate(id, 'M in the middle', 'shadow.json');
+
+    const listed = await server.request({ method: 'GET', url: '/api/admin/connections' });
+    const edited = await server.request({
+      method: 'PUT',
+      url: `/api/admin/connections/${id}`,
+      payload: {
+        label: 'Z last by label',
+        provider: 'openai-compatible',
+        models: ['gpt-hi'],
+        contentHash: listed.body.connections[0].contentHash as string,
+      },
+    });
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.connection).toMatchObject({ label: 'Z last by label', shadowed: true });
+    // And the list agrees, because both come from the same computation.
+    const after = await server.request({ method: 'GET', url: '/api/admin/connections' });
+    expect(
+      (after.body.connections as { label: string; shadowed: boolean }[]).map((row) => [
+        row.label,
+        row.shadowed,
+      ]),
+    ).toEqual([
+      ['M in the middle', false],
+      ['Z last by label', true],
+    ]);
+  });
+
+  /**
    * **And an edit writes back to the file it came from.**
    *
    * The write used to derive its path from the id unconditionally, so editing a
@@ -833,8 +873,15 @@ describe('a key', () => {
    *
    * The strongest form of that claim is structural: there is no non-admin
    * connections route at all, so the only surface carrying a URL is behind the
-   * prefix guard. This walks the table to say so, which also means a route added
-   * outside the guard would fail here.
+   * prefix guard. This walks the table to say so.
+   *
+   * **It speaks for one half of that, and the test below speaks for the other.**
+   * `routesUnder` filters by prefix, so a connections route registered *outside*
+   * `/api/admin` is invisible to this loop — the comment here used to claim it
+   * would fail, and a P2B review demonstrated it could not. What this loop
+   * proves is that everything under the prefix is genuinely behind the hook,
+   * which is worth proving on its own: a route can be added under `/api/admin`
+   * and outside the plugin's encapsulation.
    */
   it('is not reachable at all by a non-admin', async () => {
     await create();
@@ -857,6 +904,32 @@ describe('a key', () => {
       });
       expect(response.status, `${route.method} ${route.url}`).toBe(403);
       expect(JSON.stringify(response.body ?? null)).not.toContain('api.internal.example');
+    }
+  });
+
+  /**
+   * **And the other half: nothing on this surface is registered outside the
+   * prefix.**
+   *
+   * The whole `/api` table rather than a prefix-filtered slice, because a route
+   * outside the guard is exactly the thing a prefix-filtered walk cannot see.
+   * `routes/connections.ts` rests its no-per-handler-check position on *"the
+   * route-table test covers these the moment they register"* — that sentence is
+   * true of a route inside the plugin and was true of nothing else until this.
+   *
+   * Written as a name match rather than as a list, so a fifth route on this
+   * surface is covered by existing, not by somebody remembering.
+   */
+  it('has no route outside the admin prefix', () => {
+    const surface = routesUnder(server.app, '/api').filter((route) =>
+      /\/(connections|bindings|roles)(\/|$)/.test(route.url),
+    );
+
+    // The sweep would be vacuous over an empty list, so the count is asserted
+    // first — a regex that matched nothing would otherwise pass.
+    expect(surface.length).toBeGreaterThanOrEqual(10);
+    for (const route of surface) {
+      expect(route.url.startsWith('/api/admin/'), `${route.method} ${route.url}`).toBe(true);
     }
   });
 });
