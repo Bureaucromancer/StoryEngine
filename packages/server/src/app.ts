@@ -28,6 +28,7 @@ import { startMaturation, type Maturation } from './index-db/maturation.js';
 import { rebuild } from './index-db/rebuild.js';
 import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
+import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
@@ -525,6 +526,31 @@ export async function buildApp(
       registerLibraryRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
+
+      /**
+       * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+       *
+       * A nested `register` rather than a call beside the others, because that
+       * is what gives `adminOnly` somewhere to live: a Fastify plugin is an
+       * encapsulation boundary, so a hook added inside covers every route
+       * registered inside it and nothing outside. The guard is therefore a
+       * property of the prefix rather than something each handler remembers.
+       *
+       * **Registered after the root hook, and that ordering is a security
+       * property.** Identity, CSRF and the setup gate all run on the root
+       * instance, so they run first — which is why a state-changing admin call
+       * with no CSRF token answers `csrf` rather than `forbidden`, and why an
+       * admin route is unreachable before setup like every other one.
+       * `admin.test.ts` asserts that rather than trusting it.
+       */
+      void api.register(
+        (admin, _adminOptions, adminDone) => {
+          registerAdminRoutes(admin, services);
+          adminDone();
+        },
+        { prefix: '/admin' },
+      );
+
       done();
     },
     { prefix: '/api' },
