@@ -581,6 +581,35 @@ phase's first stage.
 editor. Which is not possible today, and is the plainest statement of what §2.3
 was written to prevent.
 
+*Built. The demo is half-walked: everything but the turn, which needs a model
+that is not ours — see P2C.*
+
+### P2C — The first real run
+
+**Expanded into a working plan: [15](15-p2c-first-real-run.md).**
+
+**Four phases are built and nobody has used any of them.** Every test in this
+repository calls a provider it wrote to agree with an adapter it also wrote, and
+three exit gates are now open on the same clause: P2 step 9, P2A steps 1 and 7,
+and P2B step 1 each stop at *a human, and a model that is not ours*. This phase
+is that person, and it is one obligation three phases deep rather than a new one.
+
+**Not an early PLAYABLE**, and the distinction decides the scope. §4.1 asks *is
+the design right*, against an imported library, at the end of P4. This asks *does
+the thing work* — and it has to come first, because P3 reads the turn record and
+P4 fills a library that then has to be playable, both downstream of a boundary
+whose only witness is a stub.
+
+**A readiness survey found twenty-two defects before the phase opened**, three of
+them blocking, and that is the argument for running it rather than against: every
+one was missable precisely because nothing had ever exercised the path. The
+preparation is the larger half — five or six days against two or three of
+sessions — and [15 §1.8](15-p2c-first-real-run.md) says what it costs to cut.
+
+**Demonstrable:** the P2B demo, finished. A turn against a real endpoint, from an
+empty directory, with the exchange committed as a fixture the suite replays
+offline.
+
 ### P3 — The workbench
 
 Early, deliberately. Block list with sources and reasons, budget verdict, calls,
@@ -589,6 +618,11 @@ effects, per-turn cost, diff between two turns.
 **Why here:** everything after this is debugged through it. It is also nearly
 free at this point, because the turn record already holds everything — the
 workbench is a *reader*, not a second assembler ([05 §3](../05-ui-surfaces.md)).
+
+**Expanded into a working plan: [05](05-p3-implementation.md)**, revised against
+the record as built rather than as designed. It holds almost everything the
+workbench renders; the exceptions are named there, and two of them are one field
+each in P2's record rather than work for this phase.
 
 ### P4 — Import
 
