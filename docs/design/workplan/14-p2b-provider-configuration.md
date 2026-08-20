@@ -551,7 +551,14 @@ pnpm dev    # http://127.0.0.1:8080
    eight roles, because `image`, `video` and `speech` have no sensible text
    fallback and a binding that gave them one would fail at the call rather than
    at the setup. So the table needs a third state — **unset by design** — which
-   §2.1's prose implies and P2B.3's scope does not mention.
+   §2.1's prose implies and P2B.3's scope did not mention. *Built.*
+
+   *And one clause of this step is not walkable this phase, which is §2.7
+   working rather than a gap: the role table shows **the install's** resolution,
+   so its layer column reads `default` or names a state, never `binding`. A
+   user's own override is witnessed by the turn — and by the user half, which is
+   the phase after. The table is the same component with its personal column not
+   yet populated.*
 7. Grant `privateConnections` to a user with a personal connection file on disk
    → their bindings resolve to it over the install default; revoke it → they
    return to the install default and the file is untouched
@@ -581,14 +588,66 @@ pnpm dev    # http://127.0.0.1:8080
 configuration that has no surface.** For P2B that is step 1, and it is the only
 step that matters — this phase exists because P2 could not pass it.
 
-**Walked, 2026-08-20 — and it does not close.** Expected rather than a
-finding: P2B.3, P2B.4 and P2B.5 are not built, and they own steps 1, 6 and 9
-outright plus a clause each of 4, 5 and 10. Of what *is* built (P2B.0–.2), two
-steps are automated and falsifiable and five are partial. Step 11's opacity
-enumeration passes and now asserts a successful response on each route,
-including the `DELETE`. The corrections in steps 6 and 10 and in P2B.4 above
-came out of this walk; [12 §3](12-p2-manual-gate.md) collects them beside the
-rest.
+**Walked twice.**
+
+*2026-08-20, before P2B.3–.5 existed — and it did not close, which was expected
+rather than a finding.* Of what was built then, two steps were automated and
+falsifiable and five were partial. What the walk was worth was the three steps
+it found describing things the code could not do: step 6's arithmetic, step
+10's missing flag and lying delete, and P2B.4's ending clause. Each is corrected
+in place above rather than only in [12](12-p2-manual-gate.md), because a
+correction filed somewhere other than the thing it corrects is one nobody reads.
+
+*2026-08-21, with P2B.3–.5 built.* **Nine of the eleven steps are now automated
+and falsifiable**; steps 1 and 9 keep the halves only a person can walk, and
+several others keep a *take a turn* clause that means the same thing. Anchor:
+1041 tests, 78 files, one todo, green; lint, typecheck and build clean; Windows
+only.
+
+| Step | State |
+|---|---|
+| 1 | The *no text editor* half is now walkable end to end in the UI. The turn needs a real provider — [12 §2.1](12-p2-manual-gate.md) |
+| 2 | Automated. The opacity test enumerates the surface from Fastify's own table and reaches a **successful** response on all ten routes |
+| 3 | Automated but for the turn: the memo invalidation on write and delete, and the rebuild against a new connection of the same id |
+| 4 | Automated, both halves: the count is read before the confirm, and the fallback to the install default is asserted at the resolver |
+| 5 | Automated. `dangling` and `unbound` are different answers in the role table and in the turn |
+| 6 | Arithmetic automated; one clause deferred by §2.7 — see the step |
+| 7 | Automated at [P2A §2.1](13-p2a-configuration-surface.md), which moved the enforcement into the resolver |
+| 8 | Automated |
+| 9 | The seam is automated; a real endpoint that does not implement `/models` is a person's job |
+| 10 | Automated, both halves — and both were **wrong** before this walk found them |
+| 11 | Automated, and it grew a second half: the opacity walk covers everything *under* the prefix, and a new test walks the whole `/api` table to prove nothing on this surface is registered outside it. The ubuntu leg is asserted as configuration and has never been watched — [12 §4.5](12-p2-manual-gate.md) |
+
+**And then twenty agents were told to refute the server work rather than review
+it.** Sixteen findings, ten refuted, **six survived** — five of them introduced
+by this phase, and every one reachable only through a hand-written file, which
+is the designed path here rather than an exotic input.
+
+- `{"prose": null}` in one account's `bindings.json` answered **500** on the
+  admin account list for everybody. Well-formed JSON; `readBindingsAt` returned
+  it uninspected and `resolveRole` skipped only `undefined`. Harmless until
+  P2B.4 made that file read per account.
+- A directory named `notes.json` in any connections directory did the same:
+  `readEntriesIn`'s comment promised one bad entry is survivable and covered
+  only bad *JSON*, while `assertReal` and a directory read both throw.
+- An id containing `../` could be listed, edited and never deleted —
+  `findConnectionFiles` derived `<id>.json` first and `resolveWithin` throws.
+  The same probe forced a path dedupe that compares exactly, so on a
+  case-insensitive filesystem one file was found twice and the delete count was
+  wrong. The probe bought ordering nothing depends on, and was removed.
+- **An edit can hand the win to the other file.** Renaming the winner from `A`
+  to `Z` repoints the role at a different endpoint with a different key, and the
+  `200` reported `shadowed: false` about the connection it had just killed.
+- And the opacity walk's comment claimed a route added *outside* the prefix
+  would fail there. It could not — `routesUnder` filters by prefix — while §2's
+  no-per-handler-check position rests on exactly that coverage. There is now a
+  test that makes the claim true.
+
+**What that is worth recording as a method, not a list.** Every earlier finding
+in this phase came from walking a gate step against the code. These six came
+from a different question — *what can a person put in a file that this will not
+survive* — and no gate step asks it. [12 §4.2](12-p2-manual-gate.md) is where it
+became a standing gap rather than an anecdote.
 
 **What needs a person.** Steps 1 and 9 above all: every test in this repository
 runs against `FakeProvider`, so *"paste in a real key and take a turn"* is

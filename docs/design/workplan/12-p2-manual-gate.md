@@ -12,7 +12,9 @@ provider, a real browser, a real network, a human reading a sentence.
 
 **§3 will fail or is unreachable**, because the behaviour a step describes is not
 built. Running these by hand is how the phase finds that out deliberately rather
-than through a bug report. Each names what it needs.
+than through a bug report. Each names what it needs — and each that has since
+been built is kept as a closed record rather than deleted, because *how it was
+found* is the transferable part.
 
 **§4 should be a test and is not yet.** Kept apart so §2 does not quietly absorb
 work that belongs in the suite — the failure mode where a manual checklist grows
@@ -23,15 +25,14 @@ every year because nobody wants to say which items were never automated.
 ## 1. Where the gates stand
 
 Walked step by step, with every *passes* claim re-read by somebody trying to
-refute it. Anchor, 2026-08-20: **1009 tests, 77 files, green — 1 todo; `pnpm
-lint`, `pnpm typecheck` and `pnpm build` clean; `pnpm test:gate` 2 passed.**
-Windows only — see §2.5.
+refute it. Anchor, 2026-08-21: **1049 tests, 78 files, green — 1 todo; `pnpm
+lint`, `pnpm typecheck` and `pnpm build` clean.** Windows only — see §2.5.
 
 | Gate | Steps | Automated and falsifiable | Partial | Needs a person | Not built |
 |---|---|---|---|---|---|
 | **P2** | 20 | 8 | 12 | §2 | §3 |
 | **P2A** | 17 + 2 | 13 | 5 | steps 1, 7, 11, 13 | — |
-| **P2B** | 11 | 2 | 5 | steps 1, 9 | 3 blocked, 1 uncovered |
+| **P2B** | 11 | 9 | 2 | steps 1, 9 | — |
 
 **P2A's gate found a real failure and it is fixed** — step 15. One hand edit
 wedged the config form until the process restarted, because the 412 never
@@ -41,10 +42,25 @@ mutation-proven tests missed it because the test named *allows a second save*
 exercised a save after a **successful** save; nothing exercised one after a
 refusal.
 
-**P2B's gate cannot be closed**, and that is expected rather than a finding:
-stages P2B.3 (the admin surface), P2B.4 (first run) and P2B.5 (docs) are not
-built, and they own steps 1, 6 and 9 outright plus a clause each of 4, 5 and 10.
-P2B.0, P2B.1 and P2B.2 are built and tested.
+**P2B's gate was walked twice**, and the first walk is the one worth recording:
+stages .3, .4 and .5 were unbuilt, and walking it anyway found **three steps
+describing things the code could not do** — step 6's arithmetic, step 10's
+missing flag and lying delete, and P2B.4's ending clause, which could not
+witness itself. All three are now built and corrected. The second walk closes
+the gate but for the halves only a person can walk.
+
+**And a twenty-agent adversarial pass over the P2B server work found six more**,
+five of them introduced by that work and all of them reachable only through a
+hand-written file — which is the designed path here, not an exotic input. The
+sharpest: `{"prose": null}` in one account's `bindings.json` answered **500**
+on the admin account list for everybody, because the new dead-end count opens
+that file per account and `resolveRole` skipped only `undefined`. Nothing went
+red; there was nothing to go red. All six are fixed and mutation-proven.
+
+**What that pattern is worth naming.** Every finding in this file so far came
+from walking a gate as a checklist. These six came from asking a different
+question — *what can a person put in a file that this code will not survive* —
+and it is a question no gate step asks. §4 is where it goes.
 
 ---
 
@@ -159,67 +175,36 @@ asserted as configuration, not as a green run anybody here has seen.
 
 Findings, not test debt. Each names the change it needs.
 
-### 3.1 P2B is half-built, and three gate steps are blocked on it
+### 3.1–3.4 The four P2B findings, closed
 
-P2B.3 (the admin surface), P2B.4 (first run) and P2B.5 (docs) are unwritten.
-There is **no connections form, no role table, and no first-run flow** — so gate
-steps 1, 6 and 9 cannot be walked through the UI at all, and §2.1's steps 3 and 4
-need `curl`.
+*Kept as a record rather than deleted, because what they have in common is worth
+more than any one of them: **not one was found by a failing test.** Each was
+found by reading a gate step against the code that was supposed to satisfy it.*
 
-Two things a survey found that P2B.3 has to settle before it starts, both plan
-gaps rather than code gaps:
-
-- **The role table has nothing to read.** `via` — which layer won — is computed
-  inside `resolveRole`, is deliberately *not* on the turn record ([13 §1.4]
-  specifies no such field), and no route returns a per-role resolution. As
-  scoped, P2B.3 would have to reimplement [07 §5.1]'s layering client-side, which
-  is a second copy of the resolution order. It needs a route.
-- **There is no masked input.** `PasswordInput` is file-private in
-  `UserSettings.tsx` and deliberately *not* a `Field`, because a password must
-  never acquire an assist slot. An API-key field built from `Field` renders the
-  key in plain text. And `hasKey` needs a *leave blank to keep it* affordance
-  that no primitive has.
-
-### 3.2 The dead-end count cannot witness what P2B.4 claims
-
-`deadEnds` counts connection **files** and never reads a bindings file. So a
-system connection with no bindings gives every account `hasUsableConnection:
-true` while every turn fails `unbound` — and P2B.4's stated ending, *P2A's
-account list reports zero dead ends*, would go green over an install nobody can
-play on.
-
-*Needs:* either the count asks whether a role actually resolves — which is
-`resolveRole('prose', …)` per account, one more file read each — or P2B.4's
-ending clause is reworded and the gate's step 1 becomes the only witness.
-
-### 3.3 P2B gate step 6's arithmetic is impossible
-
-The step says *the other seven use the install default*. There are eight roles;
-`defaultBindings` binds five, because `image`, `video` and `speech` are `unset`
-by design — there is no sensible text fallback for an image, and a binding that
-resolved to one would fail at the call rather than at the setup.
-
-So overriding one role leaves **four** resolving via the install default and
-**three** reporting `unbound`. The step is corrected in
-[14 §4](14-p2b-provider-configuration.md), and the role table needs a third state
-— *unset by design* — which P2B.3's own prose already implies and its scope does
-not mention.
-
-### 3.4 A duplicated connection id has no flag, and deleting one lies
-
-Gate step 10 wants both copies listed and the shadowed one flagged. Both are
-listed — `readConnectionsIn` never dedupes — but **nothing computes a flag**:
-`AdminConnection` has no such field and the list route maps presenters straight
-over the array. P2B.3 cannot render what the server does not send.
-
-Worse, and this one is a bug rather than a gap: `findConnectionFile` returns the
-**first** file claiming an id and `deleteConnection` unlinks only that one. So
-deleting a duplicated id answers `204` while the connection still resolves from
-the second file — and the case [P2B §2.8] names for this is *an admin revoking a
-leaked key*. Being told *gone* while it still works is the wrong answer there.
-
-*Needs:* a `shadowed` field on the admin presenter, and an explicit decision —
-delete every file claiming the id, or refuse and name the count.
+- **P2B was half-built**, so steps 1, 6 and 9 could not be walked through the UI
+  at all. Two things the stage had not scoped had to land first: a route
+  returning per-role resolution — `via` was a local in `resolveRole` and
+  returned by nothing, so a role table would have reimplemented
+  [07 §5.1](../07-tech-stack.md) in the browser — and a masked input, since
+  `PasswordInput` was file-private and an API-key field built from `Field`
+  would have rendered the key in plain text. **Built:** `GET /api/admin/roles`
+  and `editor/SecretField.tsx`.
+- **The dead-end count could not witness P2B.4's ending.** It counted connection
+  *files*, so a system connection with nothing bound to it reported zero dead
+  ends while every turn failed `unbound`. **Fixed:** it asks whether `prose`
+  resolves, through the turn's own resolver.
+- **Step 6's arithmetic was impossible.** Eight roles, five bound by
+  `defaultBindings`; `image`, `video` and `speech` are unset by design. Four
+  via `default` and three `unbound`, not seven — and the role table needed a
+  third state nobody had scoped. **Fixed:** the step, and *unset by design* in
+  the table.
+- **A duplicated id had no flag, and deleting one lied.** Nothing computed
+  `shadowed`, and `deleteConnection` unlinked the first file claiming an id, so
+  a delete answered 204 while the connection went on resolving. §2.8 names the
+  case: *an admin revoking a leaked key*. **Fixed:** both, plus a third the
+  adversarial pass found on top — an edit that renames the winner hands the win
+  to the other file, and the 200 used to report `shadowed: false` about the
+  connection it had just killed.
 
 ### 3.5 Gate step 7 — there is still no error card
 
@@ -271,16 +256,29 @@ leaves §2.2 the parts that genuinely need a live endpoint — auth, rate limits
 **Not a substitute for §2.2, and it should not be sold as one.** A recording goes
 stale the day the provider changes, and nothing tells you.
 
-### 4.2 The three §3 findings, once their code lands
+### 4.2 Nobody fuzzes a hand-written file, and every one of them is hand-written
 
-Each of §3.2, §3.3 and §3.4 names a change; each needs the test that would have
-caught it. Specifically:
+**The single highest-yield gap in the suite, on the evidence.** Six of the
+findings in §1 are the same shape: well-formed JSON that means nothing, in a
+file [05 §4](../05-ui-surfaces.md) says a person edits by hand. `{"prose":
+null}`, a directory named `notes.json`, an id containing `../`. None of them
+had a test; five of them answered **500** on an admin page.
 
-- an account with a system connection but **no bindings** reports a dead end;
-- overriding one role leaves four via `default` and three `unset`, asserted as
-  the arithmetic rather than as a total;
-- deleting a duplicated id either removes every file claiming it, or refuses —
-  and the id does not resolve afterwards either way.
+The suite tests these files as *readers* — absent, present, unparseable — and
+never as a hostile parse that succeeded. `resolveRole` skipping only
+`undefined` was that gap in one line.
+
+*Wanted:* a small table-driven case per hand-written file — `bindings.json`,
+`connections/*.json`, `config.json`, and the library objects — walking a fixed
+list of *parses-but-is-wrong* values (`null`, a string, a number, an array, an
+object missing each required field, a path-shaped id) and asserting the route
+that reads it answers a status rather than throwing. It is one loop per file and
+it would have caught all six of these before they were written.
+
+**Not a fuzzer.** A generative fuzzer over these files would be more thorough
+and would also be a second thing to maintain that fails intermittently. The list
+above is short because the failure mode is narrow: the parse succeeded, so what
+is left is *shapes*.
 
 ### 4.3 Two clients on one session, at the DOM tier
 
