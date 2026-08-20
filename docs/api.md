@@ -592,9 +592,27 @@ of a guard is how the second one gets missed
 no usable connection"* — needs a number, not a list of what somebody has
 configured. A connection stays opaque, so nothing here names one.
 
-An account has a usable connection if a system connection exists, or if it has a
-personal one **and** `privateConnections`. Revoking that capability therefore
-puts somebody back in the warning without touching a file.
+An account has a usable connection **if `prose` resolves for it** — the turn's
+own question, asked through the turn's own resolver, so the capability above is
+honoured by the same code that honours it at call time.
+
+*This counted connection **files** until
+[P2B](design/workplan/14-p2b-provider-configuration.md).4, and that could not
+witness what the warning is for: a system connection with nothing bound to it
+made every account read as fine while every turn failed `unbound`. Corrected
+rather than patched — a key on disk that no binding points at is exactly the
+dead end this number exists to name.*
+
+So: a connection has to exist, something has to be bound to it at either layer,
+and the account has to be allowed to use it. Revoking `privateConnections` puts
+somebody holding only a personal connection back in the warning without touching
+a file; so does removing the connection an install default points at, which is
+`dangling` rather than `unbound` and is a different sentence in the role table.
+
+`systemConnectionCount` is still a file count, and stays one on purpose: it is
+what decides which second sentence the warning uses — *no system connection is
+configured, so adding one fixes this for everybody* against *give them their own
+connection*.
 
 ### `POST /api/admin/accounts`
 
@@ -695,6 +713,217 @@ there would trap an administrator inside the problem they are trying to leave,
 with the settings form as the one tool that could repair it and the one tool that
 will not.
 
+### `GET /api/admin/connections`
+
+```json
+{
+  "connections": [
+    {
+      "id": "0199…",
+      "label": "The house key",
+      "provider": "openai-compatible",
+      "scope": "system",
+      "models": ["gpt-hi", "gpt-lo"],
+      "baseUrl": "https://api.openai.com/v1",
+      "hasKey": true,
+      "shadowed": false,
+      "contentHash": "sha256:…"
+    }
+  ]
+}
+```
+
+**The system scope, and only the system scope.** A user's own `connections/` is
+read by the resolver, counted by the delete warning, hand-written by anyone who
+wants one, and reachable from no route here
+([P2B §2.7](design/workplan/14-p2b-provider-configuration.md)).
+
+**Two shapes exist and the boundary between them is the key alone.** What a
+non-admin can reach carries a label, a provider and its models
+([04 §4.5](design/04-server-multiuser-deployment.md)); this adds `baseUrl`,
+because a form that cannot show the URL back is a write-only form — type it,
+save, reopen, and the field is empty.
+
+`hasKey` rather than the key, and not because the key is merely hidden: *a key
+is set* and *no key, this is a local endpoint* are different states an
+administrator has to tell apart, and an empty password box cannot distinguish
+them. Without it the form would either mangle the stored key or make somebody
+retype it on every edit.
+
+`shadowed` means an earlier file in resolution order already claims this id, so
+nothing will ever resolve to this one. Both are listed and nothing is blocked —
+[P1 §1.2](design/workplan/03-p1-implementation.md)'s posture — but the one that
+loses says so, or an administrator edits the copy nothing reads and watches the
+change do nothing.
+
+### `POST /api/admin/connections` · `PUT /api/admin/connections/:id`
+
+```json
+{
+  "label": "The house key",
+  "provider": "openai-compatible",
+  "apiKey": "sk-…",
+  "baseUrl": "https://api.openai.com/v1",
+  "models": ["gpt-hi", "gpt-lo"]
+}
+```
+
+**Ids are minted server-side and never taken from the body**, which closes the
+shadowing hole for anything created through the UI without outlawing the
+hand-written file that already works.
+
+**`apiKey` absent means keep what is stored; an explicit empty string clears
+it.** That is what makes `hasKey` workable as a form affordance, and the write
+honours it — otherwise editing a label would silently delete the credential.
+
+**A provider this build cannot construct is refused at save**, `400 unbuildable`,
+naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one
+adapter ships, so a connection naming `anthropic` would otherwise store cleanly
+and fail at the next turn — the worst place to find out. The form offers only
+what can be built and this refuses the rest anyway, because a route that trusts
+its own form is a route that has not met one.
+
+`PUT` additionally **requires** `contentHash`, and answers `412 stale` carrying
+`current` (the connection as it is now) and `contentHash` (what to present to
+get through). The writer this defends against is a text editor rather than a
+second administrator: `connections/` is hand-editable by design. An id nothing
+claims is `404`, not `412` — a 412 there would send a form looking for something
+to reload that is not there.
+
+An edit writes back to the file it came from rather than to `<id>.json`. A
+hand-named `house.json` stays where it is; deriving the path would create a
+second file claiming the same id and lose the key stored in the first.
+
+### `DELETE /api/admin/connections/:id`
+
+`204`, and **every file claiming that id is removed**, not the first one found.
+The case is an administrator revoking a leaked key
+([P2B §2.8](design/workplan/14-p2b-provider-configuration.md)) — being told
+*gone* while the connection still resolves from a second file is the worst
+answer available there. Refusing until the directory is tidied by hand is the
+other consistent choice and blocks at exactly the wrong moment.
+
+### `GET /api/admin/connections/:id/bindings`
+
+`{ "bindings": 2 }` — how many bindings, across the install defaults and every
+account, point at this connection.
+
+**Warns and proceeds**, never refuses: an administrator revoking a leaked key
+must not be blocked by the fact that people were using it. And **counts, never
+contents** — a list of who binds what to which key is a different feature with a
+different justification and nobody has asked for it.
+
+### `POST /api/admin/connections/models`
+
+`{ "baseUrl": "…", "apiKey": "…" }` → `{ "models": ["gpt-hi"] }`, or
+`502 unreachable`.
+
+**An assist, not the path.** Typing a model id from memory is where *paste in one
+API key and take a turn* falls down, so this fills a picker from the endpoint's
+own `GET {baseUrl}/models`. A failed fetch is a notice rather than a blocked
+save, the model field stays free text, and an endpoint that does not implement
+`/models` costs the administrator nothing but the typing they would have done
+anyway. `/models` is optional in practice, and several local runtimes answer it
+with one entry called `gpt-3.5-turbo` regardless of what is loaded.
+
+A shape this build does not recognise is an empty list rather than an error: it
+is the one response in the server that comes from a host an administrator named
+and nobody vetted.
+
+**This makes the server fetch a URL somebody supplied, and private addresses are
+not refused.** On a box whose whole purpose is pointing at `localhost:8080` and
+the machine next door, refusing them would break the primary use case. The
+mitigation is that the action is administrator-only, explicit, never automatic,
+and its response only populates a picker. That is a smaller claim than *this is
+safe*, and it is the true one.
+
+A `POST` that writes nothing, because it carries a key — and a key does not
+belong in a URL.
+
+### `GET /api/admin/bindings` · `PUT /api/admin/bindings`
+
+```json
+{
+  "bindings": { "prose": { "connectionId": "0199…", "modelId": "gpt-hi" } },
+  "contentHash": "sha256:…"
+}
+```
+
+The install defaults, layered under every account's own
+([07 §5.1](design/07-tech-stack.md)). A whole document rather than a patch per
+role: eight roles is not a chatty write path, and a wrong binding stops turns
+rather than collapsing a pane.
+
+`PUT` presents `contentHash` and answers `412 stale` with `current`. A hash the
+client presents rather than a comparison the server holds, because nothing here
+keeps a prior read — every request reads the file fresh. **An absent file hashes
+as the empty document**, so *there is no file* and *there is an empty file*
+present the same guard, which is what a first write needs since the client has
+neither.
+
+Roles this build does not know are dropped rather than rejected; unlike config
+there is nothing on disk to preserve, so a write is a whole rewrite.
+
+### `POST /api/admin/bindings/defaults`
+
+`{ "hi": { "connectionId": "…", "modelId": "…" }, "lo": { … }, "contentHash": "…" }`
+→ the same shape `GET /api/admin/bindings` returns.
+
+**Two bindings in, a whole document out** — [07 §5.1]'s *a good one and a cheap
+one*, spread across the roles that have a text fallback. Which role gets which
+is policy — the expensive model writes, everything else uses the cheap one — and
+it stays on the server so that no install ends up with `prose` on the cheap
+model without anybody having chosen that. `image`, `video` and `speech` are left
+unbound, because there is no sensible text fallback for them and a binding that
+gave them one would fail at the call rather than at the setup.
+
+Under the same hash guard as the whole-document write, and for a sharper reason:
+the offer this answers appears right after a connection is saved, which is
+exactly when somebody else is most likely to have put something there already.
+
+### `GET /api/admin/roles`
+
+```json
+{
+  "roles": [
+    {
+      "role": "prose",
+      "tier": "hi",
+      "ok": true,
+      "via": "default",
+      "connectionId": "0199…",
+      "connectionLabel": "The house key",
+      "modelId": "gpt-hi"
+    },
+    { "role": "image", "tier": "unset", "ok": false, "reason": "unbound" }
+  ]
+}
+```
+
+**What every role will do, resolved rather than described.** `via` — which layer
+won — is a local in `resolveRole`, deliberately absent from the turn record
+([13 §1.4](design/13-internal-contracts.md) specifies no such field), and
+returned by nothing before this. A surface showing it would have had to
+reimplement [07 §5.1]'s layering in the browser, against two binding maps it
+would also have had to fetch: a second copy of the resolution order, in a
+different language from the first.
+
+`tier` is the one thing the resolution cannot supply, because it is a statement
+about *policy* rather than about state. `image` reporting `unbound` on a fresh
+install is the defaults working; `prose` reporting `unbound` is an install
+nobody can play on. Same resolution, opposite meanings, and a client that showed
+them alike would send an administrator hunting a fault that is not there.
+
+`reason` is `unbound` (nothing is bound) or `dangling` (something is, and the
+connection it names is gone). The remedies differ, so the answers do
+([00 §3.3](design/00-stance.md)).
+
+**The install's answer, not the caller's.** It resolves the system bindings
+against the system connections and passes no personal layer, because the
+question this surface asks is *what has the install got*. A user's own view of
+which of their bindings are personal is [05 §15.1](design/05-ui-surfaces.md)'s,
+and waits with the rest of that half.
+
 ### `GET /api/admin/notices`
 
 `{ "pendingRestart": ["server.port"], "canRestart": false }`.
@@ -745,10 +974,18 @@ I restart it?"* is a worse answer than one that says.
 
 ## Not here yet
 
-No workbench (P3), no import (P4), no provider settings surface
-([P2B](design/workplan/14-p2b-provider-configuration.md) — connections and
-bindings are read here and hand-written on disk until then), and no static file
-serving: the client runs on Vite's dev server and talks to this over `/api`.
+No workbench (P3), no import (P4), and no static file serving: the client runs
+on Vite's dev server and talks to this over `/api`.
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
-is documented under Sessions above.*
+is documented under Sessions above. The provider settings surface was listed
+here and shipped at [P2B](design/workplan/14-p2b-provider-configuration.md); it
+is documented under Administration above.*
+
+**One half of it is still deferred, deliberately**, so it is named here rather
+than left to be discovered: there is **no route that writes a user's own
+connection or their own `bindings.json`.** P2B writes the system scope and only
+the system scope ([P2B §2.7](design/workplan/14-p2b-provider-configuration.md)),
+and [05 §15.1](design/05-ui-surfaces.md)'s *your connections* half waits with the
+rest of the user surface. Both files are read by the resolver and hand-written
+by anyone who wants one, exactly as before.

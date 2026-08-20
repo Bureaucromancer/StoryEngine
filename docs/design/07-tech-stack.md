@@ -182,13 +182,24 @@ session override → step override → actor hint.** Most people set two models 
 never see the rest; someone who wants a different narrator for one session, or a
 cheap model for one noisy step, has a place to say so.
 
-*Three of the five have callers. `resolveRole` implements step, session and
-binding; the session and step layers are plumbed and never passed, and belong
-to P7 with the mode contract that would use them. **The install default is not
-implemented at all** — [P2B §1.2](workplan/14-p2b-provider-configuration.md),
-which is also where it is built. The order above is the design and it is not
-being revised; this note exists so nobody reads it as a description of what
-runs.*
+*Which layers have callers, so the order above is not read as a description of
+what runs. `resolveRole` implements four of the five.*
+
+| Layer | State |
+|---|---|
+| **install default** | **Built at [P2B §2.1](workplan/14-p2b-provider-configuration.md).** `system/bindings.json`, written by the admin surface, read by `readSystemBindings`, resolved as `via: 'default'` |
+| **role binding** | Built. Read from `users/<handle>/bindings.json`; **hand-written only** — the writer for the per-user file is still deferred with the rest of [05 §15.1](05-ui-surfaces.md)'s user half ([P2B §2.7](workplan/14-p2b-provider-configuration.md)) |
+| **session override** | Plumbed into `resolveRole` and never passed. P7's, with the mode contract that would use it |
+| **step override** | Same |
+| **actor hint** | Built. Applied last and weakest: it may choose among the models the resolved connection already offers and may never change the connection, which is what stops an imported actor card repointing somebody's provider |
+
+*One correction the implementation forced, because the order alone did not say
+it: **the first layer that resolves wins, not the first that exists.** A
+personal binding whose connection is gone drops through to the install default
+rather than failing the turn, and `dangling` is the answer only when every layer
+that bound something failed. Written the other way, [04 §4.5]'s promise that a
+removed system connection *"falls back to system bindings"* described something
+the code could not do.*
 
 ~~**[OPEN]**~~ **Closed at P2.1, as the convenience reading.** The data model is
 eight independent bindings; `hi` and `lo` are what the first-run flow asks for

@@ -607,19 +607,36 @@ Three details that decide whether it works:
   back to system bindings — the existing non-blocking behaviour, no new
   mechanism.
 
-  *"No new mechanism" is wrong, and the sentence is kept because it is the one
-  that hid the work. There are no system bindings: `readBindings` reads the
-  user's file and nothing else, there is no system bindings path, and
-  `resolveRole` has no layer to fall through to — so a dangling binding fails
-  the turn today rather than falling back to anything.
-  [P2B §1.2](workplan/14-p2b-provider-configuration.md) is the finding and
-  [§2.1](workplan/14-p2b-provider-configuration.md) builds the layer this
-  bullet has been assuming.*
+  *"No new mechanism" was wrong when it was written, and the sentence is kept
+  because it is the one that hid the work. There were no system bindings:
+  `readBindings` read the user's file and nothing else, there was no system
+  bindings path, and `resolveRole` had no layer to fall through to — so a
+  dangling binding failed the turn rather than falling back to anything.
+  [P2B §1.2](workplan/14-p2b-provider-configuration.md) is the finding.*
+
+  ***Built at [P2B §2.1](workplan/14-p2b-provider-configuration.md).***
+  `system/bindings.json` is a real file with the same shape and the same
+  reader, layered under every user's own, and `resolveRole` now takes **the
+  first layer that resolves rather than the first that exists** — which is the
+  part the fallback actually turned on. A personal binding whose connection is
+  gone drops through to the install default and the turn keeps working;
+  `dangling` survives as the answer only when every layer that bound something
+  failed, and it names the strongest such layer's connection, because that is
+  the binding whose owner has to fix it.
 - **The dead-end state needs surfacing.** A user with no private connections
   allowed and no system connection available cannot do anything at all. The
   admin screen ([05 §15.2](05-ui-surfaces.md)) should say so plainly — *"2 users
   have no usable connection"* — because it is otherwise discovered as a bug
   report from someone who cannot send a message.
+
+  *Built at [P2A](workplan/13-p2a-configuration-surface.md), with the count
+  corrected at [P2B](workplan/14-p2b-provider-configuration.md).4. It first
+  counted connection **files**, which cannot witness what this bullet asks for:
+  a system connection with nothing bound to it made every account read as fine
+  while every turn failed `unbound`. It asks the turn's own question now — does
+  `prose` resolve for this account — through `resolveConnections` and
+  `resolveRole`, so the capability above is honoured by the same code that
+  honours it at call time rather than by a second approximation of it.*
 
 #### Two things this makes more pressing
 

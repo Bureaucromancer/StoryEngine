@@ -21,9 +21,17 @@ import type { RoleBindings } from './roles.js';
  * That was wrong about the phase rather than about the reasoning: the surface
  * that sets a binding is
  * [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md)'s, which is the phase
- * that makes a fresh install usable at all. Until it lands a binding is
- * hand-written, which is [05 §4](../../../../docs/design/05-ui-surfaces.md) working exactly as
- * designed rather than a gap.
+ * that makes a fresh install usable at all.
+ *
+ * **It landed for one of the two files.** `system/bindings.json` has a writer —
+ * `PUT /api/admin/bindings` and `POST /api/admin/bindings/defaults`, behind
+ * the admin prefix. `users/<handle>/bindings.json` deliberately still has none:
+ * [P2B §2.7] draws the line at *the system scope and only the system scope*,
+ * and the personal half waits with the rest of
+ * [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s user surface. So a personal binding
+ * is still hand-written, which is [05 §4](../../../../docs/design/05-ui-surfaces.md) working
+ * exactly as designed rather than a gap — and it is a *smaller* gap than it
+ * was, because the layer underneath it now answers.
  *
  * **Two layers, not one.** `system/bindings.json` holds the install defaults
  * everyone inherits and a user's own file overrides it per role — [07 §5.1]'s

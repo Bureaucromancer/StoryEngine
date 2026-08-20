@@ -443,6 +443,28 @@ and model per role and the layer that won.
 
 *Ends at:* an admin can see, in one table, what every role will do.
 
+**Built.** Two things this stage needed that were not scoped, both found by
+walking the gate before writing any of it:
+
+- **`GET /api/admin/roles`**, because `via` was returnable by nothing. It is a
+  local in `resolveRole`, deliberately absent from the turn record
+  ([13 §1.4](../13-internal-contracts.md) specifies no such field), and a table
+  showing it would have had to reimplement §5.1's layering in the browser
+  against two binding maps it would also have had to fetch. The route asks the
+  resolver; the component renders what it says and works nothing out.
+- **A masked input**, because `PasswordInput` was file-private in
+  `UserSettings.tsx` and deliberately *not* a `Field` — a password must never
+  acquire an assist slot. It moved to `editor/SecretField.tsx` and grew the
+  thing a password never needed: a note saying what an **empty** box means,
+  since a stored key is never sent to the browser and the box is therefore
+  always empty on an edit.
+
+And a third state nobody had scoped: the table renders **unset by design**
+beside *resolved* and *nothing is set*. `image` reporting `unbound` on a fresh
+install is `ROLE_TIER_DEFAULTS` working; `prose` reporting `unbound` is an
+install nobody can play on. See §4 step 6, whose arithmetic was the same mistake
+in prose.
+
 ### P2B.4 — First run, and the dead end closing
 
 The first connection an admin saves offers to write the install defaults from it
@@ -453,13 +475,27 @@ caller.
 *Ends at:* the demo. Fresh install → admin → one key → a turn, without anyone
 having opened a text editor.
 
-**The dead-end count cannot witness that, and this stage has to fix it or drop
-the clause.** `deadEnds` counts connection *files* and never reads a bindings
-file, so a system connection with no bindings gives every account
-`hasUsableConnection: true` while every turn fails `unbound` — the ending would
-go green over an install nobody can play on. Either the count asks whether a
-role actually resolves (`resolveRole('prose', …)` per account, one more file
-read each) or the clause comes out and the gate's step 1 is the only witness.
+**Built.** `POST /api/admin/bindings/defaults` is the production caller, and it
+takes **two bindings rather than eight** so the spread stays server-side: a
+client free to post a whole document is an install that can end up with `prose`
+on the cheap model without anybody having chosen that.
+
+The offer appears **after** the save rather than instead of it — asking which
+model is the expensive one before there is a list of models to choose from is
+asking a question nobody can answer — and its condition is the *bindings file*
+rather than the connection just saved, so a second connection does not re-ask
+and neither does a first one on an install whose `bindings.json` was written by
+hand.
+
+**And the dead-end count was fixed rather than the clause dropped.** `deadEnds`
+counted connection *files* and never read a bindings file, so a system
+connection with nothing bound to it gave every account `hasUsableConnection:
+true` while every turn failed `unbound` — the ending would have gone green over
+an install nobody could play on. It asks the turn's own question now, through
+the turn's own resolver: does `prose` resolve for this account. That also means
+the `privateConnections` capability is honoured by the same code that honours it
+at call time rather than by a second approximation of it. It costs one bindings
+read and two directory reads per account, and the cheaper answer was wrong.
 
 ### P2B.5 — Docs and drift
 
@@ -470,6 +506,19 @@ is corrected against §1.2; [07 §5.1](../07-tech-stack.md)'s resolution order i
 annotated with which layers have callers and which are P7's.
 
 *Ends at:* no document describes a fallback the code does not perform.
+
+**Built**, with three additions the list did not anticipate:
+
+- [The API doc](../../api.md)'s *Not here yet* named the provider surface as
+  absent. It now names what is still absent instead — **no route writes a user's
+  own connection or their own `bindings.json`** — which is the sharper statement
+  and the one somebody would otherwise discover by looking for the route.
+- Its `GET /api/admin/accounts` section described the dead-end rule as *a system
+  connection exists, or a personal one plus the capability*. That was an
+  accurate description of the wrong implementation, so it moved with the code.
+- [07 §5.1](../07-tech-stack.md)'s note became a table, and gained the
+  correction the order alone could not state: **the first layer that resolves
+  wins, not the first that exists.**
 
 ---
 

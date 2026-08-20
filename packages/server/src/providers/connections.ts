@@ -30,8 +30,13 @@ import type { ProviderCapabilities } from './types.js';
  * - **The key never leaves the server.** {@link presentConnection} is the only
  *   shape that goes to a client, and it has nowhere to put one.
  * - **Nor does the endpoint URL**, which can itself carry a token or reveal a
- *   private host. An admin may opt to show it; that is a decision at P10's
- *   admin surface, and the default is not to.
+ *   private host. An admin may opt to show it — [04 §4.5]'s one permission
+ *   here, and {@link AdminConnection} takes it as narrowly as it goes: the
+ *   admin who set the URL is the only person shown it, and
+ *   {@link PublicConnection} still has nowhere to put one. *(This said P10 was
+ *   the phase that would decide it. It was decided at
+ *   [P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md), because a
+ *   form that cannot show a URL back is a write-only form.)*
  * - **There is no fork.** Copy-to-my-library has no analogue here, because
  *   copying would mean copying the credential.
  */
