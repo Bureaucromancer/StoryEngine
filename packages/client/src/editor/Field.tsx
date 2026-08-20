@@ -30,6 +30,17 @@ export interface FieldProps {
   /** Fine print under the control. */
   hint?: string;
   placeholder?: string;
+  /**
+   * Renders the control read-only, with this as the reason.
+   *
+   * **A reason rather than a boolean**, because a field a person cannot edit and
+   * cannot find out why about is worse than no field at all — they conclude the
+   * app is broken. `dataDir` is the case this exists for: it decides where
+   * `config.json` itself lives, so a form that edited it and then wrote to the
+   * old location would be a one-click way to appear to lose everything
+   * ([P2A §2.6]). The note points at `--data` and the file instead.
+   */
+  readOnlyNote?: string;
 }
 
 const CONTROL_CLASS =
@@ -68,6 +79,7 @@ export function Field(props: FieldProps): JSX.Element {
           id={controlId}
           className={CONTROL_CLASS}
           value={props.value}
+          readOnly={props.readOnlyNote !== undefined}
           onChange={(event) => {
             props.onChange(event.target.value);
           }}
@@ -81,9 +93,173 @@ export function Field(props: FieldProps): JSX.Element {
           {props.error}
         </p>
       ) : null}
-      {props.hint !== undefined && !invalid ? (
-        <p className="mt-1 text-xs text-slate-500">{props.hint}</p>
+      {(props.readOnlyNote ?? props.hint) !== undefined && !invalid ? (
+        <p className="mt-1 text-xs text-slate-500">{props.readOnlyNote ?? props.hint}</p>
       ) : null}
     </div>
   );
+}
+
+/**
+ * The same field, holding a number.
+ *
+ * A sibling in this file rather than a `type` prop on {@link Field}, and the
+ * reason is [05 §11]'s: *does this field have assist?* must keep having one
+ * answer. A union of props behind one component makes that answer "it depends
+ * on the type", and the slot would grow a condition rather than a value.
+ *
+ * The value is a **string**, not a number, because a partially-typed number is
+ * not one — `''` and `'-'` are both states a person passes through, and a
+ * controlled numeric input that rejects them deletes the character they just
+ * typed. Parsing is the caller's, at submit.
+ */
+export interface NumberFieldProps extends Omit<FieldProps, 'multiline' | 'rows'> {
+  min?: number;
+  max?: number;
+  /** Rendered read-only, with the reason. See {@link Field}'s `readOnlyNote`. */
+  readOnlyNote?: string;
+}
+
+export function NumberField(props: NumberFieldProps): JSX.Element {
+  const controlId = useId();
+  const errorId = useId();
+  const invalid = props.error != null;
+  const locked = props.readOnlyNote !== undefined;
+
+  return (
+    <div>
+      <Label htmlFor={controlId} text={props.label} />
+      <input
+        id={controlId}
+        type="number"
+        inputMode="numeric"
+        className={CONTROL_CLASS}
+        value={props.value}
+        min={props.min}
+        max={props.max}
+        readOnly={locked}
+        onChange={(event) => {
+          props.onChange(event.target.value);
+        }}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? errorId : undefined}
+        placeholder={props.placeholder}
+      />
+      <Notes id={errorId} error={props.error} hint={props.readOnlyNote ?? props.hint} />
+    </div>
+  );
+}
+
+/**
+ * A checkbox, with its consequence written beside it.
+ *
+ * [05 §15.2](../../../../docs/design/05-ui-surfaces.md) asks for the consequence next to each
+ * switch, so `hint` is where that sentence goes and it is not decoration — a
+ * capability toggle whose effect is only discoverable by trying it is the thing
+ * that section exists to prevent.
+ */
+export interface CheckboxFieldProps {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  hint?: string;
+  disabled?: boolean;
+}
+
+export function CheckboxField(props: CheckboxFieldProps): JSX.Element {
+  const controlId = useId();
+  const hintId = useId();
+
+  return (
+    <div className="flex items-start gap-2">
+      <input
+        id={controlId}
+        type="checkbox"
+        className="mt-1"
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={(event) => {
+          props.onChange(event.target.checked);
+        }}
+        aria-describedby={props.hint === undefined ? undefined : hintId}
+      />
+      <div>
+        <label htmlFor={controlId} className="block text-sm font-medium text-slate-700">
+          {props.label}
+        </label>
+        {props.hint === undefined ? null : (
+          <p id={hintId} className="mt-0.5 text-xs text-slate-500">
+            {props.hint}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A closed set of values. `options` is `[value, label]` so the label can differ. */
+export interface SelectFieldProps {
+  label: string;
+  value: string;
+  options: readonly (readonly [string, string])[];
+  onChange: (value: string) => void;
+  hint?: string;
+}
+
+export function SelectField(props: SelectFieldProps): JSX.Element {
+  const controlId = useId();
+
+  return (
+    <div>
+      <Label htmlFor={controlId} text={props.label} />
+      <select
+        id={controlId}
+        className={CONTROL_CLASS}
+        value={props.value}
+        onChange={(event) => {
+          props.onChange(event.target.value);
+        }}
+      >
+        {props.options.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <Notes id={controlId} error={null} hint={props.hint} />
+    </div>
+  );
+}
+
+/** The label row, including the assist slot every field carries. */
+function Label({ htmlFor, text }: { htmlFor: string; text: string }): JSX.Element {
+  return (
+    <div className="mb-1 flex items-center justify-between gap-2">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">
+        {text}
+      </label>
+      {/* The assist slot. Empty — see the header comment. */}
+      <span aria-hidden="true" />
+    </div>
+  );
+}
+
+/** The error or the hint under a control. An error hides the hint. */
+function Notes({
+  id,
+  error,
+  hint,
+}: {
+  id: string;
+  error: string | null | undefined;
+  hint: string | undefined;
+}): JSX.Element | null {
+  if (error != null) {
+    return (
+      <p id={id} role="alert" className="mt-1 text-xs text-red-900">
+        {error}
+      </p>
+    );
+  }
+  return hint === undefined ? null : <p className="mt-1 text-xs text-slate-500">{hint}</p>;
 }

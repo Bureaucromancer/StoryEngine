@@ -9,6 +9,7 @@ import { ActorEditorPage } from './editor/ActorEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
+import { SettingsPage } from './settings/SettingsPage.js';
 import { SessionsPage } from './play/SessionsPage.js';
 import { Shell } from './Shell.js';
 
@@ -65,6 +66,20 @@ const playRoute = createRoute({
   },
 });
 
+/**
+ * One route for the whole settings surface — [P2A §3].
+ *
+ * Not `/settings/account` and `/settings/admin`: two halves of one page, and a
+ * non-admin's half is the whole page for them. Splitting would make the
+ * navigation entry a question ("which one?") that has no good answer for the
+ * person who only has one.
+ */
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
 const objectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/$kind/$id',
@@ -96,6 +111,7 @@ const routeTree = rootRoute.addChildren([
   actorEditorRoute,
   sessionsRoute,
   playRoute,
+  settingsRoute,
 ]);
 
 /**

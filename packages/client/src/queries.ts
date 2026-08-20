@@ -11,8 +11,12 @@ import {
 } from '@tanstack/react-query';
 
 import {
+  adminApi,
   api,
   type Account,
+  type AccountPatch,
+  type AdminAccountList,
+  type ConfigView,
   type AuthState,
   type Credentials,
   type LibraryKind,
@@ -353,5 +357,96 @@ export function usePatchPrefs(): UseMutationResult<
     onSuccess: (result) => {
       client.setQueryData(['prefs'], result);
     },
+  });
+}
+
+/**
+ * The admin half's queries — [05 §15.2](../../../docs/design/05-ui-surfaces.md).
+ *
+ * **These hooks are the mechanism behind "absent, not disabled"** ([P2A §2.6]).
+ * The admin sections are not rendered for a non-admin, so these never mount, so
+ * that browser issues no request to `/api/admin/*` at all. A disabled control
+ * whose hook still ran would fetch, be refused, and put a 403 in the console of
+ * somebody who has done nothing wrong — which is how a UI teaches people that
+ * errors are normal.
+ */
+export function useAdminAccounts(): UseQueryResult<AdminAccountList> {
+  return useQuery({ queryKey: ['admin', 'accounts'], queryFn: adminApi.listAccounts });
+}
+
+export function useCreateAccount(): UseMutationResult<
+  { account: Account },
+  Error,
+  Parameters<typeof adminApi.createAccount>[0]
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.createAccount,
+    onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
+  });
+}
+
+export function useUpdateAccount(): UseMutationResult<
+  { account: Account },
+  Error,
+  { handle: string; patch: AccountPatch }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { handle: string; patch: AccountPatch }) =>
+      adminApi.updateAccount(input.handle, input.patch),
+    // Not optimistic, deliberately — unlike a preference. A capability change
+    // can be refused (the last-admin guard), and showing it as taken while the
+    // server is about to say no is the failure the editor's unpolled base
+    // exists to avoid.
+    onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
+  });
+}
+
+export function useRemoveAccount(): UseMutationResult<undefined, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.removeAccount,
+    onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
+  });
+}
+
+export function useAdminConfig(): UseQueryResult<ConfigView> {
+  return useQuery({ queryKey: ['admin', 'config'], queryFn: adminApi.readConfig });
+}
+
+export function useWriteConfig(): UseMutationResult<
+  { config: Record<string, unknown>; pendingRestart: string[] },
+  Error,
+  Record<string, unknown>
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.writeConfig,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['admin', 'config'] });
+      // The banner is above the outlet on every page, so it has to hear about
+      // this without the settings page telling it directly.
+      void client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    },
+  });
+}
+
+/**
+ * The restart banner's data.
+ *
+ * Polled rather than fetched once, because [04 §6.3] wants *every* admin to see
+ * the pending list — including one who was already looking at another page when
+ * a colleague saved. The interval is generous: this is a banner, not a stream.
+ */
+export function useNotices(enabled: boolean): UseQueryResult<{
+  pendingRestart: string[];
+  canRestart: boolean;
+}> {
+  return useQuery({
+    queryKey: ['admin', 'notices'],
+    queryFn: adminApi.notices,
+    enabled,
+    refetchInterval: 30_000,
   });
 }

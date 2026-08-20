@@ -355,3 +355,60 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
 export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: string }> {
   return request('POST', `/api/sessions/${sessionId}/jobs/${jobId}/cancel`);
 }
+
+/** An account as the admin list reports it, plus the dead-end flag. */
+export interface AdminAccount extends Account {
+  hasUsableConnection: boolean;
+}
+
+export interface AdminAccountList {
+  accounts: AdminAccount[];
+  withoutUsableConnection: number;
+  systemConnectionCount: number;
+}
+
+export interface AccountPatch {
+  displayName?: string;
+  locale?: string | null;
+  role?: 'admin' | 'user';
+  enabled?: boolean;
+  capabilities?: Partial<Account['capabilities']>;
+}
+
+/** The tier table and the appliers, sent as data rather than duplicated ([13 §4]). */
+export interface ConfigView {
+  config: Record<string, unknown>;
+  path: string;
+  tiers: Record<string, 'live' | 'reconnect' | 'restart'>;
+  appliers: Record<string, 'applied' | 'unread'>;
+  pendingRestart: string[];
+}
+
+export const adminApi = {
+  listAccounts: (): Promise<AdminAccountList> => request('GET', '/api/admin/accounts'),
+
+  createAccount: (input: {
+    handle: string;
+    password: string;
+    role: 'admin' | 'user';
+    capabilities?: Partial<Account['capabilities']>;
+  }): Promise<{ account: Account }> => request('POST', '/api/admin/accounts', input),
+
+  updateAccount: (handle: string, patch: AccountPatch): Promise<{ account: Account }> =>
+    request('PATCH', `/api/admin/accounts/${handle}`, patch),
+
+  removeAccount: (handle: string): Promise<undefined> =>
+    request('DELETE', `/api/admin/accounts/${handle}`),
+
+  readConfig: (): Promise<ConfigView> => request('GET', '/api/admin/config'),
+
+  writeConfig: (
+    config: Record<string, unknown>,
+  ): Promise<{
+    config: Record<string, unknown>;
+    pendingRestart: string[];
+  }> => request('PUT', '/api/admin/config', { config }),
+
+  notices: (): Promise<{ pendingRestart: string[]; canRestart: boolean }> =>
+    request('GET', '/api/admin/notices'),
+};

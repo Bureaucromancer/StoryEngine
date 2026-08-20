@@ -1,0 +1,382 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * The settings surface — [05 §15](../../../../docs/design/05-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.6.
+ *
+ * **Absent is implemented as absent**, and [P2A §2.6] calls that directly
+ * testable — which is the whole reason it is a mechanism rather than a style
+ * choice. The admin sections are not rendered for a non-admin, so their hooks
+ * never mount, so that browser issues no request to `/api/admin/*` at all.
+ *
+ * The test for it is therefore about the *network*, not the DOM. Asserting only
+ * that the heading is missing would pass just as well against a page that
+ * fetched the account list, was told 403, and rendered nothing — which is the
+ * version that puts an error in the console of somebody who has done nothing
+ * wrong.
+ */
+
+const authState = vi.fn();
+const readMe = vi.fn();
+const listAccounts = vi.fn();
+const readConfig = vi.fn();
+const notices = vi.fn();
+const updateMe = vi.fn();
+const changePassword = vi.fn();
+
+vi.mock('../api.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api.js')>()),
+  api: {
+    authState: (...a: unknown[]) => authState(...a) as unknown,
+    readMe: (...a: unknown[]) => readMe(...a) as unknown,
+    updateMe: (...a: unknown[]) => updateMe(...a) as unknown,
+    changePassword: (...a: unknown[]) => changePassword(...a) as unknown,
+  },
+  adminApi: {
+    listAccounts: (...a: unknown[]) => listAccounts(...a) as unknown,
+    readConfig: (...a: unknown[]) => readConfig(...a) as unknown,
+    notices: (...a: unknown[]) => notices(...a) as unknown,
+    createAccount: vi.fn(),
+    updateAccount: vi.fn(),
+    removeAccount: vi.fn(),
+    writeConfig: vi.fn(),
+  },
+}));
+
+const { SettingsPage } = await import('./SettingsPage.js');
+
+function account(role: 'admin' | 'user') {
+  return {
+    handle: 'ned',
+    displayName: 'Ned',
+    role,
+    enabled: true,
+    locale: null,
+    capabilities: { privateConnections: true, fileAccess: 'none', enableExtensions: false },
+    createdAt: 1786800000000,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  readMe.mockResolvedValue({ account: account('user') });
+  updateMe.mockResolvedValue({ account: account('user') });
+  listAccounts.mockResolvedValue({
+    accounts: [{ ...account('admin'), hasUsableConnection: false }],
+    withoutUsableConnection: 1,
+    systemConnectionCount: 0,
+  });
+  readConfig.mockResolvedValue({
+    config: {
+      dataDir: './data',
+      log: { level: 'info' },
+      server: { host: '127.0.0.1', port: 8080 },
+    },
+    path: '/data/config.json',
+    tiers: {
+      dataDir: 'restart',
+      'log.level': 'live',
+      'server.host': 'restart',
+      'server.port': 'restart',
+    },
+    appliers: { 'log.level': 'applied' },
+    pendingRestart: [],
+  });
+  notices.mockResolvedValue({ pendingRestart: [], canRestart: false });
+});
+
+function renderPage(role: 'admin' | 'user') {
+  authState.mockResolvedValue({ setupRequired: false, account: account(role) });
+  readMe.mockResolvedValue({ account: account(role) });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <SettingsPage />
+    </QueryClientProvider>,
+  );
+}
+
+describe('for a non-admin', () => {
+  it('does not render the administration half', async () => {
+    renderPage('user');
+    await screen.findByText('You');
+
+    expect(screen.queryByRole('heading', { name: 'Administration' })).toBeNull();
+  });
+
+  /**
+   * **The mechanism, not the symptom.** This is what separates *absent* from
+   * *disabled*: a disabled control still mounts its hook, still fetches, and
+   * still gets refused.
+   */
+  it('asks the admin API for nothing at all', async () => {
+    renderPage('user');
+    await screen.findByText('You');
+    // Their own profile did load, so the page is working rather than empty.
+    expect(await screen.findByDisplayValue('Ned')).toBeTruthy();
+
+    expect(listAccounts).not.toHaveBeenCalled();
+    expect(readConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe('for an admin', () => {
+  it('renders both halves and asks for both', async () => {
+    renderPage('admin');
+
+    expect(await screen.findByRole('heading', { name: 'Administration' })).toBeTruthy();
+    await waitFor(() => {
+      expect(listAccounts).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(readConfig).toHaveBeenCalled();
+    });
+  });
+});
+
+/**
+ * **"1 person has no usable connection"** — [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)
+ * commissioned this sentence and named this screen as where it appears.
+ *
+ * It is the reason the phase exists in the shape it does: the surface earns its
+ * place by reporting the dead-end state rather than leaving it to arrive as a
+ * bug report from somebody who cannot send a message.
+ */
+describe('the dead-end warning', () => {
+  it('says how many, and what fixes it', async () => {
+    renderPage('admin');
+
+    const warning = await screen.findByRole('status');
+    expect(warning.textContent).toContain('1 person has no usable connection');
+    // With no system connection at all, this is one fix rather than n — which
+    // is the fact the second number exists to make obvious.
+    expect(warning.textContent).toContain('adding one fixes this for everybody');
+  });
+
+  it('says it again on the row, so the count has something to point at', async () => {
+    renderPage('admin');
+
+    expect(
+      await screen.findByText('No usable connection — this account cannot send a message.'),
+    ).toBeTruthy();
+  });
+
+  it('says nothing when everybody can play', async () => {
+    listAccounts.mockResolvedValue({
+      accounts: [{ ...account('admin'), hasUsableConnection: true }],
+      withoutUsableConnection: 0,
+      systemConnectionCount: 1,
+    });
+    renderPage('admin');
+    await screen.findByRole('heading', { name: 'Accounts' });
+
+    // A warning that appears when there is nothing wrong is one people stop
+    // reading.
+    expect(screen.queryByText(/no usable connection/i)).toBeNull();
+  });
+});
+
+/**
+ * **In force now, and recorded for later** — [P2A §2.1].
+ *
+ * Two dishonest options were available and both are refused: inventing a partial
+ * enforcement so a switch feels real, and rendering three switches as though
+ * they were equally live. The grouping says the other half of the truth
+ * [05 §15.2] asks for, which is *when*.
+ */
+describe('the capability groups', () => {
+  it('separates the one that bites from the two that do not', async () => {
+    renderPage('admin');
+
+    const now = await screen.findByRole('group', { name: 'In force now' });
+    const later = screen.getByRole('group', { name: 'Recorded for later' });
+
+    expect(now.textContent).toContain('May use their own connections');
+    expect(later.textContent).toContain('May enable extensions');
+    // And the group says why once, rather than each switch apologising for
+    // itself.
+    expect(later.textContent).toContain('have not shipped');
+  });
+
+  it('writes the consequence beside the switch that has one', async () => {
+    renderPage('admin');
+
+    const now = await screen.findByRole('group', { name: 'In force now' });
+    // [04 §4.5]'s *revoking disables, never deletes*, said where somebody is
+    // about to do it rather than in documentation they will not read.
+    expect(now.textContent).toContain('stay on disk');
+  });
+});
+
+/**
+ * **Removal says what it does before it does it** — [P2A §2.3], [02 §10.2].
+ *
+ * The trash's honesty obligation, one step further: an administrator about to
+ * remove somebody should read what actually happens to their library *before*
+ * clicking, not go looking for it afterwards.
+ */
+describe('removing an account', () => {
+  it('names the folder, and says StoryEngine will not delete it', async () => {
+    renderPage('admin');
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove ned…' }));
+
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog.textContent).toContain('data/removed/');
+    expect(dialog.textContent).toContain('StoryEngine will not delete it');
+    expect(dialog.textContent).toContain('free to use again straight away');
+  });
+
+  /**
+   * Typing the handle back is the confirmation, because a destructive control
+   * whose confirmation is a second button is a control people click twice.
+   */
+  it('will not remove until the handle is typed back', async () => {
+    renderPage('admin');
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove ned…' }));
+
+    const confirm = screen.getByRole('button', { name: 'Remove and move their data' });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Type ned to confirm' }), 'ned');
+
+    expect(confirm.hasAttribute('disabled')).toBe(false);
+  });
+});
+
+/**
+ * The install form — [05 §15.3], [P2A §2.5] and [P2A §2.6].
+ *
+ * Every control is generated from what the server sent, tier badge included,
+ * because the tier table travels as data ([13 §4]) and a hand-written list of
+ * fields here would be a second copy of the schema — wrong the first time
+ * somebody adds a key.
+ */
+describe('the install form', () => {
+  it('badges a restart-tier key, from the table the server sent', async () => {
+    renderPage('admin');
+
+    // Not a list of key names kept here: a key a newer build adds renders with
+    // the right badge without a client release.
+    expect(await screen.findByLabelText('server.port (needs a restart)')).toBeTruthy();
+    expect(screen.getByLabelText('log.level')).toBeTruthy();
+  });
+
+  /**
+   * **`dataDir` is read-only, with the reason** — [P2A §2.6].
+   *
+   * It decides where `config.json` itself lives, so a form that edited it and
+   * then wrote to the old location would be a one-click way to appear to lose
+   * everything. A field somebody cannot edit and cannot find out why about is
+   * worse than no field, so the note points at `--data` and the file.
+   */
+  it('locks dataDir and says where to change it instead', async () => {
+    renderPage('admin');
+
+    const field = await screen.findByLabelText('dataDir (needs a restart)');
+    expect(field.hasAttribute('readonly')).toBe(true);
+    expect(screen.getByText(/Set with --data when you start the server/)).toBeTruthy();
+  });
+
+  /**
+   * **`server.host` carries the binding sentence at the moment of binding** —
+   * [04 §4.1] requires it of every place somebody can bind beyond loopback, and
+   * this form is the fourth.
+   */
+  it('warns about binding beyond loopback where the binding happens', async () => {
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+
+    expect(screen.getByText(/reachable from your network/)).toBeTruthy();
+  });
+
+  /**
+   * **The group that stops a control ever doing nothing silently** — [P2A §2.5].
+   *
+   * A tier says what a key is *for*; the appliers table says whether anything
+   * reads it yet, and the two are allowed to disagree. Without this the form
+   * would tell somebody a change had taken when it had only been stored.
+   */
+  it('names the live keys nothing reads yet', async () => {
+    readConfig.mockResolvedValue({
+      config: { limits: { maxUploadMb: 64 }, log: { level: 'info' } },
+      path: '/data/config.json',
+      tiers: { 'limits.maxUploadMb': 'live', 'log.level': 'live' },
+      appliers: { 'limits.maxUploadMb': 'unread', 'log.level': 'applied' },
+      pendingRestart: [],
+    });
+    renderPage('admin');
+
+    const notice = await screen.findByText(/Stored, but nothing reads these yet/);
+    expect(notice.textContent).toContain('limits.maxUploadMb');
+    // And not the one that is read, which is what makes the list mean something.
+    expect(notice.textContent).not.toContain('log.level');
+  });
+});
+
+describe('the user half', () => {
+  it('saves a display name and a locale together', async () => {
+    renderPage('user');
+    const name = await screen.findByLabelText('Display name');
+
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Ned C.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMe.mock.calls[0]?.[0]).toMatchObject({ displayName: 'Ned C.' });
+    });
+  });
+
+  /**
+   * **`null`, not `''`.** *Use my browser's* is a real state and a different one
+   * from an empty locale — the server stores null to mean *no preference*, and
+   * sending `''` would store a locale that formats nothing.
+   */
+  it('sends null when the person picks their browser default', async () => {
+    renderPage('user');
+    await screen.findByLabelText('Display name');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMe.mock.calls[0]?.[0]).toMatchObject({ locale: null });
+    });
+  });
+
+  /**
+   * **The two password failures are told apart**, because "that did not work"
+   * for both leaves somebody retyping a password that was right.
+   */
+  it('says which password was wrong', async () => {
+    const { ApiError } = await import('../api.js');
+    changePassword.mockRejectedValue(new ApiError(401, 'invalid-credentials', 'no'));
+    renderPage('user');
+
+    await userEvent.type(await screen.findByLabelText('Current password'), 'wrong');
+    await userEvent.type(screen.getByLabelText('New password'), 'a long enough one');
+    await userEvent.click(screen.getByRole('button', { name: 'Change password' }));
+
+    expect(await screen.findByText('That is not your current password.')).toBeTruthy();
+  });
+
+  /**
+   * **Sessions elsewhere survive a password change**, and the form says so.
+   *
+   * Sessions are signed stateless cookies with no denylist ([04 §4.1]), so
+   * nothing here can revoke one — and a form that quietly implied otherwise
+   * would leave somebody believing they had shut out whoever they changed the
+   * password because of.
+   */
+  it('does not imply it has signed anyone else out', async () => {
+    renderPage('user');
+    await screen.findByLabelText('Current password');
+
+    expect(screen.getByText(/does not sign out other browsers you are already/i)).toBeTruthy();
+  });
+});
