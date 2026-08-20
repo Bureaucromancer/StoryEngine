@@ -1,221 +1,308 @@
-# P2 — what the machine cannot check
+# 12 — what the machine cannot check
 
-The [P2 exit gate](04-p2-implementation.md#4-verification--the-p2-exit-gate) is
-twenty steps. Most of them are now automated and mutation-proven; this file is
-the remainder, and it is deliberately three lists rather than one, because
-"manual test" is doing three different jobs in most projects and they need
-different responses.
+The exit gates for [P2](04-p2-implementation.md#4-verification--the-p2-exit-gate),
+[P2A](13-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
+[P2B](14-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are
+forty-eight steps between them. This file is what is left after the automatable
+part of each was written, and it stays three lists rather than one, because
+"manual test" does three different jobs and they need different answers.
 
-**§1 needs a person**, and will still need one after every reasonable automation
-effort — a real provider, a real browser, a real network.
+**§2 needs a person**, and will after every reasonable automation effort — a real
+provider, a real browser, a real network, a human reading a sentence.
 
-**§2 will fail**, because the behaviour the gate describes is not built. Running
-these by hand is how the phase finds that out on purpose rather than a user
-finding it out by accident. Each one names the production change it needs.
+**§3 will fail or is unreachable**, because the behaviour a step describes is not
+built. Running these by hand is how the phase finds that out deliberately rather
+than through a bug report. Each names what it needs.
 
-**§3 should be a test and is not yet.** It is here so §1 does not quietly absorb
+**§4 should be a test and is not yet.** Kept apart so §2 does not quietly absorb
 work that belongs in the suite — the failure mode where a manual checklist grows
 every year because nobody wants to say which items were never automated.
 
-Automated coverage as of this pass: steps 8–20 hold, with the exceptions §2
-names. Steps 2–6 are §3. Step 7 is §2 and §3 both — its server half is a test
-nobody has written, its client half is a feature nobody has built.
+---
+
+## 1. Where the gates stand
+
+Walked step by step, with every *passes* claim re-read by somebody trying to
+refute it. Anchor, 2026-08-20: **1009 tests, 77 files, green — 1 todo; `pnpm
+lint`, `pnpm typecheck` and `pnpm build` clean; `pnpm test:gate` 2 passed.**
+Windows only — see §2.5.
+
+| Gate | Steps | Automated and falsifiable | Partial | Needs a person | Not built |
+|---|---|---|---|---|---|
+| **P2** | 20 | 8 | 12 | §2 | §3 |
+| **P2A** | 17 + 2 | 13 | 5 | steps 1, 7, 11, 13 | — |
+| **P2B** | 11 | 2 | 5 | steps 1, 9 | 3 blocked, 1 uncovered |
+
+**P2A's gate found a real failure and it is fixed** — step 15. One hand edit
+wedged the config form until the process restarted, because the 412 never
+refreshed what the process had read and that field moves only at boot and after a
+*successful* write. Both recoveries the step names were unreachable. A stage of
+mutation-proven tests missed it because the test named *allows a second save*
+exercised a save after a **successful** save; nothing exercised one after a
+refusal.
+
+**P2B's gate cannot be closed**, and that is expected rather than a finding:
+stages P2B.3 (the admin surface), P2B.4 (first run) and P2B.5 (docs) are not
+built, and they own steps 1, 6 and 9 outright plus a clause each of 4, 5 and 10.
+P2B.0, P2B.1 and P2B.2 are built and tested.
 
 ---
 
-## 1. Needs a person
+## 2. Needs a person
 
-### 1.1 A real provider, end to end
+### 2.1 One session, end to end — do this first
 
-**Every automated test in this repo runs against `FakeProvider`.** That is the
-right default — [10 §4](10-testing.md) argues it at length, and an E2E suite that
-called a real model would be slow, flaky, expensive and would test the model
-rather than the app. But it means the shipped adapter's wire format is asserted
-only against a stub this repo wrote, and a stub agrees with whatever it was
-written to agree with.
+The single most valuable manual run, because it is the only one that crosses
+every phase, and because three gate steps are the same sentence: *install fresh,
+create the first admin, add one key, take a turn — without opening a text editor
+once.*
 
-Configure a real connection (`users/<you>/connections/*.json`) against a live
-OpenAI-compatible endpoint and take a turn.
+```bash
+rm -rf ./data      # or use --data on a scratch directory
+pnpm build && pnpm dev
+```
 
-Watch for: the request is accepted at all; streaming chunks arrive incrementally
-rather than in one lump at the end; `usage` comes back populated, since [13
-§1.4](../13-internal-contracts.md) calls it *provider-reported, not estimated*
-and a provider that reports nothing makes every budget figure in the UI a guess;
-`ModelCall.resolved` names the model that actually ran; and the turn record's
-cost is not zero.
+1. **Setup.** Open the browser at the printed address. Create the first admin.
+   *Watch for:* the setup form, not a login form; the session surviving a reload;
+   sign out and back in.
+2. **The dead end, reported.** Go to Settings → Administration. The account list
+   should say *1 person has no usable connection and cannot send a message. No
+   system connection is configured, so adding one fixes this for everybody.*
+   **This is [04 §4.5]'s commissioned sentence, and P2A exists partly to make it
+   appear.** Read it as a stranger would — it is the one piece of copy in the app
+   whose whole job is to be understood by somebody who is stuck.
+3. **A connection.** Add one, with a real key. *Blocked today: there is no form —
+   see §3.1.* Until P2B.3 ships, do this with `curl` against
+   `POST /api/admin/connections` and note that the phase is not done.
+4. **A binding.** Same: `PUT /api/admin/bindings` with `prose` pointing at the
+   connection.
+5. **The warning clears.** Return to the account list. *It will say zero dead
+   ends after step 3 alone, before step 4 — see §3.2. That is a bug in the
+   witness, not in the count.*
+6. **A turn.** Start a session, send a message, watch the reply stream.
+7. **Reload mid-turn.** Send another, and reload the page while it is streaming.
+   The finished turn should be there.
+8. **The record.** Open *Turn record* and read it. See §2.4.
 
-Then break it on purpose — a wrong API key, a model id that does not exist, a
+### 2.2 A real provider
+
+**Every automated test in this repository runs against `FakeProvider`.** That is
+the right default — [10 §4](10-testing.md) argues it, and an E2E suite calling a
+real model would be slow, flaky, expensive and would test the model rather than
+the app. It means the shipped adapter's wire format is asserted only against a
+stub this repo wrote, and a stub agrees with whatever it was written to agree
+with.
+
+Run §2.1 against **at least one hosted endpoint and one local runtime**, because
+they fail differently.
+
+Watch for: the request is accepted at all; chunks arrive incrementally rather
+than in one lump; `usage` comes back populated, since [13 §1.4] calls it
+*provider-reported, not estimated* and a provider that reports nothing makes
+every budget figure a guess; `ModelCall.resolved` names the model that actually
+ran; and the turn's cost is not zero.
+
+Then break it deliberately — wrong key, model id that does not exist, a
 deliberately tiny completion ceiling — and check each surfaces as a *classified*
-failure ([06 E7](../06-open-questions.md)) rather than a provider string
-appearing raw in the UI.
+failure ([06 E7]) rather than a provider string in the UI.
 
-**Do this on every provider you intend to support before P3.** It is the one
-category of defect where the fake is structurally unable to help.
+**And the model fetch.** *Fetch models* against both, and against something that
+does not implement `/models` at all. [P2B §2.6]'s caveat — that several local
+runtimes answer with one entry called `gpt-3.5-turbo` regardless of what is
+loaded — is the kind of thing only a real llama.cpp tells you.
 
-### 1.2 First-run setup in a browser
+### 2.3 The browser, under real conditions
 
-P2.0 explicitly left the first-run browser landing to the Playwright tier
-([10 §3.5](10-testing.md)), which is not built. Until it is: delete the data
-directory, start the server, open the browser, and go through setup to a
-signed-in admin.
+The component tests drive reducers with synthetic frames at machine speed.
 
-Watch for: the setup token path works from a cold start; the account is created;
-the session cookie survives a reload; and signing out and back in works.
+- **Close the tab mid-generation and reopen.** The finished turn should be there.
+  Automated at the socket level; a browser's actual unload is not.
+- **Sleep the laptop mid-turn**, wake it, watch the stream reconnect. Materially
+  different from an aborted socket: a sleeping machine's socket dies without a
+  close, and the resume goes through `Last-Event-ID` on a connection the browser
+  reopened itself.
+- **Two tabs on one session.** Server fan-out is asserted; two real clients
+  rendering the same deltas is not.
+- **Kill the server mid-turn** (Ctrl-C), restart, reload. The partial turn should
+  be recorded failed and the session usable.
+- **Two admins on the settings page.** Save in one, then save in the other.
+  Both offers of the 412 should now work — *load what is on disk* and *overwrite
+  with mine* — and a plain Save in between should still be refused.
 
-### 1.3 The play surface under a real model's cadence
+### 2.4 What only a person can judge
 
-The component tests drive the reducer with synthetic frames at machine speed. A
-real model streams at a human-visible rate, which is the only condition under
-which the *reading* experience exists at all.
+- **The turn record.** Open it and ask: could you tell from this alone why the
+  turn came out the way it did? Note what you had to guess; that list is P3's
+  brief.
+- **The removal sentence.** Start removing an account and *read the dialog before
+  clicking*. It is the one piece of copy somebody would want to have read
+  beforehand, and the only test of it is whether it reads that way.
+- **The capability groups.** *In force now* against *recorded for later*: does
+  the second read as honest, or as an excuse?
+- **The restart banner.** Does *StoryEngine does not restart itself* answer the
+  question it raises, or invite it?
 
-Take a long turn and watch the text land. Then:
+### 2.5 Both platforms
 
-- **Close the tab mid-generation and reopen it.** The finished turn should be
-  there. Automated at the socket level; what is untested is a browser's actual
-  unload behaviour and the reconnect that follows.
-- **Sleep the laptop mid-turn**, wake it, and watch the stream reconnect. This
-  is materially different from the automated abort: a sleeping machine's socket
-  dies without a close, and the resume goes through `Last-Event-ID` on a
-  connection the browser reopened by itself.
-- **Two browser tabs on one session.** The server-side fan-out is now asserted;
-  what no test covers is two real clients rendering the same deltas.
-- **Kill the server mid-turn** (Ctrl-C), restart it, and reload the page. The
-  partial turn should be recorded failed and the session should be usable.
+CI runs the suite on ubuntu and windows, and `ci-shape.test.ts` stops that matrix
+being deleted quietly. What CI does not do is *run the application*. Start the
+server and play a turn on both at least once per phase — path handling, file
+watching and SQLite locking are the three places this codebase has already been
+bitten, and all three are platform-shaped.
 
-### 1.4 The turn record, read by a human
-
-Open the raw record behind *Turn record* on the play surface and read it.
-
-The automated tests assert the record's *fields*. What they cannot assert is
-whether it answers the question it exists to answer — [P2 §2](04-p2-implementation.md)
-makes the record load-bearing precisely because everything after P2 reads it. So
-read one and ask: could you tell from this alone why the turn came out the way it
-did? Note what you had to guess. That list is P3's brief.
-
-### 1.5 Both platforms, by hand
-
-CI runs the suite on ubuntu and windows, and the `ci-shape` test now stops that
-matrix being deleted quietly. What CI does not do is *run the application*. Start
-the server and play a turn on both Windows and Linux at least once per phase —
-path handling, file watching and SQLite locking are the three places this
-codebase has already been bitten, and all three are platform-shaped.
+**Everything above was verified on Windows only.** The ubuntu leg of the suite is
+asserted as configuration, not as a green run anybody here has seen.
 
 ---
 
-## 2. Will fail — the gate describes behaviour that is not built
+## 3. Will fail, or is not built
 
-These are findings, not test debt. Each names the change it needs.
+Findings, not test debt. Each names the change it needs.
 
-### 2.1 Gate step 7 — there is no error card
+### 3.1 P2B is half-built, and three gate steps are blocked on it
 
-> *"Hand-edit an actor into an invalid shape, open it → an error card naming the
-> path and problem, app alive, list still works."*
+P2B.3 (the admin surface), P2B.4 (first run) and P2B.5 (docs) are unwritten.
+There is **no connections form, no role table, and no first-run flow** — so gate
+steps 1, 6 and 9 cannot be walked through the UI at all, and §2.1's steps 3 and 4
+need `curl`.
 
-The server does its half: it records the file error, keeps serving the last good
-object, and refuses a save that would overwrite the invalid bytes. The route is
-`GET /api/library/errors`.
+Two things a survey found that P2B.3 has to settle before it starts, both plan
+gaps rather than code gaps:
 
-**No client code calls it.** There is no error card, and no other surface
-mentions a broken file. Hand-break an actor today and the app is silent: the user
-sees stale content presented as current, edits it, and is refused by a conflict
-dialog that blames a concurrent editor and offers a reload that reloads the same
-stale bytes.
+- **The role table has nothing to read.** `via` — which layer won — is computed
+  inside `resolveRole`, is deliberately *not* on the turn record ([13 §1.4]
+  specifies no such field), and no route returns a per-role resolution. As
+  scoped, P2B.3 would have to reimplement [07 §5.1]'s layering client-side, which
+  is a second copy of the resolution order. It needs a route.
+- **There is no masked input.** `PasswordInput` is file-private in
+  `UserSettings.tsx` and deliberately *not* a `Field`, because a password must
+  never acquire an assist slot. An API-key field built from `Field` renders the
+  key in plain text. And `hasKey` needs a *leave blank to keep it* affordance
+  that no primitive has.
 
-*Needs:* a client surface for `/api/library/errors`, and F20's invalid-file state
-in the index. The server half also has no test — see §3.
+### 3.2 The dead-end count cannot witness what P2B.4 claims
 
-### 2.2 A killed turn names no model call
+`deadEnds` counts connection **files** and never reads a bindings file. So a
+system connection with no bindings gives every account `hasUsableConnection:
+true` while every turn fails `unbound` — and P2B.4's stated ending, *P2A's
+account list reports zero dead ends*, would go green over an install nobody can
+play on.
 
-`performCall` attaches a `ModelCall` to a turn only when the call returns, or
-through `CallFailed`. An aborted signal is checked first and throws `Cancelled`,
-which carries no record — so a turn killed mid-generation comes back with
-`request.calls: []`.
+*Needs:* either the count asks whether a role actually resolves — which is
+`resolveRole('prose', …)` per account, one more file read each — or P2B.4's
+ending clause is reworded and the gate's step 1 becomes the only witness.
 
-Blocks and the budget verdict *do* survive the kill, and that is asserted. But
-gate step 10's "blocks intact… and can be re-run" reads oddly when the record
-cannot say which model was in flight. Left as
-`it.todo('names the model call that was in flight when the process died')` in
-`routes/recovery.test.ts`.
+### 3.3 P2B gate step 6's arithmetic is impossible
 
-### 2.3 The record cannot say a block is advisory
+The step says *the other seven use the install default*. There are eight roles;
+`defaultBindings` binds five, because `image`, `video` and `speech` are `unset`
+by design — there is no sensible text fallback for an image, and a binding that
+resolved to one would fail at the call rather than at the setup.
 
-Gate step 17 says guidance *"appears as an advisory block in the record"*.
-`AssembledBlock` has no `advisory` field: `assemble()` reads
-`Candidate.advisory` inside `admit()` and then drops it. The strongest thing the
-record can say is that the block came from the guidance *source*, which is
-weaker and different — a preset can mark any block advisory, and that fact is
-lost on the way to disk.
+So overriding one role leaves **four** resolving via the install default and
+**three** reporting `unbound`. The step is corrected in
+[14 §4](14-p2b-provider-configuration.md), and the role table needs a third state
+— *unset by design* — which P2B.3's own prose already implies and its scope does
+not mention.
 
-Relatedly, `ModelCall` records no call *purpose*, so *"no advisory block ever
-reaches an effect-producing call"* is not expressible over a committed record at
-all. The tests assert it over `FakeProvider.requests`, which works in a test and
-is unavailable to anyone reading a real session.
+### 3.4 A duplicated connection id has no flag, and deleting one lies
 
-*Needs:* an advisory flag on `AssembledBlock`, carried through `assemble()`; and
-the derived call purpose on `ModelCall`, written where `performCall` already
-computes it. Both are small, and both are what make P3's workbench able to
-render *why* a block was firewalled.
+Gate step 10 wants both copies listed and the shadowed one flagged. Both are
+listed — `readConnectionsIn` never dedupes — but **nothing computes a flag**:
+`AdminConnection` has no such field and the list route maps presenters straight
+over the array. P2B.3 cannot render what the server does not send.
 
-### 2.4 Two constructors of the clock effect disagree
+Worse, and this one is a bug rather than a gap: `findConnectionFile` returns the
+**first** file claiming an id and `deleteConnection` unlinks only that one. So
+deleting a duplicated id answers `204` while the connection still resolves from
+the second file — and the case [P2B §2.8] names for this is *an admin revoking a
+leaked key*. Being told *gone* while it still works is the wrong answer there.
 
-`acceptEffect` stamps `before` from the running channel map, and `createSession`
-writes no channels — so the first effect of every session records `before: null`
-while its `after` is `08:05`. Meanwhile `readClock()` defaults a missing channel
-to `CLOCK_START`, and `channels.ts`'s `clockEffect`, which would have written
-`CLOCK_START` there, **has no production caller at all**.
+*Needs:* a `shadowed` field on the admin presenter, and an explicit decision —
+delete every file claiming the id, or refuse and name the count.
 
-Benign today, because reversal maps the missing value back. Not benign once
-anything inverts an effect without consulting the channel's init policy, which
-[13 §1.3](../13-internal-contracts.md) defers. Two tests now record the
-divergence rather than assert either reading; one of them has to win.
+### 3.5 Gate step 7 — there is still no error card
 
-### 2.5 Log bindings do not match the contract
+Unchanged since this file was first written. The server records the file error,
+keeps serving the last good object, refuses a save over invalid bytes, and
+exposes `GET /api/library/errors`. **No client code calls it.** Break an actor
+by hand and the app is silent: stale content presented as current, edited, then
+refused by a conflict dialog blaming a concurrent editor.
 
-[13 §4.1](../13-internal-contracts.md) lists the bindings a turn job carries and
-says `jobId` is bound *when the job is created*. In fact:
+### 3.6 Smaller ones, all still open
 
-- nothing is logged at reservation — the first line carrying a `jobId` is
-  `job.running`, after the runner has taken it. A process that dies between the
-  202 and the first checkpoint leaves a reserved job and no log line at all;
-- `job.committed` carries no `sessionId`;
-- `job.unstartable` and `job.lost` carry neither `sessionId` nor `turnId` — and
-  those are the two lines an operator chasing a lost turn greps for.
-
-The tests assert what the code does and record the divergence. Gate step 19's
-claim of a *full* lifecycle from the log alone is true from `job.running`
-onward, not from reservation.
-
-### 2.6 A turn carries no money total
-
-`TurnCost` holds tokens, wall time and a model name. `ModelCall.cost` is the only
-place a price lives, and `costOf()` never aggregates it. Whether a turn should
-total its own cost is a design question, not a bug — but *"cost captured"* in
-gate step 11 reads as though it were already answered.
+- **A killed turn names no model call.** `performCall` attaches a `ModelCall`
+  only when the call returns; an aborted signal throws `Cancelled`, which carries
+  no record. Left as `it.todo` in `recovery.test.ts` — the suite's one todo.
+- **The record cannot say a block is advisory.** `assemble()` reads
+  `Candidate.advisory` in `admit()` and drops it, and `ModelCall` records no call
+  *purpose* — so *no advisory block reaches an effect-producing call* is not
+  expressible over a committed record.
+- **Two constructors of the clock effect disagree** about `before` on a
+  session's first effect, and `channels.ts`'s `clockEffect` has no production
+  caller.
+- **Log bindings** — `job.committed` carries no `sessionId`; `job.unstartable`
+  and `job.lost` carry neither; nothing logs at reservation, though [13 §4.1]
+  says `jobId` is bound when the job is created.
+- **A turn carries no money total.** `ModelCall.cost` is the only place a price
+  lives and `costOf()` never aggregates it.
 
 ---
 
-## 3. Should be a test, and is not yet
+## 4. Should be a test, and is not yet
 
-Listed separately so §1 does not absorb them. All are automatable today with the
-existing harness; none needs a browser or a person.
+Kept apart from §2 deliberately. Everything here *could* be automated; nothing
+here has been. Left in §2 it would silently become permanent manual work.
 
-| | What | Why it is not done |
-|---|---|---|
-| **Step 2** | The 412 loser's body carries the current *object*, not just its hash; and the refused write leaves no history entry | Two assertions on a race test that already races correctly |
-| **Step 3** | A hand edit and an API write contending **with the watcher running** | The existing test runs `watch: false`, so the window F3 is about is never opened |
-| **Step 4** | Pin/rename racing a snapshotting save, repeated enough times to mean something | One pass detects at roughly 1 in 4; the existing test is a coin flip |
-| **Step 5** | `authoredAt` bounded by a real clock window rather than compared to itself | Today a stamp regressing to a constant passes |
-| **Step 6** | History *content* survives a DELETE, not just the pointer file | The payloads behind `history/index.jsonl` are never read back |
-| **Step 7** | The recorded file error names the offending JSON path | The server half of §2.1 — the assertion nothing makes |
-| **Step 20** | A golden block table through the **shipped preset**, including one case under budget pressure | See below |
+### 4.1 A recorded transcript tier for the provider adapters
 
-**Step 20 is the largest remaining gap and worth its own paragraph.** There is
-exactly one snapshot assertion in this repository, and it runs over a
-hand-written candidate array that no production code path ever produces. Nothing
-snapshots what `SCENE_PRESET` actually renders to — so a reworded narrator
-instruction, a lost `omitWhenEmpty`, a change in in-history placement, or a
-collector that stops emitting the input slot passes every test that exists. And
-budget behaviour under pressure has no golden at all: the one budget assertion
-has every row included, so it cannot catch a wrong drop victim or a wrong
-`droppedBy`. [10 §3.1](10-testing.md) draws the table this should be, down to the
-columns.
+The largest single gap, and the reason §2.2 exists at the length it does.
+`openai-compatible.ts` is tested against hand-written `fetch` stubs, and a stub
+agrees with whatever understanding wrote it — the same understanding that wrote
+the adapter. If the chunk shape is misread, both are misread identically and both
+are green.
+
+*Wanted:* capture one real SSE response per endpoint family once, byte for byte,
+commit the bytes as a fixture, replay them through `SseParser` and the adapter.
+That converts *does it parse a real stream* from a manual step into a test, and
+leaves §2.2 the parts that genuinely need a live endpoint — auth, rate limits,
+`usage`, and whether the model that answered is the model that was asked for.
+
+**Not a substitute for §2.2, and it should not be sold as one.** A recording goes
+stale the day the provider changes, and nothing tells you.
+
+### 4.2 The three §3 findings, once their code lands
+
+Each of §3.2, §3.3 and §3.4 names a change; each needs the test that would have
+caught it. Specifically:
+
+- an account with a system connection but **no bindings** reports a dead end;
+- overriding one role leaves four via `default` and three `unset`, asserted as
+  the arithmetic rather than as a total;
+- deleting a duplicated id either removes every file claiming it, or refuses —
+  and the id does not resolve afterwards either way.
+
+### 4.3 Two clients on one session, at the DOM tier
+
+Server fan-out is asserted at the socket. What is not asserted is two mounted
+components consuming one session's frames — the case where a reducer keyed on
+something shared would let one tab's state leak into the other's render. Two
+`PlayPage`s in one jsdom document would reach it.
+
+### 4.4 The suite is load-sensitive, and that is a defect in the suite
+
+Four concurrent `pnpm test` runs produced two file failures — `history.test.ts`
+hitting vitest's 5000ms default. Alone, the same suite is 1009 green. So a test
+here can fail for reasons that have nothing to do with the code, which is the
+property that teaches people to re-run rather than read a failure.
+
+*Wanted:* find whether the slow path is a real fixed cost or a poll that should
+be event-driven, and fix the cause rather than raising the timeout. Raising it
+hides the next one.
+
+### 4.5 The ubuntu leg has never been watched
+
+`ci-shape.test.ts` asserts the matrix exists, which stops it being deleted
+quietly and asserts nothing about whether it passes. Every number in §1 is from
+Windows. Read one ubuntu run's output before treating the cross-platform claim as
+evidence.

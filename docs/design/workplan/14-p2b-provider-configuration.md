@@ -450,8 +450,16 @@ The first connection an admin saves offers to write the install defaults from it
 answering both when only one exists. `defaultBindings` gets its first production
 caller.
 
-*Ends at:* the demo. Fresh install → admin → one key → a turn, and P2A's account
-list reports zero dead ends without anyone having opened a text editor.
+*Ends at:* the demo. Fresh install → admin → one key → a turn, without anyone
+having opened a text editor.
+
+**The dead-end count cannot witness that, and this stage has to fix it or drop
+the clause.** `deadEnds` counts connection *files* and never reads a bindings
+file, so a system connection with no bindings gives every account
+`hasUsableConnection: true` while every turn fails `unbound` — the ending would
+go green over an install nobody can play on. Either the count asks whether a
+role actually resolves (`resolveRole('prose', …)` per account, one more file
+read each) or the clause comes out and the gate's step 1 is the only witness.
 
 ### P2B.5 — Docs and drift
 
@@ -488,8 +496,13 @@ pnpm dev    # http://127.0.0.1:8080
    turn fails naming the role. **Both states are reachable and they are
    different**, which is the whole reason `resolveRole` tells them apart.
 6. A user with their own `bindings.json` overriding one role → that role uses
-   theirs, the other seven use the install default, and the role table names
-   which layer won for each (§2.1).
+   theirs, **four** of the rest resolve via the install default and **three**
+   report `unbound`, and the role table names which layer won for each (§2.1).
+   *The arithmetic is not seven-and-one:* `defaultBindings` binds five of the
+   eight roles, because `image`, `video` and `speech` have no sensible text
+   fallback and a binding that gave them one would fail at the call rather than
+   at the setup. So the table needs a third state — **unset by design** — which
+   §2.1's prose implies and P2B.3's scope does not mention.
 7. Grant `privateConnections` to a user with a personal connection file on disk
    → their bindings resolve to it over the install default; revoke it → they
    return to the install default and the file is untouched
@@ -501,6 +514,15 @@ pnpm dev    # http://127.0.0.1:8080
    notice, the field still accepts a typed id, and the save still works (§2.6).
 10. Two connections on disk claiming one id → both listed, the shadowed one
     flagged, nothing blocked ([P1 §1.2](03-p1-implementation.md)'s posture).
+    **Two gaps here, both found by walking the gate.** `AdminConnection` has no
+    `shadowed` field and the list route maps presenters straight over the array,
+    so there is nothing for P2B.3 to render — the presenter needs one. And
+    `findConnectionFile` returns the *first* file claiming an id, so
+    `deleteConnection` unlinks that one alone: **a delete answers 204 while the
+    connection still resolves from the second file.** §2.8 names *revoking a
+    leaked key* as this case, where being told *gone* while it still works is
+    the wrong answer. Decide explicitly — delete every file claiming the id, or
+    refuse and name the count.
 11. `pnpm test` green on ubuntu and Windows, `pnpm lint` clean, and the opacity
     test **enumerates** every route under the connections surface from the route
     table rather than from a list — and reaches a successful response on each,
@@ -509,6 +531,15 @@ pnpm dev    # http://127.0.0.1:8080
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** For P2B that is step 1, and it is the only
 step that matters — this phase exists because P2 could not pass it.
+
+**Walked, 2026-08-20 — and it does not close.** Expected rather than a
+finding: P2B.3, P2B.4 and P2B.5 are not built, and they own steps 1, 6 and 9
+outright plus a clause each of 4, 5 and 10. Of what *is* built (P2B.0–.2), two
+steps are automated and falsifiable and five are partial. Step 11's opacity
+enumeration passes and now asserts a successful response on each route,
+including the `DELETE`. The corrections in steps 6 and 10 and in P2B.4 above
+came out of this walk; [12 §3](12-p2-manual-gate.md) collects them beside the
+rest.
 
 **What needs a person.** Steps 1 and 9 above all: every test in this repository
 runs against `FakeProvider`, so *"paste in a real key and take a turn"* is

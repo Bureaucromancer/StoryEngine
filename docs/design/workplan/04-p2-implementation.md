@@ -973,9 +973,18 @@ extensions to `routes/recovery.test.ts` and `turns/runner.test.ts`.
 
 What does **not** hold is written down rather than rounded off:
 [12 — what the machine cannot check](12-p2-manual-gate.md) lists the runs that
-need a person (a real provider above all — every test here uses the fake), six
-places where the gate describes behaviour that is not built, and seven steps that
+need a person (a real provider above all — every test here uses the fake), the
+places where a gate describes behaviour that is not built, and the steps that
 should be tests and are not yet. Read it before calling the phase done.
+
+**Re-walked 2026-08-20, alongside P2A's and P2B's**, and 12 was widened to cover
+all three rather than staying a P2 file. Eight of the twenty steps here are
+automated and falsifiable; twelve are partial with the human half named. That
+walk found and closed two gaps of its own — the library list's `refetchInterval`
+had no test at any tier, so deleting the poll left the suite green while the
+project's headline demo stopped working, and the client's own 412 recovery path
+was unreachable in a way only a component test could reach. Step 7's error card
+is still not built.
 
 1. **The P1 gate stays green** — [P1 §3](03-p1-implementation.md), automated to
    the three tiers §3's P2.0 entry defines, on ubuntu and Windows, as standing

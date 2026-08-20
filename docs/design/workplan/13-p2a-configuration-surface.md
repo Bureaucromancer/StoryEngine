@@ -600,6 +600,20 @@ configuration that has no surface.** For P2A it is discharged by steps 12–14 a
 by the drift test. For every phase after it, it is a question to answer before
 calling the phase done.
 
+**Walked, 2026-08-20.** Thirteen of the seventeen steps are automated and
+falsifiable; the rest are partial with the human half in
+[12 §2](12-p2-manual-gate.md).
+
+**Step 15 found a real failure, and it is fixed.** One hand edit wedged the
+form until the process restarted: the `412` compared against what the process
+had read at boot, a field that moves only at boot and after a *successful*
+write — so both recoveries the step names were unreachable, and every
+subsequent save was refused. A stage of mutation-proven tests missed it because
+the test named *allows a second save* exercised a save after a **successful**
+save; nothing exercised one after a refusal. The route now accepts an
+acknowledgement (`contentHash` matching what is on disk) and the form offers
+both recoveries; both are covered from the client's side.
+
 **What needs a person.** Steps 1, 7, 11 and 13 have automatable cores and
 user-visible halves that do not automate — that a warning reads as a warning,
 that the removal sentence is the one somebody would want to have read before
