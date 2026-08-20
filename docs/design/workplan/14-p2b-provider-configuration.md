@@ -1,10 +1,11 @@
 # 14 — P2B implementation plan
 
-**Status: plan, with the parts that depend on P2A named as such.** Written
-alongside [P2A](13-p2a-configuration-surface.md) and expanded as far as reading
-the code allows; §6 lists what P2A has to settle before this closes, so the
-revisit has a checklist rather than a re-read. Format follows
-[03](03-p1-implementation.md).
+**Status: plan, reviewed against [P2A](13-p2a-configuration-surface.md) as
+built.** Written alongside P2A and expanded as far as reading the code allowed;
+§6 was a checklist of what P2A had to settle and is now the answer sheet, §6.1
+carries two things P2A created that this plan did not anticipate, and §6.2
+records what re-reading the code confirmed — every finding in §1 held. Format
+follows [03](03-p1-implementation.md).
 
 **P2B delivers**, from [01 P2B](01-work-plan.md): provider configuration through
 the UI — system connections, the **install default bindings** everyone inherits,
@@ -19,10 +20,12 @@ one API key, and take a turn — without opening a text editor once.*
 **Why this is the phase immediately after P2A.** Today a fresh install cannot
 run a single turn. It needs a hand-written connection JSON file whose only
 worked example lives in a test, and a hand-written `bindings.json` whose writer
-was deliberately not shipped. P2A's account list will report, correctly and for
-every account, that nobody has a usable connection —
-[04 §4.5](../04-server-multiuser-deployment.md)'s dead-end state, made visible
-at last. **P2B is what lets an admin act on what P2A tells them**, which is
+was deliberately not shipped. P2A's account list now says so out loud, for every
+account — *"1 person has no usable connection and cannot send a message. No
+system connection is configured, so adding one fixes this for everybody."* —
+which is [04 §4.5](../04-server-multiuser-deployment.md)'s dead-end state made
+visible at last, and a sentence with no action behind it until this phase.
+**P2B is what lets an admin act on what P2A tells them**, which is
 [05 §15.4](../05-ui-surfaces.md)'s test for whether either panel belongs at all.
 
 **And it is the second phase written under [01 §2.3](01-work-plan.md).** The
@@ -35,10 +38,12 @@ document** — and §1 is the discovery that three of its sentences describe
 machinery nobody has built, because nothing has ever needed it.
 
 **CI this phase establishes:** the **opacity test** — no response from any route
-under the connections surface contains an `apiKey` or a `baseUrl` — asserted
-over the route table P2A introduces rather than route by route, so a route added
-later is covered without editing the test. §2.2 is why that shape is the only
-one worth having.
+under the connections surface contains an `apiKey`, and nothing a non-admin can
+reach contains a `baseUrl`. §2.2 is why the boundary is worth asserting rather
+than the discipline. It **enumerates** through the route table P2A introduced,
+so a route added later cannot be missed — but it supplies a real body per route
+rather than sweeping, because opacity is a claim about a *successful* response
+and a 400 contains no key trivially. §6.1 is where that correction came from.
 
 ---
 
@@ -107,6 +112,17 @@ admin edits one through a form:
 This is P2B's exact analogue of what P2A found in `applyLiveConfig`: a cache
 whose staleness was unreachable while the surface that writes it did not exist.
 **The first writer owns the invalidation**, and it is §2.4.
+
+*Written before P2A was built, and it landed — with a second act worth carrying
+here.* Repairing the config staleness by assigning **into** the running record
+rather than replacing it then exposed a defect one layer down:
+`mergeDefaults` shares whatever the file does not mention, so a single save
+rewrote `DEFAULT_CONFIG` for the life of the process. The pattern to expect is
+that **the fix for an unreachable staleness reaches something else that was
+relying on the staleness** — and that it will surface as a test passing for the
+wrong reason rather than as a failure. §6.2 records the check that says
+`capabilitiesFor` has no such twin today, and why that stops being true the day a
+capability grows an object.
 
 ### 1.4 `presentConnection` cannot serve the surface that edits a connection
 
@@ -308,10 +324,13 @@ and which fall back to system defaults."* It is not here, and the reason is not
 scope:
 
 - The user half only means anything for an account with `privateConnections`,
-  and until [P2A](13-p2a-configuration-surface.md) enforces that capability the
-  surface would be granting an ability the server does not check. **A
-  personal-connections surface that predates the check is the trivial bypass
+  and a surface predating the check would have been granting an ability the
+  server did not enforce — **the trivial bypass
   [04 §4.5](../04-server-multiuser-deployment.md) warns about, wearing a UI.**
+  *That half is discharged: [P2A §2.1](13-p2a-configuration-surface.md) moved
+  enforcement into `turns/runner.ts`, where the account's real capability now
+  decides what `resolveConnections` returns. What remains is the second bullet,
+  which is this phase's own work rather than a dependency.*
 - The **fallback display** is the substance of that bullet, and §2.1 is what
   gives it something to fall back *to*. Built the other way round it has two
   layers and one of them is always empty.
@@ -384,18 +403,38 @@ respelled: list, create, edit, delete for system connections; read and write for
 the install default bindings; the delete-time binding count (§2.8); the model
 fetch (§2.6).
 
-*Tests:* the opacity test over the route table — no `apiKey` in any response, no
-`baseUrl` in a non-admin one — which is this phase's CI contribution and the one
-assertion that must not be per-route.
+The prefix exists now, as an encapsulated plugin with one `onRequest` hook, and
+[P2A §2.4](13-p2a-configuration-surface.md) commits to never adding a
+per-handler admin check — so these routes add none. Registering them inside it
+is the whole of their authorisation, and the route-table test covers them the
+moment they are registered.
+
+*Tests:* the opacity test, enumerating through the route table — no `apiKey` in
+any response, no `baseUrl` in a non-admin one — which is this phase's CI
+contribution and the one assertion whose *coverage* must not be a hand-written
+list. Its bodies are per-route and have to be; see §6.1.
 
 *Ends at:* a connection round-trips through the API with the key never coming
 back, and a binding written through a route resolves on the next turn.
 
 ### P2B.3 — The admin surface
 
-A third section on P2A's settings route, not a new one: the connections list,
-the add and edit forms with their model picker, and the role table — eight
+A third section on P2A's settings route, not a new one (§6): the connections
+list, the add and edit forms with their model picker, and the role table — eight
 roles, what each resolves to, and which are unbound.
+
+What it inherits rather than builds: `Field`, `NumberField`, `SelectField` and
+`CheckboxField`, the last two added at P2A.6 as siblings in one file so *does
+this field have assist?* keeps having one answer; `readOnlyNote`, for a field
+that must show a value nobody may edit here; and `useFocusTrap`, extracted at
+P2A.6 precisely so a second and third dialog would not respell it — the
+delete-a-connection warning is one of them.
+
+**And one rule to write under rather than rediscover:** the lint rule against
+sentences assembled from fragments fires on exactly the shapes this section is
+made of — a count with a noun after it, a label with a parenthetical. It caught
+five of them in P2A.6 and was right every time. Each user-facing sentence is one
+string with the value substituted in.
 
 **The role table is the part worth getting right.** It is the only place the
 resolution order is visible, and it is what turns *"why did this turn use that
@@ -463,8 +502,9 @@ pnpm dev    # http://127.0.0.1:8080
 10. Two connections on disk claiming one id → both listed, the shadowed one
     flagged, nothing blocked ([P1 §1.2](03-p1-implementation.md)'s posture).
 11. `pnpm test` green on ubuntu and Windows, `pnpm lint` clean, and the opacity
-    test covers every route under the connections surface without naming any of
-    them.
+    test **enumerates** every route under the connections surface from the route
+    table rather than from a list — and reaches a successful response on each,
+    because a refusal proves nothing about what a response body carries (§6.1).
 
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
 configuration that has no surface.** For P2B that is step 1, and it is the only
@@ -511,26 +551,62 @@ against P7's unwritten contract, which is the one thing
 
 ---
 
-## 6. What P2A has to settle before this plan closes
+## 6. What P2A settled
 
-Written as a checklist rather than as prose, because the revisit is a specific
-act with a specific input: **P2A, implemented.** Each item is something this
-plan currently assumes and cannot check.
+Written as open questions while P2A was a plan; **P2A is built**, so this is the
+answer sheet. Every row was a thing this document assumed and could not check.
 
-**P2A.0 is built** ([P2A §3](13-p2a-configuration-surface.md)), and it closed
-one row already — struck below rather than deleted, because what it answered is
-worth carrying. The rest still wait on the routes and the forms.
-
-| Open | Why it needs P2A first |
+| Was open | Settled |
 |---|---|
-| **The route shape for `system/bindings.json`** (§2.7: the system file only — the per-user one keeps its reader and no writer) — a whole document read and written under a hash, or a map patched per role | P2A ships both idioms: a hash-guarded config `PUT` and a shallow-merge preferences `PATCH`. Which one an admin form actually wants is a thing to learn from having built them, and a binding is neither obviously — it is small and structured like config, and edited one role at a time like a preference. **Leaning to the whole document**, because a wrong binding stops turns rather than collapsing a pane, and eight roles is not a chatty write path |
-| ~~**Whether the connections form reuses P2A's config form machinery**~~ **Answered by P2A.0: partly, and the useful half is the idea rather than the code** | `LIVE_APPLIERS` shipped as a table keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with a completeness test in both directions. A connection's `capabilities` overrides are the same shape of problem and want the same treatment — *declared* against *in force* — but against `ProviderCapabilities`, not against a config key, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes |
-| **Where the third section lives on the settings route** | §15.3 puts system connections in the admin half beside the install. Whether that is a third section, a tab, or its own route is a layout question that needs P2A's two sections to exist before it can be answered honestly |
-| **Whether `AdminConnection` wants P2A's stale-check idiom** | Two admins editing one connection is rarer than two editing config, and P2A will have shown whether the 412-and-choose dialog is worth its weight at this scale |
-| **The dead-end count's exact wording**, shared with P2A's account list | P2A writes the sentence; P2B is what makes it reach zero. They should be the same sentence, and P2A is where it gets written |
+| **The route shape for `system/bindings.json`** (§2.7: the system file only) — a whole document under a hash, or a map patched per role | **The whole document, with the stale check** — the lean was right, and for a reason the lean did not name. Two admins editing bindings at once is rare; the writer the check actually defends against is a **text editor**, and `bindings.json` is hand-written today and stays hand-writable by design. That is the same argument the config form's check rests on. Inherit one lesson with it: P2A's first version compared the *merged* view against the running config and refused on every container start, because `--data` and an absent file both make the running record legitimately differ from the file. Compare the document as this process read it — [P2A §2.5](13-p2a-configuration-surface.md) |
+| **Where the third section lives on the settings route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](13-p2a-configuration-surface.md) refuses |
+| **Whether `AdminConnection` wants the stale-check idiom** | **Yes**, and the reason moved. It is not worth its weight against a second admin at this scale; it is worth it against the person editing the file on disk, which is the same writer and the same argument as the row above. The cost is known now: one field on the services record and one comparison, plus the discipline of updating that field on write — P2A's second save refused its own predecessor's work until it did |
+| **The dead-end count's exact wording**, shared with P2A's account list | **Written**: *"N people have no usable connection and cannot send a message."* followed by either *"No system connection is configured, so adding one fixes this for everybody."* or *"Give them their own connection, or allow them to add one."* The second clause is the one P2B changes — the whole phase is the first sentence reaching zero. Note the shape: the lint rule for assembled sentences forbids building these around the number, so each is a whole string with the count substituted in |
+| ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([13 §4.3](../13-internal-contracts.md)) |
 
-**One thing that does not need P2A and should not wait for it:** §1.2's finding.
-The install default layer is a data-model gap in shipped code, it is
-independently testable, and every day it stays open is a day
-[04 §4.5](../04-server-multiuser-deployment.md) describes a fallback that does
-not happen. If P2A slips, P2B.0 can be built in front of it.
+### 6.1 Two things P2A created that this plan did not anticipate
+
+**The route-table helper is a local function, and the opacity test needs it.**
+`adminRoutes()` in `routes/admin.test.ts` walks Fastify's own printed tree —
+parsing the *indentation*, because children carry only the segment they add, and
+the first version of it found three routes out of five while reporting that
+everything was guarded. P2B's opacity test wants the same enumeration, so it
+should be extracted rather than written twice; a second copy of that parser is a
+second chance to get the tree wrong.
+
+**And the opacity test cannot be the same *shape* as the guard sweep.** The
+guard sweep asserts a status code, so it needs no valid body — it hits every
+route with a nonsense parameter and expects 403. Opacity is a claim about a
+**successful** response, and a route that answers 400 contains no `apiKey`
+trivially. So the sweep enumerates and the opacity test must still supply a real
+body per route, or it proves nothing about the routes it cannot reach. That is a
+smaller claim than *"asserted over the route table"* and it is the true one;
+§2.2's rule survives, its mechanism is half of what this plan assumed.
+
+### 6.2 What re-reading the code after P2A confirmed
+
+Every finding in §1 still holds, checked rather than assumed: `readBindings`
+reads one path, `layout` has no system bindings member, `resolveRole` layers
+three where [07 §5.1](../07-tech-stack.md) names five, `ResolutionSource` has
+four members and no `default`, `ProviderFactory` is still a bare function type
+with a memo and no invalidation, `PublicConnection` is still a `Pick` without
+`baseUrl`, and `sessionOverride`/`stepOverride` still have no caller outside
+tests. The two comments §2.2 and §3 promise to repair — `connections.ts`'s
+*"a decision at P10's admin surface"* and `bindings.ts`'s *"which is P7's"* —
+are both still there, and both still name the wrong phase.
+
+**One thing checked and found absent**, so nobody goes looking: P2A's aliasing
+defect has no twin here. `capabilitiesFor` spreads `CONSERVATIVE_CAPABILITIES`
+and a `KNOWN_PROVIDERS` entry, which is the same shallow-spread-of-a-module-
+constant shape that let one settings save rewrite `DEFAULT_CONFIG` — but
+`ProviderCapabilities` is flat scalars throughout, so a shallow spread is a
+complete copy and there is nothing to alias. It becomes a live question the day
+a capability grows an object.
+
+**And one thing P2A learned that costs nothing to inherit.** A closed request
+body answers 400 naming the offending field now, because Ajv reports
+`additionalProperties` against the *parent's* path and the error handler was
+dropping the key. Every closed body in the API gained that at P2A.2, so P2B's
+connection bodies get it free — and *refused rather than ignored* stays the
+rule, for the reason it has always been: ignoring a field teaches a client that
+it worked.
