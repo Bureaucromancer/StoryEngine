@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { Writable } from 'node:stream';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -477,6 +478,65 @@ describe('the module defaults', () => {
       expect(DEFAULT_CONFIG.history.keepPerObject).toBe(50);
     } finally {
       await sparse.dispose();
+    }
+  });
+});
+
+/**
+ * **`log.level` through the route, not through `applyLiveConfig` directly.**
+ *
+ * `logging.test.ts` already proves the function assigns the level and that a
+ * child logger inherits it. What it cannot see is *which instance the route
+ * hands it*: `registerConfigRoutes` is called with the encapsulated `/api/admin`
+ * plugin, so `applyLiveConfig(app, …)` reaches whatever `app.log` is inside a
+ * plugin rather than necessarily the root.
+ *
+ * Asserted as an emitted line rather than as `services.config.log.level`,
+ * because the record moving is exactly the thing that stays true when the
+ * logger does not — which is the shape [P2A §3] predicted for this stage:
+ * *assigning to the child half-works silently and is the likeliest bug in the
+ * phase.*
+ */
+describe('log.level, applied by a save', () => {
+  it('changes what the root logger emits, not just what the record says', async () => {
+    const lines: string[] = [];
+    const capture = new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        lines.push(chunk.toString());
+        done();
+      },
+    });
+
+    const loud = await makeTestServer({
+      dataDir: server.dataDir,
+      config: { log: { level: 'info', format: 'json' } },
+      logStream: capture,
+    });
+    try {
+      await loud.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'ned', password: 'correct horse battery' },
+      });
+
+      loud.app.log.debug({ event: 'before' }, 'quiet');
+
+      const saved = await loud.request({
+        method: 'PUT',
+        url: '/api/admin/config',
+        payload: {
+          config: { ...loud.services.config, log: { level: 'debug', format: 'json' } },
+        },
+      });
+      expect(saved.status).toBe(200);
+
+      loud.app.log.debug({ event: 'after' }, 'audible');
+
+      const emitted = lines.join('');
+      expect(emitted).not.toContain('"event":"before"');
+      expect(emitted).toContain('"event":"after"');
+    } finally {
+      await loud.dispose();
     }
   });
 });

@@ -677,10 +677,26 @@ export function applyLiveConfig(
   // and the running logger agree, and the whole job of this function is to be
   // the thing that keeps them agreeing.
   //
-  // `app.log` is the **root** logger. Fastify gives each encapsulated plugin a
-  // child, and pino children resolve their level through the parent unless one
-  // was set on them — so assigning here reaches every child, and assigning to a
-  // child would work for that child's lines and silently not for the rest.
+  /**
+   * **Which `app` this is does not matter, and that is worth stating** because
+   * it does not look that way.
+   *
+   * P2A.5 registers the settings routes inside the encapsulated `/api/admin`
+   * plugin, so the instance reaching this line is a plugin's rather than the
+   * root — which reads like the classic half-working bug: set the level on a
+   * child, watch that child's lines change and nothing else's.
+   *
+   * It is not, because **Fastify shares one logger across plugin instances**;
+   * `instance.log` is the root logger unless a plugin was registered with its
+   * own `logLevel`, and none here is. Per-*request* loggers are children, and
+   * pino children resolve their level through the parent unless one was set on
+   * them, so this assignment reaches those too.
+   *
+   * That is a fact about Fastify rather than about this code, so it is pinned by
+   * a test that emits a line either side of a save through the route
+   * (`routes/config.test.ts`) rather than by this paragraph. Assigning to a
+   * child instead fails it.
+   */
   app.log.level = next.log.level;
 
   /**
