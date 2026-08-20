@@ -844,3 +844,57 @@ describe('nonsense a person can type', () => {
     expect(await listEntryNames(layout.systemConnectionsRoot)).toEqual([]);
   });
 });
+
+/**
+ * **The capability overrides survive an edit, for the key's own reason.**
+ *
+ * Found by a readiness survey ahead of P2C rather than by a failure. The form
+ * has no field for `capabilities` — [07 §5.3] makes them the operator saying
+ * something about their own endpoint — so it sends none, and a write that took
+ * `input.capabilities` alone deleted what was on disk on every rename.
+ *
+ * `capabilities` is where `maxContextTokens` and `reportsUsage` live, which are
+ * exactly the two an operator hand-writes because their local runtime does not
+ * match the conservative baseline. A rename turned a working install into one
+ * that truncates at 8192 and reports no usage.
+ */
+describe('an edit that mentions no capabilities', () => {
+  it('keeps the ones on disk, the same way it keeps the key', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, {
+      ...HOUSE,
+      capabilities: { maxContextTokens: 32768, reportsUsage: true },
+    });
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'Renamed',
+      provider: 'openai-compatible',
+      models: ['gpt-hi'],
+    });
+
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable[0]?.label).toBe('Renamed');
+    expect(usable[0]?.capabilities).toEqual({ maxContextTokens: 32768, reportsUsage: true });
+    // And the key is still there, so the two are preserved by one rule rather
+    // than by two that can drift.
+    expect(usable[0]?.apiKey).toBe('sk-do-not-leak');
+  });
+
+  it('replaces them when the caller does send some', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, {
+      ...HOUSE,
+      capabilities: { maxContextTokens: 32768 },
+    });
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'The house key',
+      provider: 'openai-compatible',
+      models: ['gpt-hi'],
+      capabilities: { maxContextTokens: 8192 },
+    });
+
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable[0]?.capabilities).toEqual({ maxContextTokens: 8192 });
+  });
+});

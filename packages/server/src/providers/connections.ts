@@ -442,6 +442,25 @@ export async function writeConnection(
   const existing = input.id === undefined ? null : await readConnectionAt(path, root, layout);
   const apiKey = input.apiKey ?? existing?.apiKey;
 
+  /**
+   * **And the capability overrides are preserved on the same terms**, which the
+   * key's argument above always covered and this code did not.
+   *
+   * The form has no field for them — deliberately, since
+   * [07 §5.3](../../../../docs/design/07-tech-stack.md) makes them the operator saying something
+   * about their own endpoint rather than a setting with a sensible default — so
+   * it sends none, and a write that took `input.capabilities` alone **deleted
+   * whatever was on disk every time somebody renamed a connection.**
+   *
+   * That is worse than it sounds, because `capabilities` is where
+   * `maxContextTokens` and `reportsUsage` live: the two overrides an operator
+   * hand-writes precisely because their local runtime does not match the
+   * conservative baseline. Losing them silently turns a working install into one
+   * that truncates at 8192 and reports no usage, with a rename as the only
+   * visible cause.
+   */
+  const capabilities = input.capabilities ?? existing?.capabilities;
+
   const file = {
     id,
     label: input.label,
@@ -451,7 +470,7 @@ export async function writeConnection(
     ...(input.baseUrl === undefined || input.baseUrl.length === 0
       ? {}
       : { baseUrl: input.baseUrl }),
-    ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
+    ...(capabilities === undefined ? {} : { capabilities }),
   };
 
   await layout.assertReal(root);
