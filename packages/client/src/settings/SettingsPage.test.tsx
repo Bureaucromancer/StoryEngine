@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -27,6 +27,7 @@ const readMe = vi.fn();
 const listAccounts = vi.fn();
 const readConfig = vi.fn();
 const notices = vi.fn();
+const writeConfig = vi.fn();
 const updateMe = vi.fn();
 const changePassword = vi.fn();
 
@@ -45,7 +46,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     createAccount: vi.fn(),
     updateAccount: vi.fn(),
     removeAccount: vi.fn(),
-    writeConfig: vi.fn(),
+    writeConfig: (...a: unknown[]) => writeConfig(...a) as unknown,
   },
 }));
 
@@ -378,5 +379,47 @@ describe('the user half', () => {
     await screen.findByLabelText('Current password');
 
     expect(screen.getByText(/does not sign out other browsers you are already/i)).toBeTruthy();
+  });
+});
+
+/**
+ * **The 412, from the client's side** — [P2A §2.5], and the path that had no
+ * test at all.
+ *
+ * The server's own test asserts `response.body.current` and stops there. What
+ * nothing checked is what the form does with it, and the form did nothing:
+ * `request()` lifts the body's `current` field onto the error, and the handler
+ * read `.current` off *that* — always `undefined`, so *Load what is on disk*
+ * was unreachable markup.
+ *
+ * It matters beyond this screen. [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+ * commits the next phase to the same idiom twice over, for `system/bindings.json`
+ * and for a connection, so shipping the dead affordance once would have shipped
+ * it three times.
+ */
+describe('a config save the file has moved under', () => {
+  it('offers what is on disk, rather than only refusing', async () => {
+    const { ApiError } = await import('../api.js');
+    writeConfig.mockRejectedValue(
+      new ApiError(412, 'stale', 'The config file has changed on disk.', {
+        dataDir: './data',
+        log: { level: 'warn' },
+        server: { host: '127.0.0.1', port: 8080 },
+      } as never),
+    );
+
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+    // Scoped: the page has two Save buttons, and the user half's is first.
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    const notice = await screen.findByRole('alert');
+    expect(notice.textContent).toContain('changed on disk');
+
+    // The offer, and then what it does: the form's values become the file's.
+    await userEvent.click(screen.getByRole('button', { name: 'Load what is on disk' }));
+
+    expect(screen.getByLabelText<HTMLSelectElement>('log.level').value).toBe('warn');
   });
 });

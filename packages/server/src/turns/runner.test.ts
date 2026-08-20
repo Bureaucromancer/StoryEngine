@@ -1295,8 +1295,16 @@ describe('the privateConnections capability', () => {
  *
  * The unit tests above pin `resolveRole`'s layering. What only a turn can show
  * is that the layer is *plumbed*: read from `system/bindings.json`, carried
- * through `performCall`'s context, and landing on the record as the `via` a
- * reader can see.
+ * through `performCall`'s context, and reaching the connection the call is made
+ * against.
+ *
+ * **`via` is not on the record**, and it is worth saying so where somebody would
+ * assume otherwise. `ModelCall` carries `resolved: { connectionId, modelId }` —
+ * what the role became — and nothing about which layer decided it;
+ * [13 §1.4](../../../../docs/design/13-internal-contracts.md) specifies it that way. So these
+ * assert the connection, and the layer is a live answer the role table shows
+ * rather than a recorded one. Putting `via` on the record is a contract change,
+ * which means the document first.
  */
 describe('the install default bindings', () => {
   /** The install's own file, with no personal one anywhere. */

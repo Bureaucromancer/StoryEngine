@@ -50,7 +50,10 @@ const CONTROL_CLASS =
 export function Field(props: FieldProps): JSX.Element {
   const controlId = useId();
   const errorId = useId();
+  const hintId = useId();
   const invalid = props.error != null;
+  const note = props.readOnlyNote ?? props.hint;
+  const describedBy = invalid ? errorId : note === undefined ? undefined : hintId;
 
   return (
     <div>
@@ -71,7 +74,7 @@ export function Field(props: FieldProps): JSX.Element {
             props.onChange(event.target.value);
           }}
           aria-invalid={invalid || undefined}
-          aria-describedby={invalid ? errorId : undefined}
+          aria-describedby={describedBy}
           placeholder={props.placeholder}
         />
       ) : (
@@ -84,18 +87,11 @@ export function Field(props: FieldProps): JSX.Element {
             props.onChange(event.target.value);
           }}
           aria-invalid={invalid || undefined}
-          aria-describedby={invalid ? errorId : undefined}
+          aria-describedby={describedBy}
           placeholder={props.placeholder}
         />
       )}
-      {invalid ? (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-900">
-          {props.error}
-        </p>
-      ) : null}
-      {(props.readOnlyNote ?? props.hint) !== undefined && !invalid ? (
-        <p className="mt-1 text-xs text-slate-500">{props.readOnlyNote ?? props.hint}</p>
-      ) : null}
+      <Notes errorId={errorId} hintId={hintId} error={props.error} hint={note} />
     </div>
   );
 }
@@ -123,8 +119,10 @@ export interface NumberFieldProps extends Omit<FieldProps, 'multiline' | 'rows'>
 export function NumberField(props: NumberFieldProps): JSX.Element {
   const controlId = useId();
   const errorId = useId();
+  const hintId = useId();
   const invalid = props.error != null;
   const locked = props.readOnlyNote !== undefined;
+  const note = props.readOnlyNote ?? props.hint;
 
   return (
     <div>
@@ -142,10 +140,10 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
           props.onChange(event.target.value);
         }}
         aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? errorId : undefined}
+        aria-describedby={invalid ? errorId : note === undefined ? undefined : hintId}
         placeholder={props.placeholder}
       />
-      <Notes id={errorId} error={props.error} hint={props.readOnlyNote ?? props.hint} />
+      <Notes errorId={errorId} hintId={hintId} error={props.error} hint={note} />
     </div>
   );
 }
@@ -208,6 +206,7 @@ export interface SelectFieldProps {
 
 export function SelectField(props: SelectFieldProps): JSX.Element {
   const controlId = useId();
+  const hintId = useId();
 
   return (
     <div>
@@ -216,6 +215,7 @@ export function SelectField(props: SelectFieldProps): JSX.Element {
         id={controlId}
         className={CONTROL_CLASS}
         value={props.value}
+        aria-describedby={props.hint === undefined ? undefined : hintId}
         onChange={(event) => {
           props.onChange(event.target.value);
         }}
@@ -226,7 +226,9 @@ export function SelectField(props: SelectFieldProps): JSX.Element {
           </option>
         ))}
       </select>
-      <Notes id={controlId} error={null} hint={props.hint} />
+      {/* `hintId`, not `controlId` — this passed the select's own id, which
+          would have been a duplicate in the DOM the moment it rendered. */}
+      <Notes errorId={hintId} hintId={hintId} error={null} hint={props.hint} />
     </div>
   );
 }
@@ -246,20 +248,38 @@ function Label({ htmlFor, text }: { htmlFor: string; text: string }): JSX.Elemen
 
 /** The error or the hint under a control. An error hides the hint. */
 function Notes({
-  id,
+  errorId,
+  hintId,
   error,
   hint,
 }: {
-  id: string;
+  errorId: string;
+  hintId: string;
   error: string | null | undefined;
   hint: string | undefined;
 }): JSX.Element | null {
   if (error != null) {
     return (
-      <p id={id} role="alert" className="mt-1 text-xs text-red-900">
+      <p id={errorId} role="alert" className="mt-1 text-xs text-red-900">
         {error}
       </p>
     );
   }
-  return hint === undefined ? null : <p className="mt-1 text-xs text-slate-500">{hint}</p>;
+  /**
+   * **The hint carries an id too**, because a control has to be able to point at
+   * it — and until [P2B](../../../docs/design/workplan/14-p2b-provider-configuration.md) only
+   * `CheckboxField` did. [05 §15.2](../../../docs/design/05-ui-surfaces.md) asks for the
+   * consequence beside the switch, and on a text or select field it was there
+   * for a sighted reader and announced to nobody: the label read out, the
+   * sentence explaining what the control does silently skipped.
+   *
+   * A separate id from the error's, rather than reusing one, because the two are
+   * never present together and sharing would make `aria-describedby` point at a
+   * node that is not there in whichever state the control is not in.
+   */
+  return hint === undefined ? null : (
+    <p id={hintId} className="mt-1 text-xs text-slate-500">
+      {hint}
+    </p>
+  );
 }

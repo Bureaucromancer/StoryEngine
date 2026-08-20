@@ -104,11 +104,20 @@ export function AdminInstall(): JSX.Element {
               setDraft(null);
             },
             onError: (error) => {
-              // 412 carries the document on disk, so the refusal can offer
-              // *load what is on disk* rather than only saying no ([P2A §3]).
+              /**
+               * 412 carries the config on disk, so the refusal can offer *load
+               * what is on disk* rather than only saying no ([P2A §3]).
+               *
+               * **`error.current` is already that config.** `request()` lifts
+               * the response body's `current` field onto the error, so reading
+               * `.current` off it again — which this did — is always
+               * `undefined`, and the whole conflict block below was
+               * unreachable. Nothing caught it because no test exercised the
+               * 412 path from the client side; the server's own test asserts
+               * `response.body.current.history.keepPerObject` and stops there.
+               */
               if (error instanceof ApiError && error.status === 412 && error.current) {
-                const body = error.current as { current?: Record<string, unknown> };
-                setConflict(body.current ?? null);
+                setConflict(error.current as unknown as Record<string, unknown>);
               }
             },
           });
