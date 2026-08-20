@@ -401,11 +401,17 @@ describe('a config save the file has moved under', () => {
   it('offers what is on disk, rather than only refusing', async () => {
     const { ApiError } = await import('../api.js');
     writeConfig.mockRejectedValue(
-      new ApiError(412, 'stale', 'The config file has changed on disk.', {
-        dataDir: './data',
-        log: { level: 'warn' },
-        server: { host: '127.0.0.1', port: 8080 },
-      } as never),
+      new ApiError(
+        412,
+        'stale',
+        'The config file has changed on disk.',
+        {
+          dataDir: './data',
+          log: { level: 'warn' },
+          server: { host: '127.0.0.1', port: 8080 },
+        } as never,
+        'the-hash-the-file-has-now',
+      ),
     );
 
     renderPage('admin');
@@ -421,5 +427,72 @@ describe('a config save the file has moved under', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Load what is on disk' }));
 
     expect(screen.getByLabelText<HTMLSelectElement>('log.level').value).toBe('warn');
+  });
+  /**
+   * **The other offer**, and the reason both exist — gate step 15 asks for *load
+   * what is on disk* **or** *overwrite with mine*, and *neither by accident*.
+   *
+   * Until this was walked as a checklist the form had only the first, and the
+   * server had no way to accept either: a 412 wedged the form until the process
+   * restarted, because the refusal never refreshed what the process had read.
+   */
+  it('offers to overwrite too, and presents the acknowledgement either way', async () => {
+    const { ApiError } = await import('../api.js');
+    writeConfig.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'The config file has changed on disk.',
+        {
+          dataDir: './data',
+          log: { level: 'warn' },
+          server: { host: '127.0.0.1', port: 8080 },
+        } as never,
+        'the-hash-the-file-has-now',
+      ),
+    );
+    writeConfig.mockResolvedValue({ config: {}, pendingRestart: [] });
+
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Overwrite with mine' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(writeConfig).toHaveBeenCalledTimes(2);
+    });
+    // `adminApi.writeConfig(config, contentHash)` — two arguments, not one
+    // object. The mutation hook takes the pair and spreads it here.
+    const [config, contentHash] = writeConfig.mock.calls[1] as [
+      { log: { level: string } },
+      string | undefined,
+    ];
+    // The acknowledgement, with the form's own values beside it — which is the
+    // whole difference between this offer and the other one.
+    expect(contentHash).toBe('the-hash-the-file-has-now');
+    expect(config.log.level).toBe('info');
+  });
+
+  it('sends no acknowledgement on an ordinary save, so neither offer fires by accident', async () => {
+    writeConfig.mockResolvedValue({ config: {}, pendingRestart: [] });
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(writeConfig).toHaveBeenCalled();
+    });
+    // `adminApi.writeConfig(config, contentHash)` — the hash is the SECOND
+    // argument. Reading it off the first is reading it off the config object,
+    // which never has one, so the assertion passed no matter what the form
+    // sent. Found by mutation: making the form always acknowledge left this
+    // green.
+    expect(writeConfig.mock.calls[0]?.[1]).toBeUndefined();
   });
 });

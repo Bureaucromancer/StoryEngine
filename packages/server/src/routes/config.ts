@@ -15,6 +15,7 @@ import {
   pendingRestart,
   validateConfigDocument,
 } from '../config.js';
+import { contentHashOf } from '../index-db/ingest.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 
 /**
@@ -49,7 +50,31 @@ import { writeJsonAtomic } from '../storage/atomic.js';
  * legitimately be on disk, and no client may invent one.
  */
 const ConfigWrite = Type.Object(
-  { config: Type.Object({}, { additionalProperties: true }) },
+  {
+    config: Type.Object({}, { additionalProperties: true }),
+    /**
+     * The file as the client last saw it — its **acknowledgement**.
+     *
+     * Optional, and its absence means *I have not seen the file since the page
+     * loaded*, which is the ordinary case and is checked against what this
+     * process read. Present, it is the client saying *I have now seen what is on
+     * disk*, whether because it loaded that content or because it chose to
+     * overwrite it — and either way the save proceeds.
+     *
+     * **Without this the 412 was a wedge.** The refusal returned without
+     * refreshing what the process had read, and that field moves only at boot
+     * and after a successful write — so one hand edit made every later save 412
+     * forever, including one carrying precisely what was on disk. Neither
+     * recovery the form offers could complete, which is what a gate step walked
+     * as a checklist found and a stage of mutation-proven tests did not: the
+     * test named *allows a second save* exercised a save after a **successful**
+     * save, never after a refusal.
+     *
+     * The same idiom the bindings write uses, deliberately — one answer to *how
+     * does a client say it has seen the file* rather than two.
+     */
+    contentHash: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  },
   { additionalProperties: false },
 );
 
@@ -138,6 +163,21 @@ function sameDocument(a: unknown, b: unknown): boolean {
   return stable(a) === stable(b);
 }
 
+/** The document's identity, so a client can present what it saw. */
+function documentHash(document: unknown): string {
+  return contentHashOf(new TextEncoder().encode(stable(document)));
+}
+
+/** The file's parsed contents, or an empty document when it cannot be read. */
+async function readDocument(services: AppServices): Promise<Record<string, unknown>> {
+  try {
+    return (await loadConfig(services.configPath)).document;
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    return {};
+  }
+}
+
 function stable(value: unknown): string {
   // `JSON.stringify` returns undefined only for functions and symbols, which a
   // parsed document cannot contain — so this is the scalar case, spelled out.
@@ -151,8 +191,10 @@ function stable(value: unknown): string {
 
 export function registerConfigRoutes(app: FastifyInstance, services: AppServices): void {
   app.get('/config', async (_request, reply) => {
+    const onDisk = await readDocument(services);
     return reply.send({
       config: services.config,
+      contentHash: documentHash(onDisk),
       path: services.configPath,
       tiers: CONFIG_TIERS,
       appliers: LIVE_APPLIERS,
@@ -190,7 +232,7 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
   });
 
   app.put('/config', { schema: { body: ConfigWrite } }, async (request, reply) => {
-    const body = request.body as { config: Record<string, unknown> };
+    const body = request.body as { config: Record<string, unknown>; contentHash?: string };
 
     /**
      * **The stale check**, and it is what makes the form safe against a text
@@ -225,7 +267,16 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
      * recommend. The question the form actually needs answered is narrower:
      * *has the file changed since we read it?*
      */
-    if (onDisk !== null && !sameDocument(onDisk.document, services.configDocument)) {
+    const acknowledged =
+      body.contentHash !== undefined &&
+      onDisk !== null &&
+      body.contentHash === documentHash(onDisk.document);
+
+    if (
+      !acknowledged &&
+      onDisk !== null &&
+      !sameDocument(onDisk.document, services.configDocument)
+    ) {
       return await reply.code(412).send({
         error: 'stale',
         message: 'The config file has changed on disk since this server read it.',
@@ -234,6 +285,12 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
         // rather than only being told no.
         current: onDisk.config,
         currentDocument: onDisk.document,
+        // What to present back to say *I have seen this*. Both offers the form
+        // makes — load what is on disk, or overwrite with mine — send it; the
+        // difference between them is which values travel beside it, which is
+        // why neither can happen by accident. A plain re-save carries the stale
+        // hash and is refused again.
+        contentHash: documentHash(onDisk.document),
       });
     }
 

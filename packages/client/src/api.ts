@@ -70,13 +70,30 @@ export class ApiError extends Error {
    * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
    */
   readonly current?: LibraryObject;
+  /**
+   * On a 412 from a route that offers one, the acknowledgement to present back
+   * — *I have seen what is on disk* ([P2A §4] step 15).
+   *
+   * Lifted here beside `current` rather than left in the body, for the reason
+   * `current` is: a caller that had to dig it out of an untyped body is a
+   * caller that can read the wrong key, which is exactly the bug the config
+   * form shipped with.
+   */
+  readonly contentHash?: string;
 
-  constructor(status: number, code: string, message: string, current?: LibraryObject) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    current?: LibraryObject,
+    contentHash?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     if (current !== undefined) this.current = current;
+    if (contentHash !== undefined) this.contentHash = contentHash;
   }
 }
 
@@ -131,7 +148,9 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
         ? (payload['current'] as LibraryObject)
         : undefined;
-    throw new ApiError(response.status, code, message, current);
+    const contentHash =
+      typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
+    throw new ApiError(response.status, code, message, current, contentHash);
   }
 
   return payload as T;
@@ -382,6 +401,8 @@ export interface ConfigView {
   tiers: Record<string, 'live' | 'reconnect' | 'restart'>;
   appliers: Record<string, 'applied' | 'unread'>;
   pendingRestart: string[];
+  /** The file as this read saw it, presented back on a save ([P2A §4] step 15). */
+  contentHash: string;
 }
 
 export const adminApi = {
@@ -402,12 +423,21 @@ export const adminApi = {
 
   readConfig: (): Promise<ConfigView> => request('GET', '/api/admin/config'),
 
+  /**
+   * `contentHash` is the form saying *I have seen what is on disk* — sent by
+   * both offers a 412 makes, and by neither a plain re-save ([P2A §4] step 15).
+   */
   writeConfig: (
     config: Record<string, unknown>,
+    contentHash?: string,
   ): Promise<{
     config: Record<string, unknown>;
     pendingRestart: string[];
-  }> => request('PUT', '/api/admin/config', { config }),
+  }> =>
+    request('PUT', '/api/admin/config', {
+      config,
+      ...(contentHash === undefined ? {} : { contentHash }),
+    }),
 
   notices: (): Promise<{ pendingRestart: string[]; canRestart: boolean }> =>
     request('GET', '/api/admin/notices'),

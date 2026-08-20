@@ -67,7 +67,14 @@ export function AdminInstall(): JSX.Element {
   const view = useAdminConfig();
   const write = useWriteConfig();
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
-  const [conflict, setConflict] = useState<Record<string, unknown> | null>(null);
+  /**
+   * What a refusal handed back: the file's content, and the acknowledgement to
+   * present with whichever recovery the admin picks.
+   */
+  const [conflict, setConflict] = useState<{
+    document: Record<string, unknown>;
+    contentHash: string;
+  } | null>(null);
 
   if (view.isPending) return <p className="text-sm text-slate-500">Loading…</p>;
   if (view.isError) return <p role="alert">The configuration could not be read.</p>;
@@ -99,28 +106,40 @@ export function AdminInstall(): JSX.Element {
         onSubmit={(event) => {
           event.preventDefault();
           setConflict(null);
-          write.mutate(config, {
-            onSuccess: () => {
-              setDraft(null);
+          write.mutate(
+            {
+              config,
+              // Present only after a refusal the admin has answered. A plain
+              // Save sends none, so neither recovery can happen by accident.
+              ...(conflict === null ? {} : { contentHash: conflict.contentHash }),
             },
-            onError: (error) => {
-              /**
-               * 412 carries the config on disk, so the refusal can offer *load
-               * what is on disk* rather than only saying no ([P2A §3]).
-               *
-               * **`error.current` is already that config.** `request()` lifts
-               * the response body's `current` field onto the error, so reading
-               * `.current` off it again — which this did — is always
-               * `undefined`, and the whole conflict block below was
-               * unreachable. Nothing caught it because no test exercised the
-               * 412 path from the client side; the server's own test asserts
-               * `response.body.current.history.keepPerObject` and stops there.
-               */
-              if (error instanceof ApiError && error.status === 412 && error.current) {
-                setConflict(error.current as unknown as Record<string, unknown>);
-              }
+            {
+              onSuccess: () => {
+                setDraft(null);
+                setConflict(null);
+              },
+              onError: (error) => {
+                /**
+                 * 412 carries the config on disk, so the refusal can offer *load
+                 * what is on disk* rather than only saying no ([P2A §3]).
+                 *
+                 * **`error.current` is already that config.** `request()` lifts
+                 * the response body's `current` field onto the error, so reading
+                 * `.current` off it again — which this did — is always
+                 * `undefined`, and the whole conflict block below was
+                 * unreachable. Nothing caught it because no test exercised the
+                 * 412 path from the client side; the server's own test asserts
+                 * `response.body.current.history.keepPerObject` and stops there.
+                 */
+                if (error instanceof ApiError && error.status === 412 && error.current) {
+                  setConflict({
+                    document: error.current as unknown as Record<string, unknown>,
+                    contentHash: error.contentHash ?? '',
+                  });
+                }
+              },
             },
-          });
+          );
         }}
       >
         {paths.map((path) => (
@@ -164,16 +183,35 @@ export function AdminInstall(): JSX.Element {
             <p>
               The file changed on disk since this page loaded. Saving now would overwrite that edit.
             </p>
-            <button
-              type="button"
-              className="mt-2 rounded-md border border-slate-300 px-3 py-1.5"
-              onClick={() => {
-                setDraft(conflict);
-                setConflict(null);
-              }}
-            >
-              Load what is on disk
-            </button>
+            {/**
+             * **Two offers, and the acknowledgement stays set for both.**
+             *
+             * Whichever the admin picks, the next save presents `contentHash` —
+             * the form saying *I have seen what is on disk*. The difference
+             * between them is only which values travel beside it, which is why
+             * pressing Save without choosing is refused again rather than
+             * silently picking one.
+             */}
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-3 py-1.5"
+                onClick={() => {
+                  setDraft(conflict.document);
+                }}
+              >
+                Load what is on disk
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-3 py-1.5"
+                onClick={() => {
+                  setDraft(config);
+                }}
+              >
+                Overwrite with mine
+              </button>
+            </div>
           </div>
         )}
       </form>

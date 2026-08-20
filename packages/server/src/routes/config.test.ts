@@ -540,3 +540,117 @@ describe('log.level, applied by a save', () => {
     }
   });
 });
+
+/**
+ * **Both ways out of a 412, and neither by accident** — gate step 15.
+ *
+ * The refusal is only half the mechanism. Until this was walked as a checklist,
+ * the other half did not exist: the 412 returned without refreshing what the
+ * process had read, and that field moves only at boot and after a successful
+ * write — so **one hand edit wedged the form until the process restarted**,
+ * including against a save carrying precisely what was on disk.
+ *
+ * A stage of mutation-proven tests missed it because the test named *allows a
+ * second save, having seen its own first one* exercises a save after a
+ * **successful** save. Nothing exercised a save after a refusal.
+ */
+describe('recovering from a hand edit', () => {
+  async function refusedSave() {
+    await writeFile(configPath(), JSON.stringify({ history: { keepPerObject: 7 } }));
+    const refused = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'debug') },
+    });
+    expect(refused.status).toBe(412);
+    return refused;
+  }
+
+  it('takes the save once the form has loaded what is on disk', async () => {
+    const refused = await refusedSave();
+    const body = refused.body as { current: Record<string, unknown>; contentHash: string };
+
+    const recovered = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: body.current, contentHash: body.contentHash },
+    });
+
+    expect(recovered.status).toBe(200);
+    expect((await onDisk())['history']).toMatchObject({ keepPerObject: 7 });
+  });
+
+  it('takes the save when the admin chooses to overwrite with theirs', async () => {
+    const refused = await refusedSave();
+    const body = refused.body as { contentHash: string };
+
+    // The same acknowledgement, different values beside it — which is the whole
+    // difference between the two offers, and why neither can happen by
+    // accident.
+    const overwritten = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'debug'), contentHash: body.contentHash },
+    });
+
+    expect(overwritten.status).toBe(200);
+    expect((await onDisk())['log']).toMatchObject({ level: 'debug' });
+  });
+
+  it('refuses a plain re-save, so neither recovery happens by accident', async () => {
+    await refusedSave();
+
+    // No acknowledgement: the admin has not said which they want, and pressing
+    // Save again must not silently pick one.
+    const again = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'debug') },
+    });
+
+    expect(again.status).toBe(412);
+    expect((await onDisk())['history']).toMatchObject({ keepPerObject: 7 });
+  });
+
+  it('refuses an acknowledgement of something that is not what is on disk', async () => {
+    const refused = await refusedSave();
+    const body = refused.body as { contentHash: string };
+    // The file moves again between the refusal and the retry.
+    await writeFile(configPath(), JSON.stringify({ history: { keepPerObject: 9 } }));
+
+    const stale = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'debug'), contentHash: body.contentHash },
+    });
+
+    // An acknowledgement is of a specific document, not a bypass.
+    expect(stale.status).toBe(412);
+  });
+
+  /**
+   * **The read hands out the same acknowledgement**, so a form that loaded
+   * *after* somebody edited the file can save without first being refused.
+   *
+   * The scenario is what makes this assertion mean anything: the hand edit
+   * happens first, so the document comparison would refuse — and the only thing
+   * that lets the save through is the hash this read returned. Asserting it on
+   * a clean install would pass with no hash at all, because there is nothing to
+   * be stale against. That is how the first version of this test survived
+   * deleting the field.
+   */
+  it('hands out an acknowledgement a later save can present', async () => {
+    await writeFile(configPath(), JSON.stringify({ history: { keepPerObject: 7 } }));
+
+    const read = await server.request({ method: 'GET', url: '/api/admin/config' });
+    expect(typeof read.body.contentHash).toBe('string');
+
+    const saved = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'warn'), contentHash: read.body.contentHash },
+    });
+
+    expect(saved.status).toBe(200);
+  });
+});

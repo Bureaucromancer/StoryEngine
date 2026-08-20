@@ -418,11 +418,12 @@ export function useAdminConfig(): UseQueryResult<ConfigView> {
 export function useWriteConfig(): UseMutationResult<
   { config: Record<string, unknown>; pendingRestart: string[] },
   Error,
-  Record<string, unknown>
+  { config: Record<string, unknown>; contentHash?: string }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: adminApi.writeConfig,
+    mutationFn: (input: { config: Record<string, unknown>; contentHash?: string }) =>
+      adminApi.writeConfig(input.config, input.contentHash),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['admin', 'config'] });
       // The banner is above the outlet on every page, so it has to hear about
