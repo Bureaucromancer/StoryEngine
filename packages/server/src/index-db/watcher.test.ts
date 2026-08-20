@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
-import { listVersions } from '../storage/history.js';
+import { listVersions, readVersionPayload } from '../storage/history.js';
 import { listFileErrors, scopeKey } from './ingest.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
@@ -76,16 +76,25 @@ async function seenBy(path: string, timeoutMs = 4000): Promise<void> {
   await eventually(() => events.some((event) => event.path === path), timeoutMs);
 }
 
-/** Waits for a condition, because filesystem events are not synchronous. */
-async function eventually(check: () => boolean, timeoutMs = 4000): Promise<void> {
+/**
+ * Waits for a condition, because filesystem events are not synchronous.
+ *
+ * The check may be async: `watcher.settled()` drains the *event* queue, which
+ * is not the same as every file the handler touched having been rewritten — so
+ * a condition that has to read one back needs to be able to await.
+ */
+async function eventually(
+  check: () => boolean | Promise<boolean>,
+  timeoutMs = 4000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await watcher.settled();
-    if (check()) return;
+    if (await check()) return;
     await new Promise((tick) => setTimeout(tick, 25));
   }
   await watcher.settled();
-  expect(check(), `condition never held. Events: ${JSON.stringify(events)}`).toBe(true);
+  expect(await check(), `condition never held. Events: ${JSON.stringify(events)}`).toBe(true);
 }
 
 describe('a hand edit on disk reflects without a restart', () => {
@@ -230,9 +239,29 @@ describe('a hand edit leaves history behind', () => {
       );
     }
 
-    // Three foreign edits, each snapshotting the state it replaced — and a cap
-    // of one, honoured. Without the live read this is three.
-    expect(await listVersions(dirname(path))).toHaveLength(1);
+    /**
+     * **Settled on content, not asserted on a count the moment the index moves.**
+     *
+     * `handle()` calls `ingestFile` *before* `snapshotReplaced`, so the instant
+     * an edit's name is queryable its history entry is still being written. The
+     * loop above proves each edit was *seen*, not that its snapshot has landed,
+     * and asserting the count here read two under full-suite load.
+     *
+     * Waiting for `length === 1` alone would be worse than racy — one version is
+     * also what an *ignored* cap leaves after the first edit, so the condition
+     * would be satisfied before the second and third edits had happened. What is
+     * true only when the third snapshot has landed and the cap was honoured is
+     * the pair: one surviving version, and its payload being the state the third
+     * edit replaced.
+     */
+    await eventually(async () => {
+      const versions = await listVersions(dirname(path));
+      if (versions.length !== 1) return false;
+      const kept = (await readVersionPayload(dirname(path), versions[0]!.digest)) as {
+        name: string;
+      };
+      return kept.name === 'Rain City, after the rain';
+    });
   });
 
   it('snapshots the replaced state with an external source', async () => {

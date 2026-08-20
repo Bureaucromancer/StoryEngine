@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppServices } from '../app.js';
 import { AccountError, type PublicAccount } from '../auth/accounts.js';
 import { listEntryNames } from '../storage/files.js';
+import { registerConfigRoutes } from './config.js';
 
 /**
  * Administration — [05 §15.2](../../../../docs/design/05-ui-surfaces.md),
@@ -155,6 +156,11 @@ async function deadEnds(
 
 export function registerAdminRoutes(app: FastifyInstance, services: AppServices): void {
   app.addHook('onRequest', adminOnly);
+
+  // The install's settings, inside the same prefix and therefore behind the same
+  // hook — which is the whole of [P2A §2.4]'s argument for the guard being a
+  // property of the prefix rather than something each file remembers.
+  registerConfigRoutes(app, services);
 
   app.get('/accounts', async (_request, reply) => {
     const accounts = await services.accounts.list();

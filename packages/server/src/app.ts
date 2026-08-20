@@ -131,6 +131,32 @@ export interface AppServices {
    */
   maturation: Maturation;
   sessionKey: string;
+  /**
+   * Where `config.json` actually is.
+   *
+   * **Not derivable from the layout.** `main.ts` resolves it from `--config`,
+   * or from `--data`, or from the default before any config has been read —
+   * the bootstrap has to, because the data directory can only come from the
+   * config and the config path is derived from the data directory. So a settings
+   * route writing to `layout.configFile` would write the wrong file for anyone
+   * who passed `--config`, silently, and their edits would vanish on restart.
+   */
+  configPath: string;
+  /**
+   * `config.json` as this process last saw it — read at boot, replaced on every
+   * successful settings write.
+   *
+   * **This, and not `config`, is what the stale check compares against.** The
+   * running config is not the file: `--data` overrides `dataDir` after the load
+   * and never touches the document, and an install with no config file at all
+   * runs entirely on defaults. Comparing the merged view would therefore report
+   * a hand edit on every container start, which is the one deployment the docs
+   * recommend.
+   *
+   * What the form needs to know is narrower and answerable: *has the file
+   * changed since we read it?*
+   */
+  configDocument: Record<string, unknown>;
   library: LibraryContext;
   /**
    * Client preferences, per user ([06 B13]).
@@ -144,6 +170,10 @@ export interface AppServices {
 
 export interface BuildAppOptions {
   config: Config;
+  /** Where `config.json` was read from. `main.ts` knows; nothing else can. */
+  configPath?: string;
+  /** The file's contents as this process read them. See {@link AppServices.configDocument}. */
+  configDocument?: Record<string, unknown>;
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
   /**
@@ -256,10 +286,27 @@ async function assembleWithState(
   const runner = new TurnRunner({ commit, bus, providers, accounts, config: options.config });
 
   return {
-    config: options.config,
-    // Cloned rather than aliased: `config` is mutated in place from here on, so
-    // sharing one object would make the baseline follow the thing it is the
-    // baseline for, and the notice would always be empty.
+    /**
+     * **The server's own copy**, so a settings save cannot reach back into the
+     * object the caller built.
+     *
+     * `applyLiveConfig` assigns into this, and a caller who assembled their
+     * config by spreading `DEFAULT_CONFIG` — a shallow spread shares every
+     * nested object — would have their defaults rewritten by the first save.
+     *
+     * **Belt and braces with the loader's own clone**, and the honest version of
+     * that is worth writing down: `validateConfigDocument` also clones, so
+     * reverting *either* of them alone leaves the defaults intact and a mutation
+     * test cannot tell. The loader's is the one production depends on, because
+     * `mergeDefaults` shares whatever the file does not mention. This one guards
+     * the other direction — a caller assembling a config some way the loader
+     * never touched, which `main.ts` does the moment `--data` overrides
+     * `dataDir`.
+     */
+    config: structuredClone(options.config),
+    // And the baseline separately, for the same reason in the other direction:
+    // sharing one object would make it follow the thing it is the baseline for,
+    // and the restart notice would always be empty.
     bootConfig: structuredClone(options.config),
     layout,
     index,
@@ -278,6 +325,10 @@ async function assembleWithState(
     maturation,
     prefs: new PrefsStore(layout),
     sessionKey: await loadOrCreateSessionKey(layout),
+    // Defaulted rather than required: every test builds services without a real
+    // command line, and the layout's answer is right whenever nobody overrode it.
+    configPath: options.configPath ?? layout.configFile,
+    configDocument: options.configDocument ?? {},
     library,
   };
 }

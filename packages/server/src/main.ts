@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     argumentValue('--config') ?? new Layout(dataDirArgument ?? './data').configFile,
   );
 
-  const { config, fileFound, unknownKeys } = await loadConfig(configPath);
+  const { config, fileFound, unknownKeys, document } = await loadConfig(configPath);
   if (dataDirArgument) config.dataDir = dataDirArgument;
 
   // The break-glass path: reset a password from the console and exit, without
@@ -49,7 +49,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const services = await buildServices({ config });
+  // The path travels with the config, so the settings route writes back to the
+  // file this process actually read ([P2A §2.5]).
+  const services = await buildServices({ config, configPath, configDocument: document });
   const app = await buildApp(services);
 
   // Said after the logger exists rather than before, so that everything this

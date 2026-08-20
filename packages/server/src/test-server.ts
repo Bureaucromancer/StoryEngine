@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, buildApp, buildServices, disposeServices } from './app.js';
-import { type Config, DEFAULT_CONFIG } from './config.js';
+import { type Config, DEFAULT_CONFIG, loadConfig } from './config.js';
 import type { ProviderFactory } from './providers/factory.js';
+import { Layout } from './storage/layout.js';
 
 /**
  * An app on a real temporary data directory, driven through `inject`.
@@ -103,12 +104,47 @@ export interface TestServerOptions {
   logStream?: NodeJS.WritableStream;
 }
 
+/**
+ * The config file, or null if there is not a readable one.
+ *
+ * Its own function so the `catch` has somewhere to return from: several tests
+ * write deliberate nonsense to `config.json` and want a server anyway, and a
+ * `let` reassigned in a catch reads as though the initial value mattered.
+ */
+async function readConfigFile(
+  path: string,
+): Promise<{ config: Config; document: Record<string, unknown> } | null> {
+  try {
+    const result = await loadConfig(path);
+    return { config: result.config, document: result.document };
+  } catch {
+    return null;
+  }
+}
+
 export async function makeTestServer(options: TestServerOptions = {}): Promise<TestServer> {
   const borrowed = options.dataDir !== undefined;
   const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), 'se-app-')));
+
+  /**
+   * **The config file is read, the way `main.ts` reads it.**
+   *
+   * Without this a server on a borrowed `dataDir` was not a restart: it began
+   * from the defaults and never saw what the previous one wrote, so a test
+   * asserting *this file is one the process can start on* asserted nothing —
+   * and did, until [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md)
+   * stage P2A.5 needed exactly that claim.
+   *
+   * An unreadable file is left to the caller's overrides rather than thrown,
+   * because several tests write deliberate nonsense there and want a server
+   * anyway.
+   */
+  const layout = new Layout(dataDir);
+  const loaded = await readConfigFile(layout.configFile);
+
   const services = await buildServices({
     config: {
-      ...DEFAULT_CONFIG,
+      ...(loaded?.config ?? DEFAULT_CONFIG),
       // `silent`, because several of these run at once and a suite that prints
       // a request log per assertion buries its own failures. This is the
       // level's reason for existing ([13 §4]).
@@ -116,6 +152,8 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
       ...options.config,
       dataDir,
     },
+    configPath: layout.configFile,
+    configDocument: loaded?.document ?? {},
     watch: options.watch ?? false,
     ...(options.providers === undefined ? {} : { providers: options.providers }),
   });

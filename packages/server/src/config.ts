@@ -369,16 +369,7 @@ export async function loadConfig(path: string): Promise<ConfigLoadResult> {
     throw new ConfigError(path, ['the top level must be an object']);
   }
 
-  const merged = mergeDefaults(DEFAULT_CONFIG, parsed);
-
-  const ajv = createValidator();
-  const validate = ajv.compile(ConfigSchema);
-  if (!validate(merged)) {
-    throw new ConfigError(
-      path,
-      (validate.errors ?? []).map((error) => `${error.instancePath || '/'} ${error.message ?? ''}`),
-    );
-  }
+  const merged = validateConfigDocument(parsed, path);
 
   return {
     config: merged,
@@ -386,6 +377,42 @@ export async function loadConfig(path: string): Promise<ConfigLoadResult> {
     unknownKeys: configKeys(parsed).filter((key) => tierOf(key) === null),
     document: parsed as Record<string, unknown>,
   };
+}
+
+/**
+ * Fills a document from the defaults and validates the result.
+ *
+ * Extracted from {@link loadConfig} so the **settings write** can check a
+ * candidate document with the same code the process boots on. A second
+ * validator would be a second answer to "would this file start?", and the one
+ * outcome a settings form must never produce is a file the server refuses to
+ * read.
+ *
+ * `path` is only used to name the file in the error, and defaults to a phrase
+ * for the case where there is no file yet — a document being proposed.
+ */
+export function validateConfigDocument(document: unknown, path = 'the config'): Config {
+  /**
+   * **Cloned, because `mergeDefaults` shares what the override does not
+   * mention.**
+   *
+   * It copies one level per recursion, so a key absent from the file comes back
+   * as the *same nested object* `DEFAULT_CONFIG` holds — and since [P2A §2.5]
+   * made `applyLiveConfig` assign in place, one settings save then rewrote the
+   * module-level defaults for the life of the process. It was invisible in the
+   * ordinary case and made a test pass for entirely the wrong reason, which is
+   * how aliasing bugs usually announce themselves.
+   */
+  const merged = mergeDefaults(structuredClone(DEFAULT_CONFIG), document);
+
+  const validate = createValidator().compile(ConfigSchema);
+  if (!validate(merged)) {
+    throw new ConfigError(
+      path,
+      (validate.errors ?? []).map((error) => `${error.instancePath || '/'} ${error.message ?? ''}`),
+    );
+  }
+  return merged;
 }
 
 /** Deep merge, defaults underneath. Arrays and scalars from the file win whole. */
