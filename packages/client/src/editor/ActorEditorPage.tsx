@@ -2,12 +2,13 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useState, type JSX } from 'react';
 
 import { uuidv7 } from '@storyengine/shared';
 
 import { api, ApiError, type LibraryObject } from '../api.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
+import { useFocusTrap } from '../useFocusTrap.js';
 import {
   actorFormShape,
   applyForm,
@@ -402,72 +403,11 @@ export function ConflictDialog(props: {
   /** Why the copy failed, if it did — the user's escape hatch must not fail silently. */
   copyError: string | null;
 }): JSX.Element {
-  const surface = useRef<HTMLDivElement>(null);
   const { onCancel } = props;
-
-  /**
-   * Whatever had focus before this dialog existed.
-   *
-   * Captured during the first *render*, not in the effect below: by the time
-   * effects run, the dialog's `autoFocus` has already moved focus onto its own
-   * first button, so an effect would faithfully restore focus to a button that
-   * is about to be removed — and the caller lands on `<body>`, which is exactly
-   * the "where did my keyboard go" that a trap is supposed to prevent.
-   */
-  const [opener] = useState(() => document.activeElement as HTMLElement | null);
-
-  /**
-   * A real trap, because `aria-modal` is a claim rather than a mechanism (F18).
-   *
-   * It says "everything behind me is inert" to a screen reader, and does
-   * nothing at all to the Tab key — so the form underneath stayed reachable
-   * while a dialog was insisting the save had been refused. Three parts, and
-   * each is the one people leave out: Tab wraps at both ends, Escape is a way
-   * out (the same one as Cancel — a modal you can only leave by choosing is a
-   * modal people click through), and focus returns to whatever opened it.
-   */
-  useEffect(() => {
-    function focusable(): HTMLElement[] {
-      return Array.from(
-        surface.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
-      );
-    }
-
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      const stops = focusable();
-      const first = stops[0];
-      const last = stops[stops.length - 1];
-      if (!first || !last) return;
-
-      // Also covers focus that has escaped already — a click on the page
-      // behind, or a browser that moved it somewhere unexpected.
-      const active = document.activeElement;
-      if (event.shiftKey && (active === first || !surface.current?.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !surface.current?.contains(active))) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      // Only if it is still there: the opener can have been removed by the same
-      // state change that closed the dialog.
-      if (opener?.isConnected === true) opener.focus();
-    };
-  }, [onCancel, opener]);
+  // The trap lives in `useFocusTrap` since [P2A §3] — the settings surface has
+  // two dialogs of its own, and two spellings of a trap is how one of them ends
+  // up missing the Escape arm.
+  const surface = useFocusTrap(onCancel);
 
   return (
     <div
