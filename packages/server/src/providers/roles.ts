@@ -134,6 +134,40 @@ export type RoleResolution =
       connectionId?: string;
     };
 
+/**
+ * One row of the role table — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+ * stage P2B.3, and the answer to *"why did this turn use that model"* before
+ * anybody has to ask it.
+ *
+ * **It carries the resolution rather than re-deriving it.** [07 §5.1]'s
+ * layering lives in {@link resolveRole} and nowhere else; a surface that
+ * inspected the two binding maps and worked out which one would win would be a
+ * second implementation of the resolution order, wrong the first time a layer
+ * is added and wrong silently. So the table asks the resolver and renders what
+ * it says.
+ *
+ * `tier` is the one thing the resolution genuinely cannot supply, because it is
+ * a statement about *policy* rather than about state: `image` reporting
+ * `unbound` on a fresh install is {@link ROLE_TIER_DEFAULTS} working, and
+ * `prose` reporting `unbound` is an install nobody can play on. Same
+ * resolution, opposite meanings, and a surface that showed them identically
+ * would send an admin looking for a fault that is not there.
+ */
+export interface RoleRow {
+  role: ModelRole;
+  tier: 'hi' | 'lo' | 'unset';
+  resolution: RoleResolution;
+}
+
+/** Every role, resolved against one set of layers, in the vocabulary's own order. */
+export function roleTable(options: Omit<ResolveOptions, 'role'>): RoleRow[] {
+  return MODEL_ROLES.map((role) => ({
+    role,
+    tier: ROLE_TIER_DEFAULTS[role],
+    resolution: resolveRole({ ...options, role }),
+  }));
+}
+
 export interface ResolveOptions {
   role: ModelRole;
   /** The account's own bindings. Overrides {@link ResolveOptions.defaults} per role. */

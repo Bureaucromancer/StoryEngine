@@ -10,12 +10,14 @@ import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import {
   ConnectionError,
   deleteConnection,
+  presentConnectionsForAdmin,
   presentForAdmin,
+  readSystemConnectionEntries,
   readSystemConnections,
   writeConnection,
 } from '../providers/connections.js';
 import { MODEL_ROLES } from '../providers/types.js';
-import type { RoleBindings } from '../providers/roles.js';
+import { type Binding, defaultBindings, type RoleBindings, roleTable } from '../providers/roles.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { readFileBytes } from '../storage/files.js';
 
@@ -38,24 +40,73 @@ import { readFileBytes } from '../storage/files.js';
  * is already there.
  */
 
-const ConnectionBody = Type.Object(
-  {
-    label: Type.String({ minLength: 1, maxLength: 200 }),
-    provider: Type.String({ minLength: 1, maxLength: 64 }),
-    /**
-     * Absent means *keep what is stored*, which is what makes `hasKey` workable
-     * as a form affordance — an empty password box cannot distinguish *no key*
-     * from *unchanged*. An explicit empty string clears it.
-     */
-    apiKey: Type.Optional(Type.String({ maxLength: 512 })),
-    baseUrl: Type.Optional(Type.String({ maxLength: 2048 })),
-    models: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
-    capabilities: Type.Optional(Type.Object({}, { additionalProperties: true })),
-  },
+const CONNECTION_FIELDS = {
+  label: Type.String({ minLength: 1, maxLength: 200 }),
+  provider: Type.String({ minLength: 1, maxLength: 64 }),
+  /**
+   * Absent means *keep what is stored*, which is what makes `hasKey` workable
+   * as a form affordance — an empty password box cannot distinguish *no key*
+   * from *unchanged*. An explicit empty string clears it.
+   */
+  apiKey: Type.Optional(Type.String({ maxLength: 512 })),
+  baseUrl: Type.Optional(Type.String({ maxLength: 2048 })),
+  models: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
+  capabilities: Type.Optional(Type.Object({}, { additionalProperties: true })),
+};
+
+const ConnectionBody = Type.Object(CONNECTION_FIELDS, { additionalProperties: false });
+
+/**
+ * An edit presents what it read — [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ *
+ * Required rather than optional, because an optional guard is not one: a client
+ * that omitted it would get the old behaviour, which is the behaviour this
+ * exists to stop. A **create** has nothing to be stale against, so
+ * {@link ConnectionBody} stays as it was and only the `PUT` body extends it.
+ *
+ * Spelled as one closed object over a shared field map rather than as
+ * `Type.Intersect`: an `allOf` of two schemas that each close
+ * `additionalProperties` refuses every key the *other* branch declares, so the
+ * intersection accepts nothing at all. It typechecks, and every edit answers
+ * 400.
+ */
+const EditBody = Type.Object(
+  { ...CONNECTION_FIELDS, contentHash: Type.String({ minLength: 1, maxLength: 200 }) },
   { additionalProperties: false },
 );
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1, maxLength: 200 }) });
+
+/**
+ * The two models a first run answers with — [07 §5.1](../../../../docs/design/07-tech-stack.md)'s
+ * *a good one and a cheap one*.
+ *
+ * Sent as two bindings rather than as eight, because the eight are policy
+ * ({@link ROLE_TIER_DEFAULTS}) and policy belongs on the server: a client that
+ * posted a whole document would be free to spread them differently, and the
+ * first install to do so would have `prose` on the cheap model with nothing
+ * anywhere saying that was a choice.
+ */
+const DefaultsBody = Type.Object(
+  {
+    hi: Type.Object(
+      {
+        connectionId: Type.String({ minLength: 1, maxLength: 200 }),
+        modelId: Type.String({ minLength: 1, maxLength: 200 }),
+      },
+      { additionalProperties: false },
+    ),
+    lo: Type.Object(
+      {
+        connectionId: Type.String({ minLength: 1, maxLength: 200 }),
+        modelId: Type.String({ minLength: 1, maxLength: 200 }),
+      },
+      { additionalProperties: false },
+    ),
+    contentHash: Type.String({ minLength: 1, maxLength: 200 }),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * The whole document, under a hash — [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
@@ -98,8 +149,8 @@ async function bindingsState(
 
 export function registerConnectionRoutes(app: FastifyInstance, services: AppServices): void {
   app.get('/connections', async (_request, reply) => {
-    const connections = await readSystemConnections(services.layout);
-    return reply.send({ connections: connections.map(presentForAdmin) });
+    const entries = await readSystemConnectionEntries(services.layout);
+    return reply.send({ connections: presentConnectionsForAdmin(entries) });
   });
 
   app.post('/connections', { schema: { body: ConnectionBody } }, async (request, reply) => {
@@ -109,8 +160,10 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
         services.layout.systemConnectionsRoot,
         bodyToInput(request.body),
       );
-      services.providers.invalidate?.(written.id);
-      return await reply.code(201).send({ connection: presentForAdmin(written) });
+      services.providers.invalidate?.(written.connection.id);
+      return await reply
+        .code(201)
+        .send({ connection: presentForAdmin(written.connection, written.contentHash) });
     } catch (error) {
       return await respond(error, reply);
     }
@@ -118,9 +171,39 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
 
   app.put(
     '/connections/:id',
-    { schema: { params: IdParams, body: ConnectionBody } },
+    { schema: { params: IdParams, body: EditBody } },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const presented = (request.body as { contentHash: string }).contentHash;
+
+      /**
+       * **The stale check, against the file rather than against a held read**
+       * ([P2B §6]).
+       *
+       * Nothing in the process remembers a connection between requests, so the
+       * comparison is the library's idiom and not the config form's: the client
+       * presents the hash it read and this compares it to what is on disk now.
+       * The writer this defends against is a text editor — a connections
+       * directory is hand-editable by design ([P2B §2.3]) — and without it,
+       * renaming a connection in the form silently reverts whatever somebody
+       * changed in the file since the page loaded.
+       */
+      const entries = await readSystemConnectionEntries(services.layout);
+      const current = entries.find((entry) => entry.connection.id === id);
+      if (current === undefined) {
+        return await reply
+          .code(404)
+          .send({ error: 'not-found', message: `No connection with the id ${id}.` });
+      }
+      if (current.contentHash !== presented) {
+        return await reply.code(412).send({
+          error: 'stale',
+          message: 'That connection has changed on disk since this page read it.',
+          current: presentForAdmin(current.connection, current.contentHash),
+          contentHash: current.contentHash,
+        });
+      }
+
       try {
         const written = await writeConnection(
           services.layout,
@@ -137,8 +220,10 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
          * to the old endpoint with the old limits until a restart — a cache
          * whose staleness was unreachable while nothing could write.
          */
-        services.providers.invalidate?.(written.id);
-        return await reply.send({ connection: presentForAdmin(written) });
+        services.providers.invalidate?.(written.connection.id);
+        return await reply.send({
+          connection: presentForAdmin(written.connection, written.contentHash),
+        });
       } catch (error) {
         return await respond(error, reply);
       }
@@ -219,6 +304,91 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
 
   app.get('/bindings', async (_request, reply) => {
     return reply.send(await bindingsState(services));
+  });
+
+  /**
+   * What every role will do — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+   * stage P2B.3, and the route the role table could not be built without.
+   *
+   * **Which layer won is computed here, because it is only computable here.**
+   * It is a local in `resolveRole`, it is deliberately absent from the turn
+   * record ([13 §1.4] specifies no such field), and before this nothing
+   * returned it — so a table showing it would have had to reimplement
+   * [07 §5.1]'s layering in the browser, against two binding maps it would also
+   * have had to fetch. That is a second copy of the resolution order living in
+   * a different language from the first.
+   *
+   * **The install's answer, not the caller's.** The question this surface asks
+   * is *what has the install got* ([P2B §2.7]'s line), so it resolves the
+   * system bindings against the system connections and passes no personal
+   * layer at all. An admin's own `bindings.json` is theirs and belongs in the
+   * user half, which is the phase after — the same reason `readSystemConnections`
+   * exists beside `resolveConnections`.
+   */
+  app.get('/roles', async (_request, reply) => {
+    const rows = roleTable({
+      bindings: {},
+      defaults: await readSystemBindings(services.layout),
+      usable: await readSystemConnections(services.layout),
+    });
+
+    return reply.send({
+      roles: rows.map(({ role, tier, resolution }) => ({
+        role,
+        tier,
+        ...(resolution.ok
+          ? {
+              ok: true as const,
+              via: resolution.via,
+              connectionId: resolution.connection.id,
+              // The label, because a table of uuids answers nothing. Safe by
+              // the same rule `PublicConnection` follows: a label is the half
+              // of a connection that is not a credential.
+              connectionLabel: resolution.connection.label,
+              modelId: resolution.modelId,
+            }
+          : {
+              ok: false as const,
+              reason: resolution.reason,
+              ...(resolution.connectionId === undefined
+                ? {}
+                : { connectionId: resolution.connectionId }),
+            }),
+      })),
+    });
+  });
+
+  /**
+   * The first run's two answers, spread across the eight roles — [P2B §3] stage
+   * P2B.4, and {@link defaultBindings}'s first production caller.
+   *
+   * **Two bindings in, a whole document out.** The spread is
+   * {@link ROLE_TIER_DEFAULTS}'s policy — *the expensive model writes,
+   * everything else uses the cheap one* — and it stays on this side of the wire
+   * so that an install cannot end up with `prose` on the cheap model without
+   * anybody having chosen that. A client posting eight bindings itself is
+   * `PUT /bindings`, which still exists for the admin who is editing rather
+   * than starting.
+   *
+   * Under the same hash guard as `PUT /bindings`, and for a sharper reason: the
+   * offer this answers appears right after a connection is saved, which is
+   * exactly when a second admin — or the person who wrote the file by hand a
+   * minute ago — is most likely to have put something there already.
+   */
+  app.post('/bindings/defaults', { schema: { body: DefaultsBody } }, async (request, reply) => {
+    const body = request.body as { hi: Binding; lo: Binding; contentHash: string };
+    const current = await bindingsState(services);
+
+    if (body.contentHash !== current.contentHash) {
+      return await reply.code(412).send({
+        error: 'stale',
+        message: 'The bindings file has changed since this page read it.',
+        current: current.bindings,
+      });
+    }
+
+    await writeJsonAtomic(services.layout.systemBindingsFile, defaultBindings(body.hi, body.lo));
+    return await reply.send(await bindingsState(services));
   });
 
   app.put('/bindings', { schema: { body: BindingsBody } }, async (request, reply) => {

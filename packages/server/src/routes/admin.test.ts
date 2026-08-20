@@ -194,6 +194,30 @@ describe('the dead-end summary', () => {
     );
   }
 
+  /**
+   * The install defaults — the half the old count forgot existed.
+   *
+   * A connection with nothing bound to it is a key sitting on disk that no turn
+   * will ever reach, and the whole of [P2B §4]'s correction is that those two
+   * states have to be told apart.
+   */
+  async function seedSystemBindings(connectionId: string): Promise<void> {
+    const root = server.services.layout.systemRoot;
+    await mkdir(root, { recursive: true });
+    await writeFile(
+      server.services.layout.systemBindingsFile,
+      JSON.stringify({ prose: { connectionId, modelId: 'fake-hi' } }),
+    );
+  }
+
+  async function seedPersonalBindings(handle: string, connectionId: string): Promise<void> {
+    await mkdir(server.services.layout.userRoot(handle), { recursive: true });
+    await writeFile(
+      join(server.services.layout.userRoot(handle), 'bindings.json'),
+      JSON.stringify({ prose: { connectionId, modelId: 'fake-hi' } }),
+    );
+  }
+
   async function seedPersonalConnection(handle: string): Promise<void> {
     const root = server.services.layout.userConnectionsRoot(handle);
     await mkdir(root, { recursive: true });
@@ -227,7 +251,21 @@ describe('the dead-end summary', () => {
     }
   });
 
-  it('clears for everyone the moment one system connection exists', async () => {
+  /**
+   * **A key on disk that nothing points at is still a dead end**, and this is
+   * the test the old count could not have.
+   *
+   * `deadEnds` counted `.json` files in `system/connections/`, so this exact
+   * install — one system connection, no bindings anywhere — reported *zero
+   * dead ends* while every turn failed `unbound`. That made
+   * [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md).4's stated ending
+   * unable to witness itself: it would have gone green over an install nobody
+   * could send a message on.
+   *
+   * Found by walking the gate as a checklist rather than by a failure — there
+   * was nothing to go red.
+   */
+  it('is not cleared by a connection nothing is bound to', async () => {
     await server.services.accounts.create({
       handle: 'mara',
       password: 'another long password',
@@ -237,9 +275,46 @@ describe('the dead-end summary', () => {
 
     const response = await server.request({ method: 'GET', url: '/api/admin/accounts' });
 
+    expect(response.body.withoutUsableConnection).toBe(2);
+    // And the second number still reports what it says it reports: there *is*
+    // a system connection. The two facts are different and the warning's
+    // second sentence turns on which one is true.
+    expect(response.body.systemConnectionCount).toBe(1);
+  });
+
+  it('clears for everyone the moment the install binds one', async () => {
+    await server.services.accounts.create({
+      handle: 'mara',
+      password: 'another long password',
+      role: 'user',
+    });
+    await seedSystemConnection();
+    await seedSystemBindings('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a09');
+
+    const response = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+
     // One fix rather than n, which is the fact the heading's second number is
     // there to make obvious.
     expect(response.body.withoutUsableConnection).toBe(0);
+    expect(response.body.systemConnectionCount).toBe(1);
+  });
+
+  /**
+   * **A binding pointing at a connection that is gone is a dead end too**, and
+   * it is a different one: `resolveRole` answers `dangling` rather than
+   * `unbound`, and an admin who removed the key is the person who can fix it.
+   *
+   * Counting files could not see this either — the file is gone, so the count
+   * was right for the wrong reason on a fresh install and wrong the moment a
+   * *second* connection existed.
+   */
+  it('is not cleared by a binding whose connection was removed', async () => {
+    await seedSystemConnection();
+    await seedSystemBindings('a-connection-that-is-not-there');
+
+    const response = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+
+    expect(response.body.withoutUsableConnection).toBe(1);
     expect(response.body.systemConnectionCount).toBe(1);
   });
 
@@ -250,6 +325,7 @@ describe('the dead-end summary', () => {
       role: 'user',
     });
     await seedPersonalConnection('mara');
+    await seedPersonalBindings('mara', '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a0a');
 
     const usable = await server.request({ method: 'GET', url: '/api/admin/accounts' });
     expect(rowFor(usable.body, 'mara').hasUsableConnection).toBe(true);

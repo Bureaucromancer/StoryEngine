@@ -11,9 +11,11 @@ import { Layout } from '../storage/layout.js';
 import {
   type Connection,
   deleteConnection,
-  findConnectionFile,
+  findConnectionFiles,
   presentConnection,
+  presentConnectionsForAdmin,
   presentForAdmin,
+  readSystemConnectionEntries,
   resolveConnections,
   writeConnection,
 } from './connections.js';
@@ -484,17 +486,17 @@ describe('writing a connection', () => {
     // file reusing a system connection's id silently shadows it — for anything
     // created through the UI, without outlawing the hand-written file that
     // already works.
-    expect(written.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
+    expect(written.connection.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
 
     const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
-    expect(usable.map((connection) => connection.id)).toEqual([written.id]);
+    expect(usable.map((connection) => connection.id)).toEqual([written.connection.id]);
   });
 
   it('names the file from the id', async () => {
     const written = await writeConnection(layout, layout.systemConnectionsRoot, input);
 
     const names = await listEntryNames(layout.systemConnectionsRoot);
-    expect(names).toEqual([`${written.id}.json`]);
+    expect(names).toEqual([`${written.connection.id}.json`]);
   });
 
   it('refuses a provider this build cannot construct, at save rather than at the turn', async () => {
@@ -524,7 +526,7 @@ describe('writing a connection', () => {
     const written = await writeConnection(layout, layout.systemConnectionsRoot, input);
 
     await writeConnection(layout, layout.systemConnectionsRoot, {
-      id: written.id,
+      id: written.connection.id,
       label: 'Renamed',
       provider: 'openai-compatible',
       models: ['gpt-hi'],
@@ -540,7 +542,7 @@ describe('writing a connection', () => {
 
     await writeConnection(layout, layout.systemConnectionsRoot, {
       ...input,
-      id: written.id,
+      id: written.connection.id,
       apiKey: 'sk-rotated',
     });
 
@@ -556,7 +558,7 @@ describe('writing a connection', () => {
 
     const written = await writeConnection(layout, layout.systemConnectionsRoot, input);
 
-    expect(written.scope).toBe('system');
+    expect(written.connection.scope).toBe('system');
   });
 });
 
@@ -568,7 +570,7 @@ describe('deleting a connection', () => {
       models: ['gpt-hi'],
     });
 
-    await deleteConnection(layout, layout.systemConnectionsRoot, written.id);
+    await deleteConnection(layout, layout.systemConnectionsRoot, written.connection.id);
 
     expect(await listEntryNames(layout.systemConnectionsRoot)).toEqual([]);
   });
@@ -632,7 +634,7 @@ describe('deleting a connection', () => {
   it('finds nothing for an id no file claims', async () => {
     await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
 
-    expect(await findConnectionFile(layout, layout.systemConnectionsRoot, 'other')).toBeNull();
+    expect(await findConnectionFiles(layout, layout.systemConnectionsRoot, 'other')).toEqual([]);
   });
 });
 
@@ -644,7 +646,7 @@ describe('what an admin sees', () => {
     await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
     const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
 
-    const shown = presentForAdmin(usable[0]!);
+    const shown = presentForAdmin(usable[0]!, 'sha256:whatever');
 
     expect(shown).toEqual({
       id: 'house-openai',
@@ -654,6 +656,8 @@ describe('what an admin sees', () => {
       models: ['gpt-hi', 'gpt-lo'],
       baseUrl: 'https://api.internal.example/v1',
       hasKey: true,
+      shadowed: false,
+      contentHash: 'sha256:whatever',
     });
     // The URL is admin-visible and user-invisible — [04 §4.5]'s *"an admin may
     // opt to show it"* read as narrowly as it goes. The key is neither.
@@ -666,7 +670,7 @@ describe('what an admin sees', () => {
 
     // The two states an empty password box cannot distinguish, which is the
     // whole reason `hasKey` exists rather than a masked value.
-    expect(presentForAdmin(usable[0]!).hasKey).toBe(false);
+    expect(presentForAdmin(usable[0]!, 'sha256:whatever').hasKey).toBe(false);
   });
 
   it('is built by picking, so a new field on Connection does not leak by default', () => {
@@ -692,6 +696,78 @@ describe('what an admin sees', () => {
       organisationId: 'must not appear',
     } as unknown as Connection;
 
-    expect(JSON.stringify(presentForAdmin(future))).not.toContain('must not appear');
+    expect(JSON.stringify(presentForAdmin(future, 'sha256:whatever'))).not.toContain(
+      'must not appear',
+    );
+  });
+});
+
+/**
+ * **Shadowing is a property of the list**, so it is computed where the list is
+ * — [P2B §4](../../../../docs/design/workplan/14-p2b-provider-configuration.md) step 10.
+ */
+describe('two files claiming one id', () => {
+  it('are both read, and the one that loses is the one nothing resolves to', async () => {
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'A first by label' },
+      'one.json',
+    );
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'Z last by label' },
+      'two.json',
+    );
+
+    const entries = await readSystemConnectionEntries(layout);
+    const shown = presentConnectionsForAdmin(entries);
+
+    expect(shown.map((row) => [row.label, row.shadowed])).toEqual([
+      ['A first by label', false],
+      ['Z last by label', true],
+    ]);
+
+    /**
+     * **And the flag agrees with the resolver**, which is the claim rather than
+     * the ordering itself. `resolveRole` takes `usable.find(…)`, so asserting
+     * against it is what makes `shadowed` true instead of plausible — a second
+     * implementation of *which one wins* would drift the first time either
+     * changed.
+     */
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    const resolved = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: HOUSE.id, modelId: 'gpt-hi' } },
+      usable,
+    });
+    expect(resolved.ok && resolved.connection.label).toBe(
+      shown.find((row) => !row.shadowed)?.label,
+    );
+  });
+
+  it('are all found by the delete, so revoking a key actually revokes it', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE, 'one.json');
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE, 'two.json');
+
+    expect(await findConnectionFiles(layout, layout.systemConnectionsRoot, HOUSE.id)).toHaveLength(
+      2,
+    );
+    expect(await deleteConnection(layout, layout.systemConnectionsRoot, HOUSE.id)).toBe(2);
+
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable).toEqual([]);
+  });
+
+  /**
+   * **The derived name is tried first and not counted twice.** A file this
+   * store wrote is at `<id>.json`, which the scan below would reach as well —
+   * so without the dedupe a delete would unlink it and then try again.
+   */
+  it('does not count the derived path twice when that is where the file is', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+
+    expect(await findConnectionFiles(layout, layout.systemConnectionsRoot, HOUSE.id)).toHaveLength(
+      1,
+    );
   });
 });

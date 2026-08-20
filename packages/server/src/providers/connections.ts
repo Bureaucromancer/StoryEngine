@@ -4,6 +4,7 @@
 import type { Layout } from '../storage/layout.js';
 import { uuidv7 } from '@storyengine/shared';
 
+import { contentHashOf } from '../index-db/ingest.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { listEntryNames, readFileBytes, unlinkFile } from '../storage/files.js';
 import { resolveWithin } from '../storage/paths.js';
@@ -129,7 +130,28 @@ export async function resolveConnections(
  * pretending to ask about the system's.
  */
 export async function readSystemConnections(layout: Layout): Promise<Connection[]> {
-  return readConnectionsIn(layout, layout.systemConnectionsRoot, 'system');
+  return (await readEntriesIn(layout, layout.systemConnectionsRoot, 'system')).map(
+    (entry) => entry.connection,
+  );
+}
+
+/**
+ * A connection with the two facts that belong to its **file** rather than to it.
+ *
+ * Kept beside the parsed object rather than folded into it, because
+ * {@link Connection} is what a turn resolves against and a turn has no business
+ * knowing where the bytes came from. The admin surface does: it needs a hash to
+ * present back on a save, and a path to write to.
+ */
+export interface ConnectionEntry {
+  connection: Connection;
+  contentHash: string;
+  path: string;
+}
+
+/** The system scope, files and all — what the admin list is built from. */
+export async function readSystemConnectionEntries(layout: Layout): Promise<ConnectionEntry[]> {
+  return readEntriesIn(layout, layout.systemConnectionsRoot, 'system');
 }
 
 async function readConnectionsIn(
@@ -137,8 +159,16 @@ async function readConnectionsIn(
   root: string,
   scope: Connection['scope'],
 ): Promise<Connection[]> {
+  return (await readEntriesIn(layout, root, scope)).map((entry) => entry.connection);
+}
+
+async function readEntriesIn(
+  layout: Layout,
+  root: string,
+  scope: Connection['scope'],
+): Promise<ConnectionEntry[]> {
   const names = await listEntryNames(root);
-  const connections: Connection[] = [];
+  const entries: ConnectionEntry[] = [];
 
   for (const name of names) {
     if (!name.endsWith('.json')) continue;
@@ -157,10 +187,11 @@ async function readConnectionsIn(
     // person will actually have is a typo in one file, and taking down every
     // other connection because of it is the wrong answer — P2.3's invalid-file
     // state (F20) is where this becomes visible rather than merely survivable.
-    if (parsed !== null) connections.push(parsed);
+    if (parsed !== null)
+      entries.push({ connection: parsed, contentHash: contentHashOf(bytes), path });
   }
 
-  return connections.sort((a, b) => a.label.localeCompare(b.label));
+  return entries.sort((a, b) => a.connection.label.localeCompare(b.connection.label));
 }
 
 function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connection | null {
@@ -234,9 +265,30 @@ export interface AdminConnection {
   capabilities?: Partial<ProviderCapabilities>;
   /** Whether a key is stored. Never the key. */
   hasKey: boolean;
+  /**
+   * True when an earlier file in resolution order already claims this id, so
+   * nothing will ever resolve to this one — [P2B §4](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+   * step 10, and [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)'s posture: both
+   * are listed and nothing is blocked, but the one that loses says so.
+   *
+   * **A property of the list, not of the connection**, which is why it is
+   * {@link presentConnectionsForAdmin} that fills it in and why the single
+   * presenter cannot. A connection read on its own has no rival to lose to.
+   */
+  shadowed: boolean;
+  /**
+   * The file's bytes, hashed — the same guard the library and the config form
+   * use, and settled as *yes* in [P2B §6].
+   *
+   * Not against a second admin, who is rare at this scale: against **a text
+   * editor**. A connections directory is as hand-editable as a library one, so
+   * the edit form has to be able to notice that what it read is no longer what
+   * is there.
+   */
+  contentHash: string;
 }
 
-export function presentForAdmin(connection: Connection): AdminConnection {
+export function presentForAdmin(connection: Connection, contentHash: string): AdminConnection {
   return {
     id: connection.id,
     label: connection.label,
@@ -246,7 +298,32 @@ export function presentForAdmin(connection: Connection): AdminConnection {
     ...(connection.baseUrl === undefined ? {} : { baseUrl: connection.baseUrl }),
     ...(connection.capabilities === undefined ? {} : { capabilities: connection.capabilities }),
     hasKey: typeof connection.apiKey === 'string' && connection.apiKey.length > 0,
+    // A connection presented on its own is the one the caller asked for; there
+    // is no list for it to lose a race in.
+    shadowed: false,
+    contentHash,
   };
+}
+
+/**
+ * A whole scope, presented — and the only place `shadowed` can be computed.
+ *
+ * **The order is the resolver's order, not a rendering choice.**
+ * `resolveRole` takes `usable.find(c => c.id === binding.connectionId)`, so
+ * the first entry in the list a scope produces is the one a binding reaches and
+ * every later claimant is dead weight. Computing the flag from this same array
+ * is what makes it true rather than plausible: a second implementation of
+ * *which one wins* would be a second thing to keep in step with `resolveRole`.
+ */
+export function presentConnectionsForAdmin(
+  entries: readonly { connection: Connection; contentHash: string }[],
+): AdminConnection[] {
+  const claimed = new Set<string>();
+  return entries.map(({ connection, contentHash }) => {
+    const shadowed = claimed.has(connection.id);
+    claimed.add(connection.id);
+    return { ...presentForAdmin(connection, contentHash), shadowed };
+  });
 }
 
 export class ConnectionError extends Error {
@@ -303,7 +380,7 @@ export async function writeConnection(
     models: string[];
     capabilities?: Partial<ProviderCapabilities> | undefined;
   },
-): Promise<Connection> {
+): Promise<ConnectionEntry> {
   if (!canBuild(input.provider)) {
     throw new ConnectionError(
       'unbuildable',
@@ -315,7 +392,21 @@ export async function writeConnection(
   }
 
   const id = input.id ?? uuidv7();
-  const path = connectionFile(root, id);
+  /**
+   * **An edit writes back to the file it came from**, and only a create gets
+   * the derived name.
+   *
+   * This used to be `connectionFile(root, id)` unconditionally, which reads as
+   * harmless and is not: [P2B §2.3] promises a hand-written `house.json` keeps
+   * working, and `readConnectionsIn` takes the id from the file's *contents*.
+   * So editing one through the form wrote a **second** file at `<id>.json`,
+   * leaving two claiming one id — and the `existing` read below looked at the
+   * derived path too, found nothing, and **dropped the stored key**. Renaming a
+   * connection deleted its credential and manufactured the shadowing case
+   * §4 step 10 is about, in one save.
+   */
+  const path =
+    input.id === undefined ? connectionFile(root, id) : await editTarget(layout, root, id);
 
   /**
    * **The key is preserved when the caller does not send one.**
@@ -343,7 +434,21 @@ export async function writeConnection(
   await layout.assertReal(root);
   await writeJsonAtomic(path, file);
 
-  return { ...file, scope: root === layout.systemConnectionsRoot ? 'system' : 'user' };
+  /**
+   * **Hashed from the bytes on disk, not from the object just serialised.**
+   *
+   * One extra read per save, and it buys the only property that matters: the
+   * hash a save hands back is the hash the next read will compute. Hashing the
+   * in-memory value instead would be right until the day the writer's
+   * serialisation and the reader's differ by a trailing newline, and the
+   * symptom would be every second save refusing itself.
+   */
+  const bytes = await readFileBytes(path);
+  return {
+    connection: { ...file, scope: root === layout.systemConnectionsRoot ? 'system' : 'user' },
+    contentHash: contentHashOf(bytes ?? new Uint8Array()),
+    path,
+  };
 }
 
 /**
@@ -356,30 +461,70 @@ export async function writeConnection(
  * would break that promise silently, leaving a connection an admin has just been
  * told is gone.
  */
-export async function deleteConnection(layout: Layout, root: string, id: string): Promise<void> {
-  const path = await findConnectionFile(layout, root, id);
-  if (path === null) {
+export async function deleteConnection(layout: Layout, root: string, id: string): Promise<number> {
+  const paths = await findConnectionFiles(layout, root, id);
+  if (paths.length === 0) {
     throw new ConnectionError('not-found', `No connection with the id ${id}.`);
   }
-  await layout.assertReal(path);
-  await unlinkFile(path);
+  for (const path of paths) {
+    await layout.assertReal(path);
+    await unlinkFile(path);
+  }
+  return paths.length;
 }
 
-/** The file holding this id, derived name first and then a scan. */
-export async function findConnectionFile(
+/**
+ * Every file claiming this id, derived name first and then a scan.
+ *
+ * **Every, not the first**, and the difference is the whole of [P2B §4] step
+ * 10's second half. Two files may claim one id — nothing dedupes a directory
+ * anybody may write into — and a delete that unlinked only the first answered
+ * `204` while the connection went on resolving from the second. §2.8 names the
+ * case this is for: *an admin revoking a leaked key*. Being told **gone** while
+ * it still works is the wrong answer there, and it is the one answer this
+ * function must never give.
+ *
+ * Refusing instead would have been the other consistent choice, and it is the
+ * wrong one at this scale: [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)'s
+ * posture is that duplicate ids are surfaced and nothing is blocked, and an
+ * admin who cannot revoke until they have tidied their directory by hand is
+ * blocked at exactly the wrong moment.
+ */
+export async function findConnectionFiles(
   layout: Layout,
   root: string,
   id: string,
-): Promise<string | null> {
+): Promise<string[]> {
+  const found: string[] = [];
   const derived = connectionFile(root, id);
-  if ((await readConnectionAt(derived, root, layout))?.id === id) return derived;
+  if ((await readConnectionAt(derived, root, layout))?.id === id) found.push(derived);
 
   for (const name of await listEntryNames(root)) {
     if (!name.endsWith('.json')) continue;
     const candidate = resolveWithin(root, name);
-    if ((await readConnectionAt(candidate, root, layout))?.id === id) return candidate;
+    if (found.includes(candidate)) continue;
+    if ((await readConnectionAt(candidate, root, layout))?.id === id) found.push(candidate);
   }
-  return null;
+  return found;
+}
+
+/**
+ * The one file an edit writes back to: the winner, or the name a create would use.
+ *
+ * **Found through `readEntriesIn`, not through {@link findConnectionFiles}**,
+ * and the distinction is load-bearing rather than fussy. The two disagree on
+ * *order*: the finder tries the derived name first because a delete only needs
+ * to reach every file, while resolution goes by the label sort a scope is read
+ * in. Editing the wrong one of two claimants would be a form that saved
+ * successfully and changed nothing anybody could see — so this asks the same
+ * question the resolver asks, in the same order, and gets the same answer.
+ */
+async function editTarget(layout: Layout, root: string, id: string): Promise<string> {
+  const scope = root === layout.systemConnectionsRoot ? 'system' : 'user';
+  const winner = (await readEntriesIn(layout, root, scope)).find(
+    (entry) => entry.connection.id === id,
+  );
+  return winner?.path ?? connectionFile(root, id);
 }
 
 async function readConnectionAt(

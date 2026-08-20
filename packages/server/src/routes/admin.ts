@@ -6,6 +6,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AppServices } from '../app.js';
 import { AccountError, type PublicAccount } from '../auth/accounts.js';
+import { readBindings, readSystemBindings } from '../providers/bindings.js';
+import { resolveConnections } from '../providers/connections.js';
+import { resolveRole } from '../providers/roles.js';
 import { listEntryNames } from '../storage/files.js';
 import { registerConfigRoutes } from './config.js';
 import { registerConnectionRoutes } from './connections.js';
@@ -124,9 +127,35 @@ const AdminPassword = Type.Object(
  * admin who can enumerate another account's connections is one step from the
  * disclosure that document declines.
  *
- * **The system directory is read once**, not once per account: it is the same
- * answer every time, and a listing per account turns a page render into O(n)
- * directory reads for a fact that does not vary.
+ * ## It asks whether a turn would work, not whether a file exists
+ *
+ * **This used to count `.json` files and stop there**, which made the count
+ * unable to witness the thing it is for. A system connection with no bindings
+ * pointing at it gave every account `hasUsableConnection: true` while every
+ * turn failed `unbound` — so [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md).4's
+ * stated ending, *the account list reports zero dead ends*, would have gone
+ * green over an install nobody could play a turn on. Found by walking the gate
+ * rather than by a failure, because there was nothing to go red.
+ *
+ * So the question is now the *turn's* question, asked through the turn's own
+ * resolver: does `prose` resolve for this account. `prose` alone because it is
+ * the role a message needs — `image` is unset by design on nearly every install
+ * (`ROLE_TIER_DEFAULTS`) and counting it would report every fresh install as
+ * broken.
+ *
+ * And through `resolveConnections` rather than a directory listing, because the
+ * capability is enforced *there* ([04 §4.5]) — a revoked account's personal
+ * files are on disk and do not resolve, so counting files would have called
+ * that account fine while its turns failed.
+ *
+ * **What it costs, recorded rather than glossed.** The old version read one
+ * directory for the whole page. This reads the system bindings once, then per
+ * account: their bindings file, their connections directory and the system
+ * connections directory — `resolveConnections` reads both scopes before it
+ * looks at the capability, so revoking does not save the read. On a household
+ * install that is single-digit reads per account and the page is dense by
+ * design ([05 §15.4]); it is genuinely O(n), and the reason to pay it is that
+ * the cheaper answer was wrong.
  */
 async function deadEnds(
   services: AppServices,
@@ -135,21 +164,22 @@ async function deadEnds(
   const systemCount = (await listEntryNames(services.layout.systemConnectionsRoot)).filter((name) =>
     name.endsWith('.json'),
   ).length;
+  const defaults = await readSystemBindings(services.layout);
 
   const handles = new Set<string>();
   for (const account of accounts) {
-    // A system connection is usable by everyone, so one is enough for nobody to
-    // be stuck — and checking it first means no personal listing at all in the
-    // ordinary install.
-    if (systemCount > 0) continue;
-    // Without `privateConnections` a personal connection is not usable, so it
-    // does not rescue the account and the directory need not be read.
-    const personal = account.capabilities.privateConnections
-      ? (await listEntryNames(services.layout.userConnectionsRoot(account.handle))).filter((name) =>
-          name.endsWith('.json'),
-        ).length
-      : 0;
-    if (personal === 0) handles.add(account.handle);
+    const { usable } = await resolveConnections(
+      services.layout,
+      account.handle,
+      account.capabilities,
+    );
+    const resolution = resolveRole({
+      role: 'prose',
+      bindings: await readBindings(services.layout, account.handle),
+      defaults,
+      usable,
+    });
+    if (!resolution.ok) handles.add(account.handle);
   }
 
   return { handles, systemCount };
