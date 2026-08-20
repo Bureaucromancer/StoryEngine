@@ -29,8 +29,14 @@ about those areas below is inference and marked as such.
 ## 1. Marinara Engine
 
 A pnpm monorepo (`packages/{client,server,shared}`) — Node/TypeScript server,
-React client, SQLite-plus-file storage, Docker and Android packaging. Structurally
+React client, file-native storage, Docker and Android packaging. Structurally
 the most modern of the three and the closest to what StoryEngine wants to be.
+
+*Corrected 2026-08-18.* This said **SQLite-plus-file storage**, which was true
+when surveyed. Marinara now persists relational tables as JSON snapshots under
+`storage/tables/` — a database that writes files, which is not the same claim as
+[00 §3.4](00-stance.md)'s. The distinction is load-bearing for
+[triage §2A](workplan/02-triage.md).
 
 ### What it gets right and we should take
 

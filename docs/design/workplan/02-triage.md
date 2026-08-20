@@ -146,6 +146,10 @@ Measured source sizes:
 | Aventuras `src/` | 589 | ~124k |
 | SillyTavern `src/` | 97 | ~33k |
 
+*Re-measured 2026-08-18 in §2A.2: Marinara's `packages/*/src` alone is now ~518k
+lines across 1,294 files. The growth in between — roughly this entire codebase,
+in nine days — is one of the four measurements that decided §2A.*
+
 Nearly a million lines, and very little of it is usefully liftable — because
 **the code worth having is the code most entangled with what we are discarding.**
 
@@ -164,6 +168,223 @@ convenient alignment: **the licence question was low-stakes either way**,
 because the honest lift list is a few hundred lines. Going AGPL (§1) makes those
 few hundred lines available; it did not unlock a shortcut of any consequence,
 and no plan below should be built on the assumption that it did.
+
+---
+
+## 2A. Build versus fork — DECIDED: standalone
+
+**Decision (2026-08-18): StoryEngine is built standalone.**
+
+The question — *is a Marinara fork, rebuilt where this design disagrees and
+borrowing from Aventuras along the way, a better route to the same objectives?* —
+is a reasonable one, was never written down anywhere, and will be asked again.
+Most plausibly at the low point somewhere in P7, when the spine is finished and
+the breadth is not. This section exists so that it gets answered from
+measurements rather than from mood.
+
+Numbered `2A` rather than inserted as a new §3 because §4 through §9 are cited by
+number from four other documents. [P2A](13-p2a-configuration-surface.md) sets the
+precedent for inserting without renumbering.
+
+Three framings were considered. The third is the one that keeps coming back, and
+§2A.3 admits it rather than pretending the first two exhaust the space.
+
+| | The proposal |
+|---|---|
+| **Fork** | Base on Marinara, rebuild what this design disagrees with, port from Aventuras along the way |
+| **Contribute** | Drop the structural argument entirely; push Freeform mode and the setting/scenario/plot-thread material into Marinara as PRs |
+| **Standalone** | §4's verdicts: take the specifications, write the code |
+
+### 2A.1 The fork, at full strength
+
+Recorded properly, because a decision argued against a weak version of the
+alternative is worth nothing.
+
+Marinara is structurally the closest of the three to what this project wants to
+be: a pnpm monorepo, Node/TypeScript server, React client, and — the part
+[00 §2.9](../00-stance.md) does not credit it for, because that complaint is
+SillyTavern's — **generation already server-side**, under `services/generation/`
+and `routes/generate/`. It ships three modes, nine providers, keyword-scanned
+lorebooks, card/lorebook/preset import, a setup wizard, capability packages, and
+Docker/Windows/Android packaging. It has a team, CI and a release cadence. A fork
+starts playable on day one, and the effort goes into the parts this project has
+an opinion about instead of into re-deriving the parts it does not.
+
+That is a genuine offer, and it is why this section is long.
+
+### 2A.2 Four measurements that decide it
+
+**1. There is no user model to fork.** Marinara's entire auth surface is
+`packages/server/src/middleware/basic-auth.ts` — one `BASIC_AUTH_USER` /
+`BASIC_AUTH_PASS` pair from the environment, plus an IP allowlist and host
+validation. There is no `users`, `accounts` or `sessions` table among the 32 in
+`packages/server/src/db/schema/`. Every row in the install belongs to the
+install. Commitment 1 of these documents is *natively multi-user*
+([04 §4](../04-server-multiuser-deployment.md)), and that is not a feature to be
+added: it is an ownership dimension running through every table, route, query and
+client store. [Work plan §2.2](01-work-plan.md) already priced this exact shape of
+mistake — a stub identity threaded through every route and later torn out is
+every route written twice. A fork commits to that at 518k-line scale before the
+first commit.
+
+**2. The storage model is the inverse of the thesis.** `db/file-backed-store.ts`
+is file-native in the sense that a relational store is *persisted* as JSON table
+snapshots — `storage/tables/<table>.json`, sharded per chat for some tables —
+behind an in-memory index, a query layer with unique constraints, and a
+`STORAGE_VERSION` migration chain. It is a database that writes JSON, which is a
+respectable design and is not [00 §3.4](../00-stance.md)'s *drag a folder out of
+the storage directory and you have exported it*. Replacing it means replacing the
+persistence layer under every service in the tree.
+
+**3. There is no test suite underneath the demolition.** A search for
+`*.test.ts` under `packages/` returns **zero** across ~518k lines; the
+repository's own `CLAUDE.md` says as much. What exists is one Playwright file
+(`e2e/core-flows.e2e.ts`) and a set of `scripts/check-*.mjs` regression guards.
+The fork plan is *replace the ownership model, the storage layer and the
+assembler* — the three most load-bearing subsystems — in a codebase with no unit
+tests beneath any of them. Set against [testing §2](10-testing.md)'s stance that a
+claim nobody can break the build over is not a claim, this is the least
+defensible risk profile of the three options, and it is the measurement that
+would decide this section on its own.
+
+**4. The upstream can be neither tracked nor caught.** In the nine days from this
+project's first commit to this decision, Marinara made **712 commits** to
+StoryEngine's 149, changing 698 files under `packages/` for +56k/−16k — a net
+gain, in nine days, of roughly the entire size of this codebase. A fork therefore
+has two exits and both are bad: track upstream while restructuring its
+foundations, which is a permanent merge war against a mainline moving five times
+faster; or stop tracking, and own half a million lines of untested code somebody
+else wrote — including the whole of §6.3's discard list, which does not stop
+being maintained just because it is unwanted.
+
+Measured 2026-08-18. TS/TSX under `packages/*/src`, and `src/` for Aventuras:
+
+| | StoryEngine | Marinara | Aventuras |
+|---|---:|---:|---:|
+| Lines | ~40k | ~518k | ~133k |
+| Unit test files / lines | 64 / 18.5k | **0 / 0** | 80 / 14.3k |
+| Commits, 08-09 → 08-18 | 149 | 712 | 10 |
+| User model | accounts since P1 | none | none |
+| Storage | folder per object | JSON table snapshots | local database |
+
+### 2A.2a What the velocity measurement does to the usual argument
+
+The standard case for forking is *the rebuild takes years and the fork runs
+today*. That premise is measurably false here, and it is worth saying why rather
+than letting the numbers imply it.
+
+Nine days from `Initial commit` produced the storage spine with its watcher and
+derived index, accounts with scrypt and sessions, the library API, an actor
+editor with version history and a conflict refusal, the provider layer, the RNG
+service and its tape, assembler → budgeter → render, the complete turn record,
+resumable server-side turn jobs with SSE reattach, a Scene mode written as data,
+and a play surface. P2 is through its exit gate and
+[P2A](13-p2a-configuration-surface.md) is landing. PLAYABLE
+([work plan §4.1](01-work-plan.md)) is two phases out, and P3 is a *reader* over a
+record that already exists.
+
+At that rate the standalone build reaches a defensible product before a fork
+finishes its demolition phase. This is the measurement most likely to change —
+see §2A.5.
+
+### 2A.3 The third framing, admitted: contribute instead of building
+
+There is a cheaper framing than either, and it deserves recording because it is
+not obviously wrong: **drop the structural argument entirely.** Do not fork, do
+not rebuild. Take the two things this project actually wants that Marinara lacks
+— a Freeform mode, and the setting / scenario / plot-thread material — and push
+them upstream as pull requests. Marinara keeps its maintainers, its release
+cadence and its users; the ideas land where the users already are; nobody
+retrofits multi-user into anything.
+
+It is the only framing whose cost is bounded, and the only one that does not
+require agreeing with [00](../00-stance.md) at all. Three things stop it.
+
+**It is still a hard upstreaming problem, and the hardness is structural rather
+than social.** Outside contributors need an approving review from a single named
+owner in addition to the automated gates; the contribution guide asks for an
+issue first *"so we can agree on direction, scope"*, and asks that PRs stay
+focused and small. Those are good policies. They are also precisely the policies
+under which a fourth chat mode and a re-shaped setting object are not features
+but *direction* — and `ChatMode = "conversation" | "roleplay" | "game"` is a
+closed union baked into three tables, with a `retired-chat-mode-migration.ts`
+recording that the maintainers' demonstrated instinct is to *retire* a mode
+(`visual_novel` → `roleplay`) rather than accumulate one.
+
+**It concedes the unified actor, which is not a detail.** Marinara keeps
+`Character` and `Persona` as separate types (`types/persona.ts`,
+`services/personas/persona-projector.ts`, plus `PersonaCardSnapshot`,
+`PersonaCardVersion` and `PersonaGroup` in `types/character.ts`). This project's
+terminology entry is one sentence — *personas and NPCs are flags on an actor, not
+separate types* — and [02 §2](../02-data-model.md) builds on it. Unifying two card
+types in a shipping product is a data migration, a UI reorganisation and a
+compatibility break for every existing install, which is not a PR anyone should
+accept from a contributor and not one worth asking for. So the framing that
+promises to skip the structural work turns out to skip precisely the structural
+thing most wanted.
+
+**And the release cadence is hostile to it — with direct evidence.**
+[01 §1](../01-source-survey.md) calls the `feat/scenarios` design work *"the single
+most valuable artefact in any of the three repos"*: four planning documents
+carrying the prefill-not-binding principle, the narrative/production seam, and the
+§3.3 reframe making Setting first-class. As of 2026-08-18 that branch is **gone
+from the remote**, and no scenario or setting type or table exists in the tree.
+The design this framing proposes to contribute is a design Marinara already had,
+written by its own people, which did not survive contact with 712 commits of other
+work. A long-running outside feature branch would fare worse, not better.
+
+**The honest form of the objection, kept because it is the strongest thing here:**
+this framing optimises a different objective. It asks *how do these ideas reach
+users soonest*, and the answer to that question really might be Marinara. It does
+not ask, and cannot answer, *does the engine [00 §1](../00-stance.md) describes
+exist* — because a turn that persists, displays, diffs and replays exactly what
+was sent is not a feature to be added to a mega-string assembler; it is the thing
+the assembler would have to stop being. Choosing standalone is choosing the second
+question. That is a preference about what to spend years on, and it should be
+stated as one rather than dressed up as a refutation.
+
+### 2A.4 What this decision does not settle
+
+**It is not a decision to write everything from scratch.** §4's PORT verdicts are
+unaffected and, if anything, worth more now than when they were written. §2 priced
+the lift honestly for *code* — the good parts are entangled with what is being
+discarded, and that remains true. What has changed is the cost of a PORT, which
+was implicitly priced at hand-reimplementation: re-expressing 4,450 lines of
+import edge cases, or a keyword scanner's activation semantics, against a new
+model is materially cheaper at this project's demonstrated working rate than it
+was when §2 was written. The conclusion does not flip — it sharpens. **Take the
+specifications harder**, particularly P4's import, P5's activation semantics, and
+Marinara's `scripts/regressions/` pattern (§4, Platform).
+
+**Marinara is worth more as a corpus than as a codebase.** It is the best
+available generator of realistic import fixtures for P4 and the most useful
+behavioural oracle for P5 — a use that costs nothing, requires no coordination,
+and survives their next five thousand commits.
+
+**Nothing here revises a §4 verdict.** This section is about the base, not the
+parts.
+
+### 2A.5 What would reopen it
+
+Recorded so that reopening is a judgement against conditions rather than a mood on
+a bad week:
+
+- **The velocity measurement is the load-bearing one, and it is the one most
+  likely to change.** §2A.2a's argument rests on a nine-day sample from a single
+  developer. If the sustained rate through P5–P7 falls far enough that 1.0 stops
+  being reachable, the *contribute* framing of §2A.3 — never the fork — becomes
+  the serious alternative, because it is the one that does not require the rate.
+- **If Marinara grows a real user model and folder-native object storage on its
+  own**, two of §2A.2's four measurements disappear and the third framing gets
+  materially cheaper. Worth re-checking; not worth waiting for.
+- **If PLAYABLE ([work plan §4.1](01-work-plan.md)) falsifies the core
+  hypotheses** — the record is not legible, one budgeter over everything is not
+  comprehensible — then the thing being built is not the thing these documents
+  describe, and the question stops being fork-versus-build and becomes what to
+  build instead.
+
+Nothing in §2A.2 is expected to change: an upstream does not shrink, and a test
+suite absent across 518k lines does not appear.
 
 ---
 

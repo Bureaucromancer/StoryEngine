@@ -66,7 +66,7 @@ were written in. **Start with 00, then 01.**
 |---|---|
 | [01-source-survey.md](01-source-survey.md) | What Aventuras, Marinara and SillyTavern actually do |
 | [08-infinite-worlds.md](08-infinite-worlds.md) | The fourth reference, and the authored-rules tier it exposes as missing |
-| [workplan/02-triage.md](workplan/02-triage.md) | Per-subsystem verdicts: adopt, port, rebuild, discard, buy |
+| [workplan/02-triage.md](workplan/02-triage.md) | The base decision — standalone, not a fork — and per-subsystem verdicts: adopt, port, rebuild, discard, buy |
 
 ### The design
 
