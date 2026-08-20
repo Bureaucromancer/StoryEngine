@@ -5,6 +5,7 @@ import type { JSX } from 'react';
 
 import { useAuthState } from '../queries.js';
 import { AdminAccounts } from './AdminAccounts.js';
+import { AdminConnections } from './AdminConnections.js';
 import { AdminInstall } from './AdminInstall.js';
 import { UserSettings } from './UserSettings.js';
 
@@ -44,6 +45,14 @@ export function SettingsPage(): JSX.Element {
             Administration
           </h2>
           <AdminAccounts />
+          {/*
+            A third section under Administration rather than a tab or a route of
+            its own — [P2B §6]. The admin half is a single conditional, which is
+            what makes *absent is absent* a mechanism: these hooks never mount
+            for a non-admin, so that browser issues no request that could be
+            refused. A separate route would need the guard respelled.
+          */}
+          <AdminConnections />
           <AdminInstall />
         </section>
       ) : null}

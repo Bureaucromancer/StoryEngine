@@ -28,6 +28,9 @@ const listAccounts = vi.fn();
 const readConfig = vi.fn();
 const notices = vi.fn();
 const writeConfig = vi.fn();
+const listConnections = vi.fn();
+const readBindings = vi.fn();
+const readRoles = vi.fn();
 const updateMe = vi.fn();
 const changePassword = vi.fn();
 
@@ -47,6 +50,18 @@ vi.mock('../api.js', async (importOriginal) => ({
     updateAccount: vi.fn(),
     removeAccount: vi.fn(),
     writeConfig: (...a: unknown[]) => writeConfig(...a) as unknown,
+    // P2B's third section. Mocked here only so this file keeps testing what it
+    // is about — the connections surface has its own file beside this one.
+    listConnections: (...a: unknown[]) => listConnections(...a) as unknown,
+    readBindings: (...a: unknown[]) => readBindings(...a) as unknown,
+    readRoles: (...a: unknown[]) => readRoles(...a) as unknown,
+    createConnection: vi.fn(),
+    updateConnection: vi.fn(),
+    deleteConnection: vi.fn(),
+    connectionBindings: vi.fn(),
+    fetchModels: vi.fn(),
+    writeBindings: vi.fn(),
+    writeDefaultBindings: vi.fn(),
   },
 }));
 
@@ -90,6 +105,9 @@ beforeEach(() => {
     pendingRestart: [],
   });
   notices.mockResolvedValue({ pendingRestart: [], canRestart: false });
+  listConnections.mockResolvedValue({ connections: [] });
+  readBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:empty' });
+  readRoles.mockResolvedValue({ roles: [] });
 });
 
 function renderPage(role: 'admin' | 'user') {
@@ -124,6 +142,10 @@ describe('for a non-admin', () => {
 
     expect(listAccounts).not.toHaveBeenCalled();
     expect(readConfig).not.toHaveBeenCalled();
+    // And P2B's section is inside the same conditional, which is the point of
+    // there being one conditional rather than one per section.
+    expect(listConnections).not.toHaveBeenCalled();
+    expect(readRoles).not.toHaveBeenCalled();
   });
 });
 
@@ -409,7 +431,7 @@ describe('a config save the file has moved under', () => {
           dataDir: './data',
           log: { level: 'warn' },
           server: { host: '127.0.0.1', port: 8080 },
-        } as never,
+        },
         'the-hash-the-file-has-now',
       ),
     );
@@ -447,7 +469,7 @@ describe('a config save the file has moved under', () => {
           dataDir: './data',
           log: { level: 'warn' },
           server: { host: '127.0.0.1', port: 8080 },
-        } as never,
+        },
         'the-hash-the-file-has-now',
       ),
     );

@@ -16,6 +16,11 @@ import {
   type Account,
   type AccountPatch,
   type AdminAccountList,
+  type AdminConnection,
+  type Binding,
+  type BindingsState,
+  type ConnectionInput,
+  type RoleRow,
   type ConfigView,
   type AuthState,
   type Credentials,
@@ -409,6 +414,134 @@ export function useRemoveAccount(): UseMutationResult<undefined, Error, string> 
     mutationFn: adminApi.removeAccount,
     onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
   });
+}
+
+/**
+ * The system connections, the install bindings, and what every role will do —
+ * [P2B §3](../../../docs/design/workplan/14-p2b-provider-configuration.md) stage P2B.3.
+ *
+ * **`['admin', 'roles']` is invalidated by every write on this surface**, and
+ * that is the point of putting them in one place. A role resolves through the
+ * connections *and* the bindings, so a deleted connection changes the table
+ * without anything having touched a binding — which is exactly the `dangling`
+ * state the table exists to show. A cache that only refreshed on a bindings
+ * write would go on reporting a model that is gone.
+ */
+export function useConnections(): UseQueryResult<{ connections: AdminConnection[] }> {
+  return useQuery({ queryKey: ['admin', 'connections'], queryFn: adminApi.listConnections });
+}
+
+export function useRoles(): UseQueryResult<{ roles: RoleRow[] }> {
+  return useQuery({ queryKey: ['admin', 'roles'], queryFn: adminApi.readRoles });
+}
+
+export function useBindings(): UseQueryResult<BindingsState> {
+  return useQuery({ queryKey: ['admin', 'bindings'], queryFn: adminApi.readBindings });
+}
+
+/** Everything a write to this surface makes stale. */
+function invalidateProviderSurface(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: ['admin', 'connections'] });
+  void client.invalidateQueries({ queryKey: ['admin', 'bindings'] });
+  void client.invalidateQueries({ queryKey: ['admin', 'roles'] });
+  // The dead-end count asks whether `prose` resolves, so it moves when either
+  // of the other two does — which is the whole of P2B.4's ending clause.
+  void client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
+}
+
+export function useSaveConnection(): UseMutationResult<
+  { connection: AdminConnection },
+  Error,
+  ConnectionInput & { id?: string; contentHash?: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConnectionInput & { id?: string; contentHash?: string }) => {
+      const { id, contentHash, ...rest } = input;
+      /**
+       * **A create and an edit are one mutation because the form is one form**,
+       * and they differ on the wire by exactly what the server requires: an
+       * edit presents the hash it read, a create has nothing to be stale
+       * against.
+       */
+      return id === undefined || contentHash === undefined
+        ? adminApi.createConnection(rest)
+        : adminApi.updateConnection(id, { ...rest, contentHash });
+    },
+    onSuccess: () => {
+      invalidateProviderSurface(client);
+    },
+  });
+}
+
+export function useDeleteConnection(): UseMutationResult<undefined, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.deleteConnection,
+    onSuccess: () => {
+      invalidateProviderSurface(client);
+    },
+  });
+}
+
+export function useWriteBindings(): UseMutationResult<
+  BindingsState,
+  Error,
+  { bindings: Record<string, Binding>; contentHash: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { bindings: Record<string, Binding>; contentHash: string }) =>
+      adminApi.writeBindings(input.bindings, input.contentHash),
+    onSuccess: () => {
+      invalidateProviderSurface(client);
+    },
+  });
+}
+
+export function useWriteDefaultBindings(): UseMutationResult<
+  BindingsState,
+  Error,
+  { hi: Binding; lo: Binding; contentHash: string }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.writeDefaultBindings,
+    onSuccess: () => {
+      invalidateProviderSurface(client);
+    },
+  });
+}
+
+/**
+ * How many bindings point at a connection, asked only while a delete is being
+ * confirmed — [P2B §2.8]'s *warn and proceed*.
+ *
+ * `enabled` rather than an imperative fetch, because the dialog mounting is the
+ * event: an admin who opens it, reads the number and cancels has made one
+ * request and left no state behind.
+ */
+export function useConnectionBindings(id: string | null): UseQueryResult<{ bindings: number }> {
+  return useQuery({
+    queryKey: ['admin', 'connections', id, 'bindings'],
+    queryFn: () => adminApi.connectionBindings(id ?? ''),
+    enabled: id !== null,
+  });
+}
+
+/**
+ * Asking an endpoint what it offers — a mutation rather than a query, because
+ * it is an action somebody takes rather than state a page has.
+ *
+ * It is also a `POST` that writes nothing, which is a shape worth naming: it
+ * carries a key in the body, and a key does not belong in a URL.
+ */
+export function useFetchModels(): UseMutationResult<
+  { models: string[] },
+  Error,
+  { baseUrl?: string; apiKey?: string }
+> {
+  return useMutation({ mutationFn: adminApi.fetchModels });
 }
 
 export function useAdminConfig(): UseQueryResult<ConfigView> {

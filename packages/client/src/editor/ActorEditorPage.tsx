@@ -143,7 +143,10 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         },
         onError: (failure) => {
           if (failure instanceof ApiError && failure.status === 412 && failure.current) {
-            setConflict(failure.current);
+            // `ApiError.current` is `unknown`: three routes speak the 412
+            // idiom and they carry three different shapes, so the narrowing
+            // happens at the call site that knows which one it asked for.
+            setConflict(failure.current as LibraryObject);
           }
         },
       },

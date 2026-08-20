@@ -65,11 +65,17 @@ export class ApiError extends Error {
   /** The `error` field from the response body — `invalid-credentials`, `stale`, … */
   readonly code: string;
   /**
-   * On a 412, the object as it is *now* (docs/api.md). Carried so the UI can
+   * On a 412, the thing as it is *now* (docs/api.md). Carried so the UI can
    * offer reload-and-reapply or save-as-a-copy rather than guessing
    * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
+   *
+   * **Deliberately `unknown` rather than `LibraryObject`.** Three routes speak
+   * this idiom now and they carry three different shapes — a library object, a
+   * config document, an `AdminConnection` — so a type naming one of them is
+   * wrong for the other two, and every caller was already casting past it. A
+   * cast at the call site is at least visible; a lie in the type is not.
    */
-  readonly current?: LibraryObject;
+  readonly current?: unknown;
   /**
    * On a 412 from a route that offers one, the acknowledgement to present back
    * — *I have seen what is on disk* ([P2A §4] step 15).
@@ -85,7 +91,7 @@ export class ApiError extends Error {
     status: number,
     code: string,
     message: string,
-    current?: LibraryObject,
+    current?: unknown,
     contentHash?: string,
   ) {
     super(message);
@@ -146,7 +152,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
         : `The server answered with status ${String(response.status)}.`;
     const current =
       code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
-        ? (payload['current'] as LibraryObject)
+        ? payload['current']
         : undefined;
     const contentHash =
       typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
@@ -405,6 +411,68 @@ export interface ConfigView {
   contentHash: string;
 }
 
+/**
+ * A system connection as an admin may see it — [P2B §2.2].
+ *
+ * **The key is not here and there is nowhere to put it.** `hasKey` is the whole
+ * of what a client learns about it, because *a key is set* and *no key, this is
+ * a local endpoint* are different states an empty password box cannot tell
+ * apart. `baseUrl` is admin-visible and user-invisible: [04 §4.5]'s *"an admin
+ * may opt to show it"* read as narrowly as it goes.
+ */
+export interface AdminConnection {
+  id: string;
+  label: string;
+  provider: string;
+  scope: 'system' | 'user';
+  models: string[];
+  baseUrl?: string;
+  hasKey: boolean;
+  /** An earlier file already claims this id, so nothing resolves to this one. */
+  shadowed: boolean;
+  /** Presented back on an edit — *I have seen what is on disk*. */
+  contentHash: string;
+}
+
+export interface ConnectionInput {
+  label: string;
+  provider: string;
+  /** Omitted keeps what is stored; an empty string clears it. */
+  apiKey?: string;
+  baseUrl?: string;
+  models: string[];
+}
+
+/** What one role will do, resolved by the server rather than worked out here. */
+export interface RoleRow {
+  role: string;
+  /**
+   * Whether this role has a text fallback at all.
+   *
+   * `unset` is policy, not a fault: there is no sensible text model for an
+   * image, so `image`, `video` and `speech` stay unbound until something can
+   * actually serve them ([07 §5.1]).
+   */
+  tier: 'hi' | 'lo' | 'unset';
+  ok: boolean;
+  /** Which layer won — the answer to *why did this turn use that model*. */
+  via?: 'step' | 'session' | 'binding' | 'default' | 'hint';
+  connectionId?: string;
+  connectionLabel?: string;
+  modelId?: string;
+  reason?: 'unbound' | 'dangling';
+}
+
+export interface Binding {
+  connectionId: string;
+  modelId: string;
+}
+
+export interface BindingsState {
+  bindings: Record<string, Binding>;
+  contentHash: string;
+}
+
 export const adminApi = {
   listAccounts: (): Promise<AdminAccountList> => request('GET', '/api/admin/accounts'),
 
@@ -420,6 +488,63 @@ export const adminApi = {
 
   removeAccount: (handle: string): Promise<undefined> =>
     request('DELETE', `/api/admin/accounts/${handle}`),
+
+  listConnections: (): Promise<{ connections: AdminConnection[] }> =>
+    request('GET', '/api/admin/connections'),
+
+  createConnection: (input: ConnectionInput): Promise<{ connection: AdminConnection }> =>
+    request('POST', '/api/admin/connections', input),
+
+  /**
+   * `contentHash` is required, not optional — [P2B §6].
+   *
+   * An optional guard is not one: a form that could omit it would get the
+   * behaviour the check exists to stop, which is silently reverting whatever
+   * somebody changed in the file since the page loaded.
+   */
+  updateConnection: (
+    id: string,
+    input: ConnectionInput & { contentHash: string },
+  ): Promise<{ connection: AdminConnection }> =>
+    request('PUT', `/api/admin/connections/${id}`, input),
+
+  deleteConnection: (id: string): Promise<undefined> =>
+    request('DELETE', `/api/admin/connections/${id}`),
+
+  /** How many bindings point at a connection. Counts, never contents ([04 §4.5]). */
+  connectionBindings: (id: string): Promise<{ bindings: number }> =>
+    request('GET', `/api/admin/connections/${id}/bindings`),
+
+  /**
+   * Asks an endpoint what it offers — an assist, never the path ([P2B §2.6]).
+   *
+   * A failure here is a notice rather than a blocked save: `/models` is optional
+   * in practice, and the model field stays free text so the admin types what
+   * they were going to type anyway.
+   */
+  fetchModels: (input: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
+    request('POST', '/api/admin/connections/models', input),
+
+  readBindings: (): Promise<BindingsState> => request('GET', '/api/admin/bindings'),
+
+  writeBindings: (bindings: Record<string, Binding>, contentHash: string): Promise<BindingsState> =>
+    request('PUT', '/api/admin/bindings', { bindings, contentHash }),
+
+  /**
+   * The first run's two answers, spread across the roles by the *server*.
+   *
+   * Two bindings rather than eight, because which role gets which is policy
+   * ([07 §5.1]: the expensive model writes, everything else uses the cheap one)
+   * and a client free to spread them differently is an install that can end up
+   * with `prose` on the cheap model without anybody having chosen that.
+   */
+  writeDefaultBindings: (input: {
+    hi: Binding;
+    lo: Binding;
+    contentHash: string;
+  }): Promise<BindingsState> => request('POST', '/api/admin/bindings/defaults', input),
+
+  readRoles: (): Promise<{ roles: RoleRow[] }> => request('GET', '/api/admin/roles'),
 
   readConfig: (): Promise<ConfigView> => request('GET', '/api/admin/config'),
 

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useId, useState, type JSX } from 'react';
+import { useState, type JSX } from 'react';
 
 import { ApiError } from '../api.js';
 import { useChangePassword, useMe, useUpdateMe } from '../queries.js';
 import { Field, SelectField } from '../editor/Field.js';
+import { SecretField } from '../editor/SecretField.js';
 
 /**
  * What a person may change about themselves — [05 §15.1](../../../../docs/design/05-ui-surfaces.md).
@@ -131,8 +132,18 @@ export function UserSettings(): JSX.Element {
         <h3 id="password" className="text-base font-medium">
           Password
         </h3>
-        <PasswordInput label="Current password" value={current} onChange={setCurrent} />
-        <PasswordInput label="New password" value={next} onChange={setNext} />
+        <SecretField
+          label="Current password"
+          value={current}
+          onChange={setCurrent}
+          autoComplete="current-password"
+        />
+        <SecretField
+          label="New password"
+          value={next}
+          onChange={setNext}
+          autoComplete="new-password"
+        />
         <div className="flex items-center gap-3">
           <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
             Change password
@@ -167,36 +178,8 @@ export function UserSettings(): JSX.Element {
 }
 
 /**
- * A password box.
- *
- * Not a {@link Field}: `Field` owns the assist slot ([05 §11]), and a password
- * is the one input in this application that must never acquire one.
+ * `PasswordInput` lived here, file-private, which was right while this was the
+ * only masked box in the app. P2B added a second kind — a provider key — so it
+ * moved to `editor/SecretField.tsx` and grew the one thing a password never
+ * needed: a note saying what an *empty* box means.
  */
-function PasswordInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}): JSX.Element {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-      </label>
-      <input
-        id={id}
-        type="password"
-        autoComplete="off"
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-slate-500"
-        value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      />
-    </div>
-  );
-}
