@@ -121,6 +121,28 @@ export async function removeTree(path: string): Promise<void> {
 }
 
 /**
+ * Removes a single file, if it is there.
+ *
+ * A sibling of {@link removeTree} rather than the same function, even though
+ * `rm` would take either: the two have different blast radii, and a call site
+ * that says *tree* while meaning *file* is one refactor away from meaning what
+ * it says. A connection is one file ([P2B §2.3]) — unlike a library object,
+ * which is a folder.
+ *
+ * **`unlinkFile`, not `removeFile`**, because `index-db/ingest.ts` already
+ * exports a `removeFile` that removes an index *row*. Two exports named the same
+ * thing for a filesystem operation and a database one is the ambiguity the
+ * package index refuses to re-export, and it would read as the same act at every
+ * call site.
+ *
+ * `force`, so removing something already gone is not an error. A delete whose
+ * file has been removed by hand has achieved what it was asked to.
+ */
+export async function unlinkFile(path: string): Promise<void> {
+  await rm(path, { force: true });
+}
+
+/**
  * Moves a directory, creating the destination's parent.
  *
  * Deletion is a move ([02 §10.2](../../../../docs/design/02-data-model.md)): `remove()`

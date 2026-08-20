@@ -2,8 +2,12 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { Layout } from '../storage/layout.js';
-import { listEntryNames, readFileBytes } from '../storage/files.js';
+import { uuidv7 } from '@storyengine/shared';
+
+import { writeJsonAtomic } from '../storage/atomic.js';
+import { listEntryNames, readFileBytes, unlinkFile } from '../storage/files.js';
 import { resolveWithin } from '../storage/paths.js';
+import { canBuild } from './factory.js';
 import type { ProviderCapabilities } from './types.js';
 
 /**
@@ -180,4 +184,197 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
       ? { capabilities: record['capabilities'] }
       : {}),
   };
+}
+
+/**
+ * A connection as an **admin** editing one may see it — [P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ *
+ * `presentConnection` stays the only shape a non-admin ever sees, and it has
+ * nowhere to put a `baseUrl`. That is exactly right for a user and useless for
+ * the person setting one up: type a URL, save, reopen, and the field is empty —
+ * a write-only form. So there are two shapes, and **the boundary between them is
+ * the key alone**.
+ *
+ * Built by picking rather than by spreading-and-deleting, for the reason
+ * `toPublic()` gives: a field added to `Connection` must not appear in a
+ * response by being forgotten about. `Omit<Connection, 'apiKey'>` would put
+ * every future field on the wire by default and only a reviewer between it and
+ * a leak.
+ *
+ * **`hasKey` rather than the key**, because *a key is set* and *no key, this is
+ * a local endpoint* are different states an admin has to tell apart — and an
+ * empty password box cannot distinguish them, so the form would either mangle
+ * the stored key or make the admin retype it on every edit.
+ *
+ * **`baseUrl` is admin-visible and user-invisible**, which is [04 §4.5]'s *"an
+ * admin may opt to show it"* read as narrowly as it goes: the bullet permits
+ * showing a user the URL, and the admin who set it is the only person who needs
+ * it.
+ */
+export interface AdminConnection {
+  id: string;
+  label: string;
+  provider: string;
+  scope: Connection['scope'];
+  models: string[];
+  baseUrl?: string;
+  capabilities?: Partial<ProviderCapabilities>;
+  /** Whether a key is stored. Never the key. */
+  hasKey: boolean;
+}
+
+export function presentForAdmin(connection: Connection): AdminConnection {
+  return {
+    id: connection.id,
+    label: connection.label,
+    provider: connection.provider,
+    scope: connection.scope,
+    models: connection.models,
+    ...(connection.baseUrl === undefined ? {} : { baseUrl: connection.baseUrl }),
+    ...(connection.capabilities === undefined ? {} : { capabilities: connection.capabilities }),
+    hasKey: typeof connection.apiKey === 'string' && connection.apiKey.length > 0,
+  };
+}
+
+export class ConnectionError extends Error {
+  readonly code: 'not-found' | 'invalid' | 'unbuildable';
+
+  constructor(code: ConnectionError['code'], message: string) {
+    super(message);
+    this.name = 'ConnectionError';
+    this.code = code;
+  }
+}
+
+/**
+ * Where a connection's file goes — `<scope root>/<id>.json`.
+ *
+ * **Derived, never read.** `readConnectionsIn` keeps taking the id from the
+ * file's *contents*, so a hand-renamed file goes on working — the same position
+ * [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) takes on library slugs and
+ * for the same reason: the path is a convenience, the id is identity.
+ *
+ * Which means a delete cannot be a path join alone. Every connection fixture
+ * this repository has ever written by hand is named for its provider —
+ * `fake.json`, `house.json` — so a delete that only tried the obvious path
+ * would pass its own tests and fail against every file anybody actually has.
+ */
+export function connectionFile(root: string, id: string): string {
+  return resolveWithin(root, `${id}.json`);
+}
+
+/**
+ * Writes a connection into a scope's directory, minting the id if it is new.
+ *
+ * **Ids are minted server-side as uuidv7, never accepted from the body**, which
+ * closes the shadowing hole [P2B §1.5] found — a personal file reusing a system
+ * connection's id silently shadows it — for anything created through the UI,
+ * without outlawing the hand-written file that already works.
+ *
+ * **Buildability is checked here rather than at the next turn.** `KNOWN_PROVIDERS`
+ * carries capability defaults for five names and this build constructs exactly
+ * one of them, so a connection naming `anthropic` would save cleanly and fail at
+ * call time — the worst place to find out. The form offers only what can be
+ * built and this refuses the rest anyway, because a route that trusts its own
+ * form is a route that has not met one.
+ */
+export async function writeConnection(
+  layout: Layout,
+  root: string,
+  input: {
+    id?: string;
+    label: string;
+    provider: string;
+    apiKey?: string | undefined;
+    baseUrl?: string | undefined;
+    models: string[];
+    capabilities?: Partial<ProviderCapabilities> | undefined;
+  },
+): Promise<Connection> {
+  if (!canBuild(input.provider)) {
+    throw new ConnectionError(
+      'unbuildable',
+      `This build cannot talk to a ${input.provider} endpoint. Only openai-compatible connections work.`,
+    );
+  }
+  if (input.label.trim().length === 0) {
+    throw new ConnectionError('invalid', 'A connection needs a label.');
+  }
+
+  const id = input.id ?? uuidv7();
+  const path = connectionFile(root, id);
+
+  /**
+   * **The key is preserved when the caller does not send one.**
+   *
+   * `hasKey` exists because an empty password box cannot distinguish *no key*
+   * from *unchanged*, so the form leaves the field blank to keep what is
+   * stored — and the write has to honour that or every edit of a label would
+   * silently delete the credential.
+   */
+  const existing = input.id === undefined ? null : await readConnectionAt(path, root, layout);
+  const apiKey = input.apiKey ?? existing?.apiKey;
+
+  const file = {
+    id,
+    label: input.label,
+    provider: input.provider,
+    models: input.models,
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(input.baseUrl === undefined || input.baseUrl.length === 0
+      ? {}
+      : { baseUrl: input.baseUrl }),
+    ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
+  };
+
+  await layout.assertReal(root);
+  await writeJsonAtomic(path, file);
+
+  return { ...file, scope: root === layout.systemConnectionsRoot ? 'system' : 'user' };
+}
+
+/**
+ * Removes a connection, by id rather than by path.
+ *
+ * **Tries the derived path, then scans** — because the derived name is this
+ * phase's convention and not a guarantee about what is on disk. Every fixture in
+ * this repository predates the convention, and [P2B §2.3] promises a
+ * hand-written file keeps working; a delete that could only find its own writes
+ * would break that promise silently, leaving a connection an admin has just been
+ * told is gone.
+ */
+export async function deleteConnection(layout: Layout, root: string, id: string): Promise<void> {
+  const path = await findConnectionFile(layout, root, id);
+  if (path === null) {
+    throw new ConnectionError('not-found', `No connection with the id ${id}.`);
+  }
+  await layout.assertReal(path);
+  await unlinkFile(path);
+}
+
+/** The file holding this id, derived name first and then a scan. */
+export async function findConnectionFile(
+  layout: Layout,
+  root: string,
+  id: string,
+): Promise<string | null> {
+  const derived = connectionFile(root, id);
+  if ((await readConnectionAt(derived, root, layout))?.id === id) return derived;
+
+  for (const name of await listEntryNames(root)) {
+    if (!name.endsWith('.json')) continue;
+    const candidate = resolveWithin(root, name);
+    if ((await readConnectionAt(candidate, root, layout))?.id === id) return candidate;
+  }
+  return null;
+}
+
+async function readConnectionAt(
+  path: string,
+  root: string,
+  layout: Layout,
+): Promise<Connection | null> {
+  const bytes = await readFileBytes(path);
+  if (bytes === null) return null;
+  return parseConnection(bytes, root === layout.systemConnectionsRoot ? 'system' : 'user');
 }
