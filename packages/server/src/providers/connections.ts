@@ -119,6 +119,19 @@ export async function resolveConnections(
   return { usable: [...personal, ...system], disabled: [] };
 }
 
+/**
+ * The install's own connections, without reference to any account.
+ *
+ * `resolveConnections` answers *what may this person use*, which is the question
+ * a turn asks and needs a handle for. The admin surface asks a different one —
+ * *what has the install got* — and routing that through a handle would mean
+ * inventing one, or asking about an administrator's personal connections while
+ * pretending to ask about the system's.
+ */
+export async function readSystemConnections(layout: Layout): Promise<Connection[]> {
+  return readConnectionsIn(layout, layout.systemConnectionsRoot, 'system');
+}
+
 async function readConnectionsIn(
   layout: Layout,
   root: string,

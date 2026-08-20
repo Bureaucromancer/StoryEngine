@@ -102,6 +102,8 @@ export interface TestServerOptions {
   providers?: ProviderFactory;
   /** Capture the log, so a test can assert on what a turn actually narrated about itself. */
   logStream?: NodeJS.WritableStream;
+  /** Substitute the outbound fetch — the model-fetch action ([P2B §2.6]). */
+  fetch?: typeof globalThis.fetch;
 }
 
 /**
@@ -155,6 +157,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     configPath: layout.configFile,
     configDocument: loaded?.document ?? {},
     watch: options.watch ?? false,
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.providers === undefined ? {} : { providers: options.providers }),
   });
   const app = await buildApp(
@@ -350,4 +353,60 @@ export async function setUpAdmin(
   if (response.status !== 201) {
     throw new Error(`setup failed: ${String(response.status)} ${JSON.stringify(response.body)}`);
   }
+}
+
+/**
+ * Every route under a prefix, from Fastify's own routing tree.
+ *
+ * **Enumerated, never listed.** A hand-maintained array of admin routes is wrong
+ * the first time somebody adds one in a hurry, and it is wrong silently — which
+ * is the whole claim [P2A §2.4](../../../docs/design/workplan/13-p2a-configuration-surface.md)
+ * makes about the guard being a property of the prefix.
+ *
+ * Shared rather than copied, because `printRoutes` emits a **tree** whose
+ * children carry only the segment they add:
+ *
+ * ```
+ * ├── /api/admin/connections (GET, HEAD, POST)
+ * │   └── /:id (PUT, DELETE)
+ * │       └── /bindings (GET, HEAD)
+ * ```
+ *
+ * A regex per line finds three routes and misses two, which is what the first
+ * version of this did — reporting that everything was guarded while never
+ * testing `DELETE /connections/:id`. Depth comes from the indent, four columns a
+ * level, and the full path is the stack above it. A second copy of that parser
+ * is a second chance to get the tree wrong, which is why
+ * [P2B §6.1](../../../docs/design/workplan/14-p2b-provider-configuration.md) asked for this to
+ * move here before the opacity test needed it too.
+ *
+ * `HEAD` is dropped: Fastify generates one per `GET` and `inject` has nothing
+ * extra to say about it.
+ */
+export function routesUnder(app: FastifyInstance, prefix: string): RouteEntry[] {
+  const stack: string[] = [];
+  const found: RouteEntry[] = [];
+
+  for (const line of app.printRoutes({ commonPrefix: false }).split('\n')) {
+    const match = /^([\s│]*)(?:├──|└──)\s(\S+)\s+\(([^)]+)\)\s*$/.exec(line);
+    if (!match) continue;
+    const [, indent = '', segment = '', methods = ''] = match;
+
+    const depth = Math.floor(indent.length / 4);
+    stack.length = depth;
+    stack.push(segment);
+
+    const url = stack.join('');
+    if (!url.startsWith(prefix)) continue;
+    for (const method of methods.split(',')) {
+      const trimmed = method.trim();
+      if (trimmed !== 'HEAD') found.push({ method: trimmed as RouteEntry['method'], url });
+    }
+  }
+  return found;
+}
+
+export interface RouteEntry {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  url: string;
 }

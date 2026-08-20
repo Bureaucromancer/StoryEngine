@@ -8,6 +8,7 @@ import type { AppServices } from '../app.js';
 import { AccountError, type PublicAccount } from '../auth/accounts.js';
 import { listEntryNames } from '../storage/files.js';
 import { registerConfigRoutes } from './config.js';
+import { registerConnectionRoutes } from './connections.js';
 
 /**
  * Administration — [05 §15.2](../../../../docs/design/05-ui-surfaces.md),
@@ -161,6 +162,7 @@ export function registerAdminRoutes(app: FastifyInstance, services: AppServices)
   // hook — which is the whole of [P2A §2.4]'s argument for the guard being a
   // property of the prefix rather than something each file remembers.
   registerConfigRoutes(app, services);
+  registerConnectionRoutes(app, services);
 
   app.get('/accounts', async (_request, reply) => {
     const accounts = await services.accounts.list();

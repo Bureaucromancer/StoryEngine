@@ -141,6 +141,16 @@ export interface AppServices {
    * route writing to `layout.configFile` would write the wrong file for anyone
    * who passed `--config`, silently, and their edits would vanish on restart.
    */
+  /**
+   * How the server reaches an outside URL — the model-fetch action ([P2B §2.6]).
+   *
+   * A seam rather than a bare `fetch` call, for the reason every other seam in
+   * this file exists: a test asserting *what happens when an endpoint does not
+   * implement /models* must not be a test that makes a network request. It is
+   * also the one place the server talks to a host somebody typed in, which is
+   * worth being able to point at.
+   */
+  fetch: typeof globalThis.fetch;
   configPath: string;
   /**
    * `config.json` as this process last saw it — read at boot, replaced on every
@@ -172,6 +182,8 @@ export interface BuildAppOptions {
   config: Config;
   /** Where `config.json` was read from. `main.ts` knows; nothing else can. */
   configPath?: string;
+  /** Substitute the outbound fetch — how the model-fetch action is tested. */
+  fetch?: typeof globalThis.fetch;
   /** The file's contents as this process read them. See {@link AppServices.configDocument}. */
   configDocument?: Record<string, unknown>;
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
@@ -327,6 +339,7 @@ async function assembleWithState(
     sessionKey: await loadOrCreateSessionKey(layout),
     // Defaulted rather than required: every test builds services without a real
     // command line, and the layout's answer is right whenever nobody overrode it.
+    fetch: options.fetch ?? globalThis.fetch,
     configPath: options.configPath ?? layout.configFile,
     configDocument: options.configDocument ?? {},
     library,

@@ -6,7 +6,13 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  type RouteEntry,
+  routesUnder,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * Administration — [05 §15.2](../../../../docs/design/05-ui-surfaces.md),
@@ -47,52 +53,9 @@ async function asUser(handle = 'mara'): Promise<void> {
   });
 }
 
-/**
- * **Every path under `/api/admin`, from Fastify rather than from a list.**
- *
- * `printRoutes` walks the instance's real routing tree, so a route added
- * tomorrow is covered by this test the moment it is registered — which is the
- * whole claim [P2A §2.4] makes about the guard being a prefix rather than a
- * habit. A hand-maintained array here would test the array.
- */
-function adminRoutes(): { method: string; url: string }[] {
-  /**
-   * `printRoutes` emits a **tree**, with each child carrying only the segment
-   * it adds:
-   *
-   * ```
-   * ├── /api/admin/accounts (GET, HEAD, POST)
-   * │   └── /:handle (PATCH, DELETE)
-   * │       └── /password (POST)
-   * ```
-   *
-   * So a regex per line finds three routes and misses two of them, which is how
-   * the first draft of this helper reported that everything was guarded while
-   * never testing `DELETE /accounts/:handle`. Depth comes from the indent — four
-   * columns a level — and the full path is the stack above it.
-   */
-  const stack: string[] = [];
-  const found: { method: string; url: string }[] = [];
-
-  for (const line of server.app.printRoutes({ commonPrefix: false }).split('\n')) {
-    const match = /^([\s│]*)(?:├──|└──)\s(\S+)\s+\(([^)]+)\)\s*$/.exec(line);
-    if (!match) continue;
-    const [, indent = '', segment = '', methods = ''] = match;
-
-    const depth = Math.floor(indent.length / 4);
-    stack.length = depth;
-    stack.push(segment);
-
-    const url = stack.join('');
-    if (!url.startsWith('/api/admin')) continue;
-    for (const method of methods.split(',')) {
-      const trimmed = method.trim();
-      // HEAD is generated for every GET and `inject` has nothing extra to say
-      // about it; the guard it would exercise is the GET's.
-      if (trimmed !== 'HEAD') found.push({ method: trimmed, url });
-    }
-  }
-  return found;
+/** Every admin route, from Fastify rather than from a list — see . */
+function adminRoutes(): RouteEntry[] {
+  return routesUnder(server.app, '/api/admin');
 }
 
 describe('the route table', () => {
@@ -109,7 +72,7 @@ describe('the route table', () => {
 
     for (const route of adminRoutes()) {
       const response = await server.request({
-        method: route.method as 'GET',
+        method: route.method,
         // A parameterised path needs *a* value; which one does not matter,
         // because the guard runs before the handler ever sees it.
         url: route.url.replace(':handle', 'ned'),
@@ -124,7 +87,7 @@ describe('the route table', () => {
 
     for (const route of adminRoutes()) {
       const response = await server.request({
-        method: route.method as 'GET',
+        method: route.method,
         url: route.url.replace(':handle', 'ned'),
       });
       // A different fact, so a different code: *nobody is signed in* is not
