@@ -201,6 +201,27 @@ export class Layout {
     return resolveWithin(this.systemRoot, 'connections');
   }
 
+  /**
+   * `system/bindings.json` — the install defaults everyone inherits
+   * ([P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md)).
+   *
+   * **The same shape as a user's, read by the same reader, layered under it.**
+   * Three documents describe this layer and none of them had a path:
+   * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) says a dangling binding
+   * *"falls back to system bindings"*, [05 §15.3](../../../../docs/design/05-ui-surfaces.md) calls
+   * system connections *"the default role bindings everyone inherits"*, and
+   * [07 §5.1](../../../../docs/design/07-tech-stack.md) puts *install default* at the weak end of
+   * the resolution order. What shipped was one layer, so the fallback those
+   * sentences promise could not happen — which is why [P2B §1.2] calls
+   * *"no new mechanism"* the sentence that hid the work.
+   *
+   * Beside `connections/` in `system/` rather than in a user's directory,
+   * because the path is the owner ([04 §4.3]) and this belongs to the install.
+   */
+  get systemBindingsFile(): string {
+    return resolveWithin(this.systemRoot, 'bindings.json');
+  }
+
   get usersRoot(): string {
     return resolveWithin(this.dataRoot, 'users');
   }

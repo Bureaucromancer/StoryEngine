@@ -17,23 +17,42 @@ import type { RoleBindings } from './roles.js';
  * `connections/`, following the same rule everything else does — the path is the
  * owner ([04 §4.3]).
  *
- * **P2.5 ships the reader and no writer.** The surface that sets a binding is
- * part of the provider settings UI, which is P7's; until then a binding is
+ * **P2.5 shipped the reader and no writer**, and named the writer's home as P7.
+ * That was wrong about the phase rather than about the reasoning: the surface
+ * that sets a binding is
+ * [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md)'s, which is the phase
+ * that makes a fresh install usable at all. Until it lands a binding is
  * hand-written, which is [05 §4](../../../../docs/design/05-ui-surfaces.md) working exactly as
- * designed rather than a gap. Shipping a writer now would be inventing a route
- * shape that phase has to live with.
+ * designed rather than a gap.
  *
- * Absent or malformed reads as `{}` — every role unbound. A turn then fails
- * with `unbound`, naming the role, which is the answer that tells somebody what
- * to do; a startup error over a missing optional file would not.
+ * **Two layers, not one.** `system/bindings.json` holds the install defaults
+ * everyone inherits and a user's own file overrides it per role — [07 §5.1]'s
+ * order, read from the weak end. They are deliberately the *same shape read by
+ * the same reader*: merging them before resolution would give the same answer
+ * for every role that resolves and lose the one thing the surface needs, which
+ * is **which layer won** ([P2B §2.1]).
+ *
+ * Absent or malformed reads as `{}` — every role unbound at that layer. A turn
+ * whose role is unbound at both fails with `unbound`, naming the role, which is
+ * the answer that tells somebody what to do; a startup error over a missing
+ * optional file would not.
  */
 
 export function bindingsFile(layout: Layout, handle: string): string {
   return resolveWithin(layout.userRoot(handle), 'bindings.json');
 }
 
+/** The install defaults, layered under every user's own ([P2B §2.1]). */
+export async function readSystemBindings(layout: Layout): Promise<RoleBindings> {
+  return readBindingsAt(layout.systemBindingsFile);
+}
+
 export async function readBindings(layout: Layout, handle: string): Promise<RoleBindings> {
-  const bytes = await readFileBytes(bindingsFile(layout, handle));
+  return readBindingsAt(bindingsFile(layout, handle));
+}
+
+async function readBindingsAt(path: string): Promise<RoleBindings> {
+  const bytes = await readFileBytes(path);
   if (bytes === null) return {};
 
   try {

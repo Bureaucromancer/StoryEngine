@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Layout } from '../storage/layout.js';
 import { type Connection, presentConnection, resolveConnections } from './connections.js';
+import { bindingsFile, readBindings, readSystemBindings } from './bindings.js';
 import { defaultBindings, resolveRole, ROLE_TIER_DEFAULTS } from './roles.js';
 import { MODEL_ROLES } from './types.js';
 
@@ -254,5 +255,183 @@ describe('resolving a role', () => {
     const dangling = resolveRole({ role: 'prose', bindings, usable: [mine] });
     expect(!dangling.ok && dangling.reason).toBe('dangling');
     expect(!dangling.ok && dangling.connectionId).toBe('house-openai');
+  });
+});
+
+/**
+ * **The install default layer** — [P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md),
+ * [07 §5.1](../../../../docs/design/07-tech-stack.md)'s weakest layer, finally present.
+ *
+ * Three documents described a layer of bindings belonging to the install rather
+ * than to a person, and [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) said a
+ * dangling binding *"falls back to system bindings — the existing non-blocking
+ * behaviour, **no new mechanism**"*. There was no second layer, so the fallback
+ * that sentence promised could not happen. That is the sentence that hid the
+ * work.
+ */
+describe('the install defaults', () => {
+  const house: Connection = {
+    id: 'house-openai',
+    label: 'The house key',
+    provider: 'openai',
+    scope: 'system',
+    models: ['gpt-hi', 'gpt-lo'],
+  };
+  const mine: Connection = {
+    id: 'mine-local',
+    label: 'My laptop',
+    provider: 'openai-compatible',
+    scope: 'user',
+    models: ['llama-local'],
+  };
+
+  const installDefaults = defaultBindings(
+    { connectionId: 'house-openai', modelId: 'gpt-hi' },
+    { connectionId: 'house-openai', modelId: 'gpt-lo' },
+  );
+
+  it('resolves a role nobody has bound personally, and says which layer won', () => {
+    const result = resolveRole({
+      role: 'prose',
+      bindings: {},
+      defaults: installDefaults,
+      usable: [house],
+    });
+
+    expect(result.ok && result.modelId).toBe('gpt-hi');
+    // `default`, not `binding`. The distinction is the whole reason the two maps
+    // are not merged before resolution: a merged map answers every resolvable
+    // role correctly and cannot say *inherited* against *yours*, which is what
+    // [05 §15.1] asks the surface to show.
+    expect(result.ok && result.via).toBe('default');
+  });
+
+  it('loses to a binding the account set for itself, per role', () => {
+    const result = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: 'mine-local', modelId: 'llama-local' } },
+      defaults: installDefaults,
+      usable: [house, mine],
+    });
+
+    expect(result.ok && result.modelId).toBe('llama-local');
+    expect(result.ok && result.via).toBe('binding');
+
+    // And only that role — the others still come from the install. `fast` is a
+    // `lo`-tier role, so it is one `defaultBindings` actually populates; the
+    // three `unset` ones (`image`, `video`, `speech`) are deliberately not
+    // bound, because there is no sensible text fallback for an image.
+    const other = resolveRole({
+      role: 'fast',
+      bindings: { prose: { connectionId: 'mine-local', modelId: 'llama-local' } },
+      defaults: installDefaults,
+      usable: [house, mine],
+    });
+    expect(other.ok && other.via).toBe('default');
+    expect(other.ok && other.modelId).toBe('gpt-lo');
+  });
+
+  /**
+   * **`dangling` becomes recoverable**, which is what [04 §4.5] promised all
+   * along: an admin removes a connection somebody had bound, and the turn keeps
+   * working rather than failing.
+   *
+   * The resolver takes the first layer that *resolves*, not the first that
+   * exists — which is the behaviour change, and it is the reason the loop
+   * replaced a `find` on definedness.
+   */
+  it('catches a personal binding whose connection is gone', () => {
+    const result = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: 'deleted-yesterday', modelId: 'gone' } },
+      defaults: installDefaults,
+      usable: [house],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.via).toBe('default');
+    expect(result.ok && result.modelId).toBe('gpt-hi');
+  });
+
+  /**
+   * **And `dangling` survives as the honest remainder** — when every layer that
+   * bound something failed. Both states are reachable and they are different,
+   * which is the whole reason `resolveRole` tells them apart.
+   */
+  it('reports dangling only when nothing resolves at any layer', () => {
+    const result = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: 'deleted-yesterday', modelId: 'gone' } },
+      defaults: { prose: { connectionId: 'also-deleted', modelId: 'gone' } },
+      usable: [house],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe('dangling');
+    // The *strongest* layer's connection id, because that is the binding whose
+    // owner can fix it — telling somebody about the install default they do not
+    // control would be the less useful half of the truth.
+    expect(!result.ok && result.connectionId).toBe('deleted-yesterday');
+  });
+
+  it('still reports unbound when no layer bound anything', () => {
+    const result = resolveRole({ role: 'prose', bindings: {}, defaults: {}, usable: [house] });
+
+    // A different fact with a different remedy: the first is setup, the second
+    // is an administrator having removed something.
+    expect(!result.ok && result.reason).toBe('unbound');
+  });
+
+  it('is absent-by-default, so an install without the file behaves as before', () => {
+    const result = resolveRole({ role: 'prose', bindings: {}, usable: [house] });
+
+    expect(!result.ok && result.reason).toBe('unbound');
+  });
+});
+
+/**
+ * The reader, both layers — [P2B §2.1].
+ *
+ * Deliberately **one reader over two paths** rather than two readers: the files
+ * are the same shape, and a second parser is a second set of decisions about a
+ * malformed one.
+ */
+describe('reading bindings from disk', () => {
+  const binding = { prose: { connectionId: 'house-openai', modelId: 'gpt-hi' } };
+
+  it('reads the install defaults from system/bindings.json', async () => {
+    await mkdir(layout.systemRoot, { recursive: true });
+    await writeFile(layout.systemBindingsFile, JSON.stringify(binding));
+
+    expect(await readSystemBindings(layout)).toEqual(binding);
+  });
+
+  it('reads a user file from their own directory, and the two do not collide', async () => {
+    await mkdir(layout.systemRoot, { recursive: true });
+    await writeFile(layout.systemBindingsFile, JSON.stringify(binding));
+    await mkdir(layout.userRoot('ned'), { recursive: true });
+    await writeFile(
+      bindingsFile(layout, 'ned'),
+      JSON.stringify({ prose: { connectionId: 'mine-local', modelId: 'llama-local' } }),
+    );
+
+    // The path is the owner ([04 §4.3]): one lives under `system/`, one under
+    // `users/ned/`, and reading either does not reach the other.
+    expect((await readSystemBindings(layout)).prose?.connectionId).toBe('house-openai');
+    expect((await readBindings(layout, 'ned')).prose?.connectionId).toBe('mine-local');
+  });
+
+  it('reads an absent or mangled system file as no defaults at all', async () => {
+    expect(await readSystemBindings(layout)).toEqual({});
+
+    await mkdir(layout.systemRoot, { recursive: true });
+    await writeFile(layout.systemBindingsFile, '{ not json');
+
+    // The same posture the user file has had since P2.5, and for the same
+    // reason: a turn then fails with `unbound`, naming the role, which tells
+    // somebody what to do. A startup error over a missing optional file would
+    // not — and this file is optional on every install that has never had an
+    // administrator open the settings page.
+    expect(await readSystemBindings(layout)).toEqual({});
   });
 });

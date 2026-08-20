@@ -4,7 +4,7 @@
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { AssembledBlock, BudgetVerdict, Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
-import { readBindings } from '../providers/bindings.js';
+import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { Accounts } from '../auth/accounts.js';
 import { resolveConnections } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
@@ -340,7 +340,11 @@ export class TurnRunner {
         'Personal connections ignored: the account may not use its own',
       );
     }
+    // Two layers ([P2B §2.1]): the account's own, and the install defaults it
+    // falls back to per role. Read together because a turn resolves every role
+    // against both, and a second read per role would be the same two files.
     const bindings = await readBindings(commit.sessions.layout, job.account);
+    const defaults = await readSystemBindings(commit.sessions.layout);
 
     /**
      * **What the session is playing decides what runs**, and an unknown mode
@@ -448,6 +452,7 @@ export class TurnRunner {
                 {
                   definition,
                   bindings,
+                  defaults,
                   usable,
                   providers: this.#options.providers,
                   config,

@@ -50,6 +50,8 @@ export class Cancelled extends Error {
 export interface CallContext {
   definition: StepDefinition;
   bindings: RoleBindings;
+  /** The install defaults this account's bindings fall back to ([P2B §2.1]). */
+  defaults?: RoleBindings;
   usable: Connection[];
   providers: ProviderFactory;
   config: Config;
@@ -103,6 +105,7 @@ export async function performCall(
   const resolution = resolveRole({
     role: definition.role,
     bindings: context.bindings,
+    ...(context.defaults === undefined ? {} : { defaults: context.defaults }),
     usable: context.usable,
   });
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);

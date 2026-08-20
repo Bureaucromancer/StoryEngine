@@ -89,8 +89,19 @@ export function defaultBindings(hi: Binding, lo: Binding): RoleBindings {
  * The order is fixed and stated in §5.1: **install default → role binding →
  * session override → step override → actor hint.** Most people set two models
  * and never see the rest.
+ *
+ * `'default'` is the install layer, added at
+ * [P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md). Recorded rather
+ * than merged into `'binding'`, and that is the whole reason the two binding
+ * maps stay separate: a merged map answers every resolvable role correctly and
+ * cannot say *inherited from the install* against *yours*, which is the
+ * substance of [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s one place a user sees
+ * which of their bindings are personal. This type would have been lied to.
+ *
+ * `'session'` and `'step'` still have no caller outside tests — they are P7's,
+ * with the mode contract that would use them ([P2B §1.5]).
  */
-export type ResolutionSource = 'step' | 'session' | 'binding' | 'hint';
+export type ResolutionSource = 'step' | 'session' | 'binding' | 'default' | 'hint';
 
 export type RoleResolution =
   | {
@@ -125,7 +136,15 @@ export type RoleResolution =
 
 export interface ResolveOptions {
   role: ModelRole;
+  /** The account's own bindings. Overrides {@link ResolveOptions.defaults} per role. */
   bindings: RoleBindings;
+  /**
+   * The install defaults, from `system/bindings.json` ([P2B §2.1]).
+   *
+   * Optional so every existing caller keeps working and reads as *no install
+   * layer*, which is what an install with no such file has.
+   */
+  defaults?: RoleBindings;
   /** Everything the account may use, already capability-filtered. */
   usable: Connection[];
   /** A session-wide override — one narrator for one session. */
@@ -151,21 +170,48 @@ export function resolveRole(options: ResolveOptions): RoleResolution {
     [options.stepOverride, 'step'],
     [options.sessionOverride, 'session'],
     [options.bindings[role], 'binding'],
+    [options.defaults?.[role], 'default'],
   ];
 
-  const chosen = layered.find(([binding]) => binding !== undefined);
-  if (!chosen?.[0]) {
-    return { ok: false, role, reason: 'unbound' };
+  /**
+   * **The first layer that *resolves*, not the first that exists.**
+   *
+   * This used to take the strongest binding and then fail if its connection was
+   * gone, which made `dangling` terminal — and left
+   * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)'s promise that a removed
+   * system connection *"falls back to system bindings"* describing something the
+   * code could not do, because there was no second layer to fall back to
+   * ([P2B §1.2]).
+   *
+   * Now a personal binding whose connection is gone drops through to the install
+   * default and the turn keeps working. **`dangling` survives as the answer only
+   * when every layer that bound something failed**, which is the honest
+   * remainder — and it reports the *strongest* such layer's connection id,
+   * because that is the binding whose owner needs to fix it.
+   */
+  let chosen: { binding: Binding; via: ResolutionSource; connection: Connection } | null = null;
+  let dangled: string | undefined;
+
+  for (const [binding, via] of layered) {
+    if (binding === undefined) continue;
+    const connection = usable.find((candidate) => candidate.id === binding.connectionId);
+    if (connection) {
+      chosen = { binding, via, connection };
+      break;
+    }
+    dangled ??= binding.connectionId;
   }
 
-  const [binding, via] = chosen;
-  const connection = usable.find((candidate) => candidate.id === binding.connectionId);
-  if (!connection) {
-    // The binding points at something that is gone — an admin removing a system
-    // connection, or a personal one disabled by a revoked capability.
-    return { ok: false, role, reason: 'dangling', connectionId: binding.connectionId };
+  if (chosen === null) {
+    // Nothing bound anything, versus something bound something that is gone —
+    // an admin removing a system connection, or a personal one disabled by a
+    // revoked capability. The remedies differ, so the answers do.
+    return dangled === undefined
+      ? { ok: false, role, reason: 'unbound' }
+      : { ok: false, role, reason: 'dangling', connectionId: dangled };
   }
 
+  const { binding, via, connection } = chosen;
   const preferred = options.hint?.preferredModelIds ?? [];
   const wanted = preferred.find((modelId) => connection.models.includes(modelId));
 

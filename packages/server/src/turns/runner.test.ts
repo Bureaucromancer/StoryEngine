@@ -1287,3 +1287,75 @@ describe('the privateConnections capability', () => {
     expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
   });
 });
+
+/**
+ * **The install default, through a real turn** — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+ * stage P2B.0's ending, and [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)'s
+ * fallback finally happening rather than being described.
+ *
+ * The unit tests above pin `resolveRole`'s layering. What only a turn can show
+ * is that the layer is *plumbed*: read from `system/bindings.json`, carried
+ * through `performCall`'s context, and landing on the record as the `via` a
+ * reader can see.
+ */
+describe('the install default bindings', () => {
+  /** The install's own file, with no personal one anywhere. */
+  async function seedInstallDefaults(): Promise<void> {
+    const layout = new Layout(dataDir);
+    await mkdir(layout.systemRoot, { recursive: true });
+    await writeFile(
+      layout.systemBindingsFile,
+      JSON.stringify({ prose: { connectionId: CONNECTION_ID, modelId: 'fake-hi' } }),
+    );
+  }
+
+  it('carries a turn for an account that has bound nothing', async () => {
+    await rm(join(dataDir, 'users', ACCOUNT, 'bindings.json'));
+    await seedInstallDefaults();
+
+    const turn = await runNextTurn();
+
+    expect(turn.status).toBe('complete');
+    // On the record, so *"why did this turn use that model"* has an answer that
+    // names the layer rather than only the model.
+    expect(turn.request?.calls[0]?.resolved.connectionId).toBe(CONNECTION_ID);
+  });
+
+  /**
+   * **A dangling personal binding falls through** — the sentence [04 §4.5] has
+   * carried since P1 and the code could not perform, because there was nothing
+   * to fall through *to*.
+   */
+  it('rescues a turn whose personal binding points at a connection that is gone', async () => {
+    await writeFile(
+      join(dataDir, 'users', ACCOUNT, 'bindings.json'),
+      JSON.stringify({ prose: { connectionId: 'removed-last-week', modelId: 'gone' } }),
+    );
+    await seedInstallDefaults();
+
+    const turn = await runNextTurn();
+
+    // Before this stage the same fixture failed the turn with `dangling`.
+    expect(turn.status).toBe('complete');
+  });
+
+  it('still fails, naming the role, when both layers dangle', async () => {
+    await writeFile(
+      join(dataDir, 'users', ACCOUNT, 'bindings.json'),
+      JSON.stringify({ prose: { connectionId: 'removed-last-week', modelId: 'gone' } }),
+    );
+    const layout = new Layout(dataDir);
+    await mkdir(layout.systemRoot, { recursive: true });
+    await writeFile(
+      layout.systemBindingsFile,
+      JSON.stringify({ prose: { connectionId: 'also-removed', modelId: 'gone' } }),
+    );
+
+    const turn = await runNextTurn();
+
+    // Both states are reachable and they are different, which is the whole
+    // reason `resolveRole` tells them apart.
+    expect(turn.status).toBe('failed');
+    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+  });
+});
