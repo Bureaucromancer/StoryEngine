@@ -350,6 +350,38 @@ describe('fetching a model list', () => {
     expect(JSON.stringify(response.body)).not.toContain('10.0.0.5');
   });
 
+  /**
+   * **The literal case the gate names**: an endpoint that *does not implement*
+   * `/models` answers 404, not a transport failure. That branch had no test —
+   * the three above cover ok-with-good-json, ok-with-a-shape-we-do-not-know,
+   * and a thrown fetch.
+   */
+  it('treats a 404 from the endpoint as unreachable rather than as a crash', async () => {
+    /**
+     * **A JSON body, because that is what makes the status check load-bearing.**
+     *
+     * A 404 carrying plain text throws in `response.json()` and lands in the
+     * same 502 by the other route, so a plain-text fixture cannot tell whether
+     * the status was ever looked at — and the first version of this test used
+     * one. Endpoints answer errors as JSON all the time; without the `ok` check
+     * this parses `{ error: … }`, finds no `data`, and answers **200 with an
+     * empty model list**, which reads to an admin as *this endpoint offers
+     * nothing* rather than *this endpoint said no*.
+     */
+    fetchResult = Response.json({ error: { message: 'no such route' } }, { status: 404 });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'http://10.0.0.5:11434/v1' },
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body.error).toBe('unreachable');
+    expect(response.body.models).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain('10.0.0.5');
+  });
+
   it('treats a shape it does not recognise as no models offered', async () => {
     fetchResult = Response.json({ models: ['not-where-openai-puts-them'] });
 
@@ -438,14 +470,20 @@ describe('a key', () => {
         url: '/api/admin/connections',
         payload: { ...CONNECTION, provider: 'anthropic' },
       }),
+      // **And a delete that succeeds**, last so the id it removes is not needed
+      // above. Without it DELETE appeared here only as a 404, which is a
+      // refusal — the exact thing [P2B §6.1] says proves nothing about what a
+      // response body carries.
+      await server.request({ method: 'DELETE', url: `/api/admin/connections/${id}` }),
     ];
 
     for (const response of responses) {
       expect(JSON.stringify(response.body ?? null)).not.toContain('sk-must-never-come-back');
     }
-    // **And seven of them succeeded.** Without this the loop above is a sweep of
-    // refusals, which contain no key for the least interesting reason there is.
-    expect(responses.filter((response) => response.status < 400)).toHaveLength(7);
+    // **And eight of them succeeded**, which is every route on the surface.
+    // Without this the loop is a sweep of refusals, which contain no key for
+    // the least interesting reason there is.
+    expect(responses.filter((response) => response.status < 400)).toHaveLength(8);
   });
 
   /**
