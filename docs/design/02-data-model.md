@@ -553,6 +553,23 @@ The editor consequence is that *add a location* targets one of the linked
 lorebooks — the user picks, or creates a new one and links it. Slightly more
 explicit than an implicit home, and correct.
 
+**The mirror proposal — a lorebook that owns settings — is refused too**, and
+for a reason the primary-lorebook argument does not cover. Folding Setting into
+an extended lorebook preserves many settings over one book, so it survives the
+objection above; what it spends is the *other* direction. `lore` is a list: a
+noir setting draws on Rain City, a period reference book and a shared genre
+book, and no host among them is the obvious one. Nominating a host also
+entangles authored intent with an imported file — an upstream update to Rain
+City becomes a merge rather than a re-link. And the invariant this section opens
+with, *a Setting contains no world facts*, is currently held up by the object
+boundary; inside one file it survives only as editor discipline.
+
+What the fold is actually reaching for is two things, and both are answered
+elsewhere: *"here is Rain City and here are the three ways to play it"* is the
+library's backlink panel ([05 §5.2](05-ui-surfaces.md)), and *"send this world
+and its framing as one thing"* is one action on the package
+([10 §9.1](10-schemas.md)).
+
 ---
 
 ## 5. Storage: files on disk
@@ -981,6 +998,13 @@ Reduced to a container, Package has almost no surface of its own:
 - **No production settings, in either object.** No connection ids, no keys, no
   endpoint URLs, no per-install toggles — enforced by there being nowhere to put
   them ([00 §3.2](00-stance.md)).
+- **Filling one is a single action.** Export-as-package walks outbound
+  references from whatever you exported and collects the closure — a setting's
+  lorebooks, its cast, the actors' own lorebooks — then shows it for review
+  ([10 §9.1](10-schemas.md)). This is the piece that keeps the object split from
+  costing anything at exchange time: a Setting stays independent of any one
+  lorebook (§4) and is still shareable as one self-contained artefact, because
+  the bundled form is produced on demand rather than being the storage shape.
 - On disk a package is a folder, zipped as `.sepack` for exchange
   (§5.2.3).
 

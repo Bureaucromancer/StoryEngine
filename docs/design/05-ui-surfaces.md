@@ -449,6 +449,8 @@ Where it should differ:
 - **Links are visible and bidirectional.** From a lorebook: which settings,
   actors and packages reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
+  **Specified in §5.2** — the inbound direction carries a relationship the
+  schemas deliberately leave unencoded, so it is not left to the page.
 - **The disk layout is legible.** Since the folder *is* the object, show the path
   and — for users with file access — link straight into the file browser at that
   location. This is a rare case where exposing the storage mechanism is the
@@ -511,6 +513,50 @@ differ in a Kind column.
 **What this is not:** a data model change, not a merged type, and now also not a
 merged surface. The naming collapses; the storage, the schemas, the panels and
 the export boundaries do not.
+
+### 5.2 The backlink panel, specified
+
+The §5 bullet says links are visible and bidirectional. That is understated: the
+inbound view is not a convenience on a detail page, it is **the surface that
+carries a relationship the data model deliberately does not encode**, and it
+should be specified rather than left to whoever builds the page.
+
+A Setting links lorebooks and never the reverse ([02 §4](02-data-model.md)) —
+which is what allows many settings over one lorebook, and many lorebooks under
+one setting. The cost of that freedom is that a lorebook, on its own, looks like
+an orphan: nothing in the file says *Rain City is played three ways*. The
+recurring proposal that follows is to fold Setting into the lorebook as a child
+array. It is refused for the reasons in [02 §4](02-data-model.md), and this
+panel is what pays the refusal off — the cohesion the fold was reaching for,
+delivered as a view, where it costs no schema.
+
+**On a lorebook's page, a *Used by* section.** Grouped by kind, settings first
+and rendered as cards with their `blurb` rather than as table rows, because
+"the three ways to play this world" is the thing a person came to see and a row
+in a list does not read as one. Actors, setups and packages follow as ordinary
+rows.
+
+**With a *New setting on this world* action in that section**, creating a
+Setting prefilled with a `LoreLink` to this book. This is the affordance the
+primary-lorebook relationship would have bought ([06 B2](06-open-questions.md)),
+without buying the relationship: authoring flows from the world you are looking
+at, and the result is still an independent object linking N books.
+
+**The reverse page is not symmetric, and should not be.** A setting's page shows
+its lore links as *outbound* — ordered, `required` marked, editable — and its
+setups as inbound. Same data, two different jobs: outbound is a thing you
+arrange, inbound is a thing you discover.
+
+**Dangling references render in place**, named, non-blocking, with a resolve
+action — [00 §3.3](00-stance.md), applied to whichever direction the break shows
+up in.
+
+**It costs no new machinery.** The derived index answers "which settings link
+this lorebook" already ([02 §5.1](02-data-model.md)); this is the third consumer
+of one query, alongside the delete confirmation's reference counts
+([02 §10.1](02-data-model.md)) and the package closure
+([10 §9.1](10-schemas.md)). Anything that makes the index cheaper or staler is
+therefore a decision about all three at once.
 
 ---
 

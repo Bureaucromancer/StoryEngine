@@ -1349,6 +1349,61 @@ package resolve within it first, then locally, then dangle visibly
 ([00 §3.3](00-stance.md)). `requires` is checked at import and produces a clear
 warning with a degraded-start option rather than a hard block where possible.
 
+### 9.1 One action produces a package
+
+A container is only as good as the thing that fills it, and filling one by hand
+— find the setting, find its three lorebooks, remember the actor whose own
+lorebook the cast depends on, check nothing dangles — is exactly the work nobody
+does. So **export-as-package is a single action on any library object**, and the
+package is assembled by walking references.
+
+**The closure is computed, then reviewed.** Starting from the exported object,
+follow outbound references transitively and collect what they reach:
+
+| From | Follows | Default |
+|---|---|---|
+| Setting | `lore[]` where `required` ([§3](#3-shared-substructures)) | included, and cannot be silently dropped |
+| Setting | `lore[]` where not required | included, can be unchecked |
+| Setting | `cast[].ref` | included |
+| Actor | its bare lore `Ref[]` ([§4](#4-actor)) | included |
+| Setup | `setting`, and the closure above | included |
+| Setup | its own `lore[]`, and `cast.personaOptions` / `partyDefault` / `narrator` | included |
+| Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
+
+Every level is shown, not just the first: the actor two steps out whose lorebook
+came along is named in the review, because "why is this package 40 MB" should be
+answerable before the file exists rather than after.
+
+**Review, for the same reason import is a review step** ([05 §5](05-ui-surfaces.md)).
+Unchecking a `required` link is permitted and warned about, since `required`
+describes the author's intent and never blocks ([00 §3.3](00-stance.md)) — but
+it is the one case where the export says plainly that the recipient will be
+missing the world, not a nice extra.
+
+**`requires` is derived where it can be.** A Setup names a concrete mode, so
+`requires.modes` is populated from it rather than typed by hand; extension and
+capability requirements come from what the collected objects actually reference.
+An author can add to the list and should rarely need to.
+
+**This is what makes the object split free at exchange time.** A Setting stays
+independent of any one lorebook ([02 §4](02-data-model.md)) and is nonetheless
+shareable as a self-contained artefact, because the bundled form is *produced on
+demand* rather than being the storage shape. The recurring pull toward folding
+world content and framing into one file is, at bottom, a request for this
+button.
+
+**Exporting produces a file, not a library object.** Packages are transport, and
+transport should appear at the moment you export rather than sit in the way
+beforehand ([05 §5.1](05-ui-surfaces.md)). Keeping the package — as a
+re-exportable object that remembers its closure and picks up later edits — is a
+separate, explicit *Save this package* action.
+
+**[OPEN]** Whether a saved package re-resolves its closure on re-export or
+replays the exact contents it was built with. The first keeps a shared campaign
+current; the second is the only one that reproduces a byte-identical artefact,
+which matters if packages are ever addressed by hash. Lean: re-resolve, and show
+the diff.
+
 ---
 
 ## 10. Not defined here, deliberately
