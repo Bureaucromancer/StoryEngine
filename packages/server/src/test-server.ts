@@ -303,7 +303,15 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
   return {
     app,
     services,
-    dataDir,
+    /**
+     * **The layout's root, not the string `mkdtemp` returned** — F26. `Layout`
+     * resolves its root to the path the filesystem actually uses, so on a
+     * machine whose temp directory is an 8.3 alias or a link the two differ.
+     * A test comparing a server-derived absolute path against this one would
+     * fail on the runner and pass here, which is the shape of bug that reaches
+     * CI and nowhere else.
+     */
+    dataDir: layout.dataRoot,
     cookies,
     request,
     stream,

@@ -24,8 +24,19 @@ import type { DatabaseSync } from 'node:sqlite';
  * path the startup rebuild option already uses.
  */
 
-/** Bump on any change below. There is no compatibility window, by design. */
-export const INDEX_SCHEMA_VERSION = 3;
+/**
+ * Bump on any change below. There is no compatibility window, by design.
+ *
+ * **4 is not a change of shape but of what `path` contains** — F26. The column
+ * has always held the native absolute path; it now holds the *real* one, so an
+ * index written under a link, a different casing, or an 8.3 alias holds keys
+ * nothing will match again. Those rows never expire on their own: the watcher
+ * tombstones on `unlink` and nothing was unlinked, so ingest inserts a second
+ * row under the new spelling and `resolveDuplicates` shadows one of each pair —
+ * a library with no duplicates reporting every object twice. One rescan, seconds
+ * at household scale, is what the bump buys.
+ */
+export const INDEX_SCHEMA_VERSION = 4;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

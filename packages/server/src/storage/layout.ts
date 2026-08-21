@@ -17,10 +17,11 @@ import {
 
 import { listEntryNames } from './files.js';
 import {
+  PathEscapeError,
   assertRealContained,
   assertSafeSegment,
   isContained,
-  PathEscapeError,
+  realRoot,
   resolveWithin,
 } from './paths.js';
 
@@ -120,7 +121,21 @@ export class Layout {
   readonly dataRoot: string;
 
   constructor(dataRoot: string) {
-    this.dataRoot = resolveWithin(dataRoot, '.');
+    /**
+     * **Normalised here, not at `watch()`** — F26.
+     *
+     * chokidar builds every path it reports by concatenating onto the string it
+     * was handed, so the root's spelling is the spelling of everything that
+     * comes back out: the index's primary keys
+     * ([02 §5.1](../../../../docs/design/02-data-model.md)), the self-write registry's keys,
+     * and what {@link parseObjectPath} has to recognise. Normalising at the
+     * watcher alone leaves all three disagreeing with a layout that still holds
+     * the alias — the watcher stops aborting and starts silently ignoring every
+     * event, which is worse than the crash because nothing says so.
+     *
+     * Lexical gate first, then the filesystem, as everywhere else here.
+     */
+    this.dataRoot = realRoot(resolveWithin(dataRoot, '.'));
   }
 
   /**

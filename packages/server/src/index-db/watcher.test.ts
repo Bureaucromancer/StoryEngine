@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -392,5 +393,61 @@ describe('a foreign rename through the watcher', () => {
 
     expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(1);
     expect(findById(library.db, book.id)?.slug).toBe('rain-city-noir');
+  });
+});
+
+/**
+ * **A watcher on an aliased root still indexes** — F26, and the quiet half of it.
+ *
+ * The loud half is a native `abort()` that CI found on Windows. This is the one
+ * that does not crash: point the root at a link and chokidar reports the
+ * *target's* paths while the layout holds the *link's*, so `isContained` fails,
+ * `parseObjectPath` returns null, and every event is filed as `ignored`. The
+ * watcher runs, reports healthy, and indexes nothing — which is
+ * [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s central gesture failing silently.
+ *
+ * A separate watcher rather than the shared one, because the root has to differ.
+ * Runs on both platforms: `junction` is ignored on POSIX, where Node makes an
+ * ordinary symlink instead, so this is the leg that gives the Linux CI job real
+ * teeth rather than a skip.
+ *
+ * *`followSymlinks: false` is untouched by this* (F1) — that governs links found
+ * *inside* the tree, and the root is not inside itself.
+ */
+describe('a root reached through a link', () => {
+  it('still notices a hand edit', async () => {
+    const outer = await mkdtemp(join(tmpdir(), 'se-link-'));
+    const target = join(outer, 'real-root');
+    const link = join(outer, 'root-via-link');
+    await mkdir(target, { recursive: true });
+    await symlink(target, link, 'junction');
+
+    const aliased = await makeTestLibrary({ registry, root: link });
+    const seen: WatchEvent[] = [];
+    const linked = new LibraryWatcher({
+      db: aliased.db,
+      layout: aliased.layout,
+      registry,
+      stabilityThresholdMs: 20,
+      onChange: (event) => seen.push(event),
+    });
+    await mkdir(aliased.layout.kindRoot(aliased.scope, LOREBOOK_SCHEMA), { recursive: true });
+    await linked.start();
+
+    try {
+      await aliased.writeObject(newLorebook('Rain City'), 'rain-city');
+      await eventually(async () => {
+        await linked.settled();
+        return listObjects(aliased.db, { scopes: [aliased.scope] }).length === 1;
+      });
+
+      // Not merely "an event arrived": an event arrived and was *understood*.
+      // Unfixed, `seen` fills with `ignored` and the index stays empty.
+      expect(seen.every((event) => event.type === 'ignored')).toBe(false);
+    } finally {
+      await linked.stop();
+      await aliased.dispose();
+      await rm(outer, { recursive: true, force: true });
+    }
   });
 });

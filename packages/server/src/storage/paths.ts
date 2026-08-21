@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { realpathSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 /**
  * **The audited path helper.**
@@ -225,6 +226,62 @@ async function realpathOfNearestExisting(target: string): Promise<string> {
         // Reached the filesystem root without finding anything that exists.
         return current;
       }
+      current = parent;
+    }
+  }
+}
+
+/**
+ * The real location of a root, resolved once before anything is built on it — F26.
+ *
+ * `resolve` is lexical, and one directory can have several absolute paths that
+ * all open the same files: a link pointing at it, a different casing, and on
+ * Windows its 8.3 alias. **Every *read* agrees across those spellings. libuv's
+ * directory watcher does not.** It expands the name `ReadDirectoryChangesW`
+ * reports and asserts the result still starts with the string it was handed
+ * (`src\win\fs-event.c:72`) — and when it does not, the assert is a native
+ * `abort()`. No JS frame, nothing to catch, and the server dies before it
+ * listens. [02 §5.1](../../../../docs/design/02-data-model.md) makes the index derived and
+ * disposable precisely so its watcher failing is a recoverable event; it can
+ * never be a dead process.
+ *
+ * A link root is the quieter half and the more likely one: no abort, and a
+ * watcher that indexes **nothing**, because chokidar reports the target's paths
+ * while the layout still holds the link's.
+ *
+ * Found by CI. `os.tmpdir()` returns the 8.3 form whenever the account name runs
+ * past eight characters, and GitHub's Windows runner is `runneradmin`.
+ *
+ * **`realpathSync.native`, not `realpathSync`.** The plain one is Node's own JS
+ * symlink walker: it follows links and hands back an 8.3 name exactly as it
+ * found it, because a short name is not a link. Only the native variant goes
+ * through the OS. The async {@link realpathOfNearestExisting} above expands
+ * too, which is why {@link assertRealContained} was right all along and this
+ * was not.
+ *
+ * **Sync**, although the async form would also work, because {@link Layout}'s
+ * constructor calls it — and making that async turns every construction site
+ * into a static factory, one of them at module scope, to fix a spelling bug.
+ *
+ * **Deepest existing ancestor, with the rest re-appended**, exactly as
+ * {@link realpathOfNearestExisting} does it: `main.ts` builds a `Layout` on
+ * `./data` before anything has created it, and a root that threw `ENOENT` from
+ * inside a constructor would be the worse bug.
+ *
+ * **This is not a validation step** and must not grow into one. A root that
+ * exists nowhere comes back lexically unchanged, and `mkdir` says so shortly.
+ */
+export function realRoot(root: string): string {
+  const absolute = resolve(root);
+  let current = absolute;
+
+  for (;;) {
+    try {
+      // `relative` is empty when the whole path exists, and `join` drops it.
+      return join(realpathSync.native(current), relative(current, absolute));
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return absolute;
       current = parent;
     }
   }

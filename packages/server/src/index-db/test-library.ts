@@ -47,9 +47,11 @@ export interface TestLibrary {
 }
 
 export async function makeTestLibrary(
-  options: { registry?: SelfWriteRegistry; indexPath?: string } = {},
+  options: { registry?: SelfWriteRegistry; indexPath?: string; root?: string } = {},
 ): Promise<TestLibrary> {
-  const root = await mkdtemp(join(tmpdir(), 'se-index-'));
+  // A caller supplies `root` only to exercise the root itself — a link, or an
+  // 8.3 alias (F26). Everything else gets its own temp directory.
+  const root = options.root ?? (await mkdtemp(join(tmpdir(), 'se-index-')));
   const layout = new Layout(root);
   const scope = userScope('ned');
   const index = await openIndex({ path: options.indexPath ?? layout.indexFile });

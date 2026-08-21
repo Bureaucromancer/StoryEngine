@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -205,3 +206,88 @@ describe('the layout never produces a path outside the data root', () => {
     expect(() => layout.sessionRoot('ned', '..')).toThrow(PathEscapeError);
   });
 });
+
+/**
+ * **The data root is the path the filesystem actually uses** — F26.
+ *
+ * Found by CI, on the first run that had ever covered this code on Windows: five
+ * workers died with no failed assertion and no JS stack, because libuv's
+ * directory watcher `abort()`s natively when the path it was handed is not the
+ * spelling Windows reports back. `os.tmpdir()` is the 8.3 alias whenever the
+ * account name runs past eight characters, and GitHub's runner is `runneradmin`.
+ *
+ * These three assert the *normalisation*, not the crash — a test that triggered
+ * the abort would kill its own worker, which is exactly how this shipped. The
+ * behaviour that depends on it lives in `watcher.test.ts`; the crash itself is
+ * in `watcher-alias.test.ts`, in a subprocess, on Windows only.
+ *
+ * *A note on the module-scope `layout` above:* it resolves `/data`, which does
+ * not exist here, so the ancestor walk hands it back unchanged. On a machine
+ * where `/data` or `C:\data` does exist under a different casing, those
+ * assertions would start failing for a reason that has nothing to do with this.
+ */
+describe('the data root, whatever alias it was configured under', () => {
+  let real: string;
+
+  beforeEach(async () => {
+    real = new Layout(await mkdtemp(join(tmpdir(), 'se-root-'))).dataRoot;
+  });
+
+  afterEach(async () => {
+    await rm(real, { recursive: true, force: true });
+  });
+
+  it('resolves a link to its target', async () => {
+    const link = join(real, 'via-a-link');
+    const target = join(real, 'target');
+    await mkdir(target);
+    // `junction` needs no elevation on Windows and is ignored on POSIX, where
+    // Node makes an ordinary symlink. So this leg runs everywhere.
+    await symlink(target, link, 'junction');
+
+    expect(new Layout(link).dataRoot).toBe(target);
+  });
+
+  /**
+   * **The one leg the link test cannot stand in for.** Plain `realpathSync`
+   * resolves a link perfectly well and returns an 8.3 name exactly as it found
+   * it — a short name is not a link. So swapping `realpathSync.native` for the
+   * plain one leaves every other assertion here green.
+   */
+  it.runIf(process.platform === 'win32')('resolves an 8.3 alias to its long name', () => {
+    const alias = shortNameOf(real);
+    if (alias === null) return; // 8.3 generation is per-volume and can be off.
+    expect(alias).toContain('~');
+
+    expect(new Layout(alias).dataRoot).toBe(real);
+  });
+
+  /**
+   * `main.ts` builds a `Layout` on `./data` before anything has created it, so a
+   * normaliser that threw `ENOENT` from inside a constructor would be the worse
+   * bug. The deepest ancestor that exists is what gets resolved.
+   */
+  it('normalises a root that does not exist yet', () => {
+    const nested = join(shortNameOf(real) ?? real, 'data', 'deeper');
+
+    expect(new Layout(nested).dataRoot).toBe(join(real, 'data', 'deeper'));
+  });
+});
+
+/**
+ * The 8.3 alias of a directory, or null when the volume does not generate them.
+ *
+ * `windowsVerbatimArguments` is load-bearing: without it Node re-quotes the
+ * `for` expression and `cmd` echoes the long path straight back, quotes and all,
+ * so the probe silently reports no alias and the test above skips itself.
+ */
+function shortNameOf(directory: string): string | null {
+  if (process.platform !== 'win32') return null;
+  const probe = spawnSync('cmd', ['/d', '/s', '/c', `for %I in ("${directory}") do @echo %~sI`], {
+    encoding: 'utf8',
+    windowsVerbatimArguments: true,
+  });
+  const out = probe.stdout.trim();
+
+  return out.length > 0 && out !== directory ? out : null;
+}
