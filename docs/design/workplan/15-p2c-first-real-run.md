@@ -336,12 +336,22 @@ separate script and vitest strips types without checking them.
 
 ### 1.6 Nearly free, and owed
 
-- **No CI run has ever covered any P2 code, on either platform.** `origin/main`
-  is 81 commits behind and its workflow is still the single ubuntu job; the
-  ubuntu-and-Windows matrix exists only on this branch, where no `pull_request`
-  has ever triggered it. **Opening a draft PR runs the whole matrix with no edit
-  at all** — and [12 §4.5](12-p2-manual-gate.md) has been owed one watched ubuntu
-  run since it was written. *Ten minutes, then read the log.*
+- **~~No CI run has ever covered any P2 code, on either platform.~~ Done, and it
+  paid for itself immediately.** A draft PR ran the matrix for the first time.
+  **ubuntu passed; Windows failed** — the platform everything was developed on —
+  with five workers dead, zero failed assertions, and no named test. The cause
+  was a native `abort()` in libuv's directory watcher: `os.tmpdir()` returns an
+  8.3 alias whenever the account name runs past eight characters, GitHub's runner
+  is `runneradmin`, and `Layout` handed that spelling straight to chokidar. Fixed,
+  with the link-root variant it also exposed — a watcher that silently indexes
+  **nothing**. Both legs are now green and
+  [12 §4.5](12-p2-manual-gate.md)'s owed ubuntu run is discharged.
+
+  **It is worth recording what this says about the rest of the list.** Twenty-two
+  defects were found by reading. The twenty-third was found in ten minutes by
+  *running the thing somewhere else*, and no amount of reading would have reached
+  it — the mechanism is in a library, on one platform, behind a native assert.
+  That is the phase's own thesis arriving early and unprompted.
 - **A version stamp, smaller than it first looked.** There is none anywhere — no
   route, no About surface, no build injection, and `0.0.0` in every
   `package.json`. The first draft of this section called that blocking; it is
