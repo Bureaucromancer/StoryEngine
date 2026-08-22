@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
@@ -62,12 +62,32 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     },
   });
 
-  // The stream's closing frame is what says the record is durable in all three
-  // places, so the transcript refetches then rather than on a timer.
-  if (state.status === 'finished' && !transcript.isFetching) {
+  /**
+   * The stream's closing frame is what says the record is durable in all three
+   * places, so the transcript refetches then rather than on a timer.
+   *
+   * **In an effect, and keyed on the transition rather than on the state.** This
+   * ran in the render body, guarded by `!transcript.isFetching` — which is not a
+   * guard but a metronome. The invalidate starts a refetch, `isFetching` goes
+   * true and blocks the next render, the refetch lands, `isFetching` goes false,
+   * the render that delivers the new data passes the guard again, and it
+   * invalidates again. Nothing ever leaves `'finished'`, so there is no exit:
+   * two requests every few milliseconds for as long as the page is open,
+   * measured at six in twelve milliseconds against a real server.
+   *
+   * It also guarded on the transcript's fetch state while invalidating the
+   * session too, so half of it was unguarded even in intent.
+   *
+   * Keying on `state.status` is enough because the only way back to
+   * `'finished'` is through `'running'` — `submitted` sets it, so a second turn
+   * is a second transition and fires this again. `queryClient` is stable for the
+   * provider's lifetime and is listed because the rule cannot know that.
+   */
+  useEffect(() => {
+    if (state.status !== 'finished') return;
     void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
-  }
+  }, [state.status, sessionId, queryClient]);
 
   return (
     <main className="mx-auto flex h-full max-w-3xl flex-col gap-4 p-4">
@@ -97,12 +117,11 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           if (draft.trim().length > 0) send.mutate();
         }}
       >
-        <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">What do you do?</span>
             <input
-              className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+              className="w-full rounded border border-slate-300 bg-white p-2 text-slate-900 placeholder:text-slate-500 focus-visible:outline-2 focus-visible:outline-slate-500"
               value={draft}
               disabled={running}
               placeholder="What do you do?"
@@ -127,6 +146,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             </button>
           )}
         </div>
+        <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
     </main>
   );

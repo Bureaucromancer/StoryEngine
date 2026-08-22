@@ -229,6 +229,47 @@ describe('the stream', () => {
     });
   });
 
+  /**
+   * **And refetches it once, which the test above cannot tell you.**
+   *
+   * That one waits for a second call and stops, so it passed for the whole of
+   * P2.6 against an invalidate that ran in the render body and re-armed itself
+   * every time its own refetch landed. `waitFor` reaching 2 says nothing about
+   * what happens at 3. The real cost was two requests every few milliseconds for
+   * as long as a session was open — found by opening one and watching the server
+   * log scroll, not by anything here.
+   *
+   * The window matters more than the number: with the loop, twelve milliseconds
+   * against a real server produced six requests, so fifty is long enough to be
+   * unambiguous and short enough not to slow the suite.
+   */
+  it('does not keep refetching afterwards', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.4',
+        data: { jobId: 'job-1', seq: 4, key: 'turn.finished' },
+      });
+    });
+    await waitFor(() => {
+      expect(readTranscript).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 50));
+    });
+
+    expect(readTranscript).toHaveBeenCalledTimes(2);
+    // The session was invalidated in the same block and guarded by the
+    // transcript's fetch state, so it span even harder. Asserted separately
+    // because a guard that covers one query and not the other is the shape of
+    // the original bug.
+    expect(readSession).toHaveBeenCalledTimes(2);
+  });
+
   it('closes the stream when the page goes away', async () => {
     const { unmount } = renderPage();
     await screen.findByText('I knock twice.');
