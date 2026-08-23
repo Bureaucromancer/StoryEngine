@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -166,5 +167,28 @@ describe('--reset-password', () => {
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('--reset-password');
+  });
+
+  /**
+   * **A flag given twice is refused**, because `pnpm dev:server` already passes
+   * `--data ../../data` and pnpm *appends* rather than replaces. So
+   * `pnpm dev:server --data ./scratch` used to run against the real data
+   * directory in silence, and somebody testing on a scratch install was not.
+   *
+   * The assertion is on *which* directory, not only on the exit code: a guard
+   * that refused for some other reason would satisfy a code-only test while
+   * leaving the failure it exists to prevent exactly as it was.
+   */
+  it('refuses a flag given twice rather than picking one', async () => {
+    const second = await mkdtemp(join(tmpdir(), 'se-main-second-'));
+
+    const result = await run(['--data', dataDir, '--data', second, '--reset-password', 'ned']);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--data');
+    expect(result.stdout).not.toContain('listening');
+    // Neither directory was touched — no accounts file was created in either.
+    expect(existsSync(join(second, 'accounts.json'))).toBe(false);
+    await rm(second, { recursive: true, force: true });
   });
 });

@@ -141,6 +141,23 @@ function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
   if (index === -1) return undefined;
 
+  /**
+   * **A flag given twice is an error, not a first-one-wins race.** F24's
+   * sibling, and found the same way: `pnpm dev:server` already passes
+   * `--data ../../data`, and pnpm *appends* extra arguments rather than
+   * replacing them — so `pnpm dev:server --data ./scratch` ran against
+   * `../../data` and said nothing. Somebody testing against a scratch
+   * directory was testing against their real one.
+   *
+   * Neither silent answer is defensible. Taking the first ignores what was
+   * typed most recently; taking the last ignores that the earlier one may have
+   * been deliberate. Refusing is the only reading that cannot be wrong about
+   * which directory somebody meant.
+   */
+  if (process.argv.slice(index + 1).includes(flag)) {
+    throw new UsageError(`${flag} was given more than once.`);
+  }
+
   const value = process.argv[index + 1];
   if (value === undefined || value.startsWith('--')) {
     throw new UsageError(`${flag} needs a value.`);
