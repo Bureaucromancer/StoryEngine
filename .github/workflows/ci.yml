@@ -43,7 +43,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      # v6, not v4: v4 targets Node 20, which GitHub deprecated in September
+      # 2025 and now force-runs on 24 with a warning on every job. Pinned to the
+      # major so a patch arrives without a commit here, which is the same bargain
+      # the two actions above take.
+      - uses: pnpm/action-setup@v6
 
       # Node 26 — LTS from October 2026, which lands inside P1. It is also where
       # docs/design/workplan/03-p1-implementation.md §1.4 verified node:sqlite's FTS5
