@@ -4,41 +4,140 @@
 import { Link, Outlet } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
-import { useAuthState, useLogout } from './queries.js';
+import { useAuthState, useLogout, useNotices } from './queries.js';
+import { Button } from './ui/Button.js';
+import { navLink } from './ui/classes.js';
+import { useTheme } from './ui/useTheme.js';
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
 export function Shell(): JSX.Element {
   const auth = useAuthState();
   const logout = useLogout();
   const account = auth.data?.account ?? null;
+  // Mounted here rather than in the settings page, so a choice made in one tab
+  // reaches every other surface — and so signing in applies your theme before
+  // you go looking for where to set it.
+  useTheme();
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-dvh">
+      <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
-          <Link to="/" search={{}} className="text-lg font-semibold">
-            StoryEngine
-          </Link>
+          <div className="flex items-center gap-4">
+            {/* Goes to the library for now. It becomes home once home exists
+                ([05 §2.2]) — the wordmark is the arrival affordance, and
+                arrival is not the library's job. */}
+            <Link to="/library" search={{}} className="text-lg font-semibold">
+              StoryEngine
+            </Link>
+            {account === null ? null : <SurfaceNav />}
+          </div>
           {account === null ? null : (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-600">{account.displayName}</span>
-              <button
+              {/* One entry, which is all [P2A §3] asks for. */}
+              <Link to="/settings" className="text-sm text-ink-muted hover:underline">
+                Settings
+              </Link>
+              <span className="text-sm text-ink-subtle">{account.displayName}</span>
+              <Button
                 type="button"
+                size="compact"
                 onClick={() => {
                   logout.mutate();
                 }}
                 disabled={logout.isPending}
-                className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
               >
                 Sign out
-              </button>
+              </Button>
             </div>
           )}
         </div>
       </header>
+      {/* **Above the outlet, not on the settings page**, because [04 §6.3] wants
+          this on every page: the person who needs to know a restart is
+          outstanding is often not the person who is looking at the form. */}
+      <RestartBanner isAdmin={account?.role === 'admin'} />
       <main className="mx-auto max-w-4xl px-6 py-8">
         <Outlet />
       </main>
+    </div>
+  );
+}
+
+/**
+ * The two surfaces — [05 §2](../../../docs/design/05-ui-surfaces.md).
+ *
+ * **Two entries, not three.** The workbench is deliberately absent: it is a
+ * panel that expands over whichever surface you are in, not a place to navigate
+ * to ([05 §3]), so a nav entry for it would be the layout claim this design
+ * dropped. Settings stays on the right with the account, where a preference
+ * surface belongs rather than beside the things you work in.
+ *
+ * `activeProps` rather than a `useMatchRoute` comparison: the router already
+ * knows, and `activeOptions.exact` is off so `/play/$sessionId` keeps Play lit
+ * while you are in a session.
+ */
+function SurfaceNav(): JSX.Element {
+  return (
+    <nav aria-label="Surfaces" className="flex items-center gap-1">
+      <SurfaceLink to="/play" label="Play" />
+      <SurfaceLink to="/library" label="Library" />
+    </nav>
+  );
+}
+
+function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.Element {
+  return (
+    <Link
+      to={props.to}
+      search={{}}
+      // `aria-current="page"` as well as the colour, because [05 §1.1] wants the
+      // second channel to never be the only one — and here the first channel is
+      // colour, which a screen reader does not have.
+      //
+      // The classes travel through `activeProps` rather than `className`, which
+      // is why they went unchecked by the physical-utility rule until it stopped
+      // being anchored on the attribute name.
+      activeProps={{
+        className: `${navLink.base} ${navLink.active} font-medium`,
+        'aria-current': 'page',
+      }}
+      inactiveProps={{ className: `${navLink.base} ${navLink.idle}` }}
+      activeOptions={{ exact: false }}
+    >
+      {props.label}
+    </Link>
+  );
+}
+/**
+ * What is waiting for a restart — [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md),
+ * [P2A §2.6](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ *
+ * **Named changes rather than "restart required"**, because a bare notice
+ * invites people to restart and hope — and the list is computed per request
+ * from the config this process started with, so undoing a change clears it
+ * rather than leaving a banner nobody can dismiss.
+ *
+ * **And it says the server will not restart itself.** [04 §6.4] is explicit that
+ * under no supervisor a restart control leaves the administrator with no server
+ * and possibly no shell, so it needs supervisor detection and a drain, neither
+ * of which exists. A notice that invites *"so how do I restart it?"* is a worse
+ * answer than one that says.
+ *
+ * The query is disabled for a non-admin, so their browser never asks — the same
+ * absent-rather-than-disabled mechanism the settings page uses.
+ */
+function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
+  const notices = useNotices(isAdmin);
+  const pending = notices.data?.pendingRestart ?? [];
+  if (!isAdmin || pending.length === 0) return null;
+
+  return (
+    <div role="status" className="border-b border-warn-line bg-warn-surface px-6 py-2 text-sm">
+      <p className="mx-auto max-w-4xl text-warn-ink">
+        Waiting for a restart: <strong>{pending.join(', ')}</strong>. StoryEngine does not restart
+        itself — stop and start the server however you run it, and these will take effect.
+      </p>
     </div>
   );
 }

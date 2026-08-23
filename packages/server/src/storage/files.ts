@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
@@ -16,7 +16,7 @@ import { dirname } from 'node:path';
  * The veneer is thin on purpose. These are not clever, and the point is not
  * abstraction: it is that there is exactly one directory to audit, one place to
  * add a permission check when `fileAccess`
- * ([05 §4.2](docs/design/05-ui-surfaces.md)) grows teeth, and no second opinion
+ * ([05 §4.2](../../../../docs/design/05-ui-surfaces.md)) grows teeth, and no second opinion
  * about what "read a file" means.
  *
  * **Paths arriving here are already resolved** by `paths.ts`. Nothing in this
@@ -63,6 +63,21 @@ export async function statFile(path: string): Promise<FileFacts | null> {
   }
 }
 
+/**
+ * Appends a line to a file, creating it if it is not there.
+ *
+ * The one write in this package that is deliberately **not** atomic. An
+ * append-only turn segment ([02 §5.5](../../../../docs/design/02-data-model.md))
+ * is never rewritten, and routing an append through temp-then-rename would copy
+ * the whole segment on every turn — turning an O(1) write into O(n) and
+ * throwing away the immutability the format is built on. A torn append costs
+ * the last line of one segment, which is the bounded loss that trade buys.
+ */
+export async function appendLine(path: string, line: string): Promise<void> {
+  await ensureDirectory(dirname(path));
+  await appendFile(path, line, 'utf8');
+}
+
 export async function fileExists(path: string): Promise<boolean> {
   return (await statFile(path)) !== null;
 }
@@ -96,7 +111,7 @@ export async function ensureDirectory(path: string): Promise<void> {
  * Removes a directory and everything under it.
  *
  * Used for deleting an object, which is a *folder* rather than a file — the
- * card plus its assets travel together ([02 §5.2](docs/design/02-data-model.md)).
+ * card plus its assets travel together ([02 §5.2](../../../../docs/design/02-data-model.md)).
  * Recursive deletion is the one operation here worth being nervous about, which
  * is why it takes a path that has already been through the resolver and why it
  * lives beside the rest of the filesystem access rather than at a call site.
@@ -106,9 +121,31 @@ export async function removeTree(path: string): Promise<void> {
 }
 
 /**
+ * Removes a single file, if it is there.
+ *
+ * A sibling of {@link removeTree} rather than the same function, even though
+ * `rm` would take either: the two have different blast radii, and a call site
+ * that says *tree* while meaning *file* is one refactor away from meaning what
+ * it says. A connection is one file ([P2B §2.3]) — unlike a library object,
+ * which is a folder.
+ *
+ * **`unlinkFile`, not `removeFile`**, because `index-db/ingest.ts` already
+ * exports a `removeFile` that removes an index *row*. Two exports named the same
+ * thing for a filesystem operation and a database one is the ambiguity the
+ * package index refuses to re-export, and it would read as the same act at every
+ * call site.
+ *
+ * `force`, so removing something already gone is not an error. A delete whose
+ * file has been removed by hand has achieved what it was asked to.
+ */
+export async function unlinkFile(path: string): Promise<void> {
+  await rm(path, { force: true });
+}
+
+/**
  * Moves a directory, creating the destination's parent.
  *
- * Deletion is a move ([02 §10.2](docs/design/02-data-model.md)): `remove()`
+ * Deletion is a move ([02 §10.2](../../../../docs/design/02-data-model.md)): `remove()`
  * sends object folders to the user's trash through this rather than erasing
  * them, history and all. Both ends live under one data directory, so the
  * rename is same-volume by construction; a cross-volume symlink or a handle

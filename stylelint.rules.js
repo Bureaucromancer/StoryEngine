@@ -3,13 +3,13 @@
 
 /**
  * The CSS half of the logical-properties rule
- * (docs/design/07-tech-stack.md §12.6, docs/design/15-work-plan.md §2).
+ * (docs/design/07-tech-stack.md §12.6, docs/design/workplan/01-work-plan.md §2).
  *
  * Split out of `stylelint.config.js` for the same reason the ESLint rules are:
  * the fixture tests in `tools/lint-fixtures/` run against these objects.
  *
  * Written before there is any CSS to check, which is the point — this is
- * docs/design/19-p1-implementation.md §P1.0's ordering, and it is why the first
+ * docs/design/workplan/03-p1-implementation.md §P1.0's ordering, and it is why the first
  * stylesheet in the project could not have been written the wrong way.
  */
 
@@ -86,4 +86,22 @@ export const stylelintRules = {
   // Tailwind v4 resolves `@import "tailwindcss"` as a package specifier, not a
   // URL, so the standard config's preference for url() is wrong here.
   'import-notation': 'string',
+
+  // Tailwind v4 spells a token's sub-properties with a doubled hyphen —
+  // `--text-section--line-height` is the line height belonging to the
+  // `--text-section` step, and writing it that way is what makes `text-section`
+  // set size, leading and weight in one utility. The standard config's
+  // kebab-case pattern reads the doubled hyphen as a mistake.
+  //
+  // Widened rather than switched off, and only by that one construct: a name is
+  // still kebab-case, optionally followed by a single `--` and one more
+  // kebab-case name. A genuine typo like `--Text-Section` still fails.
+  'custom-property-pattern': [
+    '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?$',
+    {
+      message:
+        'Custom property names are kebab-case, optionally with one `--` before ' +
+        'a Tailwind theme sub-property (`--text-section--line-height`).',
+    },
+  ],
 };

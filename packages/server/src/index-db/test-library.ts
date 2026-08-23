@@ -22,14 +22,14 @@ import {
 } from '../storage/atomic.js';
 import { envelope, pngCardCodec } from '../storage/card/index.js';
 import { makePng } from '../storage/card/test-png.js';
-import { Layout, type LibraryScope, userScope } from '../storage/layout.js';
+import { Layout, type LibraryOwner, userOwner } from '../storage/layout.js';
 import { ingestFile } from './ingest.js';
 import { openIndex, type OpenedIndex } from './open.js';
 
 /**
  * A real data directory on disk, for the index tests.
  *
- * **The filesystem is not mocked** ([16 §8](docs/design/16-testing.md)): the
+ * **The filesystem is not mocked** ([testing §8](../../../../docs/design/workplan/10-testing.md)): the
  * storage layer *is* the thing under test, so these use temporary directories.
  * A mock would let the index agree with a fiction.
  */
@@ -38,20 +38,22 @@ export interface TestLibrary {
   layout: Layout;
   index: OpenedIndex;
   db: DatabaseSync;
-  scope: LibraryScope;
+  owner: LibraryOwner;
   /** Writes an object to disk *without* telling the index — a foreign write. */
-  writeObject: (object: Actor | Lorebook, slug: string, scope?: LibraryScope) => Promise<string>;
+  writeObject: (object: Actor | Lorebook, slug: string, owner?: LibraryOwner) => Promise<string>;
   /** Writes and indexes, the way a route does — synchronous, read-after-write. */
-  saveObject: (object: Actor | Lorebook, slug: string, scope?: LibraryScope) => Promise<string>;
+  saveObject: (object: Actor | Lorebook, slug: string, owner?: LibraryOwner) => Promise<string>;
   dispose: () => Promise<void>;
 }
 
 export async function makeTestLibrary(
-  options: { registry?: SelfWriteRegistry; indexPath?: string } = {},
+  options: { registry?: SelfWriteRegistry; indexPath?: string; root?: string } = {},
 ): Promise<TestLibrary> {
-  const root = await mkdtemp(join(tmpdir(), 'se-index-'));
+  // A caller supplies `root` only to exercise the root itself — a link, or an
+  // 8.3 alias (F26). Everything else gets its own temp directory.
+  const root = options.root ?? (await mkdtemp(join(tmpdir(), 'se-index-')));
   const layout = new Layout(root);
-  const scope = userScope('ned');
+  const owner = userOwner('ned');
   const index = await openIndex({ path: options.indexPath ?? layout.indexFile });
   // Resolved once rather than passed through as `registry: undefined`, which
   // `exactOptionalPropertyTypes` correctly refuses.
@@ -60,7 +62,7 @@ export async function makeTestLibrary(
   async function writeObject(
     object: Actor | Lorebook,
     slug: string,
-    at: LibraryScope = scope,
+    at: LibraryOwner = owner,
   ): Promise<string> {
     const schemaId = object.schema as PortableSchemaId;
     const path = layout.objectFile(at, schemaId, slug);
@@ -80,7 +82,7 @@ export async function makeTestLibrary(
   async function saveObject(
     object: Actor | Lorebook,
     slug: string,
-    at: LibraryScope = scope,
+    at: LibraryOwner = owner,
   ): Promise<string> {
     const schemaId = object.schema as PortableSchemaId;
     const path = layout.objectFile(at, schemaId, slug);
@@ -100,7 +102,7 @@ export async function makeTestLibrary(
     layout,
     index,
     db: index.db,
-    scope,
+    owner,
     writeObject,
     saveObject,
     dispose: async () => {

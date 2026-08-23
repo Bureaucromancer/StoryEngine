@@ -11,7 +11,7 @@ box on your LAN that people reach from browsers on their phones, laptops and
 TVs. There is no desktop app, no bundled Electron shell, and no "run it locally
 and also maybe expose it" ambiguity.
 
-**It binds loopback on first boot and LAN exposure is one setting** (§5.1) — an
+**It binds loopback on first boot and LAN exposure is one treatment** (§5.1) — an
 earlier version of this paragraph said `0.0.0.0` and predates that decision. The
 product shape is unchanged: this is a server expecting LAN clients, and the
 default exists to close the window before an admin account exists, not to hedge
@@ -61,7 +61,7 @@ client  ──intent──▶  server
   Messages mode's scheduler is a server-side timer that starts a turn; the fact
   that no client is connected is uninteresting.
 
-~~[OPEN]~~ **Closed at the P2 plan** ([20 §2.10](20-p2-implementation.md)),
+~~[OPEN]~~ **Closed at the P2 plan** ([P2 §2.10](workplan/04-p2-implementation.md)),
 along this lean and stronger: turns are not resumed across restart — recovery
 resumes *finalisation*, never generation. A job left running becomes a failed
 terminal turn with its blocks and calls checkpointed so far; a job interrupted
@@ -80,7 +80,7 @@ away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
 The large pressure: **Messages mode does not work without it** — though Messages
-is now a 2.0 mode ([15 §0](15-work-plan.md)), so this argument lands later than
+is now a 2.0 mode ([work plan §0](workplan/01-work-plan.md)), so this argument lands later than
 the others. Autonomous
 messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
@@ -153,7 +153,7 @@ wait, a reconnecting client replays from its last acknowledged id, and "persist
 until seen" becomes a property of storage rather than a hope about timing.
 
 **That inbox is operational state, not derived** — it goes with jobs and auth
-sessions in the store described in [18 §5.1](18-internal-contracts.md), never in
+sessions in the store described in [13 §5.1](13-internal-contracts.md), never in
 the disposable index. A notification that vanishes when someone deletes
 `index.sqlite` was never durable.
 
@@ -231,7 +231,7 @@ settings.
 | `turn.failed` | **yes** | 1.0 |
 | `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([06 C5](06-open-questions.md)); the strongest argument for push |
 | `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
-| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([17 §7](17-extensions.md)) |
+| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([12 §7](12-extensions.md)) |
 | `message.received` | no | **2.0**, with Messages |
 
 **`artifact.ready` rather than `rendition-ready`.** Renditions are the only
@@ -274,7 +274,7 @@ rather than in-app-only.
    configuration, not server configuration.
 
 The 1.0 pair covers everything 1.0 generates, because without Messages nothing
-reaches you when no browser is open ([15 §0.1](15-work-plan.md)). Push and
+reaches you when no browser is open ([work plan §0.1](workplan/01-work-plan.md)). Push and
 webhooks arrive with the mode that needs them.
 
 #### Channels 2 and 3 require a secure context, and plain LAN HTTP is not one
@@ -353,6 +353,18 @@ CSRF protection on state-changing routes, session cookies with sane flags, and
 path traversal checks on every filesystem-touching route. Those are cheap and
 their absence is embarrassing rather than defensible.
 
+**One rule survives the skip-list, and it belongs to the operator rather than to
+us.** `auth.minPasswordLength` is a length floor, default 8, settable anywhere in
+0–128 from the settings surface. Everything above stays true as the *default*
+position — there is no character-class rule, no rotation, no expiry, no history —
+and the one number that is left is the operator's to choose, because the policy
+is a property of the install and not of the build: a household on a machine only
+they can reach may set it to `0`, where the empty string becomes a valid
+password, and one reaching the port down a tunnel may ask for more. It applies
+where a password is *set* and never where one is checked, so raising it locks
+nobody out of an account they already have. `--reset-password` honours no
+minimum at all, for the reason §5.1 gives.
+
 ### 4.2 Users
 
 ```ts
@@ -372,13 +384,22 @@ interface Capabilities {
   /** May add and use their own connections. When false, only system
    *  connections resolve for this user. Default true. See §4.5. */
   privateConnections: boolean
-  /** In-UI file browser over their own directory. [05 §4.2] */
+  /** In-UI file browser over their own directory. Default "none". [05 §4.2] */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
-   *  remains admin-only. [17 §7] */
+   *  remains admin-only. Default false. [12 §7] */
   enableExtensions: boolean
 }
 ```
+
+**The defaults are part of the contract, and two of them were only in the
+code.** [05 §15.2](05-ui-surfaces.md) undertakes to render each capability with
+its consequence beside it, which is not something a surface can do from a
+definition that omits what happens when nobody chooses. `privateConnections`
+defaults **true** because the threat model is access separation among people who
+trust each other, so an admin turns it off deliberately (§4.5); the other two
+default to the closed value, because each opens something an admin should have
+had to decide about.
 
 First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
@@ -424,7 +445,7 @@ than scattering booleans as they arise, is that **a future role system then
 becomes a move rather than an invention** — capabilities relocate from the
 account to a role, and accounts reference roles. Additive, and only if wanted.
 
-**A real role system is post-2.0** ([11 §3](11-roadmap.md)). The signals that it
+**A real role system is post-2.0** ([14 §3](14-roadmap.md)). The signals that it
 is needed: a capability that is not a simple boolean, wanting to apply the same
 set to several people, or wanting permissions scoped to particular objects
 rather than to the account. None of those is true yet, and building an RBAC
@@ -451,7 +472,7 @@ So:
 ```
 /data/system/library/        shipped with the app. Read-only. Loads for everyone.
 /data/users/<handle>/
-  library/                   actors, lorebooks, settings, packages, presets
+  library/                   actors, lorebooks, treatments, packages, presets
   sessions/
   connections/
   memories/
@@ -480,7 +501,7 @@ So:
   like any other ([00 §3.3](00-stance.md)).
 - **Connections are account-scoped, with a system scope alongside** — the same
   shape as the library. See §4.5.
-- **Refs never cross users.** A setting's link to a lorebook resolves inside that
+- **Refs never cross users.** A treatment's link to a lorebook resolves inside that
   user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
   are precisely the thing that would make a future split or merge painful, so
   they must not exist.
@@ -493,12 +514,12 @@ rather than a schema migration:
 1. **Object ids are globally unique** (uuidv7), not namespaced per user. Alice's
    Vera and Bob's Vera are different objects with different ids, so a future
    merge has no collisions to resolve.
-2. **Provenance already records origin** ([13 §3](13-schemas.md)), so a copy can
+2. **Provenance already records origin** ([10 §3](10-schemas.md)), so a copy can
    say where it came from and a future dedupe has something to match on.
 3. **When sharing arrives it should be a new *location*, not a new field** — a
    `/data/shared/library/` alongside the per-user ones, with objects copied or
    moved into it. That is additive and leaves every schema in
-   [13](13-schemas.md) untouched.
+   [10](10-schemas.md) untouched.
 4. **No visibility or ownership fields until then.** Not having them is free;
    removing them later is churn.
 
@@ -591,24 +612,50 @@ Three details that decide whether it works:
   ([05 §4](05-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
   loader must ignore personal connections for a user without the capability.
   That also means the same rule covers extensions for free, since they request
-  calls by role and the host resolves ([17 §4](17-extensions.md)).
+  calls by role and the host resolves ([12 §4](12-extensions.md)).
 - **Revoking disables, never deletes.** Existing personal connections stay on
   disk and stop resolving, and the user is *told* rather than left wondering why
   a model call started failing. Role bindings pointing at them dangle and fall
   back to system bindings — the existing non-blocking behaviour, no new
   mechanism.
+
+  *"No new mechanism" was wrong when it was written, and the sentence is kept
+  because it is the one that hid the work. There were no system bindings:
+  `readBindings` read the user's file and nothing else, there was no system
+  bindings path, and `resolveRole` had no layer to fall through to — so a
+  dangling binding failed the turn rather than falling back to anything.
+  [P2B §1.2](workplan/14-p2b-provider-configuration.md) is the finding.*
+
+  ***Built at [P2B §2.1](workplan/14-p2b-provider-configuration.md).***
+  `system/bindings.json` is a real file with the same shape and the same
+  reader, layered under every user's own, and `resolveRole` now takes **the
+  first layer that resolves rather than the first that exists** — which is the
+  part the fallback actually turned on. A personal binding whose connection is
+  gone drops through to the install default and the turn keeps working;
+  `dangling` survives as the answer only when every layer that bound something
+  failed, and it names the strongest such layer's connection, because that is
+  the binding whose owner has to fix it.
 - **The dead-end state needs surfacing.** A user with no private connections
   allowed and no system connection available cannot do anything at all. The
-  admin screen should say so plainly — *"2 users have no usable connection"* —
-  because it is otherwise discovered as a bug report from someone who cannot
-  send a message.
+  admin screen ([05 §15.2](05-ui-surfaces.md)) should say so plainly — *"2 users
+  have no usable connection"* — because it is otherwise discovered as a bug
+  report from someone who cannot send a message.
+
+  *Built at [P2A](workplan/13-p2a-configuration-surface.md), with the count
+  corrected at [P2B](workplan/14-p2b-provider-configuration.md).4. It first
+  counted connection **files**, which cannot witness what this bullet asks for:
+  a system connection with nothing bound to it made every account read as fine
+  while every turn failed `unbound`. It asks the turn's own question now — does
+  `prose` resolve for this account — through `resolveConnections` and
+  `resolveRole`, so the capability above is honoured by the same code that
+  honours it at call time rather than by a second approximation of it.*
 
 #### Two things this makes more pressing
 
 - **Cost attribution stops being optional at 2.0.** With everyone spending one
   key, "who used what" becomes a real question. Turns already record cost and
   already belong to a user ([05 §3](05-ui-surfaces.md)), so the data exists —
-  the aggregate view deferred to [11 §3](11-roadmap.md) is where it surfaces.
+  the aggregate view deferred to [14 §3](14-roadmap.md) is where it surfaces.
 - **Rate limits become shared.** Several users against one key will hit provider
   limits that a single user would not. The answer is a **queue per connection
   with a concurrency cap** rather than hammering and failing — a turn that waits
@@ -640,7 +687,7 @@ So:
 
 - **Bind `127.0.0.1` on first boot.** LAN exposure is an explicit act, not a
   default.
-- **Flipping it must be trivial, and available in both places** — a setting in
+- **Flipping it must be trivial, and available in both places** — a treatment in
   the UI (admin only), and a plainly-named key in `config.json` for people who
   never open the UI first. Neither may be the only route.
 - **Containers are the exception, necessarily** — see §4.3.
@@ -661,6 +708,32 @@ setup token to the server console and require it to create the first admin.
 Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §4.3's container default safe rather than merely
 unavoidable.
+
+*Not built, and deliberately not half-built.* P1 printed a freshly generated
+token on every non-loopback boot and stored it nowhere, so it was never checked
+— security theatre in the one place theatre is worst, since an operator who sees
+a token printed reasonably concludes something is enforcing it. P2.0 removes the
+print rather than implementing the check, because the check is a new field on
+two auth routes and the setup form, and P2.0 forbids feature work
+([P2 §2.1](workplan/04-p2-implementation.md)). It lands with **P10**, beside the
+container inversion in §5.3 that is the reason it exists: until an image ships,
+nothing binds non-loopback without someone typing the bind address, and the
+loopback default is what carries the safety in the meantime.
+
+**And the same console is the break-glass for a lost password.** `--reset-password
+<handle>` replaces an account's password and re-enables it if it was disabled,
+then exits without starting the server. It reads the new password from **stdin
+only** — masked at a TTY, accepted from a pipe for scripting — and never from
+argv, because an argument is visible in shell history and in the process list to
+every other user on the host. The authority here is host access, the same
+authority the setup token assumes: someone who can run the binary against the
+data directory can already read it. There is no in-app recovery flow to weaken,
+which is the point — no email, no security questions, no account-recovery
+surface for an attacker to work on. Password reset from *inside* the admin UI is
+[P2A](workplan/13-p2a-configuration-surface.md)'s, and does not remove this one:
+it is what recovers the admin who cannot log in to reach it. **The console path
+is the rung beneath the UI, not an earlier version of it**, which is why it
+survives the phase that makes the UI exist.
 
 ### 5.2 Tailscale
 
@@ -709,11 +782,11 @@ plus a plain `node` install for people who prefer it. No launcher `.exe`, no
 Tauri shell, no Android build at 1.0. If a native wrapper is ever wanted it
 should be a thin client pointing at a server, not a second copy of the engine.
 
-Full target list in [§4.4](#54-which-packages-are-first-class).
+Full target list in [§5.4](#54-which-packages-are-first-class).
 
 **Inside a container, binding loopback is simply broken.** `127.0.0.1` in a
 container is the *container's* loopback, so the process is unreachable from the
-host no matter how the port is mapped. A container image that shipped §4.1's
+host no matter how the port is mapped. A container image that shipped §5.1's
 default would appear completely dead on first run, and the resulting bug reports
 would all say "it doesn't work".
 
@@ -721,10 +794,12 @@ So the container image binds `0.0.0.0`, and the security argument shifts rather
 than disappearing:
 
 - **The port mapping is the user's explicit act.** `-p 8080:8080` is the
-  deliberate exposure decision that §4.1 is trying to force; in a container the
+  deliberate exposure decision that §5.1 is trying to force; in a container the
   runtime already forces it.
-- **The console setup token (§4.1) covers the rest** — `docker logs` is exactly
-  the host-access-only channel it assumes.
+- **The console setup token (§5.1) covers the rest** — `docker logs` is exactly
+  the host-access-only channel it assumes. This image is also the token's first
+  real consumer, which is why §5.1 homes it at P10 rather than deferring it
+  indefinitely.
 
 This should be a single, documented environment variable rather than a hidden
 build difference, so that a bare-metal user can opt into the same behaviour and
@@ -841,7 +916,7 @@ optionality** — Tier 3 is no longer "as capacity allows". Everything outside t
 six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
 build-from-source stays first-class.
 
-**Which are needed *when* has been re-cut** ([15 §0.4](15-work-plan.md)):
+**Which are needed *when* has been re-cut** ([work plan §0.4](workplan/01-work-plan.md)):
 
 | Milestone | Artifacts |
 |---|---|
@@ -859,7 +934,7 @@ home-server product people cannot install is a home-server product nobody uses,
 and an unclaimed AUR slot gets claimed by someone else. Both are true of a
 release; neither is true of a beta.
 
-**Auto-update — settled in [12 §4](12-repo-and-releases.md).** We publish a
+**Auto-update — settled in [releases §4](workplan/11-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container
 users through unraid auto-update or watchtower, package users through their
 package manager, and everyone else through an in-app check that notices a
@@ -868,7 +943,7 @@ release and links to it. That check pairs with the version-awareness the AGPL
 data directory is not planned.
 
 **None of this packaging work is alpha-phase.** Per
-[12 §0](12-repo-and-releases.md), release engineering begins at beta — defined
+[releases §0](workplan/11-repo-and-releases.md), release engineering begins at beta — defined
 as feature-complete to the 1.0 spec. Until then the distribution strategy is
 build-it-yourself, and the tiers above are a plan rather than a backlog.
 
@@ -901,7 +976,7 @@ setting, see nothing happen, and conclude the app is broken.
 
 Worth stating because it is easy to file under "dev mode" and it is not: because
 files on disk are canonical and the index is watcher-fed
-([02 §5.1](02-data-model.md)), **editing a lorebook, setting, preset or prompt
+([02 §5.1](02-data-model.md)), **editing a lorebook, treatment, preset or prompt
 template on disk takes effect with no restart, in production, for everyone.**
 That falls straight out of the storage design.
 
@@ -948,7 +1023,7 @@ cleaner lifecycle depends on [06 A1](06-open-questions.md).
 ### 6.5 Update check, and using it as a connectivity signal
 
 **An in-app update check ships.** It queries the release feed for the configured
-channel ([12 §4](12-repo-and-releases.md)), compares against the running version
+channel ([releases §4](workplan/11-repo-and-releases.md)), compares against the running version
 — which the build already embeds for AGPL §13 (§5) — and surfaces a quiet
 indicator. Daily, cached, never on page load.
 
@@ -1011,7 +1086,7 @@ never work.
 
 ## 7. Licence obligations that are actually features
 
-StoryEngine is AGPL-3.0 ([08 §1](08-triage.md)), and §13 — the network clause —
+StoryEngine is AGPL-3.0 ([triage §1](workplan/02-triage.md)), and §13 — the network clause —
 applies squarely to a multi-user server reached over a LAN: people interacting
 with it remotely must be offered the corresponding source for the version they
 are interacting with.
@@ -1024,7 +1099,7 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
   embeds its tag and commit hash and the link is version-aware. A link to `main`
   is not strictly compliant when the operator is running a patched build — and
   the patched-build case is exactly the one §13 exists for. The permanent
-  release branches and tags in [12 §2](12-repo-and-releases.md) are what keep
+  release branches and tags in [releases §2](workplan/11-repo-and-releases.md) are what keep
   those links resolving years later.
 - An **About** surface showing version, commit, licence, and the dependency
   licence manifest. Cheap to generate at build time and independently useful for
@@ -1032,11 +1107,11 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
 
 The same surface should state the licence boundary plainly, because the
 project asks copyleft of one category and nothing of the other
-([08 §1.2](08-triage.md)):
+([triage §1.2](workplan/02-triage.md)):
 
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.
-- **Content is the author's own** — actors, settings, lorebooks, presets,
+- **Content is the author's own** — actors, treatments, lorebooks, presets,
   sessions, and packages including their authored rules. These are data the
   program produces, not derivative works of it. Nobody's characters become AGPL
   by being authored here, and a package of rules can be licensed however its

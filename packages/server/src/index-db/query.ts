@@ -5,16 +5,16 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import type { PortableSchemaId } from '@storyengine/shared';
 
-import type { LibraryScope } from '../storage/layout.js';
-import { scopeKey } from './ingest.js';
+import type { LibraryOwner } from '../storage/layout.js';
+import { ownerKey } from './ingest.js';
 
 /**
  * Reading the index.
  *
  * Everything here is a restatement of what is on disk
- * ([02 §5.1](docs/design/02-data-model.md)) — **nothing is answerable only from
+ * ([02 §5.1](../../../../docs/design/02-data-model.md)) — **nothing is answerable only from
  * the index**, and a feature that needed something to be would be storing data
- * in the wrong place ([18 §5](docs/design/18-internal-contracts.md)).
+ * in the wrong place ([13 §5](../../../../docs/design/13-internal-contracts.md)).
  *
  * The merge of a user's library with `system/library/` is a *query*, not a
  * special case, which is the whole reason both have the same layout on disk.
@@ -25,14 +25,14 @@ import { scopeKey } from './ingest.js';
 export interface IndexedObject {
   path: string;
   id: string;
-  scope: string;
+  owner: string;
   schemaId: string;
   slug: string;
   name: string;
   contentHash: string;
   /**
    * True when another file holds this id at a lexicographically earlier path
-   * ([19 §1.2](docs/design/19-p1-implementation.md)).
+   * ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
    *
    * Surfaced rather than filtered: the library shows both with a warning on the
    * shadowed one. Refusing to load either would punish a user for copying a
@@ -45,7 +45,7 @@ export interface IndexedObject {
 interface RawRow {
   path: string;
   id: string;
-  scope: string;
+  owner: string;
   schema_id: string;
   slug: string;
   name: string;
@@ -67,7 +67,7 @@ function hydrate(row: RawRow): IndexedObject {
   return {
     path: row.path,
     id: row.id,
-    scope: row.scope,
+    owner: row.owner,
     schemaId: row.schema_id,
     slug: row.slug,
     name: row.name,
@@ -79,31 +79,31 @@ function hydrate(row: RawRow): IndexedObject {
 
 export interface ListQuery {
   /**
-   * Which libraries to read. Pass the user's *and* the system scope to get the
-   * merged list a library surface shows ([05 §5](docs/design/05-ui-surfaces.md)).
+   * Which libraries to read. Pass the user's *and* the system owner to get the
+   * merged list a library surface shows ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
    */
-  scopes: LibraryScope[];
+  owners: LibraryOwner[];
   /**
    * Omit for every kind. Cross-kind reads are a real thing to want — search,
    * counts, an export sweep — and this is not a statement about the browsing
-   * surface, which is per kind ([05 §5](docs/design/05-ui-surfaces.md)).
+   * surface, which is per kind ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
    */
   schemaId?: PortableSchemaId;
 }
 
 export function listObjects(db: DatabaseSync, query: ListQuery): IndexedObject[] {
-  const scopeKeys = query.scopes.map(scopeKey);
-  if (scopeKeys.length === 0) return [];
+  const ownerKeys = query.owners.map(ownerKey);
+  if (ownerKeys.length === 0) return [];
 
-  const placeholders = scopeKeys.map(() => '?').join(', ');
+  const placeholders = ownerKeys.map(() => '?').join(', ');
   const kindClause = query.schemaId ? ' and schema_id = ?' : '';
-  const parameters: string[] = [...scopeKeys];
+  const parameters: string[] = [...ownerKeys];
   if (query.schemaId) parameters.push(query.schemaId);
 
   const rows = db
     .prepare(
       `select * from object
-        where tombstoned_at is null and scope in (${placeholders})${kindClause}
+        where tombstoned_at is null and owner in (${placeholders})${kindClause}
         order by name collate nocase, path`,
     )
     .all(...parameters);
@@ -114,7 +114,7 @@ export function listObjects(db: DatabaseSync, query: ListQuery): IndexedObject[]
 /**
  * The live row for an id, or null.
  *
- * Resolves by **id, never by slug** ([19 §1.1](docs/design/19-p1-implementation.md)).
+ * Resolves by **id, never by slug** ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)).
  * That is what keeps a foreign rename an update to an existing row rather than
  * the creation of a second object, and it is why the folder name is free to
  * drift from the object's name.
@@ -131,6 +131,36 @@ export function findById(db: DatabaseSync, id: string): IndexedObject | null {
   return row ? hydrate(row) : null;
 }
 
+/**
+ * A specific copy of a duplicated id, addressed by where it lives.
+ *
+ * `findById` answers with the *winner* — the earliest path — which is right for
+ * every ordinary reference and wrong for exactly one case: the list shows both
+ * copies of a duplicated id, warns about the shadowed one, and then had no way
+ * to open it (F19). Following that row's link opened the winner while the page
+ * said otherwise.
+ *
+ * Discriminated by `(owner, slug)` rather than by the stored path, because the
+ * path is the *native* absolute one — it differs by platform, and ordering over
+ * it is why the shadow winner itself is platform-divergent (F23). The slug is
+ * the folder name, which is the portable half and the same string on both.
+ */
+export function findByIdAt(
+  db: DatabaseSync,
+  id: string,
+  at: { owner: string; slug: string },
+): IndexedObject | null {
+  const row = db
+    .prepare(
+      `select * from object
+        where id = ? and owner = ? and slug = ? and tombstoned_at is null
+        limit 1`,
+    )
+    .get(id, at.owner, at.slug) as RawRow | undefined;
+
+  return row ? hydrate(row) : null;
+}
+
 export function findByPath(db: DatabaseSync, path: string): IndexedObject | null {
   const row = db
     .prepare('select * from object where path = ? and tombstoned_at is null')
@@ -142,7 +172,7 @@ export function findByPath(db: DatabaseSync, path: string): IndexedObject | null
 /**
  * Full-text search across the indexed objects.
  *
- * FTS5 ([07 §7](docs/design/07-tech-stack.md)). Turn text joins this at P2 —
+ * FTS5 ([07 §7](../../../../docs/design/07-tech-stack.md)). Turn text joins this at P2 —
  * the table exists, nothing writes to it yet.
  */
 export function search(db: DatabaseSync, term: string, limit = 50): IndexedObject[] {
@@ -170,7 +200,7 @@ export function search(db: DatabaseSync, term: string, limit = 50): IndexedObjec
 export function snapshot(db: DatabaseSync): string[] {
   const rows = db
     .prepare(
-      `select path, id, scope, schema_id, slug, name, content_hash, shadowed, body
+      `select path, id, owner, schema_id, slug, name, content_hash, shadowed, body
          from object where tombstoned_at is null order by path`,
     )
     .all();
@@ -179,7 +209,7 @@ export function snapshot(db: DatabaseSync): string[] {
     [
       row.path,
       row.id,
-      row.scope,
+      row.owner,
       row.schema_id,
       row.slug,
       row.name,

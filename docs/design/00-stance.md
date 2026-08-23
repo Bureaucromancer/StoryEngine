@@ -183,9 +183,9 @@ is the degenerate case of the general form, not the base case with extensions.
 
 ### 3.1 Prefill, not binding
 
-Creating a session from a setting or a package **copies** what it needs. There is
-no live pointer back. Editing a setting later cannot retroactively change a
-running story, and the same setting seeds many stories.
+Creating a session from a treatment or a package **copies** what it needs. There is
+no live pointer back. Editing a treatment later cannot retroactively change a
+running story, and the same treatment seeds many stories.
 
 This is Aventuras' behaviour, precisely characterised in Marinara's port
 analysis, and it is correct. It should be a stated invariant, not an emergent
@@ -195,7 +195,7 @@ destroys reproducibility.
 ### 3.2 Content and production settings never mix
 
 The single most important boundary in the data model. Shareable content —
-actors, settings, lorebooks, packages — must **never** carry connections, API
+actors, treatments, lorebooks, packages — must **never** carry connections, API
 keys, endpoint URLs, model bindings, or per-install feature toggles. Importing a
 stranger's package must not be able to repoint your provider, flip your content
 rating, or switch on generation against your paid image endpoint.
@@ -210,7 +210,7 @@ Model *preferences* are allowed, as abstract hints resolved locally — see
 
 ### 3.3 Dangling references are normal, not an error
 
-A package references a lorebook you don't have; a setting links an actor that was
+A package references a lorebook you don't have; a treatment links an actor that was
 deleted. This must be survivable, visible and non-blocking: resolve by id, fall
 back to name match, otherwise show "missing" in the editor and carry on. Never
 block a flow on a missing link, never silently drop it.

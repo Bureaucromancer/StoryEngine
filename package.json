@@ -11,15 +11,17 @@
   },
   "scripts": {
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
-    "dev": "pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
-    "dev:server": "pnpm --filter @storyengine/server run dev",
+    "dev": "pnpm run dev:shared && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
+    "dev:shared": "tsc -b packages/shared",
     "dev:client": "pnpm --filter @storyengine/client run dev",
+    "dev:server": "pnpm --filter @storyengine/server run dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm run lint:es && pnpm run lint:css",
     "lint:css": "stylelint \"packages/**/*.css\"",
-    "lint:es": "eslint .",
+    "lint:es": "eslint . --max-warnings 0",
     "test": "vitest run",
+    "test:gate": "vitest run --project gate",
     "typecheck": "tsc -b && tsc -p tsconfig.tools.json"
   },
   "devDependencies": {
@@ -36,6 +38,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "fast-check": "4.9.0",
     "globals": "17.11.0",
+    "jsdom": "30.0.1",
     "prettier": "3.9.6",
     "stylelint": "17.14.1",
     "stylelint-config-standard": "40.0.0",

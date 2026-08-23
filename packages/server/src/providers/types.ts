@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import type { GenerationParams } from '@storyengine/shared';
+
+/**
+ * The provider layer's contracts — [13 §2, §3](../../../../docs/design/13-internal-contracts.md)
+ * and [07 §5](../../../../docs/design/07-tech-stack.md), as code.
+ *
+ * **The wrapper is not ceremony.** It is where model-hint resolution happens,
+ * where role bindings resolve to connections, where per-call cost is captured
+ * for the turn record, and where capability negotiation lives — *"this model
+ * has no tool calling, degrade to prompted JSON with validation"*. The AI SDK
+ * sits behind it, and swapping the SDK is a change to one adapter rather than
+ * to the engine.
+ *
+ * It is **not** where a raw-completion adapter attaches, because there is not
+ * one ([07 §5.5](../../../../docs/design/07-tech-stack.md)): if it speaks
+ * OpenAI-compatible chat it works, and if it does not it does not. That is a
+ * position, and it is stated in `docs/api.md` rather than left to be
+ * discovered.
+ */
+
+/**
+ * The eight roles a step may ask for.
+ *
+ * **Steps never name a model.** They name a role, and the install binds roles
+ * to connections ([07 §5.1](../../../../docs/design/07-tech-stack.md)) — which
+ * is what makes an install portable, an extension safe to share, and an actor's
+ * `modelHint` resolvable as a *request* rather than as a binding.
+ */
+export const MODEL_ROLES = [
+  'prose',
+  'fast',
+  'reasoning',
+  'vision',
+  'image',
+  'video',
+  'speech',
+  'embedding',
+] as const;
+
+export type ModelRole = (typeof MODEL_ROLES)[number];
+
+/**
+ * What an endpoint can do, and where it stops.
+ *
+ * Verbatim from [13 §3](../../../../docs/design/13-internal-contracts.md) — the
+ * discipline this phase is under is that the contracts become code *as
+ * written*, and a deviation goes into the doc first because five later phases
+ * are specified against it.
+ */
+export interface ProviderCapabilities {
+  supportsTools: boolean;
+  supportsStructuredOutput: boolean;
+  supportsStreaming: boolean;
+  /** Whether consecutive same-role messages are acceptable. [13 §2] */
+  mergeSameRole: 'required' | 'preferred' | 'never';
+  /**
+   * Whether a leading system message is supported at all — some endpoints want
+   * it folded into the first user message.
+   */
+  systemMessage: 'supported' | 'fold-into-first-user';
+  /** Hard: what the endpoint accepts. */
+  maxPromptChars?: number;
+  /** Soft: where quality degrades. */
+  usefulPromptChars?: number;
+  maxContextTokens?: number;
+  /**
+   * Whether the provider reports token usage. When false, the record's `usage`
+   * is null and the budgeter's margin is the only signal.
+   */
+  reportsUsage: boolean;
+}
+
+/**
+ * A rendered message, on its way to a provider —
+ * [13 §2](../../../../docs/design/13-internal-contracts.md).
+ *
+ * `fromBlocks` is the requirement merging must not break: the workbench maps
+ * every sent byte back to the block that produced it, and a merge that
+ * concatenates six blocks into one string without recording which six destroys
+ * that mapping quietly, and only noticeably when somebody is debugging.
+ */
+export interface RenderedMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  /** Which blocks produced this message, in order. Non-empty always. */
+  fromBlocks: string[];
+}
+
+/** Provider-reported token usage. Never estimated — see `ModelCall.usage`. */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+}
+
+/**
+ * How a call went, in the vocabulary the record and the UI both use.
+ *
+ * The class is what lets the UI offer the right recovery rather than surfacing
+ * a provider string ([13 §1.4](../../../../docs/design/13-internal-contracts.md)).
+ */
+export type ErrorClass = 'transient' | 'retryable' | 'terminal';
+
+export class ProviderError extends Error {
+  readonly class: ErrorClass;
+  /** The provider's own words, for the log. Never rendered as UI copy. */
+  readonly detail: string | undefined;
+
+  constructor(errorClass: ErrorClass, message: string, detail?: string) {
+    super(message);
+    this.name = 'ProviderError';
+    this.class = errorClass;
+    this.detail = detail;
+  }
+}
+
+/** One request to one model. Everything a provider needs and nothing it does not. */
+export interface GenerationRequest {
+  /** Resolved by the caller from a role — the provider never resolves. */
+  modelId: string;
+  messages: RenderedMessage[];
+  params: GenerationParams;
+  /**
+   * Structured output, when the caller wants it and the provider can do it.
+   * Where it cannot, the caller degrades to prompted JSON — which is a decision
+   * the caller makes with the capabilities in hand, not a silent fallback here.
+   */
+  schema?: object;
+  signal?: AbortSignal;
+}
+
+export interface GenerationResult {
+  text: string;
+  /** Null when the provider does not report it — never estimated to fill a gap. */
+  usage: TokenUsage | null;
+  /** Null when the provider does not price the call. */
+  cost: { amount: number; currency: string } | null;
+  /** What the model actually was, which is not always what was asked for. */
+  modelId: string;
+  /** Present when the caller asked for structured output and got it. */
+  object?: unknown;
+}
+
+/** A streamed chunk. Text only — everything structural arrives with the result. */
+export interface GenerationChunk {
+  text: string;
+}
+
+/**
+ * The thin internal interface.
+ *
+ * Deliberately small: two calls and a capability record. Anything that grows
+ * this interface is either a capability (which belongs above) or engine work
+ * that has drifted into the adapter.
+ */
+export interface Provider {
+  /** Stable identifier for the adapter kind — `openai-compatible`, `fake`. */
+  readonly kind: string;
+  readonly capabilities: ProviderCapabilities;
+
+  generate(request: GenerationRequest): Promise<GenerationResult>;
+
+  /**
+   * Streams text, then resolves the same result `generate` would have.
+   *
+   * Present only when `capabilities.supportsStreaming`. The caller checks;
+   * a provider that cannot stream does not pretend to by yielding once.
+   */
+  stream?(request: GenerationRequest): AsyncGenerator<GenerationChunk, GenerationResult>;
+}

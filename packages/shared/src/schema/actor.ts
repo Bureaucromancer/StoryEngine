@@ -19,7 +19,7 @@ import {
 } from './common.js';
 
 /**
- * Actor — docs/design/13-schemas.md §4.
+ * Actor — docs/design/10-schemas.md §4.
  *
  * One card type. Personas and NPCs are flags and tags, not separate types.
  */
@@ -43,7 +43,7 @@ export const ActorRole = Type.String({
 export type ActorRole = Static<typeof ActorRole>;
 
 /**
- * Reserved section ids ([13 §4](docs/design/13-schemas.md)). "Conventional" is
+ * Reserved section ids ([10 §4](../../../../docs/design/10-schemas.md)). "Conventional" is
  * enforced by the editor, by generation, and by the default preset — never by
  * this schema. Structurally nothing prevents a user deleting one, and missing
  * must mean empty rather than an error.
@@ -59,7 +59,7 @@ export const CONVENTIONAL_SECTION_IDS = {
   background: 'se.background',
 } as const;
 
-/** The `se.` section-id namespace is reserved ([15 §2](docs/design/15-work-plan.md)). */
+/** The `se.` section-id namespace is reserved ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). */
 export const RESERVED_SECTION_PREFIX = 'se.';
 
 export const Section = Type.Object(
@@ -133,7 +133,7 @@ export const Actor = Type.Object(
     compat: Compat,
   },
   {
-    $id: `https://storyengine.dev/schemas/${ACTOR_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${ACTOR_SCHEMA.replace('/', '.')}.json`,
     title: 'Actor',
     description:
       'A character. Deliberately absent: system_prompt, ' +

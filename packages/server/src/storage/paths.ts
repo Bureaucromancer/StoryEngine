@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { realpathSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 /**
  * **The audited path helper.**
  *
- * [07 §9](docs/design/07-tech-stack.md) calls this *"the single most important
+ * [07 §9](../../../../docs/design/07-tech-stack.md) calls this *"the single most important
  * piece of security code in the project"*, and
- * [05 §4.4](docs/design/05-ui-surfaces.md) is why: every filesystem-touching
+ * [05 §4.4](../../../../docs/design/05-ui-surfaces.md) is why: every filesystem-touching
  * route resolves through here, so containment is a property of one function
  * rather than a habit spread across handlers. The no-direct-`fs` lint rule from
  * P1.0 exists to keep it that way — see the README beside this file.
@@ -90,7 +91,7 @@ function segmentsOf(relative: string): string[] {
  * Rejects a single path segment.
  *
  * Exported because the same rules apply to a slug being minted
- * ([19 §1.1](docs/design/19-p1-implementation.md)) and to a handle being
+ * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)) and to a handle being
  * accepted at first run — and a check that lives in two places drifts.
  */
 export function assertSafeSegment(segment: string, whole: string = segment): void {
@@ -231,6 +232,62 @@ async function realpathOfNearestExisting(target: string): Promise<string> {
 }
 
 /**
+ * The real location of a root, resolved once before anything is built on it — F26.
+ *
+ * `resolve` is lexical, and one directory can have several absolute paths that
+ * all open the same files: a link pointing at it, a different casing, and on
+ * Windows its 8.3 alias. **Every *read* agrees across those spellings. libuv's
+ * directory watcher does not.** It expands the name `ReadDirectoryChangesW`
+ * reports and asserts the result still starts with the string it was handed
+ * (`src\win\fs-event.c:72`) — and when it does not, the assert is a native
+ * `abort()`. No JS frame, nothing to catch, and the server dies before it
+ * listens. [02 §5.1](../../../../docs/design/02-data-model.md) makes the index derived and
+ * disposable precisely so its watcher failing is a recoverable event; it can
+ * never be a dead process.
+ *
+ * A link root is the quieter half and the more likely one: no abort, and a
+ * watcher that indexes **nothing**, because chokidar reports the target's paths
+ * while the layout still holds the link's.
+ *
+ * Found by CI. `os.tmpdir()` returns the 8.3 form whenever the account name runs
+ * past eight characters, and GitHub's Windows runner is `runneradmin`.
+ *
+ * **`realpathSync.native`, not `realpathSync`.** The plain one is Node's own JS
+ * symlink walker: it follows links and hands back an 8.3 name exactly as it
+ * found it, because a short name is not a link. Only the native variant goes
+ * through the OS. The async {@link realpathOfNearestExisting} above expands
+ * too, which is why {@link assertRealContained} was right all along and this
+ * was not.
+ *
+ * **Sync**, although the async form would also work, because {@link Layout}'s
+ * constructor calls it — and making that async turns every construction site
+ * into a static factory, one of them at module scope, to fix a spelling bug.
+ *
+ * **Deepest existing ancestor, with the rest re-appended**, exactly as
+ * {@link realpathOfNearestExisting} does it: `main.ts` builds a `Layout` on
+ * `./data` before anything has created it, and a root that threw `ENOENT` from
+ * inside a constructor would be the worse bug.
+ *
+ * **This is not a validation step** and must not grow into one. A root that
+ * exists nowhere comes back lexically unchanged, and `mkdir` says so shortly.
+ */
+export function realRoot(root: string): string {
+  const absolute = resolve(root);
+  let current = absolute;
+
+  for (;;) {
+    try {
+      // `relative` is empty when the whole path exists, and `join` drops it.
+      return join(realpathSync.native(current), relative(current, absolute));
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return absolute;
+      current = parent;
+    }
+  }
+}
+
+/**
  * {@link resolveWithin}, plus the check only the filesystem can answer.
  *
  * A path can pass every lexical rule and still escape: `library/actors/vera`
@@ -242,6 +299,32 @@ async function realpathOfNearestExisting(target: string): Promise<string> {
  * data directory on another volume is a normal deployment, and comparing a real
  * candidate against a symlinked root would reject every path in it.
  */
+/**
+ * The real-path check on a path that is already built — F1's other half.
+ *
+ * {@link resolveWithinReal} is for a caller holding a root and some segments.
+ * Most of this server is not: `Layout` composes paths in sync chained steps,
+ * and the index hands back an absolute path it stored earlier. Those are the
+ * paths that actually reach `open()`, so this is the form the check has to take
+ * to be *called* — the audit's finding was never that the resolver was wrong,
+ * only that nothing used it.
+ *
+ * Both sides are realpath'd, for the same reason as `resolveWithinReal`: a data
+ * directory that is itself a link is an ordinary deployment.
+ */
+export async function assertRealContained(root: string, target: string): Promise<void> {
+  const realRoot = await realpathOfNearestExisting(resolve(root));
+  const realTarget = await realpathOfNearestExisting(resolve(target));
+
+  if (!isContained(realRoot, realTarget)) {
+    throw new PathEscapeError(
+      'symlink-escape',
+      relative(root, target) || target,
+      `resolves to ${JSON.stringify(realTarget)}, outside ${JSON.stringify(realRoot)}`,
+    );
+  }
+}
+
 export async function resolveWithinReal(root: string, ...segments: string[]): Promise<string> {
   const candidate = resolveWithin(root, ...segments);
   const realRoot = await realpathOfNearestExisting(resolve(root));
@@ -259,7 +342,7 @@ export async function resolveWithinReal(root: string, ...segments: string[]): Pr
 }
 
 /**
- * The asset-manifest rule from [02 §5.3](docs/design/02-data-model.md): a
+ * The asset-manifest rule from [02 §5.3](../../../../docs/design/02-data-model.md): a
  * manifest holds *relative paths within the object's folder*, never absolute and
  * never escaping it.
  *

@@ -7,7 +7,7 @@ import type { Actor, Section } from '@storyengine/shared';
  * The mapping between an actor object and the editor's form state — pure, and
  * where the editor's two non-negotiable promises live:
  *
- * - **Unknown fields survive** ([13 §2](docs/design/13-schemas.md)).
+ * - **Unknown fields survive** ([10 §2](../../../../docs/design/10-schemas.md)).
  *   `applyForm` clones the loaded object and assigns only the fields the form
  *   owns, so anything this build has never heard of — including the
  *   `generated` provenance map nothing writes until P2 — rides through a save
@@ -72,7 +72,8 @@ export function actorFormShape(object: Record<string, unknown>): string | null {
   if (!Array.isArray(shaped['traits'])) return 'its "profile.traits" is not a list';
   if (!Array.isArray(shaped['sections'])) return 'its "profile.sections" is not a list';
   for (const section of shaped['sections'] as unknown[]) {
-    if (typeof section !== 'object' || section === null) return 'a profile section is not an object';
+    if (typeof section !== 'object' || section === null)
+      return 'a profile section is not an object';
     const fields = section as Record<string, unknown>;
     if (typeof fields['id'] !== 'string') return 'a profile section has no "id" string';
     if (typeof fields['title'] !== 'string') return 'a profile section has no "title" string';
@@ -138,7 +139,7 @@ export function stampUpdated(object: Record<string, unknown>): Record<string, un
 
 /**
  * The reload-and-reapply merge, for the 412 dialog
- * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
  * "Reapply my edits" means the fields the user actually *edited* — the form
  * fields that differ from `pristine`, the form as it read when the stale base

@@ -1,35 +1,56 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
 import { ActorEditorPage } from './editor/ActorEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
+import { PlayPage } from './play/PlayPage.js';
+import { SettingsPage } from './settings/SettingsPage.js';
+import { SessionsPage } from './play/SessionsPage.js';
 import { Shell } from './Shell.js';
+import { Alert } from './ui/Alert.js';
 
 /**
- * Three routes: the list, the detail view, and the actor editor. The kind
- * filter is a search param on the list, so a filtered library is an address
- * like any other. The editor's path is actor-specific because the editor is —
- * the other five kinds stay read-only in P1
- * ([19 §P1.7](docs/design/19-p1-implementation.md)).
+ * Two surfaces and their pages: Library at `/library`, Play at `/play`, plus the
+ * detail view, the actor editor and settings
+ * ([05 §2](../../../docs/design/05-ui-surfaces.md)). The kind filter is a search
+ * param on the list, so a filtered library is an address like any other. The
+ * editor's path is actor-specific because the editor is — the other five kinds
+ * stay read-only in P1
+ * ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)).
  *
- * Code-based rather than file-based routing — at three routes the generator
- * would be more machinery than route.
+ * Code-based rather than file-based routing — at this size the generator would
+ * be more machinery than route.
  */
 
 export interface LibrarySearch {
   kind?: LibraryKind;
 }
 
+/** Which copy of a duplicated id the detail page is showing (F19). */
+export interface ObjectSearch {
+  slug?: string;
+  source?: 'user' | 'system';
+}
+
 const rootRoute = createRootRoute({ component: Shell });
 
+/**
+ * The library lives at `/library`, not at `/`.
+ *
+ * `/` is the eventual home ([05 §2.2](../../../docs/design/05-ui-surfaces.md)) —
+ * resume, start, notice, recent work — and the library is explicitly *not* the
+ * answer to arrival. Moving it now, before home exists, means the address is
+ * right from the start and `/` is free to become home without breaking a link
+ * anyone has already saved.
+ */
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: '/library',
   // An unknown kind in the URL is dropped rather than rejected: the unfiltered
   // list is a sensible reading of every address.
   validateSearch: (search: Record<string, unknown>): LibrarySearch =>
@@ -37,9 +58,70 @@ const libraryRoute = createRoute({
   component: LibraryPage,
 });
 
+/**
+ * `/` redirects until home is built. Not a component rendering the library —
+ * that would leave two addresses for one page and make *which* of them is
+ * canonical a thing to remember. One redirect, and every link resolves to the
+ * address that will still be correct after home lands.
+ */
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/library', search: {} });
+  },
+});
+
+const sessionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/play',
+  component: SessionsPage,
+});
+
+/**
+ * The play surface. The session id is the whole address — a reload lands here
+ * and the stream's snapshot supplies everything else, which is what makes
+ * reattach a request rather than a race.
+ */
+const playRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/play/$sessionId',
+  component: function Play() {
+    const { sessionId } = playRoute.useParams();
+    return <PlayPage sessionId={sessionId} />;
+  },
+});
+
+/**
+ * One route for the whole settings surface — [P2A §3].
+ *
+ * Not `/settings/account` and `/settings/admin`: two halves of one page, and a
+ * non-admin's half is the whole page for them. Splitting would make the
+ * navigation entry a question ("which one?") that has no good answer for the
+ * person who only has one.
+ */
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
 const objectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/$kind/$id',
+  /**
+   * `?source=&slug=` names *one copy* of a duplicated id (F19).
+   *
+   * Dropped rather than rejected when malformed, the same way the library's
+   * `kind` is: without it the address still means something — the winning copy
+   * — and a broken link should land somewhere real rather than on an error.
+   */
+  validateSearch: (search: Record<string, unknown>): ObjectSearch => ({
+    ...(typeof search['slug'] === 'string' ? { slug: search['slug'] } : {}),
+    ...(search['source'] === 'user' || search['source'] === 'system'
+      ? { source: search['source'] }
+      : {}),
+  }),
   component: ObjectDetailPage,
 });
 
@@ -49,7 +131,15 @@ const actorEditorRoute = createRoute({
   component: ActorEditorPage,
 });
 
-const routeTree = rootRoute.addChildren([libraryRoute, objectRoute, actorEditorRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  libraryRoute,
+  objectRoute,
+  actorEditorRoute,
+  sessionsRoute,
+  playRoute,
+  settingsRoute,
+]);
 
 /**
  * The last line of defence for a render throw — without it a bad object is a
@@ -61,18 +151,15 @@ const routeTree = rootRoute.addChildren([libraryRoute, objectRoute, actorEditorR
 function RouteErrorCard(props: { error: unknown }): JSX.Element {
   const message = props.error instanceof Error ? props.error.message : String(props.error);
   return (
-    <div
-      role="alert"
-      className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900"
-    >
+    <Alert tone="error" role="alert">
       <p className="mb-2 font-medium">This page could not be rendered.</p>
       <p className="mb-2">{message}</p>
       <p>
-        <a href="/" className="underline">
+        <a href="/library" className="underline">
           Back to the library
         </a>
       </p>
-    </div>
+    </Alert>
   );
 }
 

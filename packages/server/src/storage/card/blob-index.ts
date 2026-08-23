@@ -7,11 +7,11 @@ import { CardFormatError } from './envelope.js';
 /**
  * The media payload: a length-prefixed blob index followed by raw bytes.
  *
- * **Binary, not base64** ([02 §5.2.2](docs/design/02-data-model.md)). PNG
+ * **Binary, not base64** ([02 §5.2.2](../../../../../docs/design/02-data-model.md)). PNG
  * ancillary chunks hold arbitrary bytes, so there is no reason to pay base64's
  * ~33% for the part that is actually large. The JSON keeps base64 because it
  * rides in a `tEXt` chunk that other tools can read
- * ([06 B5](docs/design/06-open-questions.md)); the images do not need to be
+ * ([06 B5](../../../../../docs/design/06-open-questions.md)); the images do not need to be
  * readable by anything that does not already understand this format.
  *
  * ```
@@ -26,7 +26,7 @@ import { CardFormatError } from './envelope.js';
  * that only wants the manifest — how many images, how big, under what ids —
  * stops after a bounded prefix instead of walking the whole payload. That
  * matters for the size indicator the editor owes
- * ([02 §5.2.2](docs/design/02-data-model.md)), where a card that quietly grew to
+ * ([02 §5.2.2](../../../../../docs/design/02-data-model.md)), where a card that quietly grew to
  * 80 MB is a bad surprise at share time.
  *
  * **Magic and version, despite the chunk type already naming this.** A PNG

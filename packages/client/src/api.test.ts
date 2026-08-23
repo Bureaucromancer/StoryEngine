@@ -41,6 +41,31 @@ describe('the 412 parse', () => {
     expect((failure as ApiError).current).toBeUndefined();
   });
 
+  /**
+   * **And the acknowledgement** — [P2A §4] step 15.
+   *
+   * Lifted beside `current` for the same reason: a caller digging it out of an
+   * untyped body is a caller that can read the wrong key, which is exactly the
+   * bug the config form shipped with. The settings tests construct `ApiError`
+   * directly, so this is the only place the *lifting* is exercised.
+   */
+  it('carries `contentHash`, so the form can say it has seen the file', async () => {
+    answer(412, JSON.stringify({ error: 'stale', message: 'moved on', contentHash: 'sha256:aa' }));
+
+    const failure = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((failure as ApiError).contentHash).toBe('sha256:aa');
+  });
+
+  it('leaves `contentHash` unset when the route does not offer one', async () => {
+    answer(412, JSON.stringify({ error: 'stale', message: 'moved on', current: null }));
+
+    // The library's 412 has no acknowledgement — it uses the object's own hash
+    // — so absent has to stay absent rather than becoming an empty string a
+    // caller would then present as if it meant something.
+    const failure = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((failure as ApiError).contentHash).toBeUndefined();
+  });
+
   it('survives a body that is not JSON at all', async () => {
     answer(412, 'a proxy wrote this');
 
@@ -78,8 +103,8 @@ describe('library kinds', () => {
       'lorebooks',
       'packages',
       'presets',
-      'settings',
       'setups',
+      'treatments',
     ]);
   });
 

@@ -9,10 +9,10 @@ import type { Lorebook } from './lorebook.js';
 import { validate } from './registry.js';
 
 /**
- * Images on lore — docs/design/13-schemas.md §5.1, reasoning in
- * [02 §3.6](docs/design/02-data-model.md).
+ * Images on lore — docs/design/10-schemas.md §5.1, reasoning in
+ * [02 §3.6](../../../../docs/design/02-data-model.md).
  *
- * [19 §P1.7](docs/design/19-p1-implementation.md) says lore media is
+ * [P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md) says lore media is
  * schema-only at P1 and that *"P1.1's round-trip tests are the whole of their
  * coverage"*. That sentence is what this file exists to make true: every other
  * fixture in the suite round-trips an empty `media: []`, which would leave the
@@ -72,7 +72,7 @@ describe('a lorebook carrying images', () => {
   });
 
   it('round-trips through JSON unchanged', () => {
-    // The whole of the coverage doc 19 promises. If a field is dropped by the
+    // The whole of the coverage P1 promises. If a field is dropped by the
     // codec or the schema, it shows up here as a diff rather than as silence.
     const book = illustratedLorebook();
     const roundTripped: unknown = JSON.parse(JSON.stringify(book));
@@ -94,7 +94,7 @@ describe('a lorebook carrying images', () => {
   it('accepts a primaryMediaId that points at nothing', () => {
     // Not cross-validated, on purpose, and `Openings` sets the precedent. A
     // dangling id degrades to "no cover picture" rather than to an error —
-    // dangling references are normal here ([00 §3.3](docs/design/00-stance.md)).
+    // dangling references are normal here ([00 §3.3](../../../../docs/design/00-stance.md)).
     const book = { ...illustratedLorebook(), primaryMediaId: 'nothing-by-this-id' };
     expect(validate(book).valid).toBe(true);
   });
@@ -133,7 +133,7 @@ describe('MediaRole is a closed union', () => {
 
   it('keeps one vocabulary across kinds — reference means the same on an actor', () => {
     // The reason lore did not get a vocabulary of its own: rendition
-    // conditioning ([11 §3](docs/design/11-roadmap.md)) has to be able to treat
+    // conditioning ([14 §3](../../../../docs/design/14-roadmap.md)) has to be able to treat
     // a location's reference image the way it treats an actor's.
     const actor = { ...newActor('Vera Solano'), media: [media({ role: 'reference' })] };
     expect(validate(actor).valid).toBe(true);

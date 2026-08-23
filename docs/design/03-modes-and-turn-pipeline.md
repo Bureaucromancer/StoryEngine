@@ -16,7 +16,7 @@ piece is worth arguing about at length before writing code, it is §2 and §4.
 | "Game Mode" | **Adventure** | Covers both presets without promising dice. |
 
 Adventure ships two presets: **Adventure · Freeform** at 1.0 and
-**Adventure · Campaign** at 2.0 ([15 §0](15-work-plan.md)). Campaign is the
+**Adventure · Campaign** at 2.0 ([work plan §0](workplan/01-work-plan.md)). Campaign is the
 Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform is the
 Aventuras shape — do/say/think/story input, chapters, world-state
 classification, branching, light or no mechanics.
@@ -36,7 +36,7 @@ tabletop and RP culture. *Solo* was the other contender and overclaims, since
 companions are allowed ([§8](#8-party)).
 
 `freeform` is the identifier, which is the part that had to be settled now:
-preset ids travel inside Setup objects ([13 §7](13-schemas.md)), so changing one
+preset ids travel inside Setup objects ([10 §7](10-schemas.md)), so changing one
 later is a content migration rather than a rename. **The user-facing label is
 free to change until Campaign ships** — until then there is one Adventure preset
 and the UI can simply say *Adventure*.
@@ -173,7 +173,7 @@ interface ChannelDefinition {
   owner: ModeId | ExtensionId
   schema: JSONSchema              // the state shape
   scope: "session" | "actor" | "entry"   // one value, or one per actor/lore entry
-  init: InitPolicy                // literal default, from setting, or generated at start
+  init: InitPolicy                // literal default, from treatment, or generated at start
   update: UpdatePolicy            // model-proposed / engine-computed / user-only
   budget: number | null           // token cost when injected; null = never injected
   surface?: WidgetSpec            // how it renders in the HUD, if at all
@@ -194,7 +194,7 @@ The properties that make this worth doing:
   "invert the effects of the newest turn" rather than a hand-maintained snapshot
   struct. Reaching further back is branch-and-replay, not inversion — an effect's
   recorded `before` is only a valid inverse while nothing has touched the same
-  path since ([18 §1.2.1](18-internal-contracts.md)).
+  path since ([13 §1.2.1](13-internal-contracts.md)).
 - **`update: "engine-computed"` is where determinism lives.** Marinara is right
   that combat round math is calculated by the engine, not the model, "so results
   stay fair and consistent". Generalised: any channel may declare that the model
@@ -208,7 +208,7 @@ Channel values keyed by definition id, never by display name, so renaming is fre
 
 ### 4.1 Channels should be author-declarable, not only mode-declared
 
-Added after surveying Infinite Worlds ([09](09-infinite-worlds.md)), which is
+Added after surveying Infinite Worlds ([08](08-infinite-worlds.md)), which is
 the strongest evidence for this whole section — and which shows it is currently
 under-specified here.
 
@@ -219,7 +219,7 @@ world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
 **Scope: the tier is committed; the vocabulary is 2.0**
-([15 §0.4](15-work-plan.md)). Channels and engine-computed effects ship at 1.0
+([work plan §0.4](workplan/01-work-plan.md)). Channels and engine-computed effects ship at 1.0
 and are where the power actually is. What waits is the predicate/effect
 vocabulary, its evaluator and its authoring surface — a language design project,
 and one Infinite Worlds only got right after years of real authored worlds to
@@ -231,7 +231,7 @@ So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
 - `owner` may be a package, not just a mode or extension.
-- Packages and settings carry a `rules` collection — declarative
+- Packages and treatments carry a `rules` collection — declarative
   condition/effect pairs over channels, evaluated as an end-of-turn step, with
   effects applied through the same path model-proposed updates use and recorded
   in the turn record like everything else.
@@ -240,7 +240,7 @@ extension": authored rules. Concretely:
   [06 A2](06-open-questions.md) to "packages may ship rules, never code."
 
 The rule vocabulary itself is [06 C7](06-open-questions.md);
-[09 §3](09-infinite-worlds.md) proposes a starting point for when it is designed.
+[08 §3](08-infinite-worlds.md) proposes a starting point for when it is designed.
 
 **What 1.0 owes the deferral** — the two things that would make the tier
 impossible to add later rather than merely absent:
@@ -251,7 +251,7 @@ impossible to add later rather than merely absent:
 - **Effects apply through one path** — model-proposed, engine-computed and
   authored-rule effects all land as `ChannelEffect`s in the turn record. If rules
   ever need a private application path, the tier was bolted on rather than
-  designed for, and reversibility ([10 §2](10-branching.md)) stops holding
+  designed for, and reversibility ([09 §2](09-branching.md)) stops holding
   uniformly.
 
 Both are free now. Neither is a rule engine.
@@ -323,12 +323,12 @@ The part worth building properly, and the part the sources have nothing like:
 #### Two constraints this puts on migrations
 
 - **Migrations must be pure and deterministic.** They sit inside the replay path
-  ([10 §4](10-branching.md)): replaying effects written under v1 produces
+  ([09 §4](09-branching.md)): replaying effects written under v1 produces
   v1-shaped state, which is then migrated to v2. A migration with side effects or
   a clock in it would make state reconstruction non-reproducible, which is the
   one invariant branching depends on.
 - **Snapshots are invalidated by a migration**, and that is free — they are
-  derived and disposable by design ([10 §4](10-branching.md)), so a migration
+  derived and disposable by design ([09 §4](09-branching.md)), so a migration
   discards them and the next reconstruction rebuilds.
 
 ---
@@ -339,7 +339,7 @@ The pipeline's context stage produces `AssembledBlock[]`
 ([02 §8](02-data-model.md)) in four steps:
 
 1. **Collect.** Every source offers candidate blocks: the persona, present
-   actors, the setting's framing, channel snapshots, retrieved lore entries
+   actors, the treatment's framing, channel snapshots, retrieved lore entries
    (all retrievers in [02 §3](02-data-model.md) run here), history, preset
    blocks, and blocks contributed by pipeline steps.
 2. **Annotate.** Each candidate carries its source, its reason for inclusion, its
@@ -358,12 +358,12 @@ The pipeline's context stage produces `AssembledBlock[]`
    messages outright, so it is a **provider capability** rather than a global
    choice, and a merged message still records which blocks produced it or the
    workbench loses its mapping. Shape in
-   [18 §2](18-internal-contracts.md).
+   [13 §2](13-internal-contracts.md).
 
 The `AssemblyPlan` in the mode definition declares the ordering constraints and
 budget policy; it does not build strings.
 
-**The preset supplies the blocks, in two kinds** ([13 §8.1](13-schemas.md)): a
+**The preset supplies the blocks, in two kinds** ([10 §8.1](10-schemas.md)): a
 **slot** positions content the engine produces — persona, actor sections, lore,
 history, channel state — optionally wrapped; a **text block** is prose the preset
 author wrote. Step 1 above collects candidates for the slots; the text blocks
@@ -374,7 +374,7 @@ boolean inside one array.
 **One consequence for the budgeter, and it is the expensive one.** A preset may
 place a block *inside* the history run — four messages from the newest, which is
 how most modern ST presets carry their strongest instructions
-([13 §8.3](13-schemas.md)). So **history is a splittable source, not an atomic
+([10 §8.3](10-schemas.md)). So **history is a splittable source, not an atomic
 block**: the assembler can emit `history[…-5]`, a block, then `history[-4…]`, and
 the budgeter must trim a run with something embedded in it.
 
@@ -419,7 +419,7 @@ It is recorded in the turn record (so a rewrite replays it,
 turns assemble from.
 
 **One slot, several producers.** The same block can be filled by the user's box,
-by an authored rule's `giveGuidance` effect ([09 §3](09-infinite-worlds.md)), or
+by an authored rule's `giveGuidance` effect ([08 §3](08-infinite-worlds.md)), or
 by a step such as a Narrative Director push. Treating them as one slot means the
 rule below applies to all of them without three separate arguments.
 
@@ -432,9 +432,9 @@ Concretely, guidance is excluded from:
 
 - the RNG service and anything consuming it ([07 §14](07-tech-stack.md));
 - the pre-narration **evaluation** step that decides what happens
-  ([09 §4.3](09-infinite-worlds.md));
+  ([08 §4.3](08-infinite-worlds.md));
 - **rule condition evaluation**, including AI-evaluated fuzzy conditions
-  ([09 §3](09-infinite-worlds.md));
+  ([08 §3](08-infinite-worlds.md));
 - any **engine-computed** channel update ([§4](#4-channels-the-extensibility-mechanism-that-matters));
 - extraction/classification steps whose output is applied as channel effects.
 
@@ -485,14 +485,34 @@ interface StepDefinition {
 }
 ```
 
+**What the three failure modes do**, because the list above names them and P2.5
+had to make them genuinely distinguishable — an enum with two identical members
+is decoration:
+
+| `failure` | the pipeline | the turn | `step.failed` on the stream | in `Turn.steps` |
+|---|---|---|---|---|
+| `abort` | stops | `failed`, and still **appended with its blocks** | yes | yes |
+| `warn` | continues | unchanged — may still be `complete` | yes | yes |
+| `ignore` | continues | unchanged | no | yes |
+
+`abort` is not job abandonment. An abandoned job writes no turn at all, and the
+partial record — what was assembled, what was called, how far it got — is the
+thing somebody needs in order to re-run it. **A user's cancellation overrides the
+declared mode**: a stop is not a warn.
+
+`ignore` still appears in the record. Silence about a step that ran is the
+failure [04 §3.3](04-server-multiuser-deployment.md) calls out for `skipped`, and it is no
+better here; what `ignore` buys is not showing a *live* alarm for something the
+author already decided is unremarkable.
+
 **`StepCondition` is deliberately not an expression language.** At 1.0 it is a
 small closed set — a cadence, a stage flag, an explicit arm by the user — and
-`StepDefinition` is internal ([13 §10](13-schemas.md)) rather than portable, so it
+`StepDefinition` is internal ([10 §10](10-schemas.md)) rather than portable, so it
 is free to grow later. Naming it separately from the authored-rule vocabulary
 matters, because the tempting move once rules arrive is to let steps take rule
 predicates, and that quietly makes an internal shape depend on a portable one.
 
-Two additions from [09](09-infinite-worlds.md), both recorded as open questions
+Two additions from [08](08-infinite-worlds.md), both recorded as open questions
 rather than folded in above:
 
 - **Evaluate before narrating.** Infinite Worlds splits its instructions into
@@ -542,7 +562,7 @@ the twist should not be able to reach back into the machinery.
 **Pacing is what makes this work or fail.** A selector that fires every third
 turn produces incoherence, not drama. At minimum it needs a cooldown after
 firing, a cadence rather than running every turn, and an author-facing pacing
-setting (sparse / normal / aggressive / manual-only). Running only at scene or
+treatment (sparse / normal / aggressive / manual-only). Running only at scene or
 chapter boundaries is a plausible default, since those are already the moments a
 twist naturally lands.
 
@@ -574,17 +594,17 @@ So **a hook added while a session is running becomes eligible from the next
 selector pass.** No restart, no re-import, no new session.
 
 This brushes against prefill-not-binding ([00 §3.1](00-stance.md)) — a session
-copies from its setting and holds no live link — so the reconciliation matters:
+copies from its treatment and holds no live link — so the reconciliation matters:
 
 - **Session-local hooks are the primary path.** Add a hook *to the session*. It
   is session state, immediately eligible, and no principle is bent. This serves
   the use case above directly, and is what the "add a hook" button does.
-- **Setting changes are pulled, never pushed.** Edit the setting and the session
-  offers it: *"the setting has 2 new hooks — add them?"* Nothing changes without
+- **Treatment changes are pulled, never pushed.** Edit the treatment and the session
+  offers it: *"the treatment has 2 new hooks — add them?"* Nothing changes without
   the user asking, so the session still owns its own pool, and someone who wants
   the hook in future sessions too gets that without a second act of authoring.
 
-The distinction is not pedantry: a *pushed* update would mean editing a setting
+The distinction is not pedantry: a *pushed* update would mean editing a treatment
 could silently alter a story in progress, which is the failure prefill-not-
 binding exists to prevent.
 
@@ -611,7 +631,7 @@ Consequences worth stating:
 ## 7. The modes
 
 Four chat modes across two releases — **Scene and Adventure–Freeform at 1.0**,
-**Adventure–Campaign and Messages at 2.0** ([15 §0](15-work-plan.md)) — plus the
+**Adventure–Campaign and Messages at 2.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
 assistant (§7.4), which is not a chat mode but is
 built out of the same parts.
 
@@ -694,13 +714,13 @@ Design notes:
 
 #### 7.3.1 Difficulty is a sycophancy dial, not a stat modifier
 
-Adventure setup carries a **difficulty** setting, in the spirit of Marinara's.
+Adventure setup carries a **difficulty** treatment, in the spirit of Marinara's.
 The thing worth being precise about is what it actually controls, because the
 obvious reading — a number added to rolls — is the smaller half.
 
 In Freeform there are frequently no rolls. What varies with difficulty is **how
 readily the world grants what you attempt**, which is to say it is a dial on
-narrator sycophancy — the failure mode named in [09 §5](09-infinite-worlds.md) as
+narrator sycophancy — the failure mode named in [08 §5](08-infinite-worlds.md) as
 one of the things the community builds systems to correct. So difficulty
 resolves to two distinct outputs, and a mode declares which it consumes:
 
@@ -713,7 +733,7 @@ Three things this has to get right.
 
 **The levels live in the prompt pack, not in engine code.** A difficulty level is
 a named entry with prompt fragments attached, shipped in the preset layer and
-replaceable there. This is the same reasoning as [13 §6.2](13-schemas.md): the
+replaceable there. This is the same reasoning as [10 §6.2](10-schemas.md): the
 layer that shapes model behaviour should be the layer an author can open and
 edit, and its effect should be visible in the turn record rather than buried in a
 conditional. "Hard" meaning something different in one prompt pack than another
@@ -726,7 +746,7 @@ every scene is a slog by turn 30, and having no recourse but to start over.
 
 **Obstruction must not reach unreachability.** Difficulty modulates the cost and
 the route, never whether the goal can be attained at all. Without that floor,
-the top setting is not hard mode, it is a losing game the player cannot detect
+the top treatment is not hard mode, it is a losing game the player cannot detect
 they are playing.
 
 #### 7.3.2 Resistance and directedness are separate axes
@@ -763,7 +783,7 @@ lineage: **an Adventure has something you are trying to do, and progress toward
 it is tracked.** Not an optional extra bolted on by an author — the default
 shape, with "no goal, just play" as the deliberate opt-out.
 
-This promotes the mutable Objective slot from [09 §4.1](09-infinite-worlds.md)
+This promotes the mutable Objective slot from [08 §4.1](08-infinite-worlds.md)
 out of *worth trying early* and into a 1.0 feature, and it is what makes §7.3.1
 coherent. Difficulty without a goal can only say "introduce friction", which is
 weak and quickly reads as arbitrary. With a goal it can say **obstruct progress
@@ -771,12 +791,12 @@ toward this specific thing**, which is a far more useful instruction and one the
 narrator can act on deliberately. The goal statement is therefore always
 injected, and difficulty fragments are written to reference it.
 
-Schema in [13 §7.1](13-schemas.md). The shape in brief: a short always-injected
+Schema in [10 §7.1](10-schemas.md). The shape in brief: a short always-injected
 `statement`, an optional fuller `detail` for steps, a `visibility` that makes
 hidden goals the GM's arc through the same mechanism as hidden channels, and a
 `completion` that is narrative or manual. Mechanical completion — computed from
 channel state — needs the authored-rule vocabulary and arrives with it at 2.0
-([15 §0.4](15-work-plan.md)), alongside Campaign, which is where it earns its
+([work plan §0.4](workplan/01-work-plan.md)), alongside Campaign, which is where it earns its
 place.
 
 **Progress is a channel** (§4), which settles how it is maintained without a new
@@ -788,7 +808,7 @@ specified.
 
 **Completion detection is the part that will need tuning.** `kind: "narrative"`
 means an evaluation step at `post` judges whether the goal is met — the
-before-narration evaluation pass from [09 §4.3](09-infinite-worlds.md), pointed
+before-narration evaluation pass from [08 §4.3](08-infinite-worlds.md), pointed
 at a different question. Both error directions are bad and they are not
 symmetric: a missed completion is an annoyance the player can resolve manually,
 while a false completion ends the story on a turn that did not earn it.
@@ -800,7 +820,7 @@ most dramatically loaded moment in the session.
 
 #### 7.3.4 What happens at the end: both answers
 
-The two sources diverge here and both are right, so the setting takes both.
+The two sources diverge here and both are right, so the treatment takes both.
 Infinite Worlds lets a concluded game continue open-ended; Marinara lets you set
 the next goal. On completion, three offers:
 
@@ -811,7 +831,7 @@ the next goal. On completion, three offers:
   rather than a field**.
 - **End** — mark the session concluded. Concluded is a state, not a deletion:
   the session stays readable ([05 §12](05-ui-surfaces.md)) and branchable
-  ([10](10-branching.md)), because "what if I had done it differently" is a
+  ([09](09-branching.md)), because "what if I had done it differently" is a
   reasonable thing to want at exactly that moment.
 
 **The choice is made at completion, not only at setup.** `thenDefault` seeds the
@@ -948,7 +968,7 @@ interface PartyMember {
 }
 ```
 
-**These were numbers, and numbers are wrong here.** [10 §3](10-branching.md)
+**These were numbers, and numbers are wrong here.** [09 §3](09-branching.md)
 states the rule the rest of the design follows — turn ids are stable and opaque,
 never `(branch, index)` — and party membership was quietly keeping ordinals. A
 turn's *position* is not a fact about the turn; it is a fact about a path through
@@ -1019,7 +1039,7 @@ cast most of the time. The UI derives one badge from both
 Being channels rather than fields is what makes them behave correctly under
 branching: the effects are per-node, so a character dead on one line and alive
 on another is a natural consequence rather than a special case
-([10 §4](10-branching.md)).
+([09 §4](09-branching.md)).
 
 **Presence is not party membership and must not be conflated with it.** The
 party is a timeline of commitment; presence is a fact about the current scene.
@@ -1043,7 +1063,7 @@ message text.
 Two constraints worth fixing now, because both are awkward later:
 
 - **It shares the lorebook keyword pass.** `Actor.aliases` is already the
-  default keyword set for lore matching ([13 §4](13-schemas.md)); mention
+  default keyword set for lore matching ([10 §4](10-schemas.md)); mention
   resolution wants the same strings in the same text. One scan, two consumers,
   and no possibility of the highlighting and the inclusion reasons disagreeing
   about who *the fixer* is.
@@ -1073,7 +1093,7 @@ role and the host executes it), or write another mode's `modeData`.
 
 **Execution model: settled.** Extensions run behind a worker-thread boundary
 from 1.0, and built-in modes go through the same interface — specified in
-[17](17-extensions.md).
+[12](12-extensions.md).
 
 The list above is why it costs little. Five of the seven requirements are
 *declarative* and cross no boundary at all; the remaining two are a function over
@@ -1134,7 +1154,7 @@ and a video can be minutes, and a story that stalls on either is unusable. It
 also means a failed rendition is a placeholder with a retry button, never a
 failed turn.
 
-The corollary for [10 §2](10-branching.md): a rendition is **not** a channel
+The corollary for [09 §2](09-branching.md): a rendition is **not** a channel
 effect and does not participate in state reconstruction. It is an artefact
 hanging off a turn, so a branch inherits the turn's renditions by inheriting the
 turn.
@@ -1146,10 +1166,10 @@ what is already there rather than needing a private pathway:
 
 - the turn's output text — what actually happened;
 - present actors' `VisualDescriptors` and their `reference` media
-  ([13 §3](13-schemas.md)) — this is what the Character Studio's payload exists
+  ([10 §3](10-schemas.md)) — this is what the Character Studio's payload exists
   to feed, and the reason typed media roles are a 1.0 obligation;
 - channel state — location, time of day, weather, whatever a mode tracks;
-- the setting's `tone` and any style profile.
+- the treatment's `tone` and any style profile.
 
 Assembled as **ranked fragments under the provider's declared cap**
 ([07 §5.3](07-tech-stack.md)), so overrun drops the lowest-ranked fragment
@@ -1177,7 +1197,7 @@ Recorded now because it is cheap to accommodate and awkward to retrofit:
   the field exists so speech does not force a schema change.
 - **A voice binding per actor.** Belongs in `modeData` or a `speech` block on
   the actor, and — like `ModelHint` — it is a *preference resolved locally*
-  ([13 §3](13-schemas.md)), never a provider binding travelling in a shared card.
+  ([10 §3](10-schemas.md)), never a provider binding travelling in a shared card.
 - **Streaming.** Speech wants to start before the text finishes; images do not.
   That is a step-level concern and does not change the record.
 

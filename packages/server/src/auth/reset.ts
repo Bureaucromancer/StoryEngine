@@ -16,14 +16,12 @@ import { createInterface } from 'node:readline';
  *   password nobody can see locks the account right back.
  * - **A pipe** (`echo "pass" | …`, a container exec, a script) gets a plain
  *   line read, once — the caller is a machine and confirmation theatre would
- *   only complicate it.
+ *   only complicate it. A pipe that closes without delivering a line is the one
+ *   case refused; see {@link readNewPassword}.
  *
  * Messages here are developer/operator-facing console output, deliberately
- * untranslated ([07 §12.7](docs/design/07-tech-stack.md)).
+ * untranslated ([07 §12.7](../../../../docs/design/07-tech-stack.md)).
  */
-
-/** Mirrors the setup route's minimum (routes/auth.ts). */
-export const MINIMUM_PASSWORD_LENGTH = 8;
 
 export class ResetAborted extends Error {}
 
@@ -43,24 +41,25 @@ export interface PromptOutput {
 /**
  * Asks for the new password, confirmed when interactive.
  *
- * Throws {@link ResetAborted} with a readable message on mismatch, a short
- * password, or Ctrl-C — the caller prints it and exits non-zero.
+ * **This path enforces no minimum length, and that is the design rather than an
+ * omission.** `auth.minPasswordLength` is what the API refuses on; this is the
+ * console, and console access is already the highest authority this software
+ * recognises ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md))
+ * — someone who can run this binary against the data directory can already read
+ * it. A break-glass path that argued with the person holding the machine would
+ * only teach them to edit `accounts.json` by hand, which is worse in every way.
+ * Whoever runs this may set a one-character password, or an empty one, on
+ * purpose and on an install whose configured minimum is twelve.
+ *
+ * Throws {@link ResetAborted} with a readable message on mismatch, on Ctrl-C, or
+ * when stdin closed without an answer — the caller prints it and exits non-zero.
  */
 export async function readNewPassword(
   input: PromptInput,
   output: PromptOutput,
   handle: string,
 ): Promise<string> {
-  const password = input.isTTY
-    ? await readInteractively(input, output, handle)
-    : await readPipedLine(input);
-
-  if (password.length < MINIMUM_PASSWORD_LENGTH) {
-    throw new ResetAborted(
-      `The password must be at least ${String(MINIMUM_PASSWORD_LENGTH)} characters.`,
-    );
-  }
-  return password;
+  return input.isTTY ? await readInteractively(input, output, handle) : await readPipedLine(input);
 }
 
 async function readInteractively(
@@ -128,7 +127,7 @@ function readMasked(input: PromptInput, output: PromptOutput, prompt: string): P
 
 /** The first line from a pipe, without the trailing newline. */
 function readPipedLine(input: PromptInput): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = createInterface({ input: input as NodeJS.ReadableStream });
     let settled = false;
     reader.once('line', (line) => {
@@ -137,9 +136,23 @@ function readPipedLine(input: PromptInput): Promise<string> {
       resolve(line);
     });
     reader.once('close', () => {
-      // A pipe that ends without a newline still delivers its content as a
-      // final 'line' before closing; an empty pipe delivers nothing at all.
-      if (!settled) resolve('');
+      /**
+       * **Nothing at all is not an empty password.**
+       *
+       * A pipe that ends without a newline still delivers its content as a
+       * final 'line' before closing, and `echo "" | …` delivers one empty line
+       * and means it — both are answers, and both are honoured, because this
+       * path enforces no minimum. A pipe that closes having delivered no line
+       * gave no answer: a redirect from `/dev/null`, a script whose variable
+       * was unset, a truncated heredoc.
+       *
+       * Until the minimum became configurable the length check happened to
+       * catch this. With no minimum left to enforce, resolving `''` here would
+       * silently blank a live account's password and report success, which is
+       * the worst outcome available on a recovery path. Same distinction
+       * `main.ts` draws for a flag with no value.
+       */
+      if (!settled) reject(new ResetAborted('No password was given. Nothing was changed.'));
     });
   });
 }

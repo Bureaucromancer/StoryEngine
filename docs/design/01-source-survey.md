@@ -29,8 +29,14 @@ about those areas below is inference and marked as such.
 ## 1. Marinara Engine
 
 A pnpm monorepo (`packages/{client,server,shared}`) — Node/TypeScript server,
-React client, SQLite-plus-file storage, Docker and Android packaging. Structurally
+React client, file-native storage, Docker and Android packaging. Structurally
 the most modern of the three and the closest to what StoryEngine wants to be.
+
+*Corrected 2026-08-18.* This said **SQLite-plus-file storage**, which was true
+when surveyed. Marinara now persists relational tables as JSON snapshots under
+`storage/tables/` — a database that writes files, which is not the same claim as
+[00 §3.4](00-stance.md)'s. The distinction is load-bearing for
+[triage §2A](workplan/02-triage.md).
 
 ### What it gets right and we should take
 
@@ -81,6 +87,11 @@ badly; and — in §3.3 — the explicitly deferred reframe:
 > make **Setting** the first-class entity and scenarios its children — one
 > durable world, many entry points into it … A setting would own the world prose
 > plus a lorebook.
+
+Quoted verbatim; *Setting* is Marinara's word. StoryEngine adopted the reframe and
+renamed the object **Treatment** ([10 §6](10-schemas.md)) — the parent here is the
+stance on a world, not the world, and every material-word invited the opposite
+reading.
 
 That deferred reframe is what the StoryEngine requirements independently ask for.
 It should be adopted as the starting point rather than a later refactor.
@@ -169,12 +180,12 @@ Two details worth stealing outright:
   free". Correct, and the kind of thing that is painful to retrofit.
 
 **The wizard as a genuine authoring flow.** Nine steps (mode → pack → world &
-setting → protagonist → supporting cast → lorebook → portraits → writing style →
+treatment → protagonist → supporting cast → lorebook → portraits → writing style →
 opening), with an AI *expansion* step in the middle: a short `settingSeed` is
 expanded into a structured `ExpandedSetting` (name, description, keyLocations,
 atmosphere, themes, potentialConflicts) which the user can then edit, refine with
 guidance, or reject via `useSettingAsIs()`. The seed→expand→edit→accept loop is
-the right interaction for setting creation and should be the template for the
+the right interaction for treatment creation and should be the template for the
 "opening prompt vs written opening" pair in the requirements.
 
 **`ContextBuilder`** — a flat variable store accumulated across services, then

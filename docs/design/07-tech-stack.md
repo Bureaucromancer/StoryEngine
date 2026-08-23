@@ -61,7 +61,7 @@ about two months later, and P1 is not finished by then. Pinning 24 would be work
 with a known expiry date.
 
 The alternative also costs something specific rather than only time. 26 is where
-`node:sqlite`'s FTS5 support was verified ([19 §1.4](19-p1-implementation.md)),
+`node:sqlite`'s FTS5 support was verified ([P1 §1.4](workplan/03-p1-implementation.md)),
 and that verification is what retires the `better-sqlite3` fallback in §7.
 Targeting 24 means re-opening the one live risk in this document in exchange for
 a few months of orthodoxy.
@@ -157,7 +157,7 @@ Narration asks for `prose`; a classification or summarisation step asks for
 `fast`; a rendition step asks for `image` ([03 §10](03-modes-and-turn-pipeline.md)).
 Nothing in a mode, step or extension refers to a provider or a model id — which
 is what makes an install portable, an extension safe to share, and per-actor
-`ModelHint` ([13 §3](13-schemas.md)) resolvable as a *request* rather than a
+`ModelHint` ([10 §3](10-schemas.md)) resolvable as a *request* rather than a
 binding.
 
 **Default the eight roles onto two bindings.** A system-wide default plus
@@ -182,7 +182,34 @@ session override → step override → actor hint.** Most people set two models 
 never see the rest; someone who wants a different narrator for one session, or a
 cheap model for one noisy step, has a place to say so.
 
-**[OPEN]** Whether `hi`/`lo` are real named tiers in the data model or purely a
+*Which layers have callers, so the order above is not read as a description of
+what runs. `resolveRole` implements four of the five.*
+
+| Layer | State |
+|---|---|
+| **install default** | **Built at [P2B §2.1](workplan/14-p2b-provider-configuration.md).** `system/bindings.json`, written by the admin surface, read by `readSystemBindings`, resolved as `via: 'default'` |
+| **role binding** | Built. Read from `users/<handle>/bindings.json`; **hand-written only** — the writer for the per-user file is still deferred with the rest of [05 §15.1](05-ui-surfaces.md)'s user half ([P2B §2.7](workplan/14-p2b-provider-configuration.md)) |
+| **session override** | Plumbed into `resolveRole` and never passed. P7's, with the mode contract that would use it |
+| **step override** | Same |
+| **actor hint** | Built. Applied last and weakest: it may choose among the models the resolved connection already offers and may never change the connection, which is what stops an imported actor card repointing somebody's provider |
+
+*One correction the implementation forced, because the order alone did not say
+it: **the first layer that resolves wins, not the first that exists.** A
+personal binding whose connection is gone drops through to the install default
+rather than failing the turn, and `dangling` is the answer only when every layer
+that bound something failed. Written the other way, [04 §4.5]'s promise that a
+removed system connection *"falls back to system bindings"* described something
+the code could not do.*
+
+~~**[OPEN]**~~ **Closed at P2.1, as the convenience reading.** The data model is
+eight independent bindings; `hi` and `lo` are what the first-run flow asks for
+and then spreads across them. A tier would be a third thing to keep consistent —
+a binding, a tier, and the mapping between them — and the moment somebody
+overrides one role it is either a lie or recomputed from the bindings, at which
+point it was a view of them all along. The tier reading's one advantage has no
+consumer in P2, and a tier stays derivable from bindings later while the reverse
+is not true. The original question, for the record: whether `hi`/`lo` are real
+named tiers in the data model or purely a
 setup-flow convenience over eight independent bindings. The convenience reading
 is simpler and probably right; the tier reading makes "use the cheap one for
 this" expressible without knowing which roles are involved.
@@ -205,7 +232,7 @@ list has grown long enough that the default matters:
 | Plot-hook selection | [03 §6.1](03-modes-and-turn-pipeline.md) |
 | Mention resolution, where it is model-assisted | [03 §8.2](03-modes-and-turn-pipeline.md) |
 | Goal completion judgement | [03 §7.3.3](03-modes-and-turn-pipeline.md) |
-| Continuity checking | [11 §2c.2](11-roadmap.md) |
+| Continuity checking | [14 §2c.2](14-roadmap.md) |
 | Field assists and the assistant | [05 §7](05-ui-surfaces.md), [05 §11.1](05-ui-surfaces.md) |
 
 Several of those run **every turn**. Bound to `hi` by accident, they would
@@ -215,7 +242,7 @@ The turn record itemises cost per call ([05 §3](05-ui-surfaces.md)), so the
 mistake is at least visible — but it is much better not made.
 
 **Two caveats, so this does not become dogma.** Evaluation before narration
-([09 §4.3](09-infinite-worlds.md)) decides *what happens* rather than how it
+([08 §4.3](08-infinite-worlds.md)) decides *what happens* rather than how it
 reads, and a mode with real mechanics may reasonably bind it higher. And a
 `fast` binding pointed at a genuinely poor model produces bad extraction, which
 surfaces as bad state rather than bad prose and is therefore harder to diagnose —
@@ -266,7 +293,7 @@ interface ProviderCapabilities {
   supportsStructuredOutput: boolean
   maxPromptChars?: number       // hard: what the endpoint accepts
   usefulPromptChars?: number    // soft: where quality degrades
-  // … completed in [18 §3], including same-role message merging
+  // … completed in [13 §3], including same-role message merging
 }
 ```
 
@@ -313,7 +340,7 @@ detection is heuristic and needs real-world failures to tune against.
 What matters now is that §5.1 makes it cheap when it arrives: with a cap
 declared and prompts assembled from ranked fragments, a retry is *drop the
 lowest fragment and resend*, not a fresh generation round-trip. Recorded in
-[11 §3](11-roadmap.md).
+[14 §3](14-roadmap.md).
 
 ### 5.5 The compatibility surface: OpenAI-compatible chat, and nothing below it
 
@@ -356,7 +383,7 @@ step, not a rewrite, because the core representation stays structured. So this
 is a cheap decision to unmake if the bet on chat-shaped APIs ever turns.
 
 **Two conditionals elsewhere now close firmly rather than conditionally:**
-bundled tokenizers stay discarded ([08 §6.2](08-triage.md)), and the entire
+bundled tokenizers stay discarded ([triage §6.2](workplan/02-triage.md)), and the entire
 instruct/context template surface stays discarded
 ([00 §2.2](00-stance.md)).
 
@@ -391,6 +418,35 @@ shipping components ([05 §8](05-ui-surfaces.md)), the framework is not part of
 any public contract. Nothing outside the client package knows what it is. That
 resolves the open question from the earlier draft: the framework choice is
 ordinary, not architectural, *provided* the extension-UI decision holds.
+
+### 6.1 The styling layer, and the one word it turns on
+
+Tailwind v4, CSS-first: there is no `tailwind.config.js`, and the theme is an
+`@theme` block in `packages/client/src/index.css`. What lives there and what
+lives in `packages/client/src/ui/` is [05 §1.2](05-ui-surfaces.md); this is the
+mechanical part.
+
+- **Plain `@theme`, never `@theme inline`.** `inline` resolves each token at
+  build time and writes the value into the utility — `background-color:
+  oklch(…)` rather than `background-color: var(--color-accent)`. The whole
+  theming layer depends on that indirection surviving into the browser, because
+  a second theme is a redefinition of the variable. One word, and the difference
+  between a themeable app and a repaint.
+- **Every light value aliases a Tailwind default** rather than restating the hex
+  it resolves to. That is what made migrating a hundred and seventy hard-coded
+  colours on to these tokens provably non-visual — a rename cannot change a
+  colour if the token *is* the old colour. Pinned by `theme.test.ts`.
+- **`color-scheme` is declared in each theme.** It is what tells the browser to
+  render the caret, scrollbars and native `<select>` popups to match. Omitting it
+  produces an input that is styled correctly and still unusable, which is the
+  shape of the [P2C](workplan/15-p2c-first-real-run.md) defect.
+- **A token declared but referenced by no utility is pruned** from `:root`.
+  Worth knowing before assuming a runtime override will reach one; `@theme
+  static` is the escape hatch if that day comes.
+- **Radix is still the intended primitive library** and is still not installed.
+  `ui/` is where it lands: `Dialog` already owns the focus trap and `aria-modal`
+  that a Radix primitive would take over, so the boundary exists ahead of the
+  dependency.
 
 ---
 
@@ -432,7 +488,7 @@ Three consequences for the index, all cheap now and awkward later:
   and offsets into it are not stable across branching.
 - **Records off the current path stay indexed**, because they are still real
   history — but a hit on an abandoned branch must be *labelled* as one. The
-  branch-awareness rule in [10 §7](10-branching.md) already says library search
+  branch-awareness rule in [09 §7](09-branching.md) already says library search
   must not surface content from a discarded line as though it were current; this
   is the same rule for turn search, and the honest resolution is to show it with
   its branch rather than to hide it.
@@ -468,7 +524,7 @@ Given the threat model in [04 §4.1](04-server-multiuser-deployment.md):
   and what SillyTavern uses. argon2id is marginally better and costs a native
   module; not worth it here.
 - **httpOnly, SameSite=Lax signed session cookie.** Session records go in the
-  **operational store**, not the index ([18 §5.1](18-internal-contracts.md)) — an
+  **operational store**, not the index ([13 §5.1](13-internal-contracts.md)) — an
   earlier draft put them in the index, which is defined as deletable without
   consequence, and logging every user out is a consequence. Signed stateless
   cookies plus a revocation denylist avoid the table entirely and are probably
@@ -496,12 +552,12 @@ packages/
   client/
   modes/scene/     ⎫ built-in modes, each its own package,
   modes/adventure/ ⎬ consuming sdk exactly as a third party would.
-                   ⎭ Messages joins at 2.0 [15 §0].
+                   ⎭ Messages joins at 2.0 [work plan §0].
 ```
 
 **`sdk` is AGPL-3.0, like everything else, and that is deliberate rather than
 incidental.** Extensions import it, which is what makes them combined works and
-what makes [08 §1.1](08-triage.md)'s decision hold. Publishing it under a
+what makes [triage §1.1](workplan/02-triage.md)'s decision hold. Publishing it under a
 permissive licence "to be friendly to extension authors" would quietly reverse
 that decision, so it is worth a comment in the package manifest saying why.
 
@@ -657,6 +713,18 @@ on first login and overridable in settings. Cheap now; a migration later.
   attribute rather than a rewrite. Arabic and Hebrew are otherwise permanently
   out of reach, which for a project with 17-language ambitions is a real
   foreclosure.
+
+  Enforced twice, because a Tailwind utility is not a declaration and Stylelint
+  cannot see one: `stylelint.rules.js` for real CSS, `eslint.rules.js` for class
+  strings. The ESLint half was originally anchored on
+  `JSXAttribute[name.name="className"]`, and **that anchor was removed** when the
+  class strings moved into `packages/client/src/ui/` — a string in a `const` has
+  no such ancestor, so the rule had been silent on every extracted class list,
+  including the one `Shell.tsx` passed through `activeProps`. Unanchored, the
+  pattern also had to become *exact*: it now sees SQL and ordinary English, and
+  `left`/`right` must carry a Tailwind-shaped suffix or a `left join` and a test
+  named *"accepts the right password"* both report. Both halves are pinned by
+  fixtures in `tools/lint-fixtures/`.
 - **`Intl` for everything formatted.** Dates, numbers, currency, and especially
   `Intl.RelativeTimeFormat` for "2 minutes ago". Hand-rolled relative time is
   untranslatable and always slightly wrong.
@@ -670,7 +738,7 @@ on first login and overridable in settings. Cheap now; a migration later.
 
 #### 12.6a What is actually unretrofittable, and what only feels like it
 
-Scoped down deliberately ([15 §0.4](15-work-plan.md)). Full i18n ceremony from
+Scoped down deliberately ([work plan §0.4](workplan/01-work-plan.md)). Full i18n ceremony from
 the first component is a real ongoing tax on a solo developer whose only planned
 translation is one bad machine-generated French pass, and paying it from commit
 one buys less than it appears to.
@@ -682,7 +750,7 @@ The distinction that matters is between a **habit** and a **task**:
 | Concatenated sentences, strings in logic, `margin-left`, hand-rolled relative time | **A rewrite.** Every component that did it has to be reworked, and nothing flags them. |
 | Wrapping strings in `t()`, the catalogue, the key hierarchy, extraction in CI | **The work itself.** Mechanical, greppable, and done once. |
 
-The first row stays on the day-one checklist ([15 §2](15-work-plan.md)) and is
+The first row stays on the day-one checklist ([work plan §2](workplan/01-work-plan.md)) and is
 non-negotiable. **The second becomes a pre-beta sweep**, run as its own task
 against a codebase that never concatenated — which is exactly the codebase the
 first row guarantees.
@@ -731,7 +799,7 @@ turn record already captures every block, its source, its reason, its cost and
 the budget verdict ([02 §8](02-data-model.md)). The thing hardest to test in all
 three sources becomes the easiest thing to test in this one.
 
-**Full treatment in [16](16-testing.md)** — the layers, the fake provider that
+**Full treatment in [testing](workplan/10-testing.md)** — the layers, the fake provider that
 keeps model calls out of CI, encoding the day-one checklist as lint rules,
 architectural boundary enforcement, fixtures, and the CI tiers.
 
@@ -751,7 +819,7 @@ Not tidiness. Three things depend on it:
 
 - **Replay and branching.** Every draw is recorded in the turn's effects
   ([02 §8](02-data-model.md)), because state at turn N must remain a pure
-  function of the effect log ([10 §2](10-branching.md)). A caller that draws
+  function of the effect log ([09 §2](09-branching.md)). A caller that draws
   its own number without recording it breaks that invariant silently, and the
   symptom appears much later as a branch that reconstructs wrong.
 - **Auditability.** In a mode with dice, "was that roll fair?" is a question
@@ -770,8 +838,8 @@ correctness requirement, not a convenience. It should cover at least:
 
 `dice` and `chance` are not speculative: the authored-rules vocabulary already
 needs `<<1d20>>` and `triggerOnRandomChance`
-([09 §3](09-infinite-worlds.md)), and both first-party reference extensions
-need dice ([11 §4.4](11-roadmap.md)). `weightedPick` covers loot-table shapes,
+([08 §3](08-infinite-worlds.md)), and both first-party reference extensions
+need dice ([14 §4.4](14-roadmap.md)). `weightedPick` covers loot-table shapes,
 which is where people would otherwise improvise.
 
 ### 14.3 Implementation

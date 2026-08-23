@@ -15,7 +15,7 @@ import {
 } from './paths.js';
 
 /**
- * The adversarial corpus [16 §3.2](docs/design/16-testing.md) asks for.
+ * The adversarial corpus [testing §3.2](../../../../docs/design/workplan/10-testing.md) asks for.
  *
  * *"Path resolution deserves an adversarial corpus of its own. It is the most
  * security-sensitive code in the project and it is pure, so it is cheap to
@@ -180,6 +180,7 @@ describe('symlinks — the escape only the filesystem knows about', () => {
   let root: string;
   let outside: string;
   let linkSupported = true;
+  let linkFailure = '';
 
   beforeAll(async () => {
     base = await mkdtemp(join(tmpdir(), 'se-paths-'));
@@ -194,8 +195,9 @@ describe('symlinks — the escape only the filesystem knows about', () => {
       // elevation or Developer Mode, whereas a directory junction does not —
       // and `realpath` follows both, so it exercises the same code.
       await symlink(outside, join(root, 'escape'), 'junction');
-    } catch {
+    } catch (error) {
       linkSupported = false;
+      linkFailure = error instanceof Error ? error.message : String(error);
     }
   });
 
@@ -203,13 +205,17 @@ describe('symlinks — the escape only the filesystem knows about', () => {
     await rm(base, { recursive: true, force: true });
   });
 
+  // This is the assertion, not a precondition. Every interesting case below is
+  // guarded on `linkSupported`, so a platform that refuses the link used to hand
+  // back a green suite with the corpus never executed — and that corpus is the
+  // whole argument for the real resolver existing (P2 §1.3, F1/F17). If this
+  // fails, the ones below are skipped and this line says why.
+  it('can create the link the rest of this corpus needs', () => {
+    expect(linkSupported, `this platform refused to create a junction: ${linkFailure}`).toBe(true);
+  });
+
   it('passes the lexical check but fails the real one', async () => {
-    if (!linkSupported) {
-      // Reported rather than silently skipped: a suite that quietly stops
-      // checking the most interesting case is worse than one that says so.
-      console.warn('Skipped: this platform refused to create a link.');
-      return;
-    }
+    if (!linkSupported) return;
 
     // Nothing in the string is suspicious. That is the whole point.
     expect(() => resolveWithin(root, 'escape/secret.txt')).not.toThrow();
@@ -247,12 +253,11 @@ describe('symlinks — the escape only the filesystem knows about', () => {
     // A data directory on another volume is an ordinary deployment. Comparing a
     // realpath'd candidate against a non-realpath'd root would reject every
     // path in it.
+    // Not wrapped in a try: the first junction succeeded, so a failure here is
+    // a real difference between the two calls rather than a platform refusing
+    // links, and swallowing it would skip the case silently.
     const linkedRoot = join(base, 'root-link');
-    try {
-      await symlink(root, linkedRoot, 'junction');
-    } catch {
-      return;
-    }
+    await symlink(root, linkedRoot, 'junction');
 
     await expect(resolveWithinReal(linkedRoot, 'actors')).resolves.toContain('actors');
   });

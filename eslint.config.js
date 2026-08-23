@@ -36,6 +36,31 @@ function packageOverride(name, files) {
   };
 }
 
+/**
+ * The same bans, for a package's test files, which are allowed the filesystem.
+ *
+ * This layer exists because the boundary graph resolves `@storyengine/*`
+ * through pnpm's symlinks into `dist`, and a graph rule that silently stops
+ * matching is worse than no graph rule. Turning it off in test files — the
+ * files most likely to reach for something they should not, since a test is
+ * where "just import the server to build a fixture" is tempting — left the
+ * backup missing exactly where it was wanted.
+ *
+ * @param {keyof typeof forbiddenPackages} name
+ * @param {string} dir
+ */
+function packageTestOverride(name, dir) {
+  return {
+    files: [`${dir}/**/*.test.{ts,tsx}`, `${dir}/**/test-*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowFs: true,
+        bannedPackages: bannedPackagesFor(name),
+      }),
+    },
+  };
+}
+
 export default tseslint.config(
   {
     ignores: [
@@ -113,7 +138,7 @@ export default tseslint.config(
   // response type per route, which would be ceremony that tests nothing. In
   // production code these rules stay on, which is where they earn their keep.
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts', '**/test-*.tsx'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
@@ -167,12 +192,57 @@ export default tseslint.config(
   // and would grow the production surface with a `rename` and an `rm` that
   // nothing in the server needs.
   //
-  // Deliberately last, so it wins over the per-package overrides above; the
-  // cross-package bans are restated here rather than lost.
+  // Deliberately last, so it wins over the per-package overrides above — which
+  // is why the cross-package bans have to be restated rather than inherited. A
+  // flat-config block *replaces* a rule's options; it does not merge them. The
+  // comment here used to claim the bans were restated and they were not
+  // (F25): every test file in the repo had them switched off, in the stage
+  // that writes the most test files, on the platform where the resolver the
+  // graph rule depends on is least proven.
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-*.ts', '**/test-*.tsx'],
     rules: {
       'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
+  // So the package bans come back, per package, after it. Fixture files under
+  // tools/ keep the block above: they belong to no package and have no edge to
+  // violate.
+  packageTestOverride('shared', 'packages/shared'),
+  packageTestOverride('sdk', 'packages/sdk'),
+  packageTestOverride('server', 'packages/server'),
+  packageTestOverride('client', 'packages/client'),
+
+  // **The router's redirect is control flow, not an error.** TanStack Router's
+  // `redirect()` returns a signal the router catches and turns into a
+  // navigation, and throwing it is the documented way to redirect from
+  // `beforeLoad`. `only-throw-error` sees a thrown non-Error and objects,
+  // correctly in general and wrongly here.
+  //
+  // One file wide, and it should stay that way: everywhere else in the client a
+  // thrown non-Error is the mistake the rule exists to catch.
+  {
+    files: ['packages/client/src/router.tsx'],
+    rules: { '@typescript-eslint/only-throw-error': 'off' },
+  },
+  // **The RNG service itself** — the destination the rule has been pointing at
+  // since P1.0, landed at P2.2. It is the one place allowed to call
+  // `node:crypto`'s random functions, because everything above it draws through
+  // `rng.at(site, purpose)` and lands on the turn tape.
+  //
+  // Two files wide rather than a whole package: `source.ts` holds the
+  // generator, `rng.ts` holds the service. The directory's other files —
+  // `dice.ts` and the tests — have no business drawing, and a directory-wide
+  // exemption would quietly permit it.
+  {
+    files: ['packages/server/src/rng/source.ts', 'packages/server/src/rng/rng.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
 
@@ -182,9 +252,9 @@ export default tseslint.config(
   // not a draw — nothing replays it, no outcome depends on its value, and it is
   // written into the object it identifies before anything else sees it.
   //
-  // Deliberately one file wide. When the RNG service lands at P2 this stays
-  // separate from it, because routing identity through a recorded, replayable
-  // generator would put uuids on the tape and make a rewrite mint new ids.
+  // Deliberately separate from the RNG service above, and it stays that way:
+  // routing identity through a recorded, replayable generator would put uuids
+  // on the tape and make a rewrite mint new ids.
   //
   // The syntax rule is relaxed alongside the import rule because this file
   // draws through the *Web Crypto* global — `shared` runs in the browser too
@@ -221,6 +291,44 @@ export default tseslint.config(
   {
     files: ['packages/server/**/*.ts'],
     languageOptions: { globals: globals.node },
+  },
+
+  /**
+   * The client writes what people read, so the assembly rule applies here.
+   *
+   * Not to the server, and that is a decision rather than an oversight: its
+   * strings are log lines and error messages, which
+   * docs/design/07-tech-stack.md §12.7 keeps deliberately untranslated. A rule
+   * that fired on `Refused path (${reason})` would teach people to work around
+   * it, and a day-one rule that gets worked around is worse than none.
+   */
+  {
+    files: ['packages/client/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true, tokensOnly: true }),
+    },
+  },
+  /**
+   * **The appearance layer.** `packages/client/src/ui/` is where the class
+   * lists live, so it gets one rule the rest of the client does not: a class
+   * list is one string literal and is never joined with `+`.
+   *
+   * Note this *adds* to `userFacing` rather than replacing it. The carve-outs
+   * elsewhere in this file relax a rule for a file that has a reason to break
+   * it; this one does not — components render labels and `aria-label`s like
+   * anywhere else, so the assembly rule still applies. What the `+` ban does is
+   * keep a class list from ever reaching that rule, which would report it with
+   * a message about translation that is not what is wrong with it.
+   */
+  {
+    files: ['packages/client/src/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+      }),
+    },
   },
   {
     files: ['packages/client/**/*.{ts,tsx}'],

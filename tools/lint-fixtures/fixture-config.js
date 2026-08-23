@@ -97,6 +97,46 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // The client writes what people read, so the assembly rule applies to it and
+  // not to the server — the same split `eslint.config.js` makes, mirrored here
+  // so the fixtures can prove *both* halves.
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true, tokensOnly: true }),
+    },
+  },
+
+  // The appearance layer, which adds the `+` ban to the client's rules rather
+  // than replacing any of them. `ui/labels.ts` is the fixture that proves the
+  // assembly rule survives the addition.
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/ui/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+      }),
+    },
+  },
+
+  // The RNG service: the destination the randomness rule points at, and
+  // deliberately two files wide rather than a directory.
+  {
+    files: [
+      `${FIXTURE_ROOT}/packages/server/src/rng/source.ts`,
+      `${FIXTURE_ROOT}/packages/server/src/rng/rng.ts`,
+    ],
+    rules: {
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('server'),
+      }),
+      'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
+    },
+  },
+
   // Cryptographic material: randomness allowed, and deliberately one file wide.
   {
     files: [`${FIXTURE_ROOT}/packages/server/src/auth/secrets.ts`],

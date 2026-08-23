@@ -13,7 +13,7 @@ import { KeyedQueue } from './keyed-queue.js';
 import { resolveWithin } from './paths.js';
 
 /**
- * Version history on library objects — [02 §11](docs/design/02-data-model.md).
+ * Version history on library objects — [02 §11](../../../../docs/design/02-data-model.md).
  *
  * **History lives inside the object's own folder**, not in the index:
  *
@@ -36,7 +36,7 @@ import { resolveWithin } from './paths.js';
 
 /**
  * What made the change this snapshot preserves the state before
- * ([18 §1.6](docs/design/18-internal-contracts.md)). More things edit objects
+ * ([13 §1.6](../../../../docs/design/13-internal-contracts.md)). More things edit objects
  * here than in the design this is adopted from, and *"who changed my
  * character"* is the question history answers — `assist`, `extension` and
  * `import` have no writers until their phases, but the type is the contract.
@@ -49,7 +49,7 @@ export type VersionSource =
   | { kind: 'external' }
   | { kind: 'restore'; fromVersionId: string };
 
-/** One line of `history/index.jsonl` — [18 §1.6](docs/design/18-internal-contracts.md). */
+/** One line of `history/index.jsonl` — [13 §1.6](../../../../docs/design/13-internal-contracts.md). */
 export interface VersionRecord {
   id: string;
   /** sha256 of the snapshot payload — the filename under `history/v/`. */
@@ -163,7 +163,9 @@ export async function recordVersion(
   source: VersionSource,
   reason: string,
 ): Promise<VersionRecord | null> {
-  return mutations.run(objectRoot, () => recordVersionUnlocked(objectRoot, payload, source, reason));
+  return mutations.run(objectRoot, () =>
+    recordVersionUnlocked(objectRoot, payload, source, reason),
+  );
 }
 
 async function recordVersionUnlocked(
@@ -210,7 +212,7 @@ async function recordVersionUnlocked(
 
 /**
  * Updates the caller-editable half of a record: `reason` (rename) and `pinned`
- * ([05 §11.2a](docs/design/05-ui-surfaces.md)). Returns the updated record, or
+ * ([05 §11.2a](../../../../docs/design/05-ui-surfaces.md)). Returns the updated record, or
  * null if no entry has that id.
  */
 export async function patchVersion(
@@ -239,7 +241,7 @@ async function patchVersionUnlocked(
 
 /**
  * Prunes to the retention cap: oldest unpinned first, pinned never
- * ([02 §11.3](docs/design/02-data-model.md)). Payload files no surviving entry
+ * ([02 §11.3](../../../../docs/design/02-data-model.md)). Payload files no surviving entry
  * references are collected; ones still referenced stay, because pruning is
  * bookkeeping and not deletion of content.
  */

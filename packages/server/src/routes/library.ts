@@ -11,6 +11,7 @@ import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
   create,
+  fileErrors,
   LibraryError,
   list,
   read,
@@ -22,25 +23,26 @@ import {
   versionsOf,
 } from '../library.js';
 import type { VersionRecord } from '../storage/history.js';
+import { PathEscapeError } from '../storage/paths.js';
 
 /**
  * Library CRUD — **one handler set, not six**.
  *
  * The registry from P1.1 is what makes that true: every portable object
  * self-describes, so nothing here enumerates kinds
- * ([13 §9](docs/design/13-schemas.md)). The `kind` in the URL is a *filter*, and
+ * ([10 §9](../../../../docs/design/10-schemas.md)). The `kind` in the URL is a *filter*, and
  * the object's own `schema` field is what decides how it is stored.
  *
  * **Every route resolves its root from the session, never from a parameter.**
  * There is no `:handle` anywhere below. The path is the owner
- * ([04 §4.3](docs/design/04-server-multiuser-deployment.md)), and a route that
+ * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), and a route that
  * accepted a handle would be one forgotten check away from serving somebody
  * else's library — which is the version of the P1.2 containment check that
  * actually matters once there is more than one root.
  *
  * **There is no rename route.** A name change is an ordinary write of the
  * object's `name`; the folder does not move
- * ([19 §1.1](docs/design/19-p1-implementation.md)).
+ * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)).
  */
 
 /** `actors` → `storyengine.actor/1`. The URL speaks folders; the store speaks schemas. */
@@ -64,13 +66,72 @@ const VersionPatch = Type.Object({
 });
 
 /**
+ * How to reach *one specific copy* of a duplicated id — F19.
+ *
+ * Two files can hold the same id (a folder copied in a file manager, which is
+ * a thing this design invites). The list shows both and flags the loser, and
+ * until now following that row's link opened the winner while the page said it
+ * was showing the shadowed one: the warning existed, the object it warned
+ * about did not have an address.
+ *
+ * A **query parameter on the read route**, not a second path segment. The
+ * canonical address of an object is its id and stays so — this narrows a read,
+ * the way a filter does, and nothing else in the API accepts it. It is
+ * `(source, slug)` rather than the stored path because the path is native and
+ * platform-divergent (F23); the slug is the same string everywhere.
+ */
+const ObjectQuery = Type.Object({
+  slug: Type.Optional(Type.String()),
+  source: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('system')])),
+});
+
+/**
+ * The **envelope** a write arrives in — not the object inside it.
+ *
+ * The split is deliberate and F2 records it. What a route schema is good at is
+ * the wrapper: is this an object at all, is `contentHash` a string, is the
+ * whole thing not `null` (which Fastify happily accepts and which used to be a
+ * 500). What it is bad at is the object, because the six portable schemas
+ * behind an `anyOf` collapse every per-field error into "must match a schema in
+ * anyOf" — and `assertValidObject` already validates the object against *its
+ * own* schema and answers with the path and the reason. Same document
+ * (`PORTABLE_SCHEMAS`), better error, and no duplicated `$id` for Ajv to refuse.
+ *
+ * `additionalProperties` stays open because a bare portable object is a legal
+ * body here: the P1 gate posts one with `curl`.
+ */
+const WriteBody = Type.Object(
+  {
+    object: Type.Optional(Type.Object({}, { additionalProperties: true })),
+    contentHash: Type.Optional(Type.String()),
+  },
+  { additionalProperties: true },
+);
+
+/**
+ * **Restore and delete have no body schema, deliberately.**
+ *
+ * Their hash travels in `If-Match` — [the API doc](../../../../docs/api.md)
+ * calls that the preferred spelling — and restore has no object in its body at
+ * all, so the ordinary request to both is *bodyless*. Fastify validates an
+ * absent body against whatever schema is attached and answers `body must be
+ * object`, and `Type.Optional` at the top level does not change that (measured,
+ * not assumed). So "body schemas on every object route", taken literally, turns
+ * the documented and tested path into a 400 — recorded at [P2 §1.4].
+ *
+ * What guards them instead is `expectedHash`, which already accepts a hash from
+ * either place and type-checks the body field before believing it. A body that
+ * is nonsense yields no hash, and the route answers 428 asking for one.
+ */
+
+/**
  * The public shape of an indexed object.
  *
  * Carries `contentHash` because **every read carries one and every write must
- * present one** ([04 §4.4](docs/design/04-server-multiuser-deployment.md)), and
+ * present one** ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)), and
  * `source` because the list merges the user's library with the system one and
  * the badge needs a second channel beyond colour
- * ([05 §5](docs/design/05-ui-surfaces.md)).
+ * ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
  */
 function present(row: IndexedObject): Record<string, unknown> {
   return {
@@ -78,7 +139,7 @@ function present(row: IndexedObject): Record<string, unknown> {
     schema: row.schemaId,
     name: row.name,
     slug: row.slug,
-    source: row.scope === 'system' ? 'system' : 'user',
+    source: row.owner === 'system' ? 'system' : 'user',
     contentHash: row.contentHash,
     shadowed: row.shadowed,
     object: row.body,
@@ -90,6 +151,24 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const account = await requireAccount(request, reply);
     if (!account) return;
     return reply.send({ objects: list(services.library, account.handle).map(present) });
+  });
+
+  /**
+   * The files that could not be read — F20.
+   *
+   * **Registered before `/library/:kind` and static, so it is not a kind.** The
+   * router prefers a static segment over a parameter, and `errors` is not in
+   * `LIBRARY_DIRECTORIES`, so the two cannot collide from either direction.
+   *
+   * A list rather than a badge count: "one of your files is broken" is not
+   * actionable, and the whole argument for a folder of JSON is that when
+   * something goes wrong you can open the file and look. So the answer names the
+   * file, the reason, and — for a schema failure — which field.
+   */
+  app.get('/library/errors', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    return reply.send({ errors: fileErrors(services.library, account.handle) });
   });
 
   app.get('/library/:kind', { schema: { params: KindParams } }, async (request, reply) => {
@@ -104,93 +183,127 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     });
   });
 
-  app.post('/library/:kind', { schema: { params: KindParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
+  app.post(
+    '/library/:kind',
+    { schema: { params: KindParams, body: WriteBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
 
-    const schemaId = schemaFor(request.params as { kind: string }, reply);
-    if (!schemaId) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
-    const object = objectFromBody(request.body);
-    if (object === null) {
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'The request body is not an object.' });
-    }
-    if (!isKnownSchema(String((object as { schema?: unknown }).schema))) {
-      return reply.code(400).send({ error: 'invalid', message: 'Unrecognised object schema.' });
-    }
+      const object = objectFromBody(request.body);
+      if (object === null) {
+        return reply
+          .code(400)
+          .send({ error: 'invalid', message: 'The request body is not an object.' });
+      }
+      if (!isKnownSchema(String((object as { schema?: unknown }).schema))) {
+        return reply.code(400).send({ error: 'invalid', message: 'Unrecognised object schema.' });
+      }
 
-    try {
-      const stored = await create(services.library, account.handle, object);
-      // 201 with the object as stored, so the client has the content hash it
-      // will need for the first edit without a second round trip.
-      return await reply
-        .code(201)
-        .header('etag', stored.contentHash)
-        .send({
-          id: (object as { id: string }).id,
-          slug: stored.slug,
-          contentHash: stored.contentHash,
-          object,
+      try {
+        const stored = await create(services.library, account.handle, object, schemaId);
+        // 201 with the object as stored, so the client has the content hash it
+        // will need for the first edit without a second round trip.
+        return await reply
+          .code(201)
+          .header('etag', stored.contentHash)
+          .send({
+            id: (object as { id: string }).id,
+            slug: stored.slug,
+            contentHash: stored.contentHash,
+            object,
+          });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  app.get(
+    '/library/:kind/:id',
+    { schema: { params: ObjectParams, querystring: ObjectQuery } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const query = request.query as { slug?: string; source?: 'user' | 'system' };
+
+      try {
+        const row = read(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          schemaId,
+          // Only when the caller asks for a specific copy. Everything else —
+          // every write, every reference — stays id-only and winner-resolving.
+          query.slug === undefined
+            ? undefined
+            : { slug: query.slug, source: query.source ?? 'user' },
+        );
+        return await reply.header('etag', row.contentHash).send(present(row));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  app.put(
+    '/library/:kind/:id',
+    { schema: { params: ObjectParams, body: WriteBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      const expected = expectedHash(request.headers['if-match'], request.body);
+      if (!expected) {
+        return reply.code(428).send({
+          error: 'hash-required',
+          message:
+            'Send the content hash you last read, as If-Match or as contentHash in the body.',
         });
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
+      }
 
-  app.get('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
+      const object = objectFromBody(request.body);
+      if (object === null) {
+        return reply
+          .code(400)
+          .send({ error: 'invalid', message: 'The request body is not an object.' });
+      }
 
-    try {
-      const row = read(services.library, account.handle, (request.params as { id: string }).id);
-      return await reply.header('etag', row.contentHash).send(present(row));
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
-
-  app.put('/library/:kind/:id', { schema: { params: ObjectParams } }, async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
-
-    const expected = expectedHash(request.headers['if-match'], request.body);
-    if (!expected) {
-      return reply.code(428).send({
-        error: 'hash-required',
-        message: 'Send the content hash you last read, as If-Match or as contentHash in the body.',
-      });
-    }
-
-    const object = objectFromBody(request.body);
-    if (object === null) {
-      return reply
-        .code(400)
-        .send({ error: 'invalid', message: 'The request body is not an object.' });
-    }
-
-    try {
-      const stored = await update(
-        services.library,
-        account.handle,
-        (request.params as { id: string }).id,
-        object,
-        expected,
-      );
-      return await reply
-        .header('etag', stored.contentHash)
-        .send({ contentHash: stored.contentHash, object: stored.object });
-    } catch (error) {
-      respondToLibraryError(error, reply);
-      return;
-    }
-  });
+      try {
+        const stored = await update(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          object,
+          expected,
+          // Default attribution; the kind is the argument after it.
+          undefined,
+          schemaId,
+        );
+        return await reply
+          .header('etag', stored.contentHash)
+          .send({ contentHash: stored.contentHash, object: stored.object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
 
   /**
-   * The version history routes — [02 §11](docs/design/02-data-model.md).
+   * The version history routes — [02 §11](../../../../docs/design/02-data-model.md).
    *
    * Newest first, with the revision number computed from append order rather
    * than stored ([02 §11.5]). The *current* state is not an entry: the client
@@ -203,13 +316,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       try {
         const { versions } = await versionsOf(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
+          schemaId,
         );
         return await reply.send({
           versions: versions.map((record, position) => presentVersion(record, position)).reverse(),
@@ -227,7 +342,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const params = request.params as { id: string; versionId: string };
       try {
@@ -236,6 +352,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           account.handle,
           params.id,
           params.versionId,
+          schemaId,
         );
         return await reply.send({ version: presentVersion(record), object });
       } catch (error) {
@@ -256,7 +373,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const expected = expectedHash(request.headers['if-match'], request.body);
       if (!expected) {
@@ -275,6 +393,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           params.id,
           params.versionId,
           expected,
+          schemaId,
         );
         return await reply
           .header('etag', stored.contentHash)
@@ -293,7 +412,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       const params = request.params as { id: string; versionId: string };
       const body = request.body as { reason?: string; pinned?: boolean };
@@ -307,6 +427,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
             ...(body.reason === undefined ? {} : { reason: body.reason }),
             ...(body.pinned === undefined ? {} : { pinned: body.pinned }),
           },
+          schemaId,
         );
         return await reply.send({ version: presentVersion(record) });
       } catch (error) {
@@ -318,7 +439,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
 
   /**
    * The card's pixels, for the editor to show and not replace
-   * ([19 §P1.7](docs/design/19-p1-implementation.md)). Actors only — no other
+   * ([P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md)). Actors only — no other
    * kind has an image that *is* the object.
    */
   app.get(
@@ -327,13 +448,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!schemaFor(request.params as { kind: string }, reply)) return;
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
 
       try {
         const { bytes, contentHash } = await readCardPixels(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
+          schemaId,
         );
         return await reply
           .header('content-type', 'image/png')
@@ -350,6 +473,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const account = await requireAccount(request, reply);
     if (!account) return;
 
+    const schemaId = schemaFor(request.params as { kind: string }, reply);
+    if (!schemaId) return;
+
     const expected = expectedHash(request.headers['if-match'], request.body);
     if (!expected) {
       return reply.code(428).send({ error: 'hash-required' });
@@ -361,6 +487,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         account.handle,
         (request.params as { id: string }).id,
         expected,
+        schemaId,
       );
       return await reply.code(204).send();
     } catch (error) {
@@ -373,7 +500,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
 /**
  * A version record as the client sees it. `revision` is the entry's position
  * in append order, oldest = 1 — computed here for display and never stored
- * ([02 §11.5](docs/design/02-data-model.md)).
+ * ([02 §11.5](../../../../docs/design/02-data-model.md)).
  */
 function presentVersion(record: VersionRecord, position?: number): Record<string, unknown> {
   return {
@@ -430,15 +557,40 @@ function expectedHash(ifMatch: unknown, body: unknown): string | null {
 }
 
 /**
+ * A refused path, as a message safe to send.
+ *
+ * {@link PathEscapeError}'s own message is for a log, not a client: the
+ * symlink-escape case appends the resolved candidate and the real root, both
+ * absolute. What the caller needs is *which* segment was refused and *why* —
+ * the reason is a closed vocabulary, and `attempted` is relative at every throw
+ * site. So the message is rebuilt rather than forwarded (P2 §1.2, F22).
+ */
+function refusedPathMessage(error: PathEscapeError): string {
+  return `Refused path (${error.reason}): ${JSON.stringify(error.attempted)}`;
+}
+
+/**
  * Maps a library failure onto a status.
  *
  * The interesting one is `stale` → **412 with the current object in the body**.
  * That is what lets the UI offer reload-and-reapply or save-as-a-copy rather
- * than guessing ([04 §4.4](docs/design/04-server-multiuser-deployment.md)) — and
+ * than guessing ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)) — and
  * it is the only defence the hot-reload thesis has against silently eating a
  * hand edit.
+ *
+ * **A `PathEscapeError` is answered here rather than rethrown** (F22). It used
+ * to fall through to Fastify's default handler, which meant a 500 whose body
+ * carried two absolute filesystem paths — and it is reachable without anyone
+ * attacking anything: `parseObjectPath` takes a slug from a folder name on
+ * disk, so a directory hand-named `con` or `evil.` is indexed happily and then
+ * refused the moment a route rebuilds a path from it. That is a 422: the
+ * request is well-formed and the thing it names is not usable.
  */
 function respondToLibraryError(error: unknown, reply: FastifyReply): void {
+  if (error instanceof PathEscapeError) {
+    void reply.code(422).send({ error: 'refused-path', message: refusedPathMessage(error) });
+    return;
+  }
   if (!(error instanceof LibraryError)) throw error;
 
   switch (error.code) {
@@ -459,7 +611,17 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
       void reply.code(409).send({ error: 'conflict', message: error.message });
       return;
     case 'invalid':
-      void reply.code(400).send({ error: 'invalid', message: error.message });
+      void reply.code(400).send({
+        error: 'invalid',
+        message: error.message,
+        ...(error.issues ? { issues: error.issues } : {}),
+      });
+      return;
+    case 'refused-path':
+      // Nothing throws this as a `LibraryError` yet; the code exists so that a
+      // route resolving a caller-supplied path segment can refuse it in the
+      // same vocabulary the escape above answers in.
+      void reply.code(422).send({ error: 'refused-path', message: error.message });
       return;
   }
 }

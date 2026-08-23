@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "description": "Portable types and schemas. No runtime dependencies, by design (docs/design/07-tech-stack.md §10).",
-  "dependencyNote": "TypeBox and Ajv are the two exceptions to the no-runtime-deps line above, and they are not really exceptions: schemas are runtime values, so the authoring library (07 §4) and the validator that reads the emitted JSON Schema have to travel with them. Both are dependency-free themselves. ajv-formats was considered and dropped — date-time is the only format any portable schema uses, and a regex is cheaper than a dependency. Nothing else belongs here.",
+  "description": "Portable types and schemas, plus the validator that reads them.",
+  "dependencyNote": "TypeBox and Ajv travel with the schemas because schemas are runtime values: the authoring library (07 §4) and the validator over PORTABLE_SCHEMAS — the in-memory TypeBox objects, not the emitted JSON files, which nothing loads — are both needed at runtime. The 'no runtime dependencies' line this note used to except itself from was wrong as built and is corrected in the plan of record (workplan/04-p2-implementation.md §1.4), not here. Both are dependency-free themselves. ajv-formats was considered and dropped — date-time is the only format any portable schema uses, and a regex is cheaper than a dependency. Nothing else belongs here.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

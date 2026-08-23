@@ -7,7 +7,7 @@
  * hand-copied approximation of them.
  *
  * That indirection is the whole point. P1.0's deliverable is a set of claims
- * about what is a build error (docs/design/19-p1-implementation.md §P1.0), and
+ * about what is a build error (docs/design/workplan/03-p1-implementation.md §P1.0), and
  * an untested lint rule is a claim, not a check.
  *
  * The path-dependent rules take a prefix so the tests can root them at a
@@ -57,7 +57,9 @@ const FS_MESSAGE =
 const RANDOM_MESSAGE =
   'Every random draw comes from the single RNG service and is recorded, or replay ' +
   'and branching break silently (docs/design/07-tech-stack.md §14). The service ' +
-  'does not exist until P2, so this is banned everywhere until it does.';
+  'is packages/server/src/rng — draw through `rng.at(site, purpose)`, which is ' +
+  'what puts the value on the turn tape. An unrecorded draw does not fail here; ' +
+  'it fails much later, as a branch that reconstructs wrong.';
 
 const CRYPTO_RANDOM_NAMES = [
   'randomInt',
@@ -123,8 +125,36 @@ export const restrictedProperties = [
  * Stylelint cannot see any of this, because a utility class is not a
  * declaration — which is why the CSS half of docs/design/07-tech-stack.md
  * §12.6 needs two rules rather than one.
+ *
+ * **Why this pattern is exact rather than generous**, which is the part worth
+ * knowing before editing it. The rule used to be anchored on
+ * `JSXAttribute[name.name="className"]`, and that anchor let position do the
+ * work of precision: everything inside a `className` is a class, so `left` and
+ * `right` could carry an *optional* suffix and match the bare words harmlessly.
+ *
+ * The anchor stopped being tenable when the class strings moved into
+ * `packages/client/src/ui/`. A string in a `const` has no `JSXAttribute`
+ * ancestor, so the rule would have gone silent exactly where the appearance of
+ * the whole app had just been gathered — and it had been silent for a while
+ * already, on the five class constants that predate `ui/` and on `Shell.tsx`'s
+ * `activeProps={{ className }}`, where the class travels through an *object
+ * property* rather than an attribute.
+ *
+ * Unanchored, the rule sees every string in the repo, and this repo is full of
+ * strings that a generous pattern reads as physical utilities:
+ *
+ *   packages/server/src/index-db/sessions.ts   `from turn left join turn_fts`
+ *   packages/server/src/routes/routes.test.ts  `accepts the right password`
+ *   packages/client/src/settings/…test.tsx     `when it was left blank`
+ *
+ * So `left` and `right` require a Tailwind-shaped suffix — a digit, `px`,
+ * `full`, `auto`, an arbitrary `[…]` or a `(…)` variable. Nothing real is lost:
+ * bare `ml`, `pl`, `left` and `right` are not utilities, since the utility is
+ * always `ml-4` or `left-0`. `tools/lint-fixtures` pins both halves of that —
+ * the physical forms still report, and a fixture of ordinary English and SQL
+ * reports nothing. Do not relax this back into the anchored shape.
  */
-const PHYSICAL_UTILITY_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:(?:ml|mr|pl|pr|left|right|scroll-ml|scroll-mr|scroll-pl|scroll-pr|border-l|border-r|rounded-l|rounded-r|rounded-tl|rounded-tr|rounded-bl|rounded-br)(?:-[^\s]*)?|text-left|text-right|float-left|float-right|clear-left|clear-right)(?:\s|$)`;
+const PHYSICAL_UTILITY_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:(?:left|right)-(?:\d|px|full|auto|\[|\()[^\s]*|(?:ml|mr|pl|pr|scroll-ml|scroll-mr|scroll-pl|scroll-pr)-[^\s]+|(?:border-l|border-r|rounded-l|rounded-r|rounded-tl|rounded-tr|rounded-bl|rounded-br)(?:-[^\s]*)?|text-left|text-right|float-left|float-right|clear-left|clear-right)(?:\s|$)`;
 
 const TAILWIND_MESSAGE =
   'Physical-direction utility. Use the logical equivalent (ms/me, ps/pe, ' +
@@ -137,21 +167,193 @@ const TAILWIND_MESSAGE =
  * object, and the two exempt files (`ids.ts`, `secrets.ts`) need the Tailwind
  * bans without the Web Crypto ban — `crypto.getRandomValues` is how they draw
  * randomness portably, since `shared` must also run in a browser (the
- * `client → shared` edge in docs/design/16-testing.md §2).
+ * `client → shared` edge in docs/design/workplan/10-testing.md §2).
  *
  * @param {{ allowRandomness?: boolean }} options
  */
-export function restrictedSyntax({ allowRandomness = false } = {}) {
+/**
+ * Prose, for the purposes of the assembly rule.
+ *
+ * Two plain words in a row — three letters or more each, neither continuing
+ * into a hyphen, digit or underscore — or a parenthesised word after a space.
+ *
+ * The lookaheads are what keep this off **class lists**, which are the other
+ * thing in a component that is a long string full of spaces:
+ * `border border-slate-300 bg-white` has word-space-word in it, and every
+ * candidate is followed by a hyphen. That distinction is the whole reason this
+ * pattern is fussier than "letters and a space" — a rule that fired on every
+ * Tailwind string would be worked around within a day, and a day-one rule that
+ * gets worked around is worse than no rule.
+ *
+ * The second alternative catches ` (copy)` where it is *joined* to a name — the
+ * same mistake in miniature.
+ *
+ * And note what is deliberately **not** caught: a template literal with a
+ * placeholder. One message with a value substituted into it is exactly the
+ * shape ICU MessageFormat wants (docs/design/07-tech-stack.md §12.3) and
+ * exactly what an extraction sweep turns into a catalogue entry. The
+ * unretrofittable mistake is the sentence that only exists in pieces, which is
+ * why both selectors below are about *joins* rather than about interpolation.
+ */
+const PROSE_PATTERN = String.raw`(?:(?:^|\s)[A-Za-z]{3,}(?![\w-])\s+[A-Za-z]{3,}(?![\w-])|\s\([A-Za-z])`;
+
+const ASSEMBLY_MESSAGE =
+  'A user-facing sentence assembled from fragments. Put the whole sentence in ' +
+  'one string with the value substituted into it, and keep helpers like ' +
+  '`revisionLabel(n)` for the whole phrase rather than half of it. Word order ' +
+  'differs between languages, so a sentence built by concatenation cannot be ' +
+  'translated at all — docs/design/workplan/01-work-plan.md §2 keeps this part ' +
+  'of i18n discipline on day one precisely because it is the unretrofittable ' +
+  'part.';
+
+const DISPLAYED_TEXT_MESSAGE =
+  'Branching on displayed text. Compare a code or an enum, never a sentence: ' +
+  'the moment a label is also an identifier, translating it changes what the ' +
+  'program does (docs/design/workplan/01-work-plan.md §2).';
+
+// ---------------------------------------------------------------------------
+// The palette lives in one file
+// ---------------------------------------------------------------------------
+
+/**
+ * A Tailwind palette scale — `bg-slate-800`, `text-red-900`, `border-amber-300`.
+ *
+ * Every one of these is a colour decision made at a call site, and the client
+ * made about a hundred and seventy of them before they were gathered. The
+ * semantic tokens in `packages/client/src/index.css` replaced them, and this
+ * rule is what stops the hundred and seventy-first: after it, the *only* place
+ * in the client that can name a scale is that stylesheet, which ESLint does not
+ * read and Stylelint does.
+ *
+ * That is not tidiness. A second theme is a redefinition of those tokens, so a
+ * component that reaches past them for `bg-slate-100` is a component that stays
+ * light when everything around it goes dark — which is exactly the defect this
+ * work started from, where a play surface written against one palette was
+ * rendered inside a shell written against another and typed text came out at
+ * 1.01 to 1.
+ *
+ * The arbitrary-value escape (`bg-[#fff]`) is deliberately *not* matched. It is
+ * loud, greppable and occasionally correct for a one-off; the failure mode this
+ * rule exists for is the quiet, plausible one.
+ */
+const PALETTE_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:bg|text|border|ring|outline|decoration|divide|from|via|to|accent|caret|placeholder|shadow|fill|stroke)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/\d+)?(?:\s|$)`;
+
+const PALETTE_MESSAGE =
+  'Tailwind palette scale in a component. Use a semantic token — bg-surface, ' +
+  'text-ink-muted, border-line, text-danger-ink — and if none of them says what ' +
+  'you mean, add one. The palette lives in packages/client/src/index.css and ' +
+  'nowhere else, because a second theme redefines those tokens: a scale named ' +
+  'here is a surface that stays light when the rest of the app goes dark.';
+
+/**
+ * `dark:` in a component, which is the same mistake wearing a different hat.
+ *
+ * The dark theme redefines tokens; it does not add variants. So a component
+ * that needs `dark:` is a component whose token is missing — and the fix is to
+ * add the token, which fixes every other surface that was about to need the
+ * same variant.
+ */
+const DARK_VARIANT_MESSAGE =
+  'A `dark:` variant. The dark theme redefines tokens rather than adding ' +
+  'variants, so a component that needs one is a component whose token is ' +
+  'missing: add it to the @theme block and the dark override in ' +
+  'packages/client/src/index.css, and every other surface gets it too.';
+
+const CLASS_JOIN_MESSAGE =
+  'A class list joined with `+`. Each variant is one string literal, however ' +
+  'long — Prettier will not split it. If the assembly rule also fired here, ' +
+  'this is the message that applies: that rule cannot tell a class list from a ' +
+  'sentence, because `rounded border` is two plain words in a row, and its ' +
+  'advice about word order is not what is wrong with a class list. Position — ' +
+  'a margin, an `mt-` — belongs at the call site rather than in the recipe, so ' +
+  'there is nothing left to join.';
+
+const INTL_MESSAGE =
+  'Hand-rolled date, time or number formatting. Use `Intl` — see ' +
+  'packages/client/src/format.ts. A locale is a property of the reader, and ' +
+  'a format assembled from parts bakes in one (docs/design/07-tech-stack.md ' +
+  '§12.6).';
+
+export function restrictedSyntax({
+  allowRandomness = false,
+  userFacing = false,
+  classList = false,
+  tokensOnly = false,
+} = {}) {
   const entries = [
+    // Not anchored on `className`. See the pattern's docstring: the anchor was
+    // what made the class constants in `packages/client/src/ui/` invisible, and
+    // those are now where the app's appearance lives.
     {
-      selector: `JSXAttribute[name.name="className"] Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      selector: `Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
       message: TAILWIND_MESSAGE,
     },
     {
-      selector: `JSXAttribute[name.name="className"] TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      selector: `TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
       message: TAILWIND_MESSAGE,
+    },
+    // `Intl` only. Everywhere, not only in user-facing code: a formatted date
+    // that reaches a person through an API response is the same problem one
+    // step further away, and nothing in this repo formats for display outside
+    // the client anyway — so the rule costs nothing and closes the door.
+    {
+      selector:
+        'MemberExpression[property.name=/^(toLocaleString|toLocaleDateString|toLocaleTimeString|toDateString|toTimeString|toUTCString)$/]',
+      message: INTL_MESSAGE,
     },
   ];
+
+  if (userFacing) {
+    // A sentence joined with `+`, from either side: the clauses are separate
+    // strings, so a translator is handed half a sentence at a time and cannot
+    // reorder them.
+    entries.push({
+      selector: `BinaryExpression[operator="+"] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: ASSEMBLY_MESSAGE,
+    });
+    // A sentence split across JSX children: `<span>Revision {n}</span>`. Worse
+    // than the `+` case, because there is no single string to hand anybody —
+    // the sentence exists only as a shape in the tree. The element must hold
+    // *both* words and an expression, so `<span>{name}</span>` is a value and
+    // `<code>{kind}/{slug}/</code>` is a path, and neither fires.
+    entries.push({
+      selector: 'JSXElement:has(> JSXText[value=/[A-Za-z]{2,}/]):has(> JSXExpressionContainer)',
+      message: ASSEMBLY_MESSAGE,
+    });
+    // Branching on displayed text — the rule's other half. A comparison against
+    // a sentence turns a label into an identifier, and then translating the
+    // label changes what the program does.
+    entries.push({
+      selector: `BinaryExpression[operator=/^[=!]==?$/] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: DISPLAYED_TEXT_MESSAGE,
+    });
+  }
+
+  if (tokensOnly) {
+    entries.push(
+      { selector: `Literal[value=/${PALETTE_PATTERN}/]`, message: PALETTE_MESSAGE },
+      { selector: `TemplateElement[value.raw=/${PALETTE_PATTERN}/]`, message: PALETTE_MESSAGE },
+      {
+        selector: String.raw`Literal[value=/(?:^|\s)dark:/]`,
+        message: DARK_VARIANT_MESSAGE,
+      },
+      {
+        selector: String.raw`TemplateElement[value.raw=/(?:^|\s)dark:/]`,
+        message: DARK_VARIANT_MESSAGE,
+      },
+    );
+  }
+
+  if (classList) {
+    // A `+` whose operand holds a hyphenated utility (`text-sm`, `bg-surface`).
+    // Deliberately narrower than a blanket ban on `+`: arithmetic is fine, and
+    // the thing being prevented is specifically a class list arriving in
+    // pieces, where the assembly rule would fire with the wrong explanation.
+    entries.push({
+      selector: String.raw`BinaryExpression[operator="+"] > Literal[value=/(?:^|\s)[a-z][a-z0-9]*-[a-z0-9[\]/.-]+(?:\s|$)/]`,
+      message: CLASS_JOIN_MESSAGE,
+    });
+  }
 
   if (!allowRandomness) {
     entries.push({
@@ -169,7 +371,7 @@ export function restrictedSyntax({ allowRandomness = false } = {}) {
 // ---------------------------------------------------------------------------
 
 const BOUNDARY_MESSAGE =
-  'Architectural boundary violated. The graph is docs/design/16-testing.md §2: ' +
+  'Architectural boundary violated. The graph is docs/design/workplan/10-testing.md §2: ' +
   'modes → sdk, shared; client → shared; sdk → shared; server → shared, sdk.';
 
 /** @param {string} type */
@@ -179,7 +381,7 @@ const from = (type) => ({ element: { type } });
 const to = (types) => ({ to: { element: { types: { anyOf: types } } } });
 
 /**
- * The graph from docs/design/16-testing.md §2, as eslint-plugin-boundaries
+ * The graph from docs/design/workplan/10-testing.md §2, as eslint-plugin-boundaries
  * settings and rules.
  *
  * `modes` is defined here even though `packages/modes/` does not exist. That is
@@ -259,6 +461,6 @@ export const forbiddenPackages = {
 export function bannedPackagesFor(from) {
   return forbiddenPackages[from].map((name) => ({
     name,
-    message: `${from} may not import ${name}. See docs/design/16-testing.md §2.`,
+    message: `${from} may not import ${name}. See docs/design/workplan/10-testing.md §2.`,
   }));
 }

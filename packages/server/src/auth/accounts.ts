@@ -2,10 +2,17 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { type Static, Type } from '@sinclair/typebox';
-import { createValidator } from '@storyengine/shared';
+import { createValidator, uuidv7 } from '@storyengine/shared';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory, type FileFacts, readFileBytes, statFile } from '../storage/files.js';
+import {
+  ensureDirectory,
+  fileExists,
+  type FileFacts,
+  moveTree,
+  readFileBytes,
+  statFile,
+} from '../storage/files.js';
 import { assertValidHandle, type Layout } from '../storage/layout.js';
 import { hashPassword, verifyPassword } from './secrets.js';
 
@@ -13,13 +20,13 @@ import { hashPassword, verifyPassword } from './secrets.js';
  * Accounts — docs/design/04-server-multiuser-deployment.md §4.2.
  *
  * **Authoritative state, so a file and never an index row**
- * ([19 §1.3](docs/design/19-p1-implementation.md)). Deleting `index.sqlite` has
- * to stay a non-event ([18 §5](docs/design/18-internal-contracts.md)), and it
+ * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)). Deleting `index.sqlite` has
+ * to stay a non-event ([13 §5](../../../../docs/design/13-internal-contracts.md)), and it
  * cannot be if losing it logs everyone out — or worse, loses the only admin.
  *
  * It sits at `data/accounts.json`, **outside every user directory**, so the file
  * browser can never serve a password hash whatever `fileAccess` a user is
- * granted ([05 §4.2.1](docs/design/05-ui-surfaces.md)). That section is worth
+ * granted ([05 §4.2.1](../../../../docs/design/05-ui-surfaces.md)). That section is worth
  * reading: an earlier draft rooted file access at the user's own directory and
  * thereby handed anyone with write access a one-line path to `role: "admin"`.
  *
@@ -29,13 +36,30 @@ import { hashPassword, verifyPassword } from './secrets.js';
 
 /**
  * Flat, enumerated, and deliberately not a role system
- * ([04 §4.2.1](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.2.1](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
- * **Nothing enforces these at P1** — none of the gated features exist yet. The
- * record is written now because it is a persisted shape, and a persisted shape
- * added later is a migration over user data
- * ([15 §2.1](docs/design/15-work-plan.md)). Enforcement is additive and waits
- * for P10. Splitting on exactly that line is the point.
+ * The record was written at P1 because it is a persisted shape, and a persisted
+ * shape added later is a migration over user data
+ * ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)). Enforcement was deferred on the
+ * same reasoning — it is additive — and this comment said so until
+ * [P2A](../../../../docs/design/workplan/13-p2a-configuration-surface.md) made the deferral false.
+ *
+ * **`privateConnections` is enforced now**, in `turns/runner.ts`, where
+ * connections resolve. Never at the UI: [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)
+ * calls the loader-level check the load-bearing one precisely because a
+ * UI-level one is a trivial bypass for anyone with `fileAccess: "write"`.
+ *
+ * The move was forced rather than opportunistic. A screen that *grants* a
+ * capability changes the argument, because [01 §2.2] forbids building a system
+ * whose only purpose is to be replaced — and a switch labelled *may add their
+ * own provider keys* that adds nothing is not a small version of the real
+ * thing, it is a false front.
+ *
+ * **`fileAccess` and `enableExtensions` still gate nothing**, and the settings
+ * surface says so rather than rendering three switches as though they were
+ * equally live: `fileAccess` gates a file browser [01 §4] moved to the
+ * roadmap, and `enableExtensions` gates extensions, which appear in no phase
+ * list at all.
  */
 export const Capabilities = Type.Object(
   {
@@ -52,7 +76,7 @@ export const Capabilities = Type.Object(
     fileAccess: Type.Union([Type.Literal('none'), Type.Literal('read'), Type.Literal('write')], {
       default: 'none',
     }),
-    /** May enable installed extensions. Installing stays admin-only ([17 §7]). */
+    /** May enable installed extensions. Installing stays admin-only ([12 §7]). */
     enableExtensions: Type.Boolean({ default: false }),
   },
   { title: 'Capabilities' },
@@ -79,7 +103,7 @@ export const Account = Type.Object(
      *
      * Here at P1 because push notifications are rendered by the server with the
      * app closed, so it must know each user's language
-     * ([07 §12.5](docs/design/07-tech-stack.md)) — cheap now, a migration later.
+     * ([07 §12.5](../../../../docs/design/07-tech-stack.md)) — cheap now, a migration later.
      */
     locale: Type.Union([Type.String(), Type.Null()]),
     capabilities: Capabilities,
@@ -210,7 +234,7 @@ export class Accounts {
    *
    * **First-run setup gates everything** — until an admin account exists, every
    * route except setup returns the setup flow
-   * ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Combined with
+   * ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md)). Combined with
    * the loopback default this closes the claim window on bare-metal installs.
    */
   async needsSetup(): Promise<boolean> {
@@ -299,12 +323,143 @@ export class Accounts {
   }
 
   /**
+   * What an account may change about **itself** — [05 §15.1].
+   *
+   * A separate method from {@link update} rather than one method with a flag,
+   * and the difference is the type: this signature *cannot express* a role,
+   * an enabled flag or a capability, so the self-service route cannot pass one
+   * through by forgetting to strip it. A shared updater guarded by a boolean
+   * would put that guarantee in a branch instead of in a signature, and a
+   * branch is something a later caller can get wrong.
+   *
+   * [P2A §2.3] makes the same argument about removal, and it is the same
+   * argument the library makes about there being no `:handle` parameter to
+   * forget: the safest guard is one there is no way to omit.
+   */
+  async updateSelf(
+    handle: string,
+    patch: { displayName?: string; locale?: string | null },
+  ): Promise<PublicAccount> {
+    // **Picked, not forwarded.** The narrow signature is a compile-time
+    // guarantee and TypeScript's types are erased, so forwarding `patch` whole
+    // meant a caller reaching this with an extra `role` — an untyped body, a
+    // JavaScript consumer, a future route that widened its schema — had it
+    // silently applied. Rebuilding the object from the two fields this verb
+    // owns makes "cannot express a role" true at runtime as well, and mirrors
+    // what `toPublic()` does in the other direction.
+    return this.#patch(handle, {
+      ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
+      ...(patch.locale === undefined ? {} : { locale: patch.locale }),
+    });
+  }
+
+  /**
+   * What an admin may change about anyone — [05 §15.2].
+   *
+   * Everything {@link updateSelf} covers, plus the three fields that are
+   * somebody else's business: the role, the enabled flag, and the capability
+   * record `Capabilities` has carried since P1 with nothing ever granting it.
+   *
+   * Capabilities merge rather than replace, so a form sending one switch does
+   * not silently clear the other two — the client sends what it changed, and a
+   * newer build's capability survives an older client's patch.
+   */
+  async update(
+    handle: string,
+    patch: {
+      displayName?: string;
+      locale?: string | null;
+      role?: Account['role'];
+      enabled?: boolean;
+      capabilities?: Partial<Capabilities>;
+    },
+  ): Promise<PublicAccount> {
+    return this.#patch(handle, patch);
+  }
+
+  async #patch(
+    handle: string,
+    patch: {
+      displayName?: string;
+      locale?: string | null;
+      role?: Account['role'];
+      enabled?: boolean;
+      capabilities?: Partial<Capabilities>;
+    },
+  ): Promise<PublicAccount> {
+    const file = await this.#read();
+    const account = file.accounts.find((entry) => entry.handle === handle);
+    if (!account) {
+      throw new AccountError('not-found', `No account with the handle ${handle}.`);
+    }
+
+    const updated: Account = {
+      ...account,
+      ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
+      ...(patch.locale === undefined ? {} : { locale: patch.locale }),
+      ...(patch.role === undefined ? {} : { role: patch.role }),
+      ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+      ...(patch.capabilities === undefined
+        ? {}
+        : { capabilities: { ...account.capabilities, ...patch.capabilities } }),
+    };
+
+    assertAdminSurvives(file, account, updated);
+    await this.#write({
+      ...file,
+      accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
+    });
+    return toPublic(updated);
+  }
+
+  /**
+   * Removes an account and moves its directory to `data/removed/` — [P2A §2.3].
+   *
+   * **The destructive verb, and it is destructive on purpose.** Disabling is
+   * `update(handle, { enabled: false })` and needs no method of its own; a
+   * `keepData` flag that turned this into a not-delete would be exactly the
+   * shape that makes a dangerous control feel routine.
+   *
+   * **The directory moves before the record goes**, and the order is the whole
+   * of the failure design. Record-first would mean a failed move leaves the
+   * handle free with the old data still at `users/<handle>/` — so recreating
+   * the account would silently inherit somebody else's library, which is the
+   * worst outcome available and an invisible one. This way a failed write
+   * leaves an account whose directory has moved: broken, obvious, and
+   * recoverable by hand from a folder StoryEngine has promised not to touch.
+   */
+  async remove(handle: string): Promise<void> {
+    const file = await this.#read();
+    const account = file.accounts.find((entry) => entry.handle === handle);
+    if (!account) {
+      throw new AccountError('not-found', `No account with the handle ${handle}.`);
+    }
+    assertAdminSurvives(file, account, null);
+
+    // Guarded because an account whose directory is already gone should still
+    // be removable — refusing there would trap an admin inside a broken state
+    // rather than letting them leave it. (`fileExists` is a stat, which does
+    // not care that this one is a directory.)
+    if (await fileExists(this.#layout.userRoot(handle))) {
+      await moveTree(
+        this.#layout.userRoot(handle),
+        this.#layout.removedDestination(handle, uuidv7()),
+      );
+    }
+
+    await this.#write({
+      ...file,
+      accounts: file.accounts.filter((entry) => entry.handle !== handle),
+    });
+  }
+
+  /**
    * Replaces an account's password, and re-enables the account.
    *
    * **The break-glass path.** Its only caller is the `--reset-password` flag
    * on the server binary, which means the authority behind it is host access —
    * and anyone who can read `data/` owns the install already
-   * ([04 §4.1](docs/design/04-server-multiuser-deployment.md)), so this adds no
+   * ([04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md)), so this adds no
    * authority that did not exist. At 1.0 the *norm* is an admin resetting an
    * account through the UI (P10); this remains the rung beneath it, for when
    * no usable admin account exists.
@@ -315,6 +470,35 @@ export class Accounts {
    * half-repair.
    */
   async resetPassword(handle: string, password: string): Promise<PublicAccount> {
+    return this.#setPassword(handle, password, { reEnable: true });
+  }
+
+  /**
+   * Sets a password, leaving `enabled` alone.
+   *
+   * The self-service verb, and the difference from {@link resetPassword} is the
+   * one thing this must not inherit: **re-enabling**. That is right for the
+   * break-glass path, where a disabled account is the same lockout wearing a
+   * different hat and nothing else can clear it — and wrong here, where an
+   * admin has disabled somebody and a password change would quietly undo it.
+   *
+   * **Verifying the current password is not done here**, and the omission is
+   * deliberate rather than an oversight: `authenticate` is *the* password check
+   * in this codebase, and a second one written beside it is how two checks drift
+   * into disagreeing about disabled accounts or about timing. The route
+   * ([P2A §3], P2A.2) calls `authenticate` and then this, which is also what
+   * makes the admin reset — no current password to know — the same method with
+   * one fewer step rather than a separate code path.
+   */
+  async changePassword(handle: string, password: string): Promise<PublicAccount> {
+    return this.#setPassword(handle, password, { reEnable: false });
+  }
+
+  async #setPassword(
+    handle: string,
+    password: string,
+    options: { reEnable: boolean },
+  ): Promise<PublicAccount> {
     const file = await this.#read();
     const account = file.accounts.find((entry) => entry.handle === handle);
     if (!account) {
@@ -322,13 +506,58 @@ export class Accounts {
     }
 
     const { salt, hash } = await hashPassword(password);
-    const updated: Account = { ...account, passwordHash: hash, salt, enabled: true };
+    const updated: Account = {
+      ...account,
+      passwordHash: hash,
+      salt,
+      ...(options.reEnable ? { enabled: true } : {}),
+    };
     await this.#write({
       ...file,
       accounts: file.accounts.map((entry) => (entry.handle === handle ? updated : entry)),
     });
     return toPublic(updated);
   }
+}
+
+/** An admin who can actually sign in. A disabled one locks the install out too. */
+function usableAdmin(account: Account): boolean {
+  return account.role === 'admin' && account.enabled;
+}
+
+/**
+ * Refuses any change that would leave the install with no usable admin.
+ *
+ * **One predicate for three gestures** — demote, disable, remove — because they
+ * are one failure wearing three faces, and three separate checks is how the
+ * third one gets written differently or not at all. It is also the first
+ * thrower `AccountError`'s `last-admin` code has ever had: the code was
+ * declared at P1 against a day nobody could yet reach.
+ *
+ * "Usable" rather than "present" is the load-bearing word. An install whose
+ * only admin is disabled is locked out exactly as thoroughly as one with no
+ * admin at all, and it is a state an admin can otherwise walk into in one
+ * click while the account list still shows an administrator.
+ *
+ * `after` is `null` for a removal. Passing the account being removed and
+ * letting this work out that it is gone would mean encoding "removed" as some
+ * field combination, and there isn't one.
+ */
+function assertAdminSurvives(file: AccountsFile, before: Account, after: Account | null): void {
+  if (!usableAdmin(before)) return;
+  if (after !== null && usableAdmin(after)) return;
+
+  const others = file.accounts.filter(
+    (entry) => entry.handle !== before.handle && usableAdmin(entry),
+  );
+  if (others.length > 0) return;
+
+  throw new AccountError(
+    'last-admin',
+    after === null
+      ? `${before.handle} is the only administrator who can sign in. Make somebody else an administrator first.`
+      : `${before.handle} is the only administrator who can sign in, and this would leave none. Make somebody else an administrator first.`,
+  );
 }
 
 function sameFacts(cached: FileFacts | null, current: FileFacts | null): boolean {

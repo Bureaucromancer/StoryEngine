@@ -16,7 +16,7 @@
 //   restart   anything establishing a listener or a file handle
 //
 // The server derives its own "restart required" notice from these tiers rather
-// than from a list someone maintains by hand — see docs/design/18 §4.
+// than from a list someone maintains by hand — see docs/design/13 §4.
 
 {
   // restart — where everything lives. Relative paths resolve against the
@@ -48,11 +48,32 @@
     "trustProxy": false
   },
 
+  "auth": {
+    // live — the shortest password this install accepts when one is SET.
+    //
+    // It applies to first-run setup, an admin creating an account, an admin
+    // resetting somebody's password, and a person changing their own. It does
+    // not apply when a password is checked: raising this never locks anyone out
+    // of an account they already have, and there is no forced change.
+    //
+    // 0 means the empty string is a valid password. The box stays on every form
+    // and you may leave it blank. That is a defensible setting for a machine
+    // only you can reach, and a bad one for anything else. The most this may be
+    // is 128.
+    //
+    // --reset-password on the console honours no minimum at all, including this
+    // one. Access to the host is already the highest authority this software
+    // recognises (docs/design/04 §5.1), so the break-glass path takes what it
+    // is given.
+    "minPasswordLength": 8
+  },
+
   "log": {
-    // live
+    // live — "silent" also works, and is what the test suite runs at.
     "level": "info",
-    // restart — "json" in the container.
-    "format": "pretty"
+    // restart — one value today. Pipe it through a formatter if you want it
+    // pretty in a terminal; the server does not carry one.
+    "format": "json"
   },
 
   "index": {
@@ -66,14 +87,45 @@
 
   "sessions": {
     // live
-    "snapshotEveryNTurns": 10
+    "snapshotEveryNTurns": 10,
+
+    // reconnect — how often an idle event stream sends a keepalive.
+    //
+    // A keepalive is a property of a connection, and an open stream keeps the
+    // interval it opened with, so changing this reaches new streams only.
+    "streamKeepaliveMs": 15000,
+
+    // live — how long streamed text accumulates before a durable checkpoint.
+    //
+    // The operational store commits with synchronous writes, so a transaction
+    // per token would be an fsync storm. Lower it if you want a killed server
+    // to lose less of an in-flight reply; 0 checkpoints every chunk.
+    "streamCoalesceMs": 250
   },
 
   "limits": {
-    // live
+    // live — the largest request body accepted, in megabytes.
+    //
+    // Honest caveat: today it is read once when the server is constructed, so
+    // changing it does need a restart. The tier is not wrong, the
+    // implementation is behind it, and the settings UI says so per key rather
+    // than quietly telling you a change took.
     "maxUploadMb": 64,
     // live
-    "extensionStorageQuotaMb": 32
+    "extensionStorageQuotaMb": 32,
+
+    // live — the context window a turn may assemble into, when the endpoint
+    // does not say how large it is.
+    //
+    // Most OpenAI-compatible endpoints do not report a context length, and
+    // StoryEngine will not invent one it cannot verify — so without this a
+    // turn has no budget to work against. A connection may override it, which
+    // is the better place to say it: the number is a fact about that endpoint.
+    "contextTokens": 8192,
+
+    // live — held back out of the context window for the reply itself, when a
+    // call does not say how long it may be.
+    "reservedCompletionTokens": 1024
   },
 
   "trash": {

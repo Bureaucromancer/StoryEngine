@@ -100,7 +100,7 @@ what the user is doing at that moment, not by taste:
 
 | Dense — tooling | Quiet — story and arrival |
 |---|---|
-| Workbench (§3), library (§5), editors (§11), cast panel (§13.2), search (§14) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
+| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
 **The reading view is the case that proves the rule**, and it is already written
@@ -137,42 +137,161 @@ recorded: **neither is a licence to skip designing the surface now.** Themes
 move look, not information architecture, and "the user can rearrange it later"
 is how a UI ends up never having been designed at all.
 
+### 1.2 Where the look lives
+
+§1.1 is the position; this is the machinery that makes it enforceable rather
+than remembered. Two places, and nowhere else.
+
+**The palette is `packages/client/src/index.css`.** One `@theme` block naming
+every colour, radius and type step the app uses — `--color-surface`,
+`--color-ink-muted`, `--color-danger-line`, `--text-section` — and a second block
+redefining the colours for the dark theme. It is the only file in the client
+permitted to name a Tailwind scale like `slate-800`; everywhere else that is a
+build error, because a component reaching past the tokens is a component that
+stays light when the rest of the app goes dark.
+
+**The look is `packages/client/src/ui/`.** `Button`, `Alert`, `Badge`, `Panel`,
+`Dialog`, the type steps, and the two field primitives. They spend token names
+and never scales, and they carry **no `dark:` variants at all** — a component
+that needs one is a component whose token is missing, and adding the token fixes
+every other surface that was about to need the same variant.
+
+**The boundary between the two kinds of thing in `ui/`:** a **component** when
+it owns behaviour or ARIA, a **class list** when it owns appearance only.
+`Dialog` is a component because it owns the focus trap and `aria-modal`, which
+three surfaces were otherwise spelling separately. Links and table cells stay
+class lists, because the router owns the one element and a test asserts on the
+other.
+
+**Light and dark are two designed defaults**, and the OS picks between them via
+`prefers-color-scheme`. Someone who wants to override that says so in
+Preferences (§15.1), which writes `ui.theme` to their own `prefs.json` and sets
+`[data-theme]`; a `:not([data-theme='light'])` guard on the media query is what
+lets the explicit choice win in *both* directions, including choosing light on a
+machine set to dark.
+
+**`system` is the absence of the preference rather than a third stored value.**
+Choosing it deletes the key, so a person who never opened the setting and a
+person who chose *Match my system* are in one state rather than two that have to
+be kept behaving alike. The choice is also mirrored to `localStorage` — the only
+use of it in the client — so a load can apply it before rendering; without that,
+anyone whose choice differs from their OS gets a flash of the other theme on
+every navigation. The mirror is a cache and never an authority: nothing reads it
+to decide what to save.
+
+**Dense and Quiet share the palette**, and that is a finding rather than a
+shortcut: [P2C](workplan/15-p2c-first-real-run.md) diagnosed the dark play
+surface as *"a stranded assumption rather than a theme"* — sixteen `neutral-*`
+utilities against a hundred and seventy-two `slate-*` — and its typed text
+measured **1.01 to 1**. What separates the two families is **type** (`text-story`
+at looser leading against the tooling steps), **measure** (`--container-reading`
+against the shell's width), and **chrome**: the story surfaces carry no border
+and no panel background, so tool chrome cannot land on one by accident.
+
 ---
 
-## 2. Three peer surfaces
+## 2. Two surfaces and an inspector
 
 | Surface | What it is |
 |---|---|
-| **Play** | The modes' chat, scene and adventure views |
-| **Library** | Actors, lorebooks, settings, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
-| **Workbench** | What the engine sent, why, what it cost, and what to change |
+| **Play** | The modes' chat, scene and adventure views, plus the affordances that make starting and managing a story quick (§2.2) |
+| **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
+| **Workbench** | Not a surface. An inspector panel that expands over whichever of the two you are in — §3 |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
 stripped. The workbench and the reading view answer opposite questions over the
 same records.
 
-"Peer" is a design-process claim as much as a layout one: Library and Workbench
-get designed in the same pass as Play, not retrofitted once Play works. Both of
-the source projects that have workbench-ish features arrived at them as debug
-panels (Marinara's Injections tab is gated behind Debug mode; Aventuras'
-`retrievalSnapshot` is annotated "Diagnostic only — nothing reads it back"), and
-that origin shows.
+**The workbench used to be listed here as a third peer, and is not one.** The
+demotion is in navigation only, and the distinction matters because this section
+previously ran the two together: *"'Peer' is a design-process claim as much as a
+layout one."* The design-process claim stands and is the important half — the
+workbench gets designed in the same pass as Play, not retrofitted once Play
+works. Both source projects that have workbench-ish features arrived at them as
+debug panels (Marinara's Injections tab is gated behind Debug mode; Aventuras'
+`retrievalSnapshot` is annotated *"Diagnostic only — nothing reads it back"*),
+and that origin shows.
 
-### 2.1 Home, and what arrival is for
+What does not survive is the layout claim. §3 defines the workbench as **a
+reader** over records that already exist, which means it has no state of its own
+and no standalone entry point: its subject is always whatever you are currently
+looking at. Reaching it as a place meant re-selecting a session and a turn you
+had *just* selected in Play — [§1.1](#11-density-and-the-aesthetic-position)'s
+*"depth is a cost paid for by the user, and it is charged per visit"*, charged to
+arrive somewhere you already were.
 
-The three peers are where work happens. None of them answers the question a
-person actually arrives with, which is not *"find me a thing"* but **"what is
-this, and what was I doing?"**
+### 2.1 The library is the model; play is the product
 
-**Home is the arrival point, and it is not one of the peers.** It owns no
+The division of labour between the two surfaces, stated because it decides a
+long list of smaller questions and was being re-derived at each one.
+
+> **The library represents the objects as they are. Play is where the
+> conveniences live.**
+
+**The library is a near-raw view of the data and the files.** Real kind names,
+real field names, the folder path, nothing invented to be friendlier. This is
+already half-written: §5 calls the legible disk layout *"a rare case where
+exposing the storage mechanism is the feature"*, and §1.1 names the audience as
+people who *"run a server on their own LAN, hand-edit an object folder in a text
+editor and enjoy it."* The library is the surface that audience is for.
+
+**Play carries the player-facing ergonomics** — quick setup, resuming, managing a
+story in flight, and eventually grouping sessions that share a continuity
+([14 §2d](14-roadmap.md)). Someone who wants to *play* should never have to learn
+the object graph to do it, and someone who wants to *author* should never have to
+see through a friendly label to find out what they are editing.
+
+**What this replaces.** An earlier draft answered "eight kinds is a lot to arrive
+at" with a translation layer over the model — a *Worlds* panel for the Treatment
+kind, a *Games* panel for Setup. That layer is what produced a long naming
+argument whose only stake was being friendlier than the schema, and it put the
+teaching burden on the surface least suited to carry it. The kinds are now named
+what they are, and the teaching moved to Play, where the ladder is learned by
+using it rather than by reading a shelf.
+
+**Three boundaries keep this honest:**
+
+- **Raw is not undesigned.** §1.1's warning applies with full force: *"density
+  and noise are different, and the difference is entirely in whether the layout
+  has a structure you can learn."* A faithful rendering of a three-hundred-entry
+  lorebook with a two-tier budget does not explain itself merely because nothing
+  was hidden. Raw means no invented vocabulary, no hidden fields, no lossy
+  summary — it does not mean no information architecture.
+- **Browse and inspect are raw; editing is assisted.** §11 is emphatic that
+  editors are not dumb forms, and field assist (§11.1), provenance (§11.2) and
+  version history (§11.2a) all live library-side. None of that is in tension
+  here: fidelity is a claim about what the surface *shows*, not about how little
+  it helps while you change it.
+- **Play's conveniences emit ordinary objects.** A quick setup that creates a
+  Treatment creates a real one, in the library, in a folder, indistinguishable
+  from a hand-written one. Never a parallel play-side store — the same
+  discipline [14 §2c.1](14-roadmap.md) puts on the story bible, and the same
+  instinct already behind *"emit a Setup from this running session"*
+  ([02 §7.1](02-data-model.md)).
+
+**What the two claims cost each other, since they pull in opposite directions.**
+A raw library and an inspector panel both supply fidelity, and it would be easy
+to end up with two answers to one question. They divide by depth: the library is
+faithful in its *structure* — the kinds, the names, the links, the paths — and
+the panel supplies the *contents* on demand, at any depth, anywhere. Neither
+substitutes for the other, and the panel is what allows the library to stop short
+of rendering raw JSON in a browse list.
+
+### 2.2 Home, and what arrival is for
+
+Play and Library are where work happens. Neither answers the question a person
+actually arrives with, which is not *"find me a thing"* but **"what is this, and
+what was I doing?"**
+
+**Home is the arrival point, and it is not one of the two.** It owns no
 editing, computes nothing of its own, and every element on it is a link into a
 surface that does the real work. What it holds, in order of how much it matters:
 
 1. **Resume.** The overwhelmingly common reason to open the app is to continue
    something. Recent sessions, straight back into the reading surface.
-2. **Start.** The presented kinds (§5.1) as entry points, with Game emphasised,
-   because starting a Setup is what someone with nothing in progress is trying
-   to do.
+2. **Start.** The kinds you actually start from — a Setup above all — as entry
+   points. Starting a game is what someone with nothing in progress is trying to
+   do, and Play is where §2.1 puts that convenience.
 3. **Notice.** Shadowed objects, failed loads, anything the watcher flagged —
    already visible per-object, and here made countable.
 4. **Recent work.** The bridge back into whatever was half-written yesterday.
@@ -182,16 +301,35 @@ already thinking of, which is a different question, and answering the first with
 the second is how an app ends up opening on a list of everything you own. This
 matters more once the library is per-kind panels (§5): there is no single list
 left to land on, and picking one kind arbitrarily would be worse than the list
-was. See [25 §5](25-polish.md) for the build-level detail.
+was. See [polish §5](workplan/09-polish.md) for the build-level detail.
 
 ---
 
-## 3. Workbench
+## 3. Workbench — the inspector panel
 
 The turn record ([02 §8](02-data-model.md)) is designed to be displayed. The
 workbench is its viewer and editor, and because the record is complete and
 persistent, the workbench is a *reader*, not a second implementation of the
 assembler. That is the whole trick.
+
+**It is a panel, not a place** — the browser-devtools shape, and for the reason
+devtools has it. A reader holds no state of its own; its subject is whatever is
+in the main view. So it expands *over* Play or Library rather than being
+navigated to: one keyboard toggle, docked to a side or the bottom, remembering
+open-or-closed and its size across navigation so it can be left open while you
+work. §2 records why this is a demotion in layout only.
+
+**Never gated behind a debug mode.** This is the specific failure §2 names in
+both source projects, and a panel is the shape that most invites it. The
+workbench is a first-class designed surface that happens to be summoned rather
+than visited; the moment it needs switching on, it is back to being the thing
+whose *"origin shows"*.
+
+**Its subject follows the main view.** Over a turn in Play it shows the record
+below. Over an object in the Library it shows the raw truth of that object — the
+JSON as stored, the folder path, provenance, version history, the index rows —
+which is the depth [§2.1](#21-the-library-is-the-model-play-is-the-product)
+deliberately keeps out of a browse list.
 
 What it shows for any turn, current or historical:
 
@@ -212,7 +350,7 @@ What it shows for any turn, current or historical:
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
-  ([11 §3](11-roadmap.md)) — the people running this at the development stage
+  ([14 §3](14-roadmap.md)) — the people running this at the development stage
   are power users who already monitor their provider usage, and a usage
   dashboard is a very nice feature that is not core functionality.
 
@@ -233,17 +371,38 @@ What it lets you do:
   lorebook's keyword rules only. As a workbench feature over the whole assembly,
   against a real session's channel state, it covers every activation source.
 
-**[OPEN]** How much belongs in the play surface as a persistent affordance versus
-a separate view. Something minimal and always visible — a context-fill meter,
-clickable through to the full record — is probably right. A full workbench panel
-beside every message is not.
+**[RESOLVED] What belongs in Play persistently versus in the panel.** The old
+question was "a persistent affordance versus a separate view", and the answer was
+"something minimal, clickable through to the full record." The panel makes that
+concrete without the trip: Play keeps one always-visible signal — a context-fill
+meter — and clicking it opens the panel in place, already on the current turn. A
+full workbench beside every message is still not the answer; a full workbench one
+keystroke behind every message is.
+
+**Two of the features above do not fit a panel, and should not be forced into
+one.**
+
+- **Diff two turns** is inherently two-subject, and a panel scoped to what the
+  main view is showing has one subject by construction. Comparison escalates to a
+  full view. Devtools has the same seam and draws it the same way — inspection is
+  a panel activity, profiling is not.
+- **Promote a dry run** mutates rather than reads. It stays, because §3's
+  rewrite-versus-reroll scoping already makes it safe, but a panel that changes
+  things has to say so more loudly than a read-only one would: dry-run state is
+  visibly pending until sent, and *edit a block and re-run* announces which turn
+  it is about to rewrite.
+
+**On a phone, the panel is a sheet.** §1 commits to a usable phone layout, and a
+dock is a desktop metaphor. Same content, same toggle, full-height sheet over the
+main view — which is also the honest admission that on a phone the workbench *is*
+briefly a place, because there is no room for it to be anything else.
 
 ---
 
 ## 4. File access as a permission level
 
 **Deprioritised. Experimental at best, and on the roadmap rather than in 1.0
-([11 §3](11-roadmap.md)).** The reasoning below stands and the feature is still
+([14 §3](14-roadmap.md)).** The reasoning below stands and the feature is still
 wanted; what changed is its position. Import and export UIs exist for a reason,
 in-app library management matters more, and a file-management UI is a
 disproportionate amount of surface — and of risk — for something most people
@@ -339,7 +498,7 @@ roots**, and account, credential, job and operational state are outside it.
 may change their display name and password and not their role.
 
 **The general rule this establishes**, since more operational state is coming
-([18 §5](18-internal-contracts.md)): *the file browser exposes what the user
+([13 §5](13-internal-contracts.md)): *the file browser exposes what the user
 authored, never what the server decides with.* Anything the engine reads to make
 an authorisation or scheduling decision is out of scope by construction, and new
 files under the user directory are excluded by default rather than included by
@@ -408,14 +567,14 @@ be inventive.
 Where it should differ:
 
 - **One library, one panel per portable kind.** Not one merged list with a kind
-  filter. ("Portable" as in exportable ([13 §1](13-schemas.md)); libraries
+  filter. ("Portable" as in exportable ([10 §1](10-schemas.md)); libraries
   themselves are per-user and nothing is shared between accounts on one
   install.) **The kinds
   are distinct on purpose and the browsing surface should say so.** An Actor is
   deliberately not a prompt configuration file ([00 §2.4](00-stance.md));
   personas and NPCs are flags on one kind rather than separate types
-  ([02 §2.2](02-data-model.md)); Setting and Setup are split because conflating
-  them is the mistake every source made ([13 §7](13-schemas.md)). A single
+  ([02 §2.2](02-data-model.md)); Treatment and Setup are split because conflating
+  them is the mistake every source made ([10 §7](10-schemas.md)). A single
   undifferentiated table puts that mush straight back, at the exact moment a
   user is forming their model of what these things are — and it is also the one
   view where no column but *Kind* can be load-bearing, because an actor, a
@@ -446,9 +605,11 @@ Where it should differ:
   machinery-visible preference alongside the rest of them. None of this is a
   contract change: the API goes on accepting an absent kind
   ([api.md](../api.md)), because cross-kind queries are a real thing to want.
-- **Links are visible and bidirectional.** From a lorebook: which settings,
+- **Links are visible and bidirectional.** From a lorebook: which treatments,
   actors and packages reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
+  **Specified in §5.2** — the inbound direction carries a relationship the
+  schemas deliberately leave unencoded, so it is not left to the page.
 - **The disk layout is legible.** Since the folder *is* the object, show the path
   and — for users with file access — link straight into the file browser at that
   location. This is a rare case where exposing the storage mechanism is the
@@ -460,57 +621,99 @@ Where it should differ:
   what went to `compat`, what resolved, what dangled, and let the user fix it
   before committing.
 
-### 5.1 Eight kinds is a lot to arrive at
+### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
 Worth stating as a presentation position, because the data model does not solve
 it and pretending otherwise is how it gets ignored.
 
 [02 §1](02-data-model.md) defines eight persistent kinds. Someone arriving from
 SillyTavern has priors for exactly two of them — a character card and world info
-— and no prior at all for Setting, Setup, Preset or Package. Every one of those
-splits is *correct* and none should be undone; the Setting/Setup split in
+— and no prior at all for Treatment, Setup, Preset or Package. Every one of those
+splits is *correct* and none should be undone; the Treatment/Setup split in
 particular is what Marinara's own scenario design identified and never built
-([13 §7](13-schemas.md)). But correct is not the same as learnable: a browsing
-surface can let someone *move through* eight kinds without helping them
-*understand* eight kinds, and that is the failure to design against.
+([10 §7](10-schemas.md)). But correct is not the same as learnable.
 
-**Present three, reveal the rest** — which under §5 is a statement about
-*naming and prominence*, not about merging. Every portable kind gets its own
-panel; three of the six are the ones offered.
+**The earlier answer here was a translation layer, and it is withdrawn.** This
+section used to rename the panels — *Worlds* for Treatment, *Games* for Setup —
+on the grounds that those were the words people already use. Three things went
+wrong with it. It put the teaching burden on the surface least able to carry it,
+since a browse list can let someone *move through* eight kinds without helping
+them *understand* eight kinds. It made the label a load-bearing design decision,
+which produced a long argument whose only stake was being friendlier than the
+schema — and produced a *wrong* label, because *Worlds* sat next to *Lorebooks*
+while the world lived in the lorebook. And it cost the one property the library
+is actually for: saying plainly what the thing on disk is called.
 
-| Panel | The kind | Why this name |
-|---|---|---|
-| **Actors** | Actor | Already familiar. Personas and NPCs are flags, so there is nothing extra to explain ([02 §2.2](02-data-model.md)). |
-| **Worlds** | Setting | The word people already use for the thing. Its lorebooks are one click away as links, not folded in. |
-| **Games** | Setup | *"How to start playing"* is a thing people want a name for and currently do not have one for. |
+**So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
+Setups, Presets, Packages — six panels, no demotions, no presented subset, real
+names. Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
+is the model, and a model with a friendlier alias for two of its six types is not
+a model.
 
-**Lorebooks, Presets and Packages are present but demoted** — reachable, not on
-the shelf. A lorebook is usually met through the World that links it rather than
-sought on its own; a preset is a thing you acquire, not a thing you make on day
-one; a package is transport, and transport should appear at the moment you
-export rather than sit in the way beforehand.
+**The teaching moves to Play**, which is where it belonged. The ladder —
+*Rain City* the lorebook, *Rain City, noir* the treatment, *The Fixer's Debt* the
+setup — is learned by starting a second game under a treatment you already have,
+which makes the one-to-many self-evident and needs no explanation at all. That
+was always the good half of the old argument; it just was not a library feature.
+Setup flows (§6) and Home's *Start* (§2.2) are the surfaces that carry it.
 
-**Six panels rather than a collapsed three** is deliberate, and it follows from
-§1.1: density is the position, so the answer to "this is a lot to arrive at" is
-a shelf that shows every kind legibly, not one that shows three and hides the
-rest behind a mode. Folding Lorebook into World would also mean one panel with
-two kinds in it — the merged-list problem in miniature, and applied to the pair
-most often confused. **Marked as *for now*:** six is the shape to build against,
-and the simple/advanced-versus-rearrangeable question in §1.1 is where any
-reduction should be settled, not here.
+**Six panels rather than a collapsed three** is deliberate and unchanged, and it
+follows from §1.1: density is the position, so the answer to "this is a lot to
+arrive at" is a shelf that shows every kind legibly, not one that shows three and
+hides the rest behind a mode. Folding Lorebook into Treatment would also mean one
+panel with two kinds in it — the merged-list problem in miniature, applied to the
+pair most often confused. **Marked as *for now*:** six is the shape to build
+against, and the simple/advanced-versus-rearrangeable question in §1.1 is where
+any reduction should be settled, not here.
 
-**The distinction that has to survive** is Setting versus Setup, since it is the
-one doing real work: *Rain City* is a world, *The Fixer's Debt* is a game played
-in it, and one world carries many games. The way to teach it is not a label — it
-is the moment a second Setup appears under a World the user already has, which
-makes the relationship self-evident and needs no explanation at all. Separate
-Worlds and Games panels make that easier to stage than a filtered list did: the
-one-to-many is visible as structure rather than as two rows that happen to
-differ in a Kind column.
+**What this is not:** a data model change, not a merged type, and not a merged
+surface. Nothing about the storage, the schemas, the panels or the export
+boundaries moves. What changes is that the library stopped trying to be an
+onboarding surface, and Play picked it up.
 
-**What this is not:** a data model change, not a merged type, and now also not a
-merged surface. The naming collapses; the storage, the schemas, the panels and
-the export boundaries do not.
+### 5.2 The backlink panel, specified
+
+The §5 bullet says links are visible and bidirectional. That is understated: the
+inbound view is not a convenience on a detail page, it is **the surface that
+carries a relationship the data model deliberately does not encode**, and it
+should be specified rather than left to whoever builds the page.
+
+A Treatment links lorebooks and never the reverse ([02 §4](02-data-model.md)) —
+which is what allows many treatments over one lorebook, and many lorebooks under
+one treatment. The cost of that freedom is that a lorebook, on its own, looks like
+an orphan: nothing in the file says *Rain City is played three ways*. The
+recurring proposal that follows is to fold Treatment into the lorebook as a child
+array. It is refused for the reasons in [02 §4](02-data-model.md), and this
+panel is what pays the refusal off — the cohesion the fold was reaching for,
+delivered as a view, where it costs no schema.
+
+**On a lorebook's page, a *Used by* section.** Grouped by kind, treatments first
+and rendered as cards with their `blurb` rather than as table rows, because
+"the three ways to play this world" is the thing a person came to see and a row
+in a list does not read as one. Actors, setups and packages follow as ordinary
+rows.
+
+**With a *New treatment on this world* action in that section**, creating a
+Treatment prefilled with a `LoreLink` to this book. This is the affordance the
+primary-lorebook relationship would have bought ([06 B2](06-open-questions.md)),
+without buying the relationship: authoring flows from the world you are looking
+at, and the result is still an independent object linking N books.
+
+**The reverse page is not symmetric, and should not be.** A treatment's page shows
+its lore links as *outbound* — ordered, `required` marked, editable — and its
+setups as inbound. Same data, two different jobs: outbound is a thing you
+arrange, inbound is a thing you discover.
+
+**Dangling references render in place**, named, non-blocking, with a resolve
+action — [00 §3.3](00-stance.md), applied to whichever direction the break shows
+up in.
+
+**It costs no new machinery.** The derived index answers "which treatments link
+this lorebook" already ([02 §5.1](02-data-model.md)); this is the third consumer
+of one query, alongside the delete confirmation's reference counts
+([02 §10.1](02-data-model.md)) and the package closure
+([10 §9.1](10-schemas.md)). Anything that makes the index cheaper or staler is
+therefore a decision about all three at once.
 
 ---
 
@@ -518,7 +721,7 @@ the export boundaries do not.
 
 Both sources use wizards and both wizards are good. Worth taking:
 
-- **From Aventuras:** the seed → AI expand → edit → accept loop for setting
+- **From Aventuras:** the seed → AI expand → edit → accept loop for treatment
   creation, including `useSettingAsIs()` — the escape hatch that skips expansion
   entirely. The expansion is an assist, not the path.
 - **From Marinara:** every step but the first has a working default, and the
@@ -527,7 +730,7 @@ Both sources use wizards and both wizards are good. Worth taking:
 - **From Marinara:** the immutable setup snapshot, so a good combination can be
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
-  ([13 §7](13-schemas.md)) rather than a text file — editable, re-runnable, and
+  ([10 §7](10-schemas.md)) rather than a text file — editable, re-runnable, and
   shareable by dropping it in a package.
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
@@ -535,6 +738,18 @@ Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 extension mode gets a first-class setup flow without writing UI. Aventuras' pack
 `CustomVariable` — typed, enum options, required flag, defaults, sort order, help
 text — is a working precedent and close to the right vocabulary.
+
+
+**This is also where the object ladder gets taught**, per
+[§5.1](#51-eight-kinds-is-a-lot-to-arrive-at--and-the-library-is-not-where-that-gets-solved).
+The library names the kinds and explains none of them; the wizard is what makes
+the relationships legible, because it walks them in order and in context — this
+lorebook holds the world, this treatment is how it is being handled, this Setup
+is the game you are about to start. The moment that does the real work is
+starting a *second* Setup under a treatment already in the library: the
+one-to-many becomes self-evident and needs no copy written for it. So the flow
+should make that second start cheap and obvious rather than treating every game
+as a fresh trip through six steps.
 
 ---
 
@@ -544,7 +759,9 @@ Specified in [03 §7.4](03-modes-and-turn-pipeline.md), which covers why it is a
 session rather than a bespoke thing. The UI side:
 
 - **Summonable from anywhere**, including mid-session, without losing your
-  place. A panel rather than a route.
+  place. A panel rather than a route — the same shape as the workbench (§3), and
+  for the same reason: it acts on what you are looking at, so navigating away
+  from that to reach it is backwards.
 - **Two scales of help, deliberately distinct.** The in-editor field assist
   ([§11](#11-editors-are-not-dumb-forms)) is for *this field*; the assistant is
   for "help me work out what I'm doing". Both should exist and neither should
@@ -609,7 +826,7 @@ result consistent.
 
 **The signal to build it anyway** is a genuine class of thing the vocabulary
 cannot reach without becoming a rendering engine in disguise. Tactical combat and
-anything map-shaped are the likely triggers ([11 §4.3](11-roadmap.md)) — and
+anything map-shaped are the likely triggers ([14 §4.3](14-roadmap.md)) — and
 both are things we have already decided not to build ourselves, so the pressure
 would be coming from outside, which is the right kind of evidence to act on.
 
@@ -720,7 +937,7 @@ Four operations on any text field:
   to proceed, ever.
 
 **Context is the part that gets skimped.** "Generate an appearance" must see the
-actor's name, summary, tags and the setting it is being authored against. An
+actor's name, summary, tags and the treatment it is being authored against. An
 assist that receives only the field label produces generic slop and trains
 people not to use it. The assist call therefore needs a context builder over the
 object being edited and its links — which is a small, reusable thing, but it is
@@ -740,7 +957,7 @@ interface GeneratedFieldProvenance {
 }
 ```
 
-…stored as a map keyed by dotted field path (`"setting.themes"`). Adopt it.
+…stored as a map keyed by dotted field path (`"treatment.themes"`). Adopt it.
 
 It buys three things, the third of which is the interesting one:
 
@@ -815,7 +1032,7 @@ warns against.
 
 ### 11.3 Image slots
 
-Wherever an image can appear — actor avatar, sprites, gallery, setting cover,
+Wherever an image can appear — actor avatar, sprites, gallery, treatment cover,
 lorebook entry art, package cover — the same four affordances: **upload,
 generate, crop, replace.**
 
@@ -863,7 +1080,7 @@ before they are discovered:
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
-  to [11 §3](11-roadmap.md).
+  to [14 §3](14-roadmap.md).
 - **They produce no turn record.** §8.2's provenance is the record, which is
   another reason it is not optional.
 
@@ -934,7 +1151,7 @@ records would be broken; a reading view that included them would be unreadable.
 ### 12.4 Why it belongs at 1.0
 
 Beyond being cheap: **"full readability and rollback" is the pair that makes a
-long session feel safe.** Rollback is branching ([10](10-branching.md)) — you can
+long session feel safe.** Rollback is branching ([09](09-branching.md)) — you can
 always go back. Readability is this — you can always see what you have. Together
 they are what makes someone willing to commit two hundred turns to a story, and
 either one alone is noticeably less reassuring.
@@ -998,7 +1215,7 @@ is annotated, the authored bytes are not touched.
 | Method | Source | Rendering |
 |---|---|---|
 | `explicit` | The user typed it with `@` | Certain — full-strength link |
-| `matched` | Exact hit on `name` or `aliases` ([13 §4](13-schemas.md)) | Confident |
+| `matched` | Exact hit on `name` or `aliases` ([10 §4](10-schemas.md)) | Confident |
 | `proposed` | Fuzzy, or a model-proposed resolution | **Visibly tentative**, clickable to confirm or reject |
 
 Collapsing these into one appearance throws away the whole diagnostic value. A
@@ -1017,7 +1234,7 @@ UI that nags about every one is a UI people switch off. Visible, non-blocking,
 ignorable ([00 §3.3](00-stance.md)).
 
 **It shares the lorebook keyword pass.** `Actor.aliases` is already specified as
-the default keyword set for lore matching ([13 §4](13-schemas.md)), so mention
+the default keyword set for lore matching ([10 §4](10-schemas.md)), so mention
 resolution and lorebook keyword activation are scanning the same text for the
 same strings. One pass, two consumers. Two matchers that can disagree about
 whether *the fixer* means Vera is a bug waiting to happen — and the shared pass
@@ -1065,10 +1282,10 @@ the screen.
 **Presence and status are channels** ([03 §4](03-modes-and-turn-pipeline.md)),
 model-proposed and engine-decided, which buys three properties with no new
 machinery: changes are effects in the turn record, invertible at the tip and
-otherwise revisited by branching ([18 §1.2.1](18-internal-contracts.md));
+otherwise revisited by branching ([13 §1.2.1](13-internal-contracts.md));
 panel state is reconstructible at any node; and **a branch gets it right** —
 someone dead on one line and alive on another is a requirement, not a bug, and it
-falls out of effects being per-node ([10 §4](10-branching.md)).
+falls out of effects being per-node ([09 §4](09-branching.md)).
 
 **Party is a subset, not a second list.** The party already exists as a timeline
 ([03 §8](03-modes-and-turn-pipeline.md)). The panel marks party members
@@ -1135,10 +1352,10 @@ on the current path.
 The one genuinely tricky part, and the answer follows an existing rule rather
 than a new one.
 
-Abandoned branches are still real history — [10 §6](10-branching.md) makes
+Abandoned branches are still real history — [09 §6](09-branching.md) makes
 discarded swipes permanently recoverable, which is a feature none of the sources
 offers, and a search that pretends they do not exist throws it away. But
-[10 §7](10-branching.md) is equally clear that content from a discarded line
+[09 §7](09-branching.md) is equally clear that content from a discarded line
 must not surface as though it were current.
 
 **So: hits off the current path are returned, visually distinguished, and
@@ -1170,9 +1387,186 @@ same results list, one more retriever behind it.
 
 - **Not a replacement for memory.** Search is what *you* do; summarisation and
   retrieval are what the *engine* does ([06 E1](06-open-questions.md),
-  [14](14-cross-session-memory.md)). They meet at the index and nowhere else, and
+  [11](11-cross-session-memory.md)). They meet at the index and nowhere else, and
   a search result never enters a prompt because a search happened.
 - **Not full-corpus search over other people's libraries.** Per-user scoping
   ([04 §4.3](04-server-multiuser-deployment.md)) applies unchanged; the system
   library is searchable because it is readable, and another account's sessions
   are neither.
+
+---
+
+## 15. Administration, accounts and settings
+
+**Written because four other documents already refer to "the admin screen" as
+though it were specified.** [04 §4.5](04-server-multiuser-deployment.md) wants it
+to say *"2 users have no usable connection"*; [04 §6.3](04-server-multiuser-deployment.md)
+puts the restart control there; [04 §6.5](04-server-multiuser-deployment.md)
+routes connectivity failures to admins; [04 §7](04-server-multiuser-deployment.md)
+says the Source link must *not* be buried in it. The capability model
+([04 §4.2](04-server-multiuser-deployment.md)) is enumerated and admin-granted
+and never says where the granting happens. This section is that where.
+
+**It is one surface with two halves**, not two surfaces. Everyone gets *Treatments*
+about themselves; admins additionally get *Administration* about the install. One
+route, one navigation entry, the admin half absent rather than disabled for
+people who do not have it.
+
+### 15.1 The user half: settings about yourself
+
+Available to every account, admin or not.
+
+- **Display name, and locale.** Both already on `Account`
+  ([04 §4.2](04-server-multiuser-deployment.md)); locale defaults from
+  `Accept-Language` on first login and this is where it stops being a guess.
+- **Change your own password.** Requires the current one. **This is not account
+  recovery** and does not weaken the position that there is none
+  ([04 §5.1](04-server-multiuser-deployment.md)): it is a logged-in user
+  rotating a secret they already hold. Someone locked out is still recovered
+  from the console with `--reset-password`, which is the whole design.
+  The form states *this install's* length rule
+  ([04 §4.1](04-server-multiuser-deployment.md)) rather than a number this build
+  carries, and reports a refusal against the same number — the two used to be
+  separate literals, and one of them was a guess about why any failure happened.
+- **Your connections** ([04 §4.5](04-server-multiuser-deployment.md)) and role
+  bindings, if `privateConnections` is granted. The one place a user sees which
+  of their bindings are personal and which fall back to system defaults.
+- **Preferences** — the presentation choices the app accumulates. §1.1's
+  density question will eventually land here, and two more are waiting: the
+  *As stored* pane state ([polish §2](workplan/09-polish.md)) and the all-kinds
+  library view ([polish §4](workplan/09-polish.md)). **Where these persist was
+  [06 B13](06-open-questions.md)**, and the answer is a per-user `prefs.json`
+  rather than a field on `Account`, settled at
+  [P2A §2.2](workplan/13-p2a-configuration-surface.md) — the question had to
+  close before the first preference shipped, not before this surface did.
+
+  **The theme is that first preference**, and the pane exists now because of it:
+  light, dark, or match my system (§1.2). It is separate from *You* above rather
+  than another field in that form, and the line is where the value lives. A
+  display name and a locale are `Account` fields that other people and the
+  server read — your name appears beside your turns, your locale picks the
+  language of a notification composed while the app is closed. A theme is read
+  by nothing but your own browser. One Save button writing to two stores with
+  different semantics, one of them optimistic, is the arrangement that split
+  avoids. And there is no Save button here at all: the choice applies as you
+  make it, because a control whose entire feedback is the page changing colour
+  should not ask you to confirm what you can already see.
+- **What is deliberately not here:** the Source link. It is required to be
+  visible to every logged-in user without hunting
+  ([04 §7](04-server-multiuser-deployment.md)), which a settings page is not.
+
+### 15.2 The admin half: accounts
+
+**The list is the surface.** Every account, with handle, display name, role,
+enabled state, and — the part that makes it worth building — *what is wrong with
+this account*, inline. The dead-end state from
+[04 §4.5](04-server-multiuser-deployment.md) is the motivating case: a user with
+no private connections allowed and no system connection available cannot do
+anything at all, and today that is discovered as a bug report from someone who
+cannot send a message.
+
+- **Create an account.** Handle, display name, initial password, role,
+  capabilities. All accounts are manually provisioned
+  ([04 §4.2](04-server-multiuser-deployment.md)) — no invites, no
+  self-registration — so this is the only way anyone but the first admin exists.
+  The password field states the install's minimum, and says plainly what a blank
+  box does where the minimum is `0`: it creates an account that signs in with an
+  empty password, rather than one with no password set.
+- **Capabilities are granted here**, and they are the enumerated three:
+  `privateConnections`, `fileAccess` (`none` / `read` / `write`, default `none`,
+  §4.2), `enableExtensions`. Each with the consequence written next to it rather
+  than in a manual — *"may add their own provider keys"*, *"may browse and edit
+  their own files in the app"*.
+- **Disable, and reset a password.** Disable is reversible and does not delete;
+  the console reset stays the break-glass for the admin who cannot log in.
+- **Removing an account is a deletion of a person's library**, and the surface
+  has to say so in those words, with the same honesty the trash gets
+  ([02 §10.2](02-data-model.md)). ~~**[OPEN]**~~ **Closed at
+  [P2A §2.3](workplan/13-p2a-configuration-surface.md):** *disable the login,
+  keep the data* is the default, hard removal is the deliberate second choice,
+  and they are **two verbs rather than one verb with a flag** — a `keepData`
+  toggle that turns a delete into a not-delete is what makes a dangerous control
+  feel routine. Removal moves the directory to `data/removed/` rather than
+  erasing it, and says so: the handle frees up immediately, the data does not
+  come back through it, and nothing deletes it but a person.
+- **Revoking `privateConnections` disables rather than deletes**, and the user
+  is told ([04 §4.5](04-server-multiuser-deployment.md)). The surface that does
+  the revoking is the one that owes that explanation.
+
+### 15.3 The admin half: the install
+
+The system-scope and server controls, which are admin capabilities rather than
+account ones:
+
+- **System connections** ([04 §4.5](04-server-multiuser-deployment.md)) — the
+  household's shared keys, and the default role bindings everyone inherits.
+- **The system library** ([04 §4.3](04-server-multiuser-deployment.md)) — a scope
+  an admin administers, explicitly **not** an account and with no system login.
+- **Extensions**: install is admin-only, enable is per-user
+  ([12 §7](12-extensions.md)). Both halves of that live in their respective
+  halves of this surface.
+- **Restart, and server notices** ([04 §6.3](04-server-multiuser-deployment.md)) —
+  including the two things restart must not do naively.
+- **Connectivity and bind state** ([04 §6.5](04-server-multiuser-deployment.md)),
+  shown here because a regular user cannot act on it.
+- **The config form**, generated from what the server sends rather than from a
+  list of fields kept here. Its numeric inputs carry the server's own bounds, and
+  it says so when a save is refused — for a while it rendered only success, so a
+  value past its range looked exactly like a value that had been accepted. That
+  is where `auth.minPasswordLength` ([04 §4.1](04-server-multiuser-deployment.md))
+  is set.
+
+### 15.4 What this is not
+
+**Not a dashboard, and not a place to put anything that is nobody's job.** The
+test for a panel here is that an admin has an *action*: grant, revoke, create,
+disable, restart, install. Statistics that lead to no action belong in the
+workbench (§3) or nowhere.
+
+**Not a permission system.** [04 §4.2.1](04-server-multiuser-deployment.md)
+enumerates three capabilities and two roles on purpose — no groups, no
+per-object ACLs, no custom roles. If this surface starts to want a matrix, the
+answer is that the model is right and the matrix is wrong.
+
+**Not where the density argument gets tested.** This is tooling by §1.1's split,
+so it is dense: the account list shows state inline rather than behind a
+per-account drill-down, which is the whole reason the dead-end warning is
+visible at all.
+
+### 15.5 When it gets built
+
+**The core is [P2A](workplan/13-p2a-configuration-surface.md)**, immediately
+after P2. An earlier revision of this section homed the whole surface at P10 and
+then observed that two pieces were wanted earlier; what changed is the reason.
+It is not that the user half is small — it is that five shipped artifacts
+already describe this surface as existing, from `config.example.json` calling it
+*"the primary path"* to [13 §4.2](13-internal-contracts.md) contracting the
+write against it. That makes it a missing dependency rather than an early
+feature, and [work plan §2.3](workplan/01-work-plan.md) is the rule written so
+the same gap does not open again.
+
+**What P2A closes:** §15.1 entire, §15.2 entire — including capability
+*granting*, with enforcement pulled forward from P10 so the grant is not a false
+front — and two of §15.3's five bullets, the config form and the restart notice.
+It also closes [06 B13](06-open-questions.md), because a preferences pane needs
+somewhere to put a preference.
+
+**What [P2B](workplan/14-p2b-provider-configuration.md) closes:** system
+connections and the default role bindings, admin-only. The *your connections*
+bullet in §15.1 waits with it, because a personal-connection surface that
+predates the `privateConnections` check is the trivial bypass
+[04 §4.5](04-server-multiuser-deployment.md) warns about, wearing a UI.
+
+**What genuinely remains at P10**, and not by default — each has a named
+blocker: the extensions panel (installation does not exist); *Restart now*
+(supervisor detection and drain, [04 §6.4](04-server-multiuser-deployment.md));
+connectivity state (its producer is P11's update check); and the notification
+preference rows [04 §3.5](04-server-multiuser-deployment.md) asks for (no class
+has a producer, and the router is P10's).
+
+**And §15.3's system-library bullet has no owner, which is a defect in this
+section rather than a scheduling question.** §4.2 makes that scope
+never-writable and [04 §4.3](04-server-multiuser-deployment.md) withholds admin
+write at 1.0 deliberately, so there is no *action* an admin takes there — and
+§15.4 says a panel without one does not belong. Either the bullet goes or 1.0's
+position on admin write changes; it should not sit here looking scheduled.

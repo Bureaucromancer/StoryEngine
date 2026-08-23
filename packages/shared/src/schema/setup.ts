@@ -16,16 +16,16 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Setup — docs/design/13-schemas.md §7.
+ * Setup — docs/design/10-schemas.md §7.
  *
- * **Setting is to Setup as a world is to a game played in it.** One Setting,
- * many Setups: *Rain City* is the world; *The Fixer's Debt*, Adventure mode,
- * playing Marlow is a way to play in it.
+ * **Treatment is to Setup as a reading of a world is to a game played under it.**
+ * One Treatment, many Setups: *Rain City, noir* is the reading; *The Fixer's
+ * Debt*, Adventure mode, playing Marlow is a way to play under it.
  *
  * A Setup is useful without ever being shared, which is the strongest argument
  * for it being a plain library object rather than part of a transport artefact.
  * Sessions are created from one **by copy** — editing a Setup afterwards cannot
- * reach a running session ([00 §3.1](docs/design/00-stance.md)).
+ * reach a running session ([00 §3.1](../../../../docs/design/00-stance.md)).
  */
 
 export const SETUP_SCHEMA = 'storyengine.setup/1';
@@ -77,10 +77,10 @@ export const Goal = Type.Object(
   {
     title: 'Goal',
     description:
-      'Why Goal sits on Setup rather than Setting: a Setting is a world and a ' +
-      'world has no win condition. Rain City does not have an objective; The ' +
-      'Fixer’s Debt does. Difficulty is deliberately not here — it is ' +
-      'Adventure’s, not every mode’s, so it lives in `mode.config`.',
+      'Why Goal sits on Setup rather than Treatment: a treatment frames a ' +
+      'world, and a world has no win condition. Rain City does not have an ' +
+      'objective; The Fixer’s Debt does. Difficulty is deliberately not ' +
+      'here — it is Adventure’s, not every mode’s, so it lives in `mode.config`.',
   },
 );
 export type Goal = Static<typeof Goal>;
@@ -99,29 +99,29 @@ export const Setup = Type.Object(
        * Whatever the mode's own setup collected. Stored verbatim, never
        * interpreted by the host, so a game can always recover the options it was
        * created with — and subject to the no-production-settings rule all the
-       * same ([00 §3.2](docs/design/00-stance.md)).
+       * same ([00 §3.2](../../../../docs/design/00-stance.md)).
        */
       config: Type.Unknown(),
     }),
 
-    /** One Setting; null = start bare. */
-    setting: Type.Union([Ref, Type.Null()]),
+    /** One Treatment; null = start bare. */
+    treatment: Type.Union([Ref, Type.Null()]),
     preset: Type.Union([Ref, Type.Null()]),
 
     cast: Type.Object({
       /** Offered as the played character. */
       personaOptions: Type.Array(Ref),
-      /** The party always contains the persona ([03 §8](docs/design/03-modes-and-turn-pipeline.md)). */
+      /** The party always contains the persona ([03 §8](../../../../docs/design/03-modes-and-turn-pipeline.md)). */
       partyDefault: Type.Array(Ref),
       /** null = the mode's default narrator. */
       narrator: Type.Union([Ref, Type.Null()]),
     }),
 
-    /** Beyond whatever the setting already links. */
+    /** Beyond whatever the treatment already links. */
     lore: Type.Array(LoreLink),
-    /** Overrides the setting's when present. */
+    /** Overrides the treatment's when present. */
     openings: Openings,
-    /** Additional to the setting's, not a replacement. */
+    /** Additional to the treatment's, not a replacement. */
     hooks: Type.Array(PlotHook),
     /**
      * Ordered: `goals[0]` is where play begins. Empty = no win condition, which
@@ -136,7 +136,7 @@ export const Setup = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${SETUP_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${SETUP_SCHEMA.replace('/', '.')}.json`,
     title: 'Setup',
     description:
       'How to start playing. No connections, no credentials, no endpoint URLs, ' +

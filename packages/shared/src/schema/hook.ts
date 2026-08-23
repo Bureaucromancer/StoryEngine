@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { Id, Ref } from './common.js';
 
 /**
- * PlotHook — docs/design/13-schemas.md §6.1.
+ * PlotHook — docs/design/10-schemas.md §6.1.
  *
  * A pool of authored, discrete plot turns, held out of context until a selector
  * judges the moment right. The inverse of a rule: a rule is condition-first, a
@@ -24,7 +24,17 @@ export const PlotHook = Type.Object(
     title: Type.String(),
     /** The content, handwritten. */
     premise: Type.String(),
-    scope: Type.Union([Type.Literal('world'), Type.Literal('local'), Type.Literal('personal')]),
+    /**
+     * Blast radius, not location — how big a turn this is. Named `magnitude`
+     * rather than `scope` because a Lorebook's `scope` answers a different
+     * question (where a book applies), and one word for two axes in two
+     * portable schemas is a trap. §6.1.
+     */
+    magnitude: Type.Union([
+      Type.Literal('sweeping'),
+      Type.Literal('local'),
+      Type.Literal('personal'),
+    ]),
 
     // ── Eligibility. Checked mechanically, before any model call. ──
     /**

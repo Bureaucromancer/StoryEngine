@@ -3,7 +3,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook, newPreset, newSetting, newSetup } from '../factories.js';
+import {
+  newActor,
+  newLorebook,
+  newPackage,
+  newPreset,
+  newTreatment,
+  newSetup,
+} from '../factories.js';
 import { ACTOR_SCHEMA } from './actor.js';
 import { PACKAGE_SCHEMA } from './package.js';
 import {
@@ -16,12 +23,21 @@ import {
   validate,
 } from './registry.js';
 
+/**
+ * One minimal instance of every kind — **all six** (F18).
+ *
+ * Package was missing, which made "a minimal instance of every kind validates"
+ * a claim about five of them. It is the kind least like the others and so the
+ * most worth including: a container whose contents are open by design, and the
+ * one whose round trip has never been exercised.
+ */
 const library = {
   actor: newActor('Vera Solano'),
   lorebook: newLorebook('Rain City'),
-  setting: newSetting('Rain City, noir'),
+  treatment: newTreatment('Rain City, noir'),
   setup: newSetup('The Fixer’s Debt'),
   preset: newPreset('House style'),
+  package: newPackage('The Rain City bundle'),
 };
 
 describe('the registry', () => {
@@ -36,7 +52,7 @@ describe('the registry', () => {
   it('covers every portable kind, so a container never enumerates them', () => {
     // The registry is the mechanism behind "every portable object
     // self-describes, so containers never enumerate kinds"
-    // ([15 §2](docs/design/15-work-plan.md)). If a kind is added to the design
+    // ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). If a kind is added to the design
     // and not here, a Package would carry it as unrecognised.
     expect(Object.keys(PORTABLE_SCHEMAS).sort()).toEqual(
       [
@@ -44,14 +60,14 @@ describe('the registry', () => {
         'storyengine.lorebook/1',
         'storyengine.package/1',
         'storyengine.preset/0',
-        'storyengine.setting/1',
+        'storyengine.treatment/1',
         'storyengine.setup/1',
       ].sort(),
     );
   });
 
   it('gives every portable kind a library directory', () => {
-    // [02 §5.1](docs/design/02-data-model.md) lists all six under
+    // [02 §5.1](../../../../docs/design/02-data-model.md) lists all six under
     // users/<handle>/library/, `packages/` included. A kind added to the
     // registry without a directory would have nowhere to be written.
     expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
@@ -91,7 +107,7 @@ describe('the registry', () => {
   });
 });
 
-describe('unknown-field preservation (docs/design/13-schemas.md §2)', () => {
+describe('unknown-field preservation (docs/design/10-schemas.md §2)', () => {
   it('accepts fields the schema does not declare', () => {
     // "A file written by a newer version must survive a round trip through an
     // older one." A /1 reader meeting a field added in /2 must not reject it.
@@ -144,7 +160,7 @@ describe('timestamps', () => {
     expect(isTimestamp('2026-08-13T12:00:00+01:00')).toBe(true);
     expect(isTimestamp('yesterday')).toBe(false);
     expect(isTimestamp('2026-08-13')).toBe(false);
-    // Never epoch milliseconds ([13 §3](docs/design/13-schemas.md)).
+    // Never epoch milliseconds ([10 §3](../../../../docs/design/10-schemas.md)).
     expect(isTimestamp('1786622400000')).toBe(false);
   });
 
@@ -154,5 +170,46 @@ describe('timestamps', () => {
       provenance: { ...library.actor.provenance, createdAt: 'yesterday' },
     };
     expect(validate(object).valid).toBe(false);
+  });
+});
+
+describe('the reserved `se.` namespace', () => {
+  // Reserved since P1.0 and enforced nowhere until P2.4 (F18) — the stage where
+  // the first `se.*` ids appear in anger. A reservation nothing checks is one
+  // that gets discovered by a card that already violates it.
+  it('refuses an author-defined section in it', () => {
+    const actor = newActor('Vera Solano') as unknown as {
+      profile: { sections: { id: string; title: string; body: string; disposition: string }[] };
+    };
+    actor.profile.sections.push({
+      id: 'se.mine',
+      title: 'Mine',
+      body: '',
+      disposition: 'always',
+    });
+
+    const result = validate(actor);
+    expect(result.valid).toBe(false);
+    expect(result.valid ? [] : result.issues[0]?.message).toContain('reserved');
+  });
+
+  it('permits the four conventional ids, which are themselves `se.*`', () => {
+    // The rule is a namespace reservation, not a ban: the engine's own ids live
+    // in it, and `newActor` creates all four.
+    expect(validate(newActor('Vera Solano')).valid).toBe(true);
+  });
+
+  it('leaves an author-defined section outside the namespace alone', () => {
+    const actor = newActor('Vera Solano') as unknown as {
+      profile: { sections: { id: string; title: string; body: string; disposition: string }[] };
+    };
+    actor.profile.sections.push({
+      id: 'combat-notes',
+      title: 'Combat notes',
+      body: '',
+      disposition: 'always',
+    });
+
+    expect(validate(actor).valid).toBe(true);
   });
 });

@@ -5,9 +5,11 @@ import { useId, useState, type JSX, type ReactNode } from 'react';
 
 import { ApiError } from '../api.js';
 import { useLogin, useSetup } from '../queries.js';
+import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
 
 /**
- * Login and first-run setup ([19 §1.3](docs/design/19-p1-implementation.md)).
+ * Login and first-run setup ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)).
  *
  * Which one renders is the server's call, via `GET /api/auth/state` — no
  * accounts on disk routes every request to create-the-first-admin. Neither form
@@ -15,14 +17,16 @@ import { useLogin, useSetup } from '../queries.js';
  * plain inputs rather than the P1.7 `Field` primitive.
  */
 
+/**
+ * The same control as `ui/Field`'s, minus the label machinery these forms do
+ * not want (see the header comment). It gained `text-sm` when the appearance
+ * layer landed — the two had drifted, and the field primitive was the one with
+ * the deliberate size.
+ */
 const INPUT_CLASS =
-  'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 ' +
-  'focus-visible:outline-2 focus-visible:outline-slate-500';
+  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus';
 
-const BUTTON_CLASS =
-  'w-full rounded-md bg-slate-800 px-3 py-2 font-medium text-white ' +
-  'hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-slate-500 ' +
-  'disabled:cursor-not-allowed disabled:bg-slate-400';
+const LABEL_CLASS = 'mb-1 block text-sm font-medium text-ink-muted';
 
 /**
  * The handle becomes a directory name, so the server validates it hard
@@ -31,10 +35,28 @@ const BUTTON_CLASS =
  */
 const HANDLE_PATTERN = '[a-z0-9\\-]{0,62}[a-z0-9]';
 
+/**
+ * The password rule as one whole sentence per case — [01 §2].
+ *
+ * The number comes from the server (`GET /api/auth/state`) because it is this
+ * *install's* setting rather than this build's. That is the one way this rule
+ * differs from `HANDLE_PATTERN` above, which can be mirrored because it is the
+ * same on every install; a literal here would be wrong wherever it was changed.
+ *
+ * Zero gets its own sentence rather than "At least 0 characters", which reads as
+ * a bug in the software instead of a decision the operator made — and one gets
+ * its own because "1 characters" is simply wrong.
+ */
+function passwordRule(minimum: number): string {
+  if (minimum === 0) return 'This install sets no minimum length. You may leave this blank.';
+  if (minimum === 1) return 'At least 1 character.';
+  return `At least ${String(minimum)} characters.`;
+}
+
 function Panel(props: { title: string; children: ReactNode }): JSX.Element {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center p-6">
-      <h1 className="mb-6 text-center text-2xl font-semibold text-slate-900">{props.title}</h1>
+      <h1 className="mb-6 text-center text-title text-ink">{props.title}</h1>
       {props.children}
     </main>
   );
@@ -43,9 +65,9 @@ function Panel(props: { title: string; children: ReactNode }): JSX.Element {
 function ErrorNotice(props: { message: string | null }): JSX.Element | null {
   if (props.message === null) return null;
   return (
-    <p role="alert" className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+    <Alert tone="error" role="alert">
       {props.message}
-    </p>
+    </Alert>
   );
 }
 
@@ -80,7 +102,7 @@ export function LoginForm(): JSX.Element {
       >
         <ErrorNotice message={loginErrorMessage(login.error)} />
         <div>
-          <label htmlFor={handleId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={handleId} className={LABEL_CLASS}>
             Handle
           </label>
           <input
@@ -96,7 +118,7 @@ export function LoginForm(): JSX.Element {
           />
         </div>
         <div>
-          <label htmlFor={passwordId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={passwordId} className={LABEL_CLASS}>
             Password
           </label>
           <input
@@ -108,18 +130,27 @@ export function LoginForm(): JSX.Element {
               setPassword(event.target.value);
             }}
             autoComplete="current-password"
-            required
+            /**
+             * **`required` on the handle above and not here**, and the
+             * asymmetry is deliberate. A handle can never be empty. A password
+             * can: at `auth.minPasswordLength: 0`, and on any install where
+             * somebody's password was set from the console, which honours no
+             * minimum at all. The one person a `required` here would stop is
+             * the one the console repair exists for, and it would stop them
+             * with no message. A blank submission is answered 401 like any
+             * other wrong password, which is the honest failure.
+             */
           />
         </div>
-        <button type="submit" className={BUTTON_CLASS} disabled={login.isPending}>
+        <Button type="submit" variant="primary" className="w-full" disabled={login.isPending}>
           Sign in
-        </button>
+        </Button>
       </form>
     </Panel>
   );
 }
 
-export function SetupForm(): JSX.Element {
+export function SetupForm(props: { minPasswordLength: number }): JSX.Element {
   const setup = useSetup();
   const handleId = useId();
   const passwordId = useId();
@@ -130,7 +161,7 @@ export function SetupForm(): JSX.Element {
 
   return (
     <Panel title="Welcome to StoryEngine">
-      <p className="mb-6 text-center text-sm text-slate-600">
+      <p className="mb-6 text-center text-sm text-ink-subtle">
         This install has no accounts yet. Create the first administrator account to begin.
       </p>
       <form
@@ -146,7 +177,7 @@ export function SetupForm(): JSX.Element {
       >
         <ErrorNotice message={setup.error === null ? null : setup.error.message} />
         <div>
-          <label htmlFor={handleId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={handleId} className={LABEL_CLASS}>
             Handle
           </label>
           <input
@@ -163,13 +194,13 @@ export function SetupForm(): JSX.Element {
             autoFocus
             required
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-ink-faint">
             Lowercase letters, digits and hyphens. This also names your folder on disk, and it
             cannot be changed later.
           </p>
         </div>
         <div>
-          <label htmlFor={displayNameId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={displayNameId} className={LABEL_CLASS}>
             Display name (optional)
           </label>
           <input
@@ -184,7 +215,7 @@ export function SetupForm(): JSX.Element {
           />
         </div>
         <div>
-          <label htmlFor={passwordId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={passwordId} className={LABEL_CLASS}>
             Password
           </label>
           <input
@@ -196,14 +227,16 @@ export function SetupForm(): JSX.Element {
               setPassword(event.target.value);
             }}
             autoComplete="new-password"
-            minLength={8}
-            required
+            // `minLength={0}` is a no-op in the DOM, so the zero case is
+            // carried entirely by dropping `required`.
+            minLength={props.minPasswordLength}
+            required={props.minPasswordLength > 0}
           />
-          <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
+          <p className="mt-1 text-xs text-ink-faint">{passwordRule(props.minPasswordLength)}</p>
         </div>
-        <button type="submit" className={BUTTON_CLASS} disabled={setup.isPending}>
+        <Button type="submit" variant="primary" className="w-full" disabled={setup.isPending}>
           Create account
-        </button>
+        </Button>
       </form>
     </Panel>
   );

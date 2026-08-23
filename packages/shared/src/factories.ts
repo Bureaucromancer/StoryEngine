@@ -5,8 +5,9 @@ import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
+import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
-import { type Setting, SETTING_SCHEMA } from './schema/setting.js';
+import { type Treatment, TREATMENT_SCHEMA } from './schema/treatment.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
 
 /**
@@ -18,7 +19,7 @@ import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
  * 2 is the same number whether it arrives through the API, an import or a
  * fixture.
  *
- * `newActor` is where [13 §4](docs/design/13-schemas.md)'s *"the editor creates
+ * `newActor` is where [10 §4](../../../docs/design/10-schemas.md)'s *"the editor creates
  * all four on a new actor"* actually happens. Conventional sections are enforced
  * at three layers and none of them is the schema, so this is the first of the
  * three.
@@ -96,7 +97,6 @@ export function newLorebook(name: string): Lorebook {
     id: uuidv7(),
     name,
     description: '',
-    category: 'uncategorized',
     scope: { kind: 'global' },
     enabled: true,
     scanDepth: 2,
@@ -118,7 +118,7 @@ export function newLorebook(name: string): Lorebook {
 
 /**
  * A lore entry with the doc's stated defaults
- * ([13 §5](docs/design/13-schemas.md)).
+ * ([10 §5](../../../docs/design/10-schemas.md)).
  *
  * Here for the same reason the others are — the defaults belong to the schema
  * rather than to whatever creates an entry — and it earns its place immediately:
@@ -180,9 +180,9 @@ export function newLoreEntry(name: string): LoreEntry {
   };
 }
 
-export function newSetting(name: string): Setting {
+export function newTreatment(name: string): Treatment {
   return {
-    schema: SETTING_SCHEMA,
+    schema: TREATMENT_SCHEMA,
     id: uuidv7(),
     name,
     blurb: '',
@@ -193,7 +193,7 @@ export function newSetting(name: string): Setting {
       pov: 'second',
       tense: 'present',
       // null, not "sfw". Unspecified means *ask*, and the difference is
-      // deliberate ([13 §2](docs/design/13-schemas.md)).
+      // deliberate ([10 §2](../../../docs/design/10-schemas.md)).
       contentRating: null,
       styleNotes: '',
     },
@@ -217,7 +217,7 @@ export function newSetup(name: string): Setup {
     name,
     blurb: '',
     mode: { id: '', config: null },
-    setting: null,
+    treatment: null,
     preset: null,
     cast: { personaOptions: [], partyDefault: [], narrator: null },
     lore: [],
@@ -257,6 +257,34 @@ export function newPreset(name: string): Preset {
     provenance: blankProvenance(),
     generated: null,
     compat: null,
+    metadata: {},
+  };
+}
+
+/**
+ * An empty package — the sixth kind, which had no factory (F18).
+ *
+ * Empty is the honest default and not a placeholder: a package with no contents
+ * is a container that has not been filled, and filling it is the *export* half
+ * of P4. What this proves in the round-trip fixtures is the envelope — that a
+ * Package survives a write and a read like every other kind — which is the
+ * thing all six are checked for. It says nothing about the container's job,
+ * because that job does not exist yet.
+ *
+ * `version` is the package's own, not a schema version: two people can ship
+ * `v2` of the same bundle ([10 §7](../../../docs/design/10-schemas.md)).
+ */
+export function newPackage(name: string): Package {
+  return {
+    schema: PACKAGE_SCHEMA,
+    id: uuidv7(),
+    name,
+    version: '1.0.0',
+    description: '',
+    media: [],
+    contents: [],
+    requires: { modes: [], extensions: [], capabilities: [] },
+    provenance: blankProvenance(),
     metadata: {},
   };
 }

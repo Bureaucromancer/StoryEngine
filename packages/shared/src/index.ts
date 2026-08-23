@@ -20,7 +20,7 @@ export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';
 export * from './schema/lorebook.js';
-export * from './schema/setting.js';
+export * from './schema/treatment.js';
 export * from './schema/setup.js';
 export * from './schema/preset.js';
 export * from './schema/package.js';

@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { EmbeddedMedia, Id, Metadata, Provenance } from './common.js';
 
 /**
- * Package — docs/design/13-schemas.md §9.
+ * Package — docs/design/10-schemas.md §9.
  *
  * **An arbitrary bundle of portable objects, and nothing else.** With Setup
  * carrying the game definition, a Package is reduced to what it always should
@@ -69,7 +69,7 @@ export const Package = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${PACKAGE_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${PACKAGE_SCHEMA.replace('/', '.')}.json`,
     title: 'Package',
     description:
       'No `entry` field. A package containing one or more Setups is startable, ' +

@@ -16,7 +16,7 @@ import { findByPath } from './query.js';
 /**
  * The watcher — **foreign writes only**.
  *
- * [02 §5.1.1](docs/design/02-data-model.md) is the whole design of this file.
+ * [02 §5.1.1](../../../../docs/design/02-data-model.md) is the whole design of this file.
  * An earlier draft of the data model had *all* index updates come from here,
  * which is appealing — one path, the index provably a function of the disk — and
  * wrong in a way that would not have surfaced until the P1 demo: it makes every
@@ -45,7 +45,17 @@ export interface WatcherOptions {
    * being read half-written.
    */
   stabilityThresholdMs?: number;
-  /** Retention cap for the history a foreign edit leaves behind ([02 §11.3]). */
+  /**
+   * Retention cap for the history a foreign edit leaves behind ([02 §11.3]).
+   *
+   * **Read at the point of use, not copied here.** `history.keepPerObject` is
+   * tiered `live` ([13 §4]), and the app hands this watcher the very
+   * `LibraryContext` the routes write through — so both paths into one object's
+   * history read the same cell, and a live change reaches both. Copying the
+   * number into a field at construction is what made the tier untrue, and it
+   * made the two paths able to disagree, which is worse than either being
+   * stale.
+   */
   keepHistoryPerObject?: number;
   /** Called after each handled event. Test seam, and a logging point later. */
   onChange?: (event: WatchEvent) => void;
@@ -63,7 +73,8 @@ export class LibraryWatcher {
   readonly #registry: SelfWriteRegistry;
   readonly #onChange: (event: WatchEvent) => void;
   readonly #stabilityThresholdMs: number;
-  readonly #keepHistoryPerObject: number;
+  /** The options object itself, so `keepHistoryPerObject` stays a live read. */
+  readonly #options: WatcherOptions;
   #watcher: FSWatcher | null = null;
   /**
    * Events are serialised through one promise chain.
@@ -71,7 +82,7 @@ export class LibraryWatcher {
    * chokidar does not wait for a handler, so a rename firing unlink-then-add
    * could otherwise have the add's tombstone lookup run before the unlink's
    * update commits — turning a move into a delete plus a create, which is the
-   * exact failure [19 §1.1](docs/design/19-p1-implementation.md) exists to
+   * exact failure [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) exists to
    * prevent. Ordering is not an optimisation here; it is the mechanism.
    */
   #queue: Promise<void> = Promise.resolve();
@@ -82,7 +93,7 @@ export class LibraryWatcher {
     this.#registry = options.registry ?? selfWrites;
     this.#onChange = options.onChange ?? (() => undefined);
     this.#stabilityThresholdMs = options.stabilityThresholdMs ?? 150;
-    this.#keepHistoryPerObject = options.keepHistoryPerObject ?? 50;
+    this.#options = options;
   }
 
   async start(): Promise<void> {
@@ -95,6 +106,12 @@ export class LibraryWatcher {
         stabilityThreshold: this.#stabilityThresholdMs,
         pollInterval: 20,
       },
+      // **Links are not followed** (F1). chokidar's default is to follow them,
+      // which would make a link inside the library a second path to content
+      // outside it — indexed as an object, with the escaping path stored in a
+      // row that later reads open. The audited resolver refuses such a path
+      // when asked; not following the link means it is never even offered.
+      followSymlinks: false,
       // What the watcher must never watch: its own index (whose SQLite/WAL
       // writes would otherwise feed the event queue on every ingest), the
       // operational store, and the two root files that are not content —
@@ -160,7 +177,7 @@ export class LibraryWatcher {
     // The state a foreign edit is replacing, read *before* the index moves on.
     const previous = findByPath(this.#db, path);
 
-    matureTombstones(this.#db);
+    matureTombstones(this.#db, this.#layout);
     const outcome = await ingestFile(this.#db, this.#layout, path);
 
     // **Hand-edits get history for free** ([02 §11.2]) — the strongest argument
@@ -175,11 +192,11 @@ export class LibraryWatcher {
         : outcome.reason === 'invalid';
     if (previous && changed) {
       await snapshotReplaced({
-        objectRoot: this.#layout.objectRoot(parsed.scope, parsed.schemaId, parsed.slug),
+        objectRoot: this.#layout.objectRoot(parsed.owner, parsed.schemaId, parsed.slug),
         payload: previous.body,
         source: { kind: 'external' },
         reason: '',
-        keepPerObject: this.#keepHistoryPerObject,
+        keepPerObject: this.#options.keepHistoryPerObject ?? 50,
       });
     }
 
@@ -198,7 +215,7 @@ export class LibraryWatcher {
     // No self-write check: the unlink half of temp-then-rename is on the *temp*
     // file, which is not an object path and was ignored above. An unlink on the
     // object path is somebody deleting it.
-    const removed = removeFile(this.#db, path);
+    const removed = removeFile(this.#db, this.#layout, path);
     this.#onChange({ type: removed ? 'removed' : 'ignored', path });
   }
 

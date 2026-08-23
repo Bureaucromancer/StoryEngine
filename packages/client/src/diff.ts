@@ -4,7 +4,7 @@
 /**
  * A field-level diff between two versions of an object — the answer to *"what
  * actually changed between these"*, which a list of timestamps cannot give
- * ([05 §11.2a](docs/design/05-ui-surfaces.md)).
+ * ([05 §11.2a](../../../docs/design/05-ui-surfaces.md)).
  *
  * Paths are dotted, arrays by index (`profile.sections[0].body`), matching the
  * convention `GeneratedFieldProvenance` keys use. The comparison is structural:

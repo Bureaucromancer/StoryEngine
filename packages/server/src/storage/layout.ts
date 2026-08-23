@@ -10,42 +10,51 @@ import {
   PACKAGE_SCHEMA,
   type PortableSchemaId,
   PRESET_SCHEMA,
-  SETTING_SCHEMA,
+  TREATMENT_SCHEMA,
   SETUP_SCHEMA,
   slugify,
 } from '@storyengine/shared';
 
 import { listEntryNames } from './files.js';
-import { assertSafeSegment, isContained, PathEscapeError, resolveWithin } from './paths.js';
+import {
+  PathEscapeError,
+  assertRealContained,
+  assertSafeSegment,
+  isContained,
+  realRoot,
+  resolveWithin,
+} from './paths.js';
 
 /**
- * The data directory, from [02 §5.1](docs/design/02-data-model.md).
+ * The data directory, from [02 §5.1](../../../../docs/design/02-data-model.md).
  *
  * ```
  * /data
  *   config.json
- *   accounts.json          authoritative, never derived — [19 §1.3]
+ *   accounts.json          authoritative, never derived — [P1 §1.3]
  *   system/library/        shipped, read-only, loaded for everyone
  *   users/<handle>/library/…
  *   index/index.sqlite     derived. Deleting it must be a non-event.
- *   state/state.sqlite     operational. Deleting it is *not* a non-event — [18 §5.1]
+ *   state/state.sqlite     operational. Deleting it is *not* a non-event — [13 §5.1]
  * ```
  *
- * **The path is the owner.** There is no `owner` field and no shared user area
- * ([04 §4.3](docs/design/04-server-multiuser-deployment.md)), which is why every
+ * **The path is the owner.** No stored object carries an owner field and there
+ * is no shared user area
+ * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), which is why every
  * route resolves its root from the session rather than from a parameter — and
- * why `userRoot` treats its handle as hostile input.
+ * why `userRoot` treats its handle as hostile input. `LibraryOwner` below is
+ * the *argument* that selects a tree, never a property of what is in it.
  *
  * `system/library/` has the same shape as a user's, so the merge is a query
- * rather than a special case ([02 §5.1](docs/design/02-data-model.md)). That is
- * the entire reason `LibraryScope` exists instead of two sets of functions.
+ * rather than a special case ([02 §5.1](../../../../docs/design/02-data-model.md)). That is
+ * the entire reason `LibraryOwner` exists instead of two sets of functions.
  */
 
-export type LibraryScope = { kind: 'user'; handle: string } | { kind: 'system' };
+export type LibraryOwner = { kind: 'user'; handle: string } | { kind: 'system' };
 
-export const SYSTEM_SCOPE: LibraryScope = { kind: 'system' };
+export const SYSTEM_OWNER: LibraryOwner = { kind: 'system' };
 
-export function userScope(handle: string): LibraryScope {
+export function userOwner(handle: string): LibraryOwner {
   return { kind: 'user', handle };
 }
 
@@ -54,15 +63,15 @@ export function userScope(handle: string): LibraryScope {
  *
  * Actors are the odd one out and deliberately so: `card.png` is canonical, not a
  * mirror of a JSON file, because two sources of truth is the failure mode being
- * avoided ([02 §5.2](docs/design/02-data-model.md)).
+ * avoided ([02 §5.2](../../../../docs/design/02-data-model.md)).
  */
 export const OBJECT_FILENAMES = {
   [ACTOR_SCHEMA]: 'card.png',
   [LOREBOOK_SCHEMA]: 'lorebook.json',
-  [SETTING_SCHEMA]: 'setting.json',
+  [TREATMENT_SCHEMA]: 'treatment.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
-  // [02 §5.1](docs/design/02-data-model.md) gives packages a folder and defers
+  // [02 §5.1](../../../../docs/design/02-data-model.md) gives packages a folder and defers
   // its contents to §7, which describes the *format* rather than the on-disk
   // shape. A stored package also holds embedded copies of its contents, so this
   // filename is the manifest rather than the whole object — and the arrangement
@@ -76,7 +85,7 @@ export const OBJECT_FILENAMES = {
  *
  * Stricter than `slugify` produces, on purpose: this is the one user-supplied
  * string that becomes a path component at first-run
- * ([19 §1.3](docs/design/19-p1-implementation.md)), and the cost of a mistake is
+ * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)), and the cost of a mistake is
  * one account reaching another's directory.
  */
 const HANDLE_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -106,7 +115,7 @@ export function assertValidHandle(handle: string): void {
  * Every path in the data directory, derived from one root.
  *
  * A class rather than loose functions taking `dataRoot` everywhere, because the
- * root comes from config ([18 §4](docs/design/18-internal-contracts.md)) and
+ * root comes from config ([13 §4](../../../../docs/design/13-internal-contracts.md)) and
  * threading it through every call site is how one caller ends up using a
  * default and writing somewhere nobody expects.
  */
@@ -114,7 +123,40 @@ export class Layout {
   readonly dataRoot: string;
 
   constructor(dataRoot: string) {
-    this.dataRoot = resolveWithin(dataRoot, '.');
+    /**
+     * **Normalised here, not at `watch()`** — F26.
+     *
+     * chokidar builds every path it reports by concatenating onto the string it
+     * was handed, so the root's spelling is the spelling of everything that
+     * comes back out: the index's primary keys
+     * ([02 §5.1](../../../../docs/design/02-data-model.md)), the self-write registry's keys,
+     * and what {@link parseObjectPath} has to recognise. Normalising at the
+     * watcher alone leaves all three disagreeing with a layout that still holds
+     * the alias — the watcher stops aborting and starts silently ignoring every
+     * event, which is worse than the crash because nothing says so.
+     *
+     * Lexical gate first, then the filesystem, as everywhere else here.
+     */
+    this.dataRoot = realRoot(resolveWithin(dataRoot, '.'));
+  }
+
+  /**
+   * The check the lexical rules cannot make — F1.
+   *
+   * Every path this class builds passes {@link resolveWithin}, which is a
+   * string test: it refuses `..`, absolute paths, device names and the rest,
+   * and it cannot refuse `library/actors/vera` when `actors` turns out to be a
+   * link to somewhere else. Only the filesystem knows that, and only after the
+   * path is built — which is why this is a separate call rather than part of
+   * the builders, and why it is async while they are not.
+   *
+   * Call it where a path becomes I/O: before a write, before reading bytes at a
+   * path that came out of the index, and when ingest is handed one by the
+   * watcher. Those are the three doors — a path that never opens a file cannot
+   * escape anything.
+   */
+  async assertReal(path: string): Promise<void> {
+    await assertRealContained(this.dataRoot, path);
   }
 
   /** `data/config.json` — commented example shipped alongside ([02 §5.4]). */
@@ -124,7 +166,7 @@ export class Layout {
 
   /**
    * `data/accounts.json`. Authoritative state, so a file and never an index row
-   * ([19 §1.3](docs/design/19-p1-implementation.md)) — and deliberately outside
+   * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)) — and deliberately outside
    * every user directory, so the file browser can never serve a password hash
    * whatever `fileAccess` a user is granted.
    */
@@ -137,7 +179,7 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'index');
   }
 
-  /** Derived and disposable. Deleting it must be a non-event ([18 §5]). */
+  /** Derived and disposable. Deleting it must be a non-event ([13 §5]). */
   get indexFile(): string {
     return resolveWithin(this.indexRoot, 'index.sqlite');
   }
@@ -145,7 +187,7 @@ export class Layout {
   /**
    * Operational state: jobs, idempotency keys, the notification inbox. **Not**
    * derived, not rebuildable, and therefore not in the index
-   * ([18 §5.1](docs/design/18-internal-contracts.md)).
+   * ([13 §5.1](../../../../docs/design/13-internal-contracts.md)).
    */
   get stateRoot(): string {
     return resolveWithin(this.dataRoot, 'state');
@@ -160,7 +202,7 @@ export class Layout {
    *
    * Operational rather than derived, by the same test: losing it would surprise
    * a user — everyone is logged out. Not in `config.json`, which has nowhere to
-   * put a credential ([18 §4]), and not in the index, which is deletable
+   * put a credential ([13 §4]), and not in the index, which is deletable
    * without consequence.
    */
   get sessionKeyFile(): string {
@@ -176,8 +218,77 @@ export class Layout {
     return resolveWithin(this.systemRoot, 'connections');
   }
 
+  /**
+   * `system/bindings.json` — the install defaults everyone inherits
+   * ([P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md)).
+   *
+   * **The same shape as a user's, read by the same reader, layered under it.**
+   * Three documents describe this layer and none of them had a path:
+   * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) says a dangling binding
+   * *"falls back to system bindings"*, [05 §15.3](../../../../docs/design/05-ui-surfaces.md) calls
+   * system connections *"the default role bindings everyone inherits"*, and
+   * [07 §5.1](../../../../docs/design/07-tech-stack.md) puts *install default* at the weak end of
+   * the resolution order. What shipped was one layer, so the fallback those
+   * sentences promise could not happen — which is why [P2B §1.2] calls
+   * *"no new mechanism"* the sentence that hid the work.
+   *
+   * Beside `connections/` in `system/` rather than in a user's directory,
+   * because the path is the owner ([04 §4.3]) and this belongs to the install.
+   */
+  get systemBindingsFile(): string {
+    return resolveWithin(this.systemRoot, 'bindings.json');
+  }
+
   get usersRoot(): string {
     return resolveWithin(this.dataRoot, 'users');
+  }
+
+  /**
+   * Where a removed account's directory goes — `data/removed/`.
+   *
+   * **Deleting an account is a move**, which is the position `trashDestination`
+   * already takes for objects and sessions ([02 §10.2]). What is different is
+   * where it lands: the user's own trash is inside the directory being removed,
+   * so a removal that used it would be moving a folder into itself.
+   *
+   * Deliberately **outside** every user directory and outside the maturation
+   * sweep's reach. The sweep is per-user retention, and this is not a user any
+   * more — nothing should quietly collect it. [P2A §2.3] makes the surface say
+   * so in words: StoryEngine will not delete this, remove the folder yourself
+   * when you are sure.
+   */
+  get removedRoot(): string {
+    return resolveWithin(this.dataRoot, 'removed');
+  }
+
+  /**
+   * `removed/<handle>-<suffix>`.
+   *
+   * Suffixed for the same reason the trash is: remove-recreate-remove must not
+   * collide, and the handle is free for reuse the moment the record goes. That
+   * pair — the name reusable immediately, the old data not reachable through it
+   * — is the property that makes the move better than either erasing the folder
+   * or leaving it in place.
+   */
+  removedDestination(handle: string, suffix: string): string {
+    assertValidHandle(handle);
+    return resolveWithin(this.removedRoot, `${handle}-${suffix}`);
+  }
+
+  /**
+   * `users/<handle>/prefs.json` — client preferences ([06 B13]).
+   *
+   * A per-user file rather than `localStorage` or a map on `Account`: pane
+   * state that does not survive a move to another browser is not state anybody
+   * wanted, and `accounts.json` is authentication — a document every request
+   * reads and every password change rewrites is the wrong home for whether a
+   * pane is collapsed.
+   *
+   * **The server does not validate its contents.** A preference the client
+   * stops using rots quietly here rather than needing a migration.
+   */
+  prefsFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'prefs.json');
   }
 
   userRoot(handle: string): string {
@@ -185,10 +296,13 @@ export class Layout {
     return resolveWithin(this.usersRoot, handle);
   }
 
-  /** Holds the password hash and `role`, so it is never content ([05 §4.2.1]). */
-  accountFile(handle: string): string {
-    return resolveWithin(this.userRoot(handle), 'account.json');
-  }
+  // No `accountFile`. There is no `users/<handle>/account.json` (F10): P1 §1.3
+  // moved every account into one `accounts.json` at the data root, deliberately
+  // outside every user directory, so that a file browser cannot serve a
+  // password hash whatever `fileAccess` a user is granted. The method survived
+  // the decision that overturned it and pointed at a path nothing writes —
+  // which is worse than a missing helper, because it reads as a supported
+  // location.
 
   userConnectionsRoot(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'connections');
@@ -222,31 +336,46 @@ export class Layout {
     slug: string,
     suffix: string,
   ): string {
-    return resolveWithin(this.trashRoot(handle), LIBRARY_DIRECTORIES[schemaId], `${slug}-${suffix}`);
+    return resolveWithin(
+      this.trashRoot(handle),
+      LIBRARY_DIRECTORIES[schemaId],
+      `${slug}-${suffix}`,
+    );
   }
 
-  libraryRoot(scope: LibraryScope): string {
-    return scope.kind === 'system'
+  /**
+   * Where a deleted session's folder lands.
+   *
+   * `trash/sessions/<id>-<suffix>` — beside the library kinds rather than inside
+   * one, because a session is not a library object and the trash is organised
+   * the way the live tree is ([02 §10.3](../../../../docs/design/02-data-model.md)).
+   */
+  sessionTrashDestination(handle: string, sessionId: string, suffix: string): string {
+    return resolveWithin(this.trashRoot(handle), 'sessions', `${sessionId}-${suffix}`);
+  }
+
+  libraryRoot(owner: LibraryOwner): string {
+    return owner.kind === 'system'
       ? resolveWithin(this.systemRoot, 'library')
-      : resolveWithin(this.userRoot(scope.handle), 'library');
+      : resolveWithin(this.userRoot(owner.handle), 'library');
   }
 
   /** `…/library/actors`, `…/library/lorebooks`, and so on. */
-  kindRoot(scope: LibraryScope, schemaId: PortableSchemaId): string {
-    return resolveWithin(this.libraryRoot(scope), LIBRARY_DIRECTORIES[schemaId]);
+  kindRoot(owner: LibraryOwner, schemaId: PortableSchemaId): string {
+    return resolveWithin(this.libraryRoot(owner), LIBRARY_DIRECTORIES[schemaId]);
   }
 
-  objectRoot(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.kindRoot(scope, schemaId), slug);
+  objectRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.kindRoot(owner, schemaId), slug);
   }
 
-  objectFile(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.objectRoot(scope, schemaId, slug), OBJECT_FILENAMES[schemaId]);
+  objectFile(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.objectRoot(owner, schemaId, slug), OBJECT_FILENAMES[schemaId]);
   }
 
   /** Bulk assets, relative to the object folder and never escaping it ([02 §5.3]). */
-  assetsRoot(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.objectRoot(scope, schemaId, slug), 'assets');
+  assetsRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.objectRoot(owner, schemaId, slug), 'assets');
   }
 
   /**
@@ -263,6 +392,24 @@ export class Layout {
    * not. That is what keeps a gallery of forty images from producing forty
    * spurious index events.
    */
+  /**
+   * A path inside the data directory, in its portable form — F23.
+   *
+   * `users/ned/library/actors/vera/card.png`: relative to the root and always
+   * `/`-separated, whatever the platform stored.
+   *
+   * The index keeps the **native absolute** path, because that is what opens a
+   * file. Anything that *orders* or *compares* paths has to use this instead:
+   * the duplicate rule is "earliest path wins", and under SQLite's BINARY
+   * collation the byte that decides is the separator — `/` is 0x2F and `\` is
+   * 0x5C. Where one slug is a prefix of another, `vera` beats `vera2` on Linux
+   * and loses on Windows, which would make the shadowed copy platform-dependent
+   * and gate step 12 answer differently on the two CI legs.
+   */
+  portablePath(path: string): string | null {
+    return relativeWithin(this.dataRoot, path);
+  }
+
   parseObjectPath(path: string): ParsedObjectPath | null {
     const relative = relativeWithin(this.dataRoot, path);
     if (!relative) return null;
@@ -270,14 +417,14 @@ export class Layout {
     const parts = relative.split('/');
 
     // system/library/<kind>/<slug>/<file>  |  users/<handle>/library/<kind>/<slug>/<file>
-    let scope: LibraryScope;
+    let owner: LibraryOwner;
     let rest: string[];
     if (parts[0] === 'system') {
-      scope = SYSTEM_SCOPE;
+      owner = SYSTEM_OWNER;
       rest = parts.slice(1);
     } else if (parts[0] === 'users' && parts[1] !== undefined) {
       if (!isValidHandle(parts[1])) return null;
-      scope = userScope(parts[1]);
+      owner = userOwner(parts[1]);
       rest = parts.slice(2);
     } else {
       return null;
@@ -294,12 +441,12 @@ export class Layout {
 
     if (filename !== OBJECT_FILENAMES[schemaId]) return null;
 
-    return { scope, schemaId, slug, path };
+    return { owner, schemaId, slug, path };
   }
 }
 
 export interface ParsedObjectPath {
-  scope: LibraryScope;
+  owner: LibraryOwner;
   schemaId: PortableSchemaId;
   slug: string;
   path: string;
@@ -323,7 +470,7 @@ function relativeWithin(root: string, path: string): string | null {
  *
  * **Derived at creation and then frozen** — renaming an object changes the name
  * *inside the file* and the folder keeps the name it was born with
- * ([19 §1.1](docs/design/19-p1-implementation.md)). The engine never moves the
+ * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). The engine never moves the
  * user's directories, so this runs exactly once per object and is the only place
  * a slug is chosen.
  *

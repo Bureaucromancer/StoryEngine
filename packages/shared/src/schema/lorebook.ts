@@ -7,7 +7,7 @@ import { AssetRef, EmbeddedMedia, GeneratedMap, Id, Metadata, Provenance } from 
 import { PlotHook } from './hook.js';
 
 /**
- * Lorebook — docs/design/13-schemas.md §5.
+ * Lorebook — docs/design/10-schemas.md §5.
  *
  * Entry activation is taken from Marinara close to unchanged, because it is a
  * decade of empirical tuning and it is the interchange format. The changes are
@@ -94,7 +94,7 @@ export const LoreEntry = Type.Object(
     selective: Type.Boolean(),
     matchWholeWords: Type.Boolean(),
     caseSensitive: Type.Boolean(),
-    /** Patterns run under a hard execution timeout ([08 §5.1](docs/design/08-triage.md)). */
+    /** Patterns run under a hard execution timeout ([triage §5.1](../../../../docs/design/workplan/02-triage.md)). */
     useRegex: Type.Boolean(),
     /** null = inherit from the book. */
     scanDepth: NullableNumber,
@@ -179,7 +179,7 @@ export const LoreEntry = Type.Object(
 
     /**
      * Pictures of the thing this entry describes
-     * ([13 §5.1](docs/design/13-schemas.md)).
+     * ([10 §5.1](../../../../docs/design/10-schemas.md)).
      *
      * ⚠ **MEDIA DOES NOT ACTIVATE.** An entry firing on a keyword contributes
      * its *text*. Its images are not retrieved, not budgeted and not sent — at
@@ -213,14 +213,6 @@ export const Lorebook = Type.Object(
     id: Id,
     name: Type.String(),
     description: Type.String(),
-    /** Organisational only. Explicitly does not affect activation. */
-    category: Type.Union([
-      Type.Literal('world'),
-      Type.Literal('character'),
-      Type.Literal('npc'),
-      Type.Literal('spellbook'),
-      Type.Literal('uncategorized'),
-    ]),
 
     scope: LoreScope,
     enabled: Type.Boolean(),
@@ -241,10 +233,15 @@ export const Lorebook = Type.Object(
     hooks: Type.Optional(Type.Array(PlotHook)),
     entries: Type.Array(LoreEntry),
 
+    /**
+     * Organisational, and the only such axis — a closed `category` union was
+     * removed rather than renamed ([02 §3.4](../../../../docs/design/02-data-model.md)).
+     * Free text, per the same argument that keeps `LoreEntry.tag` open.
+     */
     tags: Type.Array(Type.String()),
     /**
      * The book's gallery — maps, establishing shots, style references for the
-     * world as a whole ([13 §5.1](docs/design/13-schemas.md)).
+     * world as a whole ([10 §5.1](../../../../docs/design/10-schemas.md)).
      */
     media: Type.Array(EmbeddedMedia),
     /**
@@ -261,7 +258,7 @@ export const Lorebook = Type.Object(
      * Bulk, in the folder rather than the manifest. Parity with Actor, and the
      * schema catching up to a layout that already listed
      * `lorebooks/<slug>/lorebook.json + assets/`
-     * ([02 §5.1](docs/design/02-data-model.md)).
+     * ([02 §5.1](../../../../docs/design/02-data-model.md)).
      */
     assets: Type.Array(AssetRef),
     provenance: Provenance,
@@ -269,7 +266,7 @@ export const Lorebook = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${LOREBOOK_SCHEMA}.json`,
+    $id: `https://storyengine.dev/schemas/${LOREBOOK_SCHEMA.replace('/', '.')}.json`,
     title: 'Lorebook',
   },
 );

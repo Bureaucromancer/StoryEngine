@@ -13,10 +13,17 @@ import {
   schemaIdOf,
   uuidv7,
   validate,
+  type ValidationIssue,
 } from '@storyengine/shared';
 
-import { contentHashOf, ingestFile, removeFile } from './index-db/ingest.js';
-import { findById, type IndexedObject, listObjects } from './index-db/query.js';
+import {
+  contentHashOf,
+  type FileErrorReason,
+  ingestFile,
+  listFileErrors,
+  removeFile,
+} from './index-db/ingest.js';
+import { findById, findByIdAt, type IndexedObject, listObjects } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
 import { moveTree, readFileBytes } from './storage/files.js';
@@ -31,17 +38,17 @@ import {
 } from './storage/history.js';
 import {
   type Layout,
-  type LibraryScope,
+  type LibraryOwner,
   resolveFreeSlug,
-  SYSTEM_SCOPE,
-  userScope,
+  SYSTEM_OWNER,
+  userOwner,
 } from './storage/layout.js';
 
 /**
  * Library CRUD, one handler set rather than six.
  *
  * **The registry is what makes this kind-agnostic**
- * ([13 §9](docs/design/13-schemas.md)): every portable object self-describes, so
+ * ([10 §9](../../../docs/design/10-schemas.md)): every portable object self-describes, so
  * nothing here enumerates kinds. Adding Campaign at 2.0 should not touch this
  * file.
  *
@@ -49,28 +56,42 @@ import {
  * properties of the *write path* and a route is only one caller of it:
  *
  * - **The server indexes its own writes synchronously**, so a `GET` after a
- *   `POST` reflects it ([02 §5.1.1](docs/design/02-data-model.md)). The watcher
+ *   `POST` reflects it ([02 §5.1.1](../../../docs/design/02-data-model.md)). The watcher
  *   is for foreign writes and has no such guarantee, nor needs one.
  * - **Every read carries a content hash and every write must present one**
- *   ([04 §4.4](docs/design/04-server-multiuser-deployment.md)). A stale hash is
+ *   ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)). A stale hash is
  *   rejected with the current object, so the caller can offer a choice rather
  *   than guess. It is also the only defence the hot-reload thesis has against
  *   silently eating a hand edit.
  * - **A rename is an ordinary write.** Changing `name` changes the field inside
  *   the file; the folder keeps the slug it was born with
- *   ([19 §1.1](docs/design/19-p1-implementation.md)). There is no rename route
+ *   ([P1 §1.1](../../../docs/design/workplan/03-p1-implementation.md)). There is no rename route
  *   and there is nothing here that moves a directory.
  */
 
 export class LibraryError extends Error {
-  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict';
+  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict' | 'refused-path';
   readonly current?: IndexedObject;
+  /**
+   * Per-field validation failures, when there are any.
+   *
+   * Structured as well as written into the message, because the route layer's
+   * schema rejections answer with an `issues` array (F2) and a caller should
+   * not have to parse prose to find out which of the two validators refused it.
+   */
+  readonly issues?: ValidationIssue[];
 
-  constructor(code: LibraryError['code'], message: string, current?: IndexedObject) {
+  constructor(
+    code: LibraryError['code'],
+    message: string,
+    current?: IndexedObject,
+    issues?: ValidationIssue[],
+  ) {
     super(message);
     this.name = 'LibraryError';
     this.code = code;
     if (current) this.current = current;
+    if (issues) this.issues = issues;
   }
 }
 
@@ -100,21 +121,21 @@ export interface StoredObject {
   contentHash: string;
   path: string;
   slug: string;
-  scope: LibraryScope;
-  /** True when another file holds this id at an earlier path ([19 §1.2]). */
+  owner: LibraryOwner;
+  /** True when another file holds this id at an earlier path ([P1 §1.2]). */
   shadowed: boolean;
 }
 
 /**
- * The scopes a request may read: the caller's own library and the system one.
+ * The owners a request may read: the caller's own library and the system one.
  *
  * **`system/library/` is loaded and merged from P1**, shipped empty
- * ([19 §1.3](docs/design/19-p1-implementation.md)). The merge is a query rather
+ * ([P1 §1.3](../../../docs/design/workplan/03-p1-implementation.md)). The merge is a query rather
  * than a special case, and retrofitting it into every list endpoint later is the
  * annoying version — so it lands now, with nothing in it.
  */
-export function readableScopes(handle: string): LibraryScope[] {
-  return [userScope(handle), SYSTEM_SCOPE];
+export function readableOwners(handle: string): LibraryOwner[] {
+  return [userOwner(handle), SYSTEM_OWNER];
 }
 
 export function list(
@@ -123,24 +144,121 @@ export function list(
   schemaId?: PortableSchemaId,
 ): IndexedObject[] {
   return listObjects(context.db, {
-    scopes: readableScopes(handle),
+    owners: readableOwners(handle),
     ...(schemaId ? { schemaId } : {}),
   });
 }
 
-export function read(context: LibraryContext, handle: string, id: string): IndexedObject {
+/**
+ * A file that is in an object's place and cannot be read as one — F20.
+ *
+ * The reason this is a *read* rather than a log line: the failure belongs to the
+ * person who made the edit, and they are looking at the app, not at the server's
+ * stdout. [02 §5.1](../../../docs/design/02-data-model.md) promises that hand-editing is
+ * supported; a promise like that is only kept if a typo says so out loud.
+ *
+ * `path` is portable — relative to the data root — for the same reason every
+ * other error message is (F22). The client needs to know *which file*, which the
+ * relative path answers; it does not need to know where the server keeps its
+ * disk.
+ */
+export interface LibraryFileError {
+  path: string;
+  source: 'user' | 'system';
+  kind: string;
+  slug: string;
+  reason: FileErrorReason;
+  detail: string | null;
+  seenAt: number;
+}
+
+export function fileErrors(context: LibraryContext, handle: string): LibraryFileError[] {
+  const owners = readableOwners(handle).map(ownerKeyOf);
+  return listFileErrors(context.db, owners).map((row) => ({
+    // A row whose path escaped the root is not addressable by a client, and
+    // silently rewriting it to something that looks relative would be worse
+    // than admitting the path is unknown.
+    path: context.layout.portablePath(row.path) ?? '(outside the data directory)',
+    source: row.owner === 'system' ? ('system' as const) : ('user' as const),
+    kind: row.schemaId,
+    slug: row.slug,
+    reason: row.reason,
+    detail: row.detail,
+    seenAt: row.seenAt,
+  }));
+}
+
+/**
+ * Which copy of a duplicated id to read — a specific one, by where it lives.
+ *
+ * **Reads only.** Every write and every reference between objects stays
+ * id-only and resolves to the winner ([P1 §1.1]): a duplicate is a mistake to
+ * be shown, not a second address to build on. Making it writable would turn a
+ * warning into a fork.
+ */
+export interface ObjectAddress {
+  source: 'user' | 'system';
+  slug: string;
+}
+
+/**
+ * The one door every by-id operation goes through.
+ *
+ * `inKind` is the kind the *caller's URL* claimed, and checking it here rather
+ * than in each route is the point: `/library/actors/<lorebook-id>` used to
+ * return the lorebook, because the `:kind` segment was read, resolved, and then
+ * never compared to anything (F2). One funnel means a new route cannot forget
+ * the check — which matters because P2.3 adds several.
+ *
+ * A mismatch is **not-found rather than a mismatch error**: from the caller's
+ * side that collection genuinely does not contain that id, and saying "wrong
+ * kind" would confirm the object exists somewhere, which is the same leak the
+ * owner check below exists to avoid.
+ *
+ * `at` narrows to one copy of a duplicated id (F19); without it, the winner.
+ */
+export function read(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  inKind?: PortableSchemaId,
+  at?: ObjectAddress,
+): IndexedObject {
+  if (at) return readAt(context, handle, id, inKind, at);
   const row = findById(context.db, id);
-  if (!row || !readableScopes(handle).some((scope) => scopeKeyOf(scope) === row.scope)) {
+  if (!row || !readableOwners(handle).some((owner) => ownerKeyOf(owner) === row.owner)) {
     // Not-found rather than forbidden for another user's object: the handle is
     // the owner ([04 §4.3]), and confirming that an id exists elsewhere would
     // leak the one fact this separation exists to keep.
     throw new LibraryError('not-found', `No object with id ${id}.`);
   }
+  if (inKind !== undefined && row.schemaId !== inKind) {
+    throw new LibraryError('not-found', `No object with id ${id} in that kind.`);
+  }
   return row;
 }
 
-function scopeKeyOf(scope: LibraryScope): string {
-  return scope.kind === 'system' ? 'system' : `user:${scope.handle}`;
+function readAt(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  inKind: PortableSchemaId | undefined,
+  at: ObjectAddress,
+): IndexedObject {
+  const owner = at.source === 'system' ? SYSTEM_OWNER : userOwner(handle);
+  const row = findByIdAt(context.db, id, { owner: ownerKeyOf(owner), slug: at.slug });
+  if (!row || (inKind !== undefined && row.schemaId !== inKind)) {
+    // The same answer as an id that does not exist. An address that named
+    // somebody else's library would resolve under this user's owner and find
+    // nothing, which is the containment rule doing its job rather than a
+    // separate check to remember.
+    throw new LibraryError('not-found', `No object with id ${id} at that address.`);
+  }
+  return row;
+}
+
+function ownerKeyOf(owner: LibraryOwner): string {
+  return owner.kind === 'system' ? 'system' : `user:${owner.handle}`;
 }
 
 /**
@@ -148,16 +266,16 @@ function scopeKeyOf(scope: LibraryScope): string {
  *
  * The actor is the only kind that is not plain JSON, and the card is spliced
  * into whatever pixels are already there — never re-encoded
- * ([02 §5.2](docs/design/02-data-model.md)).
+ * ([02 §5.2](../../../docs/design/02-data-model.md)).
  *
  * Encoding is separate from writing so the caller can apply the no-op rule
- * ([02 §11.1](docs/design/02-data-model.md)): a save that changes nothing must
+ * ([02 §11.1](../../../docs/design/02-data-model.md)): a save that changes nothing must
  * produce neither a write nor a history entry, and the only honest way to know
  * is to build the exact bytes and compare.
  */
 async function encodeObject(
   layout: Layout,
-  scope: LibraryScope,
+  owner: LibraryOwner,
   schemaId: PortableSchemaId,
   slug: string,
   object: unknown,
@@ -169,7 +287,13 @@ async function encodeObject(
    */
   existingBytes?: Uint8Array | null,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
-  const path = layout.objectFile(scope, schemaId, slug);
+  const path = layout.objectFile(owner, schemaId, slug);
+
+  // The write path's door (F1). Lexically this path is already safe; what the
+  // string cannot say is whether a directory along it is a link out of the data
+  // root. Checked here rather than at each caller because every write — create,
+  // update, restore — is encoded through this function first.
+  await layout.assertReal(path);
 
   let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
@@ -188,7 +312,7 @@ async function encodeObject(
  * The pixels a brand-new card starts with: 1×1, fully transparent.
  *
  * Deliberately not a generated placeholder portrait. The card's pixels are *the
- * portrait as intended* ([02 §5.2.1](docs/design/02-data-model.md)) — what any
+ * portrait as intended* ([02 §5.2.1](../../../docs/design/02-data-model.md)) — what any
  * tool that only knows "a card is a picture" will render — so inventing one
  * would put a face nobody chose in front of every such tool. An empty card is
  * honest; a stock avatar is a small lie that travels with the file.
@@ -232,6 +356,8 @@ function assertValidObject(object: unknown): PortableSchemaId {
     throw new LibraryError(
       'invalid',
       `The object is not valid: ${result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; ')}`,
+      undefined,
+      result.issues,
     );
   }
   return schemaId;
@@ -241,10 +367,22 @@ export async function create(
   context: LibraryContext,
   handle: string,
   object: unknown,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
-  const scope = userScope(handle);
-  const kindRoot = context.layout.kindRoot(scope, schemaId);
+  if (inKind !== undefined && schemaId !== inKind) {
+    // `POST /library/lorebooks` with an actor body used to create an actor: the
+    // URL segment picked the route and then decided nothing (F2). Here the
+    // mismatch is the caller's error and worth saying plainly — unlike the read
+    // side, nothing is disclosed by naming it, because the caller sent both
+    // halves.
+    throw new LibraryError(
+      'invalid',
+      `This is a ${schemaId} and the URL says ${inKind}. Post it to its own kind.`,
+    );
+  }
+  const owner = userOwner(handle);
+  const kindRoot = context.layout.kindRoot(owner, schemaId);
 
   // The whole body runs on the kind's queue: slug resolution reads the
   // directory and the write then claims the name, so two concurrent creates
@@ -259,7 +397,7 @@ export async function create(
       throw new LibraryError('conflict', `An object with id ${id} already exists.`);
     }
 
-    // The slug is derived here, once, and then frozen ([19 §1.1]). Nothing ever
+    // The slug is derived here, once, and then frozen ([P1 §1.1]). Nothing ever
     // resolves by it.
     const name =
       typeof (object as { name?: unknown }).name === 'string'
@@ -269,7 +407,7 @@ export async function create(
 
     const { path, bytes, contentHash } = await encodeObject(
       context.layout,
-      scope,
+      owner,
       schemaId,
       slug,
       object,
@@ -277,7 +415,7 @@ export async function create(
     await (context.write ?? writeAtomic)(path, bytes);
     await ingestFile(context.db, context.layout, path);
 
-    return { object, contentHash, path, slug, scope, shadowed: false };
+    return { object, contentHash, path, slug, owner, shadowed: false };
   });
 }
 
@@ -292,7 +430,7 @@ export interface ChangeAttribution {
   /**
    * Whether the server stamps `provenance.updatedAt` on a real change.
    * Defaults on: `authoredAt` correctness must not depend on the client
-   * remembering to stamp ([18 §1.6]). Restore turns it off — restoring is not
+   * remembering to stamp ([13 §1.6]). Restore turns it off — restoring is not
    * authoring, and stamping would change the restored bytes and so break
    * "restoring the state you are on is a no-op".
    */
@@ -318,7 +456,7 @@ function stampProvenance(object: unknown): unknown {
  * second tab, a hand edit, the file browser — the write is refused and the
  * *current* object comes back with the error, so the UI can offer reload-and-
  * reapply or save-as-a-copy rather than guessing
- * ([04 §4.4](docs/design/04-server-multiuser-deployment.md)).
+ * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
  */
 export async function update(
   context: LibraryContext,
@@ -327,6 +465,7 @@ export async function update(
   object: unknown,
   expectedHash: string,
   change: ChangeAttribution = MANUAL,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
 
@@ -334,9 +473,9 @@ export async function update(
   // a second writer through the same server waits its turn and then fails the
   // check honestly, instead of racing through the awaits and winning silently.
   return writes.run(`obj:${id}`, async () => {
-    const current = read(context, handle, id);
+    const current = read(context, handle, id, inKind);
 
-    if (current.scope === 'system') {
+    if (current.owner === 'system') {
       // App-shipped and read-only; an update would be overwritten by the next
       // release anyway ([05 §4.2]). Copy-to-my-library is the intended move.
       throw new LibraryError('read-only', 'System library objects cannot be edited.');
@@ -355,6 +494,10 @@ export async function update(
     // alone cannot vouch for the file. Read the bytes once, verify they still
     // hash to what the caller saw, and thread them through the encode below —
     // a hand edit made moments ago is refused here instead of eaten.
+    // The index's own door: this path came out of SQLite, so it was checked
+    // when it was indexed and not since. A link planted in between is exactly
+    // the case the lexical rules cannot see.
+    await context.layout.assertReal(current.path);
     const existingBytes = await readFileBytes(current.path);
     if (existingBytes === null || contentHashOf(existingBytes) !== current.contentHash) {
       // Vanished-underneath lands here too: stale rather than not-found, so
@@ -362,10 +505,10 @@ export async function update(
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
     }
 
-    const scope = userScope(handle);
+    const owner = userOwner(handle);
     const asSent = await encodeObject(
       context.layout,
-      scope,
+      owner,
       schemaId,
       current.slug,
       object,
@@ -385,7 +528,7 @@ export async function update(
         contentHash: asSent.contentHash,
         path: asSent.path,
         slug: current.slug,
-        scope,
+        owner,
         shadowed: current.shadowed,
       };
     }
@@ -393,7 +536,7 @@ export async function update(
     const stamp = change.stamp !== false;
     const stamped = stamp ? stampProvenance(object) : object;
     const { path, bytes, contentHash } = stamp
-      ? await encodeObject(context.layout, scope, schemaId, current.slug, stamped, existingBytes)
+      ? await encodeObject(context.layout, owner, schemaId, current.slug, stamped, existingBytes)
       : asSent;
 
     // Write, then snapshot the replaced state (held in memory), then index.
@@ -404,7 +547,7 @@ export async function update(
     await (context.write ?? writeAtomic)(path, bytes);
 
     await snapshotReplaced({
-      objectRoot: context.layout.objectRoot(scope, schemaId, current.slug),
+      objectRoot: context.layout.objectRoot(owner, schemaId, current.slug),
       payload: current.body,
       source: change.source,
       reason: change.reason,
@@ -418,7 +561,7 @@ export async function update(
       contentHash,
       path,
       slug: current.slug,
-      scope,
+      owner,
       shadowed: current.shadowed,
     };
   });
@@ -426,7 +569,7 @@ export async function update(
 
 /**
  * Restores an earlier version — **an ordinary write, not a special one**
- * ([02 §11.1](docs/design/02-data-model.md)): it goes through `update`, so the
+ * ([02 §11.1](../../../docs/design/02-data-model.md)): it goes through `update`, so the
  * current state is snapshotted first and going back never destroys what you
  * were on. Restoring the state you are already on falls into the no-op rule
  * and records nothing.
@@ -437,14 +580,15 @@ export async function restoreVersion(
   id: string,
   versionId: string,
   expectedHash: string,
+  inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
-  const current = read(context, handle, id);
-  if (current.scope === 'system') {
+  const current = read(context, handle, id, inKind);
+  if (current.owner === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
 
   const objectRoot = context.layout.objectRoot(
-    userScope(handle),
+    userOwner(handle),
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -478,11 +622,12 @@ export async function versionsOf(
   context: LibraryContext,
   handle: string,
   id: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ current: IndexedObject; versions: VersionRecord[] }> {
-  const current = read(context, handle, id);
-  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const current = read(context, handle, id, inKind);
+  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
   const objectRoot = context.layout.objectRoot(
-    scope,
+    owner,
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -495,15 +640,16 @@ export async function versionPayload(
   handle: string,
   id: string,
   versionId: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ record: VersionRecord; object: unknown }> {
-  const { current, versions } = await versionsOf(context, handle, id);
+  const { current, versions } = await versionsOf(context, handle, id, inKind);
   const record = versions.find((version) => version.id === versionId);
   if (!record) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
   }
-  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
   const objectRoot = context.layout.objectRoot(
-    scope,
+    owner,
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -523,13 +669,14 @@ export async function amendVersion(
   id: string,
   versionId: string,
   patch: { reason?: string; pinned?: boolean },
+  inKind?: PortableSchemaId,
 ): Promise<VersionRecord> {
-  const current = read(context, handle, id);
-  if (current.scope === 'system') {
+  const current = read(context, handle, id, inKind);
+  if (current.owner === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
   const objectRoot = context.layout.objectRoot(
-    userScope(handle),
+    userOwner(handle),
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -542,18 +689,20 @@ export async function amendVersion(
 
 /**
  * The raw stored bytes of an actor's card — the avatar the editor shows and
- * does not replace ([19 §P1.7](docs/design/19-p1-implementation.md)). Only
+ * does not replace ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)). Only
  * actors have pixels; any other kind is not-found rather than empty.
  */
 export async function readCardPixels(
   context: LibraryContext,
   handle: string,
   id: string,
+  inKind?: PortableSchemaId,
 ): Promise<{ bytes: Uint8Array; contentHash: string }> {
-  const current = read(context, handle, id);
+  const current = read(context, handle, id, inKind);
   if (current.schemaId !== ACTOR_SCHEMA) {
     throw new LibraryError('not-found', 'Only actors have a card image.');
   }
+  await context.layout.assertReal(current.path);
   const bytes = await readFileBytes(current.path);
   if (bytes === null) {
     throw new LibraryError('not-found', 'The card file is missing from disk.');
@@ -576,10 +725,11 @@ export async function remove(
   handle: string,
   id: string,
   expectedHash: string,
+  inKind?: PortableSchemaId,
 ): Promise<void> {
   return writes.run(`obj:${id}`, async () => {
-    const current = read(context, handle, id);
-    if (current.scope === 'system') {
+    const current = read(context, handle, id, inKind);
+    if (current.owner === 'system') {
       throw new LibraryError('read-only', 'System library objects cannot be deleted.');
     }
     if (current.contentHash !== expectedHash) {
@@ -588,6 +738,7 @@ export async function remove(
 
     // Same disk verification as `update`: the index cannot vouch for a file a
     // hand edit touched moments ago, and a delete is the last place to guess.
+    await context.layout.assertReal(current.path);
     const onDisk = await readFileBytes(current.path);
     if (onDisk === null || contentHashOf(onDisk) !== current.contentHash) {
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
@@ -595,9 +746,9 @@ export async function remove(
 
     const schemaId = current.schemaId as PortableSchemaId;
     await moveTree(
-      context.layout.objectRoot(userScope(handle), schemaId, current.slug),
+      context.layout.objectRoot(userOwner(handle), schemaId, current.slug),
       context.layout.trashDestination(handle, schemaId, current.slug, uuidv7()),
     );
-    removeFile(context.db, current.path);
+    removeFile(context.db, context.layout, current.path);
   });
 }
