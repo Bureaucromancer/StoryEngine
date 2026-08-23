@@ -13,6 +13,8 @@ import {
 } from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
+import { Alert } from '../ui/Alert.js';
+import { link } from '../ui/classes.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -34,7 +36,7 @@ export function ObjectDetailPage(): JSX.Element {
     return (
       <>
         <BackLink />
-        <p role="alert" className="text-red-900">
+        <p role="alert" className="text-danger-ink">
           This address does not name a known kind of library object.
         </p>
       </>
@@ -60,7 +62,7 @@ function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress
     return (
       <>
         <BackLink />
-        <p className="text-slate-600">Loading…</p>
+        <p className="text-ink-subtle">Loading…</p>
       </>
     );
   }
@@ -70,7 +72,7 @@ function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress
     return (
       <>
         <BackLink />
-        <p role="alert" className="text-red-900">
+        <p role="alert" className="text-danger-ink">
           {missing ? 'There is no such object in your library.' : query.error.message}
         </p>
       </>
@@ -92,14 +94,14 @@ function ObjectView(props: {
     <>
       <BackLink />
       <header className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{object.name}</h1>
+        <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
         {kind === 'actors' && object.source === 'user' && !object.shadowed ? (
           <Link
             to="/library/actors/$id/edit"
             params={{ id: object.id }}
-            className="ms-auto rounded-md bg-slate-800 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700"
+            className={`ms-auto ${link.action}`}
           >
             Edit
           </Link>
@@ -107,13 +109,10 @@ function ObjectView(props: {
       </header>
 
       {object.shadowed ? (
-        <p
-          role="note"
-          className="mb-6 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
-        >
+        <Alert tone="error" className="mb-6">
           Another folder on disk holds the same id at an earlier path, and that copy is the one that
           loads. Nothing is lost; this copy is shown so the duplicate stays visible.
-        </p>
+        </Alert>
       ) : null}
 
       <dl className="mb-8 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
@@ -141,8 +140,8 @@ function ObjectView(props: {
       </dl>
 
       <section aria-label="The object as stored">
-        <h2 className="mb-2 text-lg font-semibold">As stored</h2>
-        <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-4 text-xs">
+        <h2 className="mb-2 text-section text-ink">As stored</h2>
+        <pre className="overflow-x-auto rounded-md border border-line bg-surface p-4 text-xs">
           {JSON.stringify(object.object, null, 2)}
         </pre>
       </section>
@@ -153,8 +152,8 @@ function ObjectView(props: {
 function MetadataRow(props: { label: string; children: ReactNode }): JSX.Element {
   return (
     <>
-      <dt className="font-medium text-slate-600">{props.label}</dt>
-      <dd className="text-slate-900">{props.children}</dd>
+      <dt className="font-medium text-ink-subtle">{props.label}</dt>
+      <dd className="text-ink">{props.children}</dd>
     </>
   );
 }
@@ -162,7 +161,7 @@ function MetadataRow(props: { label: string; children: ReactNode }): JSX.Element
 function BackLink(): JSX.Element {
   return (
     <p className="mb-4">
-      <Link to="/" search={{}} className="text-sm text-slate-600 underline hover:text-slate-900">
+      <Link to="/library" search={{}} className="text-sm text-ink-subtle underline hover:text-ink">
         Back to the library
       </Link>
     </p>

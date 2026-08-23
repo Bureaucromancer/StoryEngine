@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 
 import { LoginForm, SetupForm } from './auth/forms.js';
 import { queryClient, useAuthState } from './queries.js';
+import { Button } from './ui/Button.js';
 import { router } from './router.js';
 
 /**
@@ -28,7 +29,7 @@ function Gate(): JSX.Element {
   if (auth.isPending) {
     return (
       <main className="mx-auto max-w-sm p-8 text-center">
-        <p className="text-slate-600">Loading…</p>
+        <p className="text-ink-subtle">Loading…</p>
       </main>
     );
   }
@@ -36,23 +37,25 @@ function Gate(): JSX.Element {
   if (auth.isError) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 p-8 text-center">
-        <p role="alert" className="text-red-900">
+        <p role="alert" className="text-danger-ink">
           The server could not be reached. Check that it is running, then try again.
         </p>
-        <button
+        <Button
           type="button"
           onClick={() => {
             void auth.refetch();
           }}
-          className="mx-auto rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+          className="mx-auto"
         >
           Try again
-        </button>
+        </Button>
       </main>
     );
   }
 
-  if (auth.data.setupRequired) return <SetupForm />;
+  // Passed rather than fetched again: `Gate` already holds the state, and a
+  // prop keeps `forms.tsx` free of a query dependency.
+  if (auth.data.setupRequired) return <SetupForm minPasswordLength={auth.data.minPasswordLength} />;
   if (auth.data.account === null) return <LoginForm />;
   return <RouterProvider router={router} />;
 }

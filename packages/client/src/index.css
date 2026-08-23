@@ -5,6 +5,257 @@
  * rule was written for (docs/design/07-tech-stack.md §12.6). `margin-inline-start`,
  * never `margin-left` — Stylelint enforces it, and eslint.config.js enforces the
  * Tailwind-utility half that Stylelint cannot see.
+ *
+ * It is also the palette. Every colour, radius and type step the app uses is
+ * named here once; `packages/client/src/ui/` spends those names and never
+ * reaches for a Tailwind scale directly. After the appearance layer landed that
+ * became a build error rather than a convention, so this file is the only place
+ * in the client where `slate-800` may be written at all.
+ *
+ * Two rules for editing it.
+ *
+ * **Plain `@theme`, never `@theme inline`.** `inline` resolves each token at
+ * build time and writes the value into the utility — `background-color:
+ * oklch(…)` instead of `background-color: var(--color-accent)`. Everything
+ * below depends on the indirection surviving into the browser, because that is
+ * what lets a second theme redefine a token and have every utility follow. One
+ * word, and the difference between a themeable app and a repaint.
+ *
+ * **Alias, never re-type.** Every light value is `var(--color-slate-N)` rather
+ * than the hex it resolves to. That is what made the migration on to these
+ * tokens provably non-visual: a rename cannot change a colour if the token *is*
+ * the old colour. A hand-typed value here quietly gives that up.
  */
 
 @import 'tailwindcss';
+
+@theme {
+  /* Surfaces, by elevation rather than by lightness, so the dark theme can
+     invert the ramp without any of these names becoming a lie. */
+  --color-canvas: var(--color-slate-50);
+  --color-surface: var(--color-white);
+  --color-surface-sunken: var(--color-slate-50);
+  --color-surface-muted: var(--color-slate-100);
+
+  /* A complete colour rather than an opacity modifier on another token. An
+     opacity modifier bakes its sRGB fallback at build time, which would strand
+     the fallback on the light value once a second theme exists. */
+  --color-overlay: color-mix(in oklab, var(--color-slate-900) 45%, transparent);
+
+  /* Ink, four steps because the app already used four. The faintest is the one
+     to re-measure first whenever the palette moves: it sits closest to the
+     4.5:1 floor from both directions. */
+  --color-ink: var(--color-slate-900);
+  --color-ink-muted: var(--color-slate-700);
+  --color-ink-subtle: var(--color-slate-600);
+  --color-ink-faint: var(--color-slate-500);
+
+  /* Rules. `line` separates rows inside a panel; `line-strong` is the edge of
+     something you can click or type into. */
+  --color-line: var(--color-slate-200);
+  --color-line-strong: var(--color-slate-300);
+
+  /* One action colour. `on-accent` exists for the second theme's sake: the
+     accent flips from dark-on-light to light-on-dark, so a button that spells
+     its label `text-white` is a button that breaks. */
+  --color-accent: var(--color-slate-800);
+  --color-accent-hover: var(--color-slate-700);
+  --color-accent-muted: var(--color-slate-400);
+  --color-on-accent: var(--color-white);
+  --color-focus: var(--color-slate-500);
+
+  /* Refusal — a destruction, or a write the server rejected. */
+  --color-danger: var(--color-red-700);
+  --color-danger-ink: var(--color-red-900);
+  --color-danger-line: var(--color-red-300);
+  --color-danger-surface: var(--color-red-50);
+  --color-danger-muted: var(--color-red-100);
+  --color-on-danger: var(--color-white);
+
+  /* Caution — something is wrong and you may still proceed. */
+  --color-warn-ink: var(--color-amber-800);
+  --color-warn-line: var(--color-amber-300);
+  --color-warn-surface: var(--color-amber-50);
+
+  /* Provenance — not authored here. Amber today, exactly as `warn` is, and
+     deliberately a separate name: the whole return on a token layer is that a
+     later theme can recolour "this came from somewhere else" without touching
+     warnings. Spelled as one colour, that choice is not available. */
+  --color-provenance-surface: var(--color-amber-100);
+  --color-provenance-ink: var(--color-amber-900);
+  --color-badge-surface: var(--color-slate-200);
+  --color-badge-ink: var(--color-slate-700);
+
+  /* One radius, named twice, so a control and a panel can diverge later without
+     every call site being revisited to work out which was meant. */
+  --radius-control: var(--radius-md);
+  --radius-panel: var(--radius-md);
+
+  /* Only the steps this app invented. `text-sm` and `text-xs` stay Tailwind's,
+     because a token that aliases a scale one-to-one is a rename, not a step. */
+  --text-title: var(--text-2xl);
+  --text-title--line-height: var(--text-2xl--line-height);
+  --text-title--font-weight: var(--font-weight-semibold);
+  --text-section: var(--text-lg);
+  --text-section--line-height: var(--text-lg--line-height);
+  --text-section--font-weight: var(--font-weight-semibold);
+  --text-subsection: var(--text-base);
+  --text-subsection--line-height: var(--text-base--line-height);
+  --text-subsection--font-weight: var(--font-weight-medium);
+
+  /* The quiet surfaces (docs/design/05-ui-surfaces.md §1.1): the reading view
+     and the modes' play surfaces. They share this palette — P2C found the dark
+     play surface was a stranded assumption rather than a theme — and differ in
+     type, measure and chrome instead. */
+  --text-story: var(--text-base);
+  --text-story--line-height: 1.7;
+  --container-reading: 48rem;
+}
+
+/* Tells the browser which way to render the things CSS does not reach: the
+   caret, scrollbars, native `<select>` popups and the rest of the form chrome.
+   Omitting it is how an input ends up with an invisible caret on a surface that
+   is otherwise styled correctly, which is the shape of the P2C defect. */
+:root {
+  color-scheme: light;
+}
+
+/**
+ * The canvas, painted once for every route rather than by whichever frame
+ * happens to be rendering.
+ *
+ * `Shell` carried this, and `Shell` is the *signed-in* frame — so login, setup
+ * and the error boundary had no background of their own and fell through to the
+ * browser's. That was invisible while there was one theme, because the
+ * browser's canvas is white and so is `--color-surface`. Adding a second theme
+ * is what surfaced it: the page went dark because `color-scheme` told the
+ * browser to make it dark, not because anything here asked for `--color-canvas`.
+ * A default that is right by coincidence stops being right the moment the
+ * coincidence moves.
+ */
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/**
+ * The second theme.
+ *
+ * It exists this early on purpose. A token vocabulary that has only ever
+ * expressed one theme is a set of names nobody has tested, and the way you find
+ * out that `surface` meant "white" rather than "the raised one" is by trying to
+ * invert it. Doing that here, against four migrated surfaces, costs an
+ * afternoon; doing it after the whole client had been written against these
+ * names would mean revisiting every call site that had quietly relied on the
+ * light reading.
+ *
+ * **It redefines tokens and nothing else.** There is not one `dark:` variant in
+ * the client, and there should never be: a component that needs one is a
+ * component whose token is missing. That is enforced rather than remembered.
+ *
+ * **It is written twice**, and that is the price of a default that needs no
+ * JavaScript. The browser preference has to arrive through a media query, an
+ * explicit choice has to arrive through an attribute, and CSS has no way to
+ * hand one declaration block to both. What keeps the copies honest is
+ * `theme.test.ts`, which fails if they ever stop agreeing — the drift this
+ * would otherwise invite is a token updated in one theme and not the other,
+ * which shows up as a single wrong colour on one surface and nowhere else.
+ *
+ * The `:not([data-theme='light'])` guard on the media-query copy is what lets a
+ * per-user override win in both directions when one lands: a person who prefers
+ * dark at the OS level can still choose light here.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-canvas: var(--color-slate-950);
+    --color-surface: var(--color-slate-900);
+    --color-surface-sunken: var(--color-slate-950);
+    --color-surface-muted: var(--color-slate-800);
+    --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
+    --color-ink: var(--color-slate-50);
+    --color-ink-muted: var(--color-slate-300);
+    --color-ink-subtle: var(--color-slate-400);
+    --color-ink-faint: var(--color-slate-500);
+    --color-line: var(--color-slate-800);
+    --color-line-strong: var(--color-slate-700);
+    --color-accent: var(--color-slate-200);
+    --color-accent-hover: var(--color-slate-100);
+    --color-accent-muted: var(--color-slate-700);
+    --color-on-accent: var(--color-slate-900);
+    --color-focus: var(--color-slate-400);
+    --color-danger: var(--color-red-600);
+    --color-danger-ink: var(--color-red-300);
+    --color-danger-line: var(--color-red-800);
+    --color-danger-surface: var(--color-red-950);
+    --color-danger-muted: var(--color-red-900);
+    --color-on-danger: var(--color-white);
+    --color-warn-ink: var(--color-amber-300);
+    --color-warn-line: var(--color-amber-800);
+    --color-warn-surface: var(--color-amber-950);
+    --color-provenance-surface: var(--color-amber-900);
+    --color-provenance-ink: var(--color-amber-100);
+    --color-badge-surface: var(--color-slate-800);
+    --color-badge-ink: var(--color-slate-300);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* The elevation ramp inverts as a ramp: `surface` is still the raised one,
+     it is simply raised out of a darker canvas. That the names survive this
+     unchanged is the evidence that they were the right names. */
+  --color-canvas: var(--color-slate-950);
+  --color-surface: var(--color-slate-900);
+  --color-surface-sunken: var(--color-slate-950);
+  --color-surface-muted: var(--color-slate-800);
+
+  /* Heavier than the light scrim. A dark overlay over a dark page has less
+     contrast to work with, so 45% would leave the modal barely separated. */
+  --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
+
+  /* Symmetric with the light ramp: four steps ending at the same `slate-500`,
+     which sits near 4.6 to 1 against both `white` and `slate-900`. It is the
+     one value that does not move, and therefore the first to re-measure. */
+  --color-ink: var(--color-slate-50);
+  --color-ink-muted: var(--color-slate-300);
+  --color-ink-subtle: var(--color-slate-400);
+  --color-ink-faint: var(--color-slate-500);
+
+  /* Rules brighten rather than darken: a hairline is a lightness step away
+     from its surface, and which direction is away depends on the theme. */
+  --color-line: var(--color-slate-800);
+  --color-line-strong: var(--color-slate-700);
+
+  /* The accent flips end for end — a light button on a dark page. This is what
+     `on-accent` was for: every label on an accent surface follows it, and no
+     component had to know. */
+  --color-accent: var(--color-slate-200);
+  --color-accent-hover: var(--color-slate-100);
+  --color-accent-muted: var(--color-slate-700);
+  --color-on-accent: var(--color-slate-900);
+  --color-focus: var(--color-slate-400);
+
+  /* Refusal keeps its hue and swaps its role: the fill stays saturated enough
+     to read as a button, while ink and surface trade ends of the ramp. */
+  --color-danger: var(--color-red-600);
+  --color-danger-ink: var(--color-red-300);
+  --color-danger-line: var(--color-red-800);
+  --color-danger-surface: var(--color-red-950);
+  --color-danger-muted: var(--color-red-900);
+  --color-on-danger: var(--color-white);
+
+  /* Caution, inverted the same way refusal is. */
+  --color-warn-ink: var(--color-amber-300);
+  --color-warn-line: var(--color-amber-800);
+  --color-warn-surface: var(--color-amber-950);
+
+  /* Still amber, still separate from `warn`, and the separation is now doing
+     visible work: these two inverted independently. */
+  --color-provenance-surface: var(--color-amber-900);
+  --color-provenance-ink: var(--color-amber-100);
+  --color-badge-surface: var(--color-slate-800);
+  --color-badge-ink: var(--color-slate-300);
+}

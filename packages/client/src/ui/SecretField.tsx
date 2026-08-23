@@ -60,7 +60,7 @@ export function SecretField(props: SecretFieldProps): JSX.Element {
 
   return (
     <div>
-      <label htmlFor={controlId} className="mb-1 block text-sm font-medium text-slate-700">
+      <label htmlFor={controlId} className="mb-1 block text-sm font-medium text-ink-muted">
         {props.label}
       </label>
       {/* No assist slot. See the header — this is the whole reason for the file. */}
@@ -68,7 +68,7 @@ export function SecretField(props: SecretFieldProps): JSX.Element {
         id={controlId}
         type="password"
         autoComplete={props.autoComplete ?? 'off'}
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-slate-500"
+        className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
         value={props.value}
         onChange={(event) => {
           props.onChange(event.target.value);
@@ -80,7 +80,7 @@ export function SecretField(props: SecretFieldProps): JSX.Element {
         <p
           id={noteId}
           {...(invalid ? { role: 'alert' } : {})}
-          className={invalid ? 'mt-1 text-xs text-red-900' : 'mt-1 text-xs text-slate-500'}
+          className={invalid ? 'mt-1 text-xs text-danger-ink' : 'mt-1 text-xs text-ink-faint'}
         >
           {note}
         </p>

@@ -4,7 +4,9 @@
 import { useState, type JSX } from 'react';
 
 import { ApiError } from '../api.js';
-import { CheckboxField, Field, NumberField, SelectField } from '../editor/Field.js';
+import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
+import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
 import { useAdminConfig, useWriteConfig } from '../queries.js';
 
 /**
@@ -76,7 +78,7 @@ export function AdminInstall(): JSX.Element {
     contentHash: string;
   } | null>(null);
 
-  if (view.isPending) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (view.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
   if (view.isError) return <p role="alert">The configuration could not be read.</p>;
 
   const config = draft ?? view.data.config;
@@ -93,10 +95,10 @@ export function AdminInstall(): JSX.Element {
 
   return (
     <section className="flex flex-col gap-6" aria-labelledby="install">
-      <h3 id="install" className="text-base font-medium">
+      <h3 id="install" className="text-subsection text-ink">
         This install
       </h3>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-faint">
         Read from <code>{view.data.path}</code>. You can edit that file directly instead; this form
         will notice if you do.
       </p>
@@ -148,6 +150,7 @@ export function AdminInstall(): JSX.Element {
             path={path}
             value={valueAt(config, path)}
             tier={view.data.tiers[path] ?? 'restart'}
+            bound={view.data.bounds[path] ?? {}}
             readOnly={READ_ONLY.has(path)}
             onChange={(next) => {
               change(path, next);
@@ -164,22 +167,40 @@ export function AdminInstall(): JSX.Element {
            * Without this the form would tell somebody a change had taken when
            * it had only been stored.
            */
-          <p className="text-xs text-slate-500">{unreadNotice(unread)}</p>
+          <p className="text-xs text-ink-faint">{unreadNotice(unread)}</p>
         ) : null}
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
+          <Button type="submit" variant="primary" size="compact">
             Save
-          </button>
+          </Button>
           {write.isSuccess && draft === null ? (
-            <p role="status" className="text-sm text-slate-600">
+            <p role="status" className="text-sm text-ink-subtle">
               Saved.
+            </p>
+          ) : null}
+          {/**
+           * **A refused save used to say nothing at all.** The form rendered
+           * only success and the 412 block, so a server 400 — an out-of-range
+           * value, a key the build does not know — left the page looking exactly
+           * as it had before, which is the failure mode [01 §2.2] is about.
+           *
+           * **`conflict === null` is load-bearing rather than tidiness.** The
+           * conflict block below is already `role="alert"`, and a second one
+           * beside it makes `findByRole('alert')` ambiguous — the settings test
+           * throws on it. It also reads correctly: a conflict already explains
+           * itself and offers two recoveries, so a second paragraph would be
+           * noise rather than news.
+           */}
+          {write.isError && conflict === null ? (
+            <p role="alert" className="text-sm text-danger-ink">
+              {saveFailure(write.error)}
             </p>
           ) : null}
         </div>
 
         {conflict === null ? null : (
-          <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          <Alert tone="warning" role="alert">
             <p>
               The file changed on disk since this page loaded. Saving now would overwrite that edit.
             </p>
@@ -193,26 +214,26 @@ export function AdminInstall(): JSX.Element {
              * silently picking one.
              */}
             <div className="mt-2 flex gap-2">
-              <button
+              <Button
                 type="button"
-                className="rounded-md border border-slate-300 px-3 py-1.5"
+                size="compact"
                 onClick={() => {
                   setDraft(conflict.document);
                 }}
               >
                 Load what is on disk
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="rounded-md border border-slate-300 px-3 py-1.5"
+                size="compact"
                 onClick={() => {
                   setDraft(config);
                 }}
               >
                 Overwrite with mine
-              </button>
+              </Button>
             </div>
-          </div>
+          </Alert>
         )}
       </form>
     </section>
@@ -224,12 +245,14 @@ function ConfigControl({
   path,
   value,
   tier,
+  bound,
   readOnly,
   onChange,
 }: {
   path: string;
   value: unknown;
   tier: 'live' | 'reconnect' | 'restart';
+  bound: { minimum?: number; maximum?: number };
   readOnly: boolean;
   onChange: (value: unknown) => void;
 }): JSX.Element {
@@ -253,6 +276,11 @@ function ConfigControl({
       <NumberField
         label={label}
         value={String(value)}
+        // From the server's own schema, so the browser refuses an out-of-range
+        // value before the save does. The form sets no `noValidate`, so these
+        // genuinely block the submit rather than only decorating the field.
+        {...(bound.minimum === undefined ? {} : { min: bound.minimum })}
+        {...(bound.maximum === undefined ? {} : { max: bound.maximum })}
         onChange={(next) => {
           const parsed = Number(next);
           onChange(Number.isNaN(parsed) ? value : parsed);
@@ -310,4 +338,19 @@ function needsRestartLabel(path: string): string {
 
 function unreadNotice(paths: string[]): string {
   return `Stored, but nothing reads these yet: ${paths.join(', ')}. They will apply when the features that use them ship.`;
+}
+
+/**
+ * Why a save was refused, as one whole sentence — [01 §2].
+ *
+ * The server's own message is surfaced rather than paraphrased, the way
+ * `AdminAccounts` surfaces a refused account creation: a 400 from
+ * `PUT /config` names the path and the constraint (`/auth/minPasswordLength
+ * must be <= 128`), and an admin editing a config form is exactly the reader
+ * that sentence was written for.
+ */
+function saveFailure(error: Error): string {
+  return error instanceof ApiError && error.status === 400
+    ? `The server refused these settings: ${error.message}`
+    : 'These settings could not be saved.';
 }

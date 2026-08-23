@@ -103,7 +103,21 @@ export const fixtureConfig = tseslint.config(
   {
     files: [`${FIXTURE_ROOT}/packages/client/src/**/*.{ts,tsx}`],
     rules: {
-      'no-restricted-syntax': restrictedSyntax({ userFacing: true }),
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true, tokensOnly: true }),
+    },
+  },
+
+  // The appearance layer, which adds the `+` ban to the client's rules rather
+  // than replacing any of them. `ui/labels.ts` is the fixture that proves the
+  // assembly rule survives the addition.
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/ui/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+      }),
     },
   },
 

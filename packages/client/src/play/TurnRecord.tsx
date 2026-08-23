@@ -30,13 +30,11 @@ export function TurnRecordDisclosure({ turn }: { turn: Turn }): React.JSX.Elemen
         setOpen(event.currentTarget.open);
       }}
     >
-      <summary className="cursor-pointer text-neutral-500 hover:text-neutral-300">
-        Turn record
-      </summary>
+      <summary className="cursor-pointer text-ink-subtle hover:text-ink">Turn record</summary>
       {/* Rendered only when open: a session with fifty turns should not
           serialise fifty records nobody asked to see. */}
       {open ? (
-        <pre className="mt-2 max-h-96 overflow-auto rounded bg-neutral-900 p-3 text-xs">
+        <pre className="mt-2 max-h-96 overflow-auto rounded-panel border border-line bg-surface-muted p-3 text-xs text-ink-muted">
           {JSON.stringify(turn, null, 2)}
         </pre>
       ) : null}

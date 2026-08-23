@@ -43,9 +43,21 @@ export interface FieldProps {
   readOnlyNote?: string;
 }
 
+/**
+ * One string rather than a join: the `+` that used to sit here would now report
+ * against the class-list rule, because the assembly rule beside it cannot tell
+ * `rounded border` from two English words.
+ *
+ * `placeholder:text-ink-faint` is new, and it is the fix for the defect this
+ * consolidation came out of — a placeholder with no colour of its own inherits
+ * the surrounding ink, which on a surface that is not the one the shell assumed
+ * resolves to the background.
+ */
 const CONTROL_CLASS =
-  'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 ' +
-  'focus-visible:outline-2 focus-visible:outline-slate-500';
+  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus';
+
+/** Six sites spelled this out verbatim before it had a name. */
+const LABEL_CLASS = 'block text-sm font-medium text-ink-muted';
 
 export function Field(props: FieldProps): JSX.Element {
   const controlId = useId();
@@ -58,7 +70,7 @@ export function Field(props: FieldProps): JSX.Element {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <label htmlFor={controlId} className="block text-sm font-medium text-slate-700">
+        <label htmlFor={controlId} className={LABEL_CLASS}>
           {props.label}
         </label>
         {/* The assist slot. Empty in P1 — see the header comment. */}
@@ -182,11 +194,11 @@ export function CheckboxField(props: CheckboxFieldProps): JSX.Element {
         aria-describedby={props.hint === undefined ? undefined : hintId}
       />
       <div>
-        <label htmlFor={controlId} className="block text-sm font-medium text-slate-700">
+        <label htmlFor={controlId} className={LABEL_CLASS}>
           {props.label}
         </label>
         {props.hint === undefined ? null : (
-          <p id={hintId} className="mt-0.5 text-xs text-slate-500">
+          <p id={hintId} className="mt-0.5 text-xs text-ink-faint">
             {props.hint}
           </p>
         )}
@@ -237,7 +249,7 @@ export function SelectField(props: SelectFieldProps): JSX.Element {
 function Label({ htmlFor, text }: { htmlFor: string; text: string }): JSX.Element {
   return (
     <div className="mb-1 flex items-center justify-between gap-2">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={htmlFor} className={LABEL_CLASS}>
         {text}
       </label>
       {/* The assist slot. Empty — see the header comment. */}
@@ -260,7 +272,7 @@ function Notes({
 }): JSX.Element | null {
   if (error != null) {
     return (
-      <p id={errorId} role="alert" className="mt-1 text-xs text-red-900">
+      <p id={errorId} role="alert" className="mt-1 text-xs text-danger-ink">
         {error}
       </p>
     );
@@ -278,7 +290,7 @@ function Notes({
    * node that is not there in whichever state the control is not in.
    */
   return hint === undefined ? null : (
-    <p id={hintId} className="mt-1 text-xs text-slate-500">
+    <p id={hintId} className="mt-1 text-xs text-ink-faint">
       {hint}
     </p>
   );

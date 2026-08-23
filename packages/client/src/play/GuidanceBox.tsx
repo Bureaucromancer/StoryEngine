@@ -29,13 +29,13 @@ export function GuidanceBox({
 }): React.JSX.Element {
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer text-neutral-400 hover:text-neutral-200">
+      <summary className="cursor-pointer text-ink-muted hover:text-ink">
         Guidance for this turn
       </summary>
       <label className="mt-2 block">
         <span className="sr-only">Guidance for this turn</span>
         <textarea
-          className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+          className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
           rows={2}
           value={value}
           disabled={disabled}

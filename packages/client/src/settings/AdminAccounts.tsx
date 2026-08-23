@@ -5,14 +5,16 @@ import { useState, type JSX } from 'react';
 
 import type { AccountPatch, AdminAccount } from '../api.js';
 
-import { CheckboxField, Field, SelectField } from '../editor/Field.js';
+import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import {
   useAdminAccounts,
+  useAuthState,
   useCreateAccount,
   useRemoveAccount,
   useUpdateAccount,
 } from '../queries.js';
-import { useFocusTrap } from '../useFocusTrap.js';
+import { Button } from '../ui/Button.js';
+import { Dialog } from '../ui/Dialog.js';
 
 /**
  * Accounts — [05 §15.2](../../../../docs/design/05-ui-surfaces.md).
@@ -29,7 +31,7 @@ export function AdminAccounts(): JSX.Element {
   const accounts = useAdminAccounts();
   const [confirming, setConfirming] = useState<string | null>(null);
 
-  if (accounts.isPending) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (accounts.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
   if (accounts.isError) return <p role="alert">The account list could not be read.</p>;
 
   const rows = accounts.data.accounts;
@@ -38,7 +40,7 @@ export function AdminAccounts(): JSX.Element {
   return (
     <section className="flex flex-col gap-6" aria-labelledby="accounts">
       <div>
-        <h3 id="accounts" className="text-base font-medium">
+        <h3 id="accounts" className="text-subsection text-ink">
           Accounts
         </h3>
         {stuck > 0 ? (
@@ -48,7 +50,7 @@ export function AdminAccounts(): JSX.Element {
            * themselves ([05 §15.4]), so each row says so too — and when there is
            * no system connection at all, this is one fix rather than n.
            */
-          <p role="status" className="mt-1 text-sm text-amber-800">
+          <p role="status" className="mt-1 text-sm text-warn-ink">
             {deadEndWarning(stuck, accounts.data.systemConnectionCount)}
           </p>
         ) : null}
@@ -92,11 +94,11 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
   }
 
   return (
-    <li className="rounded-md border border-slate-200 p-4">
+    <li className="rounded-md border border-line p-4">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="font-medium">{row.displayName}</p>
-          <p className="text-xs text-slate-500">{row.handle}</p>
+          <p className="text-xs text-ink-faint">{row.handle}</p>
         </div>
         <div className="flex items-center gap-2">
           <SelectField
@@ -114,7 +116,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
       </div>
 
       {row.hasUsableConnection ? null : (
-        <p className="mt-2 text-sm text-amber-800">
+        <p className="mt-2 text-sm text-warn-ink">
           No usable connection — this account cannot send a message.
         </p>
       )}
@@ -130,7 +132,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
         />
 
         <fieldset className="border-0 p-0">
-          <legend className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+          <legend className="text-xs font-medium tracking-wide text-ink-faint uppercase">
             In force now
           </legend>
           <div className="mt-2">
@@ -155,10 +157,10 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
          * kept and will apply when the feature ships.
          */}
         <fieldset className="border-0 p-0">
-          <legend className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+          <legend className="text-xs font-medium tracking-wide text-ink-faint uppercase">
             Recorded for later
           </legend>
-          <p className="mt-1 mb-2 text-xs text-slate-500">
+          <p className="mt-1 mb-2 text-xs text-ink-faint">
             These features have not shipped. What you set here is kept and will apply when they do.
           </p>
           <div className="flex flex-col gap-3">
@@ -187,18 +189,20 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
       </div>
 
       {refused === null ? null : (
-        <p role="alert" className="mt-3 text-sm text-red-900">
+        <p role="alert" className="mt-3 text-sm text-danger-ink">
           {refused}
         </p>
       )}
 
-      <button
+      <Button
         type="button"
-        className="mt-4 rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-900"
+        variant="dangerOutline"
+        size="compact"
+        className="mt-4"
         onClick={onRemove}
       >
         {removeButtonLabel(row.handle)}
-      </button>
+      </Button>
     </li>
   );
 }
@@ -206,13 +210,16 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
 /** Making an account, which is the phase's demo in one form. */
 function NewAccount(): JSX.Element {
   const create = useCreateAccount();
+  // Cached by the gate; no request of its own. Not an admin-only read, which
+  // matters — see the note on absent-rather-than-disabled in `SettingsPage`.
+  const auth = useAuthState();
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
 
   return (
     <form
-      className="flex max-w-md flex-col gap-3 rounded-md border border-slate-200 p-4"
+      className="flex max-w-md flex-col gap-3 rounded-md border border-line p-4"
       aria-labelledby="new-account"
       onSubmit={(event) => {
         event.preventDefault();
@@ -227,7 +234,7 @@ function NewAccount(): JSX.Element {
         );
       }}
     >
-      <h4 id="new-account" className="text-base font-medium">
+      <h4 id="new-account" className="text-subsection text-ink">
         Add someone
       </h4>
       <Field
@@ -236,7 +243,12 @@ function NewAccount(): JSX.Element {
         onChange={setHandle}
         hint="Lowercase, and it becomes their folder name under data/users."
       />
-      <Field label="First password" value={password} onChange={setPassword} />
+      <Field
+        label="First password"
+        value={password}
+        onChange={setPassword}
+        hint={firstPasswordRule(auth.data?.minPasswordLength ?? 0)}
+      />
       <SelectField
         label="Role"
         value={role}
@@ -249,11 +261,11 @@ function NewAccount(): JSX.Element {
         }}
       />
       <div className="flex items-center gap-3">
-        <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
+        <Button type="submit" variant="primary" size="compact">
           Create
-        </button>
+        </Button>
         {create.isError ? (
-          <p role="alert" className="text-sm text-red-900">
+          <p role="alert" className="text-sm text-danger-ink">
             {create.error.message}
           </p>
         ) : null}
@@ -277,58 +289,45 @@ function NewAccount(): JSX.Element {
 function RemoveDialog({ handle, onDone }: { handle: string; onDone: () => void }): JSX.Element {
   const remove = useRemoveAccount();
   const [typed, setTyped] = useState('');
-  const surface = useFocusTrap(onDone);
-
   return (
-    <div
-      ref={surface}
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="remove-title"
-      className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4"
-    >
-      <div className="flex max-w-lg flex-col gap-4 rounded-md bg-white p-6">
-        <h4 id="remove-title" className="text-base font-medium">
-          {removeTitle(handle)}
-        </h4>
-        {/**
-         * **Whole sentences**, because word order differs between languages and
-         * a sentence built by concatenation cannot be translated at all
-         * ([01 §2]) — which is why the handle is substituted into each string
-         * rather than sitting between two JSX fragments.
-         */}
-        <p className="text-sm text-slate-700">
-          Their library is moved to data/removed/ on the server. StoryEngine will not delete it —
-          remove that folder yourself when you are sure.
+    <Dialog role="alertdialog" labelledBy="remove-title" onDismiss={onDone} size="wide">
+      <h4 id="remove-title" className="text-subsection text-ink">
+        {removeTitle(handle)}
+      </h4>
+      {/**
+       * **Whole sentences**, because word order differs between languages and
+       * a sentence built by concatenation cannot be translated at all
+       * ([01 §2]) — which is why the handle is substituted into each string
+       * rather than sitting between two JSX fragments.
+       */}
+      <p className="text-sm text-ink-muted">
+        Their library is moved to data/removed/ on the server. StoryEngine will not delete it —
+        remove that folder yourself when you are sure.
+      </p>
+      <p className="text-sm text-ink-muted">{handleIsFreeAgain(handle)}</p>
+      <Field label={confirmPrompt(handle)} value={typed} onChange={setTyped} />
+      {remove.isError ? (
+        <p role="alert" className="text-sm text-danger-ink">
+          {remove.error.message}
         </p>
-        <p className="text-sm text-slate-700">{handleIsFreeAgain(handle)}</p>
-        <Field label={confirmPrompt(handle)} value={typed} onChange={setTyped} />
-        {remove.isError ? (
-          <p role="alert" className="text-sm text-red-900">
-            {remove.error.message}
-          </p>
-        ) : null}
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            onClick={onDone}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={typed !== handle}
-            className="rounded-md bg-red-700 px-3 py-2 text-sm text-white disabled:opacity-40"
-            onClick={() => {
-              remove.mutate(handle, { onSuccess: onDone });
-            }}
-          >
-            Remove and move their data
-          </button>
-        </div>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="compact" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          size="compact"
+          disabled={typed !== handle}
+          onClick={() => {
+            remove.mutate(handle, { onSuccess: onDone });
+          }}
+        >
+          Remove and move their data
+        </Button>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -366,4 +365,21 @@ function handleIsFreeAgain(handle: string): string {
 
 function confirmPrompt(handle: string): string {
   return `Type ${handle} to confirm`;
+}
+
+/**
+ * What to type in the first-password box, as one whole sentence per case.
+ *
+ * The number is `auth.minPasswordLength`, read from `GET /api/auth/state`
+ * rather than mirrored here, because it is this install's setting. Zero says
+ * plainly what a blank box will do: it is a legal password, and an admin who
+ * leaves the field empty should know they are creating an account that signs in
+ * with nothing rather than one with no password set.
+ */
+function firstPasswordRule(minimum: number): string {
+  if (minimum === 0) {
+    return 'This install sets no minimum length. Leave it blank and they will sign in with an empty password.';
+  }
+  if (minimum === 1) return 'At least 1 character. They can change it once they sign in.';
+  return `At least ${String(minimum)} characters. They can change it once they sign in.`;
 }

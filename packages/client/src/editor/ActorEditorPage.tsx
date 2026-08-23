@@ -8,7 +8,6 @@ import { uuidv7 } from '@storyengine/shared';
 
 import { api, ApiError, type LibraryObject } from '../api.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
-import { useFocusTrap } from '../useFocusTrap.js';
 import {
   actorFormShape,
   applyForm,
@@ -18,7 +17,11 @@ import {
   stampUpdated,
   type ActorForm,
 } from './form.js';
-import { Field } from './Field.js';
+import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
+import { Dialog } from '../ui/Dialog.js';
+import { Field } from '../ui/Field.js';
+import { SubsectionTitle } from '../ui/Text.js';
 import { HistoryPanel } from './HistoryPanel.js';
 
 /**
@@ -51,19 +54,19 @@ function EditorLoader(props: { id: string }): JSX.Element {
   const base = useEditorBase('actors', props.id);
 
   if (base.isPending) {
-    return <p className="text-slate-600">Loading the actor…</p>;
+    return <p className="text-ink-subtle">Loading the actor…</p>;
   }
   if (base.isError) {
     const missing = base.error instanceof ApiError && base.error.status === 404;
     return (
-      <p role="alert" className="text-red-900">
+      <p role="alert" className="text-danger-ink">
         {missing ? 'There is no such actor in your library.' : base.error.message}
       </p>
     );
   }
   if (base.data.source === 'system') {
     return (
-      <p role="alert" className="text-slate-700">
+      <p role="alert" className="text-ink-muted">
         System library objects are read-only. Copy it to your library to edit it.
       </p>
     );
@@ -73,10 +76,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
   const problem = actorFormShape(base.data.object);
   if (problem !== null) {
     return (
-      <div
-        role="alert"
-        className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900"
-      >
+      <Alert tone="error" role="alert">
         <p className="mb-2 font-medium">This actor cannot be opened in the editor.</p>
         <p className="mb-2">
           {`The file on disk does not have the shape the form needs: ${problem}. This usually means a hand edit went wrong. The file itself is untouched — fix it on disk and it will load.`}
@@ -90,7 +90,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
             Back to the actor
           </Link>
         </p>
-      </div>
+      </Alert>
     );
   }
   return <Editor initial={base.data} />;
@@ -204,7 +204,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         <Link
           to="/library/$kind/$id"
           params={{ kind: 'actors', id: base.id }}
-          className="text-sm text-slate-600 underline hover:text-slate-900"
+          className="text-sm text-ink-subtle underline hover:text-ink"
         >
           Back to the actor
         </Link>
@@ -216,11 +216,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         <img
           src={api.avatarUrl(base.id, base.contentHash)}
           alt=""
-          className="h-20 w-20 rounded-md border border-slate-200 bg-slate-100 object-cover"
+          className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
         />
         <div>
-          <h1 className="text-2xl font-semibold">{form.name}</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-title text-ink">{form.name}</h1>
+          <p className="text-sm text-ink-subtle">
             The card image travels with the file; this editor shows it and does not replace it.
           </p>
         </div>
@@ -229,7 +229,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       {notice !== null ? (
         <p
           role="status"
-          className="mb-4 rounded-md border border-slate-300 bg-slate-50 p-3 text-sm"
+          className="mb-4 rounded-md border border-line-strong bg-surface-sunken p-3 text-sm"
         >
           {notice}
         </p>
@@ -240,12 +240,9 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           412 without one vanished entirely. Filter only what the dialog owns. */}
       {save.isError &&
       !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-        <p
-          role="alert"
-          className="mb-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
-        >
+        <Alert tone="error" role="alert" className="mb-4">
           {save.error.message}
-        </p>
+        </Alert>
       ) : null}
 
       <form
@@ -303,10 +300,10 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         />
 
         {form.sections.map((section, index) => (
-          <fieldset key={section.id} className="rounded-md border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-medium text-slate-700">
+          <fieldset key={section.id} className="rounded-md border border-line p-4">
+            <legend className="px-1 text-sm font-medium text-ink-muted">
               {section.title === '' ? 'Untitled section' : section.title}
-              <span className="ms-2 text-xs font-normal text-slate-500">{section.disposition}</span>
+              <span className="ms-2 text-xs font-normal text-ink-faint">{section.disposition}</span>
             </legend>
             <div className="flex flex-col gap-3">
               <Field
@@ -336,24 +333,24 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         ))}
 
         <div className="flex items-center gap-3">
-          <button
+          <Button
             type="submit"
             disabled={!changed || save.isPending || form.name.trim() === ''}
-            className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+            variant="primary"
           >
             Save
-          </button>
-          {!changed ? <span className="text-sm text-slate-500">No changes to save.</span> : null}
-          <button
+          </Button>
+          {!changed ? <span className="text-sm text-ink-faint">No changes to save.</span> : null}
+          <Button
             type="button"
-            className="ms-auto rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            className="ms-auto"
             aria-expanded={historyOpen}
             onClick={() => {
               setHistoryOpen((open) => !open);
             }}
           >
             History
-          </button>
+          </Button>
         </div>
       </form>
 
@@ -409,59 +406,33 @@ export function ConflictDialog(props: {
   const { onCancel } = props;
   // The trap lives in `useFocusTrap` since [P2A §3] — the settings surface has
   // two dialogs of its own, and two spellings of a trap is how one of them ends
-  // up missing the Escape arm.
-  const surface = useFocusTrap(onCancel);
-
+  // up missing the Escape arm. `Dialog` now owns the call, for the same reason
+  // one step out: the markup the trap attaches to was also spelled three times.
   return (
-    <div
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="conflict-title"
-      ref={surface}
-      className="fixed inset-0 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="w-full max-w-md rounded-md border border-slate-300 bg-white p-6 shadow-lg">
-        <h2 id="conflict-title" className="mb-2 text-lg font-semibold">
-          The actor changed while you were editing
-        </h2>
-        <p className="mb-4 text-sm text-slate-600">
-          Something else wrote to this object since it was loaded — another tab, or a text editor
-          working on the file. Saving now would overwrite that change, so it was refused.
-        </p>
-        {props.copyError !== null ? (
-          <p
-            role="alert"
-            className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900"
-          >
-            {props.copyError}
-          </p>
-        ) : null}
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            autoFocus
-            onClick={props.onReload}
-            className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            Load the newer version and reapply my edits
-          </button>
-          <button
-            type="button"
-            onClick={props.onSaveAsCopy}
-            disabled={props.copyPending}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed"
-          >
-            Save my version as a copy instead
-          </button>
-          <button
-            type="button"
-            onClick={props.onCancel}
-            className="rounded-md px-4 py-2 text-sm text-slate-500 hover:bg-slate-100"
-          >
-            Cancel
-          </button>
-        </div>
+    <Dialog role="alertdialog" labelledBy="conflict-title" onDismiss={onCancel}>
+      <SubsectionTitle id="conflict-title" as="h2" className="mb-2">
+        The actor changed while you were editing
+      </SubsectionTitle>
+      <p className="mb-4 text-sm text-ink-subtle">
+        Something else wrote to this object since it was loaded — another tab, or a text editor
+        working on the file. Saving now would overwrite that change, so it was refused.
+      </p>
+      {props.copyError !== null ? (
+        <Alert tone="error" role="alert" className="mb-3">
+          {props.copyError}
+        </Alert>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        <Button type="button" variant="primary" autoFocus onClick={props.onReload}>
+          Load the newer version and reapply my edits
+        </Button>
+        <Button type="button" onClick={props.onSaveAsCopy} disabled={props.copyPending}>
+          Save my version as a copy instead
+        </Button>
+        <Button type="button" variant="quiet" onClick={props.onCancel}>
+          Cancel
+        </Button>
       </div>
-    </div>
+    </Dialog>
   );
 }

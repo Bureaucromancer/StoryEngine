@@ -214,6 +214,18 @@ export default tseslint.config(
   packageTestOverride('server', 'packages/server'),
   packageTestOverride('client', 'packages/client'),
 
+  // **The router's redirect is control flow, not an error.** TanStack Router's
+  // `redirect()` returns a signal the router catches and turns into a
+  // navigation, and throwing it is the documented way to redirect from
+  // `beforeLoad`. `only-throw-error` sees a thrown non-Error and objects,
+  // correctly in general and wrongly here.
+  //
+  // One file wide, and it should stay that way: everywhere else in the client a
+  // thrown non-Error is the mistake the rule exists to catch.
+  {
+    files: ['packages/client/src/router.tsx'],
+    rules: { '@typescript-eslint/only-throw-error': 'off' },
+  },
   // **The RNG service itself** — the destination the rule has been pointing at
   // since P1.0, landed at P2.2. It is the one place allowed to call
   // `node:crypto`'s random functions, because everything above it draws through
@@ -293,7 +305,29 @@ export default tseslint.config(
   {
     files: ['packages/client/src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': restrictedSyntax({ userFacing: true }),
+      'no-restricted-syntax': restrictedSyntax({ userFacing: true, tokensOnly: true }),
+    },
+  },
+  /**
+   * **The appearance layer.** `packages/client/src/ui/` is where the class
+   * lists live, so it gets one rule the rest of the client does not: a class
+   * list is one string literal and is never joined with `+`.
+   *
+   * Note this *adds* to `userFacing` rather than replacing it. The carve-outs
+   * elsewhere in this file relax a rule for a file that has a reason to break
+   * it; this one does not — components render labels and `aria-label`s like
+   * anywhere else, so the assembly rule still applies. What the `+` ban does is
+   * keep a class list from ever reaching that rule, which would report it with
+   * a message about translation that is not what is wrong with it.
+   */
+  {
+    files: ['packages/client/src/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+      }),
     },
   },
   {

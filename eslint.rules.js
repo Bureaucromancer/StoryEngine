@@ -125,8 +125,36 @@ export const restrictedProperties = [
  * Stylelint cannot see any of this, because a utility class is not a
  * declaration — which is why the CSS half of docs/design/07-tech-stack.md
  * §12.6 needs two rules rather than one.
+ *
+ * **Why this pattern is exact rather than generous**, which is the part worth
+ * knowing before editing it. The rule used to be anchored on
+ * `JSXAttribute[name.name="className"]`, and that anchor let position do the
+ * work of precision: everything inside a `className` is a class, so `left` and
+ * `right` could carry an *optional* suffix and match the bare words harmlessly.
+ *
+ * The anchor stopped being tenable when the class strings moved into
+ * `packages/client/src/ui/`. A string in a `const` has no `JSXAttribute`
+ * ancestor, so the rule would have gone silent exactly where the appearance of
+ * the whole app had just been gathered — and it had been silent for a while
+ * already, on the five class constants that predate `ui/` and on `Shell.tsx`'s
+ * `activeProps={{ className }}`, where the class travels through an *object
+ * property* rather than an attribute.
+ *
+ * Unanchored, the rule sees every string in the repo, and this repo is full of
+ * strings that a generous pattern reads as physical utilities:
+ *
+ *   packages/server/src/index-db/sessions.ts   `from turn left join turn_fts`
+ *   packages/server/src/routes/routes.test.ts  `accepts the right password`
+ *   packages/client/src/settings/…test.tsx     `when it was left blank`
+ *
+ * So `left` and `right` require a Tailwind-shaped suffix — a digit, `px`,
+ * `full`, `auto`, an arbitrary `[…]` or a `(…)` variable. Nothing real is lost:
+ * bare `ml`, `pl`, `left` and `right` are not utilities, since the utility is
+ * always `ml-4` or `left-0`. `tools/lint-fixtures` pins both halves of that —
+ * the physical forms still report, and a fixture of ordinary English and SQL
+ * reports nothing. Do not relax this back into the anchored shape.
  */
-const PHYSICAL_UTILITY_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:(?:ml|mr|pl|pr|left|right|scroll-ml|scroll-mr|scroll-pl|scroll-pr|border-l|border-r|rounded-l|rounded-r|rounded-tl|rounded-tr|rounded-bl|rounded-br)(?:-[^\s]*)?|text-left|text-right|float-left|float-right|clear-left|clear-right)(?:\s|$)`;
+const PHYSICAL_UTILITY_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:(?:left|right)-(?:\d|px|full|auto|\[|\()[^\s]*|(?:ml|mr|pl|pr|scroll-ml|scroll-mr|scroll-pl|scroll-pr)-[^\s]+|(?:border-l|border-r|rounded-l|rounded-r|rounded-tl|rounded-tr|rounded-bl|rounded-br)(?:-[^\s]*)?|text-left|text-right|float-left|float-right|clear-left|clear-right)(?:\s|$)`;
 
 const TAILWIND_MESSAGE =
   'Physical-direction utility. Use the logical equivalent (ms/me, ps/pe, ' +
@@ -183,20 +211,85 @@ const DISPLAYED_TEXT_MESSAGE =
   'the moment a label is also an identifier, translating it changes what the ' +
   'program does (docs/design/workplan/01-work-plan.md §2).';
 
+// ---------------------------------------------------------------------------
+// The palette lives in one file
+// ---------------------------------------------------------------------------
+
+/**
+ * A Tailwind palette scale — `bg-slate-800`, `text-red-900`, `border-amber-300`.
+ *
+ * Every one of these is a colour decision made at a call site, and the client
+ * made about a hundred and seventy of them before they were gathered. The
+ * semantic tokens in `packages/client/src/index.css` replaced them, and this
+ * rule is what stops the hundred and seventy-first: after it, the *only* place
+ * in the client that can name a scale is that stylesheet, which ESLint does not
+ * read and Stylelint does.
+ *
+ * That is not tidiness. A second theme is a redefinition of those tokens, so a
+ * component that reaches past them for `bg-slate-100` is a component that stays
+ * light when everything around it goes dark — which is exactly the defect this
+ * work started from, where a play surface written against one palette was
+ * rendered inside a shell written against another and typed text came out at
+ * 1.01 to 1.
+ *
+ * The arbitrary-value escape (`bg-[#fff]`) is deliberately *not* matched. It is
+ * loud, greppable and occasionally correct for a one-off; the failure mode this
+ * rule exists for is the quiet, plausible one.
+ */
+const PALETTE_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:bg|text|border|ring|outline|decoration|divide|from|via|to|accent|caret|placeholder|shadow|fill|stroke)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/\d+)?(?:\s|$)`;
+
+const PALETTE_MESSAGE =
+  'Tailwind palette scale in a component. Use a semantic token — bg-surface, ' +
+  'text-ink-muted, border-line, text-danger-ink — and if none of them says what ' +
+  'you mean, add one. The palette lives in packages/client/src/index.css and ' +
+  'nowhere else, because a second theme redefines those tokens: a scale named ' +
+  'here is a surface that stays light when the rest of the app goes dark.';
+
+/**
+ * `dark:` in a component, which is the same mistake wearing a different hat.
+ *
+ * The dark theme redefines tokens; it does not add variants. So a component
+ * that needs `dark:` is a component whose token is missing — and the fix is to
+ * add the token, which fixes every other surface that was about to need the
+ * same variant.
+ */
+const DARK_VARIANT_MESSAGE =
+  'A `dark:` variant. The dark theme redefines tokens rather than adding ' +
+  'variants, so a component that needs one is a component whose token is ' +
+  'missing: add it to the @theme block and the dark override in ' +
+  'packages/client/src/index.css, and every other surface gets it too.';
+
+const CLASS_JOIN_MESSAGE =
+  'A class list joined with `+`. Each variant is one string literal, however ' +
+  'long — Prettier will not split it. If the assembly rule also fired here, ' +
+  'this is the message that applies: that rule cannot tell a class list from a ' +
+  'sentence, because `rounded border` is two plain words in a row, and its ' +
+  'advice about word order is not what is wrong with a class list. Position — ' +
+  'a margin, an `mt-` — belongs at the call site rather than in the recipe, so ' +
+  'there is nothing left to join.';
+
 const INTL_MESSAGE =
   'Hand-rolled date, time or number formatting. Use `Intl` — see ' +
   'packages/client/src/format.ts. A locale is a property of the reader, and ' +
   'a format assembled from parts bakes in one (docs/design/07-tech-stack.md ' +
   '§12.6).';
 
-export function restrictedSyntax({ allowRandomness = false, userFacing = false } = {}) {
+export function restrictedSyntax({
+  allowRandomness = false,
+  userFacing = false,
+  classList = false,
+  tokensOnly = false,
+} = {}) {
   const entries = [
+    // Not anchored on `className`. See the pattern's docstring: the anchor was
+    // what made the class constants in `packages/client/src/ui/` invisible, and
+    // those are now where the app's appearance lives.
     {
-      selector: `JSXAttribute[name.name="className"] Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      selector: `Literal[value=/${PHYSICAL_UTILITY_PATTERN}/]`,
       message: TAILWIND_MESSAGE,
     },
     {
-      selector: `JSXAttribute[name.name="className"] TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
+      selector: `TemplateElement[value.raw=/${PHYSICAL_UTILITY_PATTERN}/]`,
       message: TAILWIND_MESSAGE,
     },
     // `Intl` only. Everywhere, not only in user-facing code: a formatted date
@@ -233,6 +326,32 @@ export function restrictedSyntax({ allowRandomness = false, userFacing = false }
     entries.push({
       selector: `BinaryExpression[operator=/^[=!]==?$/] > Literal[value=/${PROSE_PATTERN}/]`,
       message: DISPLAYED_TEXT_MESSAGE,
+    });
+  }
+
+  if (tokensOnly) {
+    entries.push(
+      { selector: `Literal[value=/${PALETTE_PATTERN}/]`, message: PALETTE_MESSAGE },
+      { selector: `TemplateElement[value.raw=/${PALETTE_PATTERN}/]`, message: PALETTE_MESSAGE },
+      {
+        selector: String.raw`Literal[value=/(?:^|\s)dark:/]`,
+        message: DARK_VARIANT_MESSAGE,
+      },
+      {
+        selector: String.raw`TemplateElement[value.raw=/(?:^|\s)dark:/]`,
+        message: DARK_VARIANT_MESSAGE,
+      },
+    );
+  }
+
+  if (classList) {
+    // A `+` whose operand holds a hyphenated utility (`text-sm`, `bg-surface`).
+    // Deliberately narrower than a blanket ban on `+`: arithmetic is fine, and
+    // the thing being prevented is specifically a class list arriving in
+    // pieces, where the assembly rule would fire with the wrong explanation.
+    entries.push({
+      selector: String.raw`BinaryExpression[operator="+"] > Literal[value=/(?:^|\s)[a-z][a-z0-9]*-[a-z0-9[\]/.-]+(?:\s|$)/]`,
+      message: CLASS_JOIN_MESSAGE,
     });
   }
 

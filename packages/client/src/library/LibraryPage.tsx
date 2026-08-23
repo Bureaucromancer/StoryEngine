@@ -21,7 +21,7 @@ import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
  * [polish §4](../../../../docs/design/workplan/09-polish.md) for the change.
  */
 
-const routeApi = getRouteApi('/');
+const routeApi = getRouteApi('/library');
 
 export function LibraryPage(): JSX.Element {
   const search = routeApi.useSearch();
@@ -29,7 +29,7 @@ export function LibraryPage(): JSX.Element {
 
   return (
     <>
-      <h1 className="mb-4 text-2xl font-semibold">Library</h1>
+      <h1 className="mb-4 text-title text-ink">Library</h1>
       <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
         <FilterLink kind={undefined} current={search.kind} />
         {LIBRARY_KINDS.map((kind) => (
@@ -37,9 +37,9 @@ export function LibraryPage(): JSX.Element {
         ))}
       </nav>
 
-      {library.isPending ? <p className="text-slate-600">Loading the library…</p> : null}
+      {library.isPending ? <p className="text-ink-subtle">Loading the library…</p> : null}
       {library.isError ? (
-        <p role="alert" className="text-red-900">
+        <p role="alert" className="text-danger-ink">
           {library.error.message}
         </p>
       ) : null}
@@ -57,14 +57,14 @@ function FilterLink(props: {
   const active = props.kind === props.current;
   return (
     <Link
-      to="/"
+      to="/library"
       search={props.kind === undefined ? {} : { kind: props.kind }}
       aria-current={active ? 'page' : undefined}
       className={
         active
-          ? 'rounded-md bg-slate-800 px-3 py-1 text-sm font-medium text-white'
-          : 'rounded-md bg-white px-3 py-1 text-sm text-slate-700 ' +
-            'border border-slate-300 hover:bg-slate-100'
+          ? 'rounded-md bg-accent px-3 py-1 text-sm font-medium text-on-accent'
+          : 'rounded-md bg-surface px-3 py-1 text-sm text-ink-muted ' +
+            'border border-line-strong hover:bg-surface-muted'
       }
     >
       {props.kind === undefined ? 'All kinds' : KIND_LABELS[props.kind]}
@@ -78,7 +78,7 @@ function ObjectTable(props: {
 }): JSX.Element {
   if (props.objects.length === 0) {
     return (
-      <p className="text-slate-600">
+      <p className="text-ink-subtle">
         {props.kind === undefined
           ? 'The library is empty. Objects created through the API, or dropped into the data directory, appear here.'
           : 'There is nothing of this kind in the library yet.'}
@@ -89,7 +89,7 @@ function ObjectTable(props: {
   return (
     <table className="w-full border-collapse">
       <thead>
-        <tr className="border-b border-slate-300 text-sm text-slate-600">
+        <tr className="border-b border-line-strong text-sm text-ink-subtle">
           <th scope="col" className="py-2 pe-4 text-start font-medium">
             Name
           </th>
@@ -113,7 +113,7 @@ function ObjectTable(props: {
 function ObjectRow(props: { object: LibraryObject }): JSX.Element {
   const kind = kindOfSchema(props.object.schema);
   return (
-    <tr className="border-b border-slate-200">
+    <tr className="border-b border-line">
       <td className="py-2 pe-4">
         <span className="flex items-center gap-2">
           {kind === null ? (
@@ -131,7 +131,7 @@ function ObjectRow(props: { object: LibraryObject }): JSX.Element {
                   ? { source: props.object.source, slug: props.object.slug }
                   : {}
               }
-              className="font-medium text-slate-900 underline decoration-slate-300 hover:decoration-slate-700"
+              className="font-medium text-ink underline decoration-line-strong hover:decoration-ink-subtle"
             >
               {props.object.name}
             </Link>
@@ -139,7 +139,7 @@ function ObjectRow(props: { object: LibraryObject }): JSX.Element {
           {props.object.shadowed ? <ShadowedBadge /> : null}
         </span>
       </td>
-      <td className="py-2 pe-4 text-sm text-slate-600">
+      <td className="py-2 pe-4 text-sm text-ink-subtle">
         {kind === null ? props.object.schema : KIND_LABELS[kind]}
       </td>
       <td className="py-2">

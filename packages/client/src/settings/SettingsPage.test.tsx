@@ -33,6 +33,8 @@ const readBindings = vi.fn();
 const readRoles = vi.fn();
 const updateMe = vi.fn();
 const changePassword = vi.fn();
+const readPrefs = vi.fn();
+const patchPrefs = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -41,6 +43,8 @@ vi.mock('../api.js', async (importOriginal) => ({
     readMe: (...a: unknown[]) => readMe(...a) as unknown,
     updateMe: (...a: unknown[]) => updateMe(...a) as unknown,
     changePassword: (...a: unknown[]) => changePassword(...a) as unknown,
+    readPrefs: (...a: unknown[]) => readPrefs(...a) as unknown,
+    patchPrefs: (...a: unknown[]) => patchPrefs(...a) as unknown,
   },
   adminApi: {
     listAccounts: (...a: unknown[]) => listAccounts(...a) as unknown,
@@ -83,6 +87,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   readMe.mockResolvedValue({ account: account('user') });
   updateMe.mockResolvedValue({ account: account('user') });
+  // The Preferences pane reads these on every render of this page. Empty is the
+  // ordinary state: no preference set means every default.
+  readPrefs.mockResolvedValue({ prefs: {} });
+  patchPrefs.mockResolvedValue({ prefs: {} });
   listAccounts.mockResolvedValue({
     accounts: [{ ...account('admin'), hasUsableConnection: false }],
     withoutUsableConnection: 1,
@@ -102,6 +110,7 @@ beforeEach(() => {
       'server.port': 'restart',
     },
     appliers: { 'log.level': 'applied' },
+    bounds: { 'server.port': { minimum: 1, maximum: 65_535 } },
     pendingRestart: [],
   });
   notices.mockResolvedValue({ pendingRestart: [], canRestart: false });
@@ -110,8 +119,12 @@ beforeEach(() => {
   readRoles.mockResolvedValue({ roles: [] });
 });
 
-function renderPage(role: 'admin' | 'user') {
-  authState.mockResolvedValue({ setupRequired: false, account: account(role) });
+function renderPage(role: 'admin' | 'user', minPasswordLength = 8) {
+  authState.mockResolvedValue({
+    setupRequired: false,
+    account: account(role),
+    minPasswordLength,
+  });
   readMe.mockResolvedValue({ account: account(role) });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -331,6 +344,7 @@ describe('the install form', () => {
       path: '/data/config.json',
       tiers: { 'limits.maxUploadMb': 'live', 'log.level': 'live' },
       appliers: { 'limits.maxUploadMb': 'unread', 'log.level': 'applied' },
+      bounds: {},
       pendingRestart: [],
     });
     renderPage('admin');
@@ -388,6 +402,37 @@ describe('the user half', () => {
     expect(await screen.findByText('That is not your current password.')).toBeTruthy();
   });
 
+  it('states this install’s minimum rather than a number baked into the build', async () => {
+    // The assertion that proves the 8 is gone. It was hardcoded in the error
+    // branch, so every install that changed `auth.minPasswordLength` was told
+    // the wrong rule — and nothing was watching.
+    const { ApiError } = await import('../api.js');
+    changePassword.mockRejectedValue(new ApiError(400, 'invalid', 'too short'));
+    renderPage('user', 12);
+
+    await userEvent.type(await screen.findByLabelText('Current password'), 'whatever');
+    await userEvent.type(screen.getByLabelText('New password'), 'short');
+    await userEvent.click(screen.getByRole('button', { name: 'Change password' }));
+
+    expect(
+      await screen.findByText('The new password must be at least 12 characters.'),
+    ).toBeTruthy();
+  });
+
+  it('does not blame the password’s length for a server fault', async () => {
+    // The old else-branch claimed a length problem for every non-401, so a 500
+    // told somebody their password was too short.
+    const { ApiError } = await import('../api.js');
+    changePassword.mockRejectedValue(new ApiError(500, 'internal', 'The request failed.'));
+    renderPage('user', 12);
+
+    await userEvent.type(await screen.findByLabelText('Current password'), 'whatever');
+    await userEvent.type(screen.getByLabelText('New password'), 'a long enough one');
+    await userEvent.click(screen.getByRole('button', { name: 'Change password' }));
+
+    expect(await screen.findByText('The password could not be changed.')).toBeTruthy();
+  });
+
   /**
    * **Sessions elsewhere survive a password change**, and the form says so.
    *
@@ -419,6 +464,65 @@ describe('the user half', () => {
  * and for a connection, so shipping the dead affordance once would have shipped
  * it three times.
  */
+/**
+ * The theme control — [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s
+ * Preferences pane, and the first thing to use the per-user store that
+ * [06 B13](../../../../docs/design/06-open-questions.md) settled.
+ *
+ * The claim being tested is not that a `<select>` works. It is that *system* is
+ * recorded as the **absence** of a preference rather than as a third stored
+ * word — because the moment it is stored, a person who never opened this
+ * setting and a person who chose *system* are in two different states that have
+ * to be kept behaving identically forever.
+ */
+describe('the theme preference', () => {
+  it('offers the three choices, defaulting to system when nothing is stored', async () => {
+    renderPage('user');
+    const theme: HTMLSelectElement = await screen.findByLabelText('Theme');
+
+    expect([...theme.options].map((option) => option.value)).toEqual(['system', 'light', 'dark']);
+    expect(theme.value).toBe('system');
+  });
+
+  it('shows the stored choice', async () => {
+    readPrefs.mockResolvedValue({ prefs: { 'ui.theme': 'dark' } });
+    renderPage('user');
+
+    const theme: HTMLSelectElement = await screen.findByLabelText('Theme');
+    expect(theme.value).toBe('dark');
+  });
+
+  it('records an explicit choice, and paints it without waiting for the server', async () => {
+    let settle: (value: unknown) => void = () => undefined;
+    patchPrefs.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    renderPage('user');
+    await userEvent.selectOptions(await screen.findByLabelText('Theme'), 'dark');
+
+    // Before the request has answered: the page a person is looking at has
+    // already changed, which is the whole feedback this control gives.
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(patchPrefs.mock.calls[0]?.[0]).toEqual({ 'ui.theme': 'dark' });
+
+    settle({ prefs: { 'ui.theme': 'dark' } });
+  });
+
+  it('deletes the key for system rather than storing the word', async () => {
+    readPrefs.mockResolvedValue({ prefs: { 'ui.theme': 'dark' } });
+    renderPage('user');
+    await userEvent.selectOptions(await screen.findByLabelText('Theme'), 'system');
+
+    // The first argument only: React Query passes a mutation context as a second.
+    expect(patchPrefs.mock.calls[0]?.[0]).toEqual({ 'ui.theme': null });
+    // Removed, not set to 'system' — the stylesheet's default arm is the media
+    // query, and an unrecognised attribute would sit in front of it.
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+});
+
 describe('a config save the file has moved under', () => {
   it('offers what is on disk, rather than only refusing', async () => {
     const { ApiError } = await import('../api.js');
@@ -516,5 +620,35 @@ describe('a config save the file has moved under', () => {
     // sent. Found by mutation: making the form always acknowledge left this
     // green.
     expect(writeConfig.mock.calls[0]?.[1]).toBeUndefined();
+  });
+
+  it('says so when the server refuses a save, instead of looking unchanged', async () => {
+    // Before this the form rendered only success and the 412 block, so a 400 —
+    // a value past its range, a key the build does not know — left the page
+    // exactly as it was. An admin typing 999 saw nothing happen at all.
+    const { ApiError } = await import('../api.js');
+    writeConfig.mockRejectedValue(
+      new ApiError(400, 'invalid', '/auth/minPasswordLength must be <= 128'),
+    );
+
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    const alert = await install.findByRole('alert');
+    expect(alert.textContent).toContain('/auth/minPasswordLength must be <= 128');
+  });
+
+  it('carries the server’s bounds onto the control', async () => {
+    // Derived from the schema and sent as data, the way the tier table is — so
+    // the browser refuses an out-of-range value before the save has to.
+    renderPage('admin');
+
+    const port = await screen.findByRole('spinbutton', {
+      name: 'server.port (needs a restart)',
+    });
+    expect(port.getAttribute('min')).toBe('1');
+    expect(port.getAttribute('max')).toBe('65535');
   });
 });

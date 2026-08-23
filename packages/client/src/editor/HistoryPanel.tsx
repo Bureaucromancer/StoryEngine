@@ -6,6 +6,9 @@ import { useState, type JSX } from 'react';
 import { ApiError, type ObjectVersion } from '../api.js';
 import { diffObjects, type FieldChange } from '../diff.js';
 import { formatTimestamp } from '../format.js';
+import { Alert } from '../ui/Alert.js';
+import { Badge } from '../ui/Badge.js';
+import { Button } from '../ui/Button.js';
 import {
   useAmendVersion,
   useObjectHistory,
@@ -32,9 +35,6 @@ const SOURCE_LABELS: Record<string, string> = {
   extension: 'Extension',
   import: 'Import',
 };
-
-const BUTTON_CLASS =
-  'rounded-md border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-100';
 
 export interface HistoryPanelProps {
   id: string;
@@ -101,54 +101,44 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
   }
 
   return (
-    <section
-      aria-label="Version history"
-      className="rounded-md border border-slate-200 bg-white p-4"
-    >
-      <h2 className="mb-3 text-lg font-semibold">History</h2>
+    <section aria-label="Version history" className="rounded-md border border-line bg-surface p-4">
+      <h2 className="mb-3 text-section text-ink">History</h2>
 
       {error !== null ? (
-        <p
-          role="alert"
-          className="mb-3 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900"
-        >
+        <Alert tone="error" role="alert" className="mb-3">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
-      {history.isPending ? <p className="text-sm text-slate-600">Loading the history…</p> : null}
+      {history.isPending ? <p className="text-sm text-ink-subtle">Loading the history…</p> : null}
       {history.isError ? (
-        <p role="alert" className="text-sm text-red-900">
+        <p role="alert" className="text-sm text-danger-ink">
           {history.error.message}
         </p>
       ) : null}
 
       {history.data !== undefined ? (
         <ol className="flex flex-col gap-2">
-          <li className="rounded-md border border-slate-300 bg-slate-50 p-2 text-sm">
+          <li className="rounded-md border border-line-strong bg-surface-sunken p-2 text-sm">
             <span className="font-medium">Current</span>
-            <span className="ms-2 text-slate-600">The object as it is now.</span>
+            <span className="ms-2 text-ink-subtle">The object as it is now.</span>
           </li>
           {history.data.versions.length === 0 ? (
-            <li className="p-2 text-sm text-slate-600">
+            <li className="p-2 text-sm text-ink-subtle">
               No versions yet. The first edit records the state it replaces.
             </li>
           ) : null}
           {history.data.versions.map((version) => (
-            <li key={version.id} className="rounded-md border border-slate-200 p-2 text-sm">
+            <li key={version.id} className="rounded-md border border-line p-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{`Revision ${String(version.revision)}`}</span>
                 <SourceBadge kind={version.source.kind} />
-                {version.pinned ? (
-                  <span className="rounded-md bg-slate-200 px-1.5 text-xs text-slate-700">
-                    Pinned
-                  </span>
-                ) : null}
-                <span className="text-slate-600">
+                {version.pinned ? <Badge>Pinned</Badge> : null}
+                <span className="text-ink-subtle">
                   {formatTimestamp(version.authoredAt, props.locale)}
                 </span>
                 {version.authorVersion !== null ? (
-                  <span className="text-xs text-slate-500">v{version.authorVersion}</span>
+                  <span className="text-xs text-ink-faint">v{version.authorVersion}</span>
                 ) : null}
               </div>
 
@@ -161,7 +151,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
                   }}
                 >
                   <input
-                    className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                    className="w-full rounded-md border border-line-strong px-2 py-1 text-sm"
                     value={renaming.reason}
                     onChange={(event) => {
                       setRenaming({ id: version.id, reason: event.target.value });
@@ -169,64 +159,64 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
                     aria-label="Reason for this version"
                     autoFocus
                   />
-                  <button type="submit" className={BUTTON_CLASS}>
+                  <Button type="submit" size="tiny">
                     Save
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className={BUTTON_CLASS}
+                    size="tiny"
                     onClick={() => {
                       setRenaming(null);
                     }}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </form>
               ) : (
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-ink-subtle">
                   {version.reason === '' ? '—' : version.reason}
                 </p>
               )}
 
               <div className="mt-2 flex flex-wrap gap-2">
-                <button
+                <Button
                   type="button"
-                  className={BUTTON_CLASS}
+                  size="tiny"
                   disabled={restore.isPending}
                   onClick={() => {
                     handleRestore(version);
                   }}
                 >
                   Restore
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className={BUTTON_CLASS}
+                  size="tiny"
                   aria-expanded={diffVersionId === version.id}
                   onClick={() => {
                     setDiffVersionId(diffVersionId === version.id ? null : version.id);
                   }}
                 >
                   Diff
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className={BUTTON_CLASS}
+                  size="tiny"
                   onClick={() => {
                     setRenaming({ id: version.id, reason: version.reason });
                   }}
                 >
                   Rename
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className={BUTTON_CLASS}
+                  size="tiny"
                   onClick={() => {
                     handlePin(version);
                   }}
                 >
                   {version.pinned ? 'Unpin' : 'Pin'}
-                </button>
+                </Button>
               </div>
 
               {diffVersionId === version.id ? (
@@ -249,24 +239,20 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 function SourceBadge(props: { kind: string }): JSX.Element {
   const label = SOURCE_LABELS[props.kind] ?? props.kind;
   return props.kind === 'external' ? (
-    <span className="rounded-md bg-amber-100 px-1.5 text-xs font-medium text-amber-900">
-      {label}
-    </span>
+    <Badge tone="provenance">{label}</Badge>
   ) : (
-    <span className="rounded-md bg-slate-200 px-1.5 text-xs font-medium text-slate-700">
-      {label}
-    </span>
+    <Badge>{label}</Badge>
   );
 }
 
 /** What changed between the selected version and the current object. */
 function DiffView(props: { changes: FieldChange[] | null }): JSX.Element {
   if (props.changes === null) {
-    return <p className="mt-2 text-xs text-slate-600">Loading the comparison…</p>;
+    return <p className="mt-2 text-xs text-ink-subtle">Loading the comparison…</p>;
   }
   if (props.changes.length === 0) {
     return (
-      <p className="mt-2 text-xs text-slate-600">
+      <p className="mt-2 text-xs text-ink-subtle">
         This version is identical to the current object.
       </p>
     );
@@ -275,7 +261,7 @@ function DiffView(props: { changes: FieldChange[] | null }): JSX.Element {
     <div className="mt-2 overflow-x-auto">
       <table className="w-full border-collapse text-xs">
         <thead>
-          <tr className="border-b border-slate-200 text-start text-slate-600">
+          <tr className="border-b border-line text-start text-ink-subtle">
             <th scope="col" className="py-1 pe-3 text-start font-medium">
               Field
             </th>
@@ -289,7 +275,7 @@ function DiffView(props: { changes: FieldChange[] | null }): JSX.Element {
         </thead>
         <tbody>
           {props.changes.map((change) => (
-            <tr key={change.path} className="border-b border-slate-100 align-top">
+            <tr key={change.path} className="border-b border-line align-top">
               <td className="py-1 pe-3">
                 <code>{change.path}</code>
               </td>

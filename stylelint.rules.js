@@ -86,4 +86,22 @@ export const stylelintRules = {
   // Tailwind v4 resolves `@import "tailwindcss"` as a package specifier, not a
   // URL, so the standard config's preference for url() is wrong here.
   'import-notation': 'string',
+
+  // Tailwind v4 spells a token's sub-properties with a doubled hyphen —
+  // `--text-section--line-height` is the line height belonging to the
+  // `--text-section` step, and writing it that way is what makes `text-section`
+  // set size, leading and weight in one utility. The standard config's
+  // kebab-case pattern reads the doubled hyphen as a mistake.
+  //
+  // Widened rather than switched off, and only by that one construct: a name is
+  // still kebab-case, optionally followed by a single `--` and one more
+  // kebab-case name. A genuine typo like `--Text-Section` still fails.
+  'custom-property-pattern': [
+    '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?$',
+    {
+      message:
+        'Custom property names are kebab-case, optionally with one `--` before ' +
+        'a Tailwind theme sub-property (`--text-section--line-height`).',
+    },
+  ],
 };

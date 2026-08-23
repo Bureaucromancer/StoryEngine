@@ -27,8 +27,13 @@ vi.mock('./api.js', async (importOriginal) => ({
   adminApi: { notices: (...a: unknown[]) => notices(...a) as unknown },
 }));
 
+// The stub keeps `to` as `href` so a navigation test can assert *where* an
+// entry goes, not merely that its label is on screen — the whole point of the
+// surface nav is the destination.
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to?: string }) => (
+    <a href={to ?? '#'}>{children}</a>
+  ),
   Outlet: () => <div />,
 }));
 
@@ -117,5 +122,60 @@ describe('the navigation', () => {
     await waitFor(() => {
       expect(screen.getByText('Settings')).toBeTruthy();
     });
+  });
+
+  /**
+   * The two surfaces — [05 §2](../../../docs/design/05-ui-surfaces.md).
+   *
+   * Asserted by destination rather than by label, because the label is the part
+   * that is safe to change and the address is the part that is not.
+   */
+  it('offers Play and Library, addressed to their surfaces', async () => {
+    renderShell('user');
+
+    const play = await screen.findByRole('link', { name: 'Play' });
+    const library = await screen.findByRole('link', { name: 'Library' });
+    expect(play.getAttribute('href')).toBe('/play');
+    expect(library.getAttribute('href')).toBe('/library');
+  });
+
+  /**
+   * **No workbench entry, and this is the assertion that keeps it that way.**
+   * [05 §3] makes the workbench a panel that expands over whichever surface you
+   * are in. A nav entry would reintroduce exactly the layout claim §2 dropped,
+   * and it is the sort of thing that gets added back by someone who reads the
+   * header and not the design.
+   */
+  it('offers no workbench entry, because it is a panel and not a place', async () => {
+    renderShell('user');
+    await screen.findByRole('link', { name: 'Library' });
+
+    expect(screen.queryByRole('link', { name: /workbench/i })).toBeNull();
+  });
+
+  /**
+   * The wordmark is the arrival affordance and becomes home once home exists
+   * ([05 §2.2]). Until then it goes to the library — but it is deliberately
+   * *not* pointed at `/`, because `/` is the address home will take.
+   */
+  it('points the wordmark at the library, not at the root', async () => {
+    renderShell('user');
+
+    const wordmark = await screen.findByRole('link', { name: 'StoryEngine' });
+    expect(wordmark.getAttribute('href')).toBe('/library');
+  });
+
+  it('shows no surfaces to somebody who is not signed in', async () => {
+    authState.mockResolvedValue({ setupRequired: false, account: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Shell />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole('link', { name: 'StoryEngine' });
+    expect(screen.queryByRole('link', { name: 'Play' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Library' })).toBeNull();
   });
 });

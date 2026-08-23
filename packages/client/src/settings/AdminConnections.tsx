@@ -4,8 +4,8 @@
 import { useState, type JSX } from 'react';
 
 import type { AdminConnection, RoleRow } from '../api.js';
-import { Field, SelectField } from '../editor/Field.js';
-import { SecretField } from '../editor/SecretField.js';
+import { Field, SelectField } from '../ui/Field.js';
+import { SecretField } from '../ui/SecretField.js';
 import {
   useBindings,
   useConnectionBindings,
@@ -16,7 +16,9 @@ import {
   useSaveConnection,
   useWriteDefaultBindings,
 } from '../queries.js';
-import { useFocusTrap } from '../useFocusTrap.js';
+import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
+import { Dialog } from '../ui/Dialog.js';
 
 /**
  * System connections and the install's role bindings —
@@ -69,7 +71,7 @@ export function AdminConnections(): JSX.Element {
   const [editing, setEditing] = useState<AdminConnection | 'new' | null>(null);
   const [confirming, setConfirming] = useState<AdminConnection | null>(null);
 
-  if (connections.isPending) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (connections.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
   if (connections.isError) return <p role="alert">The connections could not be read.</p>;
 
   const rows = connections.data.connections;
@@ -85,17 +87,17 @@ export function AdminConnections(): JSX.Element {
   return (
     <section className="flex flex-col gap-6" aria-labelledby="connections">
       <div>
-        <h3 id="connections" className="text-base font-medium">
+        <h3 id="connections" className="text-subsection text-ink">
           Connections
         </h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-faint">
           Shared by everybody on this install. Keys stay on the server and are never sent back to a
           browser.
         </p>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-subtle">
           There are no connections yet, so nobody can send a message.
         </p>
       ) : (
@@ -103,35 +105,36 @@ export function AdminConnections(): JSX.Element {
           {rows.map((row) => (
             <li
               key={`${row.id}-${String(row.shadowed)}`}
-              className="rounded-md border border-slate-200 p-4"
+              className="rounded-md border border-line p-4"
             >
               <div className="flex items-baseline justify-between gap-4">
                 <div>
                   <p className="font-medium">{row.label}</p>
-                  <p className="text-xs text-slate-500">{row.provider}</p>
+                  <p className="text-xs text-ink-faint">{row.provider}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    size="compact"
                     onClick={() => {
                       setEditing(row);
                     }}
                   >
                     Edit
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-900"
+                    variant="dangerOutline"
+                    size="compact"
                     onClick={() => {
                       setConfirming(row);
                     }}
                   >
                     {removeLabel(row.label)}
-                  </button>
+                  </Button>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-slate-500">{keyState(row)}</p>
+              <p className="mt-2 text-xs text-ink-faint">{keyState(row)}</p>
               {row.shadowed ? (
                 /**
                  * **Both are listed and nothing is blocked** — [P1 §1.2]'s
@@ -140,7 +143,7 @@ export function AdminConnections(): JSX.Element {
                  * editing the copy nothing resolves to would otherwise watch
                  * their change do nothing at all.
                  */
-                <p className="mt-2 text-sm text-amber-800">
+                <p className="mt-2 text-sm text-warn-ink">
                   Another connection file on disk already uses this id, so nothing will ever resolve
                   to this one. Remove one of them.
                 </p>
@@ -151,15 +154,16 @@ export function AdminConnections(): JSX.Element {
       )}
 
       <div>
-        <button
+        <Button
           type="button"
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white"
+          variant="primary"
+          size="compact"
           onClick={() => {
             setEditing('new');
           }}
         >
           Add a connection
-        </button>
+        </Button>
       </div>
 
       {editing === null ? null : (
@@ -238,7 +242,7 @@ function ConnectionForm({
 
   return (
     <form
-      className="flex max-w-md flex-col gap-4 rounded-md border border-slate-200 p-4"
+      className="flex max-w-md flex-col gap-4 rounded-md border border-line p-4"
       aria-labelledby="connection-form"
       onSubmit={(event) => {
         event.preventDefault();
@@ -276,7 +280,7 @@ function ConnectionForm({
         );
       }}
     >
-      <h4 id="connection-form" className="text-base font-medium">
+      <h4 id="connection-form" className="text-subsection text-ink">
         {connection === null ? 'Add a connection' : editTitle(connection.label)}
       </h4>
 
@@ -299,9 +303,9 @@ function ConnectionForm({
           hint="Separate them with commas. You can type them yourself — the button below only saves you the typing."
         />
         <div className="flex items-center gap-3">
-          <button
+          <Button
             type="button"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            size="compact"
             onClick={() => {
               models.mutate({
                 ...(baseUrl.length === 0 ? {} : { baseUrl }),
@@ -310,14 +314,14 @@ function ConnectionForm({
             }}
           >
             Ask the endpoint what it offers
-          </button>
+          </Button>
           {models.isError ? (
             /**
              * **A notice, never a blocked save** — [P2B §2.6]. `/models` is
              * optional in practice, and several local runtimes answer it with
              * one entry called `gpt-3.5-turbo` regardless of what is loaded.
              */
-            <p role="status" className="text-sm text-slate-600">
+            <p role="status" className="text-sm text-ink-subtle">
               That endpoint did not answer with a model list. Type the model name instead.
             </p>
           ) : null}
@@ -326,15 +330,15 @@ function ConnectionForm({
           <ul className="flex flex-wrap gap-2">
             {offered.map((model) => (
               <li key={model}>
-                <button
+                <Button
                   type="button"
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  size="compact"
                   onClick={() => {
                     setModelText((text) => (text.length === 0 ? model : `${text}, ${model}`));
                   }}
                 >
                   {model}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -342,7 +346,7 @@ function ConnectionForm({
       </div>
 
       {conflict === null ? null : (
-        <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+        <Alert tone="warning" role="alert">
           <p>
             The connection file changed on disk since this page loaded. Saving now would overwrite
             that edit.
@@ -353,9 +357,9 @@ function ConnectionForm({
            * only one way out is a wedge rather than a refusal.
            */}
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               type="button"
-              className="rounded-md border border-slate-300 px-3 py-1.5"
+              size="compact"
               onClick={() => {
                 setLabel(conflict.label);
                 setBaseUrl(conflict.baseUrl ?? '');
@@ -363,27 +367,23 @@ function ConnectionForm({
               }}
             >
               Load what is on disk
-            </button>
-            <button type="submit" className="rounded-md border border-slate-300 px-3 py-1.5">
+            </Button>
+            <Button type="submit" size="compact">
               Overwrite with mine
-            </button>
+            </Button>
           </div>
-        </div>
+        </Alert>
       )}
 
       <div className="flex items-center gap-3">
-        <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
+        <Button type="submit" variant="primary" size="compact">
           Save
-        </button>
-        <button
-          type="button"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-          onClick={onDone}
-        >
+        </Button>
+        <Button type="button" size="compact" onClick={onDone}>
           Cancel
-        </button>
+        </Button>
         {save.isError && conflict === null ? (
-          <p role="alert" className="text-sm text-red-900">
+          <p role="alert" className="text-sm text-danger-ink">
             {save.error.message}
           </p>
         ) : null}
@@ -422,19 +422,15 @@ function FirstRunDefaults({
 
   if (connection.models.length === 0) {
     return (
-      <div className="flex max-w-md flex-col gap-3 rounded-md border border-slate-200 p-4">
-        <p className="text-sm text-slate-700">
+      <div className="flex max-w-md flex-col gap-3 rounded-md border border-line p-4">
+        <p className="text-sm text-ink-muted">
           This connection lists no models yet, so there is nothing to use it for. Add at least one
           model name and nothing else has to change.
         </p>
         <div>
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            onClick={onDone}
-          >
+          <Button type="button" size="compact" onClick={onDone}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -442,7 +438,7 @@ function FirstRunDefaults({
 
   return (
     <form
-      className="flex max-w-md flex-col gap-4 rounded-md border border-slate-200 p-4"
+      className="flex max-w-md flex-col gap-4 rounded-md border border-line p-4"
       aria-labelledby="first-run"
       onSubmit={(event) => {
         event.preventDefault();
@@ -457,10 +453,10 @@ function FirstRunDefaults({
         );
       }}
     >
-      <h4 id="first-run" className="text-base font-medium">
+      <h4 id="first-run" className="text-subsection text-ink">
         Use this for everything?
       </h4>
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-ink-muted">
         Nothing is set up to use a model yet. Pick a good one and a cheap one and the rest is
         arranged for you — the good one writes the story, the cheap one does the background work.
         You can change any of it afterwards.
@@ -468,18 +464,14 @@ function FirstRunDefaults({
       <SelectField label="The good one" value={hi} options={options} onChange={setHi} />
       <SelectField label="The cheap one" value={lo} options={options} onChange={setLo} />
       <div className="flex items-center gap-3">
-        <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">
+        <Button type="submit" variant="primary" size="compact">
           Use these
-        </button>
-        <button
-          type="button"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-          onClick={onDone}
-        >
+        </Button>
+        <Button type="button" size="compact" onClick={onDone}>
           Not now
-        </button>
+        </Button>
         {write.isError ? (
-          <p role="alert" className="text-sm text-red-900">
+          <p role="alert" className="text-sm text-danger-ink">
             {write.error.message}
           </p>
         ) : null}
@@ -510,52 +502,39 @@ function RemoveConnectionDialog({
 }): JSX.Element {
   const count = useConnectionBindings(connection.id);
   const remove = useDeleteConnection();
-  const surface = useFocusTrap(onDone);
-
   return (
-    <div
-      ref={surface}
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="remove-connection"
-      className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4"
-    >
-      <div className="flex max-w-lg flex-col gap-4 rounded-md bg-white p-6">
-        <h4 id="remove-connection" className="text-base font-medium">
-          {removeTitle(connection.label)}
-        </h4>
-        <p className="text-sm text-slate-700">
-          {count.data === undefined ? bindingCountUnknown() : bindingCount(count.data.bindings)}
+    <Dialog role="alertdialog" labelledBy="remove-connection" onDismiss={onDone} size="wide">
+      <h4 id="remove-connection" className="text-subsection text-ink">
+        {removeTitle(connection.label)}
+      </h4>
+      <p className="text-sm text-ink-muted">
+        {count.data === undefined ? bindingCountUnknown() : bindingCount(count.data.bindings)}
+      </p>
+      <p className="text-sm text-ink-muted">
+        The key stops working here straight away. Nothing revokes it at the provider — do that there
+        as well if it has leaked.
+      </p>
+      {remove.isError ? (
+        <p role="alert" className="text-sm text-danger-ink">
+          {remove.error.message}
         </p>
-        <p className="text-sm text-slate-700">
-          The key stops working here straight away. Nothing revokes it at the provider — do that
-          there as well if it has leaked.
-        </p>
-        {remove.isError ? (
-          <p role="alert" className="text-sm text-red-900">
-            {remove.error.message}
-          </p>
-        ) : null}
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            onClick={onDone}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-md bg-red-700 px-3 py-2 text-sm text-white"
-            onClick={() => {
-              remove.mutate(connection.id, { onSuccess: onDone });
-            }}
-          >
-            Remove it
-          </button>
-        </div>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="compact" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          size="compact"
+          onClick={() => {
+            remove.mutate(connection.id, { onSuccess: onDone });
+          }}
+        >
+          Remove it
+        </Button>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -586,18 +565,18 @@ function RemoveConnectionDialog({
 function RoleTable(): JSX.Element {
   const roles = useRoles();
 
-  if (roles.isPending) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (roles.isPending) return <p className="text-sm text-ink-faint">Loading…</p>;
   if (roles.isError) return <p role="alert">The role table could not be read.</p>;
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 id="roles" className="text-base font-medium">
+      <h4 id="roles" className="text-subsection text-ink">
         What each job uses
       </h4>
       <div className="overflow-x-auto">
         <table className="w-full text-start text-sm">
           <thead>
-            <tr className="text-xs tracking-wide text-slate-500 uppercase">
+            <tr className="text-xs tracking-wide text-ink-faint uppercase">
               <th scope="col" className="py-1 pe-4 font-medium">
                 Job
               </th>
@@ -611,12 +590,12 @@ function RoleTable(): JSX.Element {
           </thead>
           <tbody>
             {roles.data.roles.map((row) => (
-              <tr key={row.role} className="border-t border-slate-200 align-top">
+              <tr key={row.role} className="border-t border-line align-top">
                 <th scope="row" className="py-2 pe-4 font-normal">
                   {roleLabel(row.role)}
                 </th>
                 <td className="py-2 pe-4">{roleModel(row)}</td>
-                <td className={row.ok ? 'py-2 text-slate-500' : 'py-2 text-amber-800'}>
+                <td className={row.ok ? 'py-2 text-ink-faint' : 'py-2 text-warn-ink'}>
                   {roleSource(row)}
                 </td>
               </tr>

@@ -284,4 +284,85 @@ describe('physical-direction Tailwind utilities (docs/design/07-tech-stack.md §
     const fired = await syntaxReportsMatching('packages/client/src/logical-utility.tsx', PHYSICAL);
     expect(fired).toEqual([]);
   });
+
+  it('reaches a class list that has been given a name, outside any className', async () => {
+    // Four shapes, none inside a `className` attribute: a module const, a
+    // template const, an object property, and `activeProps={{ className }}`.
+    // The rule was anchored on `JSXAttribute[name.name="className"]` until the
+    // appearance layer landed, which made every one of these invisible — the
+    // last of them in shipped code, at `Shell.tsx`.
+    const fired = await syntaxReportsMatching('packages/client/src/class-constants.tsx', PHYSICAL);
+    expect(fired).toHaveLength(4);
+  });
+
+  it('reads ordinary English and SQL without firing, now that it sees every string', async () => {
+    // The cost of unanchoring, and the reason the pattern requires a
+    // Tailwind-shaped suffix on `left` and `right`. With the optional suffix
+    // the anchored version could afford, this fixture reports five times: a
+    // `left join`, "the right one", "right-to-left", "left aligned", and
+    // "nothing left to do".
+    const fired = await syntaxReportsMatching(
+      'packages/client/src/class-constants-logical.ts',
+      PHYSICAL,
+    );
+    expect(fired).toEqual([]);
+  });
+});
+
+describe('the palette lives in one file', () => {
+  const PALETTE = /Tailwind palette scale in a component/;
+  const DARK = /A `dark:` variant/;
+
+  it('blocks a palette scale in every shape one arrives in', async () => {
+    // Seven className expressions carrying a scale, plus a module const — the
+    // const is the one the old className-anchored rule could not have seen.
+    // `dark:bg-slate-800` counts here *and* under the `dark:` rule below,
+    // because it is two mistakes at once and each has its own advice.
+    const fired = await syntaxReportsMatching('packages/client/src/palette-scale.tsx', PALETTE);
+    expect(fired).toHaveLength(8);
+  });
+
+  it('blocks a `dark:` variant, which means a token is missing', async () => {
+    const fired = await syntaxReportsMatching('packages/client/src/palette-scale.tsx', DARK);
+    expect(fired).toHaveLength(1);
+  });
+
+  it('permits semantic tokens, and says nothing about sizes', async () => {
+    // `text-sm` and `rounded-md` are here deliberately: the rule is about
+    // colour, and one that also policed the spacing scale would be worked
+    // around within a day.
+    const reports = await reportsIn('packages/client/src/palette-token.tsx');
+    expect(reports.filter((report) => PALETTE.test(report.message))).toEqual([]);
+    expect(reports.filter((report) => DARK.test(report.message))).toEqual([]);
+  });
+});
+
+describe('the appearance layer (packages/client/src/ui)', () => {
+  const JOIN = /A class list joined with/;
+  const ASSEMBLY = /assembled from fragments/;
+  const PHYSICAL = /Physical-direction utility/;
+
+  it('refuses a class list joined with `+`, and still bans physical utilities', async () => {
+    // One report per offending *operand*, so the single join reports twice —
+    // both halves carry a hyphenated utility. The physical ban reports once
+    // more, from a const that never reaches a `className`.
+    const reports = await reportsIn('packages/client/src/ui/button.tsx');
+    expect(reports.filter((report) => JOIN.test(report.message))).toHaveLength(2);
+    expect(reports.filter((report) => PHYSICAL.test(report.message))).toHaveLength(1);
+  });
+
+  it('explains a joined class list, alongside the assembly rule that misreads it', async () => {
+    // `rounded border` is two plain words in a row, so the assembly rule fires
+    // on the first operand too — with advice about word order that is not what
+    // is wrong. ESLint reports every matching selector rather than the first,
+    // so the join message does not replace it; it is the one that applies.
+    const reports = await reportsIn('packages/client/src/ui/button.tsx');
+    expect(reports.filter((report) => ASSEMBLY.test(report.message))).toHaveLength(1);
+  });
+
+  it('adds the join ban without relaxing the assembly rule beside it', async () => {
+    const reports = await reportsIn('packages/client/src/ui/labels.ts');
+    expect(reports.filter((report) => ASSEMBLY.test(report.message))).toHaveLength(2);
+    expect(reports.filter((report) => JOIN.test(report.message))).toEqual([]);
+  });
 });

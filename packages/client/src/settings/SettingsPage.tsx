@@ -7,6 +7,7 @@ import { useAuthState } from '../queries.js';
 import { AdminAccounts } from './AdminAccounts.js';
 import { AdminConnections } from './AdminConnections.js';
 import { AdminInstall } from './AdminInstall.js';
+import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
 /**
@@ -35,13 +36,15 @@ export function SettingsPage(): JSX.Element {
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-10 p-6">
-      <h1 className="text-xl font-medium">Settings</h1>
+      <h1 className="text-title text-ink">Settings</h1>
 
       <UserSettings />
 
+      <Preferences />
+
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">
-          <h2 id="administration" className="text-lg font-medium">
+          <h2 id="administration" className="text-section text-ink">
             Administration
           </h2>
           <AdminAccounts />

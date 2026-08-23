@@ -6,6 +6,8 @@ import { Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createSession, listSessions } from '../api.js';
+import { Button } from '../ui/Button.js';
+import { link } from '../ui/classes.js';
 
 /**
  * The list of sessions, and the one control that makes a new one.
@@ -30,8 +32,8 @@ export function SessionsPage(): React.JSX.Element {
   });
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
-      <h1 className="text-lg">Sessions</h1>
+    <main className="mx-auto flex max-w-reading flex-col gap-4 p-4">
+      <h1 className="text-section text-ink">Sessions</h1>
 
       <form
         className="flex gap-2"
@@ -43,7 +45,7 @@ export function SessionsPage(): React.JSX.Element {
         <label className="flex-1">
           <span className="sr-only">Name for the new session</span>
           <input
-            className="w-full rounded border border-neutral-700 bg-neutral-900 p-2"
+            className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
             value={name}
             placeholder="A new session"
             onChange={(event) => {
@@ -51,15 +53,15 @@ export function SessionsPage(): React.JSX.Element {
             }}
           />
         </label>
-        <button type="submit" className="rounded border border-neutral-700 px-3">
+        <Button type="submit" variant="primary">
           Start
-        </button>
+        </Button>
       </form>
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">
         {(sessions.data?.sessions ?? []).map((session) => (
           <li key={session.id}>
-            <Link to="/play/$sessionId" params={{ sessionId: session.id }} className="underline">
+            <Link to="/play/$sessionId" params={{ sessionId: session.id }} className={link.object}>
               {session.name}
             </Link>
           </li>

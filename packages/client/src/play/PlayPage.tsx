@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { uuidv7 } from '@storyengine/shared';
 
 import { cancelTurn, readSession, readTranscript, submitTurn, type TurnRecord } from '../api.js';
+import { Button } from '../ui/Button.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { TurnRecordDisclosure } from './TurnRecord.js';
 import { useTurnStream } from './useTurnStream.js';
@@ -90,8 +91,8 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   }, [state.status, sessionId, queryClient]);
 
   return (
-    <main className="mx-auto flex h-full max-w-3xl flex-col gap-4 p-4">
-      <h1 className="text-lg">{session.data?.session.name ?? 'Session'}</h1>
+    <main className="mx-auto flex h-full max-w-reading flex-col gap-4 p-4">
+      <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
@@ -103,7 +104,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             [01 §2.1] calls day-one, applied where it actually matters. */}
         {state.text.length > 0 && running ? (
           <li aria-live="polite" aria-busy="true">
-            <p className="whitespace-pre-wrap">{state.text}</p>
+            <p className="whitespace-pre-wrap text-story text-ink">{state.text}</p>
           </li>
         ) : null}
       </ol>
@@ -121,7 +122,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           <label className="flex-1">
             <span className="sr-only">What do you do?</span>
             <input
-              className="w-full rounded border border-slate-300 bg-white p-2 text-slate-900 placeholder:text-slate-500 focus-visible:outline-2 focus-visible:outline-slate-500"
+              className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
               value={draft}
               disabled={running}
               placeholder="What do you do?"
@@ -131,19 +132,18 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
             />
           </label>
           {running && state.jobId !== null ? (
-            <button
+            <Button
               type="button"
-              className="rounded border border-neutral-700 px-3"
               onClick={() => {
                 void cancelTurn(sessionId, state.jobId ?? '');
               }}
             >
               Stop
-            </button>
+            </Button>
           ) : (
-            <button type="submit" className="rounded border border-neutral-700 px-3">
+            <Button type="submit" variant="primary">
               Send
-            </button>
+            </Button>
           )}
         </div>
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
@@ -155,12 +155,16 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
 function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
   return (
     <li className="flex flex-col gap-1">
-      {turn.input === undefined ? null : <p className="text-neutral-400">{turn.input.text}</p>}
-      {turn.output === undefined ? null : <p className="whitespace-pre-wrap">{turn.output.text}</p>}
+      {turn.input === undefined ? null : (
+        <p className="text-story text-ink-subtle">{turn.input.text}</p>
+      )}
+      {turn.output === undefined ? null : (
+        <p className="whitespace-pre-wrap text-story text-ink">{turn.output.text}</p>
+      )}
       {/* A failed turn is shown rather than hidden: it is on the record with
           what it managed, and hiding it would make a re-run unexplainable. */}
       {turn.status === 'failed' ? (
-        <p className="text-sm text-amber-400">This turn did not finish.</p>
+        <p className="text-sm text-warn-ink">This turn did not finish.</p>
       ) : null}
       <TurnRecordDisclosure turn={turn} />
     </li>
@@ -178,14 +182,14 @@ function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
 function StreamStatus({ status }: { status: string }): React.JSX.Element | null {
   if (status === 'reconnecting') {
     return (
-      <p role="status" className="text-sm text-neutral-400">
+      <p role="status" className="text-sm text-ink-subtle">
         Reconnecting…
       </p>
     );
   }
   if (status === 'failed') {
     return (
-      <p role="alert" className="text-sm text-amber-400">
+      <p role="alert" className="text-sm text-warn-ink">
         The connection failed. Reload to try again.
       </p>
     );

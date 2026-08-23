@@ -4,6 +4,7 @@
 import type { JSX } from 'react';
 
 import type { LibraryKind } from '../api.js';
+import { Badge } from '../ui/Badge.js';
 
 /**
  * Display names for the six kinds, keyed by folder name. Keyed by the *value*,
@@ -25,15 +26,7 @@ export const KIND_LABELS: Record<LibraryKind, string> = {
  * colour is the *second* channel, never the only one.
  */
 export function SourceBadge(props: { source: 'user' | 'system' }): JSX.Element {
-  return props.source === 'system' ? (
-    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
-      System
-    </span>
-  ) : (
-    <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
-      Yours
-    </span>
-  );
+  return props.source === 'system' ? <Badge tone="provenance">System</Badge> : <Badge>Yours</Badge>;
 }
 
 /**
@@ -43,7 +36,7 @@ export function SourceBadge(props: { source: 'user' | 'system' }): JSX.Element {
  */
 export function ShadowedBadge(): JSX.Element {
   return (
-    <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-medium text-red-900">
+    <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs font-medium text-danger-ink">
       Shadowed
     </span>
   );
