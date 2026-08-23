@@ -24,7 +24,17 @@ export const PlotHook = Type.Object(
     title: Type.String(),
     /** The content, handwritten. */
     premise: Type.String(),
-    scope: Type.Union([Type.Literal('world'), Type.Literal('local'), Type.Literal('personal')]),
+    /**
+     * Blast radius, not location — how big a turn this is. Named `magnitude`
+     * rather than `scope` because a Lorebook's `scope` answers a different
+     * question (where a book applies), and one word for two axes in two
+     * portable schemas is a trap. §6.1.
+     */
+    magnitude: Type.Union([
+      Type.Literal('sweeping'),
+      Type.Literal('local'),
+      Type.Literal('personal'),
+    ]),
 
     // ── Eligibility. Checked mechanically, before any model call. ──
     /**

@@ -97,7 +97,6 @@ export function newLorebook(name: string): Lorebook {
     id: uuidv7(),
     name,
     description: '',
-    category: 'uncategorized',
     scope: { kind: 'global' },
     enabled: true,
     scanDepth: 2,

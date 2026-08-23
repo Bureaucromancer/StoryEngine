@@ -213,14 +213,6 @@ export const Lorebook = Type.Object(
     id: Id,
     name: Type.String(),
     description: Type.String(),
-    /** Organisational only. Explicitly does not affect activation. */
-    category: Type.Union([
-      Type.Literal('world'),
-      Type.Literal('character'),
-      Type.Literal('npc'),
-      Type.Literal('spellbook'),
-      Type.Literal('uncategorized'),
-    ]),
 
     scope: LoreScope,
     enabled: Type.Boolean(),
@@ -241,6 +233,11 @@ export const Lorebook = Type.Object(
     hooks: Type.Optional(Type.Array(PlotHook)),
     entries: Type.Array(LoreEntry),
 
+    /**
+     * Organisational, and the only such axis — a closed `category` union was
+     * removed rather than renamed ([02 §3.4](../../../../docs/design/02-data-model.md)).
+     * Free text, per the same argument that keeps `LoreEntry.tag` open.
+     */
     tags: Type.Array(Type.String()),
     /**
      * The book's gallery — maps, establishing shots, style references for the

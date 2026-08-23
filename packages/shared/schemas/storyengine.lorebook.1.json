@@ -8,7 +8,6 @@
     "id",
     "name",
     "description",
-    "category",
     "scope",
     "enabled",
     "scanDepth",
@@ -40,30 +39,6 @@
     },
     "description": {
       "type": "string"
-    },
-    "category": {
-      "anyOf": [
-        {
-          "const": "world",
-          "type": "string"
-        },
-        {
-          "const": "character",
-          "type": "string"
-        },
-        {
-          "const": "npc",
-          "type": "string"
-        },
-        {
-          "const": "spellbook",
-          "type": "string"
-        },
-        {
-          "const": "uncategorized",
-          "type": "string"
-        }
-      ]
     },
     "scope": {
       "title": "LoreScope",
@@ -175,7 +150,7 @@
           "id",
           "title",
           "premise",
-          "scope",
+          "magnitude",
           "involves",
           "weight",
           "delivery",
@@ -192,10 +167,10 @@
           "premise": {
             "type": "string"
           },
-          "scope": {
+          "magnitude": {
             "anyOf": [
               {
-                "const": "world",
+                "const": "sweeping",
                 "type": "string"
               },
               {
