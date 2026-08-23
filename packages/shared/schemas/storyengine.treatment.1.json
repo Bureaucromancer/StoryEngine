@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.setting.1.json",
-  "title": "Setting",
-  "description": "Deliberately absent: key locations, world description, NPC inline snapshots. A Setting owns no lorebook — it only links.",
+  "$id": "https://storyengine.dev/schemas/storyengine.treatment.1.json",
+  "title": "Treatment",
+  "description": "Deliberately absent: key locations, world description, NPC inline snapshots. A Treatment owns no lorebook — it only links.",
   "type": "object",
   "required": [
     "schema",
@@ -24,7 +24,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "storyengine.setting/1",
+      "const": "storyengine.treatment/1",
       "type": "string"
     },
     "id": {
@@ -41,7 +41,7 @@
       "type": "string"
     },
     "tone": {
-      "title": "SettingTone",
+      "title": "TreatmentTone",
       "type": "object",
       "required": [
         "genres",
@@ -312,7 +312,7 @@
           "id",
           "title",
           "premise",
-          "scope",
+          "magnitude",
           "involves",
           "weight",
           "delivery",
@@ -329,10 +329,10 @@
           "premise": {
             "type": "string"
           },
-          "scope": {
+          "magnitude": {
             "anyOf": [
               {
-                "const": "world",
+                "const": "sweeping",
                 "type": "string"
               },
               {

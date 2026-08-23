@@ -103,8 +103,8 @@ describe('library kinds', () => {
       'lorebooks',
       'packages',
       'presets',
-      'settings',
       'setups',
+      'treatments',
     ]);
   });
 

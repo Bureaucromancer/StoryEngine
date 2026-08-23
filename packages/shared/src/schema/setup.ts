@@ -18,9 +18,9 @@ import { PlotHook } from './hook.js';
 /**
  * Setup — docs/design/10-schemas.md §7.
  *
- * **Setting is to Setup as a world is to a game played in it.** One Setting,
- * many Setups: *Rain City* is the world; *The Fixer's Debt*, Adventure mode,
- * playing Marlow is a way to play in it.
+ * **Treatment is to Setup as a reading of a world is to a game played under it.**
+ * One Treatment, many Setups: *Rain City, noir* is the reading; *The Fixer's
+ * Debt*, Adventure mode, playing Marlow is a way to play under it.
  *
  * A Setup is useful without ever being shared, which is the strongest argument
  * for it being a plain library object rather than part of a transport artefact.
@@ -77,10 +77,10 @@ export const Goal = Type.Object(
   {
     title: 'Goal',
     description:
-      'Why Goal sits on Setup rather than Setting: a Setting is a world and a ' +
-      'world has no win condition. Rain City does not have an objective; The ' +
-      'Fixer’s Debt does. Difficulty is deliberately not here — it is ' +
-      'Adventure’s, not every mode’s, so it lives in `mode.config`.',
+      'Why Goal sits on Setup rather than Treatment: a treatment frames a ' +
+      'world, and a world has no win condition. Rain City does not have an ' +
+      'objective; The Fixer’s Debt does. Difficulty is deliberately not ' +
+      'here — it is Adventure’s, not every mode’s, so it lives in `mode.config`.',
   },
 );
 export type Goal = Static<typeof Goal>;
@@ -104,8 +104,8 @@ export const Setup = Type.Object(
       config: Type.Unknown(),
     }),
 
-    /** One Setting; null = start bare. */
-    setting: Type.Union([Ref, Type.Null()]),
+    /** One Treatment; null = start bare. */
+    treatment: Type.Union([Ref, Type.Null()]),
     preset: Type.Union([Ref, Type.Null()]),
 
     cast: Type.Object({
@@ -117,11 +117,11 @@ export const Setup = Type.Object(
       narrator: Type.Union([Ref, Type.Null()]),
     }),
 
-    /** Beyond whatever the setting already links. */
+    /** Beyond whatever the treatment already links. */
     lore: Type.Array(LoreLink),
-    /** Overrides the setting's when present. */
+    /** Overrides the treatment's when present. */
     openings: Openings,
-    /** Additional to the setting's, not a replacement. */
+    /** Additional to the treatment's, not a replacement. */
     hooks: Type.Array(PlotHook),
     /**
      * Ordered: `goals[0]` is where play begins. Empty = no win condition, which

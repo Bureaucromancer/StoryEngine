@@ -8,7 +8,7 @@ import {
   newLorebook,
   newPackage,
   newPreset,
-  newSetting,
+  newTreatment,
   newSetup,
 } from '../factories.js';
 import { ACTOR_SCHEMA } from './actor.js';
@@ -34,7 +34,7 @@ import {
 const library = {
   actor: newActor('Vera Solano'),
   lorebook: newLorebook('Rain City'),
-  setting: newSetting('Rain City, noir'),
+  treatment: newTreatment('Rain City, noir'),
   setup: newSetup('The Fixer’s Debt'),
   preset: newPreset('House style'),
   package: newPackage('The Rain City bundle'),
@@ -60,7 +60,7 @@ describe('the registry', () => {
         'storyengine.lorebook/1',
         'storyengine.package/1',
         'storyengine.preset/0',
-        'storyengine.setting/1',
+        'storyengine.treatment/1',
         'storyengine.setup/1',
       ].sort(),
     );

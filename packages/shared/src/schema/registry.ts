@@ -8,7 +8,7 @@ import { Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, RESERVED_SECTION_PREFIX 
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
 import { Package, PACKAGE_SCHEMA } from './package.js';
 import { Preset, PRESET_SCHEMA } from './preset.js';
-import { Setting, SETTING_SCHEMA } from './setting.js';
+import { Treatment, TREATMENT_SCHEMA } from './treatment.js';
 import { Setup, SETUP_SCHEMA } from './setup.js';
 
 /**
@@ -80,7 +80,7 @@ export function createValidator(): Ajv {
 export const PORTABLE_SCHEMAS = {
   [ACTOR_SCHEMA]: Actor,
   [LOREBOOK_SCHEMA]: Lorebook,
-  [SETTING_SCHEMA]: Setting,
+  [TREATMENT_SCHEMA]: Treatment,
   [SETUP_SCHEMA]: Setup,
   [PRESET_SCHEMA]: Preset,
   [PACKAGE_SCHEMA]: Package,
@@ -100,7 +100,7 @@ export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
 export const LIBRARY_DIRECTORIES = {
   [ACTOR_SCHEMA]: 'actors',
   [LOREBOOK_SCHEMA]: 'lorebooks',
-  [SETTING_SCHEMA]: 'settings',
+  [TREATMENT_SCHEMA]: 'treatments',
   [SETUP_SCHEMA]: 'setups',
   [PRESET_SCHEMA]: 'presets',
   [PACKAGE_SCHEMA]: 'packages',

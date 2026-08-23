@@ -10,7 +10,7 @@
     "name",
     "blurb",
     "mode",
-    "setting",
+    "treatment",
     "preset",
     "cast",
     "lore",
@@ -51,7 +51,7 @@
         "config": {}
       }
     },
-    "setting": {
+    "treatment": {
       "anyOf": [
         {
           "title": "Ref",
@@ -335,7 +335,7 @@
           "id",
           "title",
           "premise",
-          "scope",
+          "magnitude",
           "involves",
           "weight",
           "delivery",
@@ -352,10 +352,10 @@
           "premise": {
             "type": "string"
           },
-          "scope": {
+          "magnitude": {
             "anyOf": [
               {
-                "const": "world",
+                "const": "sweeping",
                 "type": "string"
               },
               {
@@ -438,7 +438,7 @@
       "type": "array",
       "items": {
         "title": "Goal",
-        "description": "Why Goal sits on Setup rather than Setting: a Setting is a world and a world has no win condition. Rain City does not have an objective; The Fixer’s Debt does. Difficulty is deliberately not here — it is Adventure’s, not every mode’s, so it lives in `mode.config`.",
+        "description": "Why Goal sits on Setup rather than Treatment: a treatment frames a world, and a world has no win condition. Rain City does not have an objective; The Fixer’s Debt does. Difficulty is deliberately not here — it is Adventure’s, not every mode’s, so it lives in `mode.config`.",
         "type": "object",
         "required": [
           "id",

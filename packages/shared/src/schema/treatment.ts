@@ -16,19 +16,25 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Setting — docs/design/10-schemas.md §6.
+ * Treatment — docs/design/10-schemas.md §6.
  *
  * Carries tone, framing and *links* — never world facts. The rule that makes it
- * work: a Setting for Rain City does not describe Rain City. Locations are
+ * work: a Treatment of Rain City does not describe Rain City. Locations are
  * lorebook entries; the cast links to real actors.
  *
- * **A Setting owns no lorebook.** It only links, which is what allows many
- * settings over one lorebook — a Rain City noir setting and a Rain City comedy
- * setting drawing on the same world. Ownership on delete also stops being a
- * question nobody wants to answer.
+ * **Named for what it holds, not for what it points at.** *Setting*, *World*
+ * and *Scenario* all name the material; this object is the stance on material,
+ * which is why every one of them invited the misreading the invariant above
+ * exists to forbid. A lorebook is the world; a treatment is how it is handled
+ * here. (`Setting` was also one case-fold away from the configuration surface.)
+ *
+ * **A Treatment owns no lorebook.** It only links, which is what allows many
+ * treatments over one lorebook — a Rain City noir and a Rain City comedy
+ * drawing on the same world. Ownership on delete also stops being a question
+ * nobody wants to answer.
  */
 
-export const SETTING_SCHEMA = 'storyengine.setting/1';
+export const TREATMENT_SCHEMA = 'storyengine.treatment/1';
 
 export const CastEntry = Type.Object(
   {
@@ -39,14 +45,14 @@ export const CastEntry = Type.Object(
       Type.Literal('npc'),
       Type.Literal('narrator-option'),
     ]),
-    /** How this character is used *in this setting*. */
+    /** How this character is used *in this treatment*. */
     note: Type.String(),
   },
   { title: 'CastEntry' },
 );
 export type CastEntry = Static<typeof CastEntry>;
 
-export const SettingTone = Type.Object(
+export const TreatmentTone = Type.Object(
   {
     genres: Type.Array(Type.String()),
     moods: Type.Array(Type.String()),
@@ -65,13 +71,13 @@ export const SettingTone = Type.Object(
     contentRating: Type.Union([Type.Literal('sfw'), Type.Literal('nsfw'), Type.Null()]),
     styleNotes: Type.String(),
   },
-  { title: 'SettingTone' },
+  { title: 'TreatmentTone' },
 );
-export type SettingTone = Static<typeof SettingTone>;
+export type TreatmentTone = Static<typeof TreatmentTone>;
 
-export const Setting = Type.Object(
+export const Treatment = Type.Object(
   {
-    schema: Type.Literal(SETTING_SCHEMA),
+    schema: Type.Literal(TREATMENT_SCHEMA),
     id: Id,
     name: Type.String(),
 
@@ -83,7 +89,7 @@ export const Setting = Type.Object(
      */
     framing: Type.String(),
 
-    tone: SettingTone,
+    tone: TreatmentTone,
 
     /** Where the world content actually lives. */
     lore: Type.Array(LoreLink),
@@ -92,7 +98,7 @@ export const Setting = Type.Object(
     hooks: Type.Array(PlotHook),
 
     /**
-     * Advisory only. A setting proposes a mode; it never configures production
+     * Advisory only. A treatment proposes a mode; it never configures production
      * settings ([00 §3.2](../../../../docs/design/00-stance.md)).
      */
     modeHints: Type.Object({
@@ -107,11 +113,11 @@ export const Setting = Type.Object(
     metadata: Metadata,
   },
   {
-    $id: `https://storyengine.dev/schemas/${SETTING_SCHEMA.replace('/', '.')}.json`,
-    title: 'Setting',
+    $id: `https://storyengine.dev/schemas/${TREATMENT_SCHEMA.replace('/', '.')}.json`,
+    title: 'Treatment',
     description:
       'Deliberately absent: key locations, world description, NPC inline ' +
-      'snapshots. A Setting owns no lorebook — it only links.',
+      'snapshots. A Treatment owns no lorebook — it only links.',
   },
 );
-export type Setting = Static<typeof Setting>;
+export type Treatment = Static<typeof Treatment>;

@@ -10,7 +10,7 @@ import {
   PACKAGE_SCHEMA,
   type PortableSchemaId,
   PRESET_SCHEMA,
-  SETTING_SCHEMA,
+  TREATMENT_SCHEMA,
   SETUP_SCHEMA,
   slugify,
 } from '@storyengine/shared';
@@ -66,7 +66,7 @@ export function userScope(handle: string): LibraryScope {
 export const OBJECT_FILENAMES = {
   [ACTOR_SCHEMA]: 'card.png',
   [LOREBOOK_SCHEMA]: 'lorebook.json',
-  [SETTING_SCHEMA]: 'setting.json',
+  [TREATMENT_SCHEMA]: 'treatment.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
   // [02 §5.1](../../../../docs/design/02-data-model.md) gives packages a folder and defers

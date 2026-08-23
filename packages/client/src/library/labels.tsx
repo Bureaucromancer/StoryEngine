@@ -13,7 +13,7 @@ import type { LibraryKind } from '../api.js';
 export const KIND_LABELS: Record<LibraryKind, string> = {
   actors: 'Actors',
   lorebooks: 'Lorebooks',
-  settings: 'Settings',
+  treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
   packages: 'Packages',

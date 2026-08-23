@@ -7,7 +7,7 @@ import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
 import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
-import { type Setting, SETTING_SCHEMA } from './schema/setting.js';
+import { type Treatment, TREATMENT_SCHEMA } from './schema/treatment.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
 
 /**
@@ -181,9 +181,9 @@ export function newLoreEntry(name: string): LoreEntry {
   };
 }
 
-export function newSetting(name: string): Setting {
+export function newTreatment(name: string): Treatment {
   return {
-    schema: SETTING_SCHEMA,
+    schema: TREATMENT_SCHEMA,
     id: uuidv7(),
     name,
     blurb: '',
@@ -218,7 +218,7 @@ export function newSetup(name: string): Setup {
     name,
     blurb: '',
     mode: { id: '', config: null },
-    setting: null,
+    treatment: null,
     preset: null,
     cast: { personaOptions: [], partyDefault: [], narrator: null },
     lore: [],
