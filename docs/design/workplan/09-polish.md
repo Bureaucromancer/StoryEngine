@@ -117,7 +117,7 @@ this is the same shape for `authorVersion`. Pin, then number.
 - **It stays the author's field.** Nothing here computes, increments or suggests
   a number, and a version string is never required. An author who never uses
   them sees no change beyond one more optional control.
-- **Numbering a version does not rewrite the object.** Setting `1.2` on a
+- **Numbering a version does not rewrite the object.** Treatment `1.2` on a
   pinned snapshot changes that record, not the live object's
   `provenance.version` — unless the user asks for both, which is worth offering
   as an explicit second action rather than as a side effect.
@@ -173,8 +173,9 @@ particular.
 **The position is settled and lives in [05 §5](../05-ui-surfaces.md)** — one panel
 per kind, because the kinds are distinct by design and a merged table teaches
 otherwise; the all-kinds view behind a preference, because a cross-kind list is
-a search result rather than a way to browse; the naming and prominence in
-[05 §5.1](../05-ui-surfaces.md). What is left here is the client work.
+a search result rather than a way to browse; and the naming, settled in
+[05 §5.1](../05-ui-surfaces.md), which withdrew the earlier renaming layer — the
+panels are named for the kinds. What is left here is the client work.
 
 **What the change is.**
 
@@ -212,7 +213,7 @@ F19 already fixed once.
 
 ## 5. A home, so arrival is not an arbitrary library view
 
-**What home is and what it holds is [05 §2.1](../05-ui-surfaces.md)** — resume,
+**What home is and what it holds is [05 §2.2](../05-ui-surfaces.md)** — resume,
 start, notice, recent work, in that order, and the library not owning arrival.
 This item is the build, and the reason it is urgent is item 4: today `/` answers
 *"what was I doing?"* with a table of everything, and after item 4 there is no
@@ -234,3 +235,55 @@ obviously right, and it slots in when there is something to resume.
 kind filter still in its search params. Worth doing in the same change rather
 than leaving the library at `/` with a home bolted beside it — the route a user
 lands on is the one they will bookmark and share.
+
+---
+
+## 6. The styling layer, and the second theme it exists to allow
+
+**Landed rather than proposed**, and recorded here because the shape of what
+landed decides what the next few items in this file cost.
+
+**Today, before it.** Every colour in the client was written at the call site:
+338 `className` lines across 20 files, 174 distinct class strings, no `@theme`
+block, no CSS custom property defined by the project, and five separate files
+that had each independently extracted a class constant — two of them named
+`BUTTON_CLASS`, for different buttons. The primary button had three
+incompatible spellings, and they differed in *behaviour* rather than only shade:
+the variant the settings surface used had neither a hover nor a disabled state,
+so a button that could not be pressed looked exactly like one that could.
+
+**What it is now.** [05 §1.2](../05-ui-surfaces.md) and
+[07 §6.1](../07-tech-stack.md) carry the design; the enforcement is the part
+that matters to this list:
+
+- The palette is `packages/client/src/index.css` and nowhere else. A Tailwind
+  scale — `bg-slate-800`, `text-red-900` — written anywhere else in the client
+  is a build error, as is a `dark:` variant, which means a token is missing.
+- The look is `packages/client/src/ui/`. A component when it owns behaviour or
+  ARIA, a class list when it owns appearance only.
+- Light and dark both ship, chosen by `prefers-color-scheme`.
+
+**Why that changes the cost of the items above.** Each of 1, 2, 4 and 5 adds a
+surface, and before this the honest estimate for any of them included inventing
+its colours again and getting them slightly different — which is how the play
+surface ended up at 1.01 to 1 against the shell it renders inside
+([P2C](15-p2c-first-real-run.md)). A new surface now inherits a palette, a type
+scale, and a dark theme it does not have to think about.
+
+**What was deliberately not done.**
+
+- **No config file.** [06 E10](../06-open-questions.md) records the reasoning.
+  The theme *setting* did follow, once both themes were right: light, dark or
+  match my system, in the Preferences pane ([05 §15.1](../05-ui-surfaces.md)),
+  written to the per-user `prefs.json` that [06 B13](../06-open-questions.md)
+  settled — which makes it the first thing to use that store, and the reason the
+  pane exists at all. Note the order, because it is E10's whole argument: the
+  surfaces were made correct first, and only then was one of them made
+  selectable.
+- **Radix is still not installed.** `ui/Dialog` owns the focus trap and
+  `aria-modal` a primitive would take over, so the boundary is there; the
+  dependency is not, and adding it is its own change.
+- **Layout was left inline.** Only what carries a colour, a border, a radius or
+  a type step moved. Arrangement is not theming — E10 draws exactly that line —
+  and a named recipe holding `mx-auto flex max-w-3xl` would be layout smuggled
+  into the appearance layer.

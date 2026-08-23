@@ -113,7 +113,7 @@ without touching the extension-execution question in [06 A1](06-open-questions.m
   ([03 §4](03-modes-and-turn-pipeline.md)). An author defines a channel in a
   package the same way a mode does; the mode-owned ones are just the built-in
   set.
-- **Packages and settings carry a `rules` collection**
+- **Packages and treatments carry a `rules` collection**
   ([02 §7](02-data-model.md)) — evaluated by us, versioned with the rule
   vocabulary, and inert if a referenced channel is missing.
 - **Rules are a pipeline step**, not a new subsystem. Evaluate at end of turn,
@@ -217,7 +217,7 @@ things pushed it past "worth trying early":
 - **It is a sequence, not a slot.** Marinara lets you set the next goal on
   completion where IW only lets you continue open-ended; both are wanted, and
   supporting both means goals chain ([03 §7.3.4](03-modes-and-turn-pipeline.md)).
-- **Difficulty needs it.** Without a goal, a difficulty setting can only ask for
+- **Difficulty needs it.** Without a goal, a difficulty treatment can only ask for
   generic friction. With one, it can ask the narrator to obstruct progress
   toward a *named* thing, which is the difference between a dial that works and
   one that reads as arbitrary.

@@ -163,14 +163,14 @@ with guidance — and that indirect path is the system working, not a leak.
 ## 6. Failure modes worth designing against
 
 **Spoiler bleed is the sharp one.** Replay a package or start a second story in
-the same setting, and intake will happily import what happened last time —
+the same treatment, and intake will happily import what happened last time —
 including twists, plot hooks that fired ([02 §4.1](02-data-model.md)), and
 things a fresh protagonist has no business knowing. This is the failure most
 likely to make someone turn the whole feature off.
 
 Mitigations, in order of how much they cost:
 
-- **Warn at session creation** when a new session's setting or package matches
+- **Warn at session creation** when a new session's treatment or package matches
   an existing one, and offer to start isolated. Cheap and catches the common
   case.
 - **Never import memories derived from hidden content** — a hook's premise, a
@@ -228,3 +228,8 @@ per block.
   second is fewer objects and more query complexity.
 - **[OPEN]** Cross-session memory for the *narrator* rather than a character —
   "the GM remembers your last campaign". Coherent, and a different scope key.
+  **That scope key now has a name**: it is a World
+  ([14 §2d](14-roadmap.md)), and this question is the one that found it. The
+  bearing on 1.0 is narrow but real: decide the book-granularity question
+  directly above knowing that a fourth key is coming, so nothing hard-codes the
+  three-tuple into how memory books are keyed and named on disk.

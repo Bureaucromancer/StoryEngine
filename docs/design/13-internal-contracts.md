@@ -48,7 +48,7 @@ type BlockSource =
   | { kind: "history"; range: [number, number] }
   | { kind: "examples"; actorId: ActorId }
   | { kind: "channel"; channelId: ChannelId }
-  | { kind: "setting"; part: "framing" | "tone" }
+  | { kind: "treatment"; part: "framing" | "tone" }
   | { kind: "goal"; goalId: string }
   /** The guidance slot ([03 §5.1](03-modes-and-turn-pipeline.md)). `producer` because that
    *  section is explicit that one slot has several — the user's box, a rule's
@@ -362,7 +362,7 @@ decision: **what happens to adjacent blocks with the same role?** Six consecutiv
 
 It is not a detail. Providers differ, and some reject consecutive same-role
 messages outright. SillyTavern ships `squash_system_messages` as a *user-facing
-setting*, which is what a project does after discovering the answer varies by
+treatment*, which is what a project does after discovering the answer varies by
 endpoint.
 
 **So it is a provider capability, not a global choice** — `mergeSameRole` on
@@ -438,6 +438,7 @@ behaviour.
 interface Config {
   dataDir: string
   server: { host: string; port: number; trustProxy: boolean }
+  auth: { minPasswordLength: number }        // [04 §4.1]
   log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
   sessions: {
@@ -464,6 +465,7 @@ interface Config {
 | `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([04 §5.1](04-server-multiuser-deployment.md)) |
 | `server.port` | `restart` | `8080` | |
 | `server.trustProxy` | `restart` | `false` | |
+| `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([04 §5.1](04-server-multiuser-deployment.md)). `0` means the empty string is a password |
 | `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/04-p2-implementation.md)) |
 | `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
 | `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |

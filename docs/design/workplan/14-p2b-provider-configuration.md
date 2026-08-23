@@ -419,7 +419,7 @@ back, and a binding written through a route resolves on the next turn.
 
 ### P2B.3 — The admin surface
 
-A third section on P2A's settings route, not a new one (§6): the connections
+A third section on P2A's treatments route, not a new one (§6): the connections
 list, the add and edit forms with their model picker, and the role table — eight
 roles, what each resolves to, and which are unbound.
 
@@ -698,7 +698,7 @@ answer sheet. Every row was a thing this document assumed and could not check.
 | Was open | Settled |
 |---|---|
 | **The route shape for `system/bindings.json`** (§2.7: the system file only) — a whole document under a hash, or a map patched per role | **The whole document, with the stale check** — the lean was right, and for a reason the lean did not name. Two admins editing bindings at once is rare; the writer the check actually defends against is a **text editor**, and `bindings.json` is hand-written today and stays hand-writable by design. That is the same argument the config form's check rests on. Inherit one lesson with it: P2A's first version compared the *merged* view against the running config and refused on every container start, because `--data` and an absent file both make the running record legitimately differ from the file. Compare the document as this process read it — [P2A §2.5](13-p2a-configuration-surface.md) |
-| **Where the third section lives on the settings route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](13-p2a-configuration-surface.md) refuses |
+| **Where the third section lives on the treatments route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](13-p2a-configuration-surface.md) refuses |
 | **Whether `AdminConnection` wants the stale-check idiom** | **Yes**, and the reason moved. It is not worth its weight against a second admin at this scale; it is worth it against the person editing the file on disk, which is the same writer and the same argument as the row above. The cost is known now: one field on the services record and one comparison, plus the discipline of updating that field on write — P2A's second save refused its own predecessor's work until it did |
 | **The dead-end count's exact wording**, shared with P2A's account list | **Written**: *"N people have no usable connection and cannot send a message."* followed by either *"No system connection is configured, so adding one fixes this for everybody."* or *"Give them their own connection, or allow them to add one."* The second clause is the one P2B changes — the whole phase is the first sentence reaching zero. Note the shape: the lint rule for assembled sentences forbids building these around the number, so each is a whole string with the count substituted in |
 | ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([13 §4.3](../13-internal-contracts.md)) |
@@ -737,7 +737,7 @@ are both still there, and both still name the wrong phase.
 **One thing checked and found absent**, so nobody goes looking: P2A's aliasing
 defect has no twin here. `capabilitiesFor` spreads `CONSERVATIVE_CAPABILITIES`
 and a `KNOWN_PROVIDERS` entry, which is the same shallow-spread-of-a-module-
-constant shape that let one settings save rewrite `DEFAULT_CONFIG` — but
+constant shape that let one treatments save rewrite `DEFAULT_CONFIG` — but
 `ProviderCapabilities` is flat scalars throughout, so a shallow spread is a
 complete copy and there is nothing to alias. It becomes a live question the day
 a capability grows an object.

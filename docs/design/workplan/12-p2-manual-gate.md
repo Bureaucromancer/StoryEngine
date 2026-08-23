@@ -81,7 +81,7 @@ pnpm build && pnpm dev
 1. **Setup.** Open the browser at the printed address. Create the first admin.
    *Watch for:* the setup form, not a login form; the session surviving a reload;
    sign out and back in.
-2. **The dead end, reported.** Go to Settings → Administration. The account list
+2. **The dead end, reported.** Go to Treatments → Administration. The account list
    should say *1 person has no usable connection and cannot send a message. No
    system connection is configured, so adding one fixes this for everybody.*
    **This is [04 §4.5]'s commissioned sentence, and P2A exists partly to make it

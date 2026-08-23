@@ -88,6 +88,11 @@ badly; and — in §3.3 — the explicitly deferred reframe:
 > durable world, many entry points into it … A setting would own the world prose
 > plus a lorebook.
 
+Quoted verbatim; *Setting* is Marinara's word. StoryEngine adopted the reframe and
+renamed the object **Treatment** ([10 §6](10-schemas.md)) — the parent here is the
+stance on a world, not the world, and every material-word invited the opposite
+reading.
+
 That deferred reframe is what the StoryEngine requirements independently ask for.
 It should be adopted as the starting point rather than a later refactor.
 
@@ -175,12 +180,12 @@ Two details worth stealing outright:
   free". Correct, and the kind of thing that is painful to retrofit.
 
 **The wizard as a genuine authoring flow.** Nine steps (mode → pack → world &
-setting → protagonist → supporting cast → lorebook → portraits → writing style →
+treatment → protagonist → supporting cast → lorebook → portraits → writing style →
 opening), with an AI *expansion* step in the middle: a short `settingSeed` is
 expanded into a structured `ExpandedSetting` (name, description, keyLocations,
 atmosphere, themes, potentialConflicts) which the user can then edit, refine with
 guidance, or reject via `useSettingAsIs()`. The seed→expand→edit→accept loop is
-the right interaction for setting creation and should be the template for the
+the right interaction for treatment creation and should be the template for the
 "opening prompt vs written opening" pair in the requirements.
 
 **`ContextBuilder`** — a flat variable store accumulated across services, then

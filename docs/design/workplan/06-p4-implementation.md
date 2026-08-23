@@ -124,7 +124,7 @@ drop, per-character order warning, sysprompt and text-completion handling.
 ### P4.2 — SillyTavern cards and lorebooks
 
 V2/V3 cards per [02 §2.7](../02-data-model.md) — `personality` → `traits` +
-`summary`, `scenario` → setting framing, embedded lorebooks extracted — checked
+`summary`, `scenario` → treatment framing, embedded lorebooks extracted — checked
 **against** P4.1's slot targets, which is the whole point of
 [10 §5.1](10-testing.md). Lorebooks per [02 §3](../02-data-model.md): activation
 fields carried as-is into the [10 §5](../10-schemas.md) shape (P5 makes them

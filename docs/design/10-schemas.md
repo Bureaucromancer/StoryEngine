@@ -23,7 +23,7 @@ Internal structures can be migrated on upgrade because we own every copy.
 
 | Tier | Structures | Commitment |
 |---|---|---|
-| **Stable** | Actor, Lorebook, Setting, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
+| **Stable** | Actor, Lorebook, Treatment, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
 | **Provisional** | Preset (§8) | Portable, so it needs a schema — but at `/0`, which says the shape will move |
 | **Free to move** | Session, Turn record, Channel state, rule vocabulary | Internal. Migrate at will |
 
@@ -35,7 +35,7 @@ was a contradiction with [02 §1](02-data-model.md), which lists it as portable.
 
 **Package used to be a prototype exception and no longer is.** It was marked
 unstable because it carried a game definition — an `entry` block naming a mode,
-a setting and a cast — that nobody had tested against real authored content.
+a treatment and a cast — that nobody had tested against real authored content.
 Splitting that out into Setup (§7) leaves Package as a self-describing container
 (§8) with almost no surface of its own: it does not enumerate the kinds it
 holds, so a new portable kind does not change it. What was genuinely unstable was
@@ -97,7 +97,7 @@ interface Ref<T = unknown> {
   fingerprint?: string
 }
 
-/** A link to a lorebook, with a strength. Used by Setting and Setup rather than
+/** A link to a lorebook, with a strength. Used by Treatment and Setup rather than
  *  a bare Ref, because "this world does not work without Rain City" is worth
  *  saying and "this is a nice extra" is not the same claim. */
 interface LoreLink {
@@ -365,8 +365,6 @@ interface Lorebook {
   id: string
   name: string
   description: string
-  /** Organisational only. Explicitly does not affect activation. */
-  category: "world" | "character" | "npc" | "spellbook" | "uncategorized"
 
   scope: LoreScope                 // see below — collapses 5 mechanisms into 1
   enabled: boolean
@@ -379,10 +377,12 @@ interface Lorebook {
 
   folders: LoreFolder[]
   /** Optional. Hooks genuinely inseparable from this lore — eligible only while
-   *  this lorebook is active. Settings remain the primary home. [02 §4.1] */
+   *  this lorebook is active. Treatments remain the primary home. [02 §4.1] */
   hooks?: PlotHook[]
   entries: LoreEntry[]
 
+  /** Organisational, and the only such axis — a closed `category` union was
+   *  removed rather than renamed. See below. */
   tags: string[]
   /** The book's gallery — maps, establishing shots, style references for the
    *  world as a whole. §5.1 */
@@ -521,6 +521,30 @@ lorebook), `dynamicState`, quest structures, `relationships`, and
 `activationConditions` / `schedule`. The last two become typed channel
 predicates; the rest become channels ([02 §3.3](02-data-model.md)).
 
+
+**Also absent: `category`.** An earlier draft carried Marinara's five-value
+book-level union — `world`, `character`, `npc`, `spellbook`, `uncategorized` —
+described as organisational only and explicitly not affecting activation. It is
+removed rather than renamed, and the reasons compound:
+
+- **It argued against itself.** [02 §3.4](02-data-model.md) rejects closed
+  vocabularies one paragraph earlier — *"Aventuras' closed `EntryType` union is
+  the one with the ceiling. Take Marinara's shape"* — and then kept a closed
+  union at book level. `LoreEntry.tag` is free text for exactly this reason.
+- **The values were not one axis.** `world`, `character` and `npc` are subject
+  matter; `spellbook` is one genre's artefact; `uncategorized` is a null wearing
+  a value's clothes.
+- **`character` and `npc` as separate values contradict the actor model.**
+  Persona and NPC are flags on a single Actor kind ([02 §2.2](02-data-model.md)),
+  and two book categories for one actor concept re-import the split that
+  unification removed.
+- **`tags` already does the job**, openly, and is what the library's filters
+  read.
+
+The trigger was the collision — `category: "world"` alongside a reserved World
+concept ([14](14-roadmap.md)) — but the collision only made the field worth
+reopening. What was found on reopening is why it is gone rather than renamed.
+
 ### 5.1 Images on lore
 
 New territory rather than a port: Marinara carries one `imagePath` per book for
@@ -544,14 +568,33 @@ same meaning across both kinds rather than lore getting a vocabulary of its own.
 
 ---
 
-## 6. Setting
+## 6. Treatment
 
 Carries tone, framing and *links* — never world facts. The rule that makes it
-work: a Setting for Rain City does not describe Rain City.
+work: a Treatment of Rain City does not describe Rain City.
+
+> **Named `Setting` until now.** The rename is recorded because the reasoning
+> generalises. Three candidates were considered and all three named *the
+> material* — `Setting` (in tabletop usage, a setting **is** the world book),
+> `World` (the world lives in the lorebook, so the pair reads backwards), and
+> `Scenario` (both source projects use it for the *conflated* object, and
+> Marinara's own reframe uses it for the **child**, which is our Setup). This
+> object is not material; it is the stance on material. Every material-word
+> therefore invited exactly the misreading the invariant above forbids, which is
+> why the invariant had to be written in bold in the first place — a name doing
+> its job would have made it unnecessary. *Treatment* is the screenwriting term
+> for how material is handled, and it holds `cast`, `openings` and `hooks`
+> without strain, which `Lens` and the rest did not.
+>
+> The second reason was mechanical: `Setting` was one case-fold from the
+> configuration surface, and the collision was already on disk — the kind's
+> library folder was `settings/` while the app's config screen was Settings.
+> **`World` is now reserved** for a post-1.0 continuity container over sessions
+> ([14](14-roadmap.md)) and is deliberately not spent on a library label.
 
 ```ts
-interface Setting {
-  schema: "storyengine.setting/1"
+interface Treatment {
+  schema: "storyengine.treatment/1"
   id: string
   name: string
 
@@ -577,8 +620,8 @@ interface Setting {
   openings: Openings
   hooks: PlotHook[]                // §6.1
 
-  /** Advisory only. A setting proposes a mode; it never configures production
-   *  settings. [00 §3.2] */
+  /** Advisory only. A treatment proposes a mode; it never configures production
+   *  treatments. [00 §3.2] */
   modeHints: { modeId?: string; config?: unknown }
 
   tags: string[]
@@ -591,7 +634,7 @@ interface Setting {
 interface CastEntry {
   ref: Ref
   billing: "persona-option" | "party-option" | "npc" | "narrator-option"
-  /** How this character is used *in this setting*. */
+  /** How this character is used *in this treatment*. */
   note: string
 }
 ```
@@ -601,23 +644,23 @@ Locations are lorebook entries; the cast links to real actors. This is what
 dissolves the materialise-or-not question Marinara's scenario design spends a
 section on ([02 §4](02-data-model.md)).
 
-**A Setting owns no lorebook.** It only links, which is what allows **many
-settings over one lorebook** — a Rain City noir setting and a Rain City comedy
-setting drawing on the same world, which is a normal thing to want and would be
+**A Treatment owns no lorebook.** It only links, which is what allows **many
+treatments over one lorebook** — a Rain City noir treatment and a Rain City comedy
+treatment drawing on the same world, which is a normal thing to want and would be
 blocked by a primary-lorebook relationship. Ownership on delete also stops being
 a question nobody wants to answer.
 
 `LoreLink.required` (§3) is the concession: an author can mark a link as load-
 bearing, and a consumer warns loudly when it cannot be resolved. It still never
-blocks ([00 §3.3](00-stance.md)) — the difference between "this setting is
-missing a nice extra" and "this setting is missing its world" is worth saying
+blocks ([00 §3.3](00-stance.md)) — the difference between "this treatment is
+missing a nice extra" and "this treatment is missing its world" is worth saying
 out loud, and that is all the flag does.
 
 Actor lore links stay bare `Ref[]`: a character's own lorebook going missing is
 a soft degradation, not a broken world.
 
 **Consequence for the editor.** With no owned lorebook, an "add a location while
-authoring a setting" action has to target one of the linked lorebooks — the user
+authoring a treatment" action has to target one of the linked lorebooks — the user
 picks, or creates a new one and links it. Slightly more explicit than an implicit
 home, and correct.
 
@@ -634,7 +677,10 @@ interface PlotHook {
   title: string
   /** The content, handwritten. */
   premise: string
-  scope: "world" | "local" | "personal"
+  /** Blast radius, not location. Named `magnitude` because `Lorebook.scope`
+   *  answers a different question, and one word for two axes in two portable
+   *  schemas is a trap. */
+  magnitude: "sweeping" | "local" | "personal"
 
   // ── Eligibility. Checked mechanically, before any model call. ──
   /** Moot if these are dead, gone, or never introduced. Not bookkeeping:
@@ -703,7 +749,7 @@ An earlier draft folded this into Package, which conflated two unrelated jobs:
 simpler.
 
 A **Setup** is an ordinary library object like any other. It says which mode,
-which setting, which cast, which preset, which opening — everything needed to
+which treatment, which cast, which preset, which opening — everything needed to
 start a session and nothing about how to transport it.
 
 ```ts
@@ -722,7 +768,7 @@ interface Setup {
     config: unknown
   }
 
-  setting: Ref | null              // one Setting; null = start bare
+  treatment: Ref | null              // one Treatment; null = start bare
   preset: Ref | null
 
   cast: {
@@ -731,11 +777,11 @@ interface Setup {
     narrator: Ref | null           // null = the mode's default narrator
   }
 
-  /** Beyond whatever the setting already links. */
+  /** Beyond whatever the treatment already links. */
   lore: LoreLink[]
-  /** Overrides the setting's when present. */
+  /** Overrides the treatment's when present. */
   openings: Openings
-  /** Additional to the setting's, not a replacement. */
+  /** Additional to the treatment's, not a replacement. */
   hooks: PlotHook[]
   /** §7.1. Ordered: goals[0] is where play begins. Empty = no win condition,
    *  which is the deliberate opt-out rather than the default. */
@@ -749,9 +795,11 @@ interface Setup {
 }
 ```
 
-**Setting is to Setup as a world is to a game played in it.** One Setting, many
-Setups: *Rain City* is the world; *The Fixer's Debt*, Adventure mode, playing
-Marlow is a way to play in it. This is the reframe Marinara's own scenario design
+**Treatment is to Setup as a reading of a world is to a game played under it.**
+One Treatment, many Setups. The full ladder: *Rain City* is the lorebook — the
+world; *Rain City, noir* is the Treatment — how that world is handled here; *The
+Fixer's Debt*, Adventure mode, playing Marlow is a Setup — one game played under
+it. This is the reframe Marinara's own scenario design
 identified and deferred — "make Setting the first-class entity and scenarios its
 children" ([01 §1](01-source-survey.md)). We adopted the parent and never built
 the child; Setup is the child.
@@ -813,9 +861,9 @@ earns its place — a quest whose state is real data — and Campaign is 2.0
 ([work plan §0](workplan/01-work-plan.md)), so the vocabulary and its first serious consumer
 arrive together rather than one waiting on the other.
 
-**Why `Goal` sits on Setup rather than Setting.** A Setting is a world and a
+**Why `Goal` sits on Setup rather than Treatment.** A Treatment is a world and a
 world has no win condition — the same rule that keeps world facts out of it
-([§6](#6-setting)). *Rain City* does not have an objective; *The Fixer's Debt*
+([§6](#6-treatment)). *Rain City* does not have an objective; *The Fixer's Debt*
 does. Placing goals here is what allows several Setups with different objectives
 over one world, which is the whole point of the split.
 
@@ -906,7 +954,7 @@ interface Preset {
    *  `openai_model` lands: expressible as a wish, never as a binding. */
   modelHint: ModelHint | null
 
-  /** Named levels the mode's difficulty setting resolves against
+  /** Named levels the mode's difficulty treatment resolves against
    *  ([03 §7.3.1](03-modes-and-turn-pipeline.md)). Omitted = the built-in
    *  pack. Supplied = this preset owns the meaning of "hard". */
   difficultyLevels?: DifficultyLevel[]
@@ -979,7 +1027,7 @@ type SlotSource =
   | { of: "history" }
   | { of: "examples" }
   | { of: "channel"; channelId: ChannelId }
-  | { of: "setting"; part: "framing" | "tone" }
+  | { of: "treatment"; part: "framing" | "tone" }
   | { of: "goal" }                          // [03 §7.3.3]
   /** The guidance slot. [03 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
@@ -1095,11 +1143,11 @@ The marker identifiers map one to one:
 | `charPersonality` | `{ of: "actor", field: "traits" }` — see below |
 | `personaDescription` | `{ of: "persona" }` |
 | `dialogueExamples` | `{ of: "examples" }` |
-| `scenario` | `{ of: "setting", part: "framing" }` |
+| `scenario` | `{ of: "treatment", part: "framing" }` |
 
 The `scenario` row is the interesting one, and it is the same move
 [02 §2.7](02-data-model.md) makes for card import: ST's scenario is per-character
-text, ours is the setting's framing, and routing it there is where it always
+text, ours is the treatment's framing, and routing it there is where it always
 wanted to live.
 
 **The `charPersonality` row is the one that has to agree with card import, and
@@ -1165,7 +1213,7 @@ in the assembler:
 | ST field | Becomes |
 |---|---|
 | `wi_format` (`"{0}"`) | The lore slot's `wrapper` |
-| `scenario_format` (`"{{scenario}}"`) | The setting slot's `wrapper` |
+| `scenario_format` (`"{{scenario}}"`) | The treatment slot's `wrapper` |
 | `personality_format` | The actor-section slot's `wrapper` |
 | `group_nudge_prompt` | A `TextBlock`, `appliesTo: ["group-nudge"]` |
 | `new_chat_prompt` | A `TextBlock`, `appliesTo: ["session-start"]` |
@@ -1313,7 +1361,7 @@ interface Package {
  *  older reader would reject a package containing a kind it had never heard of
  *  — exactly the stranding [§2](#2-versioning-and-compatibility) forbids. */
 type PortableObject =
-  | Actor | Lorebook | Setting | Setup | Preset
+  | Actor | Lorebook | Treatment | Setup | Preset
   | UnknownPortableObject
 
 /** Any self-describing object this reader does not know. Preserved verbatim,
@@ -1352,7 +1400,7 @@ warning with a degraded-start option rather than a hard block where possible.
 ### 9.1 One action produces a package
 
 A container is only as good as the thing that fills it, and filling one by hand
-— find the setting, find its three lorebooks, remember the actor whose own
+— find the treatment, find its three lorebooks, remember the actor whose own
 lorebook the cast depends on, check nothing dangles — is exactly the work nobody
 does. So **export-as-package is a single action on any library object**, and the
 package is assembled by walking references.
@@ -1362,11 +1410,11 @@ follow outbound references transitively and collect what they reach:
 
 | From | Follows | Default |
 |---|---|---|
-| Setting | `lore[]` where `required` ([§3](#3-shared-substructures)) | included, and cannot be silently dropped |
-| Setting | `lore[]` where not required | included, can be unchecked |
-| Setting | `cast[].ref` | included |
+| Treatment | `lore[]` where `required` ([§3](#3-shared-substructures)) | included, and cannot be silently dropped |
+| Treatment | `lore[]` where not required | included, can be unchecked |
+| Treatment | `cast[].ref` | included |
 | Actor | its bare lore `Ref[]` ([§4](#4-actor)) | included |
-| Setup | `setting`, and the closure above | included |
+| Setup | `treatment`, and the closure above | included |
 | Setup | its own `lore[]`, and `cast.personaOptions` / `partyDefault` / `narrator` | included |
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
 
@@ -1385,16 +1433,16 @@ missing the world, not a nice extra.
 capability requirements come from what the collected objects actually reference.
 An author can add to the list and should rarely need to.
 
-**This is what makes the object split free at exchange time.** A Setting stays
+**This is what makes the object split free at exchange time.** A Treatment stays
 independent of any one lorebook ([02 §4](02-data-model.md)) and is nonetheless
 shareable as a self-contained artefact, because the bundled form is *produced on
 demand* rather than being the storage shape. The recurring pull toward folding
 world content and framing into one file is, at bottom, a request for this
 button.
 
-**Exporting produces a file, not a library object.** Packages are transport, and
-transport should appear at the moment you export rather than sit in the way
-beforehand ([05 §5.1](05-ui-surfaces.md)). Keeping the package — as a
+**Exporting produces a file, not a library object.** A package is a snapshot of a
+closure at one moment, and auto-saving one on every export would fill the library
+with near-identical bundles nobody chose to keep. Keeping the package — as a
 re-exportable object that remembers its closure and picks up later edits — is a
 separate, explicit *Save this package* action.
 
@@ -1433,7 +1481,7 @@ contradicting their own resolutions:
   [02 §2.1](02-data-model.md): **there are no fixed prose fields**, all prose is
   `Section`s and four are conventional. The entry claimed committing to §4 would
   close it "in favour of fixed", which is the opposite of what §4 now says.
-- *Whether `Setting` owns a primary lorebook.* Decided in
-  [§6](#6-setting): **a Setting owns no lorebook, it only links** — which is what
-  allows many settings over one world and removes the ownership-on-delete
+- *Whether `Treatment` owns a primary lorebook.* Decided in
+  [§6](#6-treatment): **a Treatment owns no lorebook, it only links** — which is what
+  allows many treatments over one world and removes the ownership-on-delete
   question.

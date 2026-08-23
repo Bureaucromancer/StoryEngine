@@ -11,7 +11,7 @@ box on your LAN that people reach from browsers on their phones, laptops and
 TVs. There is no desktop app, no bundled Electron shell, and no "run it locally
 and also maybe expose it" ambiguity.
 
-**It binds loopback on first boot and LAN exposure is one setting** (§5.1) — an
+**It binds loopback on first boot and LAN exposure is one treatment** (§5.1) — an
 earlier version of this paragraph said `0.0.0.0` and predates that decision. The
 product shape is unchanged: this is a server expecting LAN clients, and the
 default exists to close the window before an admin account exists, not to hedge
@@ -353,6 +353,18 @@ CSRF protection on state-changing routes, session cookies with sane flags, and
 path traversal checks on every filesystem-touching route. Those are cheap and
 their absence is embarrassing rather than defensible.
 
+**One rule survives the skip-list, and it belongs to the operator rather than to
+us.** `auth.minPasswordLength` is a length floor, default 8, settable anywhere in
+0–128 from the settings surface. Everything above stays true as the *default*
+position — there is no character-class rule, no rotation, no expiry, no history —
+and the one number that is left is the operator's to choose, because the policy
+is a property of the install and not of the build: a household on a machine only
+they can reach may set it to `0`, where the empty string becomes a valid
+password, and one reaching the port down a tunnel may ask for more. It applies
+where a password is *set* and never where one is checked, so raising it locks
+nobody out of an account they already have. `--reset-password` honours no
+minimum at all, for the reason §5.1 gives.
+
 ### 4.2 Users
 
 ```ts
@@ -460,7 +472,7 @@ So:
 ```
 /data/system/library/        shipped with the app. Read-only. Loads for everyone.
 /data/users/<handle>/
-  library/                   actors, lorebooks, settings, packages, presets
+  library/                   actors, lorebooks, treatments, packages, presets
   sessions/
   connections/
   memories/
@@ -489,7 +501,7 @@ So:
   like any other ([00 §3.3](00-stance.md)).
 - **Connections are account-scoped, with a system scope alongside** — the same
   shape as the library. See §4.5.
-- **Refs never cross users.** A setting's link to a lorebook resolves inside that
+- **Refs never cross users.** A treatment's link to a lorebook resolves inside that
   user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
   are precisely the thing that would make a future split or merge painful, so
   they must not exist.
@@ -675,7 +687,7 @@ So:
 
 - **Bind `127.0.0.1` on first boot.** LAN exposure is an explicit act, not a
   default.
-- **Flipping it must be trivial, and available in both places** — a setting in
+- **Flipping it must be trivial, and available in both places** — a treatment in
   the UI (admin only), and a plainly-named key in `config.json` for people who
   never open the UI first. Neither may be the only route.
 - **Containers are the exception, necessarily** — see §4.3.
@@ -964,7 +976,7 @@ setting, see nothing happen, and conclude the app is broken.
 
 Worth stating because it is easy to file under "dev mode" and it is not: because
 files on disk are canonical and the index is watcher-fed
-([02 §5.1](02-data-model.md)), **editing a lorebook, setting, preset or prompt
+([02 §5.1](02-data-model.md)), **editing a lorebook, treatment, preset or prompt
 template on disk takes effect with no restart, in production, for everyone.**
 That falls straight out of the storage design.
 
@@ -1099,7 +1111,7 @@ project asks copyleft of one category and nothing of the other
 
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.
-- **Content is the author's own** — actors, settings, lorebooks, presets,
+- **Content is the author's own** — actors, treatments, lorebooks, presets,
   sessions, and packages including their authored rules. These are data the
   program produces, not derivative works of it. Nobody's characters become AGPL
   by being authored here, and a package of rules can be licensed however its

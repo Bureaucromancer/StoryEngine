@@ -212,8 +212,8 @@ while tolerating absence. Buys one kind of prose block instead of two — adding
 custom section is the same operation as editing a built-in one. *[02 §2.1,
 13 §4]*
 
-**B2. Does a Setting own a primary lorebook? — RESOLVED: no. It only links.** A
-primary lorebook would block many settings over one lorebook — a noir and a
+**B2. Does a Treatment own a primary lorebook? — RESOLVED: no. It only links.** A
+primary lorebook would block many treatments over one lorebook — a noir and a
 comedy drawing on the same world — and create an ownership question on delete.
 `LoreLink.required` is the concession: mark a link load-bearing and a consumer
 warns loudly when it will not resolve, still without blocking. *[02 §4, 10 §3]*
@@ -481,28 +481,28 @@ extension, following retrieval's pattern.
 earns its place: *"I have just realised I want this plot point to come up, but
 not necessarily on this turn."* That brushes against prefill-not-binding, so the
 reconciliation is explicit — **session-local hooks are the primary path** (add to
-the session, immediately eligible, no principle bent), and **setting changes are
-pulled, never pushed** (*"the setting has 2 new hooks — add them?"*). A pushed
-update would mean editing a setting could silently alter a story in progress,
+the session, immediately eligible, no principle bent), and **treatment changes are
+pulled, never pushed** (*"the treatment has 2 new hooks — add them?"*). A pushed
+update would mean editing a treatment could silently alter a story in progress,
 which is the failure prefill-not-binding exists to prevent.
 
 "Hook packs" as a separately shareable kind stay declined; C7c covers the case
 that motivated them. *[02 §4.1, 03 §6.1]*
 
 **C7c. Plot hooks on lorebooks. — RESOLVED: allowed, secondary.** Hooks are
-setting-shaped rather than lorebook-shaped, and multi-sourcing is genuinely
+treatment-shaped rather than lorebook-shaped, and multi-sourcing is genuinely
 untidy — but a hook is often *about* a specific piece of world content, and two
 things make the association principled rather than convenient. It **travels with
 the thing people actually exchange**, since lorebooks are this ecosystem's
-universal currency where Settings are ours; and it **gets an eligibility
+universal currency where Treatments are ours; and it **gets an eligibility
 condition for free**, being live only while its lorebook is active.
 
-Costs accepted: hooks now come from up to four places (setting, setup, lorebook,
+Costs accepted: hooks now come from up to four places (treatment, setup, lorebook,
 session), mitigated the way multi-book lore already is — every hook shows its
 source and editing navigates to the owner. Compatible export to third-party
 lorebook formats drops them, like everything else we add. The real risk is
 conceptual drift, so it is documented as being for hooks genuinely inseparable
-from a piece of lore, with Settings staying the default answer.
+from a piece of lore, with Treatments staying the default answer.
 *[02 §4.1, 10 §5]*
 
 **C8. Branch snapshot interval. — RESOLVED: tuneable, and generous during
@@ -853,3 +853,39 @@ people at first run, which is exactly what the PLAYABLE checkpoint
 ([work plan §4.1](workplan/01-work-plan.md)) exists to produce. Note what that evidence would
 *not* justify — the first-run and setup flows are already on the quiet side of
 the split, so losing people there is a §6 problem before it is a density one.
+
+**What has since landed, and what it does not settle.** A token layer now
+exists: colour, radius and the type scale are named once in
+`packages/client/src/index.css`, spent by `packages/client/src/ui/`, and a
+Tailwind palette scale written anywhere else in the client is a build error
+([05 §1.2](05-ui-surfaces.md)). Two themes ship, light and dark, chosen by
+`prefers-color-scheme`. That settles the half of this entry's vocabulary that is
+*look* — and settles none of the rest. Simple/advanced and rearrangeable layout
+are both still open, because both are about **what is on the screen and how it
+is grouped**, which the entry above is careful to say a theme does not reach.
+
+**A config file for the theme was considered and refused**, and the reason is
+this entry's own test. *Every surface has to be right at its default before it
+is worth making adjustable* — and at the time of asking the primary button had
+three incompatible spellings, the error box seven paddings, and no token was
+named anything. A config key pointing at that is configuration standing in for
+design, which is the failure this entry was written about. Two designed defaults
+with the OS picking between them is not the same thing: nothing is exposed, so
+there is no settings surface to get wrong.
+
+**The explicit toggle has since landed, in `prefs.json` rather than
+`config.json`** — light, dark or match my system, in the Preferences pane
+([05 §15.1](05-ui-surfaces.md)). Per-user rather than per-install, which is what
+a theme actually is; live rather than restart-tiered; and it is the first
+consumer of the store B13 settled, which until then had a route, a hook,
+four tests and nothing using it. `config.json` was the wrong shape twice over:
+admin-only behind the `/api/admin` guard, so a non-admin could not read it, and
+the login screen is a Quiet surface that must be styled *before* anyone has
+authenticated.
+
+**And it is still not a configuration surface in this entry's sense**, which is
+the distinction worth keeping. What shipped is a choice between two designed
+defaults, both of which had to be right before either could be offered — not a
+dial that hands the design problem to the user. The test this entry sets was met
+in the order it asks for: the surfaces were made correct, and *then* one of them
+was made selectable.

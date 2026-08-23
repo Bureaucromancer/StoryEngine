@@ -226,9 +226,9 @@ right budget — which is §3.1, and which is a fact rather than a judgement.
 
 A `fixtures/` corpus is a first-class asset, not test scaffolding:
 
-- **A small library** — a handful of actors, lorebooks, settings, setups, a
+- **A small library** — a handful of actors, lorebooks, treatments, setups, a
   preset. Hand-authored, deliberately including awkward cases: an actor with no
-  media, a lorebook with recursive entries, a setting with a dangling required
+  media, a lorebook with recursive entries, a treatment with a dangling required
   link.
 - **Sessions of varying length**, including one long enough to exercise
   budgeting under pressure and one with a branch structure.

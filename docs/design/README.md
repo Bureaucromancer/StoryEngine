@@ -78,7 +78,7 @@ were written in. **Start with 00, then 01.**
 | [09-branching.md](09-branching.md) | Branch anywhere: the effect log makes it a pointer, and summaries survive |
 | [11-cross-session-memory.md](11-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
-| [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and workbench, file access, editors |
+| [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
 
 ### The technical ground
 
@@ -136,11 +136,13 @@ they still have to exist before code does.
 
 - **Actor** — the single card type. Personas and NPCs are flags/tags on an
   actor, not separate types.
-- **Setting** — the reusable tone/framing object that *points at* world content
-  rather than containing it.
-- **Package** — a shareable bundle of actors, settings, lorebooks, presets and
+- **Treatment** — the reusable tone/framing object that *points at* world content
+  rather than containing it. A lorebook is the world; a treatment is how it is
+  handled here ([10 §6](10-schemas.md) records why the name changed from
+  *Setting*).
+- **Package** — a shareable bundle of actors, treatments, lorebooks, presets and
   mode config; the "full game setup" export.
-- **Session** — one running story/chat. Sessions are created *from* settings and
+- **Session** — one running story/chat. Sessions are created *from* treatments and
   packages by copy, and never hold a live link back to them.
 - **Mode** — the thing that defines how a turn is built and what state it owns.
 - **Channel** — a named, typed slice of session state owned by a mode or

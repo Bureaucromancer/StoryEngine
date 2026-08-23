@@ -337,6 +337,84 @@ they can be played in, when in practice they are discovered while playing.
 
 ---
 
+## 2d. World — the continuity container
+
+**The word is reserved now and spent later.** A World is a grouping of sessions
+that share a continuity: history available as context across them, a shared
+starting set of lorebooks and a shared treatment baseline, with the stylistic
+particulars still varying per session. *"The Rain City campaign"*, holding six
+sessions that know about each other.
+
+It belongs here rather than in [02](02-data-model.md) because it is post-1.0, and
+it is written down now rather than later because the *word* is a 1.0 decision:
+[05 §2.1](05-ui-surfaces.md) declines to spend "World" on a library label
+precisely so this can have it.
+
+**Two existing open questions are what this answers**, which is the argument for
+it being real rather than invented:
+
+- [11 §8](11-cross-session-memory.md) carries *"cross-session memory for the
+  narrator rather than a character — 'the GM remembers your last campaign'.
+  Coherent, and **a different scope key**."* Memory today is keyed
+  `(user, actor, persona)` — character-centric. A World is the world-centric key
+  that question noticed was missing and did not name.
+- §2c.1's story bible is defined as *"what a **session** has established."* A
+  World is that widened across sessions, and §2c.1's discipline carries over
+  unchanged: **derived, never authoritative.** A World that accumulated its own
+  parallel truth would be [00 §2.8](00-stance.md)'s
+  derived-data-persisted-as-truth failure at a larger scale.
+
+**What separates it from Setup**, since they will otherwise be confused:
+
+> **A Setup is a starting configuration; a World is an accumulating history.**
+
+A Setup looks forward at one game and is complete the moment play begins. A World
+looks backward across many and is worth nothing until the third session. That is
+also why it cannot be modelled as "a Setup with several sessions" — its whole
+value is in what accrues.
+
+**It is a play-side object.** Per [05 §2.1](05-ui-surfaces.md), the library
+represents the objects as they are and Play carries the conveniences; grouping
+your own sessions is a convenience over sessions, not a seventh portable kind.
+That also keeps it out of the export surface, which is right — a continuity is
+about *your* play, and the material underneath it already travels as a Package
+([10 §9.1](10-schemas.md)).
+
+### What this obliges 1.0 to do
+
+The test this document sets itself. Three of the four elements cost nothing:
+
+| Element | Obligation |
+|---|---|
+| Sessions belong to a World | **None.** Sessions are the *free to move* tier ([10 §1](10-schemas.md)) — internal, migrate at will. |
+| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. |
+| World-scoped memory | **Small.** Do not hard-code the three-tuple into how memory books are keyed and named on disk. [11 §8](11-cross-session-memory.md)'s open question about book granularity should be decided knowing a fourth key is coming. |
+| Continuity across sessions | **One real obligation** — below. |
+
+**Hook identity must survive the copy.** [02 §4.1](02-data-model.md) has session
+creation *copy* hooks from all sources, with the session tracking which have
+fired. Within a World, a hook fired in session one must not fire again in session
+two — the same *"firing a hook about someone who died four sessions ago"* failure
+that document calls severe, reached by a different route. Cross-session
+de-duplication is only possible if a session's copied hook keeps the **source
+hook's `id`** rather than getting a fresh one. `PlotHook.id` exists and
+`blockedBy` / `notBefore.afterHook` already reference ids, so the field is there;
+what needs pinning at 1.0 is that copying preserves it. One line now,
+unrecoverable later.
+
+**A known collision, recorded rather than rediscovered.** Two *stable-tier*
+schemas already spend the word: `PlotHook.magnitude` no longer does, but
+`Lorebook.category: "world" | …` still carries it, and `hook.magnitude` was
+renamed away from `scope: "world"` for exactly this reason
+([10 §5](10-schemas.md), [10 §6.1](10-schemas.md)). `category` is gone as of that
+same pass, so what remains is ordinary lowercase prose — "world facts", "the
+world as a whole" — which coexists with a capital-W kind without real ambiguity.
+Worth knowing that portable schemas cannot be cleaned up later without a version
+bump ([10 §2](10-schemas.md)), so any *new* use of the word in a portable
+structure between now and then should be refused.
+
+---
+
 ## 3. Other deferred items
 
 Already deferred in their own documents; listed here so the roadmap has shape.
@@ -635,7 +713,7 @@ Marinara's own documentation states that Noodle's built-in instructions treat
 every account as adult and permit explicit content, and that **this is not a
 setting that can be turned off**. Whatever one thinks of the default, a
 non-optional content posture baked into a subsystem is the wrong shape — content
-rating is a `Setting` field with `null` meaning *ask*
+rating is a `Treatment` field with `null` meaning *ask*
 ([10 §6](10-schemas.md)), and any extension contributing generated content
 should respect it rather than carry its own fixed policy.
 

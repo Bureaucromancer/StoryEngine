@@ -26,7 +26,7 @@ this section records what that settles and what it newly raises.
 - **Dependencies must be AGPL-compatible.** Permissive licences (MIT, Apache-2.0,
   BSD, ISC) are fine and cover everything on the BUY list in §7. Watch for
   SSPL, BUSL, "source-available", and non-commercial terms, which are not.
-- **User content is not affected.** Actors, settings, lorebooks, packages and
+- **User content is not affected.** Actors, treatments, lorebooks, packages and
   sessions are data produced *by* the program, not derivative works *of* it.
   Nobody's characters become AGPL by being authored in StoryEngine. Worth saying
   plainly somewhere user-facing, because this is a common and reasonable worry.
@@ -70,7 +70,7 @@ produce exactly the perception the decision exists to avoid.
 | Kind | Licence |
 |---|---|
 | Code extensions and modes (import the SDK, run in our process) | **AGPL-3.0, required** |
-| Actors, lorebooks, settings, presets, sessions | **The author's own. Any licence, including none.** |
+| Actors, lorebooks, treatments, presets, sessions | **The author's own. Any licence, including none.** |
 | Packages — including their **authored rules** ([08 §2](../08-infinite-worlds.md)) | **The author's own.** |
 
 Rules are the case worth being explicit about, because they *look* like code.
@@ -192,7 +192,7 @@ Three framings were considered. The third is the one that keeps coming back, and
 | | The proposal |
 |---|---|
 | **Fork** | Base on Marinara, rebuild what this design disagrees with, port from Aventuras along the way |
-| **Contribute** | Drop the structural argument entirely; push Freeform mode and the setting/scenario/plot-thread material into Marinara as PRs |
+| **Contribute** | Drop the structural argument entirely; push Freeform mode and the treatment/scenario/plot-thread material into Marinara as PRs |
 | **Standalone** | §4's verdicts: take the specifications, write the code |
 
 ### 2A.1 The fork, at full strength
@@ -292,7 +292,7 @@ see §2A.5.
 There is a cheaper framing than either, and it deserves recording because it is
 not obviously wrong: **drop the structural argument entirely.** Do not fork, do
 not rebuild. Take the two things this project actually wants that Marinara lacks
-— a Freeform mode, and the setting / scenario / plot-thread material — and push
+— a Freeform mode, and the treatment / scenario / plot-thread material — and push
 them upstream as pull requests. Marinara keeps its maintainers, its release
 cadence and its users; the ideas land where the users already are; nobody
 retrofits multi-user into anything.
@@ -305,7 +305,7 @@ than social.** Outside contributors need an approving review from a single named
 owner in addition to the automated gates; the contribution guide asks for an
 issue first *"so we can agree on direction, scope"*, and asks that PRs stay
 focused and small. Those are good policies. They are also precisely the policies
-under which a fourth chat mode and a re-shaped setting object are not features
+under which a fourth chat mode and a re-shaped treatment object are not features
 but *direction* — and `ChatMode = "conversation" | "roleplay" | "game"` is a
 closed union baked into three tables, with a `retired-chat-mode-migration.ts`
 recording that the maintainers' demonstrated instinct is to *retire* a mode
@@ -415,7 +415,7 @@ suite absent across 518k lines does not appear.
 | Text-completion sampler presets | ST `presets/textgen/` | **PARTIAL** | Converts to `params` only; most fields are backend-specific samplers with no chat-API equivalent. Report the ratio rather than implying fidelity. |
 | Character card *format* | all three | **REBUILD** | [02 §2](../02-data-model.md). |
 | Lorebook entry model | Marinara `types/lorebook.ts` | **PORT ~intact** | [02 §3](../02-data-model.md). Four scoped changes only. |
-| Scenario / setting object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
+| Scenario / treatment object | Marinara `feat/scenarios` | **PORT the design** | The design plans are worth more than the code; adopt their §3.3 deferred reframe. |
 | Pack / preset bundle | Aventuras `services/packs/` | **PORT** | Especially the `contentHash`/`baselineHash` update mechanism. |
 | Avatar crop as normalised source rect | Marinara `types/avatar-crop.ts` | **PORT** | Coordinates in 0..1 survive resize/re-encode; the render-only legacy variant is a good format-migration pattern. [05 §11.3](../05-ui-surfaces.md) |
 | Per-field generation provenance | Marinara `GeneratedFieldProvenance` | **PORT, widened** | Scenario-only upstream; applies to every authored kind here. [05 §11.2](../05-ui-surfaces.md) |
@@ -426,7 +426,7 @@ suite absent across 518k lines does not appear.
 | Per-field `translated*` columns | Aventuras | **DISCARD** | [01 §2](../01-source-survey.md). |
 | `GameSetupConfig` | Marinara | **REBUILD** | ~70 fields mixing narrative and production. |
 | Per-user directory islands | ST `USER_DIRECTORY_TEMPLATE` | **REBUILD** | Layout idea yes; isolation model no ([04 §4.3](../04-server-multiuser-deployment.md)). |
-| Four backend settings dirs | ST | **DISCARD** | Completion-era fossil. |
+| Four backend treatments dirs | ST | **DISCARD** | Completion-era fossil. |
 
 ### Retrieval and context
 

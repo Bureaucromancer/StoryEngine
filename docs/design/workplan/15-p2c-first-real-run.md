@@ -140,6 +140,32 @@ arrives anywhere.
   in the client against a hundred and seventy-two `slate-*`, and git dates the
   light shell to P1.6 and the play surface to P2.6. *Repaint onto slate: four
   files, two hours, mechanical.*
+
+  **Discharged**, and the repaint turned into the thing that prevents the next
+  one. The immediate fix was the four files; what the diagnosis above actually
+  described was a client with no styling layer at all, so the colours were
+  gathered into semantic tokens in `packages/client/src/index.css` and the
+  repeated markup into `packages/client/src/ui/`
+  ([05 §1.2](../05-ui-surfaces.md), [07 §6.1](../07-tech-stack.md)). A Tailwind
+  palette scale written anywhere else in the client is now a build error, which
+  is the part that makes "a stranded assumption" unrepeatable rather than
+  repaired.
+
+  Re-measured against a body that paints `--color-canvas`, in both themes:
+
+  | | before | light | dark |
+  |---|---|---|---|
+  | typed text | **1.01** | 17.83 | 17.04 |
+  | the player's own line | 2.5 | 9.9 | 13.56 |
+  | the failure message | 1.7 | 9.9 | 13.56 |
+  | the guidance toggle, on hover | 1.2 | 17.04 | 19.27 |
+
+  Two things the second theme found that one theme could not. **Nothing painted
+  the app's background**: `bg-canvas` sat on `Shell`, which is the *signed-in*
+  frame, so login, setup and the error boundary fell through to the browser's
+  canvas — invisible while that canvas was white and the app was light. It is on
+  `body` now. And **`color-scheme` was missing**, which is the same defect class
+  as the original: an input whose CSS is right and whose caret is not.
 - **The startup line names an address that serves no UI.** `main.ts` prints
   `http://127.0.0.1:8080` and then *"Open the address above to create the first
   admin"* — and the server serves no static files, so the client is Vite on

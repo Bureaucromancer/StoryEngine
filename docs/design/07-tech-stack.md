@@ -419,6 +419,35 @@ any public contract. Nothing outside the client package knows what it is. That
 resolves the open question from the earlier draft: the framework choice is
 ordinary, not architectural, *provided* the extension-UI decision holds.
 
+### 6.1 The styling layer, and the one word it turns on
+
+Tailwind v4, CSS-first: there is no `tailwind.config.js`, and the theme is an
+`@theme` block in `packages/client/src/index.css`. What lives there and what
+lives in `packages/client/src/ui/` is [05 §1.2](05-ui-surfaces.md); this is the
+mechanical part.
+
+- **Plain `@theme`, never `@theme inline`.** `inline` resolves each token at
+  build time and writes the value into the utility — `background-color:
+  oklch(…)` rather than `background-color: var(--color-accent)`. The whole
+  theming layer depends on that indirection surviving into the browser, because
+  a second theme is a redefinition of the variable. One word, and the difference
+  between a themeable app and a repaint.
+- **Every light value aliases a Tailwind default** rather than restating the hex
+  it resolves to. That is what made migrating a hundred and seventy hard-coded
+  colours on to these tokens provably non-visual — a rename cannot change a
+  colour if the token *is* the old colour. Pinned by `theme.test.ts`.
+- **`color-scheme` is declared in each theme.** It is what tells the browser to
+  render the caret, scrollbars and native `<select>` popups to match. Omitting it
+  produces an input that is styled correctly and still unusable, which is the
+  shape of the [P2C](workplan/15-p2c-first-real-run.md) defect.
+- **A token declared but referenced by no utility is pruned** from `:root`.
+  Worth knowing before assuming a runtime override will reach one; `@theme
+  static` is the escape hatch if that day comes.
+- **Radix is still the intended primitive library** and is still not installed.
+  `ui/` is where it lands: `Dialog` already owns the focus trap and `aria-modal`
+  that a Radix primitive would take over, so the boundary exists ahead of the
+  dependency.
+
 ---
 
 ## 7. Storage layer
@@ -684,6 +713,18 @@ on first login and overridable in settings. Cheap now; a migration later.
   attribute rather than a rewrite. Arabic and Hebrew are otherwise permanently
   out of reach, which for a project with 17-language ambitions is a real
   foreclosure.
+
+  Enforced twice, because a Tailwind utility is not a declaration and Stylelint
+  cannot see one: `stylelint.rules.js` for real CSS, `eslint.rules.js` for class
+  strings. The ESLint half was originally anchored on
+  `JSXAttribute[name.name="className"]`, and **that anchor was removed** when the
+  class strings moved into `packages/client/src/ui/` — a string in a `const` has
+  no such ancestor, so the rule had been silent on every extracted class list,
+  including the one `Shell.tsx` passed through `activeProps`. Unanchored, the
+  pattern also had to become *exact*: it now sees SQL and ordinary English, and
+  `left`/`right` must carry a Tailwind-shaped suffix or a `left join` and a test
+  named *"accepts the right password"* both report. Both halves are pinned by
+  fixtures in `tools/lint-fixtures/`.
 - **`Intl` for everything formatted.** Dates, numbers, currency, and especially
   `Intl.RelativeTimeFormat` for "2 minutes ago". Hand-rolled relative time is
   untranslatable and always slightly wrong.

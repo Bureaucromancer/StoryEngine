@@ -173,7 +173,7 @@ interface ChannelDefinition {
   owner: ModeId | ExtensionId
   schema: JSONSchema              // the state shape
   scope: "session" | "actor" | "entry"   // one value, or one per actor/lore entry
-  init: InitPolicy                // literal default, from setting, or generated at start
+  init: InitPolicy                // literal default, from treatment, or generated at start
   update: UpdatePolicy            // model-proposed / engine-computed / user-only
   budget: number | null           // token cost when injected; null = never injected
   surface?: WidgetSpec            // how it renders in the HUD, if at all
@@ -231,7 +231,7 @@ So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
 - `owner` may be a package, not just a mode or extension.
-- Packages and settings carry a `rules` collection — declarative
+- Packages and treatments carry a `rules` collection — declarative
   condition/effect pairs over channels, evaluated as an end-of-turn step, with
   effects applied through the same path model-proposed updates use and recorded
   in the turn record like everything else.
@@ -339,7 +339,7 @@ The pipeline's context stage produces `AssembledBlock[]`
 ([02 §8](02-data-model.md)) in four steps:
 
 1. **Collect.** Every source offers candidate blocks: the persona, present
-   actors, the setting's framing, channel snapshots, retrieved lore entries
+   actors, the treatment's framing, channel snapshots, retrieved lore entries
    (all retrievers in [02 §3](02-data-model.md) run here), history, preset
    blocks, and blocks contributed by pipeline steps.
 2. **Annotate.** Each candidate carries its source, its reason for inclusion, its
@@ -562,7 +562,7 @@ the twist should not be able to reach back into the machinery.
 **Pacing is what makes this work or fail.** A selector that fires every third
 turn produces incoherence, not drama. At minimum it needs a cooldown after
 firing, a cadence rather than running every turn, and an author-facing pacing
-setting (sparse / normal / aggressive / manual-only). Running only at scene or
+treatment (sparse / normal / aggressive / manual-only). Running only at scene or
 chapter boundaries is a plausible default, since those are already the moments a
 twist naturally lands.
 
@@ -594,17 +594,17 @@ So **a hook added while a session is running becomes eligible from the next
 selector pass.** No restart, no re-import, no new session.
 
 This brushes against prefill-not-binding ([00 §3.1](00-stance.md)) — a session
-copies from its setting and holds no live link — so the reconciliation matters:
+copies from its treatment and holds no live link — so the reconciliation matters:
 
 - **Session-local hooks are the primary path.** Add a hook *to the session*. It
   is session state, immediately eligible, and no principle is bent. This serves
   the use case above directly, and is what the "add a hook" button does.
-- **Setting changes are pulled, never pushed.** Edit the setting and the session
-  offers it: *"the setting has 2 new hooks — add them?"* Nothing changes without
+- **Treatment changes are pulled, never pushed.** Edit the treatment and the session
+  offers it: *"the treatment has 2 new hooks — add them?"* Nothing changes without
   the user asking, so the session still owns its own pool, and someone who wants
   the hook in future sessions too gets that without a second act of authoring.
 
-The distinction is not pedantry: a *pushed* update would mean editing a setting
+The distinction is not pedantry: a *pushed* update would mean editing a treatment
 could silently alter a story in progress, which is the failure prefill-not-
 binding exists to prevent.
 
@@ -714,7 +714,7 @@ Design notes:
 
 #### 7.3.1 Difficulty is a sycophancy dial, not a stat modifier
 
-Adventure setup carries a **difficulty** setting, in the spirit of Marinara's.
+Adventure setup carries a **difficulty** treatment, in the spirit of Marinara's.
 The thing worth being precise about is what it actually controls, because the
 obvious reading — a number added to rolls — is the smaller half.
 
@@ -746,7 +746,7 @@ every scene is a slog by turn 30, and having no recourse but to start over.
 
 **Obstruction must not reach unreachability.** Difficulty modulates the cost and
 the route, never whether the goal can be attained at all. Without that floor,
-the top setting is not hard mode, it is a losing game the player cannot detect
+the top treatment is not hard mode, it is a losing game the player cannot detect
 they are playing.
 
 #### 7.3.2 Resistance and directedness are separate axes
@@ -820,7 +820,7 @@ most dramatically loaded moment in the session.
 
 #### 7.3.4 What happens at the end: both answers
 
-The two sources diverge here and both are right, so the setting takes both.
+The two sources diverge here and both are right, so the treatment takes both.
 Infinite Worlds lets a concluded game continue open-ended; Marinara lets you set
 the next goal. On completion, three offers:
 
@@ -1169,7 +1169,7 @@ what is already there rather than needing a private pathway:
   ([10 §3](10-schemas.md)) — this is what the Character Studio's payload exists
   to feed, and the reason typed media roles are a 1.0 obligation;
 - channel state — location, time of day, weather, whatever a mode tracks;
-- the setting's `tone` and any style profile.
+- the treatment's `tone` and any style profile.
 
 Assembled as **ranked fragments under the provider's declared cap**
 ([07 §5.3](07-tech-stack.md)), so overrun drops the lowest-ranked fragment

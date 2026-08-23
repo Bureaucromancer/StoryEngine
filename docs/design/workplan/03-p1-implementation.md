@@ -72,7 +72,7 @@ existing directory with a numeric suffix. Renaming an object changes the name
   *relative to the folder* ([02 §5.3](../02-data-model.md)) and the whole directory
   moves together. Worth a test rather than an assumption.
 - **References are unaffected**, because `Ref` resolves by id
-  ([10 §3](../10-schemas.md)). A setting linking a renamed actor keeps working.
+  ([10 §3](../10-schemas.md)). A treatment linking a renamed actor keeps working.
 
 **Why not auto-rename**, recorded so the question is not reopened by the first
 person who notices a folder whose name has drifted. Tracking the name over time
@@ -260,7 +260,7 @@ packages/shared/src/
                      MediaRole, EmbeddedMedia, AssetRef, ModelHint
   schema/actor.ts    Actor, ActorProfile, Section, ActorRole
   schema/lorebook.ts
-  schema/setting.ts  incl. PlotHook, CastEntry
+  schema/treatment.ts  incl. PlotHook, CastEntry
   schema/setup.ts    incl. Goal
   schema/preset.ts   incl. SlotBlock / TextBlock / SlotSource / Placement
   schema/package.ts

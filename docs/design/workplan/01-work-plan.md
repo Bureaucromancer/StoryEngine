@@ -66,7 +66,7 @@ than a hope:
 
 The design says it should not: Messages-specific fields live in `modeData` under
 a namespaced key, and Campaign's state lives in channels the mode declares.
-Neither touches Actor, Lorebook, Setting, Setup or Package. If either turns out
+Neither touches Actor, Lorebook, Treatment, Setup or Package. If either turns out
 to need a schema change, the mode contract or the data model was wrong — and
 finding that out at 2.0 is exactly what the stability tiers exist to prevent.
 
