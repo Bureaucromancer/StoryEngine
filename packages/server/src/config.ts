@@ -348,6 +348,54 @@ export function configBounds(): Record<string, ConfigBound> {
   return bounds;
 }
 
+/**
+ * The permitted values of every closed-union key, by dotted path.
+ *
+ * The sibling of {@link configBounds}, and it exists for the same reason and a
+ * sharper instance of it. The install form had a hand-written list of log levels
+ * carrying `trace`, which the schema's union does not contain: picking it
+ * answered `400` and the form said nothing. A control offering a value the
+ * server refuses is the exact failure [01 §2.3](../../../docs/design/workplan/01-work-plan.md)'s
+ * *configuration ships with its surface* is about — the surface existed, and it
+ * had drifted from the thing it configures.
+ *
+ * So the list travels as data. There is now no second copy to drift, and adding
+ * a level is a change to the union alone.
+ *
+ * TypeBox renders `Type.Union([Type.Literal(…)])` as `anyOf` of `const`, which
+ * is what this reads. A union of anything other than string literals is skipped
+ * rather than half-understood — **and nothing in the schema exercises that
+ * branch today**, which is said here rather than asserted in a test, because a
+ * test over a case that cannot occur is one that passes for no reason. The
+ * branch earns its place the first time a config key is a union of numbers.
+ */
+export function configChoices(): Record<string, string[]> {
+  const choices: Record<string, string[]> = {};
+
+  const walk = (node: unknown, prefix: string): void => {
+    if (typeof node !== 'object' || node === null) return;
+    const schema = node as {
+      properties?: Record<string, unknown>;
+      anyOf?: { const?: unknown }[];
+    };
+
+    if (schema.properties) {
+      for (const [key, child] of Object.entries(schema.properties)) {
+        walk(child, prefix ? `${prefix}.${key}` : key);
+      }
+      return;
+    }
+
+    if (schema.anyOf === undefined) return;
+    const values = schema.anyOf.map((member) => member.const);
+    if (values.some((value) => typeof value !== 'string')) return;
+    choices[prefix] = values as string[];
+  };
+
+  walk(ConfigSchema, '');
+  return choices;
+}
+
 /** Every dotted leaf path in a config object. */
 export function configKeys(value: unknown = DEFAULT_CONFIG, prefix = ''): string[] {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

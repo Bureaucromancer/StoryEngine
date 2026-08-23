@@ -151,6 +151,7 @@ export function AdminInstall(): JSX.Element {
             value={valueAt(config, path)}
             tier={view.data.tiers[path] ?? 'restart'}
             bound={view.data.bounds[path] ?? {}}
+            choices={view.data.choices[path]}
             readOnly={READ_ONLY.has(path)}
             onChange={(next) => {
               change(path, next);
@@ -246,6 +247,7 @@ function ConfigControl({
   value,
   tier,
   bound,
+  choices,
   readOnly,
   onChange,
 }: {
@@ -253,6 +255,7 @@ function ConfigControl({
   value: unknown;
   tier: 'live' | 'reconnect' | 'restart';
   bound: { minimum?: number; maximum?: number };
+  choices: string[] | undefined;
   readOnly: boolean;
   onChange: (value: unknown) => void;
 }): JSX.Element {
@@ -289,19 +292,25 @@ function ConfigControl({
     );
   }
 
-  if (path === 'log.level') {
+  /**
+   * **A closed union is a picker, and the values come from the server.**
+   *
+   * This was a hand-written list keyed on `log.level`, and it carried `trace` —
+   * which the schema's union does not contain. Picking it answered `400` and
+   * the form said nothing, so the one control an operator reaches for when they
+   * want more log was the one that silently would not take. A second copy of a
+   * schema is a copy that drifts, which is the argument the tier badge and the
+   * numeric bounds already made; this is the same list, arriving the same way.
+   *
+   * It also picks up `updates.channel` for free, which had been rendering as a
+   * free-text box over a three-value union.
+   */
+  if (choices !== undefined) {
     return (
       <SelectField
         label={label}
         value={String(value)}
-        options={[
-          ['silent', 'Silent'],
-          ['error', 'Errors'],
-          ['warn', 'Warnings'],
-          ['info', 'Info'],
-          ['debug', 'Debug'],
-          ['trace', 'Trace'],
-        ]}
+        options={choices.map((choice) => [choice, labelOf(choice)])}
         onChange={onChange}
       />
     );
@@ -353,4 +362,16 @@ function saveFailure(error: Error): string {
   return error instanceof ApiError && error.status === 400
     ? `The server refused these settings: ${error.message}`
     : 'These settings could not be saved.';
+}
+
+/**
+ * A union member as a label — *Warnings*, not *warn*.
+ *
+ * Sentence case rather than a lookup table, because a table is the second copy
+ * this control was built to delete. The values are lowercase identifiers by
+ * construction ([13 §4]), so capitalising the first letter is the whole rule,
+ * and a value that needs more than that needs a real name in the schema.
+ */
+function labelOf(choice: string): string {
+  return choice.charAt(0).toUpperCase() + choice.slice(1);
 }

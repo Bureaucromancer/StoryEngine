@@ -421,6 +421,8 @@ export interface ConfigView {
    * range table here would be wrong the first time somebody widens one.
    */
   bounds: Record<string, { minimum?: number; maximum?: number }>;
+  /** Permitted values, for the keys that are a closed union. */
+  choices: Record<string, string[]>;
   pendingRestart: string[];
   /** The file as this read saw it, presented back on a save ([P2A §4] step 15). */
   contentHash: string;

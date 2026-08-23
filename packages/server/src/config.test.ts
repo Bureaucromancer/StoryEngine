@@ -8,12 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  applierOf,
   CONFIG_TIERS,
   ConfigError,
-  configKeys,
+  ConfigSchema,
   DEFAULT_CONFIG,
   LIVE_APPLIERS,
+  applierOf,
+  configChoices,
+  configKeys,
   loadConfig,
   pendingRestart,
   tierOf,
@@ -345,3 +347,50 @@ describe('config has nowhere to put a credential', () => {
     ]);
   });
 });
+
+/**
+ * **A control cannot offer a value the schema refuses** — [01 §2.3].
+ *
+ * The install form carried a hand-written list of log levels including `trace`,
+ * which the union does not contain: picking it answered `400` and the form said
+ * nothing. The list now travels as data, and this is the assertion that it is
+ * the *same* list rather than a second copy that happens to agree today.
+ */
+describe('the closed unions travel with the config', () => {
+  it('names every permitted value, and only those', () => {
+    const choices = configChoices();
+
+    // Read off the schema rather than retyped, so this test cannot become the
+    // second copy it exists to prevent.
+    const union = (ConfigSchema as unknown as SchemaNode).properties['log']?.properties['level']
+      ?.anyOf;
+    expect(choices['log.level']).toEqual(union?.map((member) => member.const));
+    expect(choices['log.level']).not.toContain('trace');
+  });
+
+  it('finds a union nobody thought to look for', () => {
+    // `updates.channel` was rendering as a free-text box over a three-value
+    // union. One walk of the schema is what makes the surface complete rather
+    // than complete for the keys somebody remembered.
+    expect(configChoices()['updates.channel']).toEqual(['latest', 'testing', 'nightly']);
+  });
+
+  it('says nothing about keys that are not a closed choice', () => {
+    const choices = configChoices();
+
+    expect(choices['server.host']).toBeUndefined();
+    expect(choices['limits.contextTokens']).toBeUndefined();
+    // A boolean renders as `type: 'boolean'` rather than as `anyOf`, so it is
+    // skipped by the shape of the walk rather than by a decision. The checkbox
+    // already renders it either way.
+    expect(choices['server.trustProxy']).toBeUndefined();
+    // **Not asserted here: the non-string guard.** No key in the current schema
+    // is a union of anything but string literals, so nothing exercises it and a
+    // test claiming otherwise would be one of the vacuous ones this suite keeps
+    // finding. It is named in `configChoices` as deliberately unexercised.
+  });
+});
+
+interface SchemaNode {
+  properties: Record<string, { properties: Record<string, { anyOf?: { const: string }[] }> }>;
+}

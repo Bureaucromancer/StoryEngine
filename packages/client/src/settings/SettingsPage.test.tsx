@@ -111,6 +111,8 @@ beforeEach(() => {
     },
     appliers: { 'log.level': 'applied' },
     bounds: { 'server.port': { minimum: 1, maximum: 65_535 } },
+    // The closed unions, which the form renders as pickers rather than as text.
+    choices: { 'log.level': ['silent', 'error', 'warn', 'info', 'debug'] },
     pendingRestart: [],
   });
   notices.mockResolvedValue({ pendingRestart: [], canRestart: false });
@@ -345,6 +347,7 @@ describe('the install form', () => {
       tiers: { 'limits.maxUploadMb': 'live', 'log.level': 'live' },
       appliers: { 'limits.maxUploadMb': 'unread', 'log.level': 'applied' },
       bounds: {},
+      choices: {},
       pendingRestart: [],
     });
     renderPage('admin');

@@ -10,6 +10,7 @@ import {
   CONFIG_TIERS,
   ConfigError,
   configBounds,
+  configChoices,
   configKeys,
   LIVE_APPLIERS,
   loadConfig,
@@ -202,6 +203,9 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       // Same argument as the tier table above: the constraints travel as data
       // so the form does not keep a second copy of the schema.
       bounds: configBounds(),
+      // And the closed unions, for the same reason again — a hand-written list
+      // of log levels is how the form came to offer one the schema refuses.
+      choices: configChoices(),
       pendingRestart: pendingRestart(services.bootConfig, services.config),
     });
   });
