@@ -104,10 +104,33 @@ describe('readNewPassword', () => {
     expect(await pending).toBe('piped password');
   });
 
-  it('rejects a short password', async () => {
+  it('accepts a password no web form would', async () => {
+    // The console enforces no minimum, including the configured one ([04 §5.1]).
+    // Whoever can run this against the data directory can already read it, so a
+    // length argument here would only send them to `accounts.json` by hand.
     const input = new PassThrough();
     const pending = readNewPassword(input, { write: () => undefined }, 'ned');
     input.end('short\n');
+    expect(await pending).toBe('short');
+  });
+
+  it('accepts an empty line as an empty password', async () => {
+    // A blank line is an answer. At `auth.minPasswordLength: 0` it is one the
+    // API would accept too, and this path does not consult that setting anyway.
+    const input = new PassThrough();
+    const pending = readNewPassword(input, { write: () => undefined }, 'ned');
+    input.end('\n');
+    expect(await pending).toBe('');
+  });
+
+  it('refuses a pipe that closes without an answer', async () => {
+    // Distinct from the blank line above, and the distinction is the point: a
+    // redirect from /dev/null or an unset variable delivered nothing, and
+    // silently blanking an account's password on a recovery path would be the
+    // worst outcome available.
+    const input = new PassThrough();
+    const pending = readNewPassword(input, { write: () => undefined }, 'ned');
+    input.end();
     await expect(pending).rejects.toThrow(ResetAborted);
   });
 

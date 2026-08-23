@@ -260,6 +260,33 @@ describe('loading', () => {
     await expect(loadConfig(path)).rejects.toThrow(ConfigError);
   });
 
+  it('accepts a password minimum of zero, which is a setting and not an absence', async () => {
+    // The one value worth naming: `0` means the empty string is a password, so
+    // a reader who assumes a falsy value means "unset" is reading it wrong.
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ auth: { minPasswordLength: 0 } }));
+
+    const result = await loadConfig(path);
+
+    expect(result.config.auth.minPasswordLength).toBe(0);
+  });
+
+  it('refuses a password minimum past the ceiling', async () => {
+    // 128, because the bodies carrying a password cap at 512 and a minimum
+    // anywhere near that is a lockout rather than a policy.
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ auth: { minPasswordLength: 129 } }));
+
+    await expect(loadConfig(path)).rejects.toThrow(ConfigError);
+  });
+
+  it('refuses a negative password minimum', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ auth: { minPasswordLength: -1 } }));
+
+    await expect(loadConfig(path)).rejects.toThrow(ConfigError);
+  });
+
   it('refuses a file that is not JSON, and says so', async () => {
     const path = join(dir, 'config.json');
     await writeFile(path, '{ not json');
@@ -285,9 +312,19 @@ describe('config has nowhere to put a credential', () => {
     // — a context window and a completion reserve, both integers with minimums.
     // The word collides with the credential sense and the denylist is right to
     // stop on it; this is the argument it asks for.
+    // `auth.minPasswordLength` trips the list twice, on `auth` and on
+    // `password`, and both hits are the list doing its job: a section called
+    // `auth` is exactly where somebody would later reach to put a signing key.
+    // What is there is a *policy number* — how short a password this install
+    // accepts when one is set. It is the length of a secret, not a secret, and
+    // it is deliberately published to unauthenticated callers on
+    // `GET /api/auth/state` so the first-run form can state the rule before
+    // anybody types. A value handed to anyone who can reach the port is not a
+    // credential; that is the argument this list asks for.
     const knownSafe = [
       'server.trustProxy',
       'server.host',
+      'auth.minPasswordLength',
       'limits.contextTokens',
       'limits.reservedCompletionTokens',
     ];

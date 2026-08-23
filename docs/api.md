@@ -72,7 +72,7 @@ where they are doing it.
 ### `GET /api/auth/state`
 
 ```json
-{ "setupRequired": true, "account": null }
+{ "setupRequired": true, "account": null, "minPasswordLength": 8 }
 ```
 
 `account` is the public account shape once signed in — never `passwordHash` or
@@ -82,6 +82,7 @@ added later cannot leak by default.
 ```json
 {
   "setupRequired": false,
+  "minPasswordLength": 8,
   "account": {
     "handle": "ned",
     "displayName": "ned",
@@ -110,10 +111,19 @@ the settings surface groups them apart and says the setting will apply when the
 feature does, rather than presenting three switches as though they were equally
 live.
 
+**`minPasswordLength` is `auth.minPasswordLength`**, the shortest password this
+install accepts where one is *set*. It is here rather than on the admin config
+route because the setup form needs it before any account exists, and that route
+is behind both the admin guard and the first-run gate. Unauthenticated on
+purpose: it is the length of a secret rather than a secret, and the same
+response already says whether this install is unclaimed. `0` means the empty
+string is a valid password.
+
 ### `POST /api/auth/setup`
 
 First run only. `{ handle, password, displayName? }` → `201 { account }`, and
-signs you in. `409` once an admin exists.
+signs you in. `409` once an admin exists. A password shorter than
+`minPasswordLength` is `400 invalid`, naming `/password` in `issues`.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
 digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
@@ -129,6 +139,12 @@ reserved device name.
 The caller cannot tell which, which costs nothing here and avoids a handle
 oracle.
 
+**No length rule applies here, deliberately.** An empty password is a legitimate
+request — legal wherever `auth.minPasswordLength` is `0`, and possible on any
+install, since `--reset-password` honours no minimum — and it is answered `401`
+like any other wrong password. A `400` would refuse a password that is genuinely
+correct, and would turn this route into a way to read the install's rule.
+
 ### `POST /api/auth/logout`
 
 `204`. Clears both cookies.
@@ -137,7 +153,7 @@ oracle.
 
 ## Library
 
-`:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `settings`,
+`:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `treatments`,
 `setups`, `presets`, `packages`. An unknown kind is `404` and the message lists
 the known ones.
 
@@ -266,7 +282,7 @@ conflict is not two tabs but one tab and a text editor.
 keeps the slug it was born with, and the engine never moves a user's directories
 ([P1 §1.1](design/workplan/03-p1-implementation.md)).
 
-An object cannot change its `id` or its `schema`. System-scope objects are
+An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
 
 ### `DELETE /api/library/:kind/:id`
@@ -529,8 +545,14 @@ field on purpose, and the version after that depends on it.
 ### `POST /api/me/password`
 
 `{ currentPassword, newPassword }` → `204`. The current password is wrong →
-`401 invalid-credentials`; the new one is shorter than eight characters →
-`400 invalid`.
+`401 invalid-credentials`; the new one is shorter than
+`auth.minPasswordLength` → `400 invalid`, naming `/newPassword` in `issues`.
+
+The length is checked **before** the current password is verified, so a request
+that is wrong in both ways answers `400` rather than `401`. Neither field carries
+a minimum in the schema: an account whose password is empty — legal at
+`minPasswordLength: 0`, and reachable on any install through the console reset —
+must be able to change it.
 
 **This does not sign out other browsers.** Sessions are signed stateless cookies
 with no denylist, so nothing can revoke one that is already issued — a copy taken
@@ -618,7 +640,8 @@ connection*.
 
 `{ handle, password, role, displayName?, locale?, capabilities? }` →
 `201 { account }`. A duplicate handle is `409 exists`. Unknown fields are refused,
-the same way `/api/me` refuses them.
+the same way `/api/me` refuses them. A password shorter than
+`auth.minPasswordLength` is `400 invalid`, naming `/password`.
 
 The library directory is created with the account, so `ls data/users/<handle>/`
 works immediately rather than after their first write.
@@ -635,7 +658,9 @@ re-reads the account rather than trusting the cookie.
 
 ### `POST /api/admin/accounts/:handle/password` · `DELETE /api/admin/accounts/:handle`
 
-`{ newPassword }` → `204`, and a `DELETE` → `204`.
+`{ newPassword }` → `204`, and a `DELETE` → `204`. A password shorter than
+`auth.minPasswordLength` is `400 invalid`, naming `/newPassword`. The console's
+`--reset-password` is the one path that honours no minimum at all.
 
 A reset does **not** re-enable a disabled account: an administrator who disabled
 somebody and then reset their password should not have undone the disablement by
@@ -671,6 +696,7 @@ refuses it is the state of the install.
   "path": "/data/config.json",
   "tiers": { "server.port": "restart", "log.level": "live" },
   "appliers": { "log.level": "applied", "limits.maxUploadMb": "unread" },
+  "bounds": { "server.port": { "minimum": 1, "maximum": 65535 } },
   "pendingRestart": []
 }
 ```
@@ -683,6 +709,12 @@ client release. `appliers` is the honest half beside it: a tier says what a key
 is *for*, and this says whether anything reads it yet. The two are allowed to
 disagree, and the form puts the `unread` ones in a group that says so rather than
 telling somebody a change took when it was only stored.
+
+`bounds` is the same argument applied to the numeric constraints, and it is
+derived from the schema rather than written down twice: it carries `minimum` and
+`maximum` for every numeric key that declares one, so the form's inputs refuse an
+out-of-range value before a save has to. A key with neither bound is absent
+rather than present-and-empty.
 
 `PUT` takes `{ config }`, a whole document rather than a patch.
 

@@ -127,6 +127,96 @@ describe('login', () => {
     const response = await server.request({ method: 'GET', url: '/api/library' });
     expect(response.status).toBe(401);
   });
+
+  it('answers 401 rather than 400 for an empty password', async () => {
+    // The direct guard against anyone reinstating `minLength: 1` on the login
+    // schema. A 400 here would refuse the one account the console reset exists
+    // to repair, and would publish this install's rule to anyone who bisected
+    // it — the same no-oracle property the test above protects, at the boundary
+    // that only exists now that the minimum can be zero.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'ned', password: '' },
+    });
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe('the password minimum is the operator’s', () => {
+  it('refuses a short password at setup, naming the field', async () => {
+    const fresh = await makeTestServer();
+    try {
+      const response = await fresh.request({
+        method: 'POST',
+        url: '/api/auth/setup',
+        payload: { handle: 'ned', password: 'short' },
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('invalid');
+      expect(response.body.issues[0].path).toBe('/password');
+    } finally {
+      await fresh.dispose();
+    }
+  });
+
+  it('lets an install set no minimum, and sign in with nothing', async () => {
+    /**
+     * **The round trip the whole change is for** — `auth.minPasswordLength: 0`
+     * means the empty string is a password, not that passwords are off.
+     *
+     * `makeTestServer` shallow-spreads `options.config`, so the whole `auth`
+     * section has to be passed. That is complete today because the section has
+     * one key, and it would silently stop being complete the moment a second
+     * joins it.
+     */
+    const open = await makeTestServer({ config: { auth: { minPasswordLength: 0 } } });
+    try {
+      const setup = await open.request({
+        method: 'POST',
+        url: '/api/auth/setup',
+        payload: { handle: 'ned', password: '' },
+      });
+      expect(setup.status).toBe(201);
+
+      await open.request({ method: 'POST', url: '/api/auth/logout' });
+
+      const login = await open.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'ned', password: '' },
+      });
+      expect(login.status).toBe(200);
+      expect(login.body.account.handle).toBe('ned');
+
+      // And it did not become an install where anything authenticates.
+      const wrong = await open.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'ned', password: 'wrong' },
+      });
+      expect(wrong.status).toBe(401);
+    } finally {
+      await open.dispose();
+    }
+  });
+
+  it('publishes the rule to a caller with no session', async () => {
+    // How the setup form states the rule before any account exists — the admin
+    // config route is behind both `adminOnly` and the first-run gate, so it
+    // cannot serve first run at all.
+    const fresh = await makeTestServer();
+    try {
+      const response = await fresh.request({ method: 'GET', url: '/api/auth/state' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.minPasswordLength).toBe(8);
+    } finally {
+      await fresh.dispose();
+    }
+  });
 });
 
 describe('CSRF', () => {

@@ -37,6 +37,12 @@ const scrypt = promisify(scryptCallback) as (
  * What the threat model does **not** excuse, and this is the line doc 04 draws:
  * storing passwords in anything but a proper KDF. Rate limiting, lockout,
  * complexity policy and 2FA are all skippable. This is not.
+ *
+ * Skippable as a *fixed* policy, that is. What ships is one length floor the
+ * operator sets — `auth.minPasswordLength`, enforced in `password-policy.ts`
+ * where a password is set — and it may be set to zero. This file is indifferent
+ * to it: `hashPassword` takes any string, the empty one included, and that is
+ * correct. A KDF is not where a policy belongs.
  */
 const SALT_BYTES = 16;
 const KEY_BYTES = 64;

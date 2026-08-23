@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AppServices } from '../app.js';
 import { AccountError, type PublicAccount } from '../auth/accounts.js';
+import { refuseShortPassword } from '../auth/password-policy.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
 import { resolveRole } from '../providers/roles.js';
@@ -60,7 +61,9 @@ const HandleParams = Type.Object({ handle: Type.String({ minLength: 1, maxLength
 const CreateAccount = Type.Object(
   {
     handle: Type.String({ minLength: 1, maxLength: 63 }),
-    password: Type.String({ minLength: 8, maxLength: 512 }),
+    // The minimum is `auth.minPasswordLength`, checked in the handler — see
+    // `refuseShortPassword`. A `live` key cannot live in a compiled schema.
+    password: Type.String({ maxLength: 512 }),
     role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
     displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     locale: Type.Optional(Type.Union([Type.String({ maxLength: 35 }), Type.Null()])),
@@ -110,7 +113,8 @@ const PatchAccount = Type.Object(
 );
 
 const AdminPassword = Type.Object(
-  { newPassword: Type.String({ minLength: 8, maxLength: 512 }) },
+  // Minimum in the handler, per `refuseShortPassword`.
+  { newPassword: Type.String({ maxLength: 512 }) },
   { additionalProperties: false },
 );
 
@@ -222,6 +226,9 @@ export function registerAdminRoutes(app: FastifyInstance, services: AppServices)
       capabilities?: Record<string, unknown>;
     };
 
+    const refusal = refuseShortPassword('password', body.password, services.config);
+    if (refusal) return await reply.code(400).send(refusal);
+
     try {
       const account = await services.accounts.create({
         handle: body.handle,
@@ -266,6 +273,10 @@ export function registerAdminRoutes(app: FastifyInstance, services: AppServices)
     async (request, reply) => {
       const { handle } = request.params as { handle: string };
       const body = request.body as { newPassword: string };
+
+      const refusal = refuseShortPassword('newPassword', body.newPassword, services.config);
+      if (refusal) return await reply.code(400).send(refusal);
+
       try {
         await services.accounts.changePassword(handle, body.newPassword);
         return await reply.code(204).send();

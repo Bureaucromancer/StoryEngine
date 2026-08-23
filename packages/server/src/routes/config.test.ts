@@ -110,6 +110,45 @@ describe('PUT /api/admin/config', () => {
   });
 
   /**
+   * **What makes `auth.minPasswordLength`'s `applied` a fact rather than a
+   * claim**, in both directions and with no restart between them.
+   *
+   * The rule it governs used to be a `minLength` literal in four TypeBox
+   * schemas, which Ajv compiles once when the route is registered. Anyone who
+   * put it back there would leave every other test green and only this one red.
+   */
+  it('changes what a password route accepts on the very next request', async () => {
+    const raise = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('auth.minPasswordLength', 24) },
+    });
+    expect(raise.status).toBe(200);
+    expect(raise.body.pendingRestart).toEqual([]);
+
+    const refused = await server.request({
+      method: 'POST',
+      url: '/api/me/password',
+      payload: { currentPassword: 'correct horse battery', newPassword: 'a dozen char' },
+    });
+    expect(refused.status).toBe(400);
+    expect(refused.body.message).toContain('24');
+
+    await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('auth.minPasswordLength', 8) },
+    });
+
+    const accepted = await server.request({
+      method: 'POST',
+      url: '/api/me/password',
+      payload: { currentPassword: 'correct horse battery', newPassword: 'a dozen char' },
+    });
+    expect(accepted.status).toBe(204);
+  });
+
+  /**
    * Gate step 13, the first half: a restart-tier change names itself and does
    * **not** take effect.
    */

@@ -165,6 +165,13 @@ describe('POST /api/me/password', () => {
     });
 
     expect(response.status).toBe(400);
+    // The rule moved out of the TypeBox schema and into the handler, because
+    // `auth.minPasswordLength` is `live` and Ajv compiles a schema once. The
+    // published shape — `400 invalid` carrying `issues`, `{path, message}` per
+    // field (docs/api.md) — is the thing that must not have moved with it, and
+    // nothing else in the suite was watching it.
+    expect(response.body.error).toBe('invalid');
+    expect(response.body.issues[0].path).toBe('/newPassword');
   });
 });
 

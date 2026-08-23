@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { requireAccount } from '../app.js';
 import type { AppServices } from '../app.js';
+import { refuseShortPassword } from '../auth/password-policy.js';
 import { PrefsError } from '../auth/prefs.js';
 
 /**
@@ -45,8 +46,12 @@ const ProfilePatch = Type.Object(
 
 const PasswordChange = Type.Object(
   {
-    currentPassword: Type.String({ minLength: 1, maxLength: 512 }),
-    newPassword: Type.String({ minLength: 8, maxLength: 512 }),
+    // No minimum on either. `currentPassword` has none because an account whose
+    // password is empty must be able to change it — a floor here would refuse
+    // them at the schema, before `authenticate` ran, with no way out. The
+    // minimum for `newPassword` is `auth.minPasswordLength`, checked below.
+    currentPassword: Type.String({ maxLength: 512 }),
+    newPassword: Type.String({ maxLength: 512 }),
   },
   { additionalProperties: false },
 );
@@ -102,6 +107,13 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     if (!account) return;
 
     const body = request.body as { currentPassword: string; newPassword: string };
+
+    // Before `authenticate`, which is where the schema used to run: a wrong
+    // current password *and* a short new one answers 400 rather than 401, and
+    // that precedence is today's rather than a new choice.
+    const refusal = refuseShortPassword('newPassword', body.newPassword, services.config);
+    if (refusal) return reply.code(400).send(refusal);
+
     const verified = await services.accounts.authenticate(account.handle, body.currentPassword);
     if (!verified) {
       return reply.code(401).send({

@@ -118,10 +118,27 @@ describe('--reset-password', () => {
     expect(result.stderr).toContain('nobody');
   });
 
-  it('refuses a password shorter than the minimum, and changes nothing', async () => {
+  it('honours no minimum, because the console is the authority', async () => {
+    // `auth.minPasswordLength` is what the API refuses on. This path is the
+    // break-glass ([04 §5.1]) and takes what it is given — five characters, or
+    // one, on an install configured to demand twelve.
     await anAccount();
 
     const result = await run(['--data', dataDir, '--reset-password', 'ned'], 'short\n');
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Password reset for ned');
+    const accounts = new Accounts(new Layout(dataDir));
+    expect(await accounts.authenticate('ned', 'short')).not.toBeNull();
+  });
+
+  it('changes nothing when stdin closes without an answer', async () => {
+    // The case the old length check happened to catch. `run` with no input
+    // closes stdin having delivered no line, which is not the same as a blank
+    // line and must not be read as an empty password.
+    await anAccount();
+
+    const result = await run(['--data', dataDir, '--reset-password', 'ned'], '');
 
     expect(result.code).toBe(1);
     const accounts = new Accounts(new Layout(dataDir));

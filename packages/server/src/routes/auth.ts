@@ -5,6 +5,7 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { AccountError } from '../auth/accounts.js';
+import { refuseShortPassword } from '../auth/password-policy.js';
 import {
   CSRF_COOKIE,
   csrfCookieOptions,
@@ -25,18 +26,29 @@ import type { AppServices } from '../app.js';
  * verification and 2FA, and §4.2 rules out self-registration and identity
  * providers. What is left is roughly the whole of what will ever ship.
  *
+ * What survives of "complexity policy" is a single length floor, and it is the
+ * operator's rather than this build's — `auth.minPasswordLength`, checked by
+ * `refuseShortPassword` wherever a password is *set*. Login does not check it.
+ *
  * The alternative was a stub user context threaded through every route from
  * here to P10 and then torn out — every one of those routes written twice.
  */
 
 const Credentials = Type.Object({
   handle: Type.String({ minLength: 1, maxLength: 63 }),
-  password: Type.String({ minLength: 1, maxLength: 512 }),
+  // No minimum, and the absence is the rule rather than an oversight. At
+  // `auth.minPasswordLength: 0` the empty string is a password, and the console
+  // reset honours no minimum on any install — so a schema floor here would
+  // refuse a password that is genuinely correct, and refuse it with a 400 that
+  // tells the caller how short it was. `maxLength` stays: it bounds the body.
+  password: Type.String({ maxLength: 512 }),
 });
 
 const SetupRequest = Type.Object({
   handle: Type.String({ minLength: 1, maxLength: 63 }),
-  password: Type.String({ minLength: 8, maxLength: 512 }),
+  // The minimum is `auth.minPasswordLength`, checked in the handler — a `live`
+  // key cannot live in a schema Ajv compiles once. See `refuseShortPassword`.
+  password: Type.String({ maxLength: 512 }),
   displayName: Type.Optional(Type.String({ maxLength: 200 })),
 });
 
@@ -52,10 +64,27 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
   app.get('/auth/state', async (request) => ({
     setupRequired: await services.accounts.needsSetup(),
     account: request.account,
+    /**
+     * **The password rule, so a form can state it before anybody types.**
+     *
+     * It has to be here rather than on the admin config route because the
+     * setup form needs it *before any account exists*, and that route is behind
+     * both `adminOnly` and the first-run gate. Unauthenticated on purpose: this
+     * is the length of a secret, not a secret, and the same response already
+     * says whether this install is unclaimed, which is the more sensitive fact
+     * by some distance.
+     */
+    minPasswordLength: services.config.auth.minPasswordLength,
   }));
 
   app.post('/auth/setup', { schema: { body: SetupRequest } }, async (request, reply) => {
     const body = request.body as { handle: string; password: string; displayName?: string };
+
+    // Before `createFirstAdmin`, which is where the schema's `minLength` used
+    // to run: a short password is refused whether or not setup has already
+    // happened, and that precedence is today's.
+    const refusal = refuseShortPassword('password', body.password, services.config);
+    if (refusal) return await reply.code(400).send(refusal);
 
     try {
       const account = await services.accounts.createFirstAdmin({
@@ -82,6 +111,9 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
 
   app.post('/auth/login', { schema: { body: Credentials } }, async (request, reply) => {
     const body = request.body as { handle: string; password: string };
+
+    // **No length check here, deliberately** — see `Credentials` above. Login
+    // measures nothing; it either matches the stored hash or it does not.
     const account = await services.accounts.authenticate(body.handle, body.password);
 
     if (!account) {

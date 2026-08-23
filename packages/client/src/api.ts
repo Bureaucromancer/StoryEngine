@@ -46,6 +46,14 @@ export interface Account {
 export interface AuthState {
   setupRequired: boolean;
   account: Account | null;
+  /**
+   * The shortest password this install accepts where one is *set*.
+   *
+   * Required rather than optional: client and server ship together, and
+   * `number | undefined` would force a `?? 8` at every use site — a second
+   * hardcoded 8, which is the thing reading it from the server removes.
+   */
+  minPasswordLength: number;
 }
 
 /** The object envelope every library read returns (docs/api.md). */
@@ -406,6 +414,13 @@ export interface ConfigView {
   path: string;
   tiers: Record<string, 'live' | 'reconnect' | 'restart'>;
   appliers: Record<string, 'applied' | 'unread'>;
+  /**
+   * What each numeric key will accept, derived from the server's schema.
+   *
+   * Data rather than a copy, for the same reason `tiers` is: a hand-written
+   * range table here would be wrong the first time somebody widens one.
+   */
+  bounds: Record<string, { minimum?: number; maximum?: number }>;
   pendingRestart: string[];
   /** The file as this read saw it, presented back on a save ([P2A §4] step 15). */
   contentHash: string;

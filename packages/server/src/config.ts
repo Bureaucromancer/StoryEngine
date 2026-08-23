@@ -56,6 +56,36 @@ export const ConfigSchema = Type.Object(
       port: Type.Integer({ minimum: 1, maximum: 65_535, default: 8080 }),
       trustProxy: Type.Boolean({ default: false }),
     }),
+    auth: Type.Object({
+      /**
+       * **The one password rule that survives, and it is the operator's rather
+       * than the build's** — [04 §4.1](../../../docs/design/04-server-multiuser-deployment.md).
+       *
+       * That section skips rate limiting, lockout, complexity policy, email
+       * verification and 2FA, on a threat model of *access separation among
+       * people who already trust each other*. A length floor is the whole of
+       * what is left — and hardcoding it made this install's policy a property
+       * of this build: a household on a machine only they can reach could not
+       * choose to have no rule at all, and one reaching the port down a tunnel
+       * could not ask for more.
+       *
+       * **`0` is a setting, not a disabled one.** It means the empty string is
+       * a password: it hashes, stores and authenticates like any other, and the
+       * box stays on every form. `128` is the ceiling because the bodies
+       * carrying a password cap at 512 characters, and a *minimum* anywhere
+       * near that is a lockout waiting to happen rather than a policy.
+       *
+       * **It applies where a password is set, never where one is checked.**
+       * Login does not measure what it was handed — it cannot, without refusing
+       * a password that is genuinely correct and turning the login route into a
+       * way to read this install's rule from outside. Raising this leaves every
+       * existing account working, with no forced-change flow and no per-account
+       * record to carry one. And `--reset-password` honours no minimum at all,
+       * including this one: console access is already the highest authority
+       * this software recognises ([04 §5.1]).
+       */
+      minPasswordLength: Type.Integer({ minimum: 0, maximum: 128, default: 8 }),
+    }),
     log: Type.Object({
       /**
        * `silent` is not an operational setting — it exists because the test
@@ -163,6 +193,7 @@ export const CONFIG_TIERS = {
   'server.host': 'restart',
   'server.port': 'restart',
   'server.trustProxy': 'restart',
+  'auth.minPasswordLength': 'live',
   'log.level': 'live',
   'log.format': 'restart',
   'index.rebuildOnStart': 'restart',
@@ -209,6 +240,14 @@ export type LiveApplier = 'applied' | 'unread';
  * deciding, and a re-tier cannot leave a stale row behind.
  */
 export const LIVE_APPLIERS = {
+  // Read per request by the four routes that set a password, off the same live
+  // reference `applyLiveConfig` assigns into rather than replaces. Nothing
+  // caches it and nothing may: this number used to be a `minLength` literal in
+  // those four TypeBox schemas, which Ajv compiles once when the route is
+  // registered — precisely the shape that would make this row say `applied` and
+  // be a lie.
+  'auth.minPasswordLength': 'applied',
+
   // Assigned onto the root logger, which every child pino derived from it
   // inherits. The one key that was live before this table existed.
   'log.level': 'applied',
@@ -250,6 +289,7 @@ export function applierOf(key: string): LiveApplier | null {
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
   server: { host: '127.0.0.1', port: 8080, trustProxy: false },
+  auth: { minPasswordLength: 8 },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },
   sessions: { snapshotEveryNTurns: 10, streamKeepaliveMs: 15000, streamCoalesceMs: 250 },
@@ -264,6 +304,49 @@ export const DEFAULT_CONFIG: Config = {
   updates: { checkEnabled: true, channel: 'latest' },
   dev: { enabled: false },
 };
+
+/** What a numeric key will accept, keyed by dotted path. */
+export interface ConfigBound {
+  minimum?: number;
+  maximum?: number;
+}
+
+/**
+ * The numeric bounds already declared in {@link ConfigSchema}, read back out.
+ *
+ * **Derived rather than hand-listed, and travelling as data**, which is the
+ * pattern {@link CONFIG_TIERS} set: the settings form needs to know that
+ * `auth.minPasswordLength` stops at 128 so a browser can refuse 999 before the
+ * server has to, and the one thing that must not happen is a second copy of
+ * these numbers in the client — wrong the first time somebody widens a range.
+ *
+ * Only leaves that declare a bound appear. A key with neither is absent rather
+ * than present-and-empty, so a caller can spread the result unconditionally.
+ */
+export function configBounds(): Record<string, ConfigBound> {
+  const bounds: Record<string, ConfigBound> = {};
+
+  const walk = (node: unknown, prefix: string): void => {
+    if (typeof node !== 'object' || node === null) return;
+    const schema = node as { type?: string; properties?: Record<string, unknown> } & ConfigBound;
+
+    if (schema.properties) {
+      for (const [key, child] of Object.entries(schema.properties)) {
+        walk(child, prefix ? `${prefix}.${key}` : key);
+      }
+      return;
+    }
+
+    if (schema.minimum === undefined && schema.maximum === undefined) return;
+    bounds[prefix] = {
+      ...(schema.minimum === undefined ? {} : { minimum: schema.minimum }),
+      ...(schema.maximum === undefined ? {} : { maximum: schema.maximum }),
+    };
+  };
+
+  walk(ConfigSchema, '');
+  return bounds;
+}
 
 /** Every dotted leaf path in a config object. */
 export function configKeys(value: unknown = DEFAULT_CONFIG, prefix = ''): string[] {

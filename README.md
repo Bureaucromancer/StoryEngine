@@ -107,6 +107,16 @@ server already running picks the change up on the next login, no restart; and
 existing sessions for the account stay valid until they expire — sessions are
 stateless, and the reset changes the password, not the signing key.
 
+**This path enforces no minimum length**, including the install's own
+`auth.minPasswordLength`. A one-character password is accepted here, and so is
+an empty one — access to the host is already the highest authority the software
+recognises, and a recovery tool that argued with the person holding the machine
+would only send them to edit `accounts.json` by hand. The one thing it refuses is
+*no answer at all*: a pipe that closes without delivering a line — a redirect
+from `/dev/null`, an unset variable in a script — aborts and changes nothing,
+because that is silence rather than a choice. `echo "" | …` still sets an empty
+password, deliberately.
+
 **Do not delete `accounts.json`** to get unlocked. That destroys every account
 on the install and reopens the first-boot claim window on whatever the server
 is bound to.

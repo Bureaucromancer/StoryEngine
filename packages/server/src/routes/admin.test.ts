@@ -660,6 +660,38 @@ describe('creating, patching and removing', () => {
     expect(listed.body.accounts.map((row: { handle: string }) => row.handle)).toEqual(['ned']);
   });
 
+  it('refuses a password shorter than this install accepts', async () => {
+    // Untested while it was a `minLength: 8` literal, and worth having now that
+    // the rule moved into the handler: both admin routes have to consult the
+    // same setting, and neither had anything watching it.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/accounts',
+      payload: { handle: 'mara', password: 'short', role: 'user' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.issues[0].path).toBe('/password');
+
+    const listed = await server.request({ method: 'GET', url: '/api/admin/accounts' });
+    expect(listed.body.accounts.map((row: { handle: string }) => row.handle)).toEqual(['ned']);
+  });
+
+  it('refuses a short password on a reset too', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/accounts/ned/password',
+      payload: { newPassword: 'short' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.issues[0].path).toBe('/newPassword');
+    // The old password still works, so a refusal did not half-apply.
+    expect(
+      await server.services.accounts.authenticate('ned', 'correct horse battery'),
+    ).not.toBeNull();
+  });
+
   it('refuses a capability it does not know the same way', async () => {
     const response = await server.request({
       method: 'PATCH',

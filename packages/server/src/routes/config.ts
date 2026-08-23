@@ -9,6 +9,7 @@ import {
   type Config,
   CONFIG_TIERS,
   ConfigError,
+  configBounds,
   configKeys,
   LIVE_APPLIERS,
   loadConfig,
@@ -198,6 +199,9 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       path: services.configPath,
       tiers: CONFIG_TIERS,
       appliers: LIVE_APPLIERS,
+      // Same argument as the tier table above: the constraints travel as data
+      // so the form does not keep a second copy of the schema.
+      bounds: configBounds(),
       pendingRestart: pendingRestart(services.bootConfig, services.config),
     });
   });

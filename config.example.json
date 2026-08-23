@@ -48,6 +48,26 @@
     "trustProxy": false
   },
 
+  "auth": {
+    // live — the shortest password this install accepts when one is SET.
+    //
+    // It applies to first-run setup, an admin creating an account, an admin
+    // resetting somebody's password, and a person changing their own. It does
+    // not apply when a password is checked: raising this never locks anyone out
+    // of an account they already have, and there is no forced change.
+    //
+    // 0 means the empty string is a valid password. The box stays on every form
+    // and you may leave it blank. That is a defensible setting for a machine
+    // only you can reach, and a bad one for anything else. The most this may be
+    // is 128.
+    //
+    // --reset-password on the console honours no minimum at all, including this
+    // one. Access to the host is already the highest authority this software
+    // recognises (docs/design/04 §5.1), so the break-glass path takes what it
+    // is given.
+    "minPasswordLength": 8
+  },
+
   "log": {
     // live — "silent" also works, and is what the test suite runs at.
     "level": "info",
