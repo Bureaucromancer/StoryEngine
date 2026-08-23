@@ -209,15 +209,40 @@ async function quiesce(): Promise<void> {
   throw new Error('The index never stopped changing.');
 }
 
-/** Everything on disk, gone, so each case starts from nothing. */
+/**
+ * Everything on disk, gone, so each case starts from nothing.
+ *
+ * **The watcher is stopped around it, and that is the whole point.** One watcher
+ * serves all twelve cases, and `rm -rf` on the kind root emits an unlink for
+ * every file in it. {@link quiesce} cannot wait those out reliably: it returns
+ * once the *index* has been still for three samples, and an index that is
+ * already empty is still from the first sample — so the teardown's unlinks were
+ * free to arrive after the DB was cleared and after the next case had written
+ * its first file. Under that ordering an unlink for the *previous* case's
+ * `beta/lorebook.json` deletes the row the *current* case just made, and the
+ * property fails with an incremental index missing a file the rebuild can see.
+ *
+ * Which is exactly how it failed: ubuntu CI, seed 352468989, one row in the
+ * rebuild and none in the incremental. It reads as index corruption and it was
+ * a shared watcher — [12 §4.4](../../../../docs/design/workplan/12-p2-manual-gate.md) named this
+ * file as an unsound poll before it ever went red, and this is the sound
+ * version rather than a longer sleep.
+ *
+ * Stopping the watcher discards chokidar's pending state with it, so nothing
+ * from one case can reach the next. `ignoreInitial` means the restart re-indexes
+ * nothing, so the empty index it starts against is the one it keeps.
+ */
 async function emptyTheLibrary(): Promise<void> {
+  await watcher.stop();
+
   const kindRoot = library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA);
   await rm(kindRoot, { recursive: true, force: true });
   await mkdir(kindRoot, { recursive: true });
   ids.clear();
-  await quiesce();
   library.db.exec('delete from object');
   library.db.exec('delete from object_fts');
+
+  await watcher.start();
 }
 
 describe('rebuild equals incremental, as a property', () => {
