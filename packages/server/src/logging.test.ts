@@ -16,7 +16,7 @@ import { type Config, DEFAULT_CONFIG, pendingRestart } from './config.js';
 import { listObjects } from './index-db/query.js';
 import { create as createObject } from './library.js';
 import { listVersions, readVersionPayload } from './storage/history.js';
-import { userScope } from './storage/layout.js';
+import { userOwner } from './storage/layout.js';
 
 /**
  * The logger, and the first key that is genuinely live — F8.
@@ -63,8 +63,8 @@ async function create(
   book: ReturnType<typeof newLorebook>,
 ): Promise<{ file: string; root: string }> {
   const created = await createObject(target.library, 'ned', book, LOREBOOK_SCHEMA);
-  const root = target.layout.objectRoot(userScope('ned'), LOREBOOK_SCHEMA, created.slug);
-  return { file: target.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, created.slug), root };
+  const root = target.layout.objectRoot(userOwner('ned'), LOREBOOK_SCHEMA, created.slug);
+  return { file: target.layout.objectFile(userOwner('ned'), LOREBOOK_SCHEMA, created.slug), root };
 }
 
 /** Filesystem events are not synchronous; poll rather than guess a delay. */
@@ -329,7 +329,7 @@ describe('the live tier, with its first real consumer', () => {
         await writeFile(created.file, JSON.stringify({ ...book, name }));
         await eventually(async () =>
           Promise.resolve(
-            listObjects(watched.index.db, { scopes: [userScope('ned')] })[0]?.name === name,
+            listObjects(watched.index.db, { owners: [userOwner('ned')] })[0]?.name === name,
           ),
         );
       }

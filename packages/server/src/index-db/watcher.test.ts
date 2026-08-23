@@ -10,7 +10,7 @@ import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { listVersions, readVersionPayload } from '../storage/history.js';
-import { listFileErrors, scopeKey } from './ingest.js';
+import { listFileErrors, ownerKey } from './ingest.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
 import { LibraryWatcher, type WatcherOptions, type WatchEvent } from './watcher.js';
@@ -43,7 +43,7 @@ beforeEach(async () => {
 
   // The library root must exist before chokidar starts, or the first write
   // creates the tree and the events arrive as directory adds.
-  await mkdir(library.layout.kindRoot(library.scope, LOREBOOK_SCHEMA), { recursive: true });
+  await mkdir(library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA), { recursive: true });
 
   options = {
     db: library.db,
@@ -100,12 +100,12 @@ async function eventually(
 
 describe('a hand edit on disk reflects without a restart', () => {
   it('indexes a foreign create', async () => {
-    const path = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city');
+    const path = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city');
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify(newLorebook('Rain City')));
 
-    await eventually(() => listObjects(library.db, { scopes: [library.scope] }).length === 1);
-    expect(listObjects(library.db, { scopes: [library.scope] })[0]?.name).toBe('Rain City');
+    await eventually(() => listObjects(library.db, { owners: [library.owner] }).length === 1);
+    expect(listObjects(library.db, { owners: [library.owner] })[0]?.name).toBe('Rain City');
   });
 
   it('reflects a foreign edit to a file it already knows', async () => {
@@ -118,7 +118,7 @@ describe('a hand edit on disk reflects without a restart', () => {
 
     await eventually(
       () =>
-        listObjects(library.db, { scopes: [library.scope] })[0]?.name ===
+        listObjects(library.db, { owners: [library.owner] })[0]?.name ===
         'Rain City, after the fire',
     );
   });
@@ -128,7 +128,7 @@ describe('a hand edit on disk reflects without a restart', () => {
     await seenBy(path);
     await rm(dirname(path), { recursive: true });
 
-    await eventually(() => listObjects(library.db, { scopes: [library.scope] }).length === 0);
+    await eventually(() => listObjects(library.db, { owners: [library.owner] }).length === 0);
   });
 });
 
@@ -146,7 +146,7 @@ describe("the watcher never watches the engine's own state", () => {
     await writeFile(library.layout.accountsFile, '{"accounts": []}');
     await writeFile(library.layout.configFile, '{}');
 
-    const fence = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city');
+    const fence = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city');
     await mkdir(dirname(fence), { recursive: true });
     await writeFile(fence, JSON.stringify(newLorebook('Rain City')));
     await seenBy(fence);
@@ -173,7 +173,7 @@ describe('the watcher ignores its own writes', () => {
 
     await eventually(() => events.some((event) => event.type === 'suppressed'));
     expect(events.filter((event) => event.type === 'indexed')).toHaveLength(0);
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(1);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(1);
   });
 
   it('still notices a foreign write to a file it wrote itself', async () => {
@@ -186,18 +186,18 @@ describe('the watcher ignores its own writes', () => {
     await writeFile(path, JSON.stringify({ ...book, name: 'Edited by hand' }));
 
     await eventually(
-      () => listObjects(library.db, { scopes: [library.scope] })[0]?.name === 'Edited by hand',
+      () => listObjects(library.db, { owners: [library.owner] })[0]?.name === 'Edited by hand',
     );
   });
 
   it('ignores files that are not library objects', async () => {
-    const assets = library.layout.assetsRoot(library.scope, LOREBOOK_SCHEMA, 'rain-city');
+    const assets = library.layout.assetsRoot(library.owner, LOREBOOK_SCHEMA, 'rain-city');
     await mkdir(assets, { recursive: true });
     await writeFile(`${assets}/map.png`, 'not an object');
 
     await eventually(() => events.some((event) => event.path.endsWith('map.png')));
     expect(events.find((event) => event.path.endsWith('map.png'))?.type).toBe('ignored');
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(0);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(0);
   });
 });
 
@@ -236,7 +236,7 @@ describe('a hand edit leaves history behind', () => {
       await writeFile(path, JSON.stringify({ ...book, name: `Rain City, ${name}` }));
       await eventually(
         () =>
-          listObjects(library.db, { scopes: [library.scope] })[0]?.name === `Rain City, ${name}`,
+          listObjects(library.db, { owners: [library.owner] })[0]?.name === `Rain City, ${name}`,
       );
     }
 
@@ -273,7 +273,7 @@ describe('a hand edit leaves history behind', () => {
     await writeFile(path, JSON.stringify({ ...book, name: 'Rain City, after the fire' }));
     await eventually(
       () =>
-        listObjects(library.db, { scopes: [library.scope] })[0]?.name ===
+        listObjects(library.db, { owners: [library.owner] })[0]?.name ===
         'Rain City, after the fire',
     );
 
@@ -310,7 +310,7 @@ describe('a hand edit leaves history behind', () => {
     const from = await library.saveObject(book, 'rain-city');
     await seenBy(from);
 
-    const to = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city-noir');
+    const to = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city-noir');
     await mkdir(dirname(to), { recursive: true });
     await rename(from, to);
     await eventually(() => findById(library.db, book.id)?.path === to);
@@ -331,9 +331,9 @@ describe('a file that cannot be read says so', () => {
     await seenBy(path);
 
     await writeFile(path, '{ "name": "Rain City", truncated');
-    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
+    await eventually(() => listFileErrors(library.db, [ownerKey(library.owner)]).length === 1);
 
-    const [error] = listFileErrors(library.db, [scopeKey(library.scope)]);
+    const [error] = listFileErrors(library.db, [ownerKey(library.owner)]);
     expect(error?.path).toBe(path);
     expect(error?.reason).toBe('unparsable');
     expect(error?.slug).toBe('rain-city');
@@ -346,7 +346,7 @@ describe('a file that cannot be read says so', () => {
     expect(findById(library.db, book.id)?.name).toBe('Rain City');
 
     await writeFile(path, JSON.stringify({ ...book, name: 'Rain City, repaired' }));
-    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 0);
+    await eventually(() => listFileErrors(library.db, [ownerKey(library.owner)]).length === 0);
     expect(findById(library.db, book.id)?.name).toBe('Rain City, repaired');
   });
 
@@ -357,21 +357,21 @@ describe('a file that cannot be read says so', () => {
     await seenBy(path);
 
     await writeFile(path, 'not json at all');
-    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
+    await eventually(() => listFileErrors(library.db, [ownerKey(library.owner)]).length === 1);
 
     await rm(dirname(path), { recursive: true });
-    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 0);
+    await eventually(() => listFileErrors(library.db, [ownerKey(library.owner)]).length === 0);
   });
 
   it('reports a file whose contents are valid JSON but not the kind it sits in', async () => {
     // Distinct from unparsable, and worth its own reason: the file is fine, it
     // is in the wrong folder — which is a mistake a person makes by dragging.
-    const path = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'misfiled');
+    const path = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'misfiled');
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify({ ...newActor('Vera'), schema: 'storyengine.actor/1' }));
 
-    await eventually(() => listFileErrors(library.db, [scopeKey(library.scope)]).length === 1);
-    expect(listFileErrors(library.db, [scopeKey(library.scope)])[0]?.reason).toBe('wrong-kind');
+    await eventually(() => listFileErrors(library.db, [ownerKey(library.owner)]).length === 1);
+    expect(listFileErrors(library.db, [ownerKey(library.owner)])[0]?.reason).toBe('wrong-kind');
   });
 });
 
@@ -385,13 +385,13 @@ describe('a foreign rename through the watcher', () => {
     const from = await library.saveObject(book, 'rain-city');
     await seenBy(from);
 
-    const to = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city-noir');
+    const to = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city-noir');
     await mkdir(dirname(to), { recursive: true });
     await rename(from, to);
 
     await eventually(() => findById(library.db, book.id)?.path === to);
 
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(1);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(1);
     expect(findById(library.db, book.id)?.slug).toBe('rain-city-noir');
   });
 });
@@ -431,14 +431,14 @@ describe('a root reached through a link', () => {
       stabilityThresholdMs: 20,
       onChange: (event) => seen.push(event),
     });
-    await mkdir(aliased.layout.kindRoot(aliased.scope, LOREBOOK_SCHEMA), { recursive: true });
+    await mkdir(aliased.layout.kindRoot(aliased.owner, LOREBOOK_SCHEMA), { recursive: true });
     await linked.start();
 
     try {
       await aliased.writeObject(newLorebook('Rain City'), 'rain-city');
       await eventually(async () => {
         await linked.settled();
-        return listObjects(aliased.db, { scopes: [aliased.scope] }).length === 1;
+        return listObjects(aliased.db, { owners: [aliased.owner] }).length === 1;
       });
 
       // Not merely "an event arrived": an event arrived and was *understood*.

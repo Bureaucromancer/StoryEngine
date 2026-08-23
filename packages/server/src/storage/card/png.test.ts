@@ -131,7 +131,7 @@ describe('a V2/V3 chara card still parses', () => {
 
   it('reads a V2 chara chunk without converting it', () => {
     // Read, not adopted. Mapping `personality` onto traits and `scenario` onto a
-    // Setting draft is import's job at P4
+    // Treatment draft is import's job at P4
     // ([02 §2.7](../../../../../docs/design/02-data-model.md)) — it involves heuristics and a
     // review step, neither of which belongs in a decoder.
     const card = withChunks(makePng(), [base64TextChunk('chara', v2)]);

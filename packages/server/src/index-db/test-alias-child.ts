@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { Layout, userScope } from '../storage/layout.js';
+import { Layout, userOwner } from '../storage/layout.js';
 import { openIndex } from './open.js';
 import { listObjects } from './query.js';
 import { LibraryWatcher } from './watcher.js';
@@ -31,9 +31,9 @@ const root = process.argv[2];
 if (root === undefined) throw new Error('usage: alias-child <root>');
 
 const layout = new Layout(root);
-const scope = userScope('ned');
+const owner = userOwner('ned');
 const index = await openIndex({ path: layout.indexFile });
-await mkdir(layout.kindRoot(scope, LOREBOOK_SCHEMA), { recursive: true });
+await mkdir(layout.kindRoot(owner, LOREBOOK_SCHEMA), { recursive: true });
 
 const watcher = new LibraryWatcher({
   db: index.db,
@@ -48,14 +48,14 @@ await watcher.start();
 // that fires the assert — libuv aborts when it reports the event, not when the
 // watch is opened, so a child that only started a watcher would exit 0 and
 // prove nothing.
-const file = layout.objectFile(scope, LOREBOOK_SCHEMA, 'rain-city');
+const file = layout.objectFile(owner, LOREBOOK_SCHEMA, 'rain-city');
 await mkdir(dirname(file), { recursive: true });
 await writeJsonAtomic(file, newLorebook('Rain City'), { suppressWatcher: false });
 
 const deadline = Date.now() + 8000;
 while (Date.now() < deadline) {
   await watcher.settled();
-  if (listObjects(index.db, { scopes: [scope] }).length === 1) {
+  if (listObjects(index.db, { owners: [owner] }).length === 1) {
     console.log('INDEXED');
     await watcher.stop();
     index.db.close();

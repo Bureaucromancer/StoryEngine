@@ -22,7 +22,7 @@ import {
 } from '../storage/atomic.js';
 import { envelope, pngCardCodec } from '../storage/card/index.js';
 import { makePng } from '../storage/card/test-png.js';
-import { Layout, type LibraryScope, userScope } from '../storage/layout.js';
+import { Layout, type LibraryOwner, userOwner } from '../storage/layout.js';
 import { ingestFile } from './ingest.js';
 import { openIndex, type OpenedIndex } from './open.js';
 
@@ -38,11 +38,11 @@ export interface TestLibrary {
   layout: Layout;
   index: OpenedIndex;
   db: DatabaseSync;
-  scope: LibraryScope;
+  owner: LibraryOwner;
   /** Writes an object to disk *without* telling the index — a foreign write. */
-  writeObject: (object: Actor | Lorebook, slug: string, scope?: LibraryScope) => Promise<string>;
+  writeObject: (object: Actor | Lorebook, slug: string, owner?: LibraryOwner) => Promise<string>;
   /** Writes and indexes, the way a route does — synchronous, read-after-write. */
-  saveObject: (object: Actor | Lorebook, slug: string, scope?: LibraryScope) => Promise<string>;
+  saveObject: (object: Actor | Lorebook, slug: string, owner?: LibraryOwner) => Promise<string>;
   dispose: () => Promise<void>;
 }
 
@@ -53,7 +53,7 @@ export async function makeTestLibrary(
   // 8.3 alias (F26). Everything else gets its own temp directory.
   const root = options.root ?? (await mkdtemp(join(tmpdir(), 'se-index-')));
   const layout = new Layout(root);
-  const scope = userScope('ned');
+  const owner = userOwner('ned');
   const index = await openIndex({ path: options.indexPath ?? layout.indexFile });
   // Resolved once rather than passed through as `registry: undefined`, which
   // `exactOptionalPropertyTypes` correctly refuses.
@@ -62,7 +62,7 @@ export async function makeTestLibrary(
   async function writeObject(
     object: Actor | Lorebook,
     slug: string,
-    at: LibraryScope = scope,
+    at: LibraryOwner = owner,
   ): Promise<string> {
     const schemaId = object.schema as PortableSchemaId;
     const path = layout.objectFile(at, schemaId, slug);
@@ -82,7 +82,7 @@ export async function makeTestLibrary(
   async function saveObject(
     object: Actor | Lorebook,
     slug: string,
-    at: LibraryScope = scope,
+    at: LibraryOwner = owner,
   ): Promise<string> {
     const schemaId = object.schema as PortableSchemaId;
     const path = layout.objectFile(at, schemaId, slug);
@@ -102,7 +102,7 @@ export async function makeTestLibrary(
     layout,
     index,
     db: index.db,
-    scope,
+    owner,
     writeObject,
     saveObject,
     dispose: async () => {

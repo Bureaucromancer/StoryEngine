@@ -38,10 +38,10 @@ import {
 } from './storage/history.js';
 import {
   type Layout,
-  type LibraryScope,
+  type LibraryOwner,
   resolveFreeSlug,
-  SYSTEM_SCOPE,
-  userScope,
+  SYSTEM_OWNER,
+  userOwner,
 } from './storage/layout.js';
 
 /**
@@ -121,21 +121,21 @@ export interface StoredObject {
   contentHash: string;
   path: string;
   slug: string;
-  scope: LibraryScope;
+  owner: LibraryOwner;
   /** True when another file holds this id at an earlier path ([P1 §1.2]). */
   shadowed: boolean;
 }
 
 /**
- * The scopes a request may read: the caller's own library and the system one.
+ * The owners a request may read: the caller's own library and the system one.
  *
  * **`system/library/` is loaded and merged from P1**, shipped empty
  * ([P1 §1.3](../../../docs/design/workplan/03-p1-implementation.md)). The merge is a query rather
  * than a special case, and retrofitting it into every list endpoint later is the
  * annoying version — so it lands now, with nothing in it.
  */
-export function readableScopes(handle: string): LibraryScope[] {
-  return [userScope(handle), SYSTEM_SCOPE];
+export function readableOwners(handle: string): LibraryOwner[] {
+  return [userOwner(handle), SYSTEM_OWNER];
 }
 
 export function list(
@@ -144,7 +144,7 @@ export function list(
   schemaId?: PortableSchemaId,
 ): IndexedObject[] {
   return listObjects(context.db, {
-    scopes: readableScopes(handle),
+    owners: readableOwners(handle),
     ...(schemaId ? { schemaId } : {}),
   });
 }
@@ -173,13 +173,13 @@ export interface LibraryFileError {
 }
 
 export function fileErrors(context: LibraryContext, handle: string): LibraryFileError[] {
-  const scopes = readableScopes(handle).map(scopeKeyOf);
-  return listFileErrors(context.db, scopes).map((row) => ({
+  const owners = readableOwners(handle).map(ownerKeyOf);
+  return listFileErrors(context.db, owners).map((row) => ({
     // A row whose path escaped the root is not addressable by a client, and
     // silently rewriting it to something that looks relative would be worse
     // than admitting the path is unknown.
     path: context.layout.portablePath(row.path) ?? '(outside the data directory)',
-    source: row.scope === 'system' ? ('system' as const) : ('user' as const),
+    source: row.owner === 'system' ? ('system' as const) : ('user' as const),
     kind: row.schemaId,
     slug: row.slug,
     reason: row.reason,
@@ -213,7 +213,7 @@ export interface ObjectAddress {
  * A mismatch is **not-found rather than a mismatch error**: from the caller's
  * side that collection genuinely does not contain that id, and saying "wrong
  * kind" would confirm the object exists somewhere, which is the same leak the
- * scope check below exists to avoid.
+ * owner check below exists to avoid.
  *
  * `at` narrows to one copy of a duplicated id (F19); without it, the winner.
  */
@@ -226,7 +226,7 @@ export function read(
 ): IndexedObject {
   if (at) return readAt(context, handle, id, inKind, at);
   const row = findById(context.db, id);
-  if (!row || !readableScopes(handle).some((scope) => scopeKeyOf(scope) === row.scope)) {
+  if (!row || !readableOwners(handle).some((owner) => ownerKeyOf(owner) === row.owner)) {
     // Not-found rather than forbidden for another user's object: the handle is
     // the owner ([04 §4.3]), and confirming that an id exists elsewhere would
     // leak the one fact this separation exists to keep.
@@ -245,11 +245,11 @@ function readAt(
   inKind: PortableSchemaId | undefined,
   at: ObjectAddress,
 ): IndexedObject {
-  const scope = at.source === 'system' ? SYSTEM_SCOPE : userScope(handle);
-  const row = findByIdAt(context.db, id, { scope: scopeKeyOf(scope), slug: at.slug });
+  const owner = at.source === 'system' ? SYSTEM_OWNER : userOwner(handle);
+  const row = findByIdAt(context.db, id, { owner: ownerKeyOf(owner), slug: at.slug });
   if (!row || (inKind !== undefined && row.schemaId !== inKind)) {
     // The same answer as an id that does not exist. An address that named
-    // somebody else's library would resolve to this user's scope and find
+    // somebody else's library would resolve under this user's owner and find
     // nothing, which is the containment rule doing its job rather than a
     // separate check to remember.
     throw new LibraryError('not-found', `No object with id ${id} at that address.`);
@@ -257,8 +257,8 @@ function readAt(
   return row;
 }
 
-function scopeKeyOf(scope: LibraryScope): string {
-  return scope.kind === 'system' ? 'system' : `user:${scope.handle}`;
+function ownerKeyOf(owner: LibraryOwner): string {
+  return owner.kind === 'system' ? 'system' : `user:${owner.handle}`;
 }
 
 /**
@@ -275,7 +275,7 @@ function scopeKeyOf(scope: LibraryScope): string {
  */
 async function encodeObject(
   layout: Layout,
-  scope: LibraryScope,
+  owner: LibraryOwner,
   schemaId: PortableSchemaId,
   slug: string,
   object: unknown,
@@ -287,7 +287,7 @@ async function encodeObject(
    */
   existingBytes?: Uint8Array | null,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
-  const path = layout.objectFile(scope, schemaId, slug);
+  const path = layout.objectFile(owner, schemaId, slug);
 
   // The write path's door (F1). Lexically this path is already safe; what the
   // string cannot say is whether a directory along it is a link out of the data
@@ -381,8 +381,8 @@ export async function create(
       `This is a ${schemaId} and the URL says ${inKind}. Post it to its own kind.`,
     );
   }
-  const scope = userScope(handle);
-  const kindRoot = context.layout.kindRoot(scope, schemaId);
+  const owner = userOwner(handle);
+  const kindRoot = context.layout.kindRoot(owner, schemaId);
 
   // The whole body runs on the kind's queue: slug resolution reads the
   // directory and the write then claims the name, so two concurrent creates
@@ -407,7 +407,7 @@ export async function create(
 
     const { path, bytes, contentHash } = await encodeObject(
       context.layout,
-      scope,
+      owner,
       schemaId,
       slug,
       object,
@@ -415,7 +415,7 @@ export async function create(
     await (context.write ?? writeAtomic)(path, bytes);
     await ingestFile(context.db, context.layout, path);
 
-    return { object, contentHash, path, slug, scope, shadowed: false };
+    return { object, contentHash, path, slug, owner, shadowed: false };
   });
 }
 
@@ -475,7 +475,7 @@ export async function update(
   return writes.run(`obj:${id}`, async () => {
     const current = read(context, handle, id, inKind);
 
-    if (current.scope === 'system') {
+    if (current.owner === 'system') {
       // App-shipped and read-only; an update would be overwritten by the next
       // release anyway ([05 §4.2]). Copy-to-my-library is the intended move.
       throw new LibraryError('read-only', 'System library objects cannot be edited.');
@@ -505,10 +505,10 @@ export async function update(
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
     }
 
-    const scope = userScope(handle);
+    const owner = userOwner(handle);
     const asSent = await encodeObject(
       context.layout,
-      scope,
+      owner,
       schemaId,
       current.slug,
       object,
@@ -528,7 +528,7 @@ export async function update(
         contentHash: asSent.contentHash,
         path: asSent.path,
         slug: current.slug,
-        scope,
+        owner,
         shadowed: current.shadowed,
       };
     }
@@ -536,7 +536,7 @@ export async function update(
     const stamp = change.stamp !== false;
     const stamped = stamp ? stampProvenance(object) : object;
     const { path, bytes, contentHash } = stamp
-      ? await encodeObject(context.layout, scope, schemaId, current.slug, stamped, existingBytes)
+      ? await encodeObject(context.layout, owner, schemaId, current.slug, stamped, existingBytes)
       : asSent;
 
     // Write, then snapshot the replaced state (held in memory), then index.
@@ -547,7 +547,7 @@ export async function update(
     await (context.write ?? writeAtomic)(path, bytes);
 
     await snapshotReplaced({
-      objectRoot: context.layout.objectRoot(scope, schemaId, current.slug),
+      objectRoot: context.layout.objectRoot(owner, schemaId, current.slug),
       payload: current.body,
       source: change.source,
       reason: change.reason,
@@ -561,7 +561,7 @@ export async function update(
       contentHash,
       path,
       slug: current.slug,
-      scope,
+      owner,
       shadowed: current.shadowed,
     };
   });
@@ -583,12 +583,12 @@ export async function restoreVersion(
   inKind?: PortableSchemaId,
 ): Promise<StoredObject> {
   const current = read(context, handle, id, inKind);
-  if (current.scope === 'system') {
+  if (current.owner === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
 
   const objectRoot = context.layout.objectRoot(
-    userScope(handle),
+    userOwner(handle),
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -625,9 +625,9 @@ export async function versionsOf(
   inKind?: PortableSchemaId,
 ): Promise<{ current: IndexedObject; versions: VersionRecord[] }> {
   const current = read(context, handle, id, inKind);
-  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
   const objectRoot = context.layout.objectRoot(
-    scope,
+    owner,
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -647,9 +647,9 @@ export async function versionPayload(
   if (!record) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
   }
-  const scope = current.scope === 'system' ? SYSTEM_SCOPE : userScope(handle);
+  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
   const objectRoot = context.layout.objectRoot(
-    scope,
+    owner,
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -672,11 +672,11 @@ export async function amendVersion(
   inKind?: PortableSchemaId,
 ): Promise<VersionRecord> {
   const current = read(context, handle, id, inKind);
-  if (current.scope === 'system') {
+  if (current.owner === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
   const objectRoot = context.layout.objectRoot(
-    userScope(handle),
+    userOwner(handle),
     current.schemaId as PortableSchemaId,
     current.slug,
   );
@@ -729,7 +729,7 @@ export async function remove(
 ): Promise<void> {
   return writes.run(`obj:${id}`, async () => {
     const current = read(context, handle, id, inKind);
-    if (current.scope === 'system') {
+    if (current.owner === 'system') {
       throw new LibraryError('read-only', 'System library objects cannot be deleted.');
     }
     if (current.contentHash !== expectedHash) {
@@ -746,7 +746,7 @@ export async function remove(
 
     const schemaId = current.schemaId as PortableSchemaId;
     await moveTree(
-      context.layout.objectRoot(userScope(handle), schemaId, current.slug),
+      context.layout.objectRoot(userOwner(handle), schemaId, current.slug),
       context.layout.trashDestination(handle, schemaId, current.slug, uuidv7()),
     );
     removeFile(context.db, context.layout, current.path);

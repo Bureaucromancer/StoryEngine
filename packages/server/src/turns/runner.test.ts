@@ -555,7 +555,7 @@ describe('the preset is what builds the prompt', () => {
   });
 
   it('drops a slot that resolves empty rather than emitting a heading', async () => {
-    // `omitWhenEmpty`, read literally. A P2.6 session has no Setting and no
+    // `omitWhenEmpty`, read literally. A P2.6 session has no Treatment and no
     // lore, and those slots are *present* in the preset — which is what makes
     // P5 an activation change rather than a preset change.
     const { turn } = await runTurn();

@@ -14,14 +14,14 @@ import {
   Layout,
   OBJECT_FILENAMES,
   resolveFreeSlug,
-  SYSTEM_SCOPE,
-  userScope,
+  SYSTEM_OWNER,
+  userOwner,
 } from './layout.js';
 import { PathEscapeError } from './paths.js';
 
 const DATA = resolve('/data');
 const layout = new Layout(DATA);
-const ned = userScope('ned');
+const ned = userOwner('ned');
 
 describe('the data directory', () => {
   it('places the fixed files where 02 §5.1 says', () => {
@@ -47,15 +47,15 @@ describe('the data directory', () => {
   });
 });
 
-describe('library scopes', () => {
+describe('library owners', () => {
   it('gives system and user libraries the same shape', () => {
     // The merge is a query, not a special case
     // ([02 §5.1](../../../../docs/design/02-data-model.md)) — which is only true if both
     // sides have the same layout underneath.
-    expect(layout.libraryRoot(SYSTEM_SCOPE)).toBe(join(DATA, 'system', 'library'));
+    expect(layout.libraryRoot(SYSTEM_OWNER)).toBe(join(DATA, 'system', 'library'));
     expect(layout.libraryRoot(ned)).toBe(join(DATA, 'users', 'ned', 'library'));
 
-    const systemActors = layout.kindRoot(SYSTEM_SCOPE, ACTOR_SCHEMA);
+    const systemActors = layout.kindRoot(SYSTEM_OWNER, ACTOR_SCHEMA);
     const userActors = layout.kindRoot(ned, ACTOR_SCHEMA);
     expect(systemActors.endsWith(join('library', 'actors'))).toBe(true);
     expect(userActors.endsWith(join('library', 'actors'))).toBe(true);
@@ -115,7 +115,7 @@ describe('handles are hostile input', () => {
 
   it('throws rather than resolving a path for a bad handle', () => {
     expect(() => layout.userRoot('../other')).toThrow(PathEscapeError);
-    expect(() => layout.libraryRoot(userScope('..'))).toThrow(PathEscapeError);
+    expect(() => layout.libraryRoot(userOwner('..'))).toThrow(PathEscapeError);
   });
 
   it('cannot be talked out of the users directory', () => {
@@ -189,7 +189,7 @@ describe('the layout never produces a path outside the data root', () => {
       layout.memoriesRoot('ned'),
       layout.trashRoot('ned'),
       layout.libraryRoot(ned),
-      layout.libraryRoot(SYSTEM_SCOPE),
+      layout.libraryRoot(SYSTEM_OWNER),
       layout.kindRoot(ned, ACTOR_SCHEMA),
       layout.objectRoot(ned, ACTOR_SCHEMA, 'vera-solano'),
       layout.objectFile(ned, ACTOR_SCHEMA, 'vera-solano'),

@@ -8,7 +8,7 @@ import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared'
 import { readAllTurns } from '../sessions/segments.js';
 import { listSessions, readSession, type SessionContext } from '../sessions/store.js';
 import { listDirectoryNames } from '../storage/files.js';
-import { type Layout, type LibraryScope, SYSTEM_SCOPE, userScope } from '../storage/layout.js';
+import { type Layout, type LibraryOwner, SYSTEM_OWNER, userOwner } from '../storage/layout.js';
 import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import { ingestFile } from './ingest.js';
 import { indexSession, indexTurn } from './sessions.js';
@@ -56,9 +56,9 @@ export async function rebuild(
 
   const result: RebuildResult = { scanned: 0, indexed: 0, skipped: 0, sessions: 0, turns: 0 };
 
-  for (const scope of await scopes(layout)) {
+  for (const owner of await owners(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
-      const kindRoot = layout.kindRoot(scope, schemaId);
+      const kindRoot = layout.kindRoot(owner, schemaId);
       for (const slug of await listDirectoryNames(kindRoot)) {
         result.scanned += 1;
 
@@ -72,7 +72,7 @@ export async function rebuild(
         // same question of how the index represents something it cannot open.
         let objectFile: string;
         try {
-          objectFile = layout.objectFile(scope, schemaId, slug);
+          objectFile = layout.objectFile(owner, schemaId, slug);
         } catch (error) {
           if (!(error instanceof PathEscapeError)) throw error;
           result.skipped += 1;
@@ -88,8 +88,8 @@ export async function rebuild(
     // Sessions are a user's, never the system's — and a rebuild has to cover
     // them or *rebuild equals incremental* stops being true the moment anyone
     // plays a turn ([13 §5]).
-    if (scope.kind === 'user') {
-      const found = await rebuildSessions(db, layout, scope.handle);
+    if (owner.kind === 'user') {
+      const found = await rebuildSessions(db, layout, owner.handle);
       result.sessions += found.sessions;
       result.turns += found.turns;
     }
@@ -103,7 +103,7 @@ export async function rebuild(
  *
  * A session whose `session.json` will not parse is skipped, and deliberately
  * *not* recorded as a file error: `file_error` is keyed by the library's
- * `(scope, kind, slug)` shape and a session has none of those. Making that table
+ * `(owner, kind, slug)` shape and a session has none of those. Making that table
  * carry two shapes to save a skip is the wrong trade — a broken session file is
  * P2.6's surface to report, when there is one.
  */
@@ -144,11 +144,11 @@ async function rebuildSessions(
  * removed still holds somebody's files, and an index that silently omitted them
  * would make the library look emptier than the disk is.
  */
-async function scopes(layout: Layout): Promise<LibraryScope[]> {
-  const found: LibraryScope[] = [SYSTEM_SCOPE];
+async function owners(layout: Layout): Promise<LibraryOwner[]> {
+  const found: LibraryOwner[] = [SYSTEM_OWNER];
   for (const handle of await listDirectoryNames(layout.usersRoot)) {
     try {
-      found.push(userScope(handle));
+      found.push(userOwner(handle));
     } catch {
       // A directory under `users/` that is not a valid handle. Not ours.
     }

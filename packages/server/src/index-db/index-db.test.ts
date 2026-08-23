@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
-import { SYSTEM_SCOPE } from '../storage/layout.js';
+import { SYSTEM_OWNER } from '../storage/layout.js';
 import { ingestFile, matureTombstones, removeFile, TOMBSTONE_TTL_MS } from './ingest.js';
 import { startMaturation } from './maturation.js';
 import { openIndex } from './open.js';
@@ -54,7 +54,7 @@ describe('rebuild-from-disk equals the incremental index', () => {
     );
 
     // A delete, matured so it is a real absence rather than a pending rename.
-    const doomed = library.layout.objectFile(library.scope, ACTOR_SCHEMA, 'marlow');
+    const doomed = library.layout.objectFile(library.owner, ACTOR_SCHEMA, 'marlow');
     await rm(dirname(doomed), { recursive: true });
     removeFile(library.db, library.layout, doomed);
     matureTombstones(library.db, library.layout, Date.now() + TOMBSTONE_TTL_MS + 1);
@@ -107,7 +107,7 @@ describe('rebuild-from-disk equals the incremental index', () => {
 
   it('agrees after a foreign rename', async () => {
     const path = await library.saveObject(newLorebook('Rain City'), 'rain-city');
-    const moved = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city-noir');
+    const moved = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city-noir');
 
     await mkdir(dirname(moved), { recursive: true });
     await rename(path, moved);
@@ -127,11 +127,11 @@ describe('a foreign write is picked up', () => {
     // [05 §4.1](../../../../docs/design/05-ui-surfaces.md): if editing a file on disk does
     // not reflect, the storage design has failed on its own terms.
     const path = await library.writeObject(newLorebook('Rain City'), 'rain-city');
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(0);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(0);
 
     await ingestFile(library.db, library.layout, path);
 
-    const [row] = listObjects(library.db, { scopes: [library.scope] });
+    const [row] = listObjects(library.db, { owners: [library.owner] });
     expect(row?.name).toBe('Rain City');
   });
 
@@ -143,7 +143,7 @@ describe('a foreign write is picked up', () => {
     await writeFile(path, JSON.stringify({ ...book, name: 'Rain City, after the fire' }));
     await ingestFile(library.db, library.layout, path);
 
-    const rows = listObjects(library.db, { scopes: [library.scope] });
+    const rows = listObjects(library.db, { owners: [library.owner] });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.name).toBe('Rain City, after the fire');
     expect(rows[0]?.id).toBe(book.id);
@@ -245,10 +245,10 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
     const path = await library.saveObject(newLorebook('Rain City'), 'rain-city');
     const original = findById(
       library.db,
-      listObjects(library.db, { scopes: [library.scope] })[0]!.id,
+      listObjects(library.db, { owners: [library.owner] })[0]!.id,
     )!;
 
-    const moved = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'rain-city-renamed');
+    const moved = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city-renamed');
     await mkdir(dirname(moved), { recursive: true });
     await rename(path, moved);
 
@@ -261,7 +261,7 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
     const after = findById(library.db, original.id);
     expect(after?.id).toBe(original.id);
     expect(after?.path).toBe(moved);
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(1);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(1);
   });
 
   it('does not flicker through an absence', async () => {
@@ -269,7 +269,7 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
     // the object vanish from the list in between, which is what a user would
     // see as their library flickering.
     const path = await library.saveObject(newLorebook('Rain City'), 'rain-city');
-    const id = listObjects(library.db, { scopes: [library.scope] })[0]!.id;
+    const id = listObjects(library.db, { owners: [library.owner] })[0]!.id;
 
     removeFile(library.db, library.layout, path);
     // Tombstoned, so it is out of the live list — but the row is still there,
@@ -279,7 +279,7 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
       c: 1,
     });
 
-    const moved = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'elsewhere');
+    const moved = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'elsewhere');
     await mkdir(dirname(moved), { recursive: true });
     await rename(path, moved);
     await ingestFile(library.db, library.layout, moved);
@@ -346,7 +346,7 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
 
     const outcome = await ingestFile(library.db, library.layout, path);
     expect(outcome).toMatchObject({ kind: 'indexed', moved: false });
-    expect(listObjects(library.db, { scopes: [library.scope] })).toHaveLength(1);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(1);
   });
 });
 
@@ -361,7 +361,7 @@ describe('a duplicate id is flagged rather than fatal', () => {
     await library.saveObject(actorWithId('Vera Solano', shared), 'vera-solano');
     await library.saveObject(actorWithId('Vera Solano', shared), 'vera-draft');
 
-    const rows = listObjects(library.db, { scopes: [library.scope] });
+    const rows = listObjects(library.db, { owners: [library.owner] });
     expect(rows).toHaveLength(2);
 
     const bySlug = new Map(rows.map((row) => [row.slug, row.shadowed]));
@@ -384,7 +384,7 @@ describe('a duplicate id is flagged rather than fatal', () => {
     await rm(dirname(winner), { recursive: true });
     removeFile(library.db, library.layout, winner);
 
-    const rows = listObjects(library.db, { scopes: [library.scope] });
+    const rows = listObjects(library.db, { owners: [library.owner] });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.shadowed).toBe(false);
   });
@@ -397,12 +397,12 @@ describe('the library merge is a query', () => {
     // special case. Shipped empty at P1, which is why the query is what is
     // tested rather than the content.
     await library.saveObject(newActor('Vera Solano'), 'vera-solano');
-    await library.saveObject(newActor('The Assistant'), 'the-assistant', SYSTEM_SCOPE);
+    await library.saveObject(newActor('The Assistant'), 'the-assistant', SYSTEM_OWNER);
 
-    const merged = listObjects(library.db, { scopes: [library.scope, SYSTEM_SCOPE] });
-    expect(merged.map((row) => row.scope).sort()).toEqual(['system', 'user:ned']);
+    const merged = listObjects(library.db, { owners: [library.owner, SYSTEM_OWNER] });
+    expect(merged.map((row) => row.owner).sort()).toEqual(['system', 'user:ned']);
 
-    const mineOnly = listObjects(library.db, { scopes: [library.scope] });
+    const mineOnly = listObjects(library.db, { owners: [library.owner] });
     expect(mineOnly).toHaveLength(1);
   });
 
@@ -411,7 +411,7 @@ describe('the library merge is a query', () => {
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
 
     const actors = listObjects(library.db, {
-      scopes: [library.scope],
+      owners: [library.owner],
       schemaId: ACTOR_SCHEMA,
     });
     expect(actors.map((row) => row.name)).toEqual(['Vera Solano']);
@@ -420,7 +420,7 @@ describe('the library merge is a query', () => {
 
 describe('what the index refuses to hold', () => {
   it('ignores a file that is not a library object', async () => {
-    const stray = library.layout.assetsRoot(library.scope, ACTOR_SCHEMA, 'vera-solano');
+    const stray = library.layout.assetsRoot(library.owner, ACTOR_SCHEMA, 'vera-solano');
     await mkdir(stray, { recursive: true });
     const asset = `${stray}/portrait.png`;
     await writeFile(asset, 'not an object');
@@ -434,7 +434,7 @@ describe('what the index refuses to hold', () => {
   it('ignores a file whose schema does not match its folder', async () => {
     // A lorebook saved into `actors/` is not an actor. Left on disk and out of
     // the index rather than guessed at.
-    const path = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'impostor');
+    const path = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'impostor');
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify(newActor('Vera Solano')));
 
@@ -445,7 +445,7 @@ describe('what the index refuses to hold', () => {
   });
 
   it('ignores an object that fails validation', async () => {
-    const path = library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'broken');
+    const path = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'broken');
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify({ ...newLorebook('Rain City'), entries: 'not an array' }));
 
@@ -458,7 +458,7 @@ describe('what the index refuses to hold', () => {
   it('ignores a card with no envelope of ours', async () => {
     // A V2 card waiting for import is not an error and is not indexable either.
     const { makePng } = await import('../storage/card/test-png.js');
-    const path = library.layout.objectFile(library.scope, ACTOR_SCHEMA, 'legacy');
+    const path = library.layout.objectFile(library.owner, ACTOR_SCHEMA, 'legacy');
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, makePng());
 

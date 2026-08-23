@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
 import { ingestFile } from '../index-db/ingest.js';
-import { userScope } from '../storage/layout.js';
+import { userOwner } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -385,7 +385,7 @@ describe('a file that cannot be read is reported to the client', () => {
   async function breakTheFile(): Promise<string> {
     const book = newLorebook('Rain City');
     await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: book });
-    const path = server.services.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, 'rain-city');
+    const path = server.services.layout.objectFile(userOwner('ned'), LOREBOOK_SCHEMA, 'rain-city');
 
     // What a half-saved file looks like. Re-indexed directly rather than
     // through the watcher, which has its own suite and its own timing.
@@ -469,7 +469,7 @@ describe('a hand edit is not eaten by a stale save', () => {
    * that has nothing to do with what it asserts.
    */
   function objectPath(slug: string): string {
-    return server.services.layout.objectFile(userScope('ned'), LOREBOOK_SCHEMA, slug);
+    return server.services.layout.objectFile(userOwner('ned'), LOREBOOK_SCHEMA, slug);
   }
 
   async function editOnDisk(slug: string, object: Record<string, unknown>): Promise<void> {

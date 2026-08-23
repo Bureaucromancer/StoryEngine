@@ -195,7 +195,7 @@ describe('search over turn text', () => {
   });
 
   it('never reaches another account', async () => {
-    // The scope comes from the session row, which is the only thing that knows
+    // The owner comes from the session row, which is the only thing that knows
     // an owner — the join *is* the containment rule ([04 §4.3]).
     await aSessionWith('Rain City', ['The cathedral was three streets east.']);
 

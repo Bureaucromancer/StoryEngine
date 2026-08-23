@@ -42,7 +42,7 @@ let watcher: LibraryWatcher;
 beforeEach(async () => {
   registry = new SelfWriteRegistry();
   library = await makeTestLibrary({ registry });
-  await mkdir(library.layout.kindRoot(library.scope, LOREBOOK_SCHEMA), { recursive: true });
+  await mkdir(library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA), { recursive: true });
 
   watcher = new LibraryWatcher({
     db: library.db,
@@ -96,7 +96,7 @@ const operation: fc.Arbitrary<Operation> = fc.oneof(
 );
 
 function fileFor(slugName: string): string {
-  return library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, slugName);
+  return library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, slugName);
 }
 
 /** The id a slug's object carries, so an edit keeps it and a copy duplicates it. */
@@ -211,7 +211,7 @@ async function quiesce(): Promise<void> {
 
 /** Everything on disk, gone, so each case starts from nothing. */
 async function emptyTheLibrary(): Promise<void> {
-  const kindRoot = library.layout.kindRoot(library.scope, LOREBOOK_SCHEMA);
+  const kindRoot = library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA);
   await rm(kindRoot, { recursive: true, force: true });
   await mkdir(kindRoot, { recursive: true });
   ids.clear();
@@ -302,7 +302,7 @@ describe('a rebuild forgets what the disk no longer has', () => {
 
       // The file goes; nothing tells the index. This is the state a rebuild is
       // the documented remedy for ([02 §5.1]).
-      await rm(dirname(library.layout.objectFile(library.scope, LOREBOOK_SCHEMA, 'elsewhere')), {
+      await rm(dirname(library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'elsewhere')), {
         recursive: true,
       });
 

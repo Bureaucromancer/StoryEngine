@@ -198,7 +198,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     /**
      * Nothing, each for its own stated reason. Lore is P5, and the slot
      * *rendering empty* is what makes that an activation change rather than a
-     * preset change; a P2.6 session carries no Setting; the Actor schema has no
+     * preset change; a P2.6 session carries no Treatment; the Actor schema has no
      * example-dialogue field, deliberately; goals are Setup-borne; and a channel
      * value is an object with no channel-to-text renderer specified — which is
      * also why the clock's budget is null.

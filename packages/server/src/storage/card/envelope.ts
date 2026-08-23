@@ -61,7 +61,7 @@ export interface LegacyCard {
    *
    * **Not converted.** Mapping a V2 card onto an Actor is import's job
    * ([02 §2.7](../../../../../docs/design/02-data-model.md)) and lands at P4 — routing
-   * `scenario` to a Setting draft and `personality` to traits is a set of
+   * `scenario` to a Treatment draft and `personality` to traits is a set of
    * judgement calls with a review step, not a decoding concern.
    */
   data: unknown;

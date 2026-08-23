@@ -192,7 +192,7 @@ export class LibraryWatcher {
         : outcome.reason === 'invalid';
     if (previous && changed) {
       await snapshotReplaced({
-        objectRoot: this.#layout.objectRoot(parsed.scope, parsed.schemaId, parsed.slug),
+        objectRoot: this.#layout.objectRoot(parsed.owner, parsed.schemaId, parsed.slug),
         payload: previous.body,
         source: { kind: 'external' },
         reason: '',

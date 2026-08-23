@@ -139,7 +139,7 @@ function present(row: IndexedObject): Record<string, unknown> {
     schema: row.schemaId,
     name: row.name,
     slug: row.slug,
-    source: row.scope === 'system' ? 'system' : 'user',
+    source: row.owner === 'system' ? 'system' : 'user',
     contentHash: row.contentHash,
     shadowed: row.shadowed,
     object: row.body,

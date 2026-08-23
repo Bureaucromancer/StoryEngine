@@ -38,21 +38,23 @@ import {
  *   state/state.sqlite     operational. Deleting it is *not* a non-event — [13 §5.1]
  * ```
  *
- * **The path is the owner.** There is no `owner` field and no shared user area
+ * **The path is the owner.** No stored object carries an owner field and there
+ * is no shared user area
  * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), which is why every
  * route resolves its root from the session rather than from a parameter — and
- * why `userRoot` treats its handle as hostile input.
+ * why `userRoot` treats its handle as hostile input. `LibraryOwner` below is
+ * the *argument* that selects a tree, never a property of what is in it.
  *
  * `system/library/` has the same shape as a user's, so the merge is a query
  * rather than a special case ([02 §5.1](../../../../docs/design/02-data-model.md)). That is
- * the entire reason `LibraryScope` exists instead of two sets of functions.
+ * the entire reason `LibraryOwner` exists instead of two sets of functions.
  */
 
-export type LibraryScope = { kind: 'user'; handle: string } | { kind: 'system' };
+export type LibraryOwner = { kind: 'user'; handle: string } | { kind: 'system' };
 
-export const SYSTEM_SCOPE: LibraryScope = { kind: 'system' };
+export const SYSTEM_OWNER: LibraryOwner = { kind: 'system' };
 
-export function userScope(handle: string): LibraryScope {
+export function userOwner(handle: string): LibraryOwner {
   return { kind: 'user', handle };
 }
 
@@ -352,28 +354,28 @@ export class Layout {
     return resolveWithin(this.trashRoot(handle), 'sessions', `${sessionId}-${suffix}`);
   }
 
-  libraryRoot(scope: LibraryScope): string {
-    return scope.kind === 'system'
+  libraryRoot(owner: LibraryOwner): string {
+    return owner.kind === 'system'
       ? resolveWithin(this.systemRoot, 'library')
-      : resolveWithin(this.userRoot(scope.handle), 'library');
+      : resolveWithin(this.userRoot(owner.handle), 'library');
   }
 
   /** `…/library/actors`, `…/library/lorebooks`, and so on. */
-  kindRoot(scope: LibraryScope, schemaId: PortableSchemaId): string {
-    return resolveWithin(this.libraryRoot(scope), LIBRARY_DIRECTORIES[schemaId]);
+  kindRoot(owner: LibraryOwner, schemaId: PortableSchemaId): string {
+    return resolveWithin(this.libraryRoot(owner), LIBRARY_DIRECTORIES[schemaId]);
   }
 
-  objectRoot(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.kindRoot(scope, schemaId), slug);
+  objectRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.kindRoot(owner, schemaId), slug);
   }
 
-  objectFile(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.objectRoot(scope, schemaId, slug), OBJECT_FILENAMES[schemaId]);
+  objectFile(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.objectRoot(owner, schemaId, slug), OBJECT_FILENAMES[schemaId]);
   }
 
   /** Bulk assets, relative to the object folder and never escaping it ([02 §5.3]). */
-  assetsRoot(scope: LibraryScope, schemaId: PortableSchemaId, slug: string): string {
-    return resolveWithin(this.objectRoot(scope, schemaId, slug), 'assets');
+  assetsRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
+    return resolveWithin(this.objectRoot(owner, schemaId, slug), 'assets');
   }
 
   /**
@@ -415,14 +417,14 @@ export class Layout {
     const parts = relative.split('/');
 
     // system/library/<kind>/<slug>/<file>  |  users/<handle>/library/<kind>/<slug>/<file>
-    let scope: LibraryScope;
+    let owner: LibraryOwner;
     let rest: string[];
     if (parts[0] === 'system') {
-      scope = SYSTEM_SCOPE;
+      owner = SYSTEM_OWNER;
       rest = parts.slice(1);
     } else if (parts[0] === 'users' && parts[1] !== undefined) {
       if (!isValidHandle(parts[1])) return null;
-      scope = userScope(parts[1]);
+      owner = userOwner(parts[1]);
       rest = parts.slice(2);
     } else {
       return null;
@@ -439,12 +441,12 @@ export class Layout {
 
     if (filename !== OBJECT_FILENAMES[schemaId]) return null;
 
-    return { scope, schemaId, slug, path };
+    return { owner, schemaId, slug, path };
   }
 }
 
 export interface ParsedObjectPath {
-  scope: LibraryScope;
+  owner: LibraryOwner;
   schemaId: PortableSchemaId;
   slug: string;
   path: string;

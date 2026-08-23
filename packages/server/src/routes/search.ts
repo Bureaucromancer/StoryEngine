@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { type AppServices, requireAccount } from '../app.js';
 import { search } from '../index-db/query.js';
 import { searchTurns } from '../index-db/sessions.js';
-import { readableScopes } from '../library.js';
+import { readableOwners } from '../library.js';
 
 /**
  * Search — [07 §7](../../../../docs/design/07-tech-stack.md), and F10's answer.
@@ -61,15 +61,15 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
     const query = request.query as { q: string; limit?: string };
     const q = query.q;
     const limit = resultLimit(query.limit);
-    const scopes = readableScopes(account.handle).map((scope) =>
-      scope.kind === 'system' ? 'system' : `user:${scope.handle}`,
+    const owners = readableOwners(account.handle).map((owner) =>
+      owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
     );
 
     let objects;
     let turns;
     try {
       objects = search(services.index.db, q, limit);
-      turns = searchTurns(services.index.db, scopes, q, limit);
+      turns = searchTurns(services.index.db, owners, q, limit);
     } catch {
       // FTS5 has a query syntax, and a person typing into a search box does not
       // know it — an unbalanced quote or a bare `*` is a syntax error from
@@ -83,15 +83,15 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
     return reply.send({
       objects: objects
         // Scoped after the query rather than inside it: `search` is the library's
-        // and takes no scopes, and giving it some for this one caller would put
+        // and takes no owners, and giving it some for this one caller would put
         // the containment rule in two places ([04 §4.3]).
-        .filter((row) => scopes.includes(row.scope))
+        .filter((row) => owners.includes(row.owner))
         .map((row) => ({
           id: row.id,
           schema: row.schemaId,
           name: row.name,
           slug: row.slug,
-          source: row.scope === 'system' ? 'system' : 'user',
+          source: row.owner === 'system' ? 'system' : 'user',
         })),
       turns,
     });

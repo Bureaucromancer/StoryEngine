@@ -35,8 +35,14 @@ import type { DatabaseSync } from 'node:sqlite';
  * row under the new spelling and `resolveDuplicates` shadows one of each pair —
  * a library with no duplicates reporting every object twice. One rescan, seconds
  * at household scale, is what the bump buys.
+ *
+ * **5 renames the `scope` column to `owner`**, along with the three indexes
+ * built over it. Pure vocabulary: `scope` meant tenancy here and *where a
+ * lorebook applies* in the portable schemas, and one word for two axes was a
+ * trap worth spending a rescan on. The index is derived, so the rename needs no
+ * migration — only this bump.
  */
-export const INDEX_SCHEMA_VERSION = 4;
+export const INDEX_SCHEMA_VERSION = 5;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -66,7 +72,7 @@ const SCHEMA = `
 create table object (
   path          text primary key,
   id            text not null,
-  scope         text not null,
+  owner         text not null,
   schema_id     text not null,
   slug          text not null,
   name          text not null,
@@ -89,7 +95,7 @@ create table object (
 ) strict;
 
 create index object_by_id on object(id);
-create index object_by_scope_kind on object(scope, schema_id);
+create index object_by_owner_kind on object(owner, schema_id);
 create index object_tombstoned on object(tombstoned_at) where tombstoned_at is not null;
 
 -- Search across cards, entries and turn text ([07 §7](../../../../docs/design/07-tech-stack.md)).
@@ -106,7 +112,7 @@ create virtual table object_fts using fts5(
 -- ── Sessions ─────────────────────────────────────────────────────────────────
 --
 -- The hot path for a session list, and the only thing that gives a turn a
--- *scope*: search has to be scoped like every other read
+-- *owner*: search has to be scoped like every other read
 -- ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), and a turn row knows
 -- its session rather than its owner.
 --
@@ -114,7 +120,7 @@ create virtual table object_fts using fts5(
 -- deleting this database costs a rescan.
 create table session (
   session_id    text primary key,
-  scope         text not null,
+  owner         text not null,
   name          text not null,
   head_turn_id  text,
   -- Archived sessions stay indexed. They are hidden from the default list, not
@@ -124,7 +130,7 @@ create table session (
   updated_at    text not null
 ) strict;
 
-create index session_by_scope on session(scope, updated_at);
+create index session_by_owner on session(owner, updated_at);
 
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
@@ -165,7 +171,7 @@ create virtual table turn_fts using fts5(
 -- wrong with it.
 create table file_error (
   path        text primary key,
-  scope       text not null,
+  owner       text not null,
   schema_id   text not null,
   slug        text not null,
   -- The vocabulary a client can act on, rather than a parser's words.
@@ -175,7 +181,7 @@ create table file_error (
   seen_at     real not null
 ) strict;
 
-create index file_error_by_scope on file_error(scope, schema_id);
+create index file_error_by_owner on file_error(owner, schema_id);
 `;
 
 /** Drops everything this module owns, leaving a database it can recreate into. */

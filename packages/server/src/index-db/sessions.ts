@@ -26,7 +26,7 @@ import { inTransaction } from '../storage/transaction.js';
 
 export interface SessionRow {
   sessionId: string;
-  scope: string;
+  owner: string;
   name: string;
   headTurnId: string | null;
   archived: boolean;
@@ -56,18 +56,18 @@ export function turnText(turn: Turn): string {
   return [turn.input?.text, turn.output?.text].filter((text) => Boolean(text)).join('\n');
 }
 
-export function indexSession(db: DatabaseSync, scope: string, session: SessionFile): void {
+export function indexSession(db: DatabaseSync, owner: string, session: SessionFile): void {
   db.prepare(
-    `insert into session (session_id, scope, name, head_turn_id, archived, updated_at)
+    `insert into session (session_id, owner, name, head_turn_id, archived, updated_at)
        values (?, ?, ?, ?, ?, ?)
-       on conflict(session_id) do update set scope = excluded.scope,
+       on conflict(session_id) do update set owner = excluded.owner,
                                              name = excluded.name,
                                              head_turn_id = excluded.head_turn_id,
                                              archived = excluded.archived,
                                              updated_at = excluded.updated_at`,
   ).run(
     session.id,
-    scope,
+    owner,
     session.name,
     session.headTurnId,
     session.archivedAt === undefined ? 0 : 1,
@@ -127,21 +127,21 @@ export function removeSessionRows(db: DatabaseSync, sessionId: string): void {
 
 export function listSessionRows(
   db: DatabaseSync,
-  scopes: readonly string[],
+  owners: readonly string[],
   options: { includeArchived?: boolean } = {},
 ): SessionRow[] {
-  if (scopes.length === 0) return [];
-  const placeholders = scopes.map(() => '?').join(', ');
+  if (owners.length === 0) return [];
+  const placeholders = owners.map(() => '?').join(', ');
   const rows = db
     .prepare(
-      `select session_id, scope, name, head_turn_id, archived, updated_at
+      `select session_id, owner, name, head_turn_id, archived, updated_at
          from session
-        where scope in (${placeholders})${options.includeArchived === true ? '' : ' and archived = 0'}
+        where owner in (${placeholders})${options.includeArchived === true ? '' : ' and archived = 0'}
         order by updated_at desc`,
     )
-    .all(...scopes) as {
+    .all(...owners) as {
     session_id: string;
-    scope: string;
+    owner: string;
     name: string;
     head_turn_id: string | null;
     archived: number;
@@ -150,7 +150,7 @@ export function listSessionRows(
 
   return rows.map((row) => ({
     sessionId: row.session_id,
-    scope: row.scope,
+    owner: row.owner,
     name: row.name,
     headTurnId: row.head_turn_id,
     archived: row.archived === 1,
@@ -161,10 +161,10 @@ export function listSessionRows(
 /**
  * Full-text search over turns, scoped to the caller's sessions — F10.
  *
- * **The scope comes from the session row, not the turn row.** A turn knows its
+ * **The owner comes from the session row, not the turn row.** A turn knows its
  * session and a session knows its owner, so the join is what enforces
  * [04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)'s rule that a request
- * never reaches another user's data. Denormalising the scope onto the turn would
+ * never reaches another user's data. Denormalising the owner onto the turn would
  * be faster and would give the rule two places to be wrong.
  *
  * Archived sessions **are** searched. They are hidden from the default list, not
@@ -173,12 +173,12 @@ export function listSessionRows(
  */
 export function searchTurns(
   db: DatabaseSync,
-  scopes: readonly string[],
+  owners: readonly string[],
   term: string,
   limit = 50,
 ): TurnHit[] {
-  if (scopes.length === 0 || term.trim() === '') return [];
-  const placeholders = scopes.map(() => '?').join(', ');
+  if (owners.length === 0 || term.trim() === '') return [];
+  const placeholders = owners.map(() => '?').join(', ');
 
   const rows = db
     .prepare(
@@ -187,10 +187,10 @@ export function searchTurns(
          from turn_fts
          join turn on turn.turn_id = turn_fts.turn_id
          join session on session.session_id = turn.session_id
-        where turn_fts match ? and session.scope in (${placeholders})
+        where turn_fts match ? and session.owner in (${placeholders})
         order by rank limit ?`,
     )
-    .all(term, ...scopes, limit) as {
+    .all(term, ...owners, limit) as {
     turn_id: string;
     session_id: string;
     branch_id: string | null;
@@ -219,7 +219,7 @@ export function searchTurns(
 export function sessionSnapshot(db: DatabaseSync): string[] {
   const sessions = db
     .prepare(
-      `select session_id, scope, name, head_turn_id, archived, updated_at
+      `select session_id, owner, name, head_turn_id, archived, updated_at
          from session order by session_id`,
     )
     .all() as Record<string, unknown>[];

@@ -8,7 +8,7 @@ import { ACTOR_SCHEMA, schemaIdOf, validate } from '@storyengine/shared';
 
 import { requireCodecFor } from '../storage/card/index.js';
 import { fileExists, readFileBytes, statFile } from '../storage/files.js';
-import type { Layout, LibraryScope, ParsedObjectPath } from '../storage/layout.js';
+import type { Layout, LibraryOwner, ParsedObjectPath } from '../storage/layout.js';
 import { inTransaction } from '../storage/transaction.js';
 
 /**
@@ -49,7 +49,7 @@ export const TOMBSTONE_TTL_MS = 5000;
 export interface ObjectRow {
   path: string;
   id: string;
-  scope: string;
+  owner: string;
   schemaId: string;
   slug: string;
   name: string;
@@ -69,7 +69,7 @@ export type FileErrorReason = 'unparsable' | 'wrong-kind' | 'schema';
 
 export interface FileError {
   path: string;
-  scope: string;
+  owner: string;
   schemaId: string;
   slug: string;
   reason: FileErrorReason;
@@ -77,8 +77,8 @@ export interface FileError {
   seenAt: number;
 }
 
-export function scopeKey(scope: LibraryScope): string {
-  return scope.kind === 'system' ? 'system' : `user:${scope.handle}`;
+export function ownerKey(owner: LibraryOwner): string {
+  return owner.kind === 'system' ? 'system' : `user:${owner.handle}`;
 }
 
 /** `sha256:<hex>` over the bytes on disk, which is what a client's write must present. */
@@ -172,7 +172,7 @@ export async function ingestFile(
   const row: ObjectRow = {
     path,
     id,
-    scope: scopeKey(parsed.scope),
+    owner: ownerKey(parsed.owner),
     schemaId: parsed.schemaId,
     slug: parsed.slug,
     name: readName(payload) ?? parsed.slug,
@@ -229,14 +229,14 @@ function recordInvalid(
   now: number,
 ): IngestOutcome {
   db.prepare(
-    `insert into file_error (path, scope, schema_id, slug, reason, detail, seen_at)
+    `insert into file_error (path, owner, schema_id, slug, reason, detail, seen_at)
        values (?, ?, ?, ?, ?, ?, ?)
        on conflict(path) do update set reason = excluded.reason,
                                        detail = excluded.detail,
                                        seen_at = excluded.seen_at`,
   ).run(
     parsed.path,
-    scopeKey(parsed.scope),
+    ownerKey(parsed.owner),
     parsed.schemaId,
     parsed.slug,
     reason,
@@ -252,18 +252,18 @@ export function clearFileError(db: DatabaseSync, path: string): void {
   db.prepare('delete from file_error where path = ?').run(path);
 }
 
-/** Every file that could not be read, for the scopes a caller may see. */
-export function listFileErrors(db: DatabaseSync, scopes: readonly string[]): FileError[] {
-  if (scopes.length === 0) return [];
-  const placeholders = scopes.map(() => '?').join(', ');
+/** Every file that could not be read, for the owners a caller may see. */
+export function listFileErrors(db: DatabaseSync, owners: readonly string[]): FileError[] {
+  if (owners.length === 0) return [];
+  const placeholders = owners.map(() => '?').join(', ');
   const rows = db
     .prepare(
-      `select path, scope, schema_id, slug, reason, detail, seen_at
-         from file_error where scope in (${placeholders}) order by path`,
+      `select path, owner, schema_id, slug, reason, detail, seen_at
+         from file_error where owner in (${placeholders}) order by path`,
     )
-    .all(...scopes) as {
+    .all(...owners) as {
     path: string;
-    scope: string;
+    owner: string;
     schema_id: string;
     slug: string;
     reason: FileErrorReason;
@@ -273,7 +273,7 @@ export function listFileErrors(db: DatabaseSync, scopes: readonly string[]): Fil
 
   return rows.map((row) => ({
     path: row.path,
-    scope: row.scope,
+    owner: row.owner,
     schemaId: row.schema_id,
     slug: row.slug,
     reason: row.reason,
@@ -453,11 +453,11 @@ function resolveDuplicates(db: DatabaseSync, layout: Layout, id: string): void {
 function upsert(db: DatabaseSync, row: ObjectRow): void {
   db.prepare(
     `insert into object
-       (path, id, scope, schema_id, slug, name, content_hash, mtime_ms, size, body, shadowed, tombstoned_at)
+       (path, id, owner, schema_id, slug, name, content_hash, mtime_ms, size, body, shadowed, tombstoned_at)
      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, null)
      on conflict(path) do update set
        id = excluded.id,
-       scope = excluded.scope,
+       owner = excluded.owner,
        schema_id = excluded.schema_id,
        slug = excluded.slug,
        name = excluded.name,
@@ -469,7 +469,7 @@ function upsert(db: DatabaseSync, row: ObjectRow): void {
   ).run(
     row.path,
     row.id,
-    row.scope,
+    row.owner,
     row.schemaId,
     row.slug,
     row.name,
