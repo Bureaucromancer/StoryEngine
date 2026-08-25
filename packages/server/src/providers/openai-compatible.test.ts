@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Connection } from './connections.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
-import { ProviderError, type RenderedMessage } from './types.js';
+import { ProviderError, type GenerationResult, type RenderedMessage } from './types.js';
 
 /**
  * The real adapter, driven against a stub transport.
@@ -98,25 +98,56 @@ describe('a call through the adapter', () => {
     expect(result.text).toBe('The rain had not stopped.');
   });
 
-  it('reports usage only when the capability says the endpoint does', async () => {
-    // The conservative baseline for an unknown OpenAI-compatible endpoint says
-    // it does not, so even a response that carries usage is reported as null —
-    // `ModelCall.usage` is provider-reported, and the capability is the claim.
-    const quiet = new OpenAICompatibleProvider({
+  /**
+   * **Two gates, and the second is the one that was never tested.**
+   *
+   * This used to assert that the default reported nothing, which was true and
+   * was the defect: the one provider this build can construct was also the one
+   * declared not to count, so every turn recorded no usage whatever the endpoint
+   * sent. The default is now true — that is what the wire format specifies and
+   * what the SDK is asked for.
+   *
+   * The pessimism did not go anywhere. It moved to where it can be checked: an
+   * endpoint that claims the format and sends no numbers still reports null,
+   * because the second gate asks what actually arrived rather than what was
+   * promised.
+   */
+  it('reports the numbers an endpoint sends', async () => {
+    const provider = new OpenAICompatibleProvider({
       connection: connectionWith(),
       fetch: async () => completion('ok', { prompt: 11, completion: 5 }),
     });
-    const quietResult = await quiet.generate({ modelId: 'llama-local', messages, params: {} });
-    expect(quiet.capabilities.reportsUsage).toBe(false);
-    expect(quietResult.usage).toBeNull();
 
-    // And a connection that declares otherwise gets the numbers through.
-    const loud = new OpenAICompatibleProvider({
-      connection: connectionWith({ capabilities: { reportsUsage: true } }),
+    const result = await provider.generate({ modelId: 'llama-local', messages, params: {} });
+
+    expect(provider.capabilities.reportsUsage).toBe(true);
+    expect(result.usage).toEqual({ promptTokens: 11, completionTokens: 5 });
+  });
+
+  it('reports null when the endpoint sends none, whatever it claims', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      // The same 200, without a usage block — which is what a local runtime
+      // that has not implemented it actually returns.
+      fetch: async () => completion('ok'),
+    });
+
+    const result = await provider.generate({ modelId: 'llama-local', messages, params: {} });
+
+    expect(result.usage).toBeNull();
+  });
+
+  it('reports null when the install says this endpoint does not count', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { reportsUsage: false } }),
       fetch: async () => completion('ok', { prompt: 11, completion: 5 }),
     });
-    const loudResult = await loud.generate({ modelId: 'llama-local', messages, params: {} });
-    expect(loudResult.usage).toEqual({ promptTokens: 11, completionTokens: 5 });
+
+    const result = await provider.generate({ modelId: 'llama-local', messages, params: {} });
+
+    // The override is where a genuinely silent runtime belongs, and it still
+    // wins over numbers that did arrive.
+    expect(result.usage).toBeNull();
   });
 
   it('never invents a cost', async () => {
@@ -279,12 +310,23 @@ describe('what the connection decides', () => {
  * `NoOutputGeneratedError` reading *"No output generated. Check the stream for
  * errors."*, with no class, no status and none of the provider's words.
  */
-function sse(chunks: unknown[], options: { cut?: boolean } = {}): Response {
+function sse(
+  chunks: unknown[],
+  options: { cut?: boolean; silent?: boolean; model?: string } = {},
+): Response {
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
       const encoder = new TextEncoder();
       for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        // A chunk carries the model that answered, and a test can say it is
+        // not the one that was asked for.
+        const named =
+          options.model === undefined ? chunk : { ...(chunk as object), model: options.model };
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(named)}
+
+`),
+        );
       }
       if (options.cut === true) {
         /**
@@ -325,9 +367,11 @@ function delta(content: string, finish?: string): unknown {
   };
 }
 
-async function collect(
-  provider: OpenAICompatibleProvider,
-): Promise<{ text: string; error: ProviderError | null }> {
+async function collect(provider: OpenAICompatibleProvider): Promise<{
+  text: string;
+  error: ProviderError | null;
+  result: GenerationResult | null;
+}> {
   let text = '';
   try {
     const stream = provider.stream({ modelId: 'llama-local', messages, params: {} });
@@ -336,9 +380,9 @@ async function collect(
       text += next.value.text;
       next = await stream.next();
     }
-    return { text, error: null };
+    return { text, error: null, result: next.value };
   } catch (error) {
-    return { text, error: error as ProviderError };
+    return { text, error: error as ProviderError, result: null };
   }
 }
 
@@ -510,5 +554,103 @@ describe('classifying a failure with no status', () => {
     const { error } = await collect(provider);
 
     expect(error?.class).toBe('terminal');
+  });
+});
+
+/**
+ * **The difference between an answer and an interruption** — F29.
+ *
+ * A completion ceiling reached comes back with no error, a shorter reply and
+ * the same shape as a finished one. So did a stream that simply stopped — no
+ * finish reason, no `[DONE]`, which is the local runtime's characteristic
+ * failure. Both were recorded as ordinary successes, and the only signal a
+ * reader had was that the prose ended oddly.
+ */
+describe('why the model stopped', () => {
+  it('tells a ceiling reached from a finished answer', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('It was a dark and'), delta(' stormy', 'length')]),
+    });
+
+    const { error, result } = await collect(provider);
+
+    expect(error).toBeNull();
+    expect(result?.finishReason).toBe('length');
+  });
+
+  it('does not call a stream that simply stopped a clean answer', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      // Content, then the stream closes: no finish reason, no `[DONE]`, no
+      // error. The shape a local runtime produces when it gives up.
+      fetch: async () => sse([delta('Half a sen')], { silent: true }),
+    });
+
+    const { text, result } = await collect(provider);
+
+    expect(text).toBe('Half a sen');
+    expect(result?.finishReason).toBe('unknown');
+  });
+
+  it('says stop when the provider says stop', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('Half a '), delta('sentence.', 'stop')]),
+    });
+
+    const { result } = await collect(provider);
+
+    expect(result?.finishReason).toBe('stop');
+  });
+
+  /**
+   * A content filter is a refusal, not a failure: the call worked and the
+   * provider declined. [13 §1.4] gives `ModelCall.outcome` a `refused` value
+   * that had no producer until this.
+   */
+  it('reads a content filter as a refusal', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('I cannot', 'content_filter')]),
+    });
+
+    const { result } = await collect(provider);
+
+    expect(result?.finishReason).toBe('filtered');
+  });
+});
+
+/**
+ * **The model that answered, which is not always the one asked for** — F29.
+ *
+ * Both adapter paths returned `request.modelId`, so `ModelCall.resolved.modelId`
+ * was a copy of the request and any check over it compared a value with itself.
+ * An endpoint that serves an alias, a fallback, or routes to whatever is loaded
+ * is exactly the thing *"why is this turn different"* has to be able to answer.
+ */
+describe('which model answered', () => {
+  it('records what the endpoint said, not what was asked', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('ok', 'stop')], { model: 'qwen-2.5-7b-instruct' }),
+    });
+
+    const { result } = await collect(provider);
+
+    expect(result?.modelId).toBe('qwen-2.5-7b-instruct');
+  });
+
+  it('falls back to what was asked when the endpoint says nothing', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('ok', 'stop')], { model: '' }),
+    });
+
+    const { result } = await collect(provider);
+
+    // Naming the request is better than naming nothing — and it is the case the
+    // local-runtime story runs into, since many echo no model at all.
+    expect(result?.modelId).toBe('llama-local');
   });
 });

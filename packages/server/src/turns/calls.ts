@@ -10,7 +10,12 @@ import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings } from '../providers/roles.js';
-import { ProviderError, type GenerationResult, type TokenUsage } from '../providers/types.js';
+import {
+  ProviderError,
+  type FinishReason,
+  type GenerationResult,
+  type TokenUsage,
+} from '../providers/types.js';
 import type { ModelCall } from '../sessions/types.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
@@ -183,7 +188,15 @@ export async function performCall(
           usage: result.usage,
           cost: result.cost,
           wallMs: Date.now() - startedAt,
-          outcome: 'ok',
+          finishReason: result.finishReason,
+          /**
+           * **Not every returned call is a clean answer.** A ceiling reached
+           * and a stream that stopped without saying both come back looking
+           * like success — no error, just less text — and recording them as
+           * `ok` is what made a truncated reply indistinguishable from a
+           * finished one.
+           */
+          outcome: outcomeOf(result.finishReason),
           error: null,
           retries,
         },
@@ -227,12 +240,16 @@ export async function performCall(
         id,
         stepId: definition.id,
         role: definition.role,
+        // The model that was *asked for*, because nothing answered — and said
+        // so here rather than left to read like a report, which is the same
+        // distinction `modelThatAnswered` draws on the success path.
         resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
         messages,
         params,
         usage: null,
         cost: null,
         wallMs: Date.now() - startedAt,
+        finishReason: null,
         outcome: 'error',
         error: { class: classified, message },
         retries,
@@ -300,4 +317,26 @@ async function invoke(
     next = await stream.next();
   }
   return next.value;
+}
+
+/**
+ * A finish reason as a call outcome.
+ *
+ * The mapping is the whole point of recording the reason: `stop` and a tool
+ * call are answers, a ceiling is a truncation, a filter is a refusal, and a
+ * stream that ended without saying is incomplete. Four states where there used
+ * to be one, and three of them used to be `ok`.
+ */
+function outcomeOf(reason: FinishReason): ModelCall['outcome'] {
+  switch (reason) {
+    case 'stop':
+    case 'tool':
+      return 'ok';
+    case 'length':
+      return 'truncated';
+    case 'filtered':
+      return 'refused';
+    case 'unknown':
+      return 'incomplete';
+  }
 }

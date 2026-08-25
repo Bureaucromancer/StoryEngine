@@ -4,7 +4,13 @@
 import type { GenerationParams, Preset } from '@storyengine/shared';
 
 import type { AssembledBlock, BudgetVerdict } from '../assembly/types.js';
-import type { ErrorClass, ModelRole, RenderedMessage, TokenUsage } from '../providers/types.js';
+import type {
+  ErrorClass,
+  FinishReason,
+  ModelRole,
+  RenderedMessage,
+  TokenUsage,
+} from '../providers/types.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
@@ -44,8 +50,23 @@ export interface ModelCall {
   usage: TokenUsage | null;
   cost: { amount: number; currency: string } | null;
   wallMs: number;
-  /** `refused` has no producer at P2: no adapter reports a content refusal distinctly. */
-  outcome: 'ok' | 'refused' | 'error';
+  /**
+   * Why the model stopped — [13 §1.4](../../../../docs/design/13-internal-contracts.md).
+   *
+   * The field that tells a *truncated* answer from a finished one, which is
+   * otherwise invisible: a completion ceiling reached produces the same shape,
+   * the same absence of an error, and a shorter reply that reads as a choice.
+   * Null on a call that never returned.
+   */
+  finishReason: FinishReason | null;
+  /**
+   * `refused` now has a producer: a provider reporting a content filter.
+   * `truncated` is a ceiling reached, and `incomplete` a stream that stopped
+   * without saying why — neither is an error and neither is a clean answer,
+   * and calling either `ok` is what made the local runtime's characteristic
+   * failure look like a short reply.
+   */
+  outcome: 'ok' | 'refused' | 'truncated' | 'incomplete' | 'error';
   /** Classified, so the UI can offer the right recovery rather than a provider string. */
   error: { class: ErrorClass; message: string } | null;
   retries: number;

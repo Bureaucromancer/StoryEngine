@@ -7,12 +7,13 @@ import { generateText, streamText } from 'ai';
 import { capabilitiesFor } from './capabilities.js';
 import type { Connection } from './connections.js';
 import {
+  ProviderError,
   type ErrorClass,
+  type FinishReason,
   type GenerationChunk,
   type GenerationRequest,
   type GenerationResult,
   type Provider,
-  ProviderError,
   type ProviderCapabilities,
   type RenderedMessage,
 } from './types.js';
@@ -58,6 +59,18 @@ export class OpenAICompatibleProvider implements Provider {
     const client = createOpenAICompatible({
       name: connection.provider,
       baseURL: connection.baseUrl ?? 'https://api.openai.com/v1',
+      /**
+       * **Asked for, or it never arrives on the streaming path.** The SDK sends
+       * `stream_options: {include_usage: true}` only when told to, and without
+       * it the final chunk carries no usage block at all — so `usage` was null
+       * on every streamed turn no matter what the capabilities said, and
+       * [13 §1.4](../../../../docs/design/13-internal-contracts.md)'s
+       * *provider-reported, not estimated* had nothing to report.
+       *
+       * Harmless where it is not supported: an endpoint that does not know the
+       * option ignores it, and `#usage` still refuses to invent a number.
+       */
+      includeUsage: true,
       // Absent for a local endpoint that needs none, which is the ordinary
       // case for the local-model story and not an error.
       ...(connection.apiKey === undefined ? {} : { apiKey: connection.apiKey }),
@@ -84,7 +97,9 @@ export class OpenAICompatibleProvider implements Provider {
         // price table this build does not ship — reporting a fabricated number
         // would be worse than reporting none.
         cost: null,
-        modelId: request.modelId,
+        // `generateText` resolves its steps; `streamText` promises them.
+        modelId: modelThatAnswered(result.finalStep.response, request.modelId),
+        finishReason: finishReasonOf(result.finishReason),
       };
     } catch (error) {
       throw asProviderError(error);
@@ -144,7 +159,8 @@ export class OpenAICompatibleProvider implements Provider {
       text,
       usage: this.#usage(await result.usage),
       cost: null,
-      modelId: request.modelId,
+      modelId: modelThatAnswered((await result.finalStep).response, request.modelId),
+      finishReason: finishReasonOf(await result.finishReason),
     };
   }
 
@@ -343,4 +359,47 @@ function asProviderError(error: unknown): ProviderError {
     typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
 
   return new ProviderError(errorClass, 'The provider call failed.', detail);
+}
+
+/**
+ * The model that answered, falling back to the one that was asked for — F29.
+ *
+ * Both paths used to return `request.modelId`, which made
+ * `ModelCall.resolved.modelId` a copy of the request and every check over it a
+ * comparison of a value with itself. It matters for the ordinary reason a record
+ * exists: an endpoint that silently serves a different model — an alias, a
+ * fallback, a router picking for you — is exactly the thing *"why is this turn
+ * different"* has to be able to answer.
+ *
+ * The fallback is not a formality: a local runtime often echoes nothing, and
+ * naming the request is better than naming nothing. What it must never do is
+ * *look* like a report when it is a guess, which is why the record keeps the
+ * distinction the docstring on {@link GenerationResult.modelId} states.
+ */
+function modelThatAnswered(response: { modelId?: string } | undefined, asked: string): string {
+  const answered = response?.modelId;
+  return answered === undefined || answered.length === 0 ? asked : answered;
+}
+
+/**
+ * The SDK's finish reason, narrowed to the vocabulary a record carries.
+ *
+ * `'other'` and `'error'` both become `unknown`, and so does an absent one. That
+ * is the case worth naming: **a stream that simply stops** — no finish reason,
+ * no error, no `[DONE]` — is the local runtime's characteristic failure, and it
+ * used to be recorded as an ordinary success with a short answer.
+ */
+function finishReasonOf(reason: string | undefined): FinishReason {
+  switch (reason) {
+    case 'stop':
+      return 'stop';
+    case 'length':
+      return 'length';
+    case 'content-filter':
+      return 'filtered';
+    case 'tool-calls':
+      return 'tool';
+    default:
+      return 'unknown';
+  }
 }

@@ -3,12 +3,13 @@
 
 import { capabilitiesFor } from './capabilities.js';
 import {
+  ProviderError,
   type ErrorClass,
+  type FinishReason,
   type GenerationChunk,
   type GenerationRequest,
   type GenerationResult,
   type Provider,
-  ProviderError,
   type ProviderCapabilities,
 } from './types.js';
 
@@ -41,6 +42,10 @@ export interface ScriptedReply {
   cost?: { amount: number; currency: string } | null;
   /** Fail instead of answering. */
   error?: { class: ErrorClass; message: string };
+  /** The model the endpoint says answered, when it is not the one asked for. */
+  answeredAs?: string;
+  /** Why generation stopped. Defaults to a clean `stop`. */
+  finishReason?: FinishReason;
   /**
    * Fail *after* streaming this many chunks — mid-stream disconnection, which
    * is otherwise the hardest real failure to reproduce on purpose.
@@ -198,7 +203,14 @@ export class FakeProvider implements Provider {
           ? (reply.usage ?? { promptTokens: 0, completionTokens: 0 })
           : null,
       cost: reply.cost ?? null,
-      modelId: request.modelId,
+      /**
+       * **The fake answers as the model it was asked for**, and a script can say
+       * otherwise. The real adapter reads what the endpoint reported, so a fake
+       * that always echoed the request would agree with a bug rather than with
+       * a provider — which is the failure mode a double exists to avoid.
+       */
+      modelId: reply.answeredAs ?? request.modelId,
+      finishReason: reply.finishReason ?? 'stop',
       ...(reply.object === undefined ? {} : { object: reply.object }),
     };
   }

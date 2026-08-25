@@ -131,6 +131,15 @@ export interface GenerationRequest {
   signal?: AbortSignal;
 }
 
+/**
+ * Why generation stopped, in the vocabulary a reader can act on.
+ *
+ * Narrower than the SDK's, deliberately: this is what reaches a turn record and
+ * eventually a person, and a class travels where a provider's own string must
+ * not ([13 §1.4](../../../../docs/design/13-internal-contracts.md)).
+ */
+export type FinishReason = 'stop' | 'length' | 'filtered' | 'tool' | 'unknown';
+
 export interface GenerationResult {
   text: string;
   /** Null when the provider does not report it — never estimated to fill a gap. */
@@ -139,6 +148,20 @@ export interface GenerationResult {
   cost: { amount: number; currency: string } | null;
   /** What the model actually was, which is not always what was asked for. */
   modelId: string;
+  /**
+   * Why the model stopped — the difference between an answer and an
+   * interruption.
+   *
+   * `length` is a completion ceiling reached, which is a *truncated* reply
+   * wearing a finished one's clothes: same shape, same absence of an error, and
+   * the only thing that tells them apart. `unknown` is a stream that ended
+   * without saying, which is the local runtime's characteristic failure and is
+   * not a success either.
+   *
+   * Never null. A provider that says nothing gets `unknown`, because *the
+   * provider did not say* and *nobody asked* must not look alike.
+   */
+  finishReason: FinishReason;
   /** Present when the caller asked for structured output and got it. */
   object?: unknown;
 }

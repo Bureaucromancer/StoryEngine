@@ -82,7 +82,24 @@ export const KNOWN_PROVIDERS: Record<string, Partial<ProviderCapabilities>> = {
     systemMessage: 'supported',
     reportsUsage: true,
   },
-  'openai-compatible': { ...CONSERVATIVE_CAPABILITIES },
+  /**
+   * The baseline, except that it reports usage — F29.
+   *
+   * It inherited `reportsUsage: false` verbatim, which meant **every turn this
+   * build can actually take recorded no usage at all**, whatever the endpoint
+   * sent: the one provider `canBuild` accepts was also the one declared not to
+   * count. [13 §1.4](../../../../docs/design/13-internal-contracts.md)'s
+   * *provider-reported, not estimated* had nothing to report from, and the
+   * turn's own token figures were zeros.
+   *
+   * Reporting is what the wire format specifies and what the SDK is now asked
+   * for, so the honest default is true. **The pessimism this table is written
+   * around is not lost**: `#usage` gates twice, and the second gate — did the
+   * provider actually send numbers — is the one that catches an endpoint that
+   * claims the format and does not honour it. A connection can still override
+   * per install, which is where a genuinely silent runtime belongs.
+   */
+  'openai-compatible': { ...CONSERVATIVE_CAPABILITIES, reportsUsage: true },
   fake: {
     supportsTools: true,
     supportsStructuredOutput: true,
