@@ -196,7 +196,9 @@ export default tseslint.config(
   {
     files: ['tools/*.mjs'],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly' },
+      // `fetch` because `seed.mjs` drives the API the way a browser does —
+      // deliberately, so a seed that works proves the routes work.
+      globals: { console: 'readonly', fetch: 'readonly', process: 'readonly' },
       sourceType: 'module',
     },
     rules: {
