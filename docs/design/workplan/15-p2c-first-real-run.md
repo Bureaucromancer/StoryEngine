@@ -147,18 +147,38 @@ arrives anywhere.
   gathered into semantic tokens in `packages/client/src/index.css` and the
   repeated markup into `packages/client/src/ui/`
   ([05 §1.2](../05-ui-surfaces.md), [07 §6.1](../07-tech-stack.md)). A Tailwind
-  palette scale written anywhere else in the client is now a build error, which
-  is the part that makes "a stranded assumption" unrepeatable rather than
-  repaired.
+  palette scale written anywhere else in the client is now a **lint** error,
+  which is the part that makes "a stranded assumption" unrepeatable rather than
+  repaired. *Not a build error, as this said before it was checked:* the root
+  `build` is `tsc -b`, the schema emit and `vite build`, with no ESLint in it. CI
+  runs `pnpm lint` on both legs so the gate holds — the sentence did not.
 
   Re-measured against a body that paints `--color-canvas`, in both themes:
 
   | | before | light | dark |
   |---|---|---|---|
   | typed text | **1.01** | 17.83 | 17.04 |
-  | the player's own line | 2.5 | 9.9 | 13.56 |
-  | the failure message | 1.7 | 9.9 | 13.56 |
+  | the player's own line | 2.5 | 7.25 | 7.66 |
+  | the failure message | 1.7 | 6.78 | 13.93 |
   | the guidance toggle, on hover | 1.2 | 17.04 | 19.27 |
+  | the composer's placeholder | — | 4.76 | **3.74** |
+
+  **Two of those rows were wrong when they were written, and the correction
+  matters more than the numbers.** They read 9.9 and 13.56 — which is
+  `--color-ink-muted` on `--color-canvas`, a token *neither element uses*. Three
+  independent re-measurements in a real browser agree on the figures above, and
+  the commit that set those classes set them to `text-ink-subtle` and
+  `text-warn-ink`, so the old pair was never true for the elements named. The
+  discharge stands — everything clears 4.5:1 — but the evidence did not, and this
+  document's own rule applies to itself: **a check that cannot fail is worse than
+  no check.**
+
+  **And the last row is a defect the second theme introduced.**
+  `--color-ink-faint` has the same value in both themes, so every placeholder in
+  the app — the composer, the guidance box, the session name, every `Field` —
+  sits at 3.74:1 in dark. One token value in the two dark blocks of `index.css`.
+  It is the original item's own second clause, arriving in the theme that was
+  built to close it.
 
   Two things the second theme found that one theme could not. **Nothing painted
   the app's background**: `bg-canvas` sat on `Shell`, which is the *signed-in*
@@ -236,7 +256,14 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   content filter and a network stall all end as `outcome: 'ok'`. That last one is
   the local runtime's characteristic failure. *Half a day, and the two fall out
   of one change.*
-- **Every connection is budgeted at 8192 tokens with no way to say otherwise.**
+- **Every connection is budgeted at 8192 tokens, because nothing ever sets
+  otherwise.** *"No way to say otherwise" was wrong and is corrected here:* the
+  route body, the store, the file format and the budgeter all already handle
+  `capabilities`, and two audits measured a 4096 override landing end to end. The
+  work is unchanged and as small as it was sized — a client field, a
+  `KNOWN_PROVIDERS` entry, and a line in `docs/api.md`, whose documented body
+  omits `capabilities` entirely — but it is a surface gap, not an absent
+  mechanism.
   No `KNOWN_PROVIDERS` entry sets `maxContextTokens`, so `budget.ts` always falls
   through to `config.limits.contextTokens`. A local runtime with a 4k window
   truncates silently and one with 128k is throttled to a sixteenth — and the
@@ -323,9 +350,11 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   answers 200 cannot be avoided by asking a tester not to touch it.** *Two hours:
   refuse the key server-side, naming `--data`.*
 - **The README describes P1.7.** It is the document a tester follows, and it is
-  three phases stale: it says objects are created through the API, does not
-  mention the play surface or the settings surface, and does not say which
-  address to open. *One hour.*
+  three phases stale: it says objects are created through the API, and mentions
+  neither the play surface nor the settings surface. *One hour.* — *and strike
+  the third reason this item used to give:* it does say which address to open,
+  and has since a P1.6 docs pass with an unrelated subject. The item was written
+  without checking.
 
 ### 1.5 The suite, and what is owed — half a day
 
@@ -339,7 +368,13 @@ survey measured the ladder rather than repeating the anecdote:
 | 1 suite, idle | 12s | green, twice |
 | 1 suite, all 16 cores saturated by unrelated work | 47s | green |
 | 2 concurrent suites | 23s | green |
-| 3 concurrent suites | 38s | **1 of 3 red** |
+| 3 concurrent suites | 38s | **3 of 3 red** |
+| 4 concurrent suites | — | **4 of 4 red** |
+
+*Re-measured after the CI gate's teardown fix, and it got worse rather than
+better: the ceiling did not move, the breaker did.* The gate itself now survives
+a seven-run ladder without a single failure, and `sessions/store.test.ts` — a
+file this section never mentions — accounts for most of what breaks instead.
 
 The ceiling is filesystem contention rather than CPU — a saturated machine
 running one suite stays green at four times the wall clock. And **the two files
@@ -350,10 +385,17 @@ exists and is used correctly in `watcher.test.ts`. The gate's failure text reads
 as index corruption, which is the worst false alarm available to hand somebody
 mid-phase.
 
-*Half a day:* declare a `testTimeout` — there is none, so 1046 of 1050 tests run
-on vitest's undeclared 5000ms default, and one line removes the largest single
-false-failure source — point both polls at the watcher barrier, and remove the
-~1 MB temp directory every run leaks. Then write the ceiling down, so *"do not
+*Half a day:* declare a `testTimeout` — there is none, so 1116 of 1118 tests run
+on vitest's undeclared 5000ms default, and one line removes **roughly nine tenths
+of the ceiling** — point `logging.test.ts`'s poll at the watcher barrier, and
+remove the 154 KB temp directory every run leaks.
+
+*Three corrections to the sizing above, all measured.* The timeout is not
+co-equal with the polls: it is ~90% of the ceiling and `logging.test.ts` is ~10%,
+whose own per-test override is already 20s so what it hits is its `eventually`
+deadline rather than the default. The gate's poll needs no work — see the ladder
+note. And the leak is 154 KB per run rather than a megabyte, which is the one
+number here that was overstated in the *un*flattering direction. Then write the ceiling down, so *"do not
 run three suites at once"* is a known rule rather than a rediscovery.
 
 **And one line for whatever briefs the tester:** `pnpm test` is `vitest run` and
@@ -616,22 +658,35 @@ subsystem, which is what makes [§1.8](#18-if-this-has-to-be-smaller)'s cut
 possible: reach a session, believe the provider, chase a failure, repeat a run,
 trust the suite, and pay what is owed.
 
-**Order them §1.1 first and §1.2 second**, and not for the obvious reason. §1.1
-is the cheapest, but §1.2 is the one whose absence is invisible: a phase that
-starts with the provider still misreporting itself produces confident findings
-that have to be thrown away, and nobody can tell which ones.
+**~~Order them §1.1 first and §1.2 second.~~ §1.2 heads the list now, on its own
+merit.** The old rule was that §1.1 is cheapest and §1.2 is the one whose absence
+is invisible. **§1.1's blocking half is done** — a person can reach the play
+surface from a link in the header and read what they type at 17.8 to 1 — so the
+premise is satisfied and what remains of §1.1 distributes on cost like everything
+else. §1.2 goes first because a phase that starts with the provider still
+misreporting itself produces confident findings that have to be thrown away, and
+nobody can tell which ones.
 
-**Two hours at the very top, before any of it: a throwaway smoke run.**
+**~~Two hours at the very top: a throwaway smoke run.~~ It has been performed —
+do not spend the two hours again; spend them reading what it found.**
 
-This document's own thesis is that reading missed twenty-one defects because
-nothing had ever exercised the paths — and then it spends six days on
-reading-derived fixes before the first real turn. That is the plan arguing
-against itself, and two hours removes the argument: paint the four play files,
-point a connection at a local runtime, take three turns, and break one on
-purpose. **Its observations are not findings** — the boundary is still
-misreporting itself until §1.2 lands, so everything seen is re-taken in P2C.1 —
-and that is the point. What it produces is a *reordering*: which of §1's
-twenty-one actually bite first, and which are theory.
+The argument for it stands and is worth keeping: this document's thesis is that
+reading missed twenty-two defects because nothing had ever exercised the paths,
+and it then spent six days on reading-derived fixes before the first real turn.
+That was the plan arguing against itself.
+
+What settled it was not two hours of hand-driving but an automated run over the
+whole stack against a local endpoint that speaks the streaming API — fifty-seven
+turns on a scratch install, including reattach, crash recovery, a second account,
+five deliberate breakages, a cancel, hand-edited library files and a live
+teardown. **Its observations are still not findings in the sense §1.2 means** —
+the boundary was misreporting itself throughout, so everything about failure
+classification is re-taken in P2C.1. What it produced is exactly what the two
+hours were for: **a reordering**, and a list of things nobody was looking for.
+Both are in [16](16-p2c-log.md).
+
+*And it moved four claims in this document from stated to measured, three of
+which were wrong.* Those corrections are inline above, each marked where it sits.
 
 **And one thing to set up rather than build:** somewhere for findings to go while
 the sessions run. A running file — `16-p2c-log.md` — appended to as things
@@ -938,10 +993,19 @@ names, CJK-only names and case collisions; the watcher's `awaitWriteFinish`
 threshold is set; sessions are fourteen-day signed tokens against a persisted key
 file, so expiry will not bite mid-phase and a wiped data directory lands a stale
 cookie on the setup form rather than a broken screen; CSRF is double-submit and
-the client echoes it on every mutation; the assembled prompt gives history turns
-real `user` and `assistant` roles, so the message shape a real model sees is
-conventional; and the step plan is fixed per mode with two retry backoffs, so no
-turn can loop into a runaway bill.
+the client echoes it on every mutation; and the step plan is fixed per mode with
+two retry backoffs, so no turn can loop into a runaway bill.
+
+**One entry was removed from that list because it was false, and this is the
+worst place in the document for a wrong claim** — the list's entire function is
+to keep session time *off* the things it names. It said the assembled prompt
+gives history turns real `user` and `assistant` roles. It does not: every
+completed turn is collapsed into **one merged block labelled `assistant`, which
+contains the player's own prose**. So the message shape a real model sees is not
+conventional, and the item is now a finding rather than a reassurance. It is not
+a one-line fix — the one-block-per-turn shape is deliberate, because the
+budgeter's only move on one large block is to drop all of it — so splitting it in
+two doubles the candidate count and is a decision, not a rename.
 
 **And the production topology.** The server serves no static files, so everything
 this phase exercises runs behind Vite's dev proxy. Anything that only appears
