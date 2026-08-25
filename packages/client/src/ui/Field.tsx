@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useId, type JSX } from 'react';
+import { control } from './classes.js';
 
 /**
  * The field primitive every editor is built from
@@ -53,8 +54,7 @@ export interface FieldProps {
  * the surrounding ink, which on a surface that is not the one the shell assumed
  * resolves to the background.
  */
-const CONTROL_CLASS =
-  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus';
+const CONTROL_CLASS = control;
 
 /** Six sites spelled this out verbatim before it had a name. */
 const LABEL_CLASS = 'block text-sm font-medium text-ink-muted';

@@ -73,3 +73,26 @@ export const table = {
   thCompact: 'py-1 pe-3 text-start font-medium text-ink-muted',
   cellCompact: 'py-1 pe-3 align-top',
 } as const;
+
+/**
+ * Every text control in the app, including the one a turn is typed into.
+ *
+ * **It lives here because three files had spelled it out separately**, and the
+ * composer and the guidance box — the two a session spends its time in — were
+ * the two the shared `Field` version could not reach. A class list copied is a
+ * class list that drifts, and this one drifted into the state below.
+ *
+ * **The disabled variants are not decoration.** Without them a disabled control
+ * is pixel-identical to an enabled one, which reintroduces the exact symptom the
+ * palette work removed — a box that does nothing when you type into it — on the
+ * same control, in the state the composer holds for the whole of every streaming
+ * turn. A report of that reads as a regression of the contrast fix and is a
+ * different bug.
+ *
+ * `disabled:opacity-*` is deliberately not the mechanism: it dims text and
+ * border together and can push either below the contrast floor, which is how a
+ * fix for this becomes the previous bug. Named tokens instead, so
+ * {@link ../ui/contrast.test.ts} can measure them.
+ */
+export const control =
+  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-muted disabled:text-ink-muted';
