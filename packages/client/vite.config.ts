@@ -11,8 +11,11 @@ export default defineConfig({
     // The client is served by Vite in development and talks to the server over
     // `/api` (docs/api.md). Proxying keeps the two same-origin, which is what
     // lets the session cookie stay SameSite=Lax with no CORS at all.
+    // The port the dev server listens on, so a scratch install on another port
+    // is reachable without editing this file. Defaults to the config default.
+    port: Number(process.env['SE_CLIENT_PORT'] ?? 5173),
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
+      '/api': process.env['SE_API'] ?? 'http://127.0.0.1:8080',
     },
   },
   build: {

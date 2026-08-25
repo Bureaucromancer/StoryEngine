@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
-import { loadConfig } from './config.js';
+import { loadConfig, type Config } from './config.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -68,9 +68,20 @@ async function main(): Promise<void> {
   await app.listen({ host: config.server.host, port: config.server.port });
 
   const loopback = config.server.host === '127.0.0.1' || config.server.host === 'localhost';
+  /**
+   * **The API's address, said as the API's address.**
+   *
+   * This called it `url` and the line below told an operator to *open the
+   * address above*, which is wrong in development: the server serves no static
+   * files, so opening it gets a 404 and the client is on Vite's port. It is the
+   * first instruction a new install gives and it sent people to a blank page.
+   *
+   * Named `api` rather than `url` because that is what it is — and the setup
+   * line below now names the client's address instead of pointing upward.
+   */
   app.log.info(
     {
-      url: `http://${config.server.host}:${String(config.server.port)}`,
+      api: `http://${config.server.host}:${String(config.server.port)}`,
       dataRoot: services.layout.dataRoot,
     },
     'StoryEngine listening',
@@ -90,7 +101,15 @@ async function main(): Promise<void> {
 
   if (await services.accounts.needsSetup()) {
     if (loopback) {
-      app.log.info('No accounts yet. Open the address above to create the first admin.');
+      /**
+       * **The client's address, not this one.** In development they are two
+       * processes on two ports and the API serves no UI; in a packaged build
+       * they are the same origin and this is still right.
+       */
+      app.log.info(
+        { open: clientAddress(config) },
+        'No accounts yet. Open this address to create the first admin.',
+      );
     } else {
       // **The claim window.** Bound beyond loopback with no admin, anyone who
       // can reach the port can claim the install
@@ -198,4 +217,17 @@ try {
   // Before the logger exists, and addressed to whoever typed the command.
   console.error(error.message);
   process.exit(1);
+}
+
+/**
+ * Where a person should point a browser.
+ *
+ * In development the client is served by Vite on its own port and proxies
+ * `/api` back here, so the API's address serves nothing a person wants. There is
+ * no packaged build yet — when there is, this collapses to the API's address and
+ * the environment variable goes.
+ */
+function clientAddress(config: Config): string {
+  const port = process.env['SE_CLIENT_PORT'] ?? '5173';
+  return `http://${config.server.host}:${port}`;
 }

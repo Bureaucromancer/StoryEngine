@@ -186,12 +186,14 @@ arrives anywhere.
   canvas — invisible while that canvas was white and the app was light. It is on
   `body` now. And **`color-scheme` was missing**, which is the same defect class
   as the original: an input whose CSS is right and whose caret is not.
-- **The startup line names an address that serves no UI.** `main.ts` prints
-  `http://127.0.0.1:8080` and then *"Open the address above to create the first
-  admin"* — and the server serves no static files, so the client is Vite on
-  `:5173`. [P2B §4](14-p2b-provider-configuration.md) step 1 and
-  [12 §2.1](12-p2-manual-gate.md) both send the tester to a blank page. *One
-  hour: fix the line, and the two documents.*
+- **~~The startup line names an address that serves no UI.~~ Done.** It printed
+  the API's address and then *"Open the address above"* — and the server serves
+  no static files, so that address is a 404 and the client is on Vite's port. The
+  API line names itself `api` now, and the setup line names **the client**, which
+  is where a person should go. [12 §2.1](12-p2-manual-gate.md) step 1 and
+  [P2B §4](14-p2b-provider-configuration.md)'s command block are corrected with
+  it. *Fastify prints its own listening line first and still names the API port;
+  that one is true, it is simply not where anybody goes.*
 - **A repeated flag is silently ignored.** `argumentValue` takes the **first**
   occurrence, so appending `--data` to `pnpm dev:server` — whose script already
   hardcodes one — is dropped without a word, and the run uses a directory the
