@@ -635,13 +635,25 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
   };
 }
 
+/**
+ * The turn's totals — {@link TurnCost} carries the argument for the nulls.
+ *
+ * A turn with no calls at all is the case that made this visible: a cancelled
+ * turn recorded `{promptTokens: 0, completionTokens: 0, model: ''}`, which reads
+ * as *counted, and it was nothing* rather than *nobody counted*.
+ */
 function costOf(calls: readonly ModelCall[]): TurnCost {
-  const reported = calls.filter((call) => call.usage !== null);
+  const counted = calls.length > 0 && calls.every((call) => call.usage !== null);
+
   return {
-    promptTokens: reported.reduce((sum, call) => sum + (call.usage?.promptTokens ?? 0), 0),
-    completionTokens: reported.reduce((sum, call) => sum + (call.usage?.completionTokens ?? 0), 0),
+    promptTokens: counted
+      ? calls.reduce((sum, call) => sum + (call.usage?.promptTokens ?? 0), 0)
+      : null,
+    completionTokens: counted
+      ? calls.reduce((sum, call) => sum + (call.usage?.completionTokens ?? 0), 0)
+      : null,
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
-    model: calls.at(-1)?.resolved.modelId ?? '',
+    model: calls.at(-1)?.resolved.modelId ?? null,
   };
 }
 

@@ -802,6 +802,76 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.cost?.wallMs).toBeGreaterThanOrEqual(0);
   });
 
+  /**
+   * **A total that nobody counted is null, not zero** — F30.
+   *
+   * `costOf` used to sum over the calls that happened to report, so a turn where
+   * none did recorded `promptTokens: 0`. That is a fabricated total in a record
+   * whose sibling `ModelCall.cost` is hard-coded null precisely to avoid
+   * fabricating one, and [13 §1.4] is *provider-reported, not estimated* —
+   * a zero is an estimate with a confident face.
+   *
+   * It went unnoticed because the only assertion over `turn.cost` read `model`
+   * and `wallMs`, which were right.
+   */
+  it('says null rather than zero when nothing reported usage', async () => {
+    makeRunner({ script: [{ text: 'x', reportsNoUsage: true }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.cost?.promptTokens).toBeNull();
+    expect(turn.cost?.completionTokens).toBeNull();
+    // Wall time is measured here rather than reported by anybody, so it stays a
+    // real number — the nulls are about what the provider did not say.
+    expect(turn.cost?.wallMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('adds the totals up when every call reported', async () => {
+    makeRunner({ script: [{ text: 'x', usage: { promptTokens: 11, completionTokens: 5 } }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.cost?.promptTokens).toBe(11);
+    expect(turn.cost?.completionTokens).toBe(5);
+  });
+
+  /**
+   * **All-or-nothing rather than a partial sum**, and this is the case that
+   * decides it. A total missing one of its terms is not a smaller total, it is
+   * wrong, and a reader cannot see which term went missing.
+   *
+   * The partial truth is not lost: every `ModelCall` keeps its own `usage`, so a
+   * surface that wants *what we do know* reads the calls. What it must not do is
+   * present the sum of some of them as the turn's cost.
+   */
+  it('reports no total when only some of the calls counted', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', usage: { promptTokens: 11, completionTokens: 5 } },
+        { text: 'second', reportsNoUsage: true },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: NARRATE,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.request?.calls).toHaveLength(2);
+    expect(turn.request?.calls[0]?.usage).toEqual({ promptTokens: 11, completionTokens: 5 });
+    expect(turn.request?.calls[1]?.usage).toBeNull();
+    expect(turn.cost?.promptTokens).toBeNull();
+  });
+
   it('keeps every draw on the tape, keyed by site', async () => {
     // **The clause that was structurally vacuous**: `tape` was asserted as an
     // array while nothing in a P2 turn draws, so an empty array satisfied it

@@ -116,11 +116,32 @@ export interface TurnRequest {
   calls: ModelCall[];
 }
 
+/**
+ * What the turn cost, in the units this build can actually count.
+ *
+ * **The token totals are null unless every call reported**, and that is the
+ * whole design of this type. They used to be plain numbers summed over the calls
+ * that happened to report, which meant a turn where nothing reported said
+ * `promptTokens: 0` — a fabricated total, in a record whose sibling field
+ * `ModelCall.cost` is hard-coded null specifically to avoid fabricating one.
+ * [13 §1.4](../../../../docs/design/13-internal-contracts.md) is *provider-reported, not
+ * estimated*, and a zero is an estimate with a confident face.
+ *
+ * **All-or-nothing rather than a partial sum**, because this is a *total*: a
+ * total missing one of its terms is not a smaller total, it is wrong, and a
+ * reader cannot see which. The partial truth is not lost — every `ModelCall`
+ * carries its own `usage`, so a surface that wants *what we do know* reads the
+ * calls rather than this.
+ */
 export interface TurnCost {
-  promptTokens: number;
-  completionTokens: number;
+  /** Null unless every call reported. Never a sum over some of them. */
+  promptTokens: number | null;
+  /** Null unless every call reported. Never a sum over some of them. */
+  completionTokens: number | null;
+  /** Always real: measured here, not reported by anybody. */
   wallMs: number;
-  model: string;
+  /** The model that answered last, or null when nothing was called. */
+  model: string | null;
 }
 
 /**
