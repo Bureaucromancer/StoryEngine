@@ -183,6 +183,27 @@ export default tseslint.config(
     },
   },
 
+  // Operator tooling: scripts a person runs against their own install, from a
+  // terminal, with no server involved. Same argument as the build scripts above
+  // and a different reason to accept it — the fs rule keeps one audited resolver
+  // the only door to *user data reached from a request*, and there is no request
+  // here. `reset-data.mjs` removes a whole data directory on purpose; routing
+  // that through the storage helpers would mean growing the server's surface
+  // with an `rm` that nothing in the server needs.
+  //
+  // A category rather than a hole, on the same terms: it is `tools/*.mjs` only,
+  // and everything under `tools/lint-fixtures` keeps the ordinary rules.
+  {
+    files: ['tools/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+      sourceType: 'module',
+    },
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
   // Tests may touch the filesystem directly, and it is the point rather than a
   // concession. The rule keeps *production* code behind one audited resolver;
   // a storage test is playing the part of the user with a file manager —

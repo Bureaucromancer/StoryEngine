@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, open, readdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { afterEach, describe, expect, it } from 'vitest';
+
+/**
+ * **The teardown removes everything or nothing** — F31.
+ *
+ * `rm -rf` on a live data directory half-succeeds, and the half that survives is
+ * the wrong half: both SQLite stores stay — including `state/`, which
+ * [13 §5.1](../../docs/design/13-internal-contracts.md) calls authoritative and not
+ * disposable — while `state/session.key`, a plain file beside it, goes. The
+ * store outlives the key that validates the sessions in it, `config.json`
+ * vanishes so the next start silently reverts to defaults, and a tester who
+ * believes they started from nothing did not.
+ *
+ * These drive the real script as a subprocess, because *what it does to a
+ * directory* is the whole of it and a unit test over a helper would assert the
+ * shape of the mock.
+ */
+
+const run = promisify(execFile);
+const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'reset-data.mjs');
+
+let held: Awaited<ReturnType<typeof open>> | null = null;
+
+afterEach(async () => {
+  await held?.close();
+  held = null;
+});
+
+async function dataDir(): Promise<string> {
+  const at = await mkdtemp(join(tmpdir(), 'se-reset-'));
+  await mkdir(join(at, 'state'), { recursive: true });
+  await mkdir(join(at, 'index'), { recursive: true });
+  await writeFile(join(at, 'config.json'), '{}');
+  await writeFile(join(at, 'state', 'session.key'), 'not-a-real-key');
+  await writeFile(join(at, 'state', 'state.sqlite'), 'not-a-real-database');
+  return at;
+}
+
+async function reset(at: string): Promise<{ code: number; out: string }> {
+  try {
+    const { stdout } = await run(process.execPath, [SCRIPT, '--data', at]);
+    return { code: 0, out: stdout };
+  } catch (error) {
+    const failure = error as { code?: number; stdout?: string; stderr?: string };
+    return { code: failure.code ?? 1, out: `${failure.stdout ?? ''}${failure.stderr ?? ''}` };
+  }
+}
+
+describe('resetting a data directory', () => {
+  it('removes it completely when nothing holds it', async () => {
+    const at = await dataDir();
+
+    const { code } = await reset(at);
+
+    expect(code).toBe(0);
+    await expect(readdir(at)).rejects.toThrow();
+  });
+
+  /**
+   * The case the whole design is for. Holding one file open is what a running
+   * server does to its SQLite stores — and the assertion that matters is not
+   * the exit code but that **`session.key` is still there**, because that is the
+   * file `rm -rf` takes while leaving the database behind.
+   */
+  it('removes nothing at all when a file is held open', async () => {
+    const at = await dataDir();
+    held = await open(join(at, 'state', 'state.sqlite'), 'r+');
+
+    const { code, out } = await reset(at);
+
+    expect(code).toBe(1);
+    expect(out).toContain('nothing was removed');
+    // Not "some files remain" — these specific ones, which are the ones a
+    // half-teardown destroys while keeping the database.
+    expect(await readdir(join(at, 'state'))).toContain('session.key');
+    expect(await readdir(at)).toContain('config.json');
+  });
+
+  it('says so and stops when there is nothing there', async () => {
+    const { code, out } = await reset(join(tmpdir(), 'se-reset-does-not-exist'));
+
+    expect(code).toBe(0);
+    expect(out).toContain('Nothing to remove');
+  });
+});
