@@ -16,6 +16,7 @@ import { type Config, DEFAULT_CONFIG, pendingRestart } from './config.js';
 import { listObjects } from './index-db/query.js';
 import { create as createObject } from './library.js';
 import { listVersions, readVersionPayload } from './storage/history.js';
+import type { LibraryWatcher } from './index-db/watcher.js';
 import { userOwner } from './storage/layout.js';
 
 /**
@@ -75,6 +76,30 @@ async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Prom
     await new Promise((tick) => setTimeout(tick, 50));
   }
   expect(await check(), 'condition never held before the timeout').toBe(true);
+}
+
+/**
+ * Waits for the watcher to have finished with a write, rather than for a clock.
+ *
+ * **The wall-clock version was this file's contribution to the suite's load
+ * ceiling**, and it failed in the way a deadline always does: not because the
+ * behaviour was wrong but because a loaded machine took longer than eight
+ * seconds to deliver an event that was always going to arrive.
+ * [15 §1.5](../../../docs/design/workplan/15-p2c-first-real-run.md) named it before it went
+ * red, and it went red anyway — once in three runs on an idle machine while
+ * this very fix was being written.
+ *
+ * `settled()` drains the events chokidar has *already emitted*, which is not the
+ * same as the write having been noticed: `awaitWriteFinish` holds a change until
+ * the file has been quiet for its stability window. So the barrier is both —
+ * wait for the index to show the content, then drain — and the deadline stays
+ * only as the thing that turns a hang into a failure.
+ */
+async function absorbed(watcher: LibraryWatcher | null, check: () => boolean): Promise<void> {
+  await eventually(async () => {
+    await watcher?.settled();
+    return check();
+  });
 }
 
 let dataDir: string;
@@ -327,10 +352,9 @@ describe('the live tier, with its first real consumer', () => {
       for (const suffix of ['after the fire', 'after the rain', 'after the bells']) {
         const name = `Rain City, ${suffix}`;
         await writeFile(created.file, JSON.stringify({ ...book, name }));
-        await eventually(async () =>
-          Promise.resolve(
-            listObjects(watched.index.db, { owners: [userOwner('ned')] })[0]?.name === name,
-          ),
+        await absorbed(
+          watched.watcher,
+          () => listObjects(watched.index.db, { owners: [userOwner('ned')] })[0]?.name === name,
         );
       }
 

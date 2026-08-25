@@ -6,12 +6,56 @@ import { defineConfig } from 'vitest/config';
 /** The one test CI runs under its own name. Referenced twice, so it is a constant. */
 const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
 
+/**
+ * **Spread into every project, because `projects` do not inherit it** — F28.
+ *
+ * This was first written once at the top level, which reads as a default and is
+ * not one: vitest gives each project its own config, and the suite went on
+ * failing with *"Test timed out in 5000ms"* while the file said fifteen
+ * thousand. A setting that looks applied and is not is worse than one nobody
+ * wrote, so it lives in a named constant that each project has to mention.
+ *
+ * Vitest's undeclared default is 5000ms and nearly every test here ran on it —
+ * the four that set their own are the ones somebody had already been bitten by.
+ * That is not a margin, it is about the wall time of the slowest honest test on
+ * a loaded machine.
+ *
+ * **A timeout is a hang detector, not a performance budget.** Fifteen seconds is
+ * roughly ten times the idle worst case: long enough that reaching it means
+ * something is stuck, short enough that a stuck test does not hold a CI leg for
+ * a quarter of an hour. Making the suite fast is a different job and this number
+ * must not be mistaken for it.
+ */
+const TIMEOUTS = { testTimeout: 15_000, hookTimeout: 15_000 };
+
 export default defineConfig({
   test: {
+    /**
+     * **Declared, because the default was the largest single reason this suite
+     * failed for reasons unrelated to the change** — F28.
+     *
+     * Vitest's undeclared default is 5000ms, and nearly every test here ran on
+     * it: the four that set their own are the ones somebody had already been
+     * bitten by. That is not a margin, it is roughly the wall time of the
+     * slowest honest test on a loaded machine, so the suite went red under
+     * concurrency while the code was fine — three concurrent runs produced
+     * three reds, measured.
+     *
+     * **A timeout is a hang detector, not a performance budget.** Fifteen
+     * seconds is about ten times the idle worst case, which is long enough that
+     * reaching it means something is stuck and short enough that a stuck test
+     * does not hold a CI leg for a quarter of an hour. Making the suite *fast*
+     * is a different job, and one this number must not be mistaken for.
+     *
+     * [15 §1.5](docs/design/workplan/15-p2c-first-real-run.md) sizes this at about nine
+     * tenths of the load ceiling; the remaining tenth was `logging.test.ts`'s
+     * own wall-clock poll, fixed beside this.
+     */
     projects: [
       {
         test: {
           name: 'lint-rules',
+          ...TIMEOUTS,
           root: '.',
           include: ['tools/lint-fixtures/**/*.test.ts'],
           environment: 'node',
@@ -20,6 +64,7 @@ export default defineConfig({
       {
         test: {
           name: 'packages',
+          ...TIMEOUTS,
           root: '.',
           include: ['packages/*/src/**/*.test.ts'],
           // The gate below is a project of its own so CI can name it. Excluded
@@ -43,6 +88,7 @@ export default defineConfig({
       {
         test: {
           name: 'gate',
+          ...TIMEOUTS,
           root: '.',
           include: [GATE],
           environment: 'node',
@@ -70,6 +116,7 @@ export default defineConfig({
       {
         test: {
           name: 'client-dom',
+          ...TIMEOUTS,
           root: '.',
           include: ['packages/client/src/**/*.test.tsx'],
           environment: 'jsdom',
