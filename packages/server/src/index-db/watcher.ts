@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { DatabaseSync } from 'node:sqlite';
+import type { Logger } from '../state/commit.js';
 
 import { type FSWatcher, watch } from 'chokidar';
 
@@ -70,6 +71,7 @@ export interface WatchEvent {
 export class LibraryWatcher {
   readonly #db: DatabaseSync;
   readonly #layout: Layout;
+  #log: Logger | null = null;
   readonly #registry: SelfWriteRegistry;
   readonly #onChange: (event: WatchEvent) => void;
   readonly #stabilityThresholdMs: number;
@@ -94,6 +96,14 @@ export class LibraryWatcher {
     this.#onChange = options.onChange ?? (() => undefined);
     this.#stabilityThresholdMs = options.stabilityThresholdMs ?? 150;
     this.#options = options;
+  }
+
+  /**
+   * The same seam the turn runner uses, and for the same reason: the watcher is
+   * built inside `buildServices` and the app's logger does not exist yet.
+   */
+  setLogger(log: Logger): void {
+    this.#log = log;
   }
 
   async start(): Promise<void> {
@@ -198,6 +208,31 @@ export class LibraryWatcher {
         reason: '',
         keepPerObject: this.#options.keepHistoryPerObject ?? 50,
       });
+    }
+
+    /**
+     * **A file somebody broke by hand is said out loud** — F34.
+     *
+     * The index records it and `GET /api/library/errors` exposes it, and until
+     * now **nothing logged it and no client read the route** — so a hand-edit
+     * that failed to parse was invisible to the person who made it and invisible
+     * to anyone reading the log afterwards. [12 §2.1](../../../../docs/design/workplan/12-p2-manual-gate.md)
+     * step 8 tells a tester to do exactly this.
+     *
+     * `warn` rather than `error` — [13 §4.1]'s boundary: the server refused a
+     * file, which is the system working. The path is relative to the data root,
+     * which is what the error row already stores and what that section requires.
+     *
+     * The card that shows this to the person who broke the file is
+     * [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md) step 7 and still not built.
+     * This is the half that makes it findable rather than the half that makes it
+     * visible.
+     */
+    if (outcome.kind !== 'indexed' && outcome.reason === 'invalid') {
+      this.#log?.warn(
+        { event: 'library.invalid', path: this.#layout.portablePath(path), reason: outcome.reason },
+        'A library file could not be read',
+      );
     }
 
     this.#onChange(

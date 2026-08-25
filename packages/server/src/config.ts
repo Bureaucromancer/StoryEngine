@@ -377,6 +377,7 @@ export function configChoices(): Record<string, string[]> {
     const schema = node as {
       properties?: Record<string, unknown>;
       anyOf?: { const?: unknown }[];
+      const?: unknown;
     };
 
     if (schema.properties) {
@@ -386,7 +387,16 @@ export function configChoices(): Record<string, string[]> {
       return;
     }
 
-    if (schema.anyOf === undefined) return;
+    /**
+     * **A one-member union is a bare `const`, not an `anyOf`.** TypeBox
+     * collapses it, so `log.format` — the only such key — rendered as a
+     * free-text box over a value the server refuses, which is the same defect
+     * this function was written to close, one row below the control it fixed.
+     */
+    if (schema.anyOf === undefined) {
+      if (typeof schema.const === 'string') choices[prefix] = [schema.const];
+      return;
+    }
     const values = schema.anyOf.map((member) => member.const);
     if (values.some((value) => typeof value !== 'string')) return;
     choices[prefix] = values as string[];

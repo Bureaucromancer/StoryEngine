@@ -486,6 +486,9 @@ export async function buildApp(
    * only the dying one's.
    */
   services.runner.setLogger(app.log);
+  // The watcher too: a hand-edited file that fails to parse is otherwise
+  // recorded in the index and said nowhere (F34).
+  services.watcher?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
     app.log.error({ err: error, event: 'stream.listener-failed' }, 'A stream listener threw');

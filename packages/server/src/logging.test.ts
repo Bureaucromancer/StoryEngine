@@ -103,6 +103,8 @@ async function absorbed(watcher: LibraryWatcher | null, check: () => boolean): P
 }
 
 let dataDir: string;
+/** The second data directory the live-tier test builds, so it can be removed. */
+let liveDir: string | null = null;
 let services: AppServices;
 
 beforeEach(async () => {
@@ -116,6 +118,9 @@ beforeEach(async () => {
 afterEach(async () => {
   await disposeServices(services);
   await rm(dataDir, { recursive: true, force: true });
+  // The live-tier test builds a second one, which nothing removed.
+  if (liveDir !== null) await rm(liveDir, { recursive: true, force: true });
+  liveDir = null;
 });
 
 /**
@@ -334,7 +339,10 @@ describe('the live tier, with its first real consumer', () => {
    */
   it('reaches the watcher, which is the other path into an object history', async () => {
     const watched = await buildServices({
-      config: { ...DEFAULT_CONFIG, dataDir: await mkdtemp(join(tmpdir(), 'se-live-')) },
+      // Kept so `afterEach` can remove it. Created inline, it leaked one
+      // directory per run — 154 KB a time, and hundreds of them on a machine
+      // that runs this suite all day.
+      config: { ...DEFAULT_CONFIG, dataDir: (liveDir = await mkdtemp(join(tmpdir(), 'se-live-'))) },
       watch: true,
     });
     const capture = captureStream();

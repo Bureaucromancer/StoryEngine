@@ -368,6 +368,14 @@ describe('the closed unions travel with the config', () => {
     expect(choices['log.level']).not.toContain('trace');
   });
 
+  it('reads a one-value union, which is a bare const', () => {
+    // `log.format` is the only key like this, and TypeBox collapses a
+    // single-member union to `const` — so it rendered as a free-text box over a
+    // value the server refuses, one row below the control this function was
+    // written to fix.
+    expect(configChoices()['log.format']).toEqual(['json']);
+  });
+
   it('finds a union nobody thought to look for', () => {
     // `updates.channel` was rendering as a free-text box over a three-value
     // union. One walk of the schema is what makes the surface complete rather
