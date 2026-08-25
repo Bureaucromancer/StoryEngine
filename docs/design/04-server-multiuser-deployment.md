@@ -1024,8 +1024,9 @@ cleaner lifecycle depends on [06 A1](06-open-questions.md).
 
 **An in-app update check ships.** It queries the release feed for the configured
 channel ([releases §4](workplan/11-repo-and-releases.md)), compares against the running version
-— which the build already embeds for AGPL §13 (§5) — and surfaces a quiet
-indicator. Daily, cached, never on page load.
+— which the build will embed for AGPL §13 (§5); **no build embeds one today**,
+and that is P10's to fix along with the About surface below — and surfaces a
+quiet indicator. Daily, cached, never on page load.
 
 Surface it as a **badge on the About surface, not a notification**. A new release
 is not urgent, and a notification class for it would train people to dismiss

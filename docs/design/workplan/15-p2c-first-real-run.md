@@ -370,8 +370,18 @@ survey measured the ladder rather than repeating the anecdote:
 | 1 suite, idle | 12s | green, twice |
 | 1 suite, all 16 cores saturated by unrelated work | 47s | green |
 | 2 concurrent suites | 23s | green |
-| 3 concurrent suites | 38s | **3 of 3 red** |
-| 4 concurrent suites | — | **4 of 4 red** |
+| 3 concurrent suites | 38s | ~~3 of 3 red~~ → **0 of 3** |
+| 4 concurrent suites | — | ~~4 of 4 red~~ → **0 of 4** |
+
+**~~The suite fails under its own load.~~ Closed, and the ceiling is written
+down here as [§1.5] asks.** Four concurrent full runs on this machine are green;
+three were three-for-three red before. **The rule to know: nothing between one
+and four concurrent runs breaks it any more**, and the number that did the work
+was one line — a declared `testTimeout`, which was ~90% of it.
+
+*And a green suite is still not a green build.* `pnpm test` is `vitest run` and
+nothing else; `pnpm typecheck` is a separate script and vitest strips types
+without checking them.
 
 *Re-measured after the CI gate's teardown fix, and it got worse rather than
 better: the ceiling did not move, the breaker did.* The gate itself now survives

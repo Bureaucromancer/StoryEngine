@@ -4,12 +4,16 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha.** The design is written down in
 [`docs/design/`](docs/design/); the code is through
-[P1.7](docs/design/workplan/03-p1-implementation.md) — the storage spine, the derived
-index and its watcher, auth, the library API, a web client, and a prototype
-actor editor with version history.
+[P2B](docs/design/workplan/14-p2b-provider-configuration.md) — the storage spine, the
+derived index and its watcher, auth, the library API, a web client with a
+prototype actor editor and version history, **one turn end to end** as a
+resumable server-side job with a streamed reply, and the settings surface that
+configures an install, its accounts and its model connections.
 
-**The UI browses everything and edits actors.** Sign in, browse all six kinds
-of library object, open an actor and edit it — with automatic
+**The UI browses, plays and configures.** Sign in, browse all six kinds of
+library object, start a session and take a turn, and open Settings to change your
+own preferences or — as an admin — the install's configuration, its accounts and
+its model connections. Open an actor and edit it — with automatic
 version history behind a History control: every change snapshots the state it
 replaced, hand edits included, and any version can be restored, diffed, pinned
 or renamed. The other five kinds stay read-only for now, and *creating* objects
