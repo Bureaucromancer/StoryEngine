@@ -236,24 +236,31 @@ export async function performCall(
       }
 
       const message = error instanceof Error ? error.message : String(error);
-      throw new CallFailed(classified, message, partial.text, {
-        id,
-        stepId: definition.id,
-        role: definition.role,
-        // The model that was *asked for*, because nothing answered — and said
-        // so here rather than left to read like a report, which is the same
-        // distinction `modelThatAnswered` draws on the success path.
-        resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
-        messages,
-        params,
-        usage: null,
-        cost: null,
-        wallMs: Date.now() - startedAt,
-        finishReason: null,
-        outcome: 'error',
-        error: { class: classified, message },
-        retries,
-      });
+      const detail = error instanceof ProviderError ? error.detail : undefined;
+      throw new CallFailed(
+        classified,
+        message,
+        partial.text,
+        {
+          id,
+          stepId: definition.id,
+          role: definition.role,
+          // The model that was *asked for*, because nothing answered — and said
+          // so here rather than left to read like a report, which is the same
+          // distinction `modelThatAnswered` draws on the success path.
+          resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+          messages,
+          params,
+          usage: null,
+          cost: null,
+          wallMs: Date.now() - startedAt,
+          finishReason: null,
+          outcome: 'error',
+          error: { class: classified, message },
+          retries,
+        },
+        detail,
+      );
     }
   }
 }
@@ -267,6 +274,19 @@ export async function performCall(
  */
 export class CallFailed extends Error {
   readonly class: ProviderError['class'];
+  /**
+   * The provider's own words, carried rather than dropped — F32.
+   *
+   * `message` is this system's sentence about the failure; `detail` is the
+   * endpoint's, which is where a provider actually explains itself
+   * (*"Incorrect API key provided"* rather than *"Bad Request"*). It was
+   * classified and then thrown away here, so the one thing that would have told
+   * an operator what to change never left the adapter.
+   *
+   * For the log only, never rendered as UI copy — same terms as
+   * {@link ProviderError.detail}, which [07 §12.7] keeps untranslated.
+   */
+  readonly detail: string | undefined;
   readonly partialText: string;
   readonly call: ModelCall;
 
@@ -275,10 +295,12 @@ export class CallFailed extends Error {
     message: string,
     partialText: string,
     call: ModelCall,
+    detail?: string,
   ) {
     super(message);
     this.name = 'CallFailed';
     this.class = errorClass;
+    this.detail = detail;
     this.partialText = partialText;
     this.call = call;
   }

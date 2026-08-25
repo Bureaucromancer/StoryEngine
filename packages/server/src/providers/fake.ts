@@ -40,8 +40,14 @@ export interface ScriptedReply {
   object?: unknown;
   usage?: { promptTokens: number; completionTokens: number } | null;
   cost?: { amount: number; currency: string } | null;
-  /** Fail instead of answering. */
-  error?: { class: ErrorClass; message: string };
+  /**
+   * Fail instead of answering.
+   *
+   * `detail` is the endpoint's own words, which a real provider carries and a
+   * double that could not would let the log-shape tests pass over a system that
+   * drops them.
+   */
+  error?: { class: ErrorClass; message: string; detail?: string };
   /** The model the endpoint says answered, when it is not the one asked for. */
   answeredAs?: string;
   /** Why generation stopped. Defaults to a clean `stop`. */
@@ -136,7 +142,7 @@ export class FakeProvider implements Provider {
   async generate(request: GenerationRequest): Promise<GenerationResult> {
     const reply = this.#next(request, false);
     if (reply.error) {
-      throw new ProviderError(reply.error.class, reply.error.message);
+      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
     }
     return this.#result(reply, request);
   }
@@ -146,7 +152,7 @@ export class FakeProvider implements Provider {
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
     const reply = this.#next(request, true);
     if (reply.error && reply.failAfterChunks === undefined) {
-      throw new ProviderError(reply.error.class, reply.error.message);
+      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
     }
 
     const text = reply.text ?? DEFAULT_REPLY.text;

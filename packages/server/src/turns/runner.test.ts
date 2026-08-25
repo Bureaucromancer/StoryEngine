@@ -128,15 +128,23 @@ let logLines: Record<string, unknown>[] = [];
  * runner passed. The bindings matter — `child()` is how a job id reaches every
  * line — so they are merged rather than dropped.
  */
+/**
+ * The runner's logger seam, recording **which level** as well as what.
+ *
+ * All three used to share one writer, which made the level unobservable — and
+ * [13 §4.1] draws a boundary there that matters: `error` is what the server
+ * could not do, `warn` what it refused. A user pressing Stop is neither, and
+ * logging it at `error` was most of what a session's log contained.
+ */
 function recorder(into: Record<string, unknown>[], bindings: Record<string, unknown>): Logger {
-  const write = (object: Record<string, unknown>) => {
-    into.push({ ...bindings, ...object });
+  const at = (level: string) => (object: Record<string, unknown>) => {
+    into.push({ level, ...bindings, ...object });
   };
   return {
     child: (extra) => recorder(into, { ...bindings, ...extra }),
-    info: write,
-    warn: write,
-    error: write,
+    info: at('info'),
+    warn: at('warn'),
+    error: at('error'),
   };
 }
 
@@ -399,6 +407,120 @@ describe('the three failure modes are three', () => {
       ],
     };
   }
+
+  /**
+   * **A failing step logs a shape, not the error object** — F32.
+   *
+   * `err: error` serialises an error's own enumerable properties, and a
+   * `CallFailed` carries `partialText` and `call` — so a failed step wrote **the
+   * whole rendered prompt and the model's partial narration** into the log.
+   * [13 §4.1] says portable object bodies never appear there: *a log is not a
+   * backup and user prose is not diagnostic.*
+   *
+   * The assertion is on the *absence of prose*, which is the thing that has to
+   * stay true. Listing the fields it should carry would pass just as well over a
+   * line that carried the prose too.
+   */
+  it('keeps the prompt and the prose out of the log', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Incorrect API key provided: sk-xx',
+          },
+        },
+      ],
+    });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line).toBeDefined();
+    const serialised = JSON.stringify(line);
+    // The two fields a `CallFailed` carries that must never travel.
+    expect(serialised).not.toContain('partialText');
+    expect(serialised).not.toContain('fromBlocks');
+    // And nothing that looks like an assembled prompt: the narrator instruction
+    // is in every rendered message and in no honest log line.
+    expect(serialised).not.toContain('You are a narrator');
+  });
+
+  /**
+   * [13 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
+   * what it refused. **A user pressing Stop is neither** — it is the system
+   * doing exactly what was asked — and Stop is the most-pressed button in a
+   * session against real latency, so logging it at `error` was most of what a
+   * phase's log would contain.
+   */
+  it('does not call a cancellation an error', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    const cancelled = logLines.filter(
+      (entry) => entry['event'] === 'step.failed' && entry['reason'] === 'cancelled',
+    );
+
+    // Asserted non-empty first: a filter that matched nothing would satisfy the
+    // loop below forever, which is the shape this suite keeps finding.
+    expect(cancelled.length).toBeGreaterThan(0);
+    for (const line of cancelled) expect(line['level']).toBe('info');
+  });
+
+  it('a step the author said to ignore is a warning, not an error', async () => {
+    makeRunner({ plan: failing('ignore') });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line?.['level']).toBe('warn');
+  });
+
+  it('an aborting step is an error, because the server could not do it', async () => {
+    makeRunner({ plan: failing('abort') });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line?.['level']).toBe('error');
+  });
+
+  /**
+   * **The provider's own words, which were classified and then dropped.**
+   * `message` is this system's sentence about the failure; `detail` is the
+   * endpoint's, and it is the one thing that tells an operator what to change.
+   * It reached `ProviderError`, was lost when `CallFailed` wrapped it, and so
+   * never left the adapter.
+   */
+  it('carries the endpoint’s own explanation', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Incorrect API key provided: sk-xx',
+          },
+        },
+      ],
+    });
+
+    await runTurn();
+    const line = logLines.find(
+      (entry) => entry['event'] === 'step.failed' && entry['detail'] !== undefined,
+    );
+
+    expect(line?.['detail']).toContain('Incorrect API key provided');
+    expect(line?.['class']).toBe('terminal');
+  });
 
   it('warn keeps the turn and its prose, and records the failure on both surfaces', async () => {
     makeRunner({ plan: failing('warn') });

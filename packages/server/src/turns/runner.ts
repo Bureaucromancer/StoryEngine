@@ -560,8 +560,44 @@ export class TurnRunner {
           wallMs: Date.now() - startedAt,
         });
 
-        log?.error(
-          { event: 'step.failed', stepId: definition.id, reason, err: error },
+        /**
+         * **A shape, not the error object** — F32, and it closes three §1.3
+         * items at one call site.
+         *
+         * `err: error` serialises the error's own enumerable properties, and a
+         * `CallFailed` carries `partialText` and `call` — so a failed step wrote
+         * **the whole rendered prompt and the model's partial narration** into
+         * the log. [13 §4.1] says portable object bodies never appear there —
+         * *a log is not a backup and user prose is not diagnostic* — and it also
+         * says a value a later reader filters on is a field rather than a phrase.
+         * A blob of prose is neither.
+         *
+         * The level is by reason rather than fixed. A user pressing Stop is not
+         * an error and `error` is *"what the server could not do"*; a step whose
+         * author declared `ignore` said in advance that this is unremarkable.
+         * Stop is the most-pressed button in a session against real latency, so
+         * logging it at `error` was most of what a phase's log would contain.
+         *
+         * `detail` is the provider's own words, which is the third item: it is
+         * populated now and this is the line that was throwing it away.
+         */
+        const level = levelFor(reason, definition.failure);
+        log?.[level](
+          {
+            event: 'step.failed',
+            stepId: definition.id,
+            reason,
+            message: messageOf(error),
+            ...(error instanceof CallFailed
+              ? {
+                  class: error.class,
+                  callId: error.call.id,
+                  // The endpoint's own words. Absent rather than empty when
+                  // there are none, so a reader can tell silence from a blank.
+                  ...(error.detail === undefined ? {} : { detail: error.detail }),
+                }
+              : {}),
+          },
           'Step failed',
         );
 
@@ -667,4 +703,20 @@ function classifyStep(error: unknown): StepFailureReason {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * What a step failure is worth saying out loud at.
+ *
+ * [13 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
+ * it refused. A cancellation is neither — it is the system doing exactly what
+ * was asked — and a step whose author declared `ignore` has said in advance that
+ * a failure here is unremarkable.
+ */
+function levelFor(
+  reason: StepFailureReason,
+  failure: 'abort' | 'warn' | 'ignore' | undefined,
+): 'info' | 'warn' | 'error' {
+  if (reason === 'cancelled') return 'info';
+  return failure === 'abort' ? 'error' : 'warn';
 }
