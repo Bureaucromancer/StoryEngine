@@ -91,9 +91,32 @@ const ConfigWrite = Type.Object(
  * A key the caller invents therefore does not reach disk — not because it was
  * rejected, but because nothing ever looked at it.
  */
+/**
+ * Keys this route refuses to write, whatever a client sends.
+ *
+ * **`dataDir` decides where `config.json` itself lives**, so writing it here is
+ * a one-click way to appear to lose everything: the next start reads a different
+ * directory and finds an empty install. [P2A §2.6] argued the field into a
+ * read-only note in the form for exactly that reason — **and then enforced it in
+ * the browser only.**
+ *
+ * The trap is not that somebody edits it. An *unedited* Save does it: the form
+ * sends back the config it was given, that config carries the running
+ * `dataDir` — which `--data` may have set to an absolute machine-specific path
+ * — and the file gains it. Nobody has to touch the field, so no amount of asking
+ * a tester not to avoids it.
+ *
+ * Dropped rather than rejected, on the same terms as an unknown key: the form
+ * sends the whole config back every time and answering 400 to an ordinary Save
+ * would be refusing the common case to prevent the rare one. `--data` is how
+ * this moves, and the form's read-only note says so.
+ */
+const NOT_WRITABLE = new Set(['dataDir']);
+
 function pickKnown(body: unknown): Record<string, unknown> {
   const picked: Record<string, unknown> = {};
   for (const key of configKeys()) {
+    if (NOT_WRITABLE.has(key)) continue;
     const value = valueAt(body, key);
     if (value === undefined) continue;
     assignAt(picked, key, value);
@@ -316,6 +339,21 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
     let next: Config;
     try {
       next = validateConfigDocument(merged, services.configPath);
+      /**
+       * **The data root this process is actually using, restored.**
+       *
+       * `dataDir` is dropped on the way in ({@link NOT_WRITABLE}) so a save
+       * cannot move the install — but dropping it from the *document* would
+       * otherwise move it here, because the loader fills the default for a key
+       * the file does not name, and `--data` sets a value no file ever carried.
+       * A save would have quietly relocated a container's data root to `./data`
+       * on the next restart, which is the same disaster arriving by the other
+       * door.
+       *
+       * It cannot change without a restart in any case, so the running value is
+       * the only correct one.
+       */
+      next.dataDir = services.config.dataDir;
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
       return await reply
