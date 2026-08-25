@@ -566,6 +566,37 @@ input to *illustrate this scene* that an actor's already is
 ([03 §10.3](03-modes-and-turn-pipeline.md)). That is why `reference` carries the
 same meaning across both kinds rather than lore getting a vocabulary of its own.
 
+### 5.2 Entry-level exchange
+
+Entries import and export independently of the book they live in, as a routine
+editor action rather than a special case ([05 §11.2c](05-ui-surfaces.md)). The
+schema pays nothing for it, which is most of the argument for doing it this way.
+
+- **The exchange file is a `Lorebook`.** `entries` holds the selection, `folders`
+  holds the ancestors of those entries, and everything else is an ordinary book.
+  A `LoreEntry[]` fragment format was considered and rejected: it saves a handful
+  of book-level fields and gives up the one property that makes this schema worth
+  taking close to unchanged ([02 §3](02-data-model.md)) — that every tool in the
+  ecosystem already reads this shape. A partial export that only our importer
+  understands is a worse artefact than a small lorebook that everything does.
+- **Its book-level fields are the source book's, and advisory on arrival.** An
+  importer merging into an existing book keeps entries and folders and drops the
+  rest. `scanDepth: null` means *inherit*, so an entry that inherited eight now
+  inherits whatever the destination says — which is what the field means and what
+  the author wrote when they left it null.
+- **`LoreEntry.id` is unique within one book and carries no meaning beyond it.**
+  An importer may renumber freely, two books holding the same id is ordinary
+  rather than a conflict, and nothing may treat id equality across books as
+  identity. The editor's rule that follows from this — add by default, replace
+  only when asked — is at [05 §11.2c](05-ui-surfaces.md).
+- **Nothing session-scoped travels, because nothing session-scoped is present.**
+  `stateSchema` is a declaration and belongs to the entry; the values live in a
+  channel keyed by entry id ([02 §3.3](02-data-model.md)) and are not in the book
+  to leak.
+
+Container rules are unchanged and are the book's: JSON where the selection
+carries no media, the zip form where it does ([02 §5.2.3](02-data-model.md)).
+
 ---
 
 ## 6. Treatment

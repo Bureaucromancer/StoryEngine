@@ -175,7 +175,8 @@ Semantic/embedding retrieval ([05 §14.3](../05-ui-surfaces.md) — keyword is t
 1.0 position; embeddings moved to the derived index and nothing populates
 them); entry state values beyond timing — quests, dispositions, relationship
 levels live in channels that arrive with modes (P7) and 2.0; the rule
-vocabulary (§1.4's line); the full lorebook editor with galleries and assist
-(P11; media schema shipped in P1.1 and stays schema-only); cross-session memory
+vocabulary (§1.4's line); the full lorebook editor with galleries, assist and
+entry-level import and export ([05 §11.2c](../05-ui-surfaces.md)) (P11; media
+schema shipped in P1.1 and stays schema-only); cross-session memory
 as an auto-maintained lorebook (P8 — it *consumes* this phase's machinery,
 which is the dependency, not a reason to build any of it now).

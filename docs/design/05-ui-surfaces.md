@@ -620,6 +620,11 @@ Where it should differ:
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
   what went to `compat`, what resolved, what dangled, and let the user fix it
   before committing.
+- **Exchange below the object lives in the editors, not here.** A lorebook's
+  entries import and export on their own (§11.2c), because the unit an author
+  moves is often smaller than the unit the library browses. The library's job
+  stays whole objects; the review step and the file format are shared rather than
+  reimplemented one level down.
 
 ### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
@@ -1029,6 +1034,94 @@ editor is the only thing that reads them at 1.0.
 implying otherwise would be making a promise the engine does not keep — which
 matters more than usual here, because it is exactly the assumption the schema
 warns against.
+
+### 11.2c Entries travel on their own
+
+**Exporting a selection of entries, and importing entries into an open book, are
+ordinary actions on the entry list** — beside select, reorder and delete, reached
+the same way as everything else there rather than as a narrow case of the
+library's whole-object import and export (§5). The entry list therefore wants the
+library's bulk selection one level down: same component, same affordances,
+applied to entries.
+
+**Because the book is the unit of play and frequently not the unit of
+authorship.** A district, a faction, a set of items, the twelve entries that make
+magic work the way this author likes it — those move between books constantly,
+while the artefact all three sources trade is the file, and a file is a book.
+Absent a smaller unit, copying one entry out of one of your own books and into
+another means exporting a book, hand-editing JSON, and importing it back. People
+do exactly that, which is evidence about the unit rather than about the people.
+
+**An entry export is a lorebook.** Same `storyengine.lorebook/1`
+([10 §5](10-schemas.md)) with `entries` holding the selection — no fragment
+schema, nothing new to version, and the file opens in anything that reads a
+lorebook, ours or otherwise. The schema-side rules are at
+[10 §5.2](10-schemas.md); what the editor owes the user is here.
+
+**The symmetry pays on the way in.** Since the thing being imported is a
+lorebook, *import entries* is also how someone cherry-picks from a book they
+downloaded whole — including a foreign one, because the format converters are
+already there ([P4](workplan/06-p4-implementation.md)) and they produce a
+lorebook. Four entries out of a two-hundred-entry book, without a book nobody
+wanted arriving in the library to be cleaned up afterwards.
+
+**What goes with a selection**, so that entries are not quietly stripped on the
+way out:
+
+- **The folders above them**, carrying the entries taken and none of the rest.
+  Folder structure is a shape the author gave the book, and a dozen entries
+  arriving flat at the root have lost it.
+- **Entry media** (§11.2b), in whichever container the book itself would use —
+  plain JSON where the selection carries no images, the zip form where it does
+  ([02 §5.2.3](02-data-model.md)). One container rule, the book's; a partial
+  export does not get a second one.
+- **`stateSchema`, and never state.** The declaration is authored content and
+  travels; the values live in a session channel and were never in the book
+  ([02 §3.3](02-data-model.md)). That an export must not carry somebody's
+  playthrough is inherited here for free, which is the same split paying off in a
+  second place.
+
+**Import into an open book is a merge, and it gets §5's review step** — scaled
+down and rendered in the entry list rather than as a modal: what arrived, which
+folder it landed in, what collided, and what now refers to nothing, an
+`actorFilter` naming an actor this install does not have being the common case.
+Non-blocking, per [00 §3.3](00-stance.md), and fixable before committing.
+
+**Ids are book-local, so the default is add and never overwrite.** An incoming
+entry whose id already exists takes a fresh one, and its name takes a suffix if
+that collides too. *Replace the existing entry* is offered where an id matches
+and is never the automatic reading — two books hold entries under the same id
+precisely because one was copied from the other, which makes id equality a sign
+of shared ancestry rather than permission to overwrite an edit.
+
+**The book's history is the record of the import.** `LoreEntry` carries no
+provenance of its own and should not gain one for this: the merge goes through
+the same write path as every other edit, so the book takes a history entry with
+`source: "import"` (§11.2a, [02 §11](02-data-model.md)) naming what came in and
+from where. That answers *where did these twelve entries come from* at the level
+that owns the file, and it makes undoing a bad import one restore rather than
+twelve deletions.
+
+**What fired there may not fire here, and the review says so.** `scanDepth`,
+`recursiveScanning`, both budgets and the book's `LoreScope` belong to the
+destination, so an entry tuned inside a book that scans eight messages deep can
+go quiet in one that scans two, having itself changed in no way. Name the
+book-level differences on import and leave the real answer to the keyword test
+against real text (§3) — a warning that is checkable beats a warning that is
+merely worrying.
+
+**Copy and paste is the same path**, and it is the half that makes this routine
+rather than ceremonial. Select entries, copy, paste into another open book; the
+clipboard carries what the export writes, and dragging between two open editors
+is the same operation again. The common case is two of the user's own books, not
+a file crossing the internet, and a capability that exists only as *Export…* in a
+menu is one people forget they have.
+
+**What this is not: a link.** An imported entry is a copy and forgets where it
+came from — no transclusion, no live pointer at the source book, no sync back.
+The same invariant sessions are held to ([00 §3.1](00-stance.md)), for the same
+reason: content that keeps changing under the author is worse than content that
+is visibly stale.
 
 ### 11.3 Image slots
 

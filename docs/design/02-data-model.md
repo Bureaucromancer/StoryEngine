@@ -369,6 +369,7 @@ is the one with the ceiling. Take Marinara's shape — at both levels.
 | Entry `kind` / `tag` | Free string, per Marinara. Not Aventuras' closed union. |
 | Book-level `category` | **Removed.** Closed, mixed-axis, and duplicated by `tags` — §3.4. |
 | Images on the book and on entries | **New.** Not a port — see §3.6. |
+| Import and export of individual entries | **New.** The unit an author moves is often smaller than the book; the exchange file is a lorebook carrying a subset ([10 §5.2](10-schemas.md), [05 §11.2c](05-ui-surfaces.md)). |
 
 ### 3.6 Images on lore
 
