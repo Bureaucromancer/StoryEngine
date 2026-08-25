@@ -157,23 +157,54 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         ),
       );
 
-    case 'history':
+    case 'history': {
       /**
-       * **One candidate per turn**, oldest cheapest.
+       * **Two candidates per turn — the player's words as `user`, the model's
+       * as `assistant`** — F36. Oldest cheapest, as before.
        *
-       * P2.4 promised history would be a splittable source *from the start*, and
-       * this is the consumer. One block for the whole transcript would make the
-       * budgeter's only move dropping all of it.
+       * P2.4 promised history would be a splittable source *from the start*,
+       * and this is the consumer: one block for the whole transcript would
+       * make the budgeter's only move dropping all of it.
+       *
+       * **It was splittable by turn and not by speaker, and that was wrong on
+       * the wire.** A completed turn became a single block labelled
+       * `assistant` holding the input and the output joined by a newline — so
+       * **every message the player had ever typed was attributed to the**
+       * **model**, and what a provider saw was one long assistant monologue
+       * with the user's lines quoted inside it. Invisible on screen and
+       * visible only on the wire, which is why it survived a survey, four
+       * phases and six audits.
+       *
+       * **Both halves share one priority**, so a turn stays one unit in the
+       * budgeter's ordering rather than two things trimmed apart at whim. The
+       * tie-break does the rest, correctly: *later-listed first within a
+       * priority* means the **reply** goes before the prompt it answered,
+       * leaving two consecutive user messages — coherent — rather than an
+       * assistant message with nothing before it.
+       *
+       * *A boundary can still split one turn*, because the budgeter has no
+       * concept of a group and this does not invent one. Known, and cheap to
+       * live with: it costs the oldest surviving turn its reply, which is the
+       * least valuable thing in the window.
        */
-      return context.history.flatMap((turn, index) => {
-        const text = [turn.input?.text, turn.output?.text].filter(Boolean).join('\n');
-        return emit(
-          { ...block, priority: block.priority + index, role: turnRole(turn) },
-          text,
-          { kind: 'history', range: [index, index] },
-          `${block.id}.${String(index)}`,
-        );
-      });
+      const halves = [
+        { of: 'input' as const, role: 'user' as const },
+        { of: 'output' as const, role: 'assistant' as const },
+      ];
+
+      return context.history.flatMap((turn, index) =>
+        halves.flatMap(({ of, role }) => {
+          const text = of === 'input' ? turn.input?.text : turn.output?.text;
+          if (text === undefined || text.length === 0) return [];
+          return emit(
+            { ...block, priority: block.priority + index, role },
+            text,
+            { kind: 'history', range: [index, index], part: of },
+            `${block.id}.${String(index)}.${of}`,
+          );
+        }),
+      );
+    }
 
     case 'guidance':
       /**
@@ -288,8 +319,4 @@ function actorSource(
   if (source.sectionId !== undefined)
     return { kind: 'actor', actorId, sectionId: source.sectionId };
   return { kind: 'actor', actorId, field: source.field === 'visual' ? 'visual' : 'traits' };
-}
-
-function turnRole(turn: Turn): 'user' | 'assistant' {
-  return turn.output?.text === undefined ? 'user' : 'assistant';
 }

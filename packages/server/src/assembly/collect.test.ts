@@ -270,9 +270,33 @@ describe('history is splittable from the start', () => {
     tape: [],
   });
 
-  it('emits one candidate per turn, oldest cheapest', () => {
-    // One block for the whole transcript would make the budgeter only move
-    // dropping all of it.
+  /**
+   * **Two candidates per turn, and the roles are the point** — F36.
+   *
+   * A completed turn used to be one block labelled `assistant` holding the
+   * input and the output joined by a newline, so **every message the player had
+   * ever typed was attributed to the model** and a provider saw one long
+   * assistant monologue. Invisible on screen; visible only on the wire.
+   */
+  it('emits the player’s words and the model’s as separate messages', () => {
+    const candidates = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.h', source: { of: 'history' }, priority: 10 }),
+        ]),
+        history: [turn(1), turn(2)],
+      }),
+    );
+
+    expect(candidates.map((candidate) => [candidate.role, candidate.text])).toEqual([
+      ['user', 'in 1'],
+      ['assistant', 'out 1'],
+      ['user', 'in 2'],
+      ['assistant', 'out 2'],
+    ]);
+  });
+
+  it('keeps a turn together in the budgeter’s ordering, oldest cheapest', () => {
     const candidates = collectCandidates(
       context({
         preset: preset([
@@ -282,9 +306,29 @@ describe('history is splittable from the start', () => {
       }),
     );
 
-    expect(candidates).toHaveLength(3);
+    // One priority per turn, not per message: a turn is one unit to drop, and
+    // the sort's tie-break — later-listed first — then takes the *reply* before
+    // the prompt it answered, which leaves two user messages in a row rather
+    // than an assistant message with nothing before it.
+    expect(candidates[0]?.priority).toBe(candidates[1]?.priority);
     expect(candidates[0]?.priority).toBeLessThan(candidates[2]?.priority ?? 0);
-    expect(candidates[0]?.text).toContain('in 1');
+  });
+
+  it('leaves out a half that is not there', () => {
+    // Built without the key rather than with an undefined one, which
+    // `exactOptionalPropertyTypes` correctly refuses.
+    const pending: Turn = turn(1);
+    delete pending.output;
+    const candidates = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.h', source: { of: 'history' } })]),
+        history: [pending],
+      }),
+    );
+
+    // A turn still running has an input and no output, and an empty assistant
+    // message is not a thing to send.
+    expect(candidates.map((candidate) => candidate.role)).toEqual(['user']);
   });
 });
 
@@ -320,7 +364,9 @@ describe('in-history placement, which is the one that is not list order', () => 
     tape: [],
   });
 
-  const history = [turn(1), turn(2), turn(3)];
+  // Two turns, four messages — enough to place a note between them and short
+  // enough that the expectation reads as a conversation.
+  const history = [turn(1), turn(2)];
 
   function ids(depth: number, tiebreak?: number): string[] {
     return collectCandidates(
@@ -342,22 +388,51 @@ describe('in-history placement, which is the one that is not list order', () => 
     ).map((candidate) => candidate.id);
   }
 
-  it('puts a depth-zero block after the newest turn', () => {
-    // SillyTavern's depth injection is exactly this, and its files carry the
-    // depths — so an imported preset depends on the reading being right.
-    expect(ids(0)).toEqual(['se.h.0', 'se.h.1', 'se.h.2', 'se.note']);
+  /**
+   * **Depth counts messages, and after F36 it finally does.**
+   *
+   * SillyTavern's depth injection is exactly this and its files carry the
+   * depths, so an imported preset depends on the reading being right — and its
+   * depths are in *messages*. While a completed turn was one block, a depth of
+   * four landed four **turns** back, which is eight messages: every imported
+   * preset's author notes were placed twice as deep as written.
+   *
+   * Splitting history by speaker fixed that as a side effect, and these
+   * expectations move with it. The ids now name the half as well as the turn.
+   */
+  it('puts a depth-zero block after the newest message', () => {
+    expect(ids(0)).toEqual([
+      'se.h.0.input',
+      'se.h.0.output',
+      'se.h.1.input',
+      'se.h.1.output',
+      'se.note',
+    ]);
   });
 
-  it('puts a depth-two block before the second turn from the end', () => {
+  it('puts a depth-two block two messages from the end', () => {
     // Which is the case that was silently flattened: with `placement` unread,
-    // this landed at the end regardless of the depth the author wrote.
-    expect(ids(2)).toEqual(['se.h.0', 'se.note', 'se.h.1', 'se.h.2']);
+    // this landed at the end regardless of the depth the author wrote — and
+    // then, once read, at twice the depth.
+    expect(ids(2)).toEqual([
+      'se.h.0.input',
+      'se.h.0.output',
+      'se.note',
+      'se.h.1.input',
+      'se.h.1.output',
+    ]);
   });
 
   it('clamps a depth deeper than the history it has', () => {
     // A preset written for a longer transcript means "as early as possible",
     // not "outside the run".
-    expect(ids(99)).toEqual(['se.note', 'se.h.0', 'se.h.1', 'se.h.2']);
+    expect(ids(99)).toEqual([
+      'se.note',
+      'se.h.0.input',
+      'se.h.0.output',
+      'se.h.1.input',
+      'se.h.1.output',
+    ]);
   });
 
   it('breaks a tie by the number the author wrote, then by declaration order', () => {

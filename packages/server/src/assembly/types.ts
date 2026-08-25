@@ -29,7 +29,15 @@ export type BlockSource =
   | { kind: 'persona' }
   | { kind: 'actor'; actorId: string; sectionId?: string; field?: 'traits' | 'visual' }
   | { kind: 'lore'; entryId: string; phase: 'before' | 'after' }
-  | { kind: 'history'; range: [number, number] }
+  /**
+   * One half of one past turn — F36.
+   *
+   * `part` because a turn is now **two** blocks rather than one, and a reader
+   * with two rows carrying the same `range` and no way to tell them apart is a
+   * reader that cannot answer *whose words were these*. Which is the question
+   * the split was made to fix.
+   */
+  | { kind: 'history'; range: [number, number]; part: 'input' | 'output' }
   | { kind: 'examples'; actorId: string }
   | { kind: 'channel'; channelId: string }
   | { kind: 'setting'; part: 'framing' | 'tone' }
