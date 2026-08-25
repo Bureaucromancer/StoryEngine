@@ -796,7 +796,8 @@ change do nothing.
   "provider": "openai-compatible",
   "apiKey": "sk-…",
   "baseUrl": "https://api.openai.com/v1",
-  "models": ["gpt-hi", "gpt-lo"]
+  "models": ["gpt-hi", "gpt-lo"],
+  "capabilities": { "maxContextTokens": 32768, "reportsUsage": true }
 }
 ```
 
@@ -807,6 +808,17 @@ hand-written file that already works.
 **`apiKey` absent means keep what is stored; an explicit empty string clears
 it.** That is what makes `hasKey` workable as a form affordance, and the write
 honours it — otherwise editing a label would silently delete the credential.
+
+**`capabilities` is optional and works the same way**: absent keeps what is
+stored, and it is merged rather than replaced, so an override written by hand for
+a capability the form has no control for survives a save. It was undocumented
+here until P2C, which meant the only way to find it was to read the route — and
+the settings form now offers the two an operator has a reason to set.
+
+Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
+the operator can know: **this build assumes a conservative context window**, and
+an endpoint that does not count tokens will make every figure in a turn record
+null. The rest of the capability shape travels untouched.
 
 **A provider this build cannot construct is refused at save**, `400 unbuildable`,
 naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one

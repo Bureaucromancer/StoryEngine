@@ -456,3 +456,82 @@ describe('removing a connection', () => {
     ).toBeTruthy();
   });
 });
+
+/**
+ * **The two capability overrides an operator has a reason to set** — §1.2's
+ * remainder, and the last of it: the mechanism worked end to end and nothing
+ * offered it. An audit found it by reading `routes/connections.ts`, which is
+ * P2C.1's own stated signal — *every point at which you consulted the source
+ * instead of the screen.*
+ *
+ * They are the two only the operator can know: a local model's real context
+ * window, and whether the endpoint counts tokens. Everything else in the
+ * capability table is a reasonable guess about a provider; these two are facts
+ * about somebody's machine.
+ */
+describe('what an endpoint can do', () => {
+  it('sends the window it was given, as a number', async () => {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Name/ }), 'Local');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'qwen');
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    await userEvent.type(screen.getByRole('textbox', { name: /Context window/ }), '32768');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capabilities: expect.objectContaining({ maxContextTokens: 32768 }),
+        }),
+      );
+    });
+  });
+
+  /**
+   * **The failure this file already had once, with the key.** A save that sent
+   * only the fields the form knows about deleted a hand-written override for one
+   * it does not — and `capabilities` is exactly where somebody writes an
+   * override by hand, because until now there was no other way.
+   */
+  it('keeps an override it has no control for', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { maxContextTokens: 8192, supportsTools: true } })],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    // The id travels as the first argument; the body is the second.
+    const [, saved] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    // The one it has no control for survives, and the one it does is unchanged
+    // because nothing was typed.
+    expect(saved.capabilities).toEqual({ maxContextTokens: 8192, supportsTools: true });
+  });
+
+  it('clears the window when the box is emptied', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { maxContextTokens: 8192 } })],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    await userEvent.clear(screen.getByRole('textbox', { name: /Context window/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    const [, cleared] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    // Removed rather than set to zero — which is what *leave blank to use the
+    // default* has to mean, and zero would be a real (wrong) window.
+    expect(cleared.capabilities).toEqual({});
+  });
+});
