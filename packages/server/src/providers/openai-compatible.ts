@@ -95,11 +95,17 @@ export class OpenAICompatibleProvider implements Provider {
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
     const prompt = splitForSdk(request.messages, this.capabilities.systemMessage);
+    // Captured rather than thrown, because the SDK calls this instead of
+    // failing the iterator — see the throw below the loop.
+    let failure: unknown;
     const result = streamText({
       model: this.#model(request.modelId),
       messages: prompt.messages,
       ...(prompt.instructions === undefined ? {} : { instructions: prompt.instructions }),
       ...toSdkParams(request),
+      onError: ({ error }) => {
+        failure = error;
+      },
     });
 
     let text = '';
@@ -114,6 +120,25 @@ export class OpenAICompatibleProvider implements Provider {
       // know it is partial.
       throw asProviderError(error);
     }
+
+    /**
+     * **A failure before the first chunk does not arrive as a throw**, and this
+     * is the line that turns it back into one.
+     *
+     * `streamText` does not throw into the iterator when the request itself
+     * fails: it hands the error to its own `onError` and ends the stream empty.
+     * So the loop above completes normally, and the failure surfaces later —
+     * previously as a bare `NoOutputGeneratedError` from `await result.usage`,
+     * carrying no status, no class and none of the provider's words.
+     *
+     * Measured, before the fix: a 401, a 429, a 502 with an HTML body and a
+     * refused connection produced **one identical error** reading *"No output
+     * generated. Check the stream for errors."* Every deliberate breakage
+     * [12 §2.2](../../../../docs/design/workplan/12-p2-manual-gate.md) asks a tester to make
+     * returned the same wrong answer, and a 429 was never retried because
+     * nothing could see it was a 429.
+     */
+    if (failure !== undefined) throw asProviderError(failure);
 
     return {
       text,
@@ -237,6 +262,42 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
  * notice. Three buckets, and the provider's own words go in `detail` for the
  * log.
  */
+/**
+ * The operating-system errors that mean *the connection did not work*, as
+ * opposed to *the provider said no* — F27.
+ *
+ * Node reports these on a `cause` rather than in the message, and the message
+ * they do carry is unhelpfully terse: a refused connection reads `fetch failed`
+ * and a socket dying mid-response reads `terminated`. Neither matched the
+ * message vocabulary this used to test, so **both classified `terminal` and the
+ * retry ladder never fired** — measured across six deliberate failures in two
+ * independent runs without a single retry.
+ */
+const TRANSIENT_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** The first error code on the cause chain, which is where fetch buries it. */
+function codeOf(error: unknown): string | undefined {
+  for (let at = error, depth = 0; at !== undefined && at !== null && depth < 8; depth += 1) {
+    const node = at as { code?: unknown; cause?: unknown; lastError?: unknown };
+    if (typeof node.code === 'string') return node.code;
+    // Two links, not one: `lastError` is what a `RetryError` carries instead of
+    // a cause, and that wrapper appears whenever the SDK's own retry is on.
+    at = node.cause ?? node.lastError;
+  }
+  return undefined;
+}
+
 function asProviderError(error: unknown): ProviderError {
   if (error instanceof ProviderError) return error;
 
@@ -248,10 +309,38 @@ function asProviderError(error: unknown): ProviderError {
   let errorClass: ErrorClass = 'terminal';
   if (status === 429 || (status !== undefined && status >= 500)) {
     errorClass = 'retryable';
-  } else if (status === undefined && /timeout|network|fetch|socket|abort/i.test(message)) {
-    // No status at all usually means the request never got an answer.
+  } else if (status === undefined && TRANSIENT_CODES.has(codeOf(error) ?? '')) {
+    // The connection never worked. Nothing about the request was refused.
+    errorClass = 'transient';
+  } else if (status === undefined && (error as { isRetryable?: unknown }).isRetryable === true) {
+    /**
+     * **The SDK's own judgement, taken over a regex.** `APICallError` sets
+     * `isRetryable` from its own taxonomy, and a status-less error it calls
+     * retryable is a connection that did not work — a refused port arrives this
+     * way, with its `ECONNREFUSED` buried under a message reading only *"Cannot
+     * connect to API"*. Reading the flag is more durable than guessing at
+     * wording that belongs to somebody else's library.
+     */
+    errorClass = 'transient';
+  } else if (
+    status === undefined &&
+    /timeout|network|fetch failed|socket|abort|terminated/i.test(message)
+  ) {
+    // No status, no code and no flag: the message is all there is.
+    // `terminated` is undici's word for a response that stopped arriving.
     errorClass = 'transient';
   }
 
-  return new ProviderError(errorClass, 'The provider call failed.', message);
+  /**
+   * **The provider's own words travel as `detail`, and a body is better than a
+   * class name.** An `APICallError` carries the response body, which is where a
+   * provider actually explains itself — *"Incorrect API key provided"* rather
+   * than *"Bad Request"*. Bounded, because an HTML error page is a whole
+   * document and a log line is not.
+   */
+  const body = (error as { responseBody?: unknown }).responseBody;
+  const detail =
+    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
+
+  return new ProviderError(errorClass, 'The provider call failed.', detail);
 }

@@ -259,3 +259,256 @@ describe('what the connection decides', () => {
     expect(authorization).toBeNull();
   });
 });
+
+/**
+ * **The streaming path, which had no tests at all** — F27.
+ *
+ * Ten tests preceded these and every one drove `generate()`: the path a turn
+ * never takes. So the boundary every turn actually crosses was covered by
+ * nothing, and `FakeProvider.stream` throws a `ProviderError` from *inside* its
+ * generator — a shape the real adapter does not have — which is
+ * [12 §4.1](../../../../docs/design/workplan/12-p2-manual-gate.md)'s *"a stub agrees with
+ * whatever wrote it"* in the one place it costs most.
+ *
+ * **The tests that matter here fail at the transport rather than in a
+ * generator.** `streamText` does not throw into the iterator when the request
+ * fails — it hands the error to `onError` and ends the stream empty — so a test
+ * whose *generator* throws exercises a path the SDK never takes.
+ *
+ * Measured before the fix, all four of these produced one identical
+ * `NoOutputGeneratedError` reading *"No output generated. Check the stream for
+ * errors."*, with no class, no status and none of the provider's words.
+ */
+function sse(chunks: unknown[], options: { cut?: boolean } = {}): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encoder = new TextEncoder();
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+      }
+      if (options.cut === true) {
+        /**
+         * A response that stops arriving — undici's `terminated`, and the local
+         * runtime's characteristic failure.
+         *
+         * **On a later tick, not this one.** Erroring synchronously inside
+         * `start` tears the stream down before the chunks above are read, so
+         * the caller sees no partial text — and the point of this case is that
+         * the partial answer *survives* the failure.
+         */
+        setTimeout(() => {
+          controller.error(new Error('terminated'));
+        }, 0);
+        return;
+      }
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+
+  return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+}
+
+function delta(content: string, finish?: string): unknown {
+  return {
+    id: 'chatcmpl-1',
+    object: 'chat.completion.chunk',
+    created: 0,
+    model: 'llama-local',
+    choices: [
+      {
+        index: 0,
+        delta: { content },
+        ...(finish === undefined ? {} : { finish_reason: finish }),
+      },
+    ],
+  };
+}
+
+async function collect(
+  provider: OpenAICompatibleProvider,
+): Promise<{ text: string; error: ProviderError | null }> {
+  let text = '';
+  try {
+    const stream = provider.stream({ modelId: 'llama-local', messages, params: {} });
+    let next = await stream.next();
+    while (next.done !== true) {
+      text += next.value.text;
+      next = await stream.next();
+    }
+    return { text, error: null };
+  } catch (error) {
+    return { text, error: error as ProviderError };
+  }
+}
+
+describe('a streaming failure', () => {
+  it('carries a class and the provider’s own words when the request is refused', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { message: 'Incorrect API key provided: sk-xx' } }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        }),
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error).toBeInstanceOf(ProviderError);
+    expect(error?.class).toBe('terminal');
+    // The body, not the status name: a provider explains itself in the body,
+    // and `detail` is what reaches the log.
+    expect(error?.detail).toContain('Incorrect API key provided');
+  });
+
+  it('is retryable when the provider says try later', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { message: 'Rate limit reached' } }), {
+          status: 429,
+          headers: { 'content-type': 'application/json' },
+        }),
+    });
+
+    const { error } = await collect(provider);
+
+    // The one class the retry ladder exists for. Before the fix this was
+    // `terminal`, so a rate limit ended the turn instead of waiting.
+    expect(error?.class).toBe('retryable');
+  });
+
+  it('reads a gateway’s HTML page without mistaking it for an answer', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () =>
+        new Response('<html><body>502 Bad Gateway</body></html>', {
+          status: 502,
+          headers: { 'content-type': 'text/html' },
+        }),
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error?.class).toBe('retryable');
+    expect(error?.detail).toContain('502 Bad Gateway');
+  });
+
+  /**
+   * **The shape that would have caught the original defect**, and the reason it
+   * is worth its own test: the fetch itself rejects, so nothing inside a
+   * generator throws and nothing has a status. A transport that never answered
+   * is not the provider refusing.
+   */
+  it('is transient when the connection never worked', async () => {
+    const refused = Object.assign(new TypeError('fetch failed'), {
+      cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1'), {
+        code: 'ECONNREFUSED',
+      }),
+    });
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => {
+        throw refused;
+      },
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error?.class).toBe('transient');
+  });
+
+  /**
+   * Mid-stream is the half that already reached the classifier — and landed
+   * `terminal`, because `terminated` matched none of the words it tested. The
+   * partial text is handed to the caller before the throw, which is the
+   * behaviour the surrounding docstring commits to.
+   */
+  it('keeps the partial answer when the response stops arriving', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('Half a sen')], { cut: true }),
+    });
+
+    const { text, error } = await collect(provider);
+
+    expect(text).toBe('Half a sen');
+    expect(error?.class).toBe('transient');
+  });
+
+  it('streams an ordinary reply in pieces', async () => {
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => sse([delta('Half a '), delta('sentence.', 'stop')]),
+    });
+
+    const { text, error } = await collect(provider);
+
+    expect(error).toBeNull();
+    expect(text).toBe('Half a sentence.');
+  });
+});
+
+/**
+ * **Three routes to `transient`, and each needs a case only it can answer.**
+ *
+ * The classifier tries an error code, then the SDK's own retryability flag,
+ * then the message. They overlap on the shapes that matter most — a refused
+ * connection carries `ECONNREFUSED` *and* reads `fetch failed` — so a test
+ * written against a realistic error proves only that *something* classified it.
+ * Deleting `ECONNREFUSED` from the code table left the suite green, which is
+ * the tell.
+ *
+ * So these two are deliberately unrealistic: each strips away every route but
+ * one. They are not here to describe a provider, they are here so a route
+ * cannot be removed in silence.
+ */
+describe('classifying a failure with no status', () => {
+  it('reads an error code the message does not mention', async () => {
+    // Message chosen to match none of the wording the classifier tests, so the
+    // code on the cause is the only thing left to go on.
+    const dropped = Object.assign(new Error('upstream went away'), {
+      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    });
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => {
+        throw dropped;
+      },
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error?.class).toBe('transient');
+  });
+
+  it('takes the SDK at its word when there is neither a code nor a phrase', async () => {
+    const flagged = Object.assign(new Error('upstream went away'), { isRetryable: true });
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => {
+        throw flagged;
+      },
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error?.class).toBe('transient');
+  });
+
+  it('is terminal when nothing says otherwise', async () => {
+    // The floor. Without this, a classifier that returned `transient` for
+    // everything would satisfy every test above.
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async () => {
+        throw new Error('upstream went away');
+      },
+    });
+
+    const { error } = await collect(provider);
+
+    expect(error?.class).toBe('terminal');
+  });
+});
