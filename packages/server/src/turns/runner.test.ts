@@ -687,10 +687,23 @@ describe('the preset is what builds the prompt', () => {
     expect(kinds).not.toContain('setting');
   });
 
-  it('splits history into one block per turn, oldest cheapest', async () => {
-    // P2.4 promised history would be splittable from the start; one block for
-    // the whole transcript would make the budgeter's only move dropping all of
-    // it.
+  /**
+   * **The player's words are the player's** — F36, end to end through the real
+   * pipeline, which is where this belongs because it is the only level at which
+   * the bug was visible.
+   *
+   * A completed turn became one block labelled `assistant` holding the input and
+   * the output joined by a newline, so **every message the player had ever
+   * typed was attributed to the model.** Invisible on screen, and visible only
+   * on the wire or by reading the collector — which is how it survived a survey,
+   * four phases and six audits, with a test right here that asserted the block
+   * count and never looked at whose voice it was in.
+   *
+   * P2.4 promised history would be splittable from the start; one block for the
+   * whole transcript would make the budgeter's only move dropping all of it.
+   * Splitting by *speaker* keeps that and fixes the attribution.
+   */
+  it('attributes each half of a past turn to whoever said it', async () => {
     await runTurn('The first thing.');
     const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
 
@@ -702,8 +715,14 @@ describe('the preset is what builds the prompt', () => {
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
     const history = written.at(-1)?.turn.request?.blocks.filter((b) => b.source.kind === 'history');
-    expect(history).toHaveLength(1);
-    expect(history?.[0]?.text).toContain('The first thing.');
+
+    // Two blocks for one past turn, in the order they were said, each in its own
+    // voice — and the player's line is *not* the model's.
+    expect(history?.map((block) => [block.role, block.text])).toEqual([
+      ['user', 'The first thing.'],
+      ['assistant', expect.any(String)],
+    ]);
+    expect(history?.[1]?.text).not.toContain('The first thing.');
   });
 });
 
