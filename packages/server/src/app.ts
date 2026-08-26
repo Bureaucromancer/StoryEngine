@@ -295,27 +295,41 @@ async function assembleWithState(
    * and costs one stat per turn instead of two.
    */
   const accounts = new Accounts(layout);
-  const runner = new TurnRunner({ commit, bus, providers, accounts, config: options.config });
+
+  /**
+   * **The server's own copy**, so a settings save cannot reach back into the
+   * object the caller built.
+   *
+   * `applyLiveConfig` assigns into this, and a caller who assembled their
+   * config by spreading `DEFAULT_CONFIG` — a shallow spread shares every
+   * nested object — would have their defaults rewritten by the first save.
+   *
+   * **Belt and braces with the loader's own clone**, and the honest version of
+   * that is worth writing down: `validateConfigDocument` also clones, so
+   * reverting *either* of them alone leaves the defaults intact and a mutation
+   * test cannot tell. The loader's is the one production depends on, because
+   * `mergeDefaults` shares whatever the file does not mention. This one guards
+   * the other direction — a caller assembling a config some way the loader
+   * never touched, which `main.ts` does the moment `--data` overrides
+   * `dataDir`.
+   *
+   * **Bound here rather than in the returned literal, because the runner needs
+   * the same object and used to get a different one.** It was handed
+   * `options.config` while `applyLiveConfig` assigned into the clone below —
+   * two objects, one of them updated, and every key the turn path reads holding
+   * the other. Four `LIVE_APPLIERS` rows said `applied` about that, which is
+   * the exact claim the table exists to keep honest.
+   *
+   * Every test of a live save passed throughout, because each asserted against
+   * `services.config` — the object the route writes and the form reads back.
+   * The value really did change. Nothing had asked the component that consumes
+   * it, which is why the test that catches this takes a turn.
+   */
+  const config = structuredClone(options.config);
+  const runner = new TurnRunner({ commit, bus, providers, accounts, config });
 
   return {
-    /**
-     * **The server's own copy**, so a settings save cannot reach back into the
-     * object the caller built.
-     *
-     * `applyLiveConfig` assigns into this, and a caller who assembled their
-     * config by spreading `DEFAULT_CONFIG` — a shallow spread shares every
-     * nested object — would have their defaults rewritten by the first save.
-     *
-     * **Belt and braces with the loader's own clone**, and the honest version of
-     * that is worth writing down: `validateConfigDocument` also clones, so
-     * reverting *either* of them alone leaves the defaults intact and a mutation
-     * test cannot tell. The loader's is the one production depends on, because
-     * `mergeDefaults` shares whatever the file does not mention. This one guards
-     * the other direction — a caller assembling a config some way the loader
-     * never touched, which `main.ts` does the moment `--data` overrides
-     * `dataDir`.
-     */
-    config: structuredClone(options.config),
+    config,
     // And the baseline separately, for the same reason in the other direction:
     // sharing one object would make it follow the thing it is the baseline for,
     // and the restart notice would always be empty.
