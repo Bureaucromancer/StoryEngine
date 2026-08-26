@@ -306,6 +306,23 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
         headers: body.apiKey === undefined ? {} : { authorization: `Bearer ${body.apiKey}` },
         signal: AbortSignal.timeout(10_000),
       });
+      /**
+       * **A refused key is not an unreachable endpoint** — finding 5 in
+       * [16](../../../../docs/design/workplan/16-p2c-log.md). Both answered
+       * `502 unreachable`, and the remedies point in opposite directions: an
+       * admin told *unreachable* checks the URL and the network, when what is
+       * wrong is the one field this response cannot name. Adding a connection
+       * is a stranger's third step, so this is the first wrong turn available.
+       *
+       * Still a class and never the endpoint's own words, for the same reason
+       * as below — the body can echo the key it is refusing.
+       */
+      if (response.status === 401 || response.status === 403) {
+        return await reply.code(401).send({
+          error: 'unauthorized',
+          message: 'That endpoint refused the key.',
+        });
+      }
       if (!response.ok) {
         return await reply.code(502).send({
           error: 'unreachable',
@@ -408,7 +425,22 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
       });
     }
 
-    await writeJsonAtomic(services.layout.systemBindingsFile, defaultBindings(body.hi, body.lo));
+    /**
+     * **Merged over what is there, not written over it.** `defaultBindings`
+     * builds a document of exactly the five `hi`/`lo` roles — `image`, `video`
+     * and `speech` are *unset by design* and simply absent — so writing it
+     * verbatim destroyed any hand-written binding for those three. Hand-editing
+     * `bindings.json` is a first-class gesture here, and the moment this offer
+     * appears — right after a first connection is saved — is precisely when a
+     * person who wrote the file a minute ago is looking at it.
+     *
+     * The five defaulted roles still take the new answer; that is what the
+     * button says it does. Only the roles it does not speak for survive.
+     */
+    await writeJsonAtomic(services.layout.systemBindingsFile, {
+      ...current.bindings,
+      ...defaultBindings(body.hi, body.lo),
+    });
     return await reply.send(await bindingsState(services));
   });
 

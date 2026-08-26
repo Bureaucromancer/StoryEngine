@@ -58,7 +58,19 @@ async function main(): Promise<void> {
   // process reports goes through one mechanism ([13 §4.1]) — including the
   // config path, which is the first thing anyone asks when a setting does not
   // seem to be taking effect.
-  app.log.info({ configPath, fileFound }, fileFound ? 'Config loaded' : 'No config file; defaults');
+  //
+  // **A missing file is `warn`, not `info`** — finding 9 in [16]. It is an
+  // ordinary state on a first boot and an alarming one on every boot after: a
+  // teardown that took `config.json` reverts the port and the data root to
+  // their defaults, and the smoke run watched that revert announce itself in
+  // the same voice as "everything is fine". A person who chose no config file
+  // reads one `warn` per start; a person who lost theirs reads the one line
+  // that says why the server is not where they left it.
+  if (fileFound) {
+    app.log.info({ configPath, fileFound }, 'Config loaded');
+  } else {
+    app.log.warn({ configPath, fileFound }, 'No config file; running on defaults');
+  }
   if (unknownKeys.length > 0) {
     // Kept, not rejected — but said out loud, because a typo'd key is silently
     // doing nothing and that is worth one line.

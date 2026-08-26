@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, open, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,14 +29,26 @@ const run = promisify(execFile);
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'reset-data.mjs');
 
 let held: Awaited<ReturnType<typeof open>> | null = null;
+let made: string[] = [];
 
 afterEach(async () => {
+  /**
+   * **The handle first, then the directories** — including the one the
+   * held-file test deliberately makes unremovable. This teardown used to close
+   * the handle and stop, so the suite that exists to prove teardowns complete
+   * leaked one `mkdtemp` directory per run, forever. The order matters: while
+   * the handle is open, the `rm` here would half-succeed in exactly the way
+   * `reset-data.mjs` was written to make impossible.
+   */
   await held?.close();
   held = null;
+  for (const at of made) await rm(at, { recursive: true, force: true });
+  made = [];
 });
 
 async function dataDir(): Promise<string> {
   const at = await mkdtemp(join(tmpdir(), 'se-reset-'));
+  made.push(at);
   await mkdir(join(at, 'state'), { recursive: true });
   await mkdir(join(at, 'index'), { recursive: true });
   await writeFile(join(at, 'config.json'), '{}');

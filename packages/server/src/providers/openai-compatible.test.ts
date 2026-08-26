@@ -629,6 +629,47 @@ describe('why the model stopped', () => {
  * An endpoint that serves an alias, a fallback, or routes to whatever is loaded
  * is exactly the thing *"why is this turn different"* has to be able to answer.
  */
+describe('usage on the streaming path', () => {
+  /**
+   * **The way usage actually arrives during the phase** — gate step 2 reads
+   * `usage.promptTokens` off a turn, every turn streams, and a streamed
+   * response reports usage only as a final chunk with no choices in it, sent
+   * because the request asked with `stream_options: { include_usage: true }`.
+   * Every existing usage test drove `generate()`, so the one path a real
+   * session takes was the one path nothing asserted.
+   */
+  it('reads the usage-only final chunk a streaming endpoint sends', async () => {
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return sse([
+          delta('The rain '),
+          delta('had not stopped.', 'stop'),
+          // What include_usage buys: one more chunk, empty choices, the count.
+          {
+            id: 'chatcmpl-1',
+            object: 'chat.completion.chunk',
+            created: 0,
+            model: 'llama-local',
+            choices: [],
+            usage: { prompt_tokens: 42, completion_tokens: 7, total_tokens: 49 },
+          },
+        ]);
+      },
+    });
+
+    const { result } = await collect(provider);
+
+    // Both halves, because either alone can silently regress: the request has
+    // to ask — remove `includeUsage` from the adapter and real endpoints stop
+    // sending the chunk — and the answer has to be read rather than dropped.
+    expect(sent['stream_options']).toEqual({ include_usage: true });
+    expect(result?.usage).toEqual({ promptTokens: 42, completionTokens: 7 });
+  });
+});
+
 describe('which model answered', () => {
   it('records what the endpoint said, not what was asked', async () => {
     const provider = new OpenAICompatibleProvider({

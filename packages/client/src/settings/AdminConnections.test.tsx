@@ -215,6 +215,43 @@ describe('the stale check', () => {
   });
 });
 
+describe('asking an endpoint for its models', () => {
+  /**
+   * **A refused key gets its own sentence** — finding 5 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md). Both failures used
+   * to read *did not answer with a model list*, which sends an admin to the
+   * URL and the network — and the one case where that is exactly wrong is the
+   * endpoint answering perfectly well that the key is bad.
+   */
+  it('says a refused key was refused, not that the endpoint is gone', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    fetchModels.mockRejectedValueOnce(
+      new ApiError(401, 'unauthorized', 'That endpoint refused the key.'),
+    );
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+
+    expect(await screen.findByText(/refused the key/)).toBeTruthy();
+  });
+
+  it('still reads as unreachable when the endpoint really is', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    fetchModels.mockRejectedValueOnce(
+      new ApiError(502, 'unreachable', 'That endpoint could not be reached.'),
+    );
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+
+    expect(await screen.findByText(/did not answer with a model list/)).toBeTruthy();
+  });
+});
+
 describe('a 412 on a connection', () => {
   /**
    * **Both ways out, and the acknowledgement stays set for both** — the shape

@@ -3,7 +3,12 @@
 
 import { useState, type JSX } from 'react';
 
-import type { AdminConnection, ConnectionCapabilities, RoleRow } from '../api.js';
+import {
+  ApiError,
+  type AdminConnection,
+  type ConnectionCapabilities,
+  type RoleRow,
+} from '../api.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
 import {
@@ -340,9 +345,17 @@ function ConnectionForm({
              * **A notice, never a blocked save** — [P2B §2.6]. `/models` is
              * optional in practice, and several local runtimes answer it with
              * one entry called `gpt-3.5-turbo` regardless of what is loaded.
+             *
+             * **But a refused key gets its own sentence** — finding 5. The two
+             * remedies point in opposite directions: *unreachable* sends an
+             * admin to the URL and the network, and the one case where that is
+             * exactly wrong is the endpoint answering perfectly well that the
+             * key is bad.
              */
             <p role="status" className="text-sm text-ink-subtle">
-              That endpoint did not answer with a model list. Type the model name instead.
+              {models.error instanceof ApiError && models.error.code === 'unauthorized'
+                ? 'That endpoint refused the key. Check it — the URL is fine.'
+                : 'That endpoint did not answer with a model list. Type the model name instead.'}
             </p>
           ) : null}
         </div>

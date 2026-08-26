@@ -860,7 +860,12 @@ different justification and nobody has asked for it.
 ### `POST /api/admin/connections/models`
 
 `{ "baseUrl": "…", "apiKey": "…" }` → `{ "models": ["gpt-hi"] }`, or
-`502 unreachable`.
+`401 unauthorized` when the endpoint refused the key, or `502 unreachable` for
+everything else. The two are distinct because their remedies point in opposite
+directions: *unreachable* sends an admin to the URL and the network, and the
+one case where that is exactly wrong is the endpoint answering perfectly well
+that the key is bad. Either way the body carries a class and never the
+endpoint's own words — those can echo the key being refused.
 
 **An assist, not the path.** Typing a model id from memory is where *paste in one
 API key and take a turn* falls down, so this fills a picker from the endpoint's
