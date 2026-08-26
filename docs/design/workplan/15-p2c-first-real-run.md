@@ -121,13 +121,10 @@ it costs.
 Not about evidence quality: about whether a person who has not read the source
 arrives anywhere.
 
-- **Nothing links to the play surface.** `Shell.tsx` renders two links, the
-  library and settings; the only link to a session lives *inside* `SessionsPage`,
-  which is reachable by typing `/play` into the address bar and no other way. The
-  surface works once you are there — which is why this is not blocking — but
-  nobody types a URL they have not been told about, and no design document
-  specifies a nav entry or defers one, so it is a gap rather than a deferral.
-  *One hour, plus a Shell test that asserts the entry exists.*
+- **~~Nothing links to the play surface.~~ Done.** `Shell.tsx` renders Play
+  and Library in the signed-in nav, with the test this item asked for —
+  *offers Play and Library, addressed to their surfaces* — and its absence
+  asserted when signed out.
 - **The play surface is dark inside a light shell, and typed text is invisible.**
   **Blocking.** `Shell.tsx` sets `text-slate-900` on the app root; four files
   under `play/` set `bg-neutral-900` and no text colour, and Tailwind's preflight
@@ -194,14 +191,10 @@ arrives anywhere.
   [P2B §4](14-p2b-provider-configuration.md)'s command block are corrected with
   it. *Fastify prints its own listening line first and still names the API port;
   that one is true, it is simply not where anybody goes.*
-- **A repeated flag is silently ignored.** `argumentValue` takes the **first**
-  occurrence, so appending `--data` to `pnpm dev:server` — whose script already
-  hardcodes one — is dropped without a word, and the run uses a directory the
-  person did not choose. A scratch install is still reachable by another route,
-  which is why this went from *blocking* to *ten minutes*: **make a repeated flag
-  a `UsageError`**, the same treatment F24 already gave a flag with no value, and
-  point Vite's hardcoded proxy target at an environment variable. *Half an hour
-  for both.*
+- **~~A repeated flag is silently ignored.~~ Done, both halves.** A repeated
+  flag is a `UsageError` — the same treatment F24 gave a flag with no value —
+  and Vite's proxy target reads `SE_API` (its own port `SE_CLIENT_PORT`),
+  which [17 §2.3](17-p2c-brief.md) documents since nothing else did.
 
 ### 1.2 The findings would be wrong — about two days
 
@@ -209,8 +202,11 @@ The provider boundary is the phase's subject, and five of its behaviours are
 wrong in ways that would make a session's observations misleading rather than
 merely incomplete. **Every one of these produces a plausible false finding.**
 
-- **Every streaming failure escapes the adapter unclassified. Blocking**, and
-  the most instructive item on this page.
+- **~~Every streaming failure escapes the adapter unclassified.~~ Done** —
+  `onError` captured, re-thrown through `asProviderError`, with six streaming
+  failure shapes and three classification routes under test, so a deleted
+  route fails a test rather than going quiet. The account below is kept
+  because it is the most instructive item on this page.
 
   Five shapes driven through the real adapter — a fetch rejection, a 401, a 429,
   a 400 and a genuinely closed port — produced one identical
@@ -235,8 +231,11 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   **Three of [12 §2.2](12-p2-manual-gate.md)'s deliberate breakages are about
   this path and today all three return the same wrong answer.** *A day, and the
   streaming tests are the more valuable half.*
-- **`usage` is null on every turn**, for reasons that are independent and all
-  have to be fixed: `reportsUsage: false` in the conservative baseline that
+- **~~`usage` is null on every turn~~ Done, both halves** —
+  `reportsUsage: true` for the adapter and `includeUsage: true` on the wire,
+  with the streaming path's usage-only final chunk now asserted directly.
+  The original account: the two reasons were independent and both had to be
+  fixed — `reportsUsage: false` in the conservative baseline that
   `openai-compatible` inherits verbatim, and `includeUsage` never passed to the
   SDK, so `stream_options` never goes on the wire. *(A third — a form edit
   deleting the hand-written override that would fix the first — was found by the
@@ -247,19 +246,26 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   reported usage — which is why it is high rather than blocking, and why fixing
   it changes what the record says without changing what the turn does. *Half a
   day.*
-- **`ModelCall.resolved` records what was asked for, never what answered.** Both
-  adapter paths return `modelId: request.modelId`; the SDK supplies
-  `response.modelId` and it is discarded. A check that cannot fail is worse than
-  no check, and this one was written into §4 before the survey caught it. *Two
-  hours.*
-- **A truncated reply is indistinguishable from a finished one**, and a stream
-  that simply stops is recorded as a **successful** turn. `finishReason` is
-  parsed by the SDK and dropped by the adapter, so a completion ceiling, a
-  content filter and a network stall all end as `outcome: 'ok'`. That last one is
-  the local runtime's characteristic failure. *Half a day, and the two fall out
-  of one change.*
-- **Every connection is budgeted at 8192 tokens, because nothing ever sets
-  otherwise.** *"No way to say otherwise" was wrong and is corrected here:* the
+- **~~`ModelCall.resolved` records what was asked for, never what
+  answered.~~ Done** — `modelThatAnswered` reads the response's own id on both
+  paths, tested. The caveat that survives into the brief: on an endpoint that
+  echoes no model id the adapter falls back to what was asked for, silently,
+  so a match is proof only where the endpoint is known to report one. The
+  original point stands as the reason the check exists: a check that cannot
+  fail is worse than no check, and this one was written into §4 before the
+  survey caught it.
+- **~~A truncated reply is indistinguishable from a finished one.~~ Done** —
+  `finishReason` is kept and mapped to a call outcome, so a ceiling reads
+  `truncated`, a filter `refused`, and a stream that simply stops —
+  the local runtime's characteristic failure — `incomplete` rather than a
+  successful turn. (`cancelled` joined the vocabulary later, from finding 2.)
+- **~~Every connection is budgeted at 8192 tokens, because nothing ever sets
+  otherwise.~~ Done, with one ask converted into a refusal** — the client's
+  *Context window* and *Reports token counts* fields land end to end and
+  `docs/api.md` documents the body; the third ask, a `KNOWN_PROVIDERS` entry,
+  is now a written refusal at `config.ts`: capabilities.ts will not invent a
+  number it cannot verify, so the override belongs to the person who knows the
+  machine. The original account: *"No way to say otherwise" was wrong and is corrected here:* the
   route body, the store, the file format and the budgeter all already handle
   `capabilities`, and two audits measured a 4096 override landing end to end. The
   work is unchanged and as small as it was sized — a client field, a
@@ -307,21 +313,21 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   by testing a turn that worked. It now corrupts `accounts.json` and asserts
   that `job.unstartable` was written, so the next hardening past its fixture is
   a failure rather than a silence.
-- **A failed step logs the whole rendered prompt and the partial narration.**
-  `CallFailed` carries `partialText` and `call` as own enumerable properties, and
-  the step-failure line logs the error object. [13 §4.1] says portable object
-  bodies never appear in a log — *a log is not a backup and user prose is not
-  diagnostic* — so this is a contract violation and a drowned log at once. *One
-  hour.*
-- **Pressing Stop writes an `error` line.** The step-failure path logs at `error`
-  unconditionally, including for `cancelled` and for a step whose declared
-  failure mode is `ignore`. During a phase where Stop is pressed constantly
-  against real latency, this is most of the log. *One hour, bundled with the
-  above.*
-- **The provider's own error text is thrown away.** `asProviderError` puts the
-  real message in `detail` and **nothing reads `detail`** — not the record, not
-  the log, not the wire. Every provider failure in the phase would be reported as
-  a class with no evidence under it. *Two hours.*
+- **~~A failed step logs the whole rendered prompt and the partial
+  narration.~~ Done (F32)** — the step-failure line logs a shape (event, step,
+  reason, message, class, call id) rather than the error object, so
+  `partialText` and the rendered prompt stay on the record where they belong
+  and out of the log, per [13 §4.1]'s *a log is not a backup and user prose is
+  not diagnostic*.
+- **~~Pressing Stop writes an `error` line.~~ Done, same commit** — the
+  level follows the reason: `info` for a cancellation, `warn` for `ignore`
+  and `warn` failure modes, `error` only for a step that aborts the turn.
+  Stop pressed constantly against real latency now reads as what it is.
+- **~~The provider's own error text is thrown away.~~ Done** — `detail`
+  rides `CallFailed` onto the record and into the step-failure log line,
+  absent rather than empty when the endpoint said nothing, so silence and a
+  blank are distinguishable. The words never become UI copy; the class still
+  crosses to the person.
 - **~~A broken library file is logged by nothing.~~ The `warn` line is done;
   the card is still out.** The index records the failure and
   `GET /api/library/errors` exposes it, and now `library.invalid` is written at
@@ -466,10 +472,15 @@ exists and is used correctly in `watcher.test.ts`. The gate's failure text reads
 as index corruption, which is the worst false alarm available to hand somebody
 mid-phase.
 
-*Half a day:* declare a `testTimeout` — there is none, so 1116 of 1118 tests run
-on vitest's undeclared 5000ms default, and one line removes **roughly nine tenths
-of the ceiling** — point `logging.test.ts`'s poll at the watcher barrier, and
-remove the 154 KB temp directory every run leaks.
+*~~Half a day: declare a `testTimeout`… point `logging.test.ts`'s poll at
+the watcher barrier, and remove the 154 KB temp directory every run leaks.~~
+All three landed* — the ladder note above already said so, and this paragraph
+kept re-opening what that one closed; the contradiction stood for a while and
+is worth the sentence, because a document that disagrees with itself about
+what is done sends somebody to re-do it. One postscript: the teardown fix
+itself introduced a *new* leak — `reset-data.test.ts`'s held-file test parked
+one mkdtemp directory per run, forever, in the suite that exists to prove
+teardowns complete — found and fixed in the closeout.
 
 *Three corrections to the sizing above, all measured.* The timeout is not
 co-equal with the polls: it is ~90% of the ceiling and `logging.test.ts` is ~10%,
@@ -503,19 +514,13 @@ which is six things rather than one.
   *running the thing somewhere else*, and no amount of reading would have reached
   it — the mechanism is in a library, on one platform, behind a native assert.
   That is the phase's own thesis arriving early and unprompted.
-- **A version stamp, smaller than it first looked.** There is none anywhere — no
-  route, no About surface, no build injection, and `0.0.0` in every
-  `package.json`. The first draft of this section called that blocking; it is
-  not, and the correction is worth keeping visible: **the tester is the repo
-  owner running from a git working tree**, so `git describe --tags --always
-  --dirty` answers the question today, and a line in the session template
-  delivers the whole benefit at zero build cost — the same thing
-  [12 §1](12-p2-manual-gate.md) already does with its test-count anchor.
-  *What is worth an hour is the drift it exposed:*
-  [04 §6.5](../04-server-multiuser-deployment.md) says *"the running version —
-  which the build already embeds for AGPL §13"*, and no build embeds one. Correct
-  the sentence, and leave the surface to P10 with the rest of
-  [04 §7](../04-server-multiuser-deployment.md)'s About requirements.
+- **~~A version stamp, smaller than it first looked.~~ Done, both halves.**
+  The session template in [16](16-p2c-log.md) opens every finding with
+  `git describe --tags --always --dirty` — the tester is the repo owner
+  running from a working tree, so that answers the question at zero build
+  cost — and [04](../04-server-multiuser-deployment.md)'s sentence now says
+  the build *will* embed a version for AGPL §13 and that **no build embeds
+  one today**. The surface stays with P10's About requirements.
 
 ### 1.7 What is tempting and is not pre-work
 
@@ -911,10 +916,15 @@ readiness survey found nobody had asked for them and each is under an hour:
 
 The deliberate breakages are the valuable half and the easy half to skip because
 nothing is going wrong yet: a wrong key, a model id that does not exist, a
-completion ceiling of ten tokens, an endpoint that returns HTML, the machine's
-network turned off mid-stream. [12 §2.2](12-p2-manual-gate.md) lists them, and
-each should surface as a *classified* failure ([06 E7](../06-open-questions.md))
-rather than as a provider string in the UI.
+completion ceiling of ten tokens — **which has no UI: hand-edit the session's
+own `preset.params.maxTokens` in `session.json`, a one-line edit, since a
+created session carries a full inline preset** — an endpoint that returns HTML,
+the machine's network turned off mid-stream. [12 §2.2](12-p2-manual-gate.md)
+lists them, and each should surface as a *classified* failure
+([06 E7](../06-open-questions.md)) rather than as a provider string in the UI.
+The ceiling is the one whose classification is not E7's: it surfaces as
+`outcome: 'truncated'` on the call rather than as an error class, because a
+ceiling reached is not a failure — which is itself the thing to verify.
 
 *Ends at:* every step of [12 §2](12-p2-manual-gate.md) run, with an outcome
 written beside it, and the cassette corpus committed.
@@ -998,7 +1008,12 @@ somebody else can check they saw it.
    that does not exist, a completion ceiling of ten tokens, an endpoint returning
    HTML, and the network cut mid-stream. Each surfaces as a class
    ([06 E7](../06-open-questions.md)) and **none puts a provider's own string in
-   front of the user.**
+   front of the user.** *Two corrections from walking this step against the
+   code:* the ceiling has no UI — it is a one-line hand-edit of the session's
+   inline `preset.params.maxTokens`, which [17 §6](17-p2c-brief.md) spells out —
+   and its classification is not an error class at all but
+   `outcome: 'truncated'` on the call, because a ceiling reached is not a
+   failure. Four failures and one truncation is the honest count.
 5. **The model fetch, against three endpoints**: one that implements `/models`,
    one that does not, and one that answers with a single entry unrelated to what
    is loaded. All three end with a connection saved and usable, because the field
@@ -1141,13 +1156,15 @@ two retry backoffs, so no turn can loop into a runaway bill.
 **One entry was removed from that list because it was false, and this is the
 worst place in the document for a wrong claim** — the list's entire function is
 to keep session time *off* the things it names. It said the assembled prompt
-gives history turns real `user` and `assistant` roles. It does not: every
-completed turn is collapsed into **one merged block labelled `assistant`, which
-contains the player's own prose**. So the message shape a real model sees is not
-conventional, and the item is now a finding rather than a reassurance. It is not
-a one-line fix — the one-block-per-turn shape is deliberate, because the
-budgeter's only move on one large block is to drop all of it — so splitting it in
-two doubles the candidate count and is a decision, not a rename.
+gives history turns real `user` and `assistant` roles. It did not: every
+completed turn was collapsed into **one merged block labelled `assistant`,
+which contained the player's own prose**. **Since fixed** — finding 3 in
+[16](16-p2c-log.md): history now emits two candidates per turn, the input as
+`user` and the output as `assistant`, sharing one priority so the budgeter's
+drop-whole-turns behaviour survives the split. The paragraph is kept because
+its method note still stands: the item reached the reassurance list without
+anybody driving a prompt through a real request and reading it, which is the
+exact failure this phase exists to end.
 
 **And the production topology.** The server serves no static files, so everything
 this phase exercises runs behind Vite's dev proxy. Anything that only appears

@@ -140,6 +140,10 @@ answer the two-picker binding form that appears on a first connection.
   `SE_API=http://127.0.0.1:9090 pnpm dev:client`, and `SE_CLIENT_PORT` moves
   Vite's own. Both existed and were documented nowhere until this brief was
   written.
+- **The suite holds up to about four concurrent runs, measured — do not run
+  more.** A test here can fail under machine load for reasons that have
+  nothing to do with the code, and a load-flake teaches re-running instead of
+  reading. One `pnpm test` at a time during a session is the habit.
 - **`pnpm test` is not a build and not a gate.** It is `vitest run` and nothing
   more. It does not typecheck (vitest strips types without checking them), does
   not lint, does not run Prettier, does not emit the JSON Schemas or check that
@@ -243,7 +247,7 @@ defect; all belong to later phases.
 | `GET /api/search` | P3's |
 | `GET /api/library/errors` | The error card, deferred at [§1.7](15-p2c-first-real-run.md) |
 | `POST /api/admin/accounts/:handle/password` | An admin cannot reset another person's password from the screen |
-| `PUT /api/admin/bindings` | Per-role assignment. The **only** binding write reachable from the UI is the one-time first-run defaults form |
+| `PUT /api/admin/bindings` | Per-role assignment. The **only** binding write reachable from the UI is the one-time first-run defaults form. The `curl` route rewrites the *whole* document — a subset body wipes the rest, intentionally |
 | `PUT /api/sessions/:id/cast` | §3.1 |
 | `DELETE /api/sessions/:id`, `PATCH …/archived` | §3.2 |
 | `layout.memoriesRoot` | P8's. Nothing reads it either — the directory is never created |
@@ -280,11 +284,24 @@ saying so.
   `call.finished`, `effect.applied`, `turn.finished` — and the client renders
   none of them. Between Send and the first delta the only feedback is the
   disabled input and the Stop button.
+- **A recovered turn is shaped differently, on purpose.** A turn recovered
+  after a crash carries `steps: []` and no `cost` — the last checkpoint is all
+  there was, and inventing the rest would be fabrication. Do not report the
+  shape; report only if the *content* the checkpoint should carry is missing.
+- **An in-flight turn is broadcast as `failed` from its first write.** That is
+  the recovery contract — a draft that says `failed` until proven otherwise
+  cannot be lost as `running` — and the client renders from the live stream,
+  so you will only ever see it in raw reads of the store or the wire. Known,
+  not a bug.
 - **A broken library file is silent in the app.** It is *not* silent in the log
   any more — `library.invalid` is written at `warn` with the file's path — but no
   screen shows it, so the app presents stale content as current, then refuses
-  the save with a conflict dialog blaming an editor who does not exist. Known,
-  and the first thing fixed after the phase.
+  the save with a conflict dialog blaming an editor who does not exist —
+  **and the refusal loops**: the 412 hands back the very hash you just
+  presented, so *reload and reapply* cannot terminate. The object stays
+  unwritable from the app until the file on disk is fixed by hand. Known —
+  finding 8, deliberately deferred with the error card — and the first thing
+  fixed after the phase. Fix the file in the editor you broke it with.
 
 ### 3.5 Already checked, do not spend session time
 
@@ -443,9 +460,9 @@ of writing:
   `openai-compatible.test.ts`, written when the first real cassette lands.
 - **The bindings surface**: per-role assignment is a one-time first-run form and
   nothing else.
-- **[12 §2.1](12-p2-manual-gate.md) is stale** in the two places its own findings
-  log records — a screen name that no longer exists, and steps written when
-  there was no connections form.
-- **[P2C §1.2](15-p2c-first-real-run.md) reads as though nothing landed** and all
-  five of its provider-boundary defects are fixed. Anyone reading it will
-  conclude gate steps 2 and 3 cannot pass. They can.
+- **~~[12 §2.1](12-p2-manual-gate.md) is stale~~ Rewritten** against the UI
+  that exists — the connections form, the first-run binding offer, and the
+  resolver-backed dead-end count.
+- **~~[P2C §1.2](15-p2c-first-real-run.md) reads as though nothing landed~~
+  Struck through**, all five, each with what actually shipped. The gate steps
+  it made look unpassable are annotated where they stand.
