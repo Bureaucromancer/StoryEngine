@@ -93,6 +93,77 @@ export interface CallOutcome {
  */
 const RETRY_BACKOFF_MS = [250, 1000] as const;
 
+/**
+ * A call abandoned because **nothing happened for too long** — [P2C §1.3].
+ *
+ * Distinct from `Cancelled` and it has to be: a person pressing Stop and an
+ * endpoint that stopped answering produce the same `AbortError` from the same
+ * signal, and telling a user *you cancelled this* when they did not is worse
+ * than the hang. The reason is carried out of band, on the composed controller,
+ * rather than read back off an exception nobody can attribute.
+ *
+ * Classified `terminal`, deliberately. It is transient in the ordinary sense —
+ * try again in a minute and it may well answer — but the point of the key is
+ * that a hang has an exit, and two retries at the full timeout each is three
+ * times as long a hang. A person who wants another attempt has a Retry button;
+ * a person waiting on a wedged turn has nothing.
+ */
+class Stalled extends ProviderError {
+  constructor(ms: number) {
+    super('terminal', `The endpoint sent nothing for ${String(ms)}ms.`);
+    this.name = 'Stalled';
+  }
+}
+
+/**
+ * The signal one attempt runs under: the caller's, plus an idle timer.
+ *
+ * The timer is armed at the start and re-armed by every streamed chunk, so what
+ * it bounds is silence rather than length. `dispose` is not optional — a
+ * pending `setTimeout` keeps the event loop alive, and a suite that leaves one
+ * per call hangs on exit rather than failing.
+ */
+function noop(): void {
+  /* Nothing to arm and nothing to clear. */
+}
+
+function withIdleTimeout(
+  outer: AbortSignal,
+  ms: number,
+): { signal: AbortSignal; progress: () => void; stalled: () => boolean; dispose: () => void } {
+  if (ms <= 0) {
+    // Switched off: the caller's own signal, unwrapped. Not a controller that
+    // never fires — `AbortSignal.any` allocates and subscribes, and this is the
+    // configuration somebody chose because their endpoint is slow.
+    return { signal: outer, progress: noop, stalled: () => false, dispose: noop };
+  }
+
+  const controller = new AbortController();
+  let fired = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const arm = (): void => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(() => {
+      fired = true;
+      controller.abort();
+    }, ms);
+    // Node keeps the process alive for a pending timer, and this one outlives
+    // nothing worth waiting for.
+    timer.unref();
+  };
+  arm();
+
+  return {
+    signal: AbortSignal.any([outer, controller.signal]),
+    progress: arm,
+    stalled: () => fired,
+    dispose: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
 export async function performCall(
   context: CallContext,
   request: StepCallRequest,
@@ -154,6 +225,9 @@ export async function performCall(
     // `let` stays narrowed to its initialiser and the retry guard below reads
     // as dead code.
     const partial = { streamed: false, text: '' };
+    // Per attempt, not per call: a retry that inherited a spent timer would be
+    // aborted before it asked anything.
+    const bound = withIdleTimeout(context.signal, context.config.limits.providerTimeoutMs);
     try {
       const result = await invoke(
         provider,
@@ -162,10 +236,11 @@ export async function performCall(
           messages,
           params,
           ...(request.schema === undefined ? {} : { schema: request.schema }),
-          signal: context.signal,
+          signal: bound.signal,
         },
         request.stream === true,
         (text) => {
+          bound.progress();
           partial.streamed = true;
           partial.text += text;
           context.onProgress({ kind: 'streaming', text });
@@ -201,13 +276,22 @@ export async function performCall(
           retries,
         },
       };
-    } catch (error) {
+    } catch (thrown: unknown) {
+      let error = thrown;
       // Checked again, because the abort can land *during* the call — which is
       // the ordinary case for a user pressing Stop. Read through a function
       // rather than directly: `aborted` is a getter whose value changes across
       // an await, and the type checker narrows it to the value it had at the
       // top of the loop and then calls this line dead.
       if (stopped(context.signal)) throw new Cancelled();
+      // **After the caller's signal and before everything else.** Both aborts
+      // arrive as the same `AbortError`, so the order is the attribution: the
+      // person wins, and only silence that nobody asked to end is a stall. The
+      // adapter's classifier matches `/abort/i` and would otherwise have called
+      // this `transient` and retried the hang twice.
+      if (bound.stalled()) {
+        error = new Stalled(context.config.limits.providerTimeoutMs);
+      }
 
       const classified = classify(error);
       const attempt = RETRY_BACKOFF_MS[retries];
@@ -261,6 +345,10 @@ export async function performCall(
         },
         detail,
       );
+    } finally {
+      // Every exit, including the returned success — a live timer holds a
+      // reference to a controller for a call that is over.
+      bound.dispose();
     }
   }
 }

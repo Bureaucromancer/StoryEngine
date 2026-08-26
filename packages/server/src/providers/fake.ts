@@ -84,6 +84,20 @@ export interface ScriptedReply {
    * Optional-with-a-null-member cannot express that on its own, so this says it.
    */
   reportsNoUsage?: true;
+  /**
+   * **Accept the request and then say nothing for this long** — the endpoint
+   * that is neither answering nor failing, which is the case
+   * `limits.providerTimeoutMs` exists for ([P2C §1.3]).
+   *
+   * Honoured against the signal rather than slept through, and that is the
+   * whole of its value: what a timeout *does* is abort, so a double that
+   * ignored the signal would prove only that the test waited five hundred
+   * milliseconds. Rejects the way the streaming path already does.
+   *
+   * On the streaming path this is the wait before the first chunk, because
+   * silence before any text is the shape of a stall a person actually sees.
+   */
+  stallMs?: number;
 }
 
 export interface FakeProviderOptions {
@@ -134,13 +148,14 @@ export class FakeProvider implements Provider {
   }
 
   /*
-   * eslint-disable-next-line @typescript-eslint/require-await -- async by
-   * interface: a real provider awaits a network call, and the double must have
-   * the same shape, or every caller's timing changes under test.
+   * Async by interface: a real provider awaits a network call, and the double
+   * must have the same shape, or every caller's timing changes under test. It
+   * now has an await of its own — `stallMs` — and so no longer needs the
+   * `require-await` exemption it carried for that reason.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
   async generate(request: GenerationRequest): Promise<GenerationResult> {
     const reply = this.#next(request, false);
+    await quiet(reply.stallMs, request.signal);
     if (reply.error) {
       throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
     }
@@ -154,6 +169,8 @@ export class FakeProvider implements Provider {
     if (reply.error && reply.failAfterChunks === undefined) {
       throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail);
     }
+
+    await quiet(reply.stallMs, request.signal);
 
     const text = reply.text ?? DEFAULT_REPLY.text;
     const pieces = splitInto(text, reply.chunks ?? DEFAULT_REPLY.chunks);
@@ -232,4 +249,28 @@ function splitInto(text: string, count: number): string[] {
     pieces.push(text.slice(at, at + size));
   }
   return pieces;
+}
+
+/**
+ * Waits, and stops waiting when the caller gives up.
+ *
+ * A bare `setTimeout` would make every stall test a test of `setTimeout`: the
+ * call would return its answer late but *return*, and the abort under test
+ * would have gone nowhere. Rejecting with the same message the streaming path
+ * uses keeps one story about what an aborted request looks like from a
+ * provider.
+ */
+function quiet(ms: number | undefined, signal: AbortSignal | undefined): Promise<void> {
+  if (ms === undefined || ms <= 0) return Promise.resolve();
+  return new Promise((settle, fail) => {
+    const timer = setTimeout(settle, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        fail(new ProviderError('transient', 'The request was aborted.'));
+      },
+      { once: true },
+    );
+  });
 }

@@ -522,6 +522,68 @@ describe('the three failure modes are three', () => {
     expect(line?.['class']).toBe('terminal');
   });
 
+  /**
+   * **A stalled endpoint ends the turn instead of holding the session open** —
+   * [P2C §1.3], and `limits.providerTimeoutMs`.
+   *
+   * Nothing bounded a provider call. The person's Stop button was the only
+   * exit, which requires somebody to be watching, and the only exit from an
+   * unwatched hang was restarting the server — which destroys the state that
+   * produced the finding. A turn that fails is a turn somebody can read.
+   */
+  it('gives up on an endpoint that accepts the request and says nothing', async () => {
+    makeRunner({
+      script: [{ stallMs: 5_000 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('failed');
+    // `terminal`, so it is not retried: the failure is transient in the ordinary
+    // sense, but three attempts at the full timeout is three times the hang the
+    // key exists to end.
+    expect(turn.request?.calls.at(-1)).toMatchObject({ outcome: 'error', retries: 0 });
+    expect(turn.request?.calls.at(-1)?.error?.class).toBe('terminal');
+  });
+
+  /**
+   * **Silence, not length** — the half of the semantics that a wall-clock
+   * ceiling would get wrong.
+   *
+   * A multi-minute first token is ordinary on a local runtime, and a generation
+   * that is still arriving is not a hang. So the clock is re-armed by every
+   * chunk. This stream runs to four times the timeout and finishes, which is
+   * the assertion: without the re-arm it is killed a fifth of the way in.
+   */
+  it('does not interrupt a long answer that is still arriving', async () => {
+    makeRunner({
+      script: [{ text: 'One two three four five six seven eight.', chunks: 8, chunkDelayMs: 30 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    expect(turn.output?.text).toBe('One two three four five six seven eight.');
+  });
+
+  /**
+   * **Zero means no bound**, for an endpoint whose operator knows it is slower
+   * than any number the form would let them type. Refusing the case would only
+   * move the workaround somewhere less visible than the config file.
+   */
+  it('leaves the call alone when the timeout is switched off', async () => {
+    makeRunner({
+      script: [{ stallMs: 80 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 0 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+  });
+
   it('warn keeps the turn and its prose, and records the failure on both surfaces', async () => {
     makeRunner({ plan: failing('warn') });
     const { turn, job } = await runTurn();

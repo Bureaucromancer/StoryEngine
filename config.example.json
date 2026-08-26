@@ -125,7 +125,18 @@
 
     // live — held back out of the context window for the reply itself, when a
     // call does not say how long it may be.
-    "reservedCompletionTokens": 1024
+    "reservedCompletionTokens": 1024,
+
+    // live — how long one call may go without sending anything before the turn
+    // gives up on it and fails, in milliseconds. Silence, not total length: a
+    // streamed chunk resets the clock, so a long answer is not interrupted but
+    // an endpoint that has stopped responding does not hold a session open
+    // forever. Five minutes by default, which is generous enough for a slow
+    // first token from a model running on your own machine.
+    //
+    // Set it to 0 to turn it off entirely, if you are running something slower
+    // than any number here would allow for.
+    "providerTimeoutMs": 300000
   },
 
   "trash": {

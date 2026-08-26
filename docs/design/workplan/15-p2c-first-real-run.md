@@ -281,12 +281,32 @@ repeating them*. Measured against it, the server has 28 log call sites and **19
 of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
 `sessions/store.ts` and `providers/` have none at all.
 
-- **The bindings.** `account` appears on exactly one line; no request id ever
-  reaches the job; `job.lost` and `job.unstartable` carry `jobId` alone and
-  `job.committed` has no `sessionId`. A tester reports the id they can see —
-  the session's, from the URL — and the lines that would explain it cannot be
-  found by it. *Half a day, and closer to a deletion than an addition: the child
-  logger replaces the call sites.*
+- **~~The bindings.~~ Done, except `requestId`.** `account` appeared on exactly
+  one line; `job.lost` and `job.unstartable` carried `jobId` alone and
+  `job.committed` had no `sessionId`. A tester reports the id they can see —
+  the session's, from the URL — and the lines that would explain it could not be
+  found by it. It was closer to a deletion than an addition, as predicted: the
+  child logger moved from `#body` to `start()`, which is what [13 §4.1] asks
+  for — *once, where the subject comes into existence* — and the three lines
+  written outside `#body` inherited the bindings by doing nothing.
+
+  **`requestId` is deferred, with a reason rather than by omission.** It is the
+  one binding in [13 §4.1]'s list that does not exist yet: Fastify mints a
+  `reqId` per request, a turn outlives the request that submitted it, and
+  nothing carries the id across the job table. Threading it means a column, a
+  migration and a decision about what the id *means* for a turn recovered after
+  a restart — which is a question about the job record, not about logging, and
+  P2C has no finding that needs it. The session id is the id a tester actually
+  reports. **Revisit when a finding cannot be traced without it.**
+
+  It also cost a test. `commits a failed turn rather than wedging the session
+  forever` reached the resolution region by corrupting a session's cast; the
+  session reader and `resolveCast` have both since become tolerant of a broken
+  file, and the fixture stopped failing without the test noticing — every
+  assertion it makes is also true of an ordinary successful turn, so it passed
+  by testing a turn that worked. It now corrupts `accounts.json` and asserts
+  that `job.unstartable` was written, so the next hardening past its fixture is
+  a failure rather than a silence.
 - **A failed step logs the whole rendered prompt and the partial narration.**
   `CallFailed` carries `partialText` and `call` as own enumerable properties, and
   the step-failure line logs the error object. [13 §4.1] says portable object
@@ -317,12 +337,33 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   document wrote and could not perform. *Twenty minutes: run the server as its
   own process with stdout redirected to a dated file in the scratch directory,
   and say so in the brief.*
-- **Nothing bounds a provider call, so a stalled endpoint is an unending turn.**
-  Only the user's cancel signal is passed; there is no timeout and no config key
-  for one. On a local runtime a multi-minute first token is ordinary, and the only
-  way out of a hang is restarting the server — which destroys the state that
-  produced the finding. *Half a day: a `limits` key composed into the abort
-  signal, and the resulting failure classified.*
+- **~~Nothing bounds a provider call, so a stalled endpoint is an unending
+  turn.~~ Done.** `limits.providerTimeoutMs`, composed into the abort signal per
+  attempt and defaulting to five minutes.
+
+  **It bounds silence, not duration**, and that is the decision the sizing note
+  did not make. A multi-minute first token is ordinary on a local runtime, so a
+  wall-clock ceiling would kill healthy long generations — the clock is re-armed
+  by every streamed chunk instead, and a non-streaming call has no progress to
+  show, which makes the whole of it the bound. `0` disables it, because an
+  operator who knows their endpoint is slower than any number here is going to
+  work around it either way and the config file is the visible place to do it.
+
+  **The failure is `terminal`**, which is the classification the sizing note
+  asked for and the one that is arguable. A stall is transient in the ordinary
+  sense — ask again in a minute and it may answer — but the retry ladder is two
+  further attempts at the full timeout each, so classifying it `transient` makes
+  the hang three times as long as the key exists to make it. A person who wants
+  another attempt has a button. A person waiting on a wedged session has nothing.
+
+  **And the key's surface came free, as [§4](#4-verification--the-p2c-exit-gate)
+  said it would.** [P2A](13-p2a-configuration-surface.md)'s form generates its
+  control and tier badge from the schema with no client change. The two things
+  that were *not* free were the two the test suite refuses to let go: the
+  `LIVE_APPLIERS` row, and the key's absence from `config.example.json` and from
+  [13 §4.3](../13-internal-contracts.md)'s table. Both failed the build the
+  moment the key landed, which is the honesty machinery working exactly as
+  described.
 
 ### 1.4 Setup and teardown — about a day
 

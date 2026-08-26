@@ -451,6 +451,7 @@ interface Config {
     extensionStorageQuotaMb: number
     contextTokens: number                    // [06 E5]
     reservedCompletionTokens: number
+    providerTimeoutMs: number                // [P2C §1.3]
   }
   trash: { retentionDays: number }          // [02 §10.2]
   history: { keepPerObject: number }        // [02 §11.3]
@@ -476,6 +477,7 @@ interface Config {
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
 | `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([06 E5](06-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
+| `limits.providerTimeoutMs` | `live` | `300000` | How long one call may make **no progress** before the turn abandons it ([P2C §1.3](workplan/15-p2c-first-real-run.md)). Silence rather than duration — a streamed chunk re-arms it — because a multi-minute first token is ordinary on a local runtime and a wall-clock ceiling would kill healthy generations. The resulting failure is `terminal`: it is transient in the ordinary sense, but two retries at the full timeout is three times the hang the key exists to end. `0` disables it |
 | `trash.retentionDays` | `live` | `30` | |
 | `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([02 §11.3](02-data-model.md)) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([04 §6.5](04-server-multiuser-deployment.md)) |
