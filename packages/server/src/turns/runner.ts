@@ -120,11 +120,25 @@ export class TurnRunner {
   start(job: Job, payload: TurnPayload): void {
     if (this.#live.has(job.id)) return;
 
+    /**
+     * **Bound once, where the job comes into existence** —
+     * [13 §4.1](../../../../docs/design/13-internal-contracts.md) says that in as many words,
+     * and says why: it is what makes *filter by job id* a complete lifecycle
+     * rather than a sample of one.
+     *
+     * It used to be built inside `#body`, which is most of the lifecycle and
+     * not all of it — so the three lines that fire when a turn never gets that
+     * far, or dies after it, carried `jobId` alone. A tester reports the id they
+     * can see, which is the session's, and those were the lines that could not
+     * be found by it.
+     */
+    const log = this.#logFor(job);
+
     const controller = new AbortController();
-    const promise = this.#run(job, payload, controller.signal)
+    const promise = this.#run(job, payload, controller.signal, log)
       .catch((error: unknown) => {
-        this.#options.log?.error(
-          { event: 'job.lost', jobId: job.id, err: error },
+        log?.error(
+          { event: 'job.lost', ...failureShape(error) },
           'A turn ended without finalising',
         );
       })
@@ -210,16 +224,32 @@ export class TurnRunner {
    * a turn that cannot even be set up still commits, as a failed turn that
    * says why.
    */
-  async #run(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
+  async #run(
+    job: Job,
+    payload: TurnPayload,
+    signal: AbortSignal,
+    log: Logger | undefined,
+  ): Promise<void> {
     try {
-      await this.#body(job, payload, signal);
+      await this.#body(job, payload, signal, log);
     } catch (error) {
-      this.#options.log?.error(
-        { event: 'job.unstartable', jobId: job.id, err: error },
+      log?.error(
+        { event: 'job.unstartable', ...failureShape(error) },
         'A turn failed before it could run',
       );
-      await this.#finaliseUnstartable(job, payload, error);
+      await this.#finaliseUnstartable(job, payload, error, log);
     }
+  }
+
+  /** The bindings every line from this job inherits. */
+  #logFor(job: Job): Logger | undefined {
+    return this.#options.log?.child({
+      jobId: job.id,
+      sessionId: job.sessionId,
+      account: job.account,
+      turnId: job.turnId,
+      parentTurnId: job.parentTurnId,
+    });
   }
 
   /**
@@ -229,7 +259,12 @@ export class TurnRunner {
    * is waiting on it, and `abandoned` writes nothing at all — so the session
    * would look as though the submission had never happened.
    */
-  async #finaliseUnstartable(job: Job, payload: TurnPayload, error: unknown): Promise<void> {
+  async #finaliseUnstartable(
+    job: Job,
+    payload: TurnPayload,
+    error: unknown,
+    log: Logger | undefined,
+  ): Promise<void> {
     const draft: Turn = {
       ...initialDraft(job, payload),
       steps: [
@@ -251,22 +286,20 @@ export class TurnRunner {
     } catch (fatal) {
       // The store itself is gone — the kill case. Startup reconciliation is
       // what picks this up; there is nothing left to write it with.
-      this.#options.log?.error(
-        { event: 'job.lost', jobId: job.id, err: fatal },
+      log?.error(
+        { event: 'job.lost', ...failureShape(fatal) },
         'Could not finalise an unstartable turn',
       );
     }
   }
 
-  async #body(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
+  async #body(
+    job: Job,
+    payload: TurnPayload,
+    signal: AbortSignal,
+    log: Logger | undefined,
+  ): Promise<void> {
     const { commit, bus, config } = this.#options;
-    const log = this.#options.log?.child({
-      jobId: job.id,
-      sessionId: job.sessionId,
-      account: job.account,
-      turnId: job.turnId,
-      parentTurnId: job.parentTurnId,
-    });
 
     const draft = initialDraft(job, payload);
     const rng = new Rng();
@@ -719,4 +752,22 @@ function levelFor(
 ): 'info' | 'warn' | 'error' {
   if (reason === 'cancelled') return 'info';
   return failure === 'abort' ? 'error' : 'warn';
+}
+
+/**
+ * An unexpected failure, as fields rather than as an error object.
+ *
+ * `err: error` serialises an error's own enumerable properties, and the same
+ * `CallFailed` that carries `partialText` and `call` can reach these paths — so
+ * the rule the step-failure line already follows applies here too:
+ * [13 §4.1] says portable object bodies never appear in a log.
+ *
+ * The stack stays, because these are the *internal* failures — a store that is
+ * gone, a setup that threw — where it is the diagnostic rather than noise.
+ */
+function failureShape(error: unknown): Record<string, unknown> {
+  return {
+    message: messageOf(error),
+    ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
+  };
 }

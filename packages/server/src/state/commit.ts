@@ -146,8 +146,23 @@ export async function advanceCommit(
         { turn, events: [{ key: 'turn.finished', params: { state: turn.status } }] },
         now,
       );
+      /**
+       * **The session and the account too** — [13 §4.1].
+       *
+       * This carried `jobId` and `turnId` alone, and the id a person can see is
+       * the session's, because it is the one in the URL. So the line that says
+       * *this turn is now durable* — the one somebody looks for when a turn
+       * seems to have vanished — could not be found by the only id they had.
+       */
       context.log?.info(
-        { event: 'job.committed', jobId: job.id, turnId: turn.id, status: turn.status },
+        {
+          event: 'job.committed',
+          jobId: job.id,
+          sessionId: job.sessionId,
+          account: job.account,
+          turnId: turn.id,
+          status: turn.status,
+        },
         'Turn committed',
       );
       return setStep(context, job, COMMIT_STEPS, 'committed', now);
@@ -248,7 +263,12 @@ export async function reconcile(
     const job = readJob(context.db, id);
     if (!job) continue;
 
-    const log = context.log?.child({ jobId: job.id, sessionId: job.sessionId, turnId: job.turnId });
+    const log = context.log?.child({
+      jobId: job.id,
+      sessionId: job.sessionId,
+      account: job.account,
+      turnId: job.turnId,
+    });
 
     /**
      * **One job's failure must not stop the rest.**

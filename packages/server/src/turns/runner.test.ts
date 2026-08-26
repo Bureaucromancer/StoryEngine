@@ -735,17 +735,25 @@ describe('a turn that cannot even be set up', () => {
     // null, so `submitTurn` answered every later submission `409 busy` until the
     // process restarted, and it presented to a test as a well-behaved refusal.
     //
-    // A hand-edited `session.json` reaches it, which is a supported way to get
-    // data into this system.
-    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
-    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
-    await writeFile(file, JSON.stringify({ ...session, cast: { persona: null, actors: 'nope' } }));
+    // A hand-edited `accounts.json` reaches it, and hand-editing is a
+    // first-class gesture in this project rather than a contrivance ([04 §4.3]).
+    //
+    // **It used to be a hand-edited `session.json`, and that stopped being
+    // true.** The session reader and `resolveCast` both became tolerant of a
+    // broken file — deliberately, and rightly — which quietly took this test
+    // with them: a fixture the runner survives makes every assertion below
+    // true of an ordinary successful turn, so the test kept passing while
+    // testing nothing. Hence the line that pins the path itself.
+    await writeFile(new Layout(dataDir).accountsFile, 'not json at all');
 
     const job = await reserve();
     runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
 
     await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
 
+    // The failure landed where this test is about, and not somewhere the turn
+    // shrugged off. Without this the rest is satisfied by a turn that worked.
+    expect(logLines.map((entry) => entry['event'])).toContain('job.unstartable');
     // Terminal, so the session is usable again…
     expect(readJob(state.db, job.id)?.status).toBe('committed');
     const next = await submitTurn(commit, {
@@ -755,6 +763,44 @@ describe('a turn that cannot even be set up', () => {
       headTurnId: (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null,
     });
     expect(next.kind).toBe('created');
+  });
+
+  /**
+   * **The lines an operator chasing a lost turn searches for first** — F37.
+   *
+   * `job.unstartable` and both `job.lost` sites carried `jobId` alone, because
+   * the child logger with the job's bindings was built inside `#body` and those
+   * three are written outside it — before it, and after it. So the two lines
+   * that say *a turn never started* and *a turn ended without finalising* named
+   * neither the session nor the account.
+   *
+   * **The id a person actually has is the session's**, because it is the one in
+   * the URL. [13 §4.1] asks for the bindings to be set once where the subject
+   * comes into existence, and that is `start()` rather than `#body`.
+   */
+  it('names the session on the line that says a turn never started', async () => {
+    // The same fixture as the wedge test above, for the same reason: it is the
+    // one failure in the resolution region that is still reachable from a file
+    // somebody can edit, so the line under test is written by the code path an
+    // operator would actually be reading the log to understand.
+    await writeFile(new Layout(dataDir).accountsFile, 'not json at all');
+    const job = await reserve();
+
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
+
+    const line = logLines.find((entry) => entry['event'] === 'job.unstartable');
+
+    expect(line).toMatchObject({
+      jobId: job.id,
+      sessionId,
+      account: ACCOUNT,
+      turnId: job.turnId,
+    });
+    // And a shape rather than the error object: the same `CallFailed` that
+    // carries `partialText` and the rendered prompt can reach this path, and
+    // [13 §4.1] says portable object bodies never appear in a log.
+    expect(JSON.stringify(line)).not.toContain('partialText');
   });
 
   it('survives a cast that is not the shape it claims to be', async () => {

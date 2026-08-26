@@ -637,23 +637,28 @@ describe('the log alone reconstructs a killed turn', () => {
     expect(lineFor(mine, 'job.running')).toMatchObject({ sessionId, turnId, account: 'ned' });
     expect(lineFor(mine, 'job.recovered')).toMatchObject({ sessionId, turnId });
     /**
-     * **`job.committed` carries `turnId` and no `sessionId`, and that is a
-     * divergence from [13 §4.1] rather than a decision** — so it is asserted as
-     * the code behaves and reported as a finding, because a test that failed
-     * here would be reporting a fault in the contract's implementation and not
-     * in itself.
+     * **`job.committed` names the session and the account now**, and this
+     * assertion used to be the divergence rather than the contract.
      *
-     * The cause is one line and it has two other victims. `advanceCommit` logs
-     * through `context.log`, which `buildApp` sets to the app's *root* logger
-     * (`services.commit.log = app.log`), and the runner's `job.unstartable` and
-     * `job.lost` go through `this.#options.log` for the same reason — the child
-     * with the job's bindings is created inside `#body` and those two are
-     * written outside it. Which means the two lines that say *a turn ended
-     * without finalising*, the ones an operator chasing a lost turn searches
-     * for first, name neither the session nor the turn. Everything else here
-     * inherits its bindings from that child or from `reconcile`'s.
+     * It read `toMatchObject({ turnId })` with a docstring explaining that
+     * [13 §4.1] asks for more and the code did not do it — *asserted as the code
+     * behaves and reported as a finding*. That was honest and it was also the
+     * shape that lets a divergence sit for four phases: a test agreeing with the
+     * bug, in the file whose whole subject is that a lifecycle can be filtered
+     * by one id.
+     *
+     * The cause was one line in three places. The runner built its child inside
+     * `#body`, so `job.unstartable` and both `job.lost` sites — written outside
+     * it — carried `jobId` alone; and `advanceCommit` logged through the app's
+     * *root* logger. **The id a person actually has is the session's**, because
+     * it is the one in the URL, so the lines that say *a turn ended without
+     * finalising* could not be found by the only thing they could search with.
      */
-    expect(lineFor(mine, 'job.committed')).toMatchObject({ turnId });
+    expect(lineFor(mine, 'job.committed')).toMatchObject({
+      sessionId,
+      turnId,
+      account: 'ned',
+    });
   });
 
   it('holds nothing of the next job, and the next job holds nothing of it', async () => {
