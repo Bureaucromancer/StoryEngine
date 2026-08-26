@@ -709,6 +709,49 @@ describe('cancellation', () => {
     expect(written[0]?.turn.status).toBe('failed');
     expect(written[0]?.turn.steps?.[0]?.error?.reason).toBe('cancelled');
   });
+
+  /**
+   * **The interrupted call is on the record** — finding 2 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md).
+   *
+   * Stop is the most-pressed button in a manual phase against real latency,
+   * and the failure a tester produced most often was the one the record said
+   * least about: `request.calls: []` — no connection id, no model, no wall
+   * time. `CallFailed` had carried the record all along; `Cancelled` was
+   * thrown one line earlier and carried nothing.
+   */
+  it('records which call the Stop interrupted', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const call = written[0]?.turn.request?.calls.at(-1);
+
+    // The model that was *asked*, because nothing answered — and an outcome of
+    // its own, because a cancellation is neither an error nor a clean answer.
+    expect(call).toMatchObject({
+      outcome: 'cancelled',
+      resolved: { modelId: 'fake-hi' },
+      error: null,
+      // Never fabricated: the provider reported nothing, so nothing is there.
+      usage: null,
+      finishReason: null,
+    });
+    expect(call?.wallMs).toBeGreaterThan(0);
+    // The words that had already streamed survive as the turn's output rather
+    // than silently never having happened.
+    expect(written[0]?.turn.output?.text.length).toBeGreaterThan(0);
+  });
 });
 
 describe('the advisory guard is not decoration', () => {

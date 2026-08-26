@@ -220,9 +220,15 @@ refused by a conflict dialog blaming a concurrent editor.
 
 ### 3.6 Smaller ones, all still open
 
-- **A killed turn names no model call.** `performCall` attaches a `ModelCall`
-  only when the call returns; an aborted signal throws `Cancelled`, which carries
-  no record. Left as `it.todo` in `recovery.test.ts` — the suite's one todo.
+- **~~A killed turn names no model call~~ — half closed at
+  [P2C §1](15-p2c-first-real-run.md), and the halves are different failures.** A
+  person's *Stop* now records the interrupted call: `Cancelled` carries it with
+  `outcome: 'cancelled'`, the model that was asked, the wall time, and the
+  streamed words — finding 2, and the failure a tester produces most often. A
+  *killed process* still does not: nothing throws, the last checkpoint is all
+  there is, and no checkpoint written mid-call contains the call. That half
+  stays as `it.todo` in `recovery.test.ts` — the suite's one todo — and making
+  it pass means a provisional call in the checkpoint.
 - **The record cannot say a block is advisory.** `assemble()` reads
   `Candidate.advisory` in `admit()` and drops it, and `ModelCall` records no call
   *purpose* — so *no advisory block reaches an effect-producing call* is not

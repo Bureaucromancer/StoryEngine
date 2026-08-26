@@ -582,6 +582,16 @@ export class TurnRunner {
           calls.push(error.call);
           if (error.partialText.length > 0) draft.output = { text: error.partialText };
         }
+        // And a Stop that landed mid-call is the same shape from the record's
+        // side — finding 2 in [16]: the interrupted call is named, the words
+        // already streamed survive. Optional, because a cancel between
+        // attempts genuinely has no call to name.
+        if (error instanceof Cancelled && error.call !== undefined) {
+          calls.push(error.call);
+          if (error.partialText !== undefined && error.partialText.length > 0) {
+            draft.output = { text: error.partialText };
+          }
+        }
 
         steps.push({
           stepId: definition.id,

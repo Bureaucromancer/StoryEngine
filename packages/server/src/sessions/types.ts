@@ -65,8 +65,14 @@ export interface ModelCall {
    * without saying why — neither is an error and neither is a clean answer,
    * and calling either `ok` is what made the local runtime's characteristic
    * failure look like a short reply.
+   *
+   * `cancelled` is a person's Stop landing mid-call — finding 2 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md). Not an `error`,
+   * because nothing failed; not absent, because the most-pressed button in a
+   * manual phase was producing turns whose record could not say which model
+   * had been asked.
    */
-  outcome: 'ok' | 'refused' | 'truncated' | 'incomplete' | 'error';
+  outcome: 'ok' | 'refused' | 'truncated' | 'incomplete' | 'error' | 'cancelled';
   /** Classified, so the UI can offer the right recovery rather than a provider string. */
   error: { class: ErrorClass; message: string } | null;
   retries: number;

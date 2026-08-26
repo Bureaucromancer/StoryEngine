@@ -44,11 +44,30 @@ export class RoleUnresolved extends Error {
   }
 }
 
-/** The turn was stopped. Distinct from a provider failure, and never retried. */
+/**
+ * The turn was stopped. Distinct from a provider failure, and never retried.
+ *
+ * **Carries the interrupted call when there was one** — finding 2 in
+ * [16](../../../../docs/design/workplan/16-p2c-log.md). Stop is the
+ * most-pressed button in a manual phase against real latency, and until this
+ * carried a record, the failure a tester produced most often was the one the
+ * record said least about: `request.calls: []`, no connection id, no model, no
+ * wall time. `CallFailed` had carried all of that since the day it was
+ * written; a cancellation lost it only because this class was thrown one line
+ * earlier. Both stay optional: a Stop that lands *between* attempts has
+ * genuinely no call to name.
+ */
 export class Cancelled extends Error {
-  constructor() {
+  readonly call?: ModelCall;
+  readonly partialText?: string;
+
+  constructor(interrupted?: { call: ModelCall; partialText: string }) {
     super('The turn was cancelled.');
     this.name = 'Cancelled';
+    if (interrupted !== undefined) {
+      this.call = interrupted.call;
+      this.partialText = interrupted.partialText;
+    }
   }
 }
 
@@ -283,7 +302,31 @@ export async function performCall(
       // rather than directly: `aborted` is a getter whose value changes across
       // an await, and the type checker narrows it to the value it had at the
       // top of the loop and then calls this line dead.
-      if (stopped(context.signal)) throw new Cancelled();
+      //
+      // An attempt was in flight, so the cancellation names it: the model that
+      // was *asked*, because nothing answered — the same distinction the
+      // failure record below draws. `usage` and `finishReason` stay null
+      // rather than invented, and `error` stays null because nothing failed.
+      if (stopped(context.signal)) {
+        throw new Cancelled({
+          call: {
+            id,
+            stepId: definition.id,
+            role: definition.role,
+            resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+            messages,
+            params,
+            usage: null,
+            cost: null,
+            wallMs: Date.now() - startedAt,
+            finishReason: null,
+            outcome: 'cancelled',
+            error: null,
+            retries,
+          },
+          partialText: partial.text,
+        });
+      }
       // **After the caller's signal and before everything else.** Both aborts
       // arrive as the same `AbortError`, so the order is the attribution: the
       // person wins, and only silence that nobody asked to end is a stall. The

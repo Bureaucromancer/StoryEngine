@@ -435,13 +435,17 @@ describe('a turn killed mid-generation', () => {
    * rather than as a passing test of the wrong thing.
    *
    * `request.calls` is empty on a killed turn. `performCall` pushes its
-   * `ModelCall` only when the call returns, and its failure path attaches one
-   * only to `CallFailed` — but an aborted signal is checked first and throws
-   * `Cancelled` (`turns/calls.ts`), which carries no record. So the recovered
-   * turn says which blocks were assembled and what the budget ruled, and cannot
-   * say which model was asked. The log knows (`call.started` binds it, asserted
-   * below); the record does not. Making this pass is a production change and
-   * belongs to whoever owns that decision.
+   * `ModelCall` only when the call returns or the exception carries one — and
+   * a killed process throws nothing: the last durable checkpoint is all there
+   * is, and no checkpoint written mid-call contains the call, because the
+   * record is constructed on the way *out*. (A person's Stop no longer has
+   * this problem — `Cancelled` carries the interrupted call since finding 2
+   * was fixed — but a Stop is an exception path and a power cut is not.) So
+   * the recovered turn says which blocks were assembled and what the budget
+   * ruled, and cannot say which model was asked. The log knows (`call.started`
+   * binds it, asserted below); the record does not. Making this pass means a
+   * provisional call in the checkpoint, and belongs to whoever owns that
+   * decision.
    */
   it.todo('names the model call that was in flight when the process died');
 });
