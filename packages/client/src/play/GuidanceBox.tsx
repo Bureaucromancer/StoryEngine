@@ -18,6 +18,8 @@
  * are a different feature with a different home, and conflating them produces
  * the accumulating meta-instruction this box exists to prevent.
  */
+import { control } from '../ui/classes.js';
+
 export function GuidanceBox({
   value,
   onChange,
@@ -35,7 +37,7 @@ export function GuidanceBox({
       <label className="mt-2 block">
         <span className="sr-only">Guidance for this turn</span>
         <textarea
-          className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
+          className={control}
           rows={2}
           value={value}
           disabled={disabled}

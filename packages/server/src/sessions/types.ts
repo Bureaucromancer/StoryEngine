@@ -4,7 +4,13 @@
 import type { GenerationParams, Preset } from '@storyengine/shared';
 
 import type { AssembledBlock, BudgetVerdict } from '../assembly/types.js';
-import type { ErrorClass, ModelRole, RenderedMessage, TokenUsage } from '../providers/types.js';
+import type {
+  ErrorClass,
+  FinishReason,
+  ModelRole,
+  RenderedMessage,
+  TokenUsage,
+} from '../providers/types.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
@@ -44,8 +50,29 @@ export interface ModelCall {
   usage: TokenUsage | null;
   cost: { amount: number; currency: string } | null;
   wallMs: number;
-  /** `refused` has no producer at P2: no adapter reports a content refusal distinctly. */
-  outcome: 'ok' | 'refused' | 'error';
+  /**
+   * Why the model stopped — [13 §1.4](../../../../docs/design/13-internal-contracts.md).
+   *
+   * The field that tells a *truncated* answer from a finished one, which is
+   * otherwise invisible: a completion ceiling reached produces the same shape,
+   * the same absence of an error, and a shorter reply that reads as a choice.
+   * Null on a call that never returned.
+   */
+  finishReason: FinishReason | null;
+  /**
+   * `refused` now has a producer: a provider reporting a content filter.
+   * `truncated` is a ceiling reached, and `incomplete` a stream that stopped
+   * without saying why — neither is an error and neither is a clean answer,
+   * and calling either `ok` is what made the local runtime's characteristic
+   * failure look like a short reply.
+   *
+   * `cancelled` is a person's Stop landing mid-call — finding 2 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md). Not an `error`,
+   * because nothing failed; not absent, because the most-pressed button in a
+   * manual phase was producing turns whose record could not say which model
+   * had been asked.
+   */
+  outcome: 'ok' | 'refused' | 'truncated' | 'incomplete' | 'error' | 'cancelled';
   /** Classified, so the UI can offer the right recovery rather than a provider string. */
   error: { class: ErrorClass; message: string } | null;
   retries: number;
@@ -95,11 +122,32 @@ export interface TurnRequest {
   calls: ModelCall[];
 }
 
+/**
+ * What the turn cost, in the units this build can actually count.
+ *
+ * **The token totals are null unless every call reported**, and that is the
+ * whole design of this type. They used to be plain numbers summed over the calls
+ * that happened to report, which meant a turn where nothing reported said
+ * `promptTokens: 0` — a fabricated total, in a record whose sibling field
+ * `ModelCall.cost` is hard-coded null specifically to avoid fabricating one.
+ * [13 §1.4](../../../../docs/design/13-internal-contracts.md) is *provider-reported, not
+ * estimated*, and a zero is an estimate with a confident face.
+ *
+ * **All-or-nothing rather than a partial sum**, because this is a *total*: a
+ * total missing one of its terms is not a smaller total, it is wrong, and a
+ * reader cannot see which. The partial truth is not lost — every `ModelCall`
+ * carries its own `usage`, so a surface that wants *what we do know* reads the
+ * calls rather than this.
+ */
 export interface TurnCost {
-  promptTokens: number;
-  completionTokens: number;
+  /** Null unless every call reported. Never a sum over some of them. */
+  promptTokens: number | null;
+  /** Null unless every call reported. Never a sum over some of them. */
+  completionTokens: number | null;
+  /** Always real: measured here, not reported by anybody. */
   wallMs: number;
-  model: string;
+  /** The model that answered last, or null when nothing was called. */
+  model: string | null;
 }
 
 /**

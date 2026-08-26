@@ -94,6 +94,61 @@ describe('PUT /api/admin/config', () => {
    * Gate step 12: change `log.level` in the form → the next log line is at the
    * new level, with no restart and no banner.
    */
+
+  /**
+   * **`dataDir` cannot be written through this route** — F33.
+   *
+   * It decides where `config.json` itself lives, so a save that moved it would
+   * be a one-click way to appear to lose everything: the next start reads a
+   * different directory and finds an empty install. [P2A §2.6] argued the field
+   * into a read-only note in the form for exactly that reason, **and then
+   * enforced it in the browser only.**
+   *
+   * The trap is not somebody editing it. An *unedited* Save does it: the form
+   * sends back the config it was given, that config carries the running
+   * `dataDir` — which `--data` may have set to an absolute machine-specific
+   * path — and the file gains it. Nobody has to touch the field.
+   */
+  it('does not write the data root, even when the body carries one', async () => {
+    const response = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('dataDir', '/somewhere/else') },
+    });
+
+    expect(response.status).toBe(200);
+    // Not in the file — which is the whole point, because the file is what the
+    // next start reads.
+    expect(await onDisk()).not.toHaveProperty('dataDir');
+    // And the running server did not move.
+    expect(server.services.config.dataDir).not.toBe('/somewhere/else');
+  });
+
+  /**
+   * The half that a naive fix breaks, and the reason this needs two tests.
+   *
+   * Dropping the key on the way in is not enough: the loader fills the default
+   * for a key the file does not name, and `--data` sets a value no file ever
+   * carried. So a save would have relocated a container's data root to `./data`
+   * on the next restart — the same disaster arriving by the other door.
+   */
+  it('keeps the data root this process is actually using', async () => {
+    const before = server.services.config.dataDir;
+
+    await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: withChange('log.level', 'debug') },
+    });
+
+    expect(server.services.config.dataDir).toBe(before);
+    // Nothing pending: the value did not change, so there is nothing to restart
+    // for. A regression here reads as "the server wants a restart after every
+    // save", which is how this was caught.
+    const view = await server.request({ method: 'GET', url: '/api/admin/config' });
+    expect(view.body.pendingRestart).toEqual([]);
+  });
+
   it('applies a live key immediately, with nothing pending', async () => {
     const response = await server.request({
       method: 'PUT',

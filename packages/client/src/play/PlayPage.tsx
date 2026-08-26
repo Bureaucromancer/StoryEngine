@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useEffect, useState } from 'react';
+import { control } from '../ui/classes.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
@@ -122,7 +123,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           <label className="flex-1">
             <span className="sr-only">What do you do?</span>
             <input
-              className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
+              className={control}
               value={draft}
               disabled={running}
               placeholder="What do you do?"

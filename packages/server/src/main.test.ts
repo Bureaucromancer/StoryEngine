@@ -3,7 +3,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -190,5 +190,67 @@ describe('--reset-password', () => {
     // Neither directory was touched — no accounts file was created in either.
     expect(existsSync(join(second, 'accounts.json'))).toBe(false);
     await rm(second, { recursive: true, force: true });
+  });
+});
+
+/**
+ * **A missing config file announces itself in the voice of a problem** —
+ * finding 9 in [16](../../../../docs/design/workplan/16-p2c-log.md).
+ *
+ * It is an ordinary state on a first boot and an alarming one on every boot
+ * after: a teardown that takes `config.json` reverts the port and the data
+ * root to their defaults, and the smoke run watched that revert announce
+ * itself at `info` — the same voice as "everything is fine".
+ *
+ * The line is written before `listen`, which is what makes this testable
+ * without a port: the child is killed the moment the line appears, so two
+ * copies of this suite cannot collide on an address nothing ever binds.
+ */
+describe('the config-file line', () => {
+  async function startupLine(argv: string[]): Promise<Record<string, unknown>> {
+    const child = spawn(process.execPath, ['--import', 'tsx', ENTRY, ...argv], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: HERE,
+    });
+
+    try {
+      return await new Promise<Record<string, unknown>>((resolve, reject) => {
+        let seen = '';
+        const timer = setTimeout(() => {
+          reject(new Error('the server never said whether it found a config file'));
+        }, 15_000);
+        child.stdout.on('data', (chunk: Buffer) => {
+          seen += chunk.toString();
+          for (const line of seen.split('\n').slice(0, -1)) {
+            if (!line.includes('fileFound')) continue;
+            clearTimeout(timer);
+            resolve(JSON.parse(line) as Record<string, unknown>);
+            return;
+          }
+        });
+      });
+    } finally {
+      const exited = new Promise((settle) => child.once('exit', settle));
+      child.kill();
+      await exited;
+    }
+  }
+
+  it('warns when there is no file, so a torn-down install cannot revert quietly', async () => {
+    const line = await startupLine(['--data', dataDir]);
+
+    // Pino's warn, not its info — the level is the assertion, because the words
+    // already said "no config file" when nobody could hear the difference.
+    expect(line['level']).toBe(40);
+    expect(line['fileFound']).toBe(false);
+  });
+
+  it('stays conversational when the file is there', async () => {
+    await writeFile(join(dataDir, 'config.json'), JSON.stringify({ server: { port: 8180 } }));
+
+    const line = await startupLine(['--data', dataDir]);
+
+    expect(line['level']).toBe(30);
+    expect(line['fileFound']).toBe(true);
   });
 });

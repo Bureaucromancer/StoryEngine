@@ -415,9 +415,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           },
         );
       } catch (error) {
-        // Logged deliberately, because nothing else will: the error handler is
-        // unreachable once the head is written.
-        request.log.error({ err: error, event: 'stream.failed' }, 'Could not open a stream');
+        /**
+         * Logged deliberately, because nothing else will: the error handler is
+         * unreachable once the head is written.
+         *
+         * **With the session id**, which it did not carry — on the play
+         * surface's own path, where the session id is the one thing a person
+         * reporting a broken stream actually has.
+         */
+        request.log.error(
+          { event: 'stream.failed', sessionId: session.id, err: error },
+          'Could not open a stream',
+        );
         writer.fail('internal');
       }
     },

@@ -796,7 +796,8 @@ change do nothing.
   "provider": "openai-compatible",
   "apiKey": "sk-…",
   "baseUrl": "https://api.openai.com/v1",
-  "models": ["gpt-hi", "gpt-lo"]
+  "models": ["gpt-hi", "gpt-lo"],
+  "capabilities": { "maxContextTokens": 32768, "reportsUsage": true }
 }
 ```
 
@@ -807,6 +808,17 @@ hand-written file that already works.
 **`apiKey` absent means keep what is stored; an explicit empty string clears
 it.** That is what makes `hasKey` workable as a form affordance, and the write
 honours it — otherwise editing a label would silently delete the credential.
+
+**`capabilities` is optional and works the same way**: absent keeps what is
+stored, and it is merged rather than replaced, so an override written by hand for
+a capability the form has no control for survives a save. It was undocumented
+here until P2C, which meant the only way to find it was to read the route — and
+the settings form now offers the two an operator has a reason to set.
+
+Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
+the operator can know: **this build assumes a conservative context window**, and
+an endpoint that does not count tokens will make every figure in a turn record
+null. The rest of the capability shape travels untouched.
 
 **A provider this build cannot construct is refused at save**, `400 unbuildable`,
 naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one
@@ -848,7 +860,12 @@ different justification and nobody has asked for it.
 ### `POST /api/admin/connections/models`
 
 `{ "baseUrl": "…", "apiKey": "…" }` → `{ "models": ["gpt-hi"] }`, or
-`502 unreachable`.
+`401 unauthorized` when the endpoint refused the key, or `502 unreachable` for
+everything else. The two are distinct because their remedies point in opposite
+directions: *unreachable* sends an admin to the URL and the network, and the
+one case where that is exactly wrong is the endpoint answering perfectly well
+that the key is bad. Either way the body carries a class and never the
+endpoint's own words — those can echo the key being refused.
 
 **An assist, not the path.** Typing a model id from memory is where *paste in one
 API key and take a turn* falls down, so this fills a picker from the endpoint's

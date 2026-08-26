@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
-import { loadConfig } from './config.js';
+import { loadConfig, type Config } from './config.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -39,6 +39,15 @@ async function main(): Promise<void> {
   const { config, fileFound, unknownKeys, document } = await loadConfig(configPath);
   if (dataDirArgument) config.dataDir = dataDirArgument;
 
+  /**
+   * Record every provider exchange into this directory — [P2C §2.2]. A flag
+   * and deliberately not a config key: a dev-only recording toggle in every
+   * operator's settings form is noise, and the phase's standing line — P2C
+   * adds exactly one key — stays true. `argumentValue` already refuses a
+   * duplicate or valueless flag (F24), so nothing new to guard here.
+   */
+  const captureDir = argumentValue('--capture');
+
   // The break-glass path: reset a password from the console and exit, without
   // starting the server. Host access is the authority — see
   // Accounts.resetPassword for the argument, and the README for when to reach
@@ -51,26 +60,64 @@ async function main(): Promise<void> {
 
   // The path travels with the config, so the settings route writes back to the
   // file this process actually read ([P2A §2.5]).
-  const services = await buildServices({ config, configPath, configDocument: document });
+  const services = await buildServices({
+    config,
+    configPath,
+    configDocument: document,
+    ...(captureDir === undefined ? {} : { captureDir: resolve(captureDir) }),
+  });
   const app = await buildApp(services);
 
   // Said after the logger exists rather than before, so that everything this
   // process reports goes through one mechanism ([13 §4.1]) — including the
   // config path, which is the first thing anyone asks when a setting does not
   // seem to be taking effect.
-  app.log.info({ configPath, fileFound }, fileFound ? 'Config loaded' : 'No config file; defaults');
+  //
+  // **A missing file is `warn`, not `info`** — finding 9 in [16]. It is an
+  // ordinary state on a first boot and an alarming one on every boot after: a
+  // teardown that took `config.json` reverts the port and the data root to
+  // their defaults, and the smoke run watched that revert announce itself in
+  // the same voice as "everything is fine". A person who chose no config file
+  // reads one `warn` per start; a person who lost theirs reads the one line
+  // that says why the server is not where they left it.
+  if (fileFound) {
+    app.log.info({ configPath, fileFound }, 'Config loaded');
+  } else {
+    app.log.warn({ configPath, fileFound }, 'No config file; running on defaults');
+  }
   if (unknownKeys.length > 0) {
     // Kept, not rejected — but said out loud, because a typo'd key is silently
     // doing nothing and that is worth one line.
     app.log.warn({ unknownKeys }, 'Config: ignoring unrecognised keys');
   }
+  if (captureDir !== undefined) {
+    // `warn`, because it is a privacy-relevant mode: a cassette carries the
+    // whole rendered prompt, which is the user's prose. The brief's advice is
+    // to record against the seeded fixtures, and this line is where somebody
+    // discovers a mode they forgot was on.
+    app.log.warn(
+      { captureDir: resolve(captureDir) },
+      'Capturing provider exchanges — cassettes contain the full rendered prompt',
+    );
+  }
 
   await app.listen({ host: config.server.host, port: config.server.port });
 
   const loopback = config.server.host === '127.0.0.1' || config.server.host === 'localhost';
+  /**
+   * **The API's address, said as the API's address.**
+   *
+   * This called it `url` and the line below told an operator to *open the
+   * address above*, which is wrong in development: the server serves no static
+   * files, so opening it gets a 404 and the client is on Vite's port. It is the
+   * first instruction a new install gives and it sent people to a blank page.
+   *
+   * Named `api` rather than `url` because that is what it is — and the setup
+   * line below now names the client's address instead of pointing upward.
+   */
   app.log.info(
     {
-      url: `http://${config.server.host}:${String(config.server.port)}`,
+      api: `http://${config.server.host}:${String(config.server.port)}`,
       dataRoot: services.layout.dataRoot,
     },
     'StoryEngine listening',
@@ -90,7 +137,15 @@ async function main(): Promise<void> {
 
   if (await services.accounts.needsSetup()) {
     if (loopback) {
-      app.log.info('No accounts yet. Open the address above to create the first admin.');
+      /**
+       * **The client's address, not this one.** In development they are two
+       * processes on two ports and the API serves no UI; in a packaged build
+       * they are the same origin and this is still right.
+       */
+      app.log.info(
+        { open: clientAddress(config) },
+        'No accounts yet. Open this address to create the first admin.',
+      );
     } else {
       // **The claim window.** Bound beyond loopback with no admin, anyone who
       // can reach the port can claim the install
@@ -198,4 +253,17 @@ try {
   // Before the logger exists, and addressed to whoever typed the command.
   console.error(error.message);
   process.exit(1);
+}
+
+/**
+ * Where a person should point a browser.
+ *
+ * In development the client is served by Vite on its own port and proxies
+ * `/api` back here, so the API's address serves nothing a person wants. There is
+ * no packaged build yet — when there is, this collapses to the API's address and
+ * the environment variable goes.
+ */
+function clientAddress(config: Config): string {
+  const port = process.env['SE_CLIENT_PORT'] ?? '5173';
+  return `http://${config.server.host}:${port}`;
 }

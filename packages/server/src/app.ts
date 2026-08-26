@@ -35,6 +35,7 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
+import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { assertModesRunnable } from './modes/registry.js';
 import {
@@ -48,6 +49,7 @@ import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames } from './storage/files.js';
+import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -124,6 +126,8 @@ export interface AppServices {
   reconciliation: Reconciliation;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
+  /** The cassette recorder, present only when `--capture` asked for one. */
+  capture?: CaptureRecorder;
   /**
    * The tombstone sweep (F9). Runs whether or not the watcher does — it used to
    * run only from the watcher, so `watch: false` meant tombstones accumulated
@@ -197,6 +201,13 @@ export interface BuildAppOptions {
    * nothing reads and then assert against the real adapter without noticing.
    */
   providers?: ProviderFactory;
+  /**
+   * Record every provider exchange as a cassette into this directory —
+   * [P2C §2.2]. CLI-threaded (`--capture`), deliberately not a config key: a
+   * dev-only recording toggle in every operator's settings form is noise, and
+   * the phase's standing line — P2C adds exactly one key — stays true.
+   */
+  captureDir?: string;
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
@@ -275,7 +286,20 @@ async function assembleWithState(
   const bus = new TurnStream();
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
-  const providers = options.providers ?? createProviderFactory();
+  /**
+   * The cassette recorder, when `--capture` asked for one — [P2C §2.2].
+   * Built before the factory because the factory is what carries its wrapper
+   * to every provider. `options.providers` still wins outright: a test that
+   * injected a double gets exactly the double it injected, recorded by
+   * nothing.
+   */
+  const capture =
+    options.captureDir === undefined
+      ? undefined
+      : createCaptureRecorder({ sink: createCaptureStore(options.captureDir) });
+  const providers =
+    options.providers ??
+    createProviderFactory(capture === undefined ? {} : { wrapFetch: capture.wrapFetch });
   /**
    * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/13-p2a-configuration-surface.md).
    *
@@ -295,27 +319,41 @@ async function assembleWithState(
    * and costs one stat per turn instead of two.
    */
   const accounts = new Accounts(layout);
-  const runner = new TurnRunner({ commit, bus, providers, accounts, config: options.config });
+
+  /**
+   * **The server's own copy**, so a settings save cannot reach back into the
+   * object the caller built.
+   *
+   * `applyLiveConfig` assigns into this, and a caller who assembled their
+   * config by spreading `DEFAULT_CONFIG` — a shallow spread shares every
+   * nested object — would have their defaults rewritten by the first save.
+   *
+   * **Belt and braces with the loader's own clone**, and the honest version of
+   * that is worth writing down: `validateConfigDocument` also clones, so
+   * reverting *either* of them alone leaves the defaults intact and a mutation
+   * test cannot tell. The loader's is the one production depends on, because
+   * `mergeDefaults` shares whatever the file does not mention. This one guards
+   * the other direction — a caller assembling a config some way the loader
+   * never touched, which `main.ts` does the moment `--data` overrides
+   * `dataDir`.
+   *
+   * **Bound here rather than in the returned literal, because the runner needs
+   * the same object and used to get a different one.** It was handed
+   * `options.config` while `applyLiveConfig` assigned into the clone below —
+   * two objects, one of them updated, and every key the turn path reads holding
+   * the other. Four `LIVE_APPLIERS` rows said `applied` about that, which is
+   * the exact claim the table exists to keep honest.
+   *
+   * Every test of a live save passed throughout, because each asserted against
+   * `services.config` — the object the route writes and the form reads back.
+   * The value really did change. Nothing had asked the component that consumes
+   * it, which is why the test that catches this takes a turn.
+   */
+  const config = structuredClone(options.config);
+  const runner = new TurnRunner({ commit, bus, providers, accounts, config });
 
   return {
-    /**
-     * **The server's own copy**, so a settings save cannot reach back into the
-     * object the caller built.
-     *
-     * `applyLiveConfig` assigns into this, and a caller who assembled their
-     * config by spreading `DEFAULT_CONFIG` — a shallow spread shares every
-     * nested object — would have their defaults rewritten by the first save.
-     *
-     * **Belt and braces with the loader's own clone**, and the honest version of
-     * that is worth writing down: `validateConfigDocument` also clones, so
-     * reverting *either* of them alone leaves the defaults intact and a mutation
-     * test cannot tell. The loader's is the one production depends on, because
-     * `mergeDefaults` shares whatever the file does not mention. This one guards
-     * the other direction — a caller assembling a config some way the loader
-     * never touched, which `main.ts` does the moment `--data` overrides
-     * `dataDir`.
-     */
-    config: structuredClone(options.config),
+    config,
     // And the baseline separately, for the same reason in the other direction:
     // sharing one object would make it follow the thing it is the baseline for,
     // and the restart notice would always be empty.
@@ -486,6 +524,10 @@ export async function buildApp(
    * only the dying one's.
    */
   services.runner.setLogger(app.log);
+  // The watcher too: a hand-edited file that fails to parse is otherwise
+  // recorded in the index and said nowhere (F34).
+  services.watcher?.setLogger(app.log);
+  services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
     app.log.error({ err: error, event: 'stream.listener-failed' }, 'A stream listener threw');

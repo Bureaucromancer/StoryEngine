@@ -526,7 +526,7 @@ annotated with which layers have callers and which are P7's.
 
 ```bash
 pnpm install && pnpm build && pnpm lint && pnpm test
-pnpm dev    # http://127.0.0.1:8080
+pnpm dev    # the client is on :5173; :8080 is the API and serves no UI
 ```
 
 1. Fresh install → create the admin → add one connection → take a turn. **No

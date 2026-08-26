@@ -16,12 +16,37 @@ import writeFileAtomic from 'write-file-atomic';
  * ([02 §5.2](../../../../docs/design/02-data-model.md)).
  *
  * The library rather than thirty lines of our own, because the fiddly parts are
- * not the temp-and-rename — they are the retry on Windows `EPERM` when a virus
- * scanner has the destination open, mode and ownership preservation, and
- * cleaning up the temp file when the write fails partway. Those are exactly the
- * things a hand-rolled version gets right on the developer's machine and wrong
- * on somebody's NAS.
+ * not the temp-and-rename — mode and ownership preservation, and cleaning up
+ * the temp file when the write fails partway. Those are exactly the things a
+ * hand-rolled version gets right on the developer's machine and wrong on
+ * somebody's NAS.
+ *
+ * **The Windows `EPERM` retry is ours, and this paragraph used to say it was
+ * the library's.** Measured: `write-file-atomic@8` does a bare `fs.rename`,
+ * and its one `EPERM` branch guards *chown*, not the rename. So a reader — a
+ * poll, a virus scanner, anything — holding the destination open at the wrong
+ * instant surfaced `EPERM` straight through, which showed up as the history
+ * trim failing roughly one full-suite run in three on Windows: a test polled
+ * `listVersions` in a loop while the trim renamed the index over it. The
+ * retry below is bounded and backs off; a lock that outlasts a second is a
+ * real lock, not a scanner, and deserves the error.
  */
+
+const BUSY_RETRY_MS = [10, 50, 100, 250, 500] as const;
+
+async function writeRetryingBusy(path: string, data: string | Uint8Array): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await writeFileAtomic(path, data);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const wait = BUSY_RETRY_MS[attempt];
+      if ((code !== 'EPERM' && code !== 'EACCES') || wait === undefined) throw error;
+      await new Promise((tick) => setTimeout(tick, wait));
+    }
+  }
+}
 
 /**
  * The token the P1.4 watcher matches events against.
@@ -146,7 +171,7 @@ export async function writeAtomic(
     await mkdir(dirname(path), { recursive: true });
   }
 
-  await writeFileAtomic(path, data);
+  await writeRetryingBusy(path, data);
 
   // Stat *after* the rename: the token has to describe the file the watcher
   // will see, and the temp file's mtime is not it.

@@ -120,11 +120,25 @@ export class TurnRunner {
   start(job: Job, payload: TurnPayload): void {
     if (this.#live.has(job.id)) return;
 
+    /**
+     * **Bound once, where the job comes into existence** —
+     * [13 §4.1](../../../../docs/design/13-internal-contracts.md) says that in as many words,
+     * and says why: it is what makes *filter by job id* a complete lifecycle
+     * rather than a sample of one.
+     *
+     * It used to be built inside `#body`, which is most of the lifecycle and
+     * not all of it — so the three lines that fire when a turn never gets that
+     * far, or dies after it, carried `jobId` alone. A tester reports the id they
+     * can see, which is the session's, and those were the lines that could not
+     * be found by it.
+     */
+    const log = this.#logFor(job);
+
     const controller = new AbortController();
-    const promise = this.#run(job, payload, controller.signal)
+    const promise = this.#run(job, payload, controller.signal, log)
       .catch((error: unknown) => {
-        this.#options.log?.error(
-          { event: 'job.lost', jobId: job.id, err: error },
+        log?.error(
+          { event: 'job.lost', ...failureShape(error) },
           'A turn ended without finalising',
         );
       })
@@ -210,16 +224,32 @@ export class TurnRunner {
    * a turn that cannot even be set up still commits, as a failed turn that
    * says why.
    */
-  async #run(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
+  async #run(
+    job: Job,
+    payload: TurnPayload,
+    signal: AbortSignal,
+    log: Logger | undefined,
+  ): Promise<void> {
     try {
-      await this.#body(job, payload, signal);
+      await this.#body(job, payload, signal, log);
     } catch (error) {
-      this.#options.log?.error(
-        { event: 'job.unstartable', jobId: job.id, err: error },
+      log?.error(
+        { event: 'job.unstartable', ...failureShape(error) },
         'A turn failed before it could run',
       );
-      await this.#finaliseUnstartable(job, payload, error);
+      await this.#finaliseUnstartable(job, payload, error, log);
     }
+  }
+
+  /** The bindings every line from this job inherits. */
+  #logFor(job: Job): Logger | undefined {
+    return this.#options.log?.child({
+      jobId: job.id,
+      sessionId: job.sessionId,
+      account: job.account,
+      turnId: job.turnId,
+      parentTurnId: job.parentTurnId,
+    });
   }
 
   /**
@@ -229,7 +259,12 @@ export class TurnRunner {
    * is waiting on it, and `abandoned` writes nothing at all — so the session
    * would look as though the submission had never happened.
    */
-  async #finaliseUnstartable(job: Job, payload: TurnPayload, error: unknown): Promise<void> {
+  async #finaliseUnstartable(
+    job: Job,
+    payload: TurnPayload,
+    error: unknown,
+    log: Logger | undefined,
+  ): Promise<void> {
     const draft: Turn = {
       ...initialDraft(job, payload),
       steps: [
@@ -251,22 +286,20 @@ export class TurnRunner {
     } catch (fatal) {
       // The store itself is gone — the kill case. Startup reconciliation is
       // what picks this up; there is nothing left to write it with.
-      this.#options.log?.error(
-        { event: 'job.lost', jobId: job.id, err: fatal },
+      log?.error(
+        { event: 'job.lost', ...failureShape(fatal) },
         'Could not finalise an unstartable turn',
       );
     }
   }
 
-  async #body(job: Job, payload: TurnPayload, signal: AbortSignal): Promise<void> {
+  async #body(
+    job: Job,
+    payload: TurnPayload,
+    signal: AbortSignal,
+    log: Logger | undefined,
+  ): Promise<void> {
     const { commit, bus, config } = this.#options;
-    const log = this.#options.log?.child({
-      jobId: job.id,
-      sessionId: job.sessionId,
-      account: job.account,
-      turnId: job.turnId,
-      parentTurnId: job.parentTurnId,
-    });
 
     const draft = initialDraft(job, payload);
     const rng = new Rng();
@@ -549,6 +582,16 @@ export class TurnRunner {
           calls.push(error.call);
           if (error.partialText.length > 0) draft.output = { text: error.partialText };
         }
+        // And a Stop that landed mid-call is the same shape from the record's
+        // side — finding 2 in [16]: the interrupted call is named, the words
+        // already streamed survive. Optional, because a cancel between
+        // attempts genuinely has no call to name.
+        if (error instanceof Cancelled && error.call !== undefined) {
+          calls.push(error.call);
+          if (error.partialText !== undefined && error.partialText.length > 0) {
+            draft.output = { text: error.partialText };
+          }
+        }
 
         steps.push({
           stepId: definition.id,
@@ -560,8 +603,44 @@ export class TurnRunner {
           wallMs: Date.now() - startedAt,
         });
 
-        log?.error(
-          { event: 'step.failed', stepId: definition.id, reason, err: error },
+        /**
+         * **A shape, not the error object** — F32, and it closes three §1.3
+         * items at one call site.
+         *
+         * `err: error` serialises the error's own enumerable properties, and a
+         * `CallFailed` carries `partialText` and `call` — so a failed step wrote
+         * **the whole rendered prompt and the model's partial narration** into
+         * the log. [13 §4.1] says portable object bodies never appear there —
+         * *a log is not a backup and user prose is not diagnostic* — and it also
+         * says a value a later reader filters on is a field rather than a phrase.
+         * A blob of prose is neither.
+         *
+         * The level is by reason rather than fixed. A user pressing Stop is not
+         * an error and `error` is *"what the server could not do"*; a step whose
+         * author declared `ignore` said in advance that this is unremarkable.
+         * Stop is the most-pressed button in a session against real latency, so
+         * logging it at `error` was most of what a phase's log would contain.
+         *
+         * `detail` is the provider's own words, which is the third item: it is
+         * populated now and this is the line that was throwing it away.
+         */
+        const level = levelFor(reason, definition.failure);
+        log?.[level](
+          {
+            event: 'step.failed',
+            stepId: definition.id,
+            reason,
+            message: messageOf(error),
+            ...(error instanceof CallFailed
+              ? {
+                  class: error.class,
+                  callId: error.call.id,
+                  // The endpoint's own words. Absent rather than empty when
+                  // there are none, so a reader can tell silence from a blank.
+                  ...(error.detail === undefined ? {} : { detail: error.detail }),
+                }
+              : {}),
+          },
           'Step failed',
         );
 
@@ -635,13 +714,25 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
   };
 }
 
+/**
+ * The turn's totals — {@link TurnCost} carries the argument for the nulls.
+ *
+ * A turn with no calls at all is the case that made this visible: a cancelled
+ * turn recorded `{promptTokens: 0, completionTokens: 0, model: ''}`, which reads
+ * as *counted, and it was nothing* rather than *nobody counted*.
+ */
 function costOf(calls: readonly ModelCall[]): TurnCost {
-  const reported = calls.filter((call) => call.usage !== null);
+  const counted = calls.length > 0 && calls.every((call) => call.usage !== null);
+
   return {
-    promptTokens: reported.reduce((sum, call) => sum + (call.usage?.promptTokens ?? 0), 0),
-    completionTokens: reported.reduce((sum, call) => sum + (call.usage?.completionTokens ?? 0), 0),
+    promptTokens: counted
+      ? calls.reduce((sum, call) => sum + (call.usage?.promptTokens ?? 0), 0)
+      : null,
+    completionTokens: counted
+      ? calls.reduce((sum, call) => sum + (call.usage?.completionTokens ?? 0), 0)
+      : null,
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
-    model: calls.at(-1)?.resolved.modelId ?? '',
+    model: calls.at(-1)?.resolved.modelId ?? null,
   };
 }
 
@@ -655,4 +746,38 @@ function classifyStep(error: unknown): StepFailureReason {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * What a step failure is worth saying out loud at.
+ *
+ * [13 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
+ * it refused. A cancellation is neither — it is the system doing exactly what
+ * was asked — and a step whose author declared `ignore` has said in advance that
+ * a failure here is unremarkable.
+ */
+function levelFor(
+  reason: StepFailureReason,
+  failure: 'abort' | 'warn' | 'ignore' | undefined,
+): 'info' | 'warn' | 'error' {
+  if (reason === 'cancelled') return 'info';
+  return failure === 'abort' ? 'error' : 'warn';
+}
+
+/**
+ * An unexpected failure, as fields rather than as an error object.
+ *
+ * `err: error` serialises an error's own enumerable properties, and the same
+ * `CallFailed` that carries `partialText` and `call` can reach these paths — so
+ * the rule the step-failure line already follows applies here too:
+ * [13 §4.1] says portable object bodies never appear in a log.
+ *
+ * The stack stays, because these are the *internal* failures — a store that is
+ * gone, a setup that threw — where it is the diagnostic rather than noise.
+ */
+function failureShape(error: unknown): Record<string, unknown> {
+  return {
+    message: messageOf(error),
+    ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
+  };
 }

@@ -3,7 +3,12 @@
 
 import { useState, type JSX } from 'react';
 
-import type { AdminConnection, RoleRow } from '../api.js';
+import {
+  ApiError,
+  type AdminConnection,
+  type ConnectionCapabilities,
+  type RoleRow,
+} from '../api.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
 import {
@@ -216,6 +221,19 @@ function ConnectionForm({
   const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState('');
   const [modelText, setModelText] = useState((connection?.models ?? []).join(', '));
+  /**
+   * The two capability overrides an operator has a reason to set, as text
+   * because an empty box has to mean *whatever the default is* and a number
+   * input cannot say that.
+   */
+  const [contextText, setContextText] = useState(
+    connection?.capabilities?.maxContextTokens === undefined
+      ? ''
+      : String(connection.capabilities.maxContextTokens),
+  );
+  const [reportsUsage, setReportsUsage] = useState<boolean | null>(
+    connection?.capabilities?.reportsUsage ?? null,
+  );
   /** What a refusal handed back, so both ways out of a 412 are reachable. */
   const [conflict, setConflict] = useState<AdminConnection | null>(null);
   const [saved, setSaved] = useState<AdminConnection | null>(null);
@@ -259,6 +277,13 @@ function ConnectionForm({
             // on the wire — an empty box cannot say *no key* and *unchanged*
             // apart, so the form says nothing and the server preserves.
             ...(apiKey.length === 0 ? {} : { apiKey }),
+            /**
+             * **Merged over what is stored, never replacing it.** A capability
+             * this form does not know about was written by hand by somebody who
+             * did know, and a save that sent only these two would delete it —
+             * which is the bug the key already taught this file once.
+             */
+            ...capabilitiesFrom(connection, contextText, reportsUsage),
             ...(connection === null
               ? {}
               : {
@@ -320,9 +345,17 @@ function ConnectionForm({
              * **A notice, never a blocked save** — [P2B §2.6]. `/models` is
              * optional in practice, and several local runtimes answer it with
              * one entry called `gpt-3.5-turbo` regardless of what is loaded.
+             *
+             * **But a refused key gets its own sentence** — finding 5. The two
+             * remedies point in opposite directions: *unreachable* sends an
+             * admin to the URL and the network, and the one case where that is
+             * exactly wrong is the endpoint answering perfectly well that the
+             * key is bad.
              */
             <p role="status" className="text-sm text-ink-subtle">
-              That endpoint did not answer with a model list. Type the model name instead.
+              {models.error instanceof ApiError && models.error.code === 'unauthorized'
+                ? 'That endpoint refused the key. Check it — the URL is fine.'
+                : 'That endpoint did not answer with a model list. Type the model name instead.'}
             </p>
           ) : null}
         </div>
@@ -344,6 +377,36 @@ function ConnectionForm({
           </ul>
         )}
       </div>
+
+      <details className="text-sm">
+        <summary className="cursor-pointer text-ink-muted hover:text-ink">
+          What this endpoint can do
+        </summary>
+        <div className="mt-2 flex flex-col gap-4">
+          {/**
+           * **Behind a disclosure because the defaults are usually right**, and
+           * wrong in a way only the operator can see: this build assumes a
+           * conservative context window and now assumes an OpenAI-compatible
+           * endpoint counts tokens. Somebody running a local model is the only
+           * person who knows their real window.
+           */}
+          <Field
+            label="Context window"
+            value={contextText}
+            onChange={setContextText}
+            placeholder="Leave blank to use the default"
+            hint="How many tokens this endpoint accepts in one request. Only set this if you know it — getting it wrong truncates the story or wastes the space."
+          />
+          <SelectField
+            label="Reports token counts"
+            value={reportsUsage === null ? 'default' : reportsUsage ? 'yes' : 'no'}
+            options={USAGE_OPTIONS}
+            onChange={(next) => {
+              setReportsUsage(next === 'default' ? null : next === 'yes');
+            }}
+          />
+        </div>
+      </details>
 
       {conflict === null ? null : (
         <Alert tone="warning" role="alert">
@@ -700,4 +763,43 @@ function roleSource(row: RoleRow): string {
   return row.tier === 'unset'
     ? 'Nothing can do this yet, and nothing needs to.'
     : 'Nothing is set for this, so anything that needs it will fail.';
+}
+
+/** The three states the usage override has, one of which is *do not override*. */
+const USAGE_OPTIONS: [string, string][] = [
+  ['default', 'Use the default for this kind'],
+  ['yes', 'Yes'],
+  ['no', 'No'],
+];
+
+/**
+ * The capability patch a save carries, or nothing.
+ *
+ * **Merged over what is stored.** Sending only the two fields this form knows
+ * about would delete an override somebody wrote by hand for a capability it does
+ * not — the same failure the API key already caused here once, and the reason
+ * the server preserves rather than replaces.
+ *
+ * A blank context box removes the override rather than setting zero, which is
+ * what *leave blank to use the default* has to mean.
+ */
+function capabilitiesFrom(
+  connection: AdminConnection | null,
+  contextText: string,
+  reportsUsage: boolean | null,
+): { capabilities: ConnectionCapabilities } | Record<string, never> {
+  const stored = connection?.capabilities ?? {};
+  const next: ConnectionCapabilities = { ...stored };
+
+  const context = Number(contextText.trim());
+  if (contextText.trim().length === 0 || Number.isNaN(context) || context <= 0) {
+    delete next.maxContextTokens;
+  } else {
+    next.maxContextTokens = context;
+  }
+
+  if (reportsUsage === null) delete next.reportsUsage;
+  else next.reportsUsage = reportsUsage;
+
+  return { capabilities: next };
 }

@@ -7,12 +7,13 @@ import { generateText, streamText } from 'ai';
 import { capabilitiesFor } from './capabilities.js';
 import type { Connection } from './connections.js';
 import {
+  ProviderError,
   type ErrorClass,
+  type FinishReason,
   type GenerationChunk,
   type GenerationRequest,
   type GenerationResult,
   type Provider,
-  ProviderError,
   type ProviderCapabilities,
   type RenderedMessage,
 } from './types.js';
@@ -58,6 +59,18 @@ export class OpenAICompatibleProvider implements Provider {
     const client = createOpenAICompatible({
       name: connection.provider,
       baseURL: connection.baseUrl ?? 'https://api.openai.com/v1',
+      /**
+       * **Asked for, or it never arrives on the streaming path.** The SDK sends
+       * `stream_options: {include_usage: true}` only when told to, and without
+       * it the final chunk carries no usage block at all — so `usage` was null
+       * on every streamed turn no matter what the capabilities said, and
+       * [13 §1.4](../../../../docs/design/13-internal-contracts.md)'s
+       * *provider-reported, not estimated* had nothing to report.
+       *
+       * Harmless where it is not supported: an endpoint that does not know the
+       * option ignores it, and `#usage` still refuses to invent a number.
+       */
+      includeUsage: true,
       // Absent for a local endpoint that needs none, which is the ordinary
       // case for the local-model story and not an error.
       ...(connection.apiKey === undefined ? {} : { apiKey: connection.apiKey }),
@@ -84,7 +97,9 @@ export class OpenAICompatibleProvider implements Provider {
         // price table this build does not ship — reporting a fabricated number
         // would be worse than reporting none.
         cost: null,
-        modelId: request.modelId,
+        // `generateText` resolves its steps; `streamText` promises them.
+        modelId: modelThatAnswered(result.finalStep.response, request.modelId),
+        finishReason: finishReasonOf(result.finishReason),
       };
     } catch (error) {
       throw asProviderError(error);
@@ -95,11 +110,17 @@ export class OpenAICompatibleProvider implements Provider {
     request: GenerationRequest,
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
     const prompt = splitForSdk(request.messages, this.capabilities.systemMessage);
+    // Captured rather than thrown, because the SDK calls this instead of
+    // failing the iterator — see the throw below the loop.
+    let failure: unknown;
     const result = streamText({
       model: this.#model(request.modelId),
       messages: prompt.messages,
       ...(prompt.instructions === undefined ? {} : { instructions: prompt.instructions }),
       ...toSdkParams(request),
+      onError: ({ error }) => {
+        failure = error;
+      },
     });
 
     let text = '';
@@ -115,11 +136,31 @@ export class OpenAICompatibleProvider implements Provider {
       throw asProviderError(error);
     }
 
+    /**
+     * **A failure before the first chunk does not arrive as a throw**, and this
+     * is the line that turns it back into one.
+     *
+     * `streamText` does not throw into the iterator when the request itself
+     * fails: it hands the error to its own `onError` and ends the stream empty.
+     * So the loop above completes normally, and the failure surfaces later —
+     * previously as a bare `NoOutputGeneratedError` from `await result.usage`,
+     * carrying no status, no class and none of the provider's words.
+     *
+     * Measured, before the fix: a 401, a 429, a 502 with an HTML body and a
+     * refused connection produced **one identical error** reading *"No output
+     * generated. Check the stream for errors."* Every deliberate breakage
+     * [12 §2.2](../../../../docs/design/workplan/12-p2-manual-gate.md) asks a tester to make
+     * returned the same wrong answer, and a 429 was never retried because
+     * nothing could see it was a 429.
+     */
+    if (failure !== undefined) throw asProviderError(failure);
+
     return {
       text,
       usage: this.#usage(await result.usage),
       cost: null,
-      modelId: request.modelId,
+      modelId: modelThatAnswered((await result.finalStep).response, request.modelId),
+      finishReason: finishReasonOf(await result.finishReason),
     };
   }
 
@@ -237,6 +278,42 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
  * notice. Three buckets, and the provider's own words go in `detail` for the
  * log.
  */
+/**
+ * The operating-system errors that mean *the connection did not work*, as
+ * opposed to *the provider said no* — F27.
+ *
+ * Node reports these on a `cause` rather than in the message, and the message
+ * they do carry is unhelpfully terse: a refused connection reads `fetch failed`
+ * and a socket dying mid-response reads `terminated`. Neither matched the
+ * message vocabulary this used to test, so **both classified `terminal` and the
+ * retry ladder never fired** — measured across six deliberate failures in two
+ * independent runs without a single retry.
+ */
+const TRANSIENT_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** The first error code on the cause chain, which is where fetch buries it. */
+function codeOf(error: unknown): string | undefined {
+  for (let at = error, depth = 0; at !== undefined && at !== null && depth < 8; depth += 1) {
+    const node = at as { code?: unknown; cause?: unknown; lastError?: unknown };
+    if (typeof node.code === 'string') return node.code;
+    // Two links, not one: `lastError` is what a `RetryError` carries instead of
+    // a cause, and that wrapper appears whenever the SDK's own retry is on.
+    at = node.cause ?? node.lastError;
+  }
+  return undefined;
+}
+
 function asProviderError(error: unknown): ProviderError {
   if (error instanceof ProviderError) return error;
 
@@ -248,10 +325,81 @@ function asProviderError(error: unknown): ProviderError {
   let errorClass: ErrorClass = 'terminal';
   if (status === 429 || (status !== undefined && status >= 500)) {
     errorClass = 'retryable';
-  } else if (status === undefined && /timeout|network|fetch|socket|abort/i.test(message)) {
-    // No status at all usually means the request never got an answer.
+  } else if (status === undefined && TRANSIENT_CODES.has(codeOf(error) ?? '')) {
+    // The connection never worked. Nothing about the request was refused.
+    errorClass = 'transient';
+  } else if (status === undefined && (error as { isRetryable?: unknown }).isRetryable === true) {
+    /**
+     * **The SDK's own judgement, taken over a regex.** `APICallError` sets
+     * `isRetryable` from its own taxonomy, and a status-less error it calls
+     * retryable is a connection that did not work — a refused port arrives this
+     * way, with its `ECONNREFUSED` buried under a message reading only *"Cannot
+     * connect to API"*. Reading the flag is more durable than guessing at
+     * wording that belongs to somebody else's library.
+     */
+    errorClass = 'transient';
+  } else if (
+    status === undefined &&
+    /timeout|network|fetch failed|socket|abort|terminated/i.test(message)
+  ) {
+    // No status, no code and no flag: the message is all there is.
+    // `terminated` is undici's word for a response that stopped arriving.
     errorClass = 'transient';
   }
 
-  return new ProviderError(errorClass, 'The provider call failed.', message);
+  /**
+   * **The provider's own words travel as `detail`, and a body is better than a
+   * class name.** An `APICallError` carries the response body, which is where a
+   * provider actually explains itself — *"Incorrect API key provided"* rather
+   * than *"Bad Request"*. Bounded, because an HTML error page is a whole
+   * document and a log line is not.
+   */
+  const body = (error as { responseBody?: unknown }).responseBody;
+  const detail =
+    typeof body === 'string' && body.length > 0 ? `${message} — ${body.slice(0, 500)}` : message;
+
+  return new ProviderError(errorClass, 'The provider call failed.', detail);
+}
+
+/**
+ * The model that answered, falling back to the one that was asked for — F29.
+ *
+ * Both paths used to return `request.modelId`, which made
+ * `ModelCall.resolved.modelId` a copy of the request and every check over it a
+ * comparison of a value with itself. It matters for the ordinary reason a record
+ * exists: an endpoint that silently serves a different model — an alias, a
+ * fallback, a router picking for you — is exactly the thing *"why is this turn
+ * different"* has to be able to answer.
+ *
+ * The fallback is not a formality: a local runtime often echoes nothing, and
+ * naming the request is better than naming nothing. What it must never do is
+ * *look* like a report when it is a guess, which is why the record keeps the
+ * distinction the docstring on {@link GenerationResult.modelId} states.
+ */
+function modelThatAnswered(response: { modelId?: string } | undefined, asked: string): string {
+  const answered = response?.modelId;
+  return answered === undefined || answered.length === 0 ? asked : answered;
+}
+
+/**
+ * The SDK's finish reason, narrowed to the vocabulary a record carries.
+ *
+ * `'other'` and `'error'` both become `unknown`, and so does an absent one. That
+ * is the case worth naming: **a stream that simply stops** — no finish reason,
+ * no error, no `[DONE]` — is the local runtime's characteristic failure, and it
+ * used to be recorded as an ordinary success with a short answer.
+ */
+function finishReasonOf(reason: string | undefined): FinishReason {
+  switch (reason) {
+    case 'stop':
+      return 'stop';
+    case 'length':
+      return 'length';
+    case 'content-filter':
+      return 'filtered';
+    case 'tool-calls':
+      return 'tool';
+    default:
+      return 'unknown';
+  }
 }

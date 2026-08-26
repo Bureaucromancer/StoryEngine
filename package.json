@@ -12,14 +12,17 @@
   "scripts": {
     "build": "tsc -b && pnpm --filter @storyengine/shared emit-schemas && pnpm --filter @storyengine/client build",
     "dev": "pnpm run dev:shared && pnpm --parallel --filter @storyengine/server --filter @storyengine/client run dev",
-    "dev:shared": "tsc -b packages/shared",
     "dev:client": "pnpm --filter @storyengine/client run dev",
+    "dev:logged": "node tools/dev-server.mjs",
     "dev:server": "pnpm --filter @storyengine/server run dev",
+    "dev:shared": "tsc -b packages/shared",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm run lint:es && pnpm run lint:css",
     "lint:css": "stylelint \"packages/**/*.css\"",
     "lint:es": "eslint . --max-warnings 0",
+    "reset-data": "node tools/reset-data.mjs",
+    "seed": "node tools/seed.mjs",
     "test": "vitest run",
     "test:gate": "vitest run --project gate",
     "typecheck": "tsc -b && tsc -p tsconfig.tools.json"

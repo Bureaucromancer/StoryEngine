@@ -435,13 +435,17 @@ describe('a turn killed mid-generation', () => {
    * rather than as a passing test of the wrong thing.
    *
    * `request.calls` is empty on a killed turn. `performCall` pushes its
-   * `ModelCall` only when the call returns, and its failure path attaches one
-   * only to `CallFailed` — but an aborted signal is checked first and throws
-   * `Cancelled` (`turns/calls.ts`), which carries no record. So the recovered
-   * turn says which blocks were assembled and what the budget ruled, and cannot
-   * say which model was asked. The log knows (`call.started` binds it, asserted
-   * below); the record does not. Making this pass is a production change and
-   * belongs to whoever owns that decision.
+   * `ModelCall` only when the call returns or the exception carries one — and
+   * a killed process throws nothing: the last durable checkpoint is all there
+   * is, and no checkpoint written mid-call contains the call, because the
+   * record is constructed on the way *out*. (A person's Stop no longer has
+   * this problem — `Cancelled` carries the interrupted call since finding 2
+   * was fixed — but a Stop is an exception path and a power cut is not.) So
+   * the recovered turn says which blocks were assembled and what the budget
+   * ruled, and cannot say which model was asked. The log knows (`call.started`
+   * binds it, asserted below); the record does not. Making this pass means a
+   * provisional call in the checkpoint, and belongs to whoever owns that
+   * decision.
    */
   it.todo('names the model call that was in flight when the process died');
 });
@@ -637,23 +641,28 @@ describe('the log alone reconstructs a killed turn', () => {
     expect(lineFor(mine, 'job.running')).toMatchObject({ sessionId, turnId, account: 'ned' });
     expect(lineFor(mine, 'job.recovered')).toMatchObject({ sessionId, turnId });
     /**
-     * **`job.committed` carries `turnId` and no `sessionId`, and that is a
-     * divergence from [13 §4.1] rather than a decision** — so it is asserted as
-     * the code behaves and reported as a finding, because a test that failed
-     * here would be reporting a fault in the contract's implementation and not
-     * in itself.
+     * **`job.committed` names the session and the account now**, and this
+     * assertion used to be the divergence rather than the contract.
      *
-     * The cause is one line and it has two other victims. `advanceCommit` logs
-     * through `context.log`, which `buildApp` sets to the app's *root* logger
-     * (`services.commit.log = app.log`), and the runner's `job.unstartable` and
-     * `job.lost` go through `this.#options.log` for the same reason — the child
-     * with the job's bindings is created inside `#body` and those two are
-     * written outside it. Which means the two lines that say *a turn ended
-     * without finalising*, the ones an operator chasing a lost turn searches
-     * for first, name neither the session nor the turn. Everything else here
-     * inherits its bindings from that child or from `reconcile`'s.
+     * It read `toMatchObject({ turnId })` with a docstring explaining that
+     * [13 §4.1] asks for more and the code did not do it — *asserted as the code
+     * behaves and reported as a finding*. That was honest and it was also the
+     * shape that lets a divergence sit for four phases: a test agreeing with the
+     * bug, in the file whose whole subject is that a lifecycle can be filtered
+     * by one id.
+     *
+     * The cause was one line in three places. The runner built its child inside
+     * `#body`, so `job.unstartable` and both `job.lost` sites — written outside
+     * it — carried `jobId` alone; and `advanceCommit` logged through the app's
+     * *root* logger. **The id a person actually has is the session's**, because
+     * it is the one in the URL, so the lines that say *a turn ended without
+     * finalising* could not be found by the only thing they could search with.
      */
-    expect(lineFor(mine, 'job.committed')).toMatchObject({ turnId });
+    expect(lineFor(mine, 'job.committed')).toMatchObject({
+      sessionId,
+      turnId,
+      account: 'ned',
+    });
   });
 
   it('holds nothing of the next job, and the next job holds nothing of it', async () => {

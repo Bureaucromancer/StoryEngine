@@ -155,6 +155,27 @@ export const ConfigSchema = Type.Object(
       contextTokens: Type.Integer({ minimum: 256, default: 8192 }),
       /** Held back for the answer when a call does not say how long it may be. */
       reservedCompletionTokens: Type.Integer({ minimum: 0, default: 1024 }),
+      /**
+       * How long one call may make **no progress** before the turn abandons it
+       * — [P2C §1.3].
+       *
+       * Nothing bounded a provider call: only the person's Stop button, which
+       * requires somebody to be watching. A stalled endpoint was an unending
+       * turn whose only exit was restarting the server, and restarting destroys
+       * the state that produced the finding.
+       *
+       * **No progress, rather than total duration**, because a multi-minute
+       * first token is ordinary on a local runtime and a wall-clock ceiling
+       * would kill healthy long generations. A streamed chunk resets it. A
+       * non-streaming call has no progress to show, so for that call this is
+       * the whole of it — which is the honest reading of *nothing has happened
+       * for five minutes*.
+       *
+       * `0` disables it, for an endpoint whose operator knows it is slower than
+       * any number here would be. That is a real case and refusing it would
+       * only move the workaround somewhere less visible.
+       */
+      providerTimeoutMs: Type.Integer({ minimum: 0, default: 300_000 }),
     }),
     trash: Type.Object({
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
@@ -204,6 +225,7 @@ export const CONFIG_TIERS = {
   'limits.extensionStorageQuotaMb': 'live',
   'limits.contextTokens': 'live',
   'limits.reservedCompletionTokens': 'live',
+  'limits.providerTimeoutMs': 'live',
   'trash.retentionDays': 'live',
   'history.keepPerObject': 'live',
   'updates.checkEnabled': 'live',
@@ -270,6 +292,11 @@ export const LIVE_APPLIERS = {
   'limits.contextTokens': 'applied',
   'limits.reservedCompletionTokens': 'applied',
 
+  // Read per attempt inside `performCall`, off the same live reference — so a
+  // turn already in flight when the number changes is bounded by the new one at
+  // its next call rather than at the next restart.
+  'limits.providerTimeoutMs': 'applied',
+
   // The maturation sweep does not read it; trash retention is not implemented.
   'trash.retentionDays': 'unread',
 
@@ -298,6 +325,7 @@ export const DEFAULT_CONFIG: Config = {
     extensionStorageQuotaMb: 32,
     contextTokens: 8192,
     reservedCompletionTokens: 1024,
+    providerTimeoutMs: 300_000,
   },
   trash: { retentionDays: 30 },
   history: { keepPerObject: 50 },
@@ -377,6 +405,7 @@ export function configChoices(): Record<string, string[]> {
     const schema = node as {
       properties?: Record<string, unknown>;
       anyOf?: { const?: unknown }[];
+      const?: unknown;
     };
 
     if (schema.properties) {
@@ -386,7 +415,16 @@ export function configChoices(): Record<string, string[]> {
       return;
     }
 
-    if (schema.anyOf === undefined) return;
+    /**
+     * **A one-member union is a bare `const`, not an `anyOf`.** TypeBox
+     * collapses it, so `log.format` — the only such key — rendered as a
+     * free-text box over a value the server refuses, which is the same defect
+     * this function was written to close, one row below the control it fixed.
+     */
+    if (schema.anyOf === undefined) {
+      if (typeof schema.const === 'string') choices[prefix] = [schema.const];
+      return;
+    }
     const values = schema.anyOf.map((member) => member.const);
     if (values.some((value) => typeof value !== 'string')) return;
     choices[prefix] = values as string[];

@@ -177,7 +177,16 @@ body {
     --color-ink: var(--color-slate-50);
     --color-ink-muted: var(--color-slate-300);
     --color-ink-subtle: var(--color-slate-400);
-    --color-ink-faint: var(--color-slate-500);
+
+    /* Equal to subtle here, and deliberately. slate-500 is 4.76 to 1 on white
+       and 3.74 on this surface — the one ink token that did not move with the
+       theme, which put every placeholder in the app below the floor in the
+       theme built to fix contrast. There is no ramp step between 400 and 500
+       that clears 4.5, so the two quietest tokens converge in dark rather than
+       one of them being illegible. Kept as separate names because the light
+       theme still distinguishes them and a component should not have to know
+       which theme it is in. Measured by ui/contrast.test.ts. */
+    --color-ink-faint: var(--color-slate-400);
     --color-line: var(--color-slate-800);
     --color-line-strong: var(--color-slate-700);
     --color-accent: var(--color-slate-200);
@@ -222,7 +231,7 @@ body {
   --color-ink: var(--color-slate-50);
   --color-ink-muted: var(--color-slate-300);
   --color-ink-subtle: var(--color-slate-400);
-  --color-ink-faint: var(--color-slate-500);
+  --color-ink-faint: var(--color-slate-400);
 
   /* Rules brighten rather than darken: a hairline is a lightness step away
      from its surface, and which direction is away depends on the theme. */

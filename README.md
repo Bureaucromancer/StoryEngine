@@ -4,12 +4,16 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha.** The design is written down in
 [`docs/design/`](docs/design/); the code is through
-[P1.7](docs/design/workplan/03-p1-implementation.md) — the storage spine, the derived
-index and its watcher, auth, the library API, a web client, and a prototype
-actor editor with version history.
+[P2B](docs/design/workplan/14-p2b-provider-configuration.md) — the storage spine, the
+derived index and its watcher, auth, the library API, a web client with a
+prototype actor editor and version history, **one turn end to end** as a
+resumable server-side job with a streamed reply, and the settings surface that
+configures an install, its accounts and its model connections.
 
-**The UI browses everything and edits actors.** Sign in, browse all six kinds
-of library object, open an actor and edit it — with automatic
+**The UI browses, plays and configures.** Sign in, browse all six kinds of
+library object, start a session and take a turn, and open Settings to change your
+own preferences or — as an admin — the install's configuration, its accounts and
+its model connections. Open an actor and edit it — with automatic
 version history behind a History control: every change snapshots the state it
 replaced, hand edits included, and any version can be restored, diffed, pinned
 or renamed. The other five kinds stay read-only for now, and *creating* objects
@@ -67,10 +71,37 @@ pnpm dev:server    # just the API, for curl-driven work
 pnpm dev:client    # just Vite, against a server you started some other way
 ```
 
+If the server is not on 8080, point the client at it —
+`SE_API=http://127.0.0.1:9090 pnpm dev:client`. `SE_CLIENT_PORT` moves Vite's own
+port the same way.
+
 `pnpm dev` starts them in parallel and does not order them, so on a cold start
 Vite is usually ready first and logs a proxy error or two until the server
 binds. That is noise rather than failure. Started alone, the client comes up
 fine and reports that it cannot reach the server until one is there.
+
+### Starting from a known install, and keeping the log
+
+```bash
+pnpm reset-data    # stop the server first — this removes the data directory
+pnpm seed          # a library and a playable session, through the HTTP API
+pnpm dev:logged    # the server alone, its log copied to ./logs/server-<date>.log
+```
+
+`pnpm seed` creates the first admin if there is not one, and is idempotent —
+run it twice and you get the same install rather than a second copy of it. It
+does not create a connection or a binding: those carry a real key and belong to
+the person rather than to a script, so a seeded install still needs one visit to
+Settings before a turn will run.
+
+**`pnpm dev:logged` exists because `pnpm dev` makes the log unreadable.** The
+log is JSON on stdout by design ([13 §4.1](docs/design/13-internal-contracts.md)),
+and pnpm's recursive reporter prefixes every line with `packages/server dev: ` —
+so each record becomes a string that starts with a package name and then happens
+to contain JSON, which `jq` and everything else refuses. `dev:logged` runs the
+server as its own process and copies stdout to a dated file *as well as* to the
+terminal. Use it when the log is evidence; `pnpm dev` is fine for everything
+else. Logs are not committed.
 
 **Both need a build first.** The server imports `@storyengine/shared` through
 its built entry point, so `pnpm build` has to have run at least once. Watch mode
@@ -79,8 +110,14 @@ covers each package's *own* sources — editing `shared` or `sdk` needs a
 
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
-([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
-[`config.example.json`](config.example.json) to `data/config.json` to change it.
+([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Change it in
+**Settings → Install**, which is the surface every config key has.
+
+[`config.example.json`](config.example.json) documents every key and is the other
+way in — but **it is not loadable as it stands.** It carries `//` comments, JSON
+does not, and a server pointed at a copy of it refuses to start with *not valid
+JSON*. Strip the comment lines first. (The comments are the reason the file is
+worth reading; the settings form is the reason it is not the main path.)
 
 ### If a password is lost
 
@@ -169,6 +206,9 @@ the client exists, which is the same boundary the lint graph enforces in code.
 | `pnpm dev` | Both of the below, in parallel |
 | `pnpm dev:server` | The API on 8080, restarting on a change (`tsx watch`) |
 | `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
+| `pnpm dev:logged` | The API alone, stdout copied to a dated file in `./logs`, provider exchanges recorded to `./captures` |
+| `pnpm seed` | A known library and a playable session, over HTTP. Idempotent |
+| `pnpm reset-data` | Removes the data directory, or removes nothing. Stop the server first |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an
@@ -185,7 +225,7 @@ packages/server/
   src/index-db/      the derived index and its watcher — delete it, lose nothing
   src/auth/          accounts, scrypt, sessions
   src/routes/        the HTTP surface
-packages/client/     React + Vite. The library list, a detail view, and login.
+packages/client/     React + Vite. Play, the library, settings, and the actor editor.
 tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
                      tested rather than trusted
 ```

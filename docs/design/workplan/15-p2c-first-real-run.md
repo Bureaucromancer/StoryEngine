@@ -121,13 +121,10 @@ it costs.
 Not about evidence quality: about whether a person who has not read the source
 arrives anywhere.
 
-- **Nothing links to the play surface.** `Shell.tsx` renders two links, the
-  library and settings; the only link to a session lives *inside* `SessionsPage`,
-  which is reachable by typing `/play` into the address bar and no other way. The
-  surface works once you are there — which is why this is not blocking — but
-  nobody types a URL they have not been told about, and no design document
-  specifies a nav entry or defers one, so it is a gap rather than a deferral.
-  *One hour, plus a Shell test that asserts the entry exists.*
+- **~~Nothing links to the play surface.~~ Done.** `Shell.tsx` renders Play
+  and Library in the signed-in nav, with the test this item asked for —
+  *offers Play and Library, addressed to their surfaces* — and its absence
+  asserted when signed out.
 - **The play surface is dark inside a light shell, and typed text is invisible.**
   **Blocking.** `Shell.tsx` sets `text-slate-900` on the app root; four files
   under `play/` set `bg-neutral-900` and no text colour, and Tailwind's preflight
@@ -186,20 +183,18 @@ arrives anywhere.
   canvas — invisible while that canvas was white and the app was light. It is on
   `body` now. And **`color-scheme` was missing**, which is the same defect class
   as the original: an input whose CSS is right and whose caret is not.
-- **The startup line names an address that serves no UI.** `main.ts` prints
-  `http://127.0.0.1:8080` and then *"Open the address above to create the first
-  admin"* — and the server serves no static files, so the client is Vite on
-  `:5173`. [P2B §4](14-p2b-provider-configuration.md) step 1 and
-  [12 §2.1](12-p2-manual-gate.md) both send the tester to a blank page. *One
-  hour: fix the line, and the two documents.*
-- **A repeated flag is silently ignored.** `argumentValue` takes the **first**
-  occurrence, so appending `--data` to `pnpm dev:server` — whose script already
-  hardcodes one — is dropped without a word, and the run uses a directory the
-  person did not choose. A scratch install is still reachable by another route,
-  which is why this went from *blocking* to *ten minutes*: **make a repeated flag
-  a `UsageError`**, the same treatment F24 already gave a flag with no value, and
-  point Vite's hardcoded proxy target at an environment variable. *Half an hour
-  for both.*
+- **~~The startup line names an address that serves no UI.~~ Done.** It printed
+  the API's address and then *"Open the address above"* — and the server serves
+  no static files, so that address is a 404 and the client is on Vite's port. The
+  API line names itself `api` now, and the setup line names **the client**, which
+  is where a person should go. [12 §2.1](12-p2-manual-gate.md) step 1 and
+  [P2B §4](14-p2b-provider-configuration.md)'s command block are corrected with
+  it. *Fastify prints its own listening line first and still names the API port;
+  that one is true, it is simply not where anybody goes.*
+- **~~A repeated flag is silently ignored.~~ Done, both halves.** A repeated
+  flag is a `UsageError` — the same treatment F24 gave a flag with no value —
+  and Vite's proxy target reads `SE_API` (its own port `SE_CLIENT_PORT`),
+  which [17 §2.3](17-p2c-brief.md) documents since nothing else did.
 
 ### 1.2 The findings would be wrong — about two days
 
@@ -207,8 +202,11 @@ The provider boundary is the phase's subject, and five of its behaviours are
 wrong in ways that would make a session's observations misleading rather than
 merely incomplete. **Every one of these produces a plausible false finding.**
 
-- **Every streaming failure escapes the adapter unclassified. Blocking**, and
-  the most instructive item on this page.
+- **~~Every streaming failure escapes the adapter unclassified.~~ Done** —
+  `onError` captured, re-thrown through `asProviderError`, with six streaming
+  failure shapes and three classification routes under test, so a deleted
+  route fails a test rather than going quiet. The account below is kept
+  because it is the most instructive item on this page.
 
   Five shapes driven through the real adapter — a fetch rejection, a 401, a 429,
   a 400 and a genuinely closed port — produced one identical
@@ -233,8 +231,11 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   **Three of [12 §2.2](12-p2-manual-gate.md)'s deliberate breakages are about
   this path and today all three return the same wrong answer.** *A day, and the
   streaming tests are the more valuable half.*
-- **`usage` is null on every turn**, for reasons that are independent and all
-  have to be fixed: `reportsUsage: false` in the conservative baseline that
+- **~~`usage` is null on every turn~~ Done, both halves** —
+  `reportsUsage: true` for the adapter and `includeUsage: true` on the wire,
+  with the streaming path's usage-only final chunk now asserted directly.
+  The original account: the two reasons were independent and both had to be
+  fixed — `reportsUsage: false` in the conservative baseline that
   `openai-compatible` inherits verbatim, and `includeUsage` never passed to the
   SDK, so `stream_options` never goes on the wire. *(A third — a form edit
   deleting the hand-written override that would fix the first — was found by the
@@ -245,19 +246,26 @@ merely incomplete. **Every one of these produces a plausible false finding.**
   reported usage — which is why it is high rather than blocking, and why fixing
   it changes what the record says without changing what the turn does. *Half a
   day.*
-- **`ModelCall.resolved` records what was asked for, never what answered.** Both
-  adapter paths return `modelId: request.modelId`; the SDK supplies
-  `response.modelId` and it is discarded. A check that cannot fail is worse than
-  no check, and this one was written into §4 before the survey caught it. *Two
-  hours.*
-- **A truncated reply is indistinguishable from a finished one**, and a stream
-  that simply stops is recorded as a **successful** turn. `finishReason` is
-  parsed by the SDK and dropped by the adapter, so a completion ceiling, a
-  content filter and a network stall all end as `outcome: 'ok'`. That last one is
-  the local runtime's characteristic failure. *Half a day, and the two fall out
-  of one change.*
-- **Every connection is budgeted at 8192 tokens, because nothing ever sets
-  otherwise.** *"No way to say otherwise" was wrong and is corrected here:* the
+- **~~`ModelCall.resolved` records what was asked for, never what
+  answered.~~ Done** — `modelThatAnswered` reads the response's own id on both
+  paths, tested. The caveat that survives into the brief: on an endpoint that
+  echoes no model id the adapter falls back to what was asked for, silently,
+  so a match is proof only where the endpoint is known to report one. The
+  original point stands as the reason the check exists: a check that cannot
+  fail is worse than no check, and this one was written into §4 before the
+  survey caught it.
+- **~~A truncated reply is indistinguishable from a finished one.~~ Done** —
+  `finishReason` is kept and mapped to a call outcome, so a ceiling reads
+  `truncated`, a filter `refused`, and a stream that simply stops —
+  the local runtime's characteristic failure — `incomplete` rather than a
+  successful turn. (`cancelled` joined the vocabulary later, from finding 2.)
+- **~~Every connection is budgeted at 8192 tokens, because nothing ever sets
+  otherwise.~~ Done, with one ask converted into a refusal** — the client's
+  *Context window* and *Reports token counts* fields land end to end and
+  `docs/api.md` documents the body; the third ask, a `KNOWN_PROVIDERS` entry,
+  is now a written refusal at `config.ts`: capabilities.ts will not invent a
+  number it cannot verify, so the override belongs to the person who knows the
+  machine. The original account: *"No way to say otherwise" was wrong and is corrected here:* the
   route body, the store, the file format and the budgeter all already handle
   `capabilities`, and two audits measured a 4096 override landing end to end. The
   work is unchanged and as small as it was sized — a client field, a
@@ -279,48 +287,117 @@ repeating them*. Measured against it, the server has 28 log call sites and **19
 of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
 `sessions/store.ts` and `providers/` have none at all.
 
-- **The bindings.** `account` appears on exactly one line; no request id ever
-  reaches the job; `job.lost` and `job.unstartable` carry `jobId` alone and
-  `job.committed` has no `sessionId`. A tester reports the id they can see —
-  the session's, from the URL — and the lines that would explain it cannot be
-  found by it. *Half a day, and closer to a deletion than an addition: the child
-  logger replaces the call sites.*
-- **A failed step logs the whole rendered prompt and the partial narration.**
-  `CallFailed` carries `partialText` and `call` as own enumerable properties, and
-  the step-failure line logs the error object. [13 §4.1] says portable object
-  bodies never appear in a log — *a log is not a backup and user prose is not
-  diagnostic* — so this is a contract violation and a drowned log at once. *One
-  hour.*
-- **Pressing Stop writes an `error` line.** The step-failure path logs at `error`
-  unconditionally, including for `cancelled` and for a step whose declared
-  failure mode is `ignore`. During a phase where Stop is pressed constantly
-  against real latency, this is most of the log. *One hour, bundled with the
-  above.*
-- **The provider's own error text is thrown away.** `asProviderError` puts the
-  real message in `detail` and **nothing reads `detail`** — not the record, not
-  the log, not the wire. Every provider failure in the phase would be reported as
-  a class with no evidence under it. *Two hours.*
-- **A broken library file is logged by nothing.** The index records it and
-  `GET /api/library/errors` exposes it; no line is written and no client calls
-  the route. [12 §3.5](12-p2-manual-gate.md) has this as a missing card, and it
-  is worse than that: the failure is invisible to the tester *and* invisible
-  afterwards. **The `warn` line is pre-work; the card is not** — §1.7. *One
-  hour.*
-- **The log has no destination, so [§4](#4-verification--the-p2c-exit-gate) step
-  9 cannot be checked at all.** It is JSON on stdout — deliberately, since
-  [13 §4.1](../13-internal-contracts.md) refuses a file and refuses a pretty
-  transport — and the documented way to run this is `pnpm dev`, which
-  multiplexes both packages and **prefixes every line, corrupting the JSON**. So
-  *every failure was findable in the log from its session id* is a step this
-  document wrote and could not perform. *Twenty minutes: run the server as its
-  own process with stdout redirected to a dated file in the scratch directory,
-  and say so in the brief.*
-- **Nothing bounds a provider call, so a stalled endpoint is an unending turn.**
-  Only the user's cancel signal is passed; there is no timeout and no config key
-  for one. On a local runtime a multi-minute first token is ordinary, and the only
-  way out of a hang is restarting the server — which destroys the state that
-  produced the finding. *Half a day: a `limits` key composed into the abort
-  signal, and the resulting failure classified.*
+- **~~The bindings.~~ Done, except `requestId`.** `account` appeared on exactly
+  one line; `job.lost` and `job.unstartable` carried `jobId` alone and
+  `job.committed` had no `sessionId`. A tester reports the id they can see —
+  the session's, from the URL — and the lines that would explain it could not be
+  found by it. It was closer to a deletion than an addition, as predicted: the
+  child logger moved from `#body` to `start()`, which is what [13 §4.1] asks
+  for — *once, where the subject comes into existence* — and the three lines
+  written outside `#body` inherited the bindings by doing nothing.
+
+  **`requestId` is deferred, with a reason rather than by omission.** It is the
+  one binding in [13 §4.1]'s list that does not exist yet: Fastify mints a
+  `reqId` per request, a turn outlives the request that submitted it, and
+  nothing carries the id across the job table. Threading it means a column, a
+  migration and a decision about what the id *means* for a turn recovered after
+  a restart — which is a question about the job record, not about logging, and
+  P2C has no finding that needs it. The session id is the id a tester actually
+  reports. **Revisit when a finding cannot be traced without it.**
+
+  It also cost a test. `commits a failed turn rather than wedging the session
+  forever` reached the resolution region by corrupting a session's cast; the
+  session reader and `resolveCast` have both since become tolerant of a broken
+  file, and the fixture stopped failing without the test noticing — every
+  assertion it makes is also true of an ordinary successful turn, so it passed
+  by testing a turn that worked. It now corrupts `accounts.json` and asserts
+  that `job.unstartable` was written, so the next hardening past its fixture is
+  a failure rather than a silence.
+- **~~A failed step logs the whole rendered prompt and the partial
+  narration.~~ Done (F32)** — the step-failure line logs a shape (event, step,
+  reason, message, class, call id) rather than the error object, so
+  `partialText` and the rendered prompt stay on the record where they belong
+  and out of the log, per [13 §4.1]'s *a log is not a backup and user prose is
+  not diagnostic*.
+- **~~Pressing Stop writes an `error` line.~~ Done, same commit** — the
+  level follows the reason: `info` for a cancellation, `warn` for `ignore`
+  and `warn` failure modes, `error` only for a step that aborts the turn.
+  Stop pressed constantly against real latency now reads as what it is.
+- **~~The provider's own error text is thrown away.~~ Done** — `detail`
+  rides `CallFailed` onto the record and into the step-failure log line,
+  absent rather than empty when the endpoint said nothing, so silence and a
+  blank are distinguishable. The words never become UI copy; the class still
+  crosses to the person.
+- **~~A broken library file is logged by nothing.~~ The `warn` line is done;
+  the card is still out.** The index records the failure and
+  `GET /api/library/errors` exposes it, and now `library.invalid` is written at
+  `warn` with the portable path
+  ([`watcher.ts`](../../../packages/server/src/index-db/watcher.ts)), wired at
+  `app.ts`. So the failure is no longer invisible *afterwards*, which was the
+  half that mattered for evidence. It is still invisible to the tester at the
+  moment it happens — no client calls the route, and [12 §3.5](12-p2-manual-gate.md)'s
+  missing card is §1.7's deliberate deferral rather than an oversight.
+
+  **A note on how this entry was found to be stale, because the lesson is the
+  document's own:** it was still listed as outstanding here, and in a status
+  summary written from this page rather than from the code. Nothing in the plan
+  is evidence about the plan.
+- **~~The log has no destination, so [§4](#4-verification--the-p2c-exit-gate)
+  step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`, and said in the brief at
+  [17 §2.4](17-p2c-brief.md).** It is JSON on
+  stdout — deliberately, since [13 §4.1](../13-internal-contracts.md) refuses a
+  file and refuses a pretty transport — and the documented way to run this was
+  `pnpm dev`, which multiplexes both packages and prefixes every line with
+  `packages/server dev: `. **Measured rather than assumed**, because the claim
+  was worth checking before building against it: every record came out as a
+  string beginning with a package name and then containing JSON, and nothing
+  reads that.
+
+  `tools/dev-server.mjs` runs the server on its own and **tees** stdout to
+  `./logs/server-<date>.log`. Tees rather than redirects: a redirect takes the
+  output away from the person running the session, who needs to see it, and a
+  terminal alone leaves nothing to search a day later — which is the whole point
+  of a manual phase. Byte for byte, with no line reassembly, so the file is what
+  the server wrote.
+
+  It has a test, and the test is the shape of the bug: a real server, killed,
+  and every line of the resulting file parsed. Reintroducing the prefix fails
+  it. Nothing had ever read the log back, which is why the prefix survived all
+  of P2.
+
+  **And one thing found on the way: `pnpm dev:server` cannot be pointed at
+  another data directory.** The package script hardcodes `--data ../../data`
+  and `main.ts` rightly refuses the flag twice, so the documented route to a
+  scratch install answers *`--data` was given more than once*. `dev:logged`
+  takes the flag properly; `dev:server` is left alone, since its default is the
+  convenience it exists for.
+- **~~Nothing bounds a provider call, so a stalled endpoint is an unending
+  turn.~~ Done.** `limits.providerTimeoutMs`, composed into the abort signal per
+  attempt and defaulting to five minutes.
+
+  **It bounds silence, not duration**, and that is the decision the sizing note
+  did not make. A multi-minute first token is ordinary on a local runtime, so a
+  wall-clock ceiling would kill healthy long generations — the clock is re-armed
+  by every streamed chunk instead, and a non-streaming call has no progress to
+  show, which makes the whole of it the bound. `0` disables it, because an
+  operator who knows their endpoint is slower than any number here is going to
+  work around it either way and the config file is the visible place to do it.
+
+  **The failure is `terminal`**, which is the classification the sizing note
+  asked for and the one that is arguable. A stall is transient in the ordinary
+  sense — ask again in a minute and it may answer — but the retry ladder is two
+  further attempts at the full timeout each, so classifying it `transient` makes
+  the hang three times as long as the key exists to make it. A person who wants
+  another attempt has a button. A person waiting on a wedged session has nothing.
+
+  **And the key's surface came free, as [§4](#4-verification--the-p2c-exit-gate)
+  said it would.** [P2A](13-p2a-configuration-surface.md)'s form generates its
+  control and tier badge from the schema with no client change. The two things
+  that were *not* free were the two the test suite refuses to let go: the
+  `LIVE_APPLIERS` row, and the key's absence from `config.example.json` and from
+  [13 §4.3](../13-internal-contracts.md)'s table. Both failed the build the
+  moment the key landed, which is the honesty machinery working exactly as
+  described.
 
 ### 1.4 Setup and teardown — about a day
 
@@ -368,8 +445,18 @@ survey measured the ladder rather than repeating the anecdote:
 | 1 suite, idle | 12s | green, twice |
 | 1 suite, all 16 cores saturated by unrelated work | 47s | green |
 | 2 concurrent suites | 23s | green |
-| 3 concurrent suites | 38s | **3 of 3 red** |
-| 4 concurrent suites | — | **4 of 4 red** |
+| 3 concurrent suites | 38s | ~~3 of 3 red~~ → **0 of 3** |
+| 4 concurrent suites | — | ~~4 of 4 red~~ → **0 of 4** |
+
+**~~The suite fails under its own load.~~ Closed, and the ceiling is written
+down here as [§1.5] asks.** Four concurrent full runs on this machine are green;
+three were three-for-three red before. **The rule to know: nothing between one
+and four concurrent runs breaks it any more**, and the number that did the work
+was one line — a declared `testTimeout`, which was ~90% of it.
+
+*And a green suite is still not a green build.* `pnpm test` is `vitest run` and
+nothing else; `pnpm typecheck` is a separate script and vitest strips types
+without checking them.
 
 *Re-measured after the CI gate's teardown fix, and it got worse rather than
 better: the ceiling did not move, the breaker did.* The gate itself now survives
@@ -385,10 +472,15 @@ exists and is used correctly in `watcher.test.ts`. The gate's failure text reads
 as index corruption, which is the worst false alarm available to hand somebody
 mid-phase.
 
-*Half a day:* declare a `testTimeout` — there is none, so 1116 of 1118 tests run
-on vitest's undeclared 5000ms default, and one line removes **roughly nine tenths
-of the ceiling** — point `logging.test.ts`'s poll at the watcher barrier, and
-remove the 154 KB temp directory every run leaks.
+*~~Half a day: declare a `testTimeout`… point `logging.test.ts`'s poll at
+the watcher barrier, and remove the 154 KB temp directory every run leaks.~~
+All three landed* — the ladder note above already said so, and this paragraph
+kept re-opening what that one closed; the contradiction stood for a while and
+is worth the sentence, because a document that disagrees with itself about
+what is done sends somebody to re-do it. One postscript: the teardown fix
+itself introduced a *new* leak — `reset-data.test.ts`'s held-file test parked
+one mkdtemp directory per run, forever, in the suite that exists to prove
+teardowns complete — found and fixed in the closeout.
 
 *Three corrections to the sizing above, all measured.* The timeout is not
 co-equal with the polls: it is ~90% of the ceiling and `logging.test.ts` is ~10%,
@@ -400,7 +492,9 @@ run three suites at once"* is a known rule rather than a rediscovery.
 
 **And one line for whatever briefs the tester:** `pnpm test` is `vitest run` and
 nothing else, so a green suite is not a green build — `pnpm typecheck` is a
-separate script and vitest strips types without checking them.
+separate script and vitest strips types without checking them. **Done, and it
+grew:** [17 §2.3](17-p2c-brief.md) lists everything `pnpm test` does not cover,
+which is six things rather than one.
 
 ### 1.6 Nearly free, and owed
 
@@ -420,19 +514,13 @@ separate script and vitest strips types without checking them.
   *running the thing somewhere else*, and no amount of reading would have reached
   it — the mechanism is in a library, on one platform, behind a native assert.
   That is the phase's own thesis arriving early and unprompted.
-- **A version stamp, smaller than it first looked.** There is none anywhere — no
-  route, no About surface, no build injection, and `0.0.0` in every
-  `package.json`. The first draft of this section called that blocking; it is
-  not, and the correction is worth keeping visible: **the tester is the repo
-  owner running from a git working tree**, so `git describe --tags --always
-  --dirty` answers the question today, and a line in the session template
-  delivers the whole benefit at zero build cost — the same thing
-  [12 §1](12-p2-manual-gate.md) already does with its test-count anchor.
-  *What is worth an hour is the drift it exposed:*
-  [04 §6.5](../04-server-multiuser-deployment.md) says *"the running version —
-  which the build already embeds for AGPL §13"*, and no build embeds one. Correct
-  the sentence, and leave the surface to P10 with the rest of
-  [04 §7](../04-server-multiuser-deployment.md)'s About requirements.
+- **~~A version stamp, smaller than it first looked.~~ Done, both halves.**
+  The session template in [16](16-p2c-log.md) opens every finding with
+  `git describe --tags --always --dirty` — the tester is the repo owner
+  running from a working tree, so that answers the question at zero build
+  cost — and [04](../04-server-multiuser-deployment.md)'s sentence now says
+  the build *will* embed a version for AGPL §13 and that **no build embeds
+  one today**. The surface stays with P10's About requirements.
 
 ### 1.7 What is tempting and is not pre-work
 
@@ -482,6 +570,14 @@ o-series and gpt-5 family reject in favour of `max_completion_tokens`. *Write th
 constraint into the phase brief with a known-good model list* — ten minutes —
 rather than building a per-connection parameter dialect, which is real work with
 no design behind it yet.
+
+**Written: [17 §4](17-p2c-brief.md), and the ten minutes found two things this
+sentence had wrong.** The shipped preset sends `temperature` as well as
+`max_tokens`, so a list vetted for one is incomplete; and `stream_options` rides
+on every request because the shipped mode always streams. The *list* is not
+written and deliberately so: which models accept what is a fact about somebody
+else's API on the day, so the brief carries the rule and the check, and the list
+is an output of P2C.1.
 
 **Everything else in [polish](09-polish.md), and [12 §3.6](12-p2-manual-gate.md)'s
 smaller ones.** That file's own framing is that its entries are *"obvious the
@@ -554,7 +650,30 @@ the cassette tier is this phase's *output*, not its prerequisite.
 
 So every exchange with a real endpoint is captured verbatim — request and
 response, credentials redacted, the streamed body byte for byte — and committed
-as a fixture `openai-compatible.test.ts` replays. That converts *does the adapter
+as a fixture `openai-compatible.test.ts` replays.
+
+**The recorder is built** — `--capture <dir>` on the server, on by default
+under `pnpm dev:logged` into `./captures/<the log file's stamp>`, so a
+session's log and its cassettes correlate by name and nobody has to remember a
+flag for exchanges that happen exactly once. It sits at the adapter's own
+`fetch` seam — the same seam every adapter test injects a stub through, which
+is what makes record and replay two ends of one interface — tees the stream
+with the recorder's branch pumped eagerly, files a mid-stream cut as a
+*partial* cassette rather than a loss, and redacts by exact-secret
+substitution at the byte level, so a key split across chunk boundaries is
+still caught and everything a secret did not touch round-trips byte for byte.
+Proven end to end: a real turn against a stub endpoint that deliberately
+echoed the key inside the streamed prose landed one cassette with the key
+redacted, the host gone, and the chunk boundaries intact.
+
+**The corpus and its replay test remain this phase's output, on purpose.**
+The replay block in `openai-compatible.test.ts` is written at P2C.2 when the
+first real cassette is curated — copied from `./captures`, re-read for
+secrets, given a `meta.expect`, committed under
+`packages/server/src/providers/fixtures/`. It is not written now because a
+corpus test over an empty directory must either fail (wrong until the phase
+runs) or skip — **and a skip-when-empty test is a check that cannot fail,
+which this document has caught twice already.** That converts *does the adapter
 parse a real stream* from a manual step into a permanent test, and leaves the
 manual budget for what only a person can do.
 
@@ -688,6 +807,14 @@ Both are in [16](16-p2c-log.md).
 *And it moved four claims in this document from stated to measured, three of
 which were wrong.* Those corrections are inline above, each marked where it sits.
 
+**And the brief itself, which five items above point at: [17](17-p2c-brief.md).**
+The runbook, the log and snapshot recipes, the model constraint, three pages of
+*what not to report*, and the triage and stop rules restated where a person will
+have them open. **Written against the source rather than against this document**,
+and the checking found four things this page had wrong plus a defect in a config
+key added the day before — which is the argument for the method, since the whole
+function of a brief is to direct and withhold somebody's attention.
+
 **And one thing to set up rather than build:** somewhere for findings to go while
 the sessions run. A running file — `16-p2c-log.md` — appended to as things
 happen and emptied by P2C.4's triage, with a five-line template at the top so a
@@ -789,10 +916,15 @@ readiness survey found nobody had asked for them and each is under an hour:
 
 The deliberate breakages are the valuable half and the easy half to skip because
 nothing is going wrong yet: a wrong key, a model id that does not exist, a
-completion ceiling of ten tokens, an endpoint that returns HTML, the machine's
-network turned off mid-stream. [12 §2.2](12-p2-manual-gate.md) lists them, and
-each should surface as a *classified* failure ([06 E7](../06-open-questions.md))
-rather than as a provider string in the UI.
+completion ceiling of ten tokens — **which has no UI: hand-edit the session's
+own `preset.params.maxTokens` in `session.json`, a one-line edit, since a
+created session carries a full inline preset** — an endpoint that returns HTML,
+the machine's network turned off mid-stream. [12 §2.2](12-p2-manual-gate.md)
+lists them, and each should surface as a *classified* failure
+([06 E7](../06-open-questions.md)) rather than as a provider string in the UI.
+The ceiling is the one whose classification is not E7's: it surfaces as
+`outcome: 'truncated'` on the call rather than as an error class, because a
+ceiling reached is not a failure — which is itself the thing to verify.
 
 *Ends at:* every step of [12 §2](12-p2-manual-gate.md) run, with an outcome
 written beside it, and the cassette corpus committed.
@@ -876,7 +1008,12 @@ somebody else can check they saw it.
    that does not exist, a completion ceiling of ten tokens, an endpoint returning
    HTML, and the network cut mid-stream. Each surfaces as a class
    ([06 E7](../06-open-questions.md)) and **none puts a provider's own string in
-   front of the user.**
+   front of the user.** *Two corrections from walking this step against the
+   code:* the ceiling has no UI — it is a one-line hand-edit of the session's
+   inline `preset.params.maxTokens`, which [17 §6](17-p2c-brief.md) spells out —
+   and its classification is not an error class at all but
+   `outcome: 'truncated'` on the call, because a ceiling reached is not a
+   failure. Four failures and one truncation is the honest count.
 5. **The model fetch, against three endpoints**: one that implements `/models`,
    one that does not, and one that answers with a single entry unrelated to what
    is loaded. All three end with a connection saved and usable, because the field
@@ -977,18 +1114,38 @@ usage-only final chunk. All of it handled. **Spending session time on framing
 would be spending it on the one part of the boundary that is somebody else's
 tested code**, which is the opposite of what §2.3 says the sessions are for.
 
-**Everything present but deliberately unreachable, which the brief has to list or
-the finding log fills with roadmap items.** `GET /api/search` has tests and no
-client caller (P3's); `layout.memoriesRoot` exists per user and nothing writes it
-(P8's); branching is a storage affordance with no route (P6's); sessions and
-library objects cannot be deleted or renamed from the UI; nothing creates a
-library object of any kind. Half a page in the brief, drawn from
-[12 §3](12-p2-manual-gate.md) and [01 §4](01-work-plan.md)'s phase list — thirty
-minutes, and it is the difference between a log of findings and a log of
+**~~Everything present but deliberately unreachable, which the brief has to list
+or the finding log fills with roadmap items.~~ Done: [17 §3](17-p2c-brief.md)**,
+and it is three pages rather than half of one, because an audit of every route
+against every client caller found seven more than this paragraph names — the
+sharpest being that **a session's cast cannot be set from the browser at all**,
+so every session started from the UI runs with no actors in it. The list below
+is kept as written, with its errors, because two of them are instructive:
+`GET /api/search` has tests and no client caller (P3's); `layout.memoriesRoot`
+exists per user and nothing writes it (P8's) — *nor reads it, so the directory is
+never created*; branching is a storage affordance with no route (P6's); sessions
+and library objects cannot be deleted or renamed from the UI; nothing creates a
+library object of any kind.
+
+**The two errors.** *"Cannot be renamed"* is false for actors: the actor editor's
+Name field saves, and what actually cannot happen is the folder moving, because a
+slug is fixed at creation. The disk-versus-display divergence is the thing worth
+pre-briefing, and saying *you cannot rename* would have sent a tester past it.
+*"Nothing creates a library object"* is false by one side door: an actor save
+conflict offers *save as a copy*, which posts a new object. Both errors share a
+shape — **a claim about the UI reasoned from the absence of a route** — which is
+why [17](17-p2c-brief.md) was written from the components.
+
+Drawn from [12 §3](12-p2-manual-gate.md) and [01 §4](01-work-plan.md)'s phase
+list — and it is the difference between a log of findings and a log of
 rediscoveries.
 
 **And the things already checked and found sound**, listed for the same reason —
-so they do not consume session time. Slug derivation handles Windows reserved
+so they do not consume session time. **Re-verified against the code for
+[17 §3.5](17-p2c-brief.md)**; all of it holds, with two caveats now written into
+the brief — nothing tests the watcher's *production* `awaitWriteFinish` value,
+and the three-call ceiling is a fact about the one shipped mode rather than a
+cap the runner enforces. Slug derivation handles Windows reserved
 names, CJK-only names and case collisions; the watcher's `awaitWriteFinish`
 threshold is set; sessions are fourteen-day signed tokens against a persisted key
 file, so expiry will not bite mid-phase and a wiped data directory lands a stale
@@ -999,13 +1156,15 @@ two retry backoffs, so no turn can loop into a runaway bill.
 **One entry was removed from that list because it was false, and this is the
 worst place in the document for a wrong claim** — the list's entire function is
 to keep session time *off* the things it names. It said the assembled prompt
-gives history turns real `user` and `assistant` roles. It does not: every
-completed turn is collapsed into **one merged block labelled `assistant`, which
-contains the player's own prose**. So the message shape a real model sees is not
-conventional, and the item is now a finding rather than a reassurance. It is not
-a one-line fix — the one-block-per-turn shape is deliberate, because the
-budgeter's only move on one large block is to drop all of it — so splitting it in
-two doubles the candidate count and is a decision, not a rename.
+gives history turns real `user` and `assistant` roles. It did not: every
+completed turn was collapsed into **one merged block labelled `assistant`,
+which contained the player's own prose**. **Since fixed** — finding 3 in
+[16](16-p2c-log.md): history now emits two candidates per turn, the input as
+`user` and the output as `assistant`, sharing one priority so the budgeter's
+drop-whole-turns behaviour survives the split. The paragraph is kept because
+its method note still stands: the item reached the reassurance list without
+anybody driving a prompt through a real request and reading it, which is the
+exact failure this phase exists to end.
 
 **And the production topology.** The server serves no static files, so everything
 this phase exercises runs behind Vite's dev proxy. Anything that only appears

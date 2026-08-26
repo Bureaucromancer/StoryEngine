@@ -414,6 +414,44 @@ describe('a foreign rename through the watcher', () => {
  * *`followSymlinks: false` is untouched by this* (F1) — that governs links found
  * *inside* the tree, and the root is not inside itself.
  */
+
+/**
+ * **A file somebody broke by hand is said out loud** — F34.
+ *
+ * The index recorded it and `GET /api/library/errors` exposed it, and nothing
+ * logged it while no client read the route — so a hand-edit that failed to
+ * parse was invisible to the person who made it *and* invisible afterwards.
+ * [12 §2.1](../../../../docs/design/workplan/12-p2-manual-gate.md) step 8 tells a tester to do
+ * exactly this, which is how it would have been met.
+ *
+ * The card is [P2 §4] step 7 and still unbuilt; this is the half that makes
+ * the failure findable rather than the half that makes it visible.
+ */
+it('says so when a hand-edited file cannot be read', async () => {
+  const lines: Record<string, unknown>[] = [];
+  const write = (object: Record<string, unknown>) => lines.push(object);
+  watcher.setLogger({
+    child: () => ({ child: () => null as never, info: write, warn: write, error: write }),
+    info: write,
+    warn: write,
+    error: write,
+  });
+
+  const path = await library.writeObject(newLorebook('Rain City'), 'rain-city');
+  await seenBy(path);
+  await writeFile(path, '{ not json at all');
+  await eventually(async () => {
+    await watcher.settled();
+    return lines.some((line) => line['event'] === 'library.invalid');
+  });
+
+  const line = lines.find((entry) => entry['event'] === 'library.invalid');
+  // Relative to the data root, which is what [13 §4.1] requires of a path in
+  // a log — the log is the thing people paste into issues.
+  expect(String(line?.['path'])).not.toContain(library.layout.dataRoot);
+  expect(String(line?.['path'])).toContain('rain-city');
+});
+
 describe('a root reached through a link', () => {
   it('still notices a hand edit', async () => {
     const outer = await mkdtemp(join(tmpdir(), 'se-link-'));

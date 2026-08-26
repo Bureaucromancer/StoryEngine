@@ -32,6 +32,8 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [13-p2a-configuration-surface.md](13-p2a-configuration-surface.md) | P2A in detail — [05 §15](../05-ui-surfaces.md)'s core pulled forward, and the config subsystem repaired before a form displays it |
 | [14-p2b-provider-configuration.md](14-p2b-provider-configuration.md) | P2B in detail — system connections and the install default bindings through the UI, and the fallback layer three documents assume and nothing implements |
 | [15-p2c-first-real-run.md](15-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
+| [16-p2c-log.md](16-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
+| [17-p2c-brief.md](17-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
 
 ## How to read them
 

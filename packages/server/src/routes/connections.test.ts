@@ -413,6 +413,34 @@ describe('fetching a model list', () => {
     expect(JSON.stringify(response.body)).not.toContain('10.0.0.5');
   });
 
+  /**
+   * **A refused key is not an unreachable endpoint** — finding 5 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md). A 401 and a dead
+   * socket both answered `502 unreachable`, and the remedies point in opposite
+   * directions: *unreachable* sends an admin to the URL and the network, and
+   * the key field is the one thing that answer cannot name. Adding a
+   * connection is a stranger's third step, so this was the first wrong turn
+   * the app offered.
+   */
+  it('says a refused key was refused, not that the endpoint is gone', async () => {
+    fetchResult = Response.json(
+      { error: { message: 'Incorrect API key provided: sk-nope' } },
+      { status: 401 },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://api.internal.example/v1', apiKey: 'sk-nope' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+    // Still a class and never the endpoint's own words — the body above echoes
+    // the very key it is refusing, which is exactly what must not be repeated.
+    expect(JSON.stringify(response.body)).not.toContain('sk-nope');
+  });
+
   it('treats a shape it does not recognise as no models offered', async () => {
     fetchResult = Response.json({ models: ['not-where-openai-puts-them'] });
 
@@ -750,6 +778,34 @@ describe('spreading two models across the roles', () => {
     // The policy, asserted rather than the count: the expensive model writes.
     expect(written.body.bindings.prose).toEqual({ connectionId: id, modelId: 'gpt-hi' });
     expect(written.body.bindings.fast).toEqual({ connectionId: id, modelId: 'gpt-lo' });
+  });
+
+  /**
+   * **"Leaves the other three alone" was a check that could not fail.** The
+   * test above starts from an empty bindings file, so it asserts that roles
+   * nobody bound stay absent — which a write that destroyed them would also
+   * satisfy. And the write did destroy them: `defaultBindings` builds a fresh
+   * document of exactly the five `hi`/`lo` roles, and the route wrote it
+   * verbatim, so a hand-written `image` binding was gone after the first-run
+   * offer. Hand-editing `bindings.json` is a first-class gesture here, and the
+   * offer appears right after a first connection is saved — precisely when the
+   * person who wrote the file a minute ago is looking at it.
+   */
+  it('preserves a hand-written binding for a role it does not speak for', async () => {
+    const id = await create();
+    await mkdir(server.services.layout.systemRoot, { recursive: true });
+    await writeFile(
+      server.services.layout.systemBindingsFile,
+      JSON.stringify({ image: { connectionId: 'by-hand', modelId: 'sdxl-local' } }),
+    );
+
+    const written = await defaultsWrite(id);
+
+    expect(written.status).toBe(200);
+    // The five take the new answer; the one the button does not speak for
+    // survives with the hand-written value, not a default and not absence.
+    expect(written.body.bindings.image).toEqual({ connectionId: 'by-hand', modelId: 'sdxl-local' });
+    expect(written.body.bindings.prose).toEqual({ connectionId: id, modelId: 'gpt-hi' });
   });
 
   it('refuses when the file moved under it, the same way the whole-document write does', async () => {

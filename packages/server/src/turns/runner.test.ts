@@ -128,15 +128,23 @@ let logLines: Record<string, unknown>[] = [];
  * runner passed. The bindings matter — `child()` is how a job id reaches every
  * line — so they are merged rather than dropped.
  */
+/**
+ * The runner's logger seam, recording **which level** as well as what.
+ *
+ * All three used to share one writer, which made the level unobservable — and
+ * [13 §4.1] draws a boundary there that matters: `error` is what the server
+ * could not do, `warn` what it refused. A user pressing Stop is neither, and
+ * logging it at `error` was most of what a session's log contained.
+ */
 function recorder(into: Record<string, unknown>[], bindings: Record<string, unknown>): Logger {
-  const write = (object: Record<string, unknown>) => {
-    into.push({ ...bindings, ...object });
+  const at = (level: string) => (object: Record<string, unknown>) => {
+    into.push({ level, ...bindings, ...object });
   };
   return {
     child: (extra) => recorder(into, { ...bindings, ...extra }),
-    info: write,
-    warn: write,
-    error: write,
+    info: at('info'),
+    warn: at('warn'),
+    error: at('error'),
   };
 }
 
@@ -400,6 +408,182 @@ describe('the three failure modes are three', () => {
     };
   }
 
+  /**
+   * **A failing step logs a shape, not the error object** — F32.
+   *
+   * `err: error` serialises an error's own enumerable properties, and a
+   * `CallFailed` carries `partialText` and `call` — so a failed step wrote **the
+   * whole rendered prompt and the model's partial narration** into the log.
+   * [13 §4.1] says portable object bodies never appear there: *a log is not a
+   * backup and user prose is not diagnostic.*
+   *
+   * The assertion is on the *absence of prose*, which is the thing that has to
+   * stay true. Listing the fields it should carry would pass just as well over a
+   * line that carried the prose too.
+   */
+  it('keeps the prompt and the prose out of the log', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Incorrect API key provided: sk-xx',
+          },
+        },
+      ],
+    });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line).toBeDefined();
+    const serialised = JSON.stringify(line);
+    // The two fields a `CallFailed` carries that must never travel.
+    expect(serialised).not.toContain('partialText');
+    expect(serialised).not.toContain('fromBlocks');
+    // And nothing that looks like an assembled prompt: the narrator instruction
+    // is in every rendered message and in no honest log line.
+    expect(serialised).not.toContain('You are a narrator');
+  });
+
+  /**
+   * [13 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
+   * what it refused. **A user pressing Stop is neither** — it is the system
+   * doing exactly what was asked — and Stop is the most-pressed button in a
+   * session against real latency, so logging it at `error` was most of what a
+   * phase's log would contain.
+   */
+  it('does not call a cancellation an error', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    const cancelled = logLines.filter(
+      (entry) => entry['event'] === 'step.failed' && entry['reason'] === 'cancelled',
+    );
+
+    // Asserted non-empty first: a filter that matched nothing would satisfy the
+    // loop below forever, which is the shape this suite keeps finding.
+    expect(cancelled.length).toBeGreaterThan(0);
+    for (const line of cancelled) expect(line['level']).toBe('info');
+  });
+
+  it('a step the author said to ignore is a warning, not an error', async () => {
+    makeRunner({ plan: failing('ignore') });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line?.['level']).toBe('warn');
+  });
+
+  it('an aborting step is an error, because the server could not do it', async () => {
+    makeRunner({ plan: failing('abort') });
+
+    await runTurn();
+    const line = logLines.find((entry) => entry['event'] === 'step.failed');
+
+    expect(line?.['level']).toBe('error');
+  });
+
+  /**
+   * **The provider's own words, which were classified and then dropped.**
+   * `message` is this system's sentence about the failure; `detail` is the
+   * endpoint's, and it is the one thing that tells an operator what to change.
+   * It reached `ProviderError`, was lost when `CallFailed` wrapped it, and so
+   * never left the adapter.
+   */
+  it('carries the endpoint’s own explanation', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Incorrect API key provided: sk-xx',
+          },
+        },
+      ],
+    });
+
+    await runTurn();
+    const line = logLines.find(
+      (entry) => entry['event'] === 'step.failed' && entry['detail'] !== undefined,
+    );
+
+    expect(line?.['detail']).toContain('Incorrect API key provided');
+    expect(line?.['class']).toBe('terminal');
+  });
+
+  /**
+   * **A stalled endpoint ends the turn instead of holding the session open** —
+   * [P2C §1.3], and `limits.providerTimeoutMs`.
+   *
+   * Nothing bounded a provider call. The person's Stop button was the only
+   * exit, which requires somebody to be watching, and the only exit from an
+   * unwatched hang was restarting the server — which destroys the state that
+   * produced the finding. A turn that fails is a turn somebody can read.
+   */
+  it('gives up on an endpoint that accepts the request and says nothing', async () => {
+    makeRunner({
+      script: [{ stallMs: 5_000 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('failed');
+    // `terminal`, so it is not retried: the failure is transient in the ordinary
+    // sense, but three attempts at the full timeout is three times the hang the
+    // key exists to end.
+    expect(turn.request?.calls.at(-1)).toMatchObject({ outcome: 'error', retries: 0 });
+    expect(turn.request?.calls.at(-1)?.error?.class).toBe('terminal');
+  });
+
+  /**
+   * **Silence, not length** — the half of the semantics that a wall-clock
+   * ceiling would get wrong.
+   *
+   * A multi-minute first token is ordinary on a local runtime, and a generation
+   * that is still arriving is not a hang. So the clock is re-armed by every
+   * chunk. This stream runs to four times the timeout and finishes, which is
+   * the assertion: without the re-arm it is killed a fifth of the way in.
+   */
+  it('does not interrupt a long answer that is still arriving', async () => {
+    makeRunner({
+      script: [{ text: 'One two three four five six seven eight.', chunks: 8, chunkDelayMs: 30 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    expect(turn.output?.text).toBe('One two three four five six seven eight.');
+  });
+
+  /**
+   * **Zero means no bound**, for an endpoint whose operator knows it is slower
+   * than any number the form would let them type. Refusing the case would only
+   * move the workaround somewhere less visible than the config file.
+   */
+  it('leaves the call alone when the timeout is switched off', async () => {
+    makeRunner({
+      script: [{ stallMs: 80 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 0 } },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+  });
+
   it('warn keeps the turn and its prose, and records the failure on both surfaces', async () => {
     makeRunner({ plan: failing('warn') });
     const { turn, job } = await runTurn();
@@ -525,6 +709,49 @@ describe('cancellation', () => {
     expect(written[0]?.turn.status).toBe('failed');
     expect(written[0]?.turn.steps?.[0]?.error?.reason).toBe('cancelled');
   });
+
+  /**
+   * **The interrupted call is on the record** — finding 2 in
+   * [16](../../../../docs/design/workplan/16-p2c-log.md).
+   *
+   * Stop is the most-pressed button in a manual phase against real latency,
+   * and the failure a tester produced most often was the one the record said
+   * least about: `request.calls: []` — no connection id, no model, no wall
+   * time. `CallFailed` had carried the record all along; `Cancelled` was
+   * thrown one line earlier and carried nothing.
+   */
+  it('records which call the Stop interrupted', async () => {
+    makeRunner({ script: [{ text: 'a slow answer', chunks: 8, chunkDelayMs: 15 }] });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(
+      () => readEvents(commit, job.id).some((e) => e.key === 'call.streaming'),
+      'a chunk',
+    );
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const call = written[0]?.turn.request?.calls.at(-1);
+
+    // The model that was *asked*, because nothing answered — and an outcome of
+    // its own, because a cancellation is neither an error nor a clean answer.
+    expect(call).toMatchObject({
+      outcome: 'cancelled',
+      resolved: { modelId: 'fake-hi' },
+      error: null,
+      // Never fabricated: the provider reported nothing, so nothing is there.
+      usage: null,
+      finishReason: null,
+    });
+    expect(call?.wallMs).toBeGreaterThan(0);
+    // The words that had already streamed survive as the turn's output rather
+    // than silently never having happened.
+    expect(written[0]?.turn.output?.text.length).toBeGreaterThan(0);
+  });
 });
 
 describe('the advisory guard is not decoration', () => {
@@ -565,10 +792,23 @@ describe('the preset is what builds the prompt', () => {
     expect(kinds).not.toContain('setting');
   });
 
-  it('splits history into one block per turn, oldest cheapest', async () => {
-    // P2.4 promised history would be splittable from the start; one block for
-    // the whole transcript would make the budgeter's only move dropping all of
-    // it.
+  /**
+   * **The player's words are the player's** — F36, end to end through the real
+   * pipeline, which is where this belongs because it is the only level at which
+   * the bug was visible.
+   *
+   * A completed turn became one block labelled `assistant` holding the input and
+   * the output joined by a newline, so **every message the player had ever
+   * typed was attributed to the model.** Invisible on screen, and visible only
+   * on the wire or by reading the collector — which is how it survived a survey,
+   * four phases and six audits, with a test right here that asserted the block
+   * count and never looked at whose voice it was in.
+   *
+   * P2.4 promised history would be splittable from the start; one block for the
+   * whole transcript would make the budgeter's only move dropping all of it.
+   * Splitting by *speaker* keeps that and fixes the attribution.
+   */
+  it('attributes each half of a past turn to whoever said it', async () => {
     await runTurn('The first thing.');
     const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
 
@@ -580,8 +820,14 @@ describe('the preset is what builds the prompt', () => {
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
     const history = written.at(-1)?.turn.request?.blocks.filter((b) => b.source.kind === 'history');
-    expect(history).toHaveLength(1);
-    expect(history?.[0]?.text).toContain('The first thing.');
+
+    // Two blocks for one past turn, in the order they were said, each in its own
+    // voice — and the player's line is *not* the model's.
+    expect(history?.map((block) => [block.role, block.text])).toEqual([
+      ['user', 'The first thing.'],
+      ['assistant', expect.any(String)],
+    ]);
+    expect(history?.[1]?.text).not.toContain('The first thing.');
   });
 });
 
@@ -594,17 +840,25 @@ describe('a turn that cannot even be set up', () => {
     // null, so `submitTurn` answered every later submission `409 busy` until the
     // process restarted, and it presented to a test as a well-behaved refusal.
     //
-    // A hand-edited `session.json` reaches it, which is a supported way to get
-    // data into this system.
-    const file = join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'session.json');
-    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
-    await writeFile(file, JSON.stringify({ ...session, cast: { persona: null, actors: 'nope' } }));
+    // A hand-edited `accounts.json` reaches it, and hand-editing is a
+    // first-class gesture in this project rather than a contrivance ([04 §4.3]).
+    //
+    // **It used to be a hand-edited `session.json`, and that stopped being
+    // true.** The session reader and `resolveCast` both became tolerant of a
+    // broken file — deliberately, and rightly — which quietly took this test
+    // with them: a fixture the runner survives makes every assertion below
+    // true of an ordinary successful turn, so the test kept passing while
+    // testing nothing. Hence the line that pins the path itself.
+    await writeFile(new Layout(dataDir).accountsFile, 'not json at all');
 
     const job = await reserve();
     runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
 
     await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
 
+    // The failure landed where this test is about, and not somewhere the turn
+    // shrugged off. Without this the rest is satisfied by a turn that worked.
+    expect(logLines.map((entry) => entry['event'])).toContain('job.unstartable');
     // Terminal, so the session is usable again…
     expect(readJob(state.db, job.id)?.status).toBe('committed');
     const next = await submitTurn(commit, {
@@ -614,6 +868,44 @@ describe('a turn that cannot even be set up', () => {
       headTurnId: (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null,
     });
     expect(next.kind).toBe('created');
+  });
+
+  /**
+   * **The lines an operator chasing a lost turn searches for first** — F37.
+   *
+   * `job.unstartable` and both `job.lost` sites carried `jobId` alone, because
+   * the child logger with the job's bindings was built inside `#body` and those
+   * three are written outside it — before it, and after it. So the two lines
+   * that say *a turn never started* and *a turn ended without finalising* named
+   * neither the session nor the account.
+   *
+   * **The id a person actually has is the session's**, because it is the one in
+   * the URL. [13 §4.1] asks for the bindings to be set once where the subject
+   * comes into existence, and that is `start()` rather than `#body`.
+   */
+  it('names the session on the line that says a turn never started', async () => {
+    // The same fixture as the wedge test above, for the same reason: it is the
+    // one failure in the resolution region that is still reachable from a file
+    // somebody can edit, so the line under test is written by the code path an
+    // operator would actually be reading the log to understand.
+    await writeFile(new Layout(dataDir).accountsFile, 'not json at all');
+    const job = await reserve();
+
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, job.id)?.finishedAt !== null, 'the job to finish');
+
+    const line = logLines.find((entry) => entry['event'] === 'job.unstartable');
+
+    expect(line).toMatchObject({
+      jobId: job.id,
+      sessionId,
+      account: ACCOUNT,
+      turnId: job.turnId,
+    });
+    // And a shape rather than the error object: the same `CallFailed` that
+    // carries `partialText` and the rendered prompt can reach this path, and
+    // [13 §4.1] says portable object bodies never appear in a log.
+    expect(JSON.stringify(line)).not.toContain('partialText');
   });
 
   it('survives a cast that is not the shape it claims to be', async () => {
@@ -800,6 +1092,76 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.cost).toBeDefined();
     expect(turn.cost?.model).toBe('fake-hi');
     expect(turn.cost?.wallMs).toBeGreaterThanOrEqual(0);
+  });
+
+  /**
+   * **A total that nobody counted is null, not zero** — F30.
+   *
+   * `costOf` used to sum over the calls that happened to report, so a turn where
+   * none did recorded `promptTokens: 0`. That is a fabricated total in a record
+   * whose sibling `ModelCall.cost` is hard-coded null precisely to avoid
+   * fabricating one, and [13 §1.4] is *provider-reported, not estimated* —
+   * a zero is an estimate with a confident face.
+   *
+   * It went unnoticed because the only assertion over `turn.cost` read `model`
+   * and `wallMs`, which were right.
+   */
+  it('says null rather than zero when nothing reported usage', async () => {
+    makeRunner({ script: [{ text: 'x', reportsNoUsage: true }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.cost?.promptTokens).toBeNull();
+    expect(turn.cost?.completionTokens).toBeNull();
+    // Wall time is measured here rather than reported by anybody, so it stays a
+    // real number — the nulls are about what the provider did not say.
+    expect(turn.cost?.wallMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('adds the totals up when every call reported', async () => {
+    makeRunner({ script: [{ text: 'x', usage: { promptTokens: 11, completionTokens: 5 } }] });
+
+    const { turn } = await runTurn();
+
+    expect(turn.cost?.promptTokens).toBe(11);
+    expect(turn.cost?.completionTokens).toBe(5);
+  });
+
+  /**
+   * **All-or-nothing rather than a partial sum**, and this is the case that
+   * decides it. A total missing one of its terms is not a smaller total, it is
+   * wrong, and a reader cannot see which term went missing.
+   *
+   * The partial truth is not lost: every `ModelCall` keeps its own `usage`, so a
+   * surface that wants *what we do know* reads the calls. What it must not do is
+   * present the sum of some of them as the turn's cost.
+   */
+  it('reports no total when only some of the calls counted', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', usage: { promptTokens: 11, completionTokens: 5 } },
+        { text: 'second', reportsNoUsage: true },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: NARRATE,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.request?.calls).toHaveLength(2);
+    expect(turn.request?.calls[0]?.usage).toEqual({ promptTokens: 11, completionTokens: 5 });
+    expect(turn.request?.calls[1]?.usage).toBeNull();
+    expect(turn.cost?.promptTokens).toBeNull();
   });
 
   it('keeps every draw on the tape, keyed by site', async () => {

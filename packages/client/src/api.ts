@@ -444,11 +444,40 @@ export interface AdminConnection {
   scope: 'system' | 'user';
   models: string[];
   baseUrl?: string;
+  /**
+   * What this endpoint can do, where the install disagrees with the defaults.
+   *
+   * Only the two an operator has a reason to set are surfaced — see
+   * {@link ConnectionInput}. The rest of the shape travels untouched so an
+   * override written by hand is not lost by a save that does not know about it.
+   */
+  capabilities?: ConnectionCapabilities;
   hasKey: boolean;
   /** An earlier file already claims this id, so nothing resolves to this one. */
   shadowed: boolean;
   /** Presented back on an edit — *I have seen what is on disk*. */
   contentHash: string;
+}
+
+/**
+ * Per-connection overrides for what an endpoint can do.
+ *
+ * **Two of them are surfaced and the rest are not, deliberately.** The
+ * conservative defaults are right for a provider nobody has told us about, and
+ * these two are the ones an operator has a reason to correct because only they
+ * know what they are running: a local model's real context window, and whether
+ * their endpoint counts tokens.
+ *
+ * Open-ended because the server's shape is, and because a save must not lose an
+ * override somebody wrote by hand for a capability this form does not know
+ * about.
+ */
+export interface ConnectionCapabilities {
+  /** The real context window, when the conservative default is wrong. */
+  maxContextTokens?: number;
+  /** Whether this endpoint reports token usage. */
+  reportsUsage?: boolean;
+  [capability: string]: unknown;
 }
 
 export interface ConnectionInput {
@@ -458,6 +487,8 @@ export interface ConnectionInput {
   apiKey?: string;
   baseUrl?: string;
   models: string[];
+  /** Omitted keeps what is stored, on the same terms as the key. */
+  capabilities?: ConnectionCapabilities;
 }
 
 /** What one role will do, resolved by the server rather than worked out here. */

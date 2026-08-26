@@ -16,6 +16,16 @@ data/
 # Local config, never committed.
 config.json
 
+# Captured server logs (`pnpm dev:logged`). Evidence from a run, not source —
+# and a log carries whatever was in a session, which is the user's.
+logs/
+
+# Recorded provider exchanges (`pnpm dev:logged`, or `--capture`). A cassette
+# carries the whole rendered prompt — the user's prose — so the raw recordings
+# stay local. The committed corpus is curated copies in
+# packages/server/src/providers/fixtures/, moved there deliberately.
+captures/
+
 .env
 .env.local
 
