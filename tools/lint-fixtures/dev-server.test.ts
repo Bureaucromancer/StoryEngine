@@ -59,17 +59,49 @@ beforeAll(async () => {
   }
 }, 60_000);
 
+/**
+ * **The tree, not the process — because on Windows `kill()` is
+ * `TerminateProcess` and the tool's forwarding handler never runs.** The tool
+ * forwards SIGINT/SIGTERM to the server it spawned, which is the right
+ * behaviour for a person's Ctrl-C — but a test's `child.kill()` gives it no
+ * chance, so the *grandchild* server briefly outlived the teardown and held
+ * the SQLite WAL against the `rm`, which failed roughly one full-suite run in
+ * eight as EBUSY. `taskkill /T` takes the whole tree; POSIX keeps the plain
+ * kill, where the forwarding actually runs.
+ */
+async function killTree(target: ReturnType<typeof spawn>): Promise<void> {
+  const exited = new Promise((settle) => target.once('exit', settle));
+  if (process.platform === 'win32' && target.pid !== undefined) {
+    const { execFile } = await import('node:child_process');
+    await new Promise((settle) => {
+      execFile('taskkill', ['/pid', String(target.pid), '/T', '/F'], () => settle(undefined));
+    });
+  } else {
+    target.kill();
+  }
+  await exited;
+}
+
+/** EBUSY-tolerant, bounded: the WAL can outlive the kill by an instant. */
+async function removeTree(at: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rm(at, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (attempt >= 10) throw error;
+      await new Promise((tick) => setTimeout(tick, 200));
+    }
+  }
+}
+
 afterAll(async () => {
   // Waited for, not merely signalled — the lesson `reset-data.mjs` exists to
   // enforce, and the one the tool itself implements for the same reason.
-  if (child !== null) {
-    const exited = new Promise((settle) => child?.once('exit', settle));
-    child.kill();
-    await exited;
-  }
-  await rm(dataDir, { recursive: true, force: true });
-  await rm(logDir, { recursive: true, force: true });
-}, 20_000);
+  if (child !== null) await killTree(child);
+  await removeTree(dataDir);
+  await removeTree(logDir);
+}, 30_000);
 
 describe('capturing the server log', () => {
   it('writes a dated file whose every line is a JSON record', async () => {
@@ -171,11 +203,9 @@ describe('where a relative data directory lands', () => {
       // here", which `packages/server/here` would also satisfy.
       expect(root).toBe(join(from, 'here'));
     } finally {
-      const exited = new Promise((settle) => child.once('exit', settle));
-      child.kill();
-      await exited;
-      await rm(from, { recursive: true, force: true });
-      await rm(logs, { recursive: true, force: true });
+      await killTree(child);
+      await removeTree(from);
+      await removeTree(logs);
     }
   }, 60_000);
 });

@@ -232,3 +232,41 @@ describe('a write killed mid-flight', () => {
     30_000,
   );
 });
+
+/**
+ * **The Windows `EPERM` retry is ours, and it has to be proven** — the
+ * docstring above the writer credited `write-file-atomic` with this retry for
+ * months, and the library's only `EPERM` branch guards *chown*, not the
+ * rename. The receipt was the history trim failing one full-suite run in
+ * three on Windows: a poll held `index.jsonl` open while the trim renamed
+ * over it, and the bare `EPERM` escaped as an unhandled rejection.
+ *
+ * The lock is real on Windows — Node opens files without `FILE_SHARE_DELETE`,
+ * which is the same mechanism `reset-data.test.ts` uses to hold a directory —
+ * and a no-op on POSIX, where rename-over-open succeeds immediately. So on
+ * Windows this test fails without the retry and passes with it, and on ubuntu
+ * it passes either way; the platform-split is the same one the teardown tests
+ * already carry, for the same reason.
+ */
+describe('a destination somebody is holding open', () => {
+  it('outwaits a short hold instead of surfacing EPERM', async () => {
+    const path = join(dir, 'history', 'index.jsonl');
+    await writeAtomic(path, 'first\n');
+
+    const { open } = await import('node:fs/promises');
+    const held = await open(path, 'r');
+    // Released while the retry ladder still has rungs: 10+50+100 ms in, the
+    // writer should still be trying rather than have given up.
+    const release = setTimeout(() => {
+      void held.close();
+    }, 120);
+
+    try {
+      await writeAtomic(path, 'second\n');
+      expect(await readFile(path, 'utf8')).toBe('second\n');
+    } finally {
+      clearTimeout(release);
+      await held.close().catch(() => undefined);
+    }
+  });
+});
