@@ -163,6 +163,18 @@ Request timing needs two lines, not one: Fastify writes an *incoming request*
 record carrying `req.url` and a *request completed* record carrying
 `responseTime`, and they share only `reqId`. Correlate on that.
 
+**The cassettes.** `pnpm dev:logged` also records every provider exchange to
+`./captures/<the same stamp as the log>` — request, response, and the streamed
+body byte for byte, with the key and the host redacted. **The rendered prompt
+is in there**, which is the user's prose: record against the seeded library,
+and know that `captures/` is gitignored for exactly this reason.
+`--no-capture` turns it off. To curate one into the committed corpus at
+P2C.2: copy it to `packages/server/src/providers/fixtures/`, read it once
+yourself for anything the redactor could not know about, add a `meta.expect`
+naming what the replay test should assert (finish reason, error class, usage),
+and commit. The mid-stream-cut breakage files as a *partial* cassette — that
+is its recording, not a recorder failure.
+
 **A snapshot.** There is no script for this — it is three steps and they matter:
 stop the server, then copy the **whole** data directory including the `-wal` and
 `-shm` files. `index/` is derived and disposable; `state/`, `accounts.json` and
@@ -425,10 +437,10 @@ of writing:
   deferred deliberately at [§1.7](15-p2c-first-real-run.md), both first in line
   after the phase. Listed again here because they are the two things a tester
   will want most.
-- **The cassette corpus** ([§2.2](15-p2c-first-real-run.md)) has no capture
-  machinery. Gate step 6 cannot be ticked before the sessions run — but nothing
-  exists to capture *with*, so either the recorder is built before P2C.2 or the
-  exchanges are gone.
+- **~~The cassette corpus has no capture machinery.~~ The recorder is built**
+  and on by default under `pnpm dev:logged` (§2.4). What remains is genuinely
+  the phase's output: the curated corpus itself, and the replay block in
+  `openai-compatible.test.ts`, written when the first real cassette lands.
 - **The bindings surface**: per-role assignment is a one-time first-run form and
   nothing else.
 - **[12 §2.1](12-p2-manual-gate.md) is stale** in the two places its own findings

@@ -645,7 +645,30 @@ the cassette tier is this phase's *output*, not its prerequisite.
 
 So every exchange with a real endpoint is captured verbatim — request and
 response, credentials redacted, the streamed body byte for byte — and committed
-as a fixture `openai-compatible.test.ts` replays. That converts *does the adapter
+as a fixture `openai-compatible.test.ts` replays.
+
+**The recorder is built** — `--capture <dir>` on the server, on by default
+under `pnpm dev:logged` into `./captures/<the log file's stamp>`, so a
+session's log and its cassettes correlate by name and nobody has to remember a
+flag for exchanges that happen exactly once. It sits at the adapter's own
+`fetch` seam — the same seam every adapter test injects a stub through, which
+is what makes record and replay two ends of one interface — tees the stream
+with the recorder's branch pumped eagerly, files a mid-stream cut as a
+*partial* cassette rather than a loss, and redacts by exact-secret
+substitution at the byte level, so a key split across chunk boundaries is
+still caught and everything a secret did not touch round-trips byte for byte.
+Proven end to end: a real turn against a stub endpoint that deliberately
+echoed the key inside the streamed prose landed one cassette with the key
+redacted, the host gone, and the chunk boundaries intact.
+
+**The corpus and its replay test remain this phase's output, on purpose.**
+The replay block in `openai-compatible.test.ts` is written at P2C.2 when the
+first real cassette is curated — copied from `./captures`, re-read for
+secrets, given a `meta.expect`, committed under
+`packages/server/src/providers/fixtures/`. It is not written now because a
+corpus test over an empty directory must either fail (wrong until the phase
+runs) or skip — **and a skip-when-empty test is a check that cannot fail,
+which this document has caught twice already.** That converts *does the adapter
 parse a real stream* from a manual step into a permanent test, and leaves the
 manual budget for what only a person can do.
 

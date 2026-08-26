@@ -39,6 +39,15 @@ async function main(): Promise<void> {
   const { config, fileFound, unknownKeys, document } = await loadConfig(configPath);
   if (dataDirArgument) config.dataDir = dataDirArgument;
 
+  /**
+   * Record every provider exchange into this directory — [P2C §2.2]. A flag
+   * and deliberately not a config key: a dev-only recording toggle in every
+   * operator's settings form is noise, and the phase's standing line — P2C
+   * adds exactly one key — stays true. `argumentValue` already refuses a
+   * duplicate or valueless flag (F24), so nothing new to guard here.
+   */
+  const captureDir = argumentValue('--capture');
+
   // The break-glass path: reset a password from the console and exit, without
   // starting the server. Host access is the authority — see
   // Accounts.resetPassword for the argument, and the README for when to reach
@@ -51,7 +60,12 @@ async function main(): Promise<void> {
 
   // The path travels with the config, so the settings route writes back to the
   // file this process actually read ([P2A §2.5]).
-  const services = await buildServices({ config, configPath, configDocument: document });
+  const services = await buildServices({
+    config,
+    configPath,
+    configDocument: document,
+    ...(captureDir === undefined ? {} : { captureDir: resolve(captureDir) }),
+  });
   const app = await buildApp(services);
 
   // Said after the logger exists rather than before, so that everything this
@@ -75,6 +89,16 @@ async function main(): Promise<void> {
     // Kept, not rejected — but said out loud, because a typo'd key is silently
     // doing nothing and that is worth one line.
     app.log.warn({ unknownKeys }, 'Config: ignoring unrecognised keys');
+  }
+  if (captureDir !== undefined) {
+    // `warn`, because it is a privacy-relevant mode: a cassette carries the
+    // whole rendered prompt, which is the user's prose. The brief's advice is
+    // to record against the seeded fixtures, and this line is where somebody
+    // discovers a mode they forgot was on.
+    app.log.warn(
+      { captureDir: resolve(captureDir) },
+      'Capturing provider exchanges — cassettes contain the full rendered prompt',
+    );
   }
 
   await app.listen({ host: config.server.host, port: config.server.port });

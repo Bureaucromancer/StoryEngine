@@ -50,14 +50,25 @@ export interface ProviderFactory {
   invalidate?: (connectionId: string) => void;
 }
 
-export function createProviderFactory(): ProviderFactory {
+export interface ProviderFactoryOptions {
+  /**
+   * Wraps the transport every built provider speaks through — the cassette
+   * recorder's seam ([P2C §2.2]), and deliberately a wrapper rather than a
+   * replacement: the SDK keeps its own default fetch when nothing asks.
+   * Called once per built provider, so per-connection state (the key to
+   * redact) binds at build time rather than per request.
+   */
+  wrapFetch?: (inner: typeof globalThis.fetch, connection: Connection) => typeof globalThis.fetch;
+}
+
+export function createProviderFactory(options: ProviderFactoryOptions = {}): ProviderFactory {
   const cache = new Map<string, Provider>();
 
   const factory: ProviderFactory = (connection: Connection): Provider => {
     const existing = cache.get(connection.id);
     if (existing) return existing;
 
-    const provider = build(connection);
+    const provider = build(connection, options);
     cache.set(connection.id, provider);
     return provider;
   };
@@ -85,7 +96,7 @@ export function canBuild(provider: string): boolean {
   return provider === 'openai-compatible';
 }
 
-function build(connection: Connection): Provider {
+function build(connection: Connection, options: ProviderFactoryOptions): Provider {
   // One adapter kind ships at P2 ([07 §5.5]: if it speaks OpenAI-compatible
   // chat it works, and if it does not it does not). A connection naming
   // something else is a configuration error the user can fix, so it says which
@@ -97,5 +108,10 @@ function build(connection: Connection): Provider {
     );
   }
 
-  return new OpenAICompatibleProvider({ connection });
+  return new OpenAICompatibleProvider({
+    connection,
+    ...(options.wrapFetch === undefined
+      ? {}
+      : { fetch: options.wrapFetch(globalThis.fetch, connection) }),
+  });
 }

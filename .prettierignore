@@ -16,3 +16,7 @@ packages/shared/schemas/
 # documents are written, and a formatter that rewrites an argument's line breaks
 # is a formatter nobody runs.
 **/*.md
+
+# Recorded provider exchanges: the bytes are the fixture, and the recorder
+# owns their formatting.
+packages/server/src/providers/fixtures/

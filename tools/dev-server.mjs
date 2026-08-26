@@ -81,6 +81,28 @@ async function main() {
     argv[at + 1] = resolve(argv[at + 1]);
   }
 
+  /**
+   * **Capture is on by default here, and only here** — [P2C §2.2]. This is the
+   * designated evidence-session tool, and a recorder that had to be remembered
+   * is a corpus with holes in it: the exchanges the phase exists to capture
+   * happen exactly once. The directory shares the log file's stamp, so a
+   * session's log and its cassettes correlate by name. `--no-capture` turns it
+   * off; a `--capture` of your own wins, resolved against this prompt the same
+   * way `--data` is and for the same measured reason.
+   */
+  const noCapture = argv.indexOf('--no-capture');
+  if (noCapture !== -1) argv.splice(noCapture, 1);
+  const captureAt = argv.indexOf('--capture');
+  if (captureAt !== -1 && argv[captureAt + 1] !== undefined) {
+    argv[captureAt + 1] = resolve(argv[captureAt + 1]);
+  } else if (noCapture === -1) {
+    args.push('--capture', join(ROOT, 'captures', stamp));
+  }
+  if (noCapture === -1 || captureAt !== -1) {
+    const dir = captureAt !== -1 ? argv[captureAt + 1] : join(ROOT, 'captures', stamp);
+    process.stderr.write(`Capturing provider exchanges to ${dir} (--no-capture to disable)\n`);
+  }
+
   const child = spawn(process.execPath, [...args, ...argv], {
     cwd: SERVER,
     stdio: ['inherit', 'pipe', 'pipe'],
@@ -116,7 +138,7 @@ async function main() {
 function usage() {
   console.log(
     [
-      'Usage: node tools/dev-server.mjs [--log-dir <dir>] [server args…]',
+      'Usage: node tools/dev-server.mjs [--log-dir <dir>] [--no-capture] [server args…]',
       '',
       'Runs the server on its own, with stdout copied to a dated file as well as',
       'to the terminal. Use this when the log is evidence: `pnpm dev` puts',
@@ -124,7 +146,9 @@ function usage() {
       'which leaves the JSON unparseable by anything.',
       '',
       'Everything after the flags above goes to the server, so `--data <dir>`',
-      'works here. Logs land in ./logs, which is not committed.',
+      'works here. Logs land in ./logs and provider exchanges are recorded to',
+      './captures/<same stamp> by default — pass --no-capture to turn that off.',
+      'Neither directory is committed.',
     ].join('\n'),
   );
 }

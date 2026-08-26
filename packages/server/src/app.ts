@@ -35,6 +35,7 @@ import { registerMeRoutes } from './routes/me.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
+import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { assertModesRunnable } from './modes/registry.js';
 import {
@@ -48,6 +49,7 @@ import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames } from './storage/files.js';
+import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -124,6 +126,8 @@ export interface AppServices {
   reconciliation: Reconciliation;
   accounts: Accounts;
   watcher: LibraryWatcher | null;
+  /** The cassette recorder, present only when `--capture` asked for one. */
+  capture?: CaptureRecorder;
   /**
    * The tombstone sweep (F9). Runs whether or not the watcher does — it used to
    * run only from the watcher, so `watch: false` meant tombstones accumulated
@@ -197,6 +201,13 @@ export interface BuildAppOptions {
    * nothing reads and then assert against the real adapter without noticing.
    */
   providers?: ProviderFactory;
+  /**
+   * Record every provider exchange as a cassette into this directory —
+   * [P2C §2.2]. CLI-threaded (`--capture`), deliberately not a config key: a
+   * dev-only recording toggle in every operator's settings form is noise, and
+   * the phase's standing line — P2C adds exactly one key — stays true.
+   */
+  captureDir?: string;
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
@@ -275,7 +286,20 @@ async function assembleWithState(
   const bus = new TurnStream();
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
-  const providers = options.providers ?? createProviderFactory();
+  /**
+   * The cassette recorder, when `--capture` asked for one — [P2C §2.2].
+   * Built before the factory because the factory is what carries its wrapper
+   * to every provider. `options.providers` still wins outright: a test that
+   * injected a double gets exactly the double it injected, recorded by
+   * nothing.
+   */
+  const capture =
+    options.captureDir === undefined
+      ? undefined
+      : createCaptureRecorder({ sink: createCaptureStore(options.captureDir) });
+  const providers =
+    options.providers ??
+    createProviderFactory(capture === undefined ? {} : { wrapFetch: capture.wrapFetch });
   /**
    * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/13-p2a-configuration-surface.md).
    *
@@ -503,6 +527,7 @@ export async function buildApp(
   // The watcher too: a hand-edited file that fails to parse is otherwise
   // recorded in the index and said nowhere (F34).
   services.watcher?.setLogger(app.log);
+  services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
     app.log.error({ err: error, event: 'stream.listener-failed' }, 'A stream listener threw');
