@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -148,7 +149,16 @@ describe('capturing the server log', () => {
  */
 describe('where a relative data directory lands', () => {
   it('resolves it against the directory the command was typed in', async () => {
-    const from = await mkdtemp(join(tmpdir(), 'se-cwd-'));
+    /**
+     * **F26, third appearance.** `os.tmpdir()` answers with an 8.3 alias
+     * whenever the account name runs past eight characters — `runneradmin`
+     * becomes `RUNNER~1` on GitHub's runner — and the server canonicalises its
+     * data root through `realRoot()` precisely because of that. So the
+     * expected value has to be canonicalised the same way, or this compares
+     * the server's long spelling against the alias and fails only on CI,
+     * which is exactly how it announced itself.
+     */
+    const from = realpathSync.native(await mkdtemp(join(tmpdir(), 'se-cwd-')));
     const logs = await mkdtemp(join(tmpdir(), 'se-cwdlogs-'));
 
     /**

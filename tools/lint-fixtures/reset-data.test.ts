@@ -82,6 +82,15 @@ describe('resetting a data directory', () => {
    * server does to its SQLite stores — and the assertion that matters is not
    * the exit code but that **`session.key` is still there**, because that is the
    * file `rm -rf` takes while leaving the database behind.
+   *
+   * **Asserted per platform, because the mechanism is per platform** — the
+   * script's own docstring says so and this test asserted the Windows half on
+   * both, which held for exactly as long as nothing ran it on ubuntu: the
+   * branch's first ubuntu leg failed here. On Windows an open handle refuses
+   * the rename and nothing is removed. On POSIX an open handle blocks nothing
+   * — the rename succeeds, the delete proceeds against an unlinked directory,
+   * and the held file lives on invisibly under the open descriptor. Both are
+   * all-or-nothing, which is the property; *which* all differs.
    */
   it('removes nothing at all when a file is held open', async () => {
     const at = await dataDir();
@@ -89,12 +98,19 @@ describe('resetting a data directory', () => {
 
     const { code, out } = await reset(at);
 
-    expect(code).toBe(1);
-    expect(out).toContain('nothing was removed');
-    // Not "some files remain" — these specific ones, which are the ones a
-    // half-teardown destroys while keeping the database.
-    expect(await readdir(join(at, 'state'))).toContain('session.key');
-    expect(await readdir(at)).toContain('config.json');
+    if (process.platform === 'win32') {
+      expect(code).toBe(1);
+      expect(out).toContain('nothing was removed');
+      // Not "some files remain" — these specific ones, which are the ones a
+      // half-teardown destroys while keeping the database.
+      expect(await readdir(join(at, 'state'))).toContain('session.key');
+      expect(await readdir(at)).toContain('config.json');
+    } else {
+      // The whole directory went, held file and all — nothing survives to be
+      // the wrong half.
+      expect(code).toBe(0);
+      await expect(readdir(at)).rejects.toThrow();
+    }
   });
 
   it('says so and stops when there is nothing there', async () => {
