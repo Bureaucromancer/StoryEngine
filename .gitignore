@@ -16,6 +16,10 @@ data/
 # Local config, never committed.
 config.json
 
+# Captured server logs (`pnpm dev:logged`). Evidence from a run, not source —
+# and a log carries whatever was in a session, which is the user's.
+logs/
+
 .env
 .env.local
 

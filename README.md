@@ -76,6 +76,29 @@ Vite is usually ready first and logs a proxy error or two until the server
 binds. That is noise rather than failure. Started alone, the client comes up
 fine and reports that it cannot reach the server until one is there.
 
+### Starting from a known install, and keeping the log
+
+```bash
+pnpm reset-data    # stop the server first — this removes the data directory
+pnpm seed          # a library and a playable session, through the HTTP API
+pnpm dev:logged    # the server alone, its log copied to ./logs/server-<date>.log
+```
+
+`pnpm seed` creates the first admin if there is not one, and is idempotent —
+run it twice and you get the same install rather than a second copy of it. It
+does not create a connection or a binding: those carry a real key and belong to
+the person rather than to a script, so a seeded install still needs one visit to
+Settings before a turn will run.
+
+**`pnpm dev:logged` exists because `pnpm dev` makes the log unreadable.** The
+log is JSON on stdout by design ([13 §4.1](docs/design/13-internal-contracts.md)),
+and pnpm's recursive reporter prefixes every line with `packages/server dev: ` —
+so each record becomes a string that starts with a package name and then happens
+to contain JSON, which `jq` and everything else refuses. `dev:logged` runs the
+server as its own process and copies stdout to a dated file *as well as* to the
+terminal. Use it when the log is evidence; `pnpm dev` is fine for everything
+else. Logs are not committed.
+
 **Both need a build first.** The server imports `@storyengine/shared` through
 its built entry point, so `pnpm build` has to have run at least once. Watch mode
 covers each package's *own* sources — editing `shared` or `sdk` needs a
@@ -173,6 +196,9 @@ the client exists, which is the same boundary the lint graph enforces in code.
 | `pnpm dev` | Both of the below, in parallel |
 | `pnpm dev:server` | The API on 8080, restarting on a change (`tsx watch`) |
 | `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
+| `pnpm dev:logged` | The API alone, stdout copied to a dated file in `./logs` |
+| `pnpm seed` | A known library and a playable session, over HTTP. Idempotent |
+| `pnpm reset-data` | Removes the data directory, or removes nothing. Stop the server first |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an

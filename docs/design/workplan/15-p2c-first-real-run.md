@@ -328,15 +328,34 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   is worse than that: the failure is invisible to the tester *and* invisible
   afterwards. **The `warn` line is pre-work; the card is not** — §1.7. *One
   hour.*
-- **The log has no destination, so [§4](#4-verification--the-p2c-exit-gate) step
-  9 cannot be checked at all.** It is JSON on stdout — deliberately, since
-  [13 §4.1](../13-internal-contracts.md) refuses a file and refuses a pretty
-  transport — and the documented way to run this is `pnpm dev`, which
-  multiplexes both packages and **prefixes every line, corrupting the JSON**. So
-  *every failure was findable in the log from its session id* is a step this
-  document wrote and could not perform. *Twenty minutes: run the server as its
-  own process with stdout redirected to a dated file in the scratch directory,
-  and say so in the brief.*
+- **~~The log has no destination, so [§4](#4-verification--the-p2c-exit-gate)
+  step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`.** It is JSON on
+  stdout — deliberately, since [13 §4.1](../13-internal-contracts.md) refuses a
+  file and refuses a pretty transport — and the documented way to run this was
+  `pnpm dev`, which multiplexes both packages and prefixes every line with
+  `packages/server dev: `. **Measured rather than assumed**, because the claim
+  was worth checking before building against it: every record came out as a
+  string beginning with a package name and then containing JSON, and nothing
+  reads that.
+
+  `tools/dev-server.mjs` runs the server on its own and **tees** stdout to
+  `./logs/server-<date>.log`. Tees rather than redirects: a redirect takes the
+  output away from the person running the session, who needs to see it, and a
+  terminal alone leaves nothing to search a day later — which is the whole point
+  of a manual phase. Byte for byte, with no line reassembly, so the file is what
+  the server wrote.
+
+  It has a test, and the test is the shape of the bug: a real server, killed,
+  and every line of the resulting file parsed. Reintroducing the prefix fails
+  it. Nothing had ever read the log back, which is why the prefix survived all
+  of P2.
+
+  **And one thing found on the way: `pnpm dev:server` cannot be pointed at
+  another data directory.** The package script hardcodes `--data ../../data`
+  and `main.ts` rightly refuses the flag twice, so the documented route to a
+  scratch install answers *`--data` was given more than once*. `dev:logged`
+  takes the flag properly; `dev:server` is left alone, since its default is the
+  convenience it exists for.
 - **~~Nothing bounds a provider call, so a stalled endpoint is an unending
   turn.~~ Done.** `limits.providerTimeoutMs`, composed into the abort signal per
   attempt and defaulting to five minutes.
