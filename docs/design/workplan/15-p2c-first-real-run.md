@@ -322,14 +322,23 @@ of them are on the turn path**; `index-db/`, `library.ts`, `storage/`, `auth/`,
   real message in `detail` and **nothing reads `detail`** — not the record, not
   the log, not the wire. Every provider failure in the phase would be reported as
   a class with no evidence under it. *Two hours.*
-- **A broken library file is logged by nothing.** The index records it and
-  `GET /api/library/errors` exposes it; no line is written and no client calls
-  the route. [12 §3.5](12-p2-manual-gate.md) has this as a missing card, and it
-  is worse than that: the failure is invisible to the tester *and* invisible
-  afterwards. **The `warn` line is pre-work; the card is not** — §1.7. *One
-  hour.*
+- **~~A broken library file is logged by nothing.~~ The `warn` line is done;
+  the card is still out.** The index records the failure and
+  `GET /api/library/errors` exposes it, and now `library.invalid` is written at
+  `warn` with the portable path
+  ([`watcher.ts`](../../../packages/server/src/index-db/watcher.ts)), wired at
+  `app.ts`. So the failure is no longer invisible *afterwards*, which was the
+  half that mattered for evidence. It is still invisible to the tester at the
+  moment it happens — no client calls the route, and [12 §3.5](12-p2-manual-gate.md)'s
+  missing card is §1.7's deliberate deferral rather than an oversight.
+
+  **A note on how this entry was found to be stale, because the lesson is the
+  document's own:** it was still listed as outstanding here, and in a status
+  summary written from this page rather than from the code. Nothing in the plan
+  is evidence about the plan.
 - **~~The log has no destination, so [§4](#4-verification--the-p2c-exit-gate)
-  step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`.** It is JSON on
+  step 9 cannot be checked at all.~~ Done: `pnpm dev:logged`, and said in the brief at
+  [17 §2.4](17-p2c-brief.md).** It is JSON on
   stdout — deliberately, since [13 §4.1](../13-internal-contracts.md) refuses a
   file and refuses a pretty transport — and the documented way to run this was
   `pnpm dev`, which multiplexes both packages and prefixes every line with
@@ -472,7 +481,9 @@ run three suites at once"* is a known rule rather than a rediscovery.
 
 **And one line for whatever briefs the tester:** `pnpm test` is `vitest run` and
 nothing else, so a green suite is not a green build — `pnpm typecheck` is a
-separate script and vitest strips types without checking them.
+separate script and vitest strips types without checking them. **Done, and it
+grew:** [17 §2.3](17-p2c-brief.md) lists everything `pnpm test` does not cover,
+which is six things rather than one.
 
 ### 1.6 Nearly free, and owed
 
@@ -554,6 +565,14 @@ o-series and gpt-5 family reject in favour of `max_completion_tokens`. *Write th
 constraint into the phase brief with a known-good model list* — ten minutes —
 rather than building a per-connection parameter dialect, which is real work with
 no design behind it yet.
+
+**Written: [17 §4](17-p2c-brief.md), and the ten minutes found two things this
+sentence had wrong.** The shipped preset sends `temperature` as well as
+`max_tokens`, so a list vetted for one is incomplete; and `stream_options` rides
+on every request because the shipped mode always streams. The *list* is not
+written and deliberately so: which models accept what is a fact about somebody
+else's API on the day, so the brief carries the rule and the check, and the list
+is an output of P2C.1.
 
 **Everything else in [polish](09-polish.md), and [12 §3.6](12-p2-manual-gate.md)'s
 smaller ones.** That file's own framing is that its entries are *"obvious the
@@ -759,6 +778,14 @@ Both are in [16](16-p2c-log.md).
 
 *And it moved four claims in this document from stated to measured, three of
 which were wrong.* Those corrections are inline above, each marked where it sits.
+
+**And the brief itself, which five items above point at: [17](17-p2c-brief.md).**
+The runbook, the log and snapshot recipes, the model constraint, three pages of
+*what not to report*, and the triage and stop rules restated where a person will
+have them open. **Written against the source rather than against this document**,
+and the checking found four things this page had wrong plus a defect in a config
+key added the day before — which is the argument for the method, since the whole
+function of a brief is to direct and withhold somebody's attention.
 
 **And one thing to set up rather than build:** somewhere for findings to go while
 the sessions run. A running file — `16-p2c-log.md` — appended to as things
@@ -1049,18 +1076,38 @@ usage-only final chunk. All of it handled. **Spending session time on framing
 would be spending it on the one part of the boundary that is somebody else's
 tested code**, which is the opposite of what §2.3 says the sessions are for.
 
-**Everything present but deliberately unreachable, which the brief has to list or
-the finding log fills with roadmap items.** `GET /api/search` has tests and no
-client caller (P3's); `layout.memoriesRoot` exists per user and nothing writes it
-(P8's); branching is a storage affordance with no route (P6's); sessions and
-library objects cannot be deleted or renamed from the UI; nothing creates a
-library object of any kind. Half a page in the brief, drawn from
-[12 §3](12-p2-manual-gate.md) and [01 §4](01-work-plan.md)'s phase list — thirty
-minutes, and it is the difference between a log of findings and a log of
+**~~Everything present but deliberately unreachable, which the brief has to list
+or the finding log fills with roadmap items.~~ Done: [17 §3](17-p2c-brief.md)**,
+and it is three pages rather than half of one, because an audit of every route
+against every client caller found seven more than this paragraph names — the
+sharpest being that **a session's cast cannot be set from the browser at all**,
+so every session started from the UI runs with no actors in it. The list below
+is kept as written, with its errors, because two of them are instructive:
+`GET /api/search` has tests and no client caller (P3's); `layout.memoriesRoot`
+exists per user and nothing writes it (P8's) — *nor reads it, so the directory is
+never created*; branching is a storage affordance with no route (P6's); sessions
+and library objects cannot be deleted or renamed from the UI; nothing creates a
+library object of any kind.
+
+**The two errors.** *"Cannot be renamed"* is false for actors: the actor editor's
+Name field saves, and what actually cannot happen is the folder moving, because a
+slug is fixed at creation. The disk-versus-display divergence is the thing worth
+pre-briefing, and saying *you cannot rename* would have sent a tester past it.
+*"Nothing creates a library object"* is false by one side door: an actor save
+conflict offers *save as a copy*, which posts a new object. Both errors share a
+shape — **a claim about the UI reasoned from the absence of a route** — which is
+why [17](17-p2c-brief.md) was written from the components.
+
+Drawn from [12 §3](12-p2-manual-gate.md) and [01 §4](01-work-plan.md)'s phase
+list — and it is the difference between a log of findings and a log of
 rediscoveries.
 
 **And the things already checked and found sound**, listed for the same reason —
-so they do not consume session time. Slug derivation handles Windows reserved
+so they do not consume session time. **Re-verified against the code for
+[17 §3.5](17-p2c-brief.md)**; all of it holds, with two caveats now written into
+the brief — nothing tests the watcher's *production* `awaitWriteFinish` value,
+and the three-call ceiling is a fact about the one shipped mode rather than a
+cap the runner enforces. Slug derivation handles Windows reserved
 names, CJK-only names and case collisions; the watcher's `awaitWriteFinish`
 threshold is set; sessions are fourteen-day signed tokens against a persisted key
 file, so expiry will not bite mid-phase and a wiped data directory lands a stale

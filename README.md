@@ -71,6 +71,10 @@ pnpm dev:server    # just the API, for curl-driven work
 pnpm dev:client    # just Vite, against a server you started some other way
 ```
 
+If the server is not on 8080, point the client at it —
+`SE_API=http://127.0.0.1:9090 pnpm dev:client`. `SE_CLIENT_PORT` moves Vite's own
+port the same way.
+
 `pnpm dev` starts them in parallel and does not order them, so on a cold start
 Vite is usually ready first and logs a proxy error or two until the server
 binds. That is noise rather than failure. Started alone, the client comes up
@@ -106,8 +110,14 @@ covers each package's *own* sources — editing `shared` or `sdk` needs a
 
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
-([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Copy
-[`config.example.json`](config.example.json) to `data/config.json` to change it.
+([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Change it in
+**Settings → Install**, which is the surface every config key has.
+
+[`config.example.json`](config.example.json) documents every key and is the other
+way in — but **it is not loadable as it stands.** It carries `//` comments, JSON
+does not, and a server pointed at a copy of it refuses to start with *not valid
+JSON*. Strip the comment lines first. (The comments are the reason the file is
+worth reading; the settings form is the reason it is not the main path.)
 
 ### If a password is lost
 
@@ -215,7 +225,7 @@ packages/server/
   src/index-db/      the derived index and its watcher — delete it, lose nothing
   src/auth/          accounts, scrypt, sessions
   src/routes/        the HTTP surface
-packages/client/     React + Vite. The library list, a detail view, and login.
+packages/client/     React + Vite. Play, the library, settings, and the actor editor.
 tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
                      tested rather than trusted
 ```

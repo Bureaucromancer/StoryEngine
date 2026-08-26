@@ -230,9 +230,14 @@ refused by a conflict dialog blaming a concurrent editor.
 - **Two constructors of the clock effect disagree** about `before` on a
   session's first effect, and `channels.ts`'s `clockEffect` has no production
   caller.
-- **Log bindings** — `job.committed` carries no `sessionId`; `job.unstartable`
-  and `job.lost` carry neither; nothing logs at reservation, though [13 §4.1]
-  says `jobId` is bound when the job is created.
+- **~~Log bindings~~ Closed at [P2C §1.3](15-p2c-first-real-run.md).**
+  `job.committed` carried no `sessionId` and `job.unstartable` and `job.lost`
+  carried neither, because the child logger was built inside `#body` and all
+  three are written outside it. It is built in `start()` now, which is what
+  [13 §4.1] asks for. **`requestId` remains unbound and is deferred with a
+  written reason** — a turn outlives the request that submitted it, so carrying
+  one means a column and a migration and a decision about what the id means for
+  a recovered turn.
 - **A turn carries no money total.** `ModelCall.cost` is the only place a price
   lives and `costOf()` never aggregates it.
 

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,4 +97,85 @@ describe('capturing the server log', () => {
     expect(records.every((record) => typeof record['level'] === 'number')).toBe(true);
     expect(records.some((record) => String(record['msg']).includes('listening'))).toBe(true);
   }, 30_000);
+});
+
+/**
+ * **One `--data` means one directory, whoever is resolving it.**
+ *
+ * The server runs with its working directory in `packages/server`, so a
+ * relative `--data ./scratch` used to land at `packages/server/scratch` — while
+ * `pnpm reset-data --data ./scratch`, typed at the same prompt a second
+ * earlier, means `./scratch`. Two commands, one argument, two directories, and
+ * nothing said so: a person resets one install and then runs against another,
+ * which during a manual phase means their evidence is about a directory they
+ * did not think they were using.
+ *
+ * Asserted through the log rather than by looking for the directory, because
+ * `dataRoot` is what the server itself believes — and what it believes is the
+ * thing that was wrong.
+ */
+describe('where a relative data directory lands', () => {
+  it('resolves it against the directory the command was typed in', async () => {
+    const from = await mkdtemp(join(tmpdir(), 'se-cwd-'));
+    const logs = await mkdtemp(join(tmpdir(), 'se-cwdlogs-'));
+
+    /**
+     * **Its own port, and the config has to be inside `./here`** — which is the
+     * directory under test, so writing it is also the setup.
+     *
+     * Without this the server takes the default 8080 and collides with whatever
+     * else the suite has running, which showed up as this test failing once in
+     * a full run and passing alone. [12 §4.4](../../docs/design/workplan/12-p2-manual-gate.md)
+     * calls a load-sensitive suite a defect in the suite; a test that only fails
+     * under load is the same defect, arriving one test at a time.
+     */
+    await mkdir(join(from, 'here'), { recursive: true });
+    await writeFile(join(from, 'here', 'config.json'), JSON.stringify({ server: { port: 8179 } }));
+
+    const child = spawn(process.execPath, [TOOL, '--log-dir', logs, '--data', './here'], {
+      cwd: from,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    try {
+      const root = await new Promise<string>((settle, fail) => {
+        let seen = '';
+        const timer = setTimeout(() => {
+          fail(new Error('the server never said where it was'));
+        }, 30_000);
+        child.stdout?.on('data', (chunk: Buffer) => {
+          seen += chunk.toString('utf8');
+          // Parsed rather than pattern-matched: the value is a Windows path
+          // full of backslashes, and a regex over it is a second escaping bug
+          // waiting to be written.
+          //
+          // **Complete lines only.** `split` leaves the unterminated tail as the
+          // last element, and a chunk boundary lands inside a record often
+          // enough to matter: this failed roughly one full run in four, on a
+          // half-written line that already contained `dataRoot` and did not yet
+          // contain its closing brace. Passing alone every time, because a
+          // quiet machine delivers the record in one chunk.
+          const lines = seen.split('\n');
+          for (const line of lines.slice(0, -1)) {
+            if (!line.includes('dataRoot')) continue;
+            const record = JSON.parse(line) as { dataRoot?: string };
+            if (record.dataRoot === undefined) continue;
+            clearTimeout(timer);
+            settle(record.dataRoot);
+            return;
+          }
+        });
+      });
+
+      // The prompt's directory, not the server's — and not merely "contains
+      // here", which `packages/server/here` would also satisfy.
+      expect(root).toBe(join(from, 'here'));
+    } finally {
+      const exited = new Promise((settle) => child.once('exit', settle));
+      child.kill();
+      await exited;
+      await rm(from, { recursive: true, force: true });
+      await rm(logs, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

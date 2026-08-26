@@ -64,9 +64,22 @@ async function main() {
    * package script hardcodes it and then refuses a second one — passing
    * `--data` to `pnpm dev:server` is answered with *given more than once*,
    * which makes a scratch install impossible by the documented route.
+   *
+   * **And a relative one is resolved here, against the directory the person
+   * typed it in.** The server runs with its working directory in
+   * `packages/server`, so `--data ./scratch` used to mean
+   * `packages/server/scratch` — while `pnpm reset-data --data ./scratch`, run
+   * from the same prompt a second earlier, means `./scratch`. Two commands, one
+   * argument, two directories, and nothing says so: the person resets one
+   * install and runs against another. Measured before it was fixed.
    */
   const args = ['--import', 'tsx', join(SERVER, 'src', 'main.ts')];
-  if (!argv.includes('--data')) args.push('--data', join(ROOT, 'data'));
+  const at = argv.indexOf('--data');
+  if (at === -1) {
+    args.push('--data', join(ROOT, 'data'));
+  } else if (argv[at + 1] !== undefined) {
+    argv[at + 1] = resolve(argv[at + 1]);
+  }
 
   const child = spawn(process.execPath, [...args, ...argv], {
     cwd: SERVER,
