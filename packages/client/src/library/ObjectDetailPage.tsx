@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link } from '@tanstack/react-router';
-import type { JSX, ReactNode } from 'react';
+import type { JSX } from 'react';
 
 import {
   ApiError,
@@ -15,6 +15,7 @@ import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { link, page } from '../ui/classes.js';
+import { MetadataRow } from '../ui/MetadataRow.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -149,15 +150,6 @@ function ObjectView(props: {
           {JSON.stringify(object.object, null, 2)}
         </pre>
       </section>
-    </>
-  );
-}
-
-function MetadataRow(props: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <>
-      <dt className="font-medium text-ink-subtle">{props.label}</dt>
-      <dd className="text-ink">{props.children}</dd>
     </>
   );
 }

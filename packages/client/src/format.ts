@@ -2,8 +2,11 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * Date formatting — `Intl` only, from the first component
- * ([07 §12.6](../../../docs/design/07-tech-stack.md)). No hand-rolled "2 minutes ago".
+ * Formatting — `Intl` only, from the first component
+ * ([07 §12.6](../../../docs/design/07-tech-stack.md)). No hand-rolled "2 minutes ago",
+ * and since [P3.2] no hand-rolled `${ms}ms` either: the workbench renders
+ * token counts and wall times, and 07 §12.6a classes a hand-rolled duration
+ * as a rewrite if deferred.
  *
  * `locale` is the account's, when there is one; `undefined` falls back to the
  * browser's. Passing it explicitly rather than reading a global keeps these
@@ -69,5 +72,51 @@ function formatterFor(locale: string | undefined, options: Intl.DateTimeFormatOp
     return new Intl.DateTimeFormat(locale, options);
   } catch {
     return new Intl.DateTimeFormat(undefined, options);
+  }
+}
+
+/**
+ * A count — tokens, rows — with the locale's grouping. `1234` unformatted
+ * reads fine; `128000` does not, and the context windows this app renders are
+ * the second kind.
+ */
+export function formatCount(count: number, locale?: string): string {
+  return numberFormatterFor(locale, {}).format(count);
+}
+
+/**
+ * A wall time in milliseconds, at the precision the magnitude deserves:
+ * milliseconds below a second, seconds to one decimal below a minute,
+ * minutes to one decimal above — a 59-second model call reads as `59 s`,
+ * not `59029`.
+ */
+export function formatDuration(ms: number, locale?: string): string {
+  if (ms < 1000) {
+    return numberFormatterFor(locale, {
+      style: 'unit',
+      unit: 'millisecond',
+      maximumFractionDigits: 0,
+    }).format(ms);
+  }
+  if (ms < 60_000) {
+    return numberFormatterFor(locale, {
+      style: 'unit',
+      unit: 'second',
+      maximumFractionDigits: 1,
+    }).format(ms / 1000);
+  }
+  return numberFormatterFor(locale, {
+    style: 'unit',
+    unit: 'minute',
+    maximumFractionDigits: 1,
+  }).format(ms / 60_000);
+}
+
+/** The same fallback-not-throw stance as `formatterFor`, for the same P2A reason. */
+function numberFormatterFor(locale: string | undefined, options: Intl.NumberFormatOptions) {
+  try {
+    return new Intl.NumberFormat(locale, options);
+  } catch {
+    return new Intl.NumberFormat(undefined, options);
   }
 }
