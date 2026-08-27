@@ -921,6 +921,16 @@ describe('a turn that cannot even be set up', () => {
     // The failure landed where this test is about, and not somewhere the turn
     // shrugged off. Without this the rest is satisfied by a turn that worked.
     expect(logLines.map((entry) => entry['event'])).toContain('job.unstartable');
+    // And the record says what happened by what it lacks — [P3.0], against the
+    // record's own docstring: a turn that failed before assembly writes no
+    // `request` at all, because an empty one claims a prompt was built. The
+    // falsifying mutation is restoring `request: { calls: [] }` in
+    // `initialDraft`, or the unconditional assignment in `write()`.
+    const unstartable = (
+      await readAllTurns(join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'))
+    ).find((entry) => entry.turn.id === job.turnId)?.turn;
+    expect(unstartable?.status).toBe('failed');
+    expect(unstartable?.request).toBeUndefined();
     // Terminal, so the session is usable again…
     expect(readJob(state.db, job.id)?.status).toBe('committed');
     const next = await submitTurn(commit, {

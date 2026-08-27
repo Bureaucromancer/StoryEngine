@@ -338,7 +338,11 @@ export class TurnRunner {
       }
       draft.steps = steps;
       draft.effects = effects;
-      draft.request = { calls };
+      // Only once something was assembled — [P3.0], and the record's own
+      // docstring: *absent* means this never happened, and an empty `request`
+      // on a turn that failed before assembly is a record claiming a prompt
+      // was built. `divergenceTurn` had this right from the start.
+      if (calls.length > 0) draft.request = { calls };
       draft.tape = rng.tape;
       checkpoint(commit, job.id, {
         turn: draft,
@@ -786,7 +790,9 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     effects: [],
     tape: [],
     steps: [],
-    request: { calls: [] },
+    // No `request`: nothing has been assembled, and the field's absence is the
+    // claim ([02 §8] — *absent* and *empty* are different claims, and the
+    // workbench renders the difference).
   };
 }
 
