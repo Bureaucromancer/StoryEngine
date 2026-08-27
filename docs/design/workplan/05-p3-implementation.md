@@ -1,8 +1,14 @@
 # 05 — P3 implementation plan
 
-**Status: rewritten against the panel.** Drafted during P1 as a skeleton, revised
-once against the turn record as built, and rewritten here because
-[05 §3](../05-ui-surfaces.md) changed the workbench's shape underneath it.
+**Status: rewritten against the panel; audited for readiness 2026-08-26, at
+`ba5ff4a`, and the outstanding P2 record items adopted into P3.0 the same
+day.** Drafted during P1 as a skeleton, revised once against the turn record
+as built, rewritten here because [05 §3](../05-ui-surfaces.md) changed the
+workbench's shape underneath it — and then audited three days later, because
+the P2C.0 closeout moved the record underneath §3. The audit's findings are
+§0; corrections it forced elsewhere are marked *audit correction* in place;
+what §3 still listed as P2's after the audit is now P3.0's work, with §3
+keeping the reasons.
 
 **P3 delivers** the inspector panel: a non-modal dock, toggled from the keyboard,
 that expands over Play or Library, remembers whether it is open and how big across
@@ -39,7 +45,7 @@ anywhere. None of it is hard. Together it is more than the viewer — §5.
 rewrite, reroll, the RNG tape and sibling navigation. §1.8.
 
 **And the phase gains a stage it never had**, because the client has no typed turn
-record: `api.ts` carries five fields plus an index signature and names the
+record: `api.ts` carries six fields plus an index signature and names the
 workbench as the phase that owes the fix. §1.9.
 
 **Why the phase is still early and still small.** Everything after P3 is debugged
@@ -52,8 +58,79 @@ inheriting a sentence that has stopped being true.
 **CI this phase establishes:** little that is new — the record is already
 golden-file tested, and P2C's cassette corpus is what lets the block table be
 tested against records from real endpoints rather than from a stub this repository
-wrote to agree with itself. The panel's own logic is unit-tested; what jsdom can
+wrote to agree with itself — a corpus that, as of the audit, is still empty; §0
+carries the consequence. The panel's own logic is unit-tested; what jsdom can
 reach is named in §4.
+
+---
+
+## 0. Readiness — audited 2026-08-26, at `ba5ff4a`
+
+Three days after this rewrite, P2C.0 closed out and moved the ground under §3.
+This section is what an audit of the tree found, checked claim by claim rather
+than remembered. The baseline: the suite is green — 1185 tests passing, 4
+skipped, 1 todo, across 91 files, with typecheck and both linters clean — and
+no P3 work has started. No `<aside>`, no keyboard infrastructure beyond the
+focus trap, no `ui.workbench-*` key anywhere in client or server. The plan
+still describes a greenfield.
+
+**The record is more ready than §3 says.** Two of §3(a)'s five bullets landed
+at the P2C.0 closeout and are marked **Done** there: the cancelled turn's
+`ModelCall` (finding 2 in [16](16-p2c-log.md), which P2C adopted exactly as
+this plan asked), and all four provider-boundary items — truthful
+`resolved.modelId`, recorded `finishReason`, provider-reported `usage`, and a
+per-connection context window that arrived *with* a surface, a form field
+behind the connection editor's *What this endpoint can do* disclosure. What
+remains of §3(a) is exactly the three items no real run was ever going to
+force: `advisory`, `purpose`, and the budget stamp. Every §3(b) item was
+verified individually and still holds. **Both lists are now P3.0's** — adopted
+rather than left addressed to a P2 that has moved on, since the panel is the
+first caller that notices any of them missing; §3 keeps the reasons, P3.0
+carries the work and its ordering.
+
+**Two of §6's four P2C handoffs do not exist, and they are the two only a real
+session can produce.** The honest provider boundary is real and verifiable in
+code, and the gate-correction habit is demonstrably alive —
+[15](15-p2c-first-real-run.md) is dense with struck-through corrected claims.
+But the cassette *corpus* is empty: the recorder shipped
+(`providers/capture.ts`, on by default under `pnpm dev:logged`, and
+`pnpm test:live` records every live exchange), `captures/` is gitignored as
+designed, and `packages/server/src/providers/fixtures/` **does not exist** —
+the machine for producing cassettes exists and the bytes do not, because
+P2C.1 through P2C.4 have not run. The journeys list is a P2C.4 output and
+P2C.4 has not begun: the triage table in [16](16-p2c-log.md) is empty against
+fourteen findings, and the only session in the log is the automated stub run,
+whose own entry says it is not a person's session. The calibration that P3.2
+"makes continuous" was never taken once.
+
+**So the sequencing question is real, and it is answered here rather than
+discovered.** P3.−1 through P3.1a depend on nothing P2C still owes — the
+chrome can start today. What is degraded until at least one real run produces
+curated cassettes: golden-testing the block table (stub-versus-stub until
+then, the exact failure the CI paragraph above names), the per-block
+estimate's baseline, and gate step 12's walk, which wants turns nobody
+scripted. Either P2C.1 runs first, or P3 starts on the chrome and the
+corpus-dependent claims wait for the corpus. What P3 must not do is promote a
+stub-derived record into `fixtures/` and call the CI paragraph satisfied —
+that is the double defining the truth, the confusion the capture tier exists
+to end.
+
+**One addition the record made that this plan did not order.** A stalled
+endpoint now ends the turn on an idle timeout, distinct from a user's Stop.
+That is a fourth failure shape the call view in P3.2 has to render as itself —
+a timeout that reads as *cancelled* blames the person for the endpoint. And
+adjacent to it: `TurnCost` now records null rather than a fabricated zero, so
+the cost view owes *unknown* a rendering distinct from *free* — the old
+"rendering zeros" bug is gone and left a display requirement in its place.
+
+**The retention question resolved in P3's favour.** §6 said compaction lands
+on P3's doorstep if the re-parse measurement came back bad. It came back good
+— finding 14: session and turns reads flat at 4.8–17.7 ms from 13 to 55 turns
+— so [02 §8](../02-data-model.md) stays **[OPEN]** where it is. The half P3
+does inherit is payload, not parse: `GET /turns` returns the whole transcript,
+about 10.8 KB a turn and 590 KB by turn 55, and the panel is the first surface
+that reads all of a record. `?limit=1` exists and is cheap; P3.0's read-a-turn-
+by-id is the panel's route to one turn without the transcript riding along.
 
 ---
 
@@ -81,8 +158,12 @@ what devtools does.
 **The cost, stated rather than discovered:** the inset needs one `<main>` and a
 height-managed shell, and the app has neither. `Shell` renders a `<main>`, and
 `PlayPage`, `SessionsPage` and `SettingsPage` each render a *second* one inside
-it, at three different widths — no `jsx-a11y` plugin is installed, so nothing
-catches the duplicated landmark. Nothing anywhere is a scroll container: the
+it — *audit correction:* at what turns out to be one width spelled three ways,
+`max-w-reading` twice and `max-w-3xl` once, all 48rem inside the shell's 56rem,
+so the mess is two widths under three spellings rather than three widths. The
+library routes render no `<main>` at all, so the inconsistency is wider than
+duplication — and no `jsx-a11y` plugin is installed, so nothing catches any of
+it. Nothing anywhere is a scroll container: the
 document scrolls, `min-h-dvh` appears three times and `h-dvh` never, and
 `PlayPage`'s `h-full` resolves against a parent with no height, so its transcript
 has never actually scrolled independently. That is P3.−1, and it is a
@@ -115,10 +196,13 @@ and the flash never happens for a navigation because the state lives in `Shell`.
 [05 §1.2](../05-ui-surfaces.md)'s *"the only use of localStorage in the client"*
 stays true rather than needing an amendment nobody argued for.
 
-**And not the URL, which is actively wrong here rather than merely worse.** Every
-route validates and *drops* unknown search params, and the index route throws a
-redirect — so a global `?workbench=1` needs five edits and still dies at `/`.
-Beyond the mechanics: a URL-addressable panel is a place, and
+**And not the URL, which is actively wrong here rather than merely worse.**
+*Audit correction:* the old sentence claimed every route validates and drops
+unknown search params. Two of seven do; what actually discards a stray param is
+that every nav link hard-codes `search={{}}`, and the index route throws a
+redirect. So a global `?workbench=1` needs `validateSearch` *added* to five
+routes, dies on every click of the nav, and still dies at `/` — the conclusion
+gets stronger while the sentence it stood on was wrong. Beyond the mechanics: a URL-addressable panel is a place, and
 back-button-closes-the-panel is the anti-pattern §3 is avoiding. Said out loud
 because it is the reflex a router-shaped codebase invites.
 
@@ -163,7 +247,8 @@ instead of mounting its own copy moves an editing action into the inspector, whi
 is the boundary §2.1 exists to hold.
 
 *Work:* extract the revision list from the editor's panel, and take the kind as a
-prop instead of the four hardcoded actor call sites.
+prop instead of the hardcoded actor call sites — five of them, not the four the
+plan first counted: history read, version payload, restore, rename and pin.
 
 ### 1.5 The diff is a full view, and the reason is the address
 
@@ -280,25 +365,28 @@ longer has to.
 
 ### 1.9 The record's shapes move into the shared package
 
-**P3's opening stage, not a formality.** The client's turn record is five fields
-plus an index signature, and `api.ts` already names the workbench as the phase
-that owes the fix. A typed block table, a typed verdict and an id-keyed comparison
-cannot be written over `unknown`.
+**P3's opening stage, not a formality.** The client's turn record is six fields
+plus an index signature, and the sessions API's own block comment in `api.ts`
+already names the workbench as the surface that owes the shared package. A typed
+block table, a typed verdict and an id-keyed comparison cannot be written over
+`unknown`.
 
 [13 §1](../13-internal-contracts.md)'s *"internal and free to migrate"* is what
 makes this a decision rather than a chore: moving the shapes into `shared` is a
-promise to stop churning them. So it lands *after* §1.10's record fixes, in the
-same stage.
+promise to stop churning them. So it lands *after* the record repairs P3.0 now
+adopts from §3, in the same stage — and that ordering is the reason the
+adoption's home is P3.0 and nowhere later.
 
 ### 1.10 What the old §1.5 becomes
 
 Rewritten as three lists in [§3](#3-what-the-record-still-owes), and **two of the
 five original gaps were smaller and in different places than the old plan said.**
 `ModelCall.cost` is plumbed — the adapter simply never prices, because no price
-table ships. And `resolved.modelId` is already read from the provider's result
-where the record is written; only the adapter echoes the request back. So that
-gap is a two-line adapter change, not a record change, and it belongs to
-[P2C §1.2](15-p2c-first-real-run.md) rather than here.
+table ships; and `TurnCost` now records null rather than a fabricated zero, so
+the cost view owes *unknown* a rendering distinct from *free*. And the
+`resolved.modelId` gap closed exactly as predicted: P2C took it, the adapter now
+asks `modelThatAnswered` on both paths, and its docstring names the old bug —
+"a comparison of a value with itself" — verbatim. §3(a) marks it done.
 
 ---
 
@@ -315,17 +403,49 @@ transcript scrolls independently for the first time — a real behaviour change,
 a refactor — and browser-native scroll restoration stops applying once `<main>`
 scrolls, with nothing configured in the router to replace it.
 
-*Ends at:* a test asserting exactly one `main` landmark, and a transcript that
-scrolls under a header that does not.
+*Ends at:* a test asserting exactly one `main` landmark — scoped to the routed
+app, because the pre-auth gate renders three more `<main>`s before the router
+mounts and they are not this stage's problem — and a transcript that scrolls
+under a header that does not.
 
-### P3.0 — The record, typed where the client can see it
+### P3.0 — The record, repaired and then typed where the client can see it
 
-Move the record's shapes into `@storyengine/shared`, replacing the client's index
-signature. Land whatever of [§3(a)](#3-what-the-record-still-owes) has not landed.
-Add **read a turn by id** over the existing per-turn read and location index.
+The stage adopts everything [§3](#3-what-the-record-still-owes) still listed as
+P2's at the audit — adopted 2026-08-26, because a P2 that has moved on was
+never going to circle back, and the panel is the first caller that notices any
+of it missing. The stage's one rule is ordering: **every shape change lands
+before the move into `@storyengine/shared`**, because §1.9's promise to stop
+churning the shapes is only keepable once they have stopped churning.
+
+First the repairs, golden files and all:
+
+- **`advisory` on `AssembledBlock` and `purpose` on `ModelCall`** — §3(a)'s
+  invariant pair, which makes [testing §1](10-testing.md)'s invariant
+  expressible over a committed record for the first time.
+- **An honestly stamped budget `limit.source`** — §3(a).
+- **Blocks and budget move onto each `ModelCall`**, and *the turn's blocks*
+  becomes a derived union — §3(b), and the largest golden-file change of the
+  lot.
+- **A turn id on a history block's source** — §3(b); without it P3.6's compare
+  is wrong from turn twenty-one onward.
+- **A content hash on a block's source** — §3(b), what gate step 4 resolves
+  through to the object that was *used*.
+- **The effect vocabulary**: the two refusals distinguished, the degraded state
+  given a writer-shaped home, the supersession link — §3(b).
+- **A pre-assembly failure stops writing an empty request** — §3(b), the
+  smallest, and the one the record's own docstring already demands.
+- **Not-filled slots, only if §7.5 is decided by then** — the one adopted item
+  gated on a design answer rather than on effort. Undecided, it stays §7.5's,
+  and the plan owns the stated consequence: the panel cannot answer *why is
+  there no lore in this prompt* until it lands.
+
+Then the move: the record's shapes into `@storyengine/shared`, replacing the
+client's index signature. Then **read a turn by id** over the existing per-turn
+read and location index.
 
 *Ends at:* the client compiles against real shapes and can read any turn by id,
-including one the head has passed.
+including one the head has passed — and the golden files describe the record
+the rest of the phase will spend itself reading.
 
 ### P3.1 — The panel frame, empty
 
@@ -334,12 +454,15 @@ keyboard toggle with its editable-target guard; a visible opener; the subject
 wired to Play showing today's JSON.
 
 **Explicitly not `useFocusTrap`,** and the reason is sharper than *it is modal*:
-that hook forces focus back into its surface whenever focus is anywhere else,
-`preventDefault()`s Escape unconditionally on a document listener, and captures
-its focus-return target once at first render — which silently degrades to nothing
-for a panel left open across ten navigations. Attaching it to a dock makes the
-main view unusable while the dock is open, which is the exact opposite of *left
-open while you work*.
+that hook teleports focus back into its surface on the next Tab press — *audit
+correction:* the recovery is Tab-gated rather than continuous, which makes the
+argument concrete instead of weakening it: click into the transcript with the
+dock open and the first Tab yanks you back — `preventDefault()`s Escape
+unconditionally on a document listener, and captures its focus-return target
+once at first render, which silently degrades to nothing for a panel left open
+across ten navigations. Attaching it to a dock makes the main view unusable
+while the dock is open, which is the exact opposite of *left open while you
+work*.
 
 So: a labelled non-modal landmark, Tab passing straight through, no `aria-modal`,
 and Escape closing the dock **only when focus is inside it**, because a dialog may
@@ -377,7 +500,9 @@ tokens and wall time.
 **And per-block estimate beside per-call reported** — the one place a person sees
 the estimator disagree with the provider, which is what
 [P2C](15-p2c-first-real-run.md)'s calibration measures once and this makes
-continuous.
+continuous. *Noting §0:* the once has not happened — no real run has — so until
+P2C.1 delivers a baseline, this view is the first measurement rather than the
+continuation of one.
 
 *Ends at:* `TurnRecordDisclosure` is deleted. Its own docstring hands the job here.
 
@@ -433,12 +558,16 @@ Budget the audit separately; the sheet is the smaller half.
 
 ## 3. What the record still owes
 
-Three lists, because they have three different owners and only one of them is
-P3's.
+Three lists. They had three different owners when written; since the 2026-08-26
+adoption they have one — everything below that is not marked **Done** is
+P3.0's — but the lists keep their original framing, because *whose debt this
+was* is the part worth remembering.
 
-### (a) P2's record, and it should land before P3 starts
+### (a) P2's record — was owed before P3 starts, now P3.0's
 
-Each is one field or one enum value.
+Each is one field or one enum value. *Audited 2026-08-26:* two of the five
+landed at the P2C.0 closeout and are marked **Done** below; the other three
+are adopted into P3.0's repair list.
 
 - **`advisory` on `AssembledBlock`.** It carries
   [testing §1](10-testing.md)'s invariant — *no advisory block ever appears in an
@@ -450,21 +579,37 @@ Each is one field or one enum value.
 - **`purpose` on `ModelCall`** — the invariant's other half, and not derivable:
   it is computed from the step's declared contributions and writes, and
   `StepOutcome` records neither.
-- **A `ModelCall` for a cancelled turn.** *Correct the citation:* the old plan
-  blamed [P2C §1.3](15-p2c-first-real-run.md) and P2C says nothing about it. The
-  owner is unassigned and the test that skips it says so. **P2C should adopt it**,
-  since P2C is the phase that will cancel turns against a real endpoint.
-- **Truthful `resolved.modelId`, recorded `finishReason`, non-null `usage`, and a
-  per-connection context window.** All four are
-  [P2C §1.2](15-p2c-first-real-run.md), and all four are what stop this phase's
-  gate step comparing a value to itself and its cost view rendering zeros.
+- ~~**A `ModelCall` for a cancelled turn.**~~ **Done, and P2C adopted it exactly
+  as asked** — finding 2 in [16](16-p2c-log.md): a Stop mid-call now writes the
+  interrupted call with `outcome: 'cancelled'`, the model that was *asked*
+  (because nothing answered), a real `wallMs`, and `usage`, `finishReason` and
+  `error` null rather than invented; a Stop between attempts stays bare, because
+  there is genuinely no call to name. Two consequences for this phase: the
+  outcome vocabulary is now `refused | truncated | incomplete | cancelled` and
+  still has **no un-sent value**, so §1.6's dry-run requirement stands untouched;
+  and *the model that answered* is a claim about `ok` calls only — see the gate's
+  step 4.
+- ~~**Truthful `resolved.modelId`, recorded `finishReason`, non-null `usage`, and
+  a per-connection context window.**~~ **Done, all four**, at the P2C.0 closeout:
+  the adapter asks `modelThatAnswered` on both paths, `finishReason` is mapped
+  and recorded, usage is provider-reported and gated on a `reportsUsage`
+  capability, and the context window is a per-connection override with a form
+  field behind the connection editor's *What this endpoint can do* disclosure —
+  so it arrived with a surface and does not trip §4's standing line. This
+  phase's gate steps now compare something to something else.
 - **An honestly stamped budget `limit.source`.** It reports `preset` for a number
   that is three-quarters of the config default, which hides the exact remedy
-  [13 §1.5](../13-internal-contracts.md) says the field exists to suggest.
+  [13 §1.5](../13-internal-contracts.md) says the field exists to suggest. *And
+  sharper since the audit:* `limits.contextTokens` is now live-editable from the
+  settings form, so the number a person can actually change is precisely the one
+  the record mislabels.
 
-### (b) P2's record, newly owed because of the revision
+### (b) P2's record, newly owed because of the revision — now P3.0's
 
-These are what the panel's promises turn into.
+These are what the panel's promises turn into. *Audited 2026-08-26: all six
+still hold, verified individually — and all six are adopted into P3.0's repair
+list, with one caveat: not-filled slots land only once §7.5 is decided, because
+that item is gated on a design answer rather than on effort.*
 
 - **Blocks and budget move from the turn's request onto each `ModelCall`.**
   [05 §3](../05-ui-surfaces.md) promises *"one per model call"*; the runner
@@ -488,7 +633,7 @@ These are what the panel's promises turn into.
 - **A turn that failed before assembly must not write an empty request.** It does
   today, against the record's own docstring.
 
-### (c) P3's own work
+### (c) P3's own work from the start
 
 The contracts into `shared`; the by-id turn read; the folder path on the
 presenter; the index-rows projection route; the kind on the revision list;
@@ -525,9 +670,13 @@ that most of a gate like this is not automatable and that is the point.
 3. **Nowhere switches it on.** No debug mode, no advanced toggle, no nav entry,
    nothing in Settings. [05 §2](../05-ui-surfaces.md) names this as the specific
    failure of both source projects, and a panel is the shape that most invites it.
+   The nav half is already pinned: `Shell.test.tsx` asserts *offers no workbench
+   entry, because it is a panel and not a place* — keep it passing.
 4. Over a turn: every block's source is clickable through to the object it came
    from, no `unknown` sources on an ordinary turn, and the resolved model is the
-   one that **answered**.
+   one that **answered** — on `ok` calls; a cancelled or failed call truthfully
+   records the model that was asked, because nothing answered, and the check must
+   respect that asymmetry rather than flag it.
 5. *What is about to fall out of context* is answered from the verdict without
    generating anything — and on a turn with plenty of headroom it does not claim
    the system instruction is about to fall out.
@@ -611,7 +760,11 @@ the server.
   derived index answers it already, so nobody plans against the overstatement.
 - **A second JSON viewer.** One component, shared with the detail page and
   [polish §2](09-polish.md)'s editor pane — or two ship and disagree about
-  wrapping and copy.
+  wrapping and copy. *Audit correction: too late to prevent — two already ship
+  and already disagree.* The detail page's unbounded `<pre>` and the turn
+  disclosure's bounded one differ on background, radius and height, and neither
+  uses the `Panel` inset variant built for exactly this. P3.3 is therefore a
+  consolidation of two, not the extraction of one.
 - **A log viewer.** P2C is about to make the log genuinely good, which is exactly
   when somebody proposes piping it into the panel. **The record's claim is that
   you do not need the log**, and gate step 12 *is* that claim.
@@ -663,6 +816,14 @@ revision. That is not on offer, because §3 has resolved the shape and because t
 phase's own gate step lands in the Library. So: **the reader is nearly free, the
 panel is not, and the mutating features never were.**
 
+**And the adoption grows P3.0, not the phase's tail.** Taking §3's outstanding
+items in makes the opening stage heavier by exactly the golden-file churn the
+repairs were always going to cost *somebody* — every adopted item was already
+load-bearing for a stage or a gate step here, so the alternative was never less
+work, only the same work discovered later, after the shapes had been promised
+stable. None of it joins the cut list below: a repair the reader depends on
+cannot be cut, only rediscovered.
+
 **The order of cuts if the phase runs long**, decided here rather than under
 pressure: **P3.7** first — the only item with a commit-protocol change attached,
 and P3.4's stateless preview keeps the meter honest without it. Then **P3.5**,
@@ -675,17 +836,19 @@ preset whose block list is recognisably the preset that went in, P4's import
 review needs provenance, and the object-level provenance fields the panel shows
 are exactly what import fills in.
 
-**Two facts to state rather than let be discovered.**
-[02 §8](../02-data-model.md)'s retention question is still **[OPEN]**, turn
-records are the largest thing on disk, and the panel is the first surface that
-reads all of one — so if P2C's measurement of the session routes' re-parse comes
-back bad, compaction lands on P3's doorstep rather than staying open. And **P2C
-hands P3 four things that are inputs rather than courtesies**: the cassette corpus
+**Two facts that were stated here to be discovered have since resolved, one
+each way.** The re-parse measurement came back good — finding 14: reads flat
+from 13 to 55 turns — so [02 §8](../02-data-model.md)'s retention question
+stays **[OPEN]** where it is and compaction does not land on P3's doorstep;
+what P3 does inherit is the payload shape, stated in §0. And of the **four
+things P2C hands P3 as inputs rather than courtesies** — the cassette corpus
 (which is what lets the block table be golden-tested against records from real
 endpoints instead of a stub this repository wrote to agree with itself), the
 honest provider boundary (without which four gate steps compare a value to
-itself), the journeys list, and the gate-correction habit — of which this
-rewrite's replacement of step 9 and downgrade of step 10 are two instances.
+itself), the journeys list, and the gate-correction habit, of which this
+rewrite's replacement of step 9 and downgrade of step 10 are two instances —
+two are in hand and two do not yet exist. The accounting, and the sequencing
+consequence decided rather than left to pressure, is §0.
 
 ---
 
