@@ -757,6 +757,7 @@ export class TurnRunner {
           proposedBy: { kind: 'engine' },
         },
         running,
+        supersededProposal(effects, SE_CLOCK),
       );
       effects.push(effect);
     }
@@ -816,6 +817,24 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
     model: calls.at(-1)?.resolved.modelId ?? null,
   };
+}
+
+/**
+ * The most recent same-turn refusal this engine write replaces — [P3.0], and
+ * [05 §3]'s third effect outcome. A model that decided it was suddenly
+ * midnight was refused with its reason; the engine's own advance landing
+ * afterwards is the *override*, and the link is what lets the panel say so
+ * rather than inferring it from adjacency. Null when nothing on the channel
+ * was refused this turn, which is the ordinary case and is data.
+ */
+function supersededProposal(effects: readonly ChannelEffect[], channelId: string): string | null {
+  for (let at = effects.length - 1; at >= 0; at -= 1) {
+    const effect = effects[at];
+    if (effect?.channelId === channelId && !effect.applied) {
+      return effect.id;
+    }
+  }
+  return null;
 }
 
 function classifyStep(error: unknown): StepFailureReason {

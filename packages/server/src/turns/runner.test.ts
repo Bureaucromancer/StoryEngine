@@ -812,6 +812,49 @@ describe('cancellation', () => {
   });
 });
 
+describe('the engine says what it overrode', () => {
+  /**
+   * [05 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
+   * step proposes a clock value, the engine-computed policy refuses it, and
+   * the engine's own advance then lands carrying the refusal's id. The
+   * falsifying mutation is stamping `supersedes: null` unconditionally at the
+   * clock write.
+   */
+  it('links the clock advance to the refusal it superseded', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: NARRATE,
+            run: async (_input, host) => {
+              const result = await host.call({});
+              return {
+                message: { text: result.text },
+                effects: [
+                  {
+                    channelId: SE_CLOCK,
+                    op: { type: 'set', path: '/' },
+                    after: { day: 9, hour: 0, minute: 0 },
+                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                  },
+                ],
+              };
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    const refused = turn.effects.find((effect) => !effect.applied);
+    const clock = turn.effects.find((effect) => effect.proposedBy.kind === 'engine');
+    expect(refused?.rejectedReason).toBe('engine-computed');
+    expect(refused?.id).toBeDefined();
+    expect(clock?.supersedes).toBe(refused?.id);
+  });
+});
+
 describe('the advisory guard is not decoration', () => {
   it('throws with the block named, so the log can say which', () => {
     // Guards the guard: `AdvisoryLeakError` has to name the block, or the
@@ -1588,6 +1631,10 @@ function generalise(path: string): string {
  *   permission, not a place to hide a regression.
  * - `request.calls[*].error` — [13 §1.4]: the classified failure, null on a
  *   call that succeeded.
+ * - `effects[*].supersedes` — [13 §1.2] via [P3.0]: the refusal an engine
+ *   write replaced. Null is "this effect superseded nothing", which is the
+ *   ordinary clock advance on a turn where nothing proposed against it —
+ *   exactly this turn.
  *
  * **Two permissions the doc grants and this record does not need**, which is
  * why they are absent and each absence is an extra assertion. Both are granted
@@ -1607,6 +1654,7 @@ const NULL_IS_DATA = new Set([
   'input.actorId',
   'effects[*].scopeKey',
   'effects[*].rejectedReason',
+  'effects[*].supersedes',
   'request.calls[*].usage',
   'request.calls[*].cost',
   'request.calls[*].error',

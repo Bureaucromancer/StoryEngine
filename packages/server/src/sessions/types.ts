@@ -203,8 +203,22 @@ export interface ChannelEffect {
     | { kind: 'user' }
     | { kind: 'engine' };
   applied: boolean;
-  /** Present when `applied` is false. */
+  /**
+   * Present when `applied` is false. The two shipped refusals are classes,
+   * not one string, since [P3.0]: `'engine-computed'` and `'user-only'` name
+   * *which* update policy refused, plus `'unknown-channel'` for an id nothing
+   * declared. Open vocabulary — an extension's channel may refuse in its own
+   * words.
+   */
   rejectedReason: string | null;
+  /**
+   * The effect this one replaced — [P3.0], and [05 §3]'s third outcome. When
+   * the engine's own computation lands on a channel a same-turn proposal was
+   * refused for, this carries the refusal's id, so the panel can render
+   * *overridden by an engine-computed rule* as a link rather than an
+   * inference. Null is data: this effect superseded nothing.
+   */
+  supersedes: string | null;
   channelVersion: number;
   /**
    * Whether the effect stayed inside the session or escaped it. Escaped effects
@@ -227,7 +241,19 @@ export interface ChannelState {
   /** Which schema version the value was written against. */
   version: number;
   value: unknown;
-  /** Set when load-time validation failed and the value was quarantined. */
+  /**
+   * Set when load-time validation failed and the value was quarantined.
+   *
+   * **No writer exists yet, and that is a recorded decision rather than an
+   * oversight** — [P3.0] §3(b) asked for "a writer-shaped home" and this is
+   * the honest shape of one: `ChannelDefinition` ships without `schema`
+   * ([13 §6] refuses to invent it ahead of the mode contract), so there is
+   * nothing to validate against and a guard on a validation that cannot fail
+   * would be dead code impersonating a mechanism. The writer arrives with the
+   * first `ChannelDefinition.schema`, validating in `applyEffects` /
+   * `replayChannels` and quarantining here. The panel renders the field
+   * whenever present, so the reader half is already paid for.
+   */
   degraded?: { reason: string; raw: unknown };
 }
 

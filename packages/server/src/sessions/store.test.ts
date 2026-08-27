@@ -69,6 +69,7 @@ function clockEffect(turnId: string, before: unknown, after: unknown): ChannelEf
     proposedBy: { kind: 'engine' },
     applied: true,
     rejectedReason: null,
+    supersedes: null,
     channelVersion: 1,
     scope: 'session',
   };

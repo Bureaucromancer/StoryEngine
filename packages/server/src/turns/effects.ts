@@ -38,6 +38,7 @@ export function acceptEffect(
   turnId: string,
   proposal: EffectProposal,
   running: Record<string, ChannelState>,
+  supersedes: string | null = null,
 ): ChannelEffect {
   // **Only a whole-value set, at P2.5.** `applyEffects` (`sessions/store.ts`)
   // reads `op.path` for nothing but `delete` and replaces the entire channel
@@ -67,6 +68,7 @@ export function acceptEffect(
     proposedBy: proposal.proposedBy,
     applied: refusal === null,
     rejectedReason: refusal,
+    supersedes,
     channelVersion: definition?.version ?? 1,
     // P2 writes only `session` ([P2 §2.7]); the field exists so P6 needs a
     // field rather than a migration.
@@ -94,11 +96,15 @@ function refuse(
   }
 
   const by = proposal.proposedBy.kind;
+  // Two policies, two reasons — [P3.0]. Both used to write one
+  // 'update-policy' string, which left the panel unable to say *which* policy
+  // refused: "the engine computes this" and "only a person may change this"
+  // are different sentences with different remedies.
   if (definition.update === 'engine-computed' && (by === 'model' || by === 'step')) {
-    return 'update-policy';
+    return 'engine-computed';
   }
   if (definition.update === 'user-only' && by !== 'user') {
-    return 'update-policy';
+    return 'user-only';
   }
   return null;
 }

@@ -77,6 +77,7 @@ function clockEffect(turnId: string, hour: number): ChannelEffect {
     proposedBy: { kind: 'engine' },
     applied: true,
     rejectedReason: null,
+    supersedes: null,
     channelVersion: 1,
     scope: 'session',
   };
