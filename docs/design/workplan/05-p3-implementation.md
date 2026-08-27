@@ -665,6 +665,51 @@ continuation of one.
 
 *Ends at:* `TurnRecordDisclosure` is deleted. Its own docstring hands the job here.
 
+**Landed 2026-08-27**, in three commits: the helpers (formatters, the source
+address, headroom, the lifted `MetadataRow`), the views over literal fixtures,
+and the subject swap that ended at the ends-at — `TurnRecordDisclosure` is
+deleted, and `dock.test.tsx` now owns the show-the-record claim its test held.
+What the clauses became, and what the walk saw:
+
+- **Blocks render per call**, because that is what the record says since
+  P3.0: the same preset block legitimately recurs across calls with
+  different verdicts, and a derived-union table would invent a
+  reconciliation sentence per conflict. The ordinary one-call turn reads as
+  *the* table with no extra chrome.
+- **The estimate-beside-reported sentence is the first measurement**, as §0
+  required saying: the walk's head showed *356 estimated, 397 reported*
+  with no alarm attached — the delta is the chat template, and until P2C.1
+  delivers a baseline there is nothing to call a regression.
+- **Degraded state has no turn-side reader yet, honestly**: the turn record
+  carries no `ChannelState`, so the panel clause "renders `degraded`
+  whenever present" has nothing to attach to on the *turn* subject — the
+  reader half arrives with the first surface that shows channel state
+  (P3.3's library subject or the session view, whichever lands first). The
+  field, its comment, and the writer's arrival condition are P3.0's.
+- **A consequence stated rather than hidden**: with the disclosure gone the
+  head is the only turn whose record the UI can reach — `readTurnById` and
+  `useTurn` exist but their first caller is the transcript's per-turn
+  affordance (P3.6). The bytes are safe; the reader lags.
+
+The browser walk ran over the scratch install with no live endpoint up, so
+the head was one hand-written, self-labelling dev-fixture turn appended to
+the scratch session's own segment — never promoted anywhere, per §0.
+Verified live: every source rendered as a label (no raw kinds), the actor
+and persona sources clicked through to the library page **navigating the
+main view** while the dock stayed open and switched to its honest empty
+state (the §7.1 interim decision, end to end); the roomy verdict said *356
+of 5,120* without crying wolf and still named the first to fall; the idle
+timeout rendered as its own failure in the boundary's words with the
+model-that-was-asked sentence beside it; both 30-block tables rendered as
+tables scrolling inside their own wrapper with no page-level overflow —
+with one polish note: long history block ids wrap at the default dock
+width, so a 30-block call runs tall. Cost-null-as-unknown could not be
+walked (the fixture head's cost is counted) and stays pinned by its unit
+test and named mutation. One unplanned verification: the hand-edit was
+*caught* — the store appended a real user-attributed divergence turn on
+boot, and the panel rendered its requestless record with the
+made-no-request sentence, the absent-vs-empty doctrine live on screen.
+
 ### P3.3 — The library subject
 
 The as-stored view, collapsed by default with a copy control and a bounded height
