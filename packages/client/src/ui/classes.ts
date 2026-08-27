@@ -73,6 +73,13 @@ export const table = {
   /** Denser, for the revision table inside the history panel. */
   thCompact: 'py-1 pe-3 text-start font-medium text-ink-muted',
   cellCompact: 'py-1 pe-3 align-top',
+  /**
+   * A number column — token counts, the workbench's block table ([P3.2],
+   * this recipe's first consumer). `text-end` is logical and lint-legal;
+   * `tabular-nums` keeps a column of counts comparable by eye.
+   */
+  thNumeric: 'py-1 pe-3 text-end font-medium text-ink-muted',
+  cellNumeric: 'py-1 pe-3 text-end align-top tabular-nums',
 } as const;
 
 /**
