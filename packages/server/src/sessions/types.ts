@@ -3,7 +3,12 @@
 
 import type { GenerationParams, Preset } from '@storyengine/shared';
 
-import type { AssembledBlock, BudgetVerdict, CallPurpose } from '../assembly/types.js';
+import type {
+  AssembledBlock,
+  BudgetVerdict,
+  CallPurpose,
+  NotFilledSlot,
+} from '../assembly/types.js';
 import type {
   ErrorClass,
   FinishReason,
@@ -67,6 +72,13 @@ export interface ModelCall {
    */
   blocks: AssembledBlock[];
   budget: BudgetVerdict;
+  /**
+   * The preset blocks that emitted nothing for this call, each with a reason
+   * class — [P3.0]'s §7.5 decision, the record's answer to *why is there no
+   * lore in this prompt*. Empty when a step supplied its own candidates: the
+   * preset was not consulted, so it honestly has nothing to say.
+   */
+  notFilled: NotFilledSlot[];
   messages: RenderedMessage[];
   params: GenerationParams;
   /** Provider-reported, or null. Never estimated — the estimate decides, the measurement records. */

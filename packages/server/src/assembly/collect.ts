@@ -4,7 +4,7 @@
 import type { Actor, Preset, PresetBlock } from '@storyengine/shared';
 
 import type { ChannelState, Turn } from '../sessions/types.js';
-import type { Candidate } from './types.js';
+import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
  * Step 1 of [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md) — collect.
@@ -35,22 +35,47 @@ export interface CollectContext {
   guidance?: string;
 }
 
-export function collectCandidates(context: CollectContext): Candidate[] {
+export interface Collected {
+  candidates: Candidate[];
+  /**
+   * Every preset block that emitted nothing, with the reason as a class —
+   * [P3.0]'s §7.5 decision. On the one real turn measured before this
+   * existed, ten of twelve blocks left no row, and the panel could not answer
+   * *why is there no lore in this prompt*. Now the record can.
+   */
+  notFilled: NotFilledSlot[];
+}
+
+export function collectCandidates(context: CollectContext): Collected {
   const sequence: Candidate[] = [];
+  const notFilled: NotFilledSlot[] = [];
   /** In-history blocks, held back until the history run is known. */
   const injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[] =
     [];
   let historyStart: number | null = null;
   let historyCount = 0;
 
+  const skipped = (block: PresetBlock, reason: NotFilledReason): void => {
+    notFilled.push({ blockId: block.id, source: sourceKindOf(block), reason });
+  };
+
   for (const [order, block] of context.preset.blocks.entries()) {
-    if (!block.enabled) continue;
+    if (!block.enabled) {
+      skipped(block, 'disabled');
+      continue;
+    }
     // Empty means all — which is what dissolves the eight special-cased
     // template fields [10 §8.4.3] describes.
-    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) continue;
+    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) {
+      skipped(block, 'not-applicable');
+      continue;
+    }
 
     const filled = fill(block, context);
-    if (filled.length === 0) continue;
+    if (filled.length === 0) {
+      skipped(block, emptyReason(block));
+      continue;
+    }
 
     if (block.placement.at === 'in-history') {
       injected.push({
@@ -69,7 +94,39 @@ export function collectCandidates(context: CollectContext): Candidate[] {
     sequence.push(...filled);
   }
 
-  return splice(sequence, injected, historyStart, historyCount);
+  return { candidates: splice(sequence, injected, historyStart, historyCount), notFilled };
+}
+
+/** The slot's source kind for a not-filled row; `'preset'` for a text block. */
+function sourceKindOf(block: PresetBlock): string {
+  return block.kind === 'text' ? 'preset' : block.source.of;
+}
+
+/**
+ * Why `fill()` came back empty, computed from the block rather than threaded
+ * through it — the reasons are structural per source kind, and keeping
+ * `fill()`'s signature simple keeps its eleven arms readable.
+ */
+function emptyReason(block: PresetBlock): NotFilledReason {
+  if (block.kind === 'text') return 'empty-source';
+  switch (block.source.of) {
+    case 'lore':
+    case 'setting':
+    case 'examples':
+    case 'goal':
+    case 'channel':
+      // The same list `fill()` returns nothing for, each for its stated
+      // reason — no producer at this phase.
+      return 'no-producer';
+    case 'persona':
+    case 'actor':
+    case 'history':
+    case 'guidance':
+    case 'input':
+      return 'empty-source';
+    default:
+      return 'unknown-slot';
+  }
 }
 
 /**

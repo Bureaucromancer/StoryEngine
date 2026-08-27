@@ -5,7 +5,13 @@ import { type GenerationParams, uuidv7 } from '@storyengine/shared';
 
 import { assemble } from '../assembly/assemble.js';
 import { render } from '../assembly/render.js';
-import type { AssembledBlock, BudgetVerdict, CallPurpose, Candidate } from '../assembly/types.js';
+import type {
+  AssembledBlock,
+  BudgetVerdict,
+  CallPurpose,
+  Candidate,
+  NotFilledSlot,
+} from '../assembly/types.js';
 import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
@@ -90,6 +96,7 @@ export interface ProvisionalCall {
   resolved: { connectionId: string; modelId: string };
   blocks: AssembledBlock[];
   budget: BudgetVerdict;
+  notFilled: NotFilledSlot[];
   messages: RenderedMessage[];
   params: GenerationParams;
   startedAt: number;
@@ -112,6 +119,8 @@ export interface CallContext {
    */
   preset?: { params: GenerationParams; budget: PresetBudget };
   signal: AbortSignal;
+  /** What the preset's collection left unfilled, for the record ([P3.0] §7.5). */
+  notFilled: readonly NotFilledSlot[];
   /** The call as assembled and rendered, before dispatch — see {@link ProvisionalCall}. */
   onCallAssembled(provisional: ProvisionalCall): void;
   /** A durable, coalesced checkpoint. The runner decides how often. */
@@ -251,6 +260,10 @@ export async function performCall(
     policy,
     purpose,
   });
+  // A step that supplied its own candidates never consulted the preset, so
+  // the not-filled list honestly empties rather than describing a collection
+  // this call did not use ([P3.0] §7.5).
+  const notFilled = request.candidates === undefined ? [...context.notFilled] : [];
 
   // Never pre-folded: `systemMessage: 'fold-into-first-user'` is honoured inside
   // the adapter, and folding above it would corrupt the record's block table.
@@ -270,6 +283,7 @@ export async function performCall(
     resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
     blocks: assembled.blocks,
     budget: assembled.verdict,
+    notFilled,
     messages,
     params,
     startedAt,
@@ -323,6 +337,7 @@ export async function performCall(
           resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
           blocks: assembled.blocks,
           budget: assembled.verdict,
+          notFilled,
           messages,
           params,
           usage: result.usage,
@@ -363,6 +378,7 @@ export async function performCall(
             resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
             blocks: assembled.blocks,
             budget: assembled.verdict,
+            notFilled,
             messages,
             params,
             usage: null,
@@ -428,6 +444,7 @@ export async function performCall(
           resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
           blocks: assembled.blocks,
           budget: assembled.verdict,
+          notFilled,
           messages,
           params,
           usage: null,

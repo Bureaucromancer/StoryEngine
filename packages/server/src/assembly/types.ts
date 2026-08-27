@@ -164,6 +164,43 @@ export interface Candidate {
  */
 export type CallPurpose = 'prose' | 'effects' | 'verdict';
 
+/**
+ * Why a slot collected nothing — [P3.0], the §7.5 decision. A class, not
+ * prose, per the rule progress events are held to: the panel maps class to
+ * sentence, and nothing durable grows another free-English field.
+ *
+ * - `disabled` — the author switched the block off.
+ * - `not-applicable` — `appliesTo` excludes this call's kind.
+ * - `no-producer` — the source has no producer at this phase (lore is P5,
+ *   goals are Setup-borne, a channel has no text renderer…).
+ * - `empty-source` — the producer ran and yielded nothing: an empty guidance
+ *   box, an empty cast, a first turn with no history, an empty template —
+ *   with `omitWhenEmpty` dropping the block rather than a heading over
+ *   nothing.
+ * - `unknown-slot` — a slot kind from a newer build, skipped rather than
+ *   thrown ([10 §8]'s tolerant reader).
+ */
+export type NotFilledReason =
+  'disabled' | 'not-applicable' | 'no-producer' | 'empty-source' | 'unknown-slot';
+
+/**
+ * A preset block that emitted no candidate — [P3.0]'s answer to *why is there
+ * no lore in this prompt*, decided as a **second list** rather than a third
+ * `included` state: a slot that produced nothing has no text, no tokens and
+ * no budget ruling, so a row among the blocks would be a block-shaped hole.
+ * `blocks` keeps meaning exactly *what was assembled*.
+ */
+export interface NotFilledSlot {
+  /** The preset block that positioned the slot. */
+  blockId: string;
+  /**
+   * The slot's source kind — `'preset'` for a skipped text block, the
+   * foreign word itself for an `unknown-slot`.
+   */
+  source: BlockSource['kind'] | (string & {});
+  reason: NotFilledReason;
+}
+
 /** A candidate the budgeter has ruled on — [02 §8]. */
 export interface AssembledBlock {
   id: string;

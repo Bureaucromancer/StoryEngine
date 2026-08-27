@@ -1209,6 +1209,17 @@ interface AssembledBlock {
 }
 ```
 
+**A slot that collected nothing enters the record** — as a `notFilled` entry
+beside the call's blocks (`{ blockId, source, reason }`, the reason a class:
+`disabled`, `not-applicable`, `no-producer`, `empty-source`, `unknown-slot`),
+never as a block: `included` stays two-valued, because a slot that produced no
+candidate has no text, no tokens and no budget ruling, and a row among the
+blocks would be a block-shaped hole. The reason travels as a class rather than
+prose, so the panel's answer to *"why is there no lore in this prompt"* is a
+rendering of the record rather than a recomputation. (Decided at P3.0,
+closing the question [P3 §7.5] carried; on the first real turn measured, ten
+of twelve preset blocks left no row and the record could not say why.)
+
 **`request`, `output`, `cost` and `steps` are absent rather than empty when
 nothing happened.** A turn recording a hand edit to `session.json` (§8.1) made no
 request, ran no steps and sent no message — and an empty `request` there would

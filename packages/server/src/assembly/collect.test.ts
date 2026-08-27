@@ -83,7 +83,7 @@ describe('the advisory firewall is structural, not an author preference', () => 
     //
     // Tested with `advisory: false` precisely because the shipped preset sets
     // it true: with both halves of the union satisfied, neither is falsifiable.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', id: 'se.guidance', source: { of: 'guidance' }, advisory: false }),
@@ -97,7 +97,7 @@ describe('the advisory firewall is structural, not an author preference', () => 
   });
 
   it('refuses that candidate from an effects call, end to end', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', id: 'se.guidance', source: { of: 'guidance' }, advisory: false }),
@@ -116,7 +116,7 @@ describe('the advisory firewall is structural, not an author preference', () => 
     // and text alike, so an imported preset can mark its own prose advisory and
     // the union has to carry that too — not just the guidance slot somebody
     // remembered.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'text', id: 'se.note', template: 'keep it short', advisory: true }),
@@ -136,7 +136,7 @@ describe('the player action cannot be made droppable', () => {
     // `PresetBlock` has no `required` field at all, which is the portable schema
     // agreeing: a preset that could drop the action would not produce a shorter
     // prompt, it would produce the wrong one.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([block({ kind: 'slot', id: 'se.input', source: { of: 'input' } })]),
         input: { text: 'She opened the door.' },
@@ -151,7 +151,7 @@ describe('what the preset says about a block is obeyed', () => {
   it('skips a disabled block', () => {
     // A disabled block is an author note to themselves; deleting it to try
     // without it loses their work, so it is a real state.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({ preset: preset([block({ kind: 'text', template: 'ignored', enabled: false })]) }),
     );
     expect(candidates).toEqual([]);
@@ -164,8 +164,12 @@ describe('what the preset says about a block is obeyed', () => {
       block({ kind: 'text', template: 'for verdicts', appliesTo: ['verdict'] }),
     ]);
 
-    expect(collectCandidates(context({ preset: only, callKind: 'narrate' }))).toEqual([]);
-    expect(collectCandidates(context({ preset: only, callKind: 'verdict' }))).toHaveLength(1);
+    expect(collectCandidates(context({ preset: only, callKind: 'narrate' })).candidates).toEqual(
+      [],
+    );
+    expect(
+      collectCandidates(context({ preset: only, callKind: 'verdict' })).candidates,
+    ).toHaveLength(1);
   });
 
   it('drops an empty slot when omitWhenEmpty, and keeps it when not', () => {
@@ -183,12 +187,12 @@ describe('what the preset says about a block is obeyed', () => {
       }),
     ]);
 
-    expect(collectCandidates(context({ preset: dropped }))).toEqual([]);
-    expect(collectCandidates(context({ preset: kept }))[0]?.text).toBe('Note: ');
+    expect(collectCandidates(context({ preset: dropped })).candidates).toEqual([]);
+    expect(collectCandidates(context({ preset: kept })).candidates[0]?.text).toBe('Note: ');
   });
 
   it('substitutes the wrapper around filled content', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', source: { of: 'input' }, wrapper: 'Action: {{content}}' }),
@@ -202,7 +206,7 @@ describe('what the preset says about a block is obeyed', () => {
   it('carries the author-facing label through as the reason', () => {
     // [03 §5]: the reason is a product feature, not a debug string — it is what
     // the workbench shows when somebody asks why a block is in the prompt.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([block({ kind: 'text', template: 'x', label: 'the narrator brief' })]),
       }),
@@ -226,7 +230,7 @@ describe('the cast fills the slots that were unreachable', () => {
   };
 
   it('joins the persona sections that are always shown, and says which actor they were', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({ preset: preset([block({ kind: 'slot', source: { of: 'persona' } })]), persona }),
     );
     expect(candidates[0]?.text).toContain('Ned keeps the rain off other people.');
@@ -241,7 +245,7 @@ describe('the cast fills the slots that were unreachable', () => {
   });
 
   it('records null for a session with no persona, which is data and not an omission', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([block({ kind: 'slot', source: { of: 'persona' }, omitWhenEmpty: false })]),
         persona: null,
@@ -251,7 +255,7 @@ describe('the cast fills the slots that were unreachable', () => {
   });
 
   it('emits one candidate per actor, so the budgeter can drop one and keep another', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', id: 'se.a', source: { of: 'actor', sectionId: 'se.summary' } }),
@@ -275,13 +279,13 @@ describe('the cast fills the slots that were unreachable', () => {
   it('renders traits and refuses to invent a rendering for visual', () => {
     // `visual` is structured data for an image pipeline ([10 §4]) with no prose
     // renderer specified — emitting something would be inventing a format.
-    const traits = collectCandidates(
+    const { candidates: traits } = collectCandidates(
       context({
         preset: preset([block({ kind: 'slot', source: { of: 'actor', field: 'traits' } })]),
         actors: [vera],
       }),
     );
-    const visual = collectCandidates(
+    const { candidates: visual } = collectCandidates(
       context({
         preset: preset([block({ kind: 'slot', source: { of: 'actor', field: 'visual' } })]),
         actors: [vera],
@@ -315,7 +319,7 @@ describe('history is splittable from the start', () => {
    * assistant monologue. Invisible on screen; visible only on the wire.
    */
   it('emits the player’s words and the model’s as separate messages', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', id: 'se.h', source: { of: 'history' }, priority: 10 }),
@@ -333,7 +337,7 @@ describe('history is splittable from the start', () => {
   });
 
   it('keeps a turn together in the budgeter’s ordering, oldest cheapest', () => {
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', id: 'se.h', source: { of: 'history' }, priority: 10 }),
@@ -355,7 +359,7 @@ describe('history is splittable from the start', () => {
     // `exactOptionalPropertyTypes` correctly refuses.
     const pending: Turn = turn(1);
     delete pending.output;
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([block({ kind: 'slot', id: 'se.h', source: { of: 'history' } })]),
         history: [pending],
@@ -377,8 +381,10 @@ describe('history is splittable from the start', () => {
   it('keys a history block by the turn, wherever the window put it', () => {
     const seventh = turn(7);
     const slot = preset([block({ kind: 'slot', id: 'se.h', source: { of: 'history' } })]);
-    const wide = collectCandidates(context({ preset: slot, history: [turn(1), seventh] }));
-    const narrow = collectCandidates(context({ preset: slot, history: [seventh] }));
+    const { candidates: wide } = collectCandidates(
+      context({ preset: slot, history: [turn(1), seventh] }),
+    );
+    const { candidates: narrow } = collectCandidates(context({ preset: slot, history: [seventh] }));
 
     const inWide = wide.find((candidate) => candidate.text === 'in 7');
     const inNarrow = narrow.find((candidate) => candidate.text === 'in 7');
@@ -391,12 +397,59 @@ describe('history is splittable from the start', () => {
   });
 });
 
+describe('a slot that collected nothing is on the record', () => {
+  /**
+   * [P3.0]'s §7.5 decision, one case per reason class. On the only real turn
+   * measured before this existed, ten of twelve blocks left no row and the
+   * panel could not answer *why is there no lore in this prompt*. Each case's
+   * falsifying mutation is deleting the recording line in its branch of
+   * `collectCandidates` (or the class arm in `emptyReason`).
+   */
+  it('records disabled, not-applicable, no-producer, empty-source and unknown-slot', () => {
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'text', id: 'se.off', template: 'x', enabled: false }),
+          block({ kind: 'text', id: 'se.elsewhere', template: 'x', appliesTo: ['verdict'] }),
+          block({ kind: 'slot', id: 'se.lore', source: { of: 'lore', phase: 'before' } }),
+          block({ kind: 'slot', id: 'se.guidance', source: { of: 'guidance' } }),
+          block({
+            kind: 'slot',
+            id: 'se.weather',
+            source: { of: 'weather' } as unknown as { of: 'history' },
+          }),
+          block({ kind: 'text', id: 'se.kept', template: 'still here' }),
+        ]),
+      }),
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(['se.kept']);
+    expect(notFilled).toEqual([
+      { blockId: 'se.off', source: 'preset', reason: 'disabled' },
+      { blockId: 'se.elsewhere', source: 'preset', reason: 'not-applicable' },
+      { blockId: 'se.lore', source: 'lore', reason: 'no-producer' },
+      { blockId: 'se.guidance', source: 'guidance', reason: 'empty-source' },
+      { blockId: 'se.weather', source: 'weather', reason: 'unknown-slot' },
+    ]);
+  });
+
+  it('does not list a slot that filled', () => {
+    const { notFilled } = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.input', source: { of: 'input' } })]),
+        input: { text: 'She waited.' },
+      }),
+    );
+    expect(notFilled).toEqual([]);
+  });
+});
+
 describe('a preset from a newer build', () => {
   it('ignores a slot kind this build does not know, rather than throwing', () => {
     // The shared Ajv preserves unknown fields, so a preset written against a
     // later schema validates and arrives here. Refusing it would make one
     // unknown slot cost somebody their whole session.
-    const candidates = collectCandidates(
+    const { candidates } = collectCandidates(
       context({
         preset: preset([
           block({ kind: 'slot', source: { of: 'weather' } as unknown as { of: 'history' } }),
@@ -444,7 +497,7 @@ describe('in-history placement, which is the one that is not list order', () => 
         ]),
         history,
       }),
-    ).map((candidate) => candidate.id);
+    ).candidates.map((candidate) => candidate.id);
   }
 
   /**
@@ -514,7 +567,7 @@ describe('in-history placement, which is the one that is not list order', () => 
         ]),
         history,
       }),
-    ).map((candidate) => candidate.id);
+    ).candidates.map((candidate) => candidate.id);
 
     // Declared second but numbered lower, so it goes first — dropping the
     // number would reorder somebody's prompt with nothing to show for it.
@@ -535,7 +588,7 @@ describe('in-history placement, which is the one that is not list order', () => 
         ]),
         input: { text: 'She waited.' },
       }),
-    ).map((candidate) => candidate.id);
+    ).candidates.map((candidate) => candidate.id);
 
     expect(none).toEqual(['se.input', 'se.note']);
   });

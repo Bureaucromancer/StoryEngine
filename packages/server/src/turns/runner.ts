@@ -521,6 +521,7 @@ export class TurnRunner {
                   config,
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
+                  notFilled: fromPreset.notFilled,
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -531,6 +532,7 @@ export class TurnRunner {
                       resolved: provisional.resolved,
                       blocks: provisional.blocks,
                       budget: provisional.budget,
+                      notFilled: provisional.notFilled,
                       messages: provisional.messages,
                       params: provisional.params,
                       usage: null,
@@ -583,7 +585,7 @@ export class TurnRunner {
                   },
                 },
                 request,
-                [...fromPreset, ...contributed],
+                [...fromPreset.candidates, ...contributed],
               );
 
               finalise(outcome.call);

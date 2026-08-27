@@ -271,6 +271,10 @@ interface ModelCall {
    *  killed process still leaves the block table it was sent. */
   blocks: AssembledBlock[]       // §1.1's vocabulary
   budget: BudgetVerdict          // §1.5
+  /** The preset blocks that emitted nothing for this call, each with a reason
+   *  class (P3.0, closing [P3 §7.5]) — the record's answer to "why is there
+   *  no lore in this prompt". Empty when a step supplied its own candidates. */
+  notFilled: { blockId: string; source: string; reason: string }[]
   messages: RenderedMessage[]     // §2
   params: GenerationParams
   /** Provider-reported, not estimated. The measured half of budgeting with a

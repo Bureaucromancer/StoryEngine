@@ -725,10 +725,15 @@ that item is gated on a design answer rather than on effort.*
 - **A content hash of a block's source object**, so the gate's *clickable through
   to the object it came from* resolves to the object that was **used** rather than
   the object with that id today.
-- **Not-filled slots, represented somehow** — or the plan states that an absent
-  slot is invisible and owns the consequence. On the only real turn available, ten
-  of twelve blocks left no row. This decides whether the panel can answer *why is
-  there no lore in this prompt*, and it is genuinely open — §6.5.
+- ~~**Not-filled slots, represented somehow**~~ **[DECIDED] at P3.0**, per
+  §7.5's resolution: a second list, never a third `included` state — each call
+  carries `notFilled: { blockId, source, reason }[]` with the reason a class
+  (`disabled` / `not-applicable` / `no-producer` / `empty-source` /
+  `unknown-slot`), because a slot that produced no candidate has no text, no
+  tokens and no budget ruling, and a row among the blocks would be a
+  block-shaped hole. Written back into [02 §8] as the contract. The measured
+  motivation stands: on the only real turn available, ten of twelve blocks
+  left no row.
 - **Effects need to distinguish their three outcomes.** An engine-computed refusal
   and a user-only refusal write the identical policy string, the degraded state
   has no writer anywhere, and the engine's replacement carries no link to the
@@ -991,9 +996,11 @@ and may return less after a schema bump. *And smaller, but needed first:* what
 *the index rows* means concretely — the winning row, every row for the id
 including shadowed and tombstoned, or the FTS row too.
 
-**7.5 Whether a slot that collected nothing is a row.** `omitWhenEmpty` is an
-authoring feature about the *prompt*; §3 is a surface about the *explanation*.
-Whether the record carries not-filled blocks — and therefore whether `included`
-grows a third state or a second list appears — is undecided in both
-[02 §8](../02-data-model.md) and §3, and it decides whether the panel can answer
-*why is there no lore in this prompt*.
+**7.5 Whether a slot that collected nothing is a row. [DECIDED] at P3.0: it
+is an entry in a second list, not a row among the blocks.** `omitWhenEmpty`
+stays an authoring feature about the *prompt*; the record now carries the
+*explanation* as `ModelCall.notFilled` — one entry per preset block that
+emitted no candidate, with the reason as a class rather than prose. `included`
+stays two-valued: a slot that was never assembled has nothing for a budget to
+rule on. The answer is written into [02 §8](../02-data-model.md); the panel's
+*why is there no lore in this prompt* is a rendering of the record.

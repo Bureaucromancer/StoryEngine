@@ -812,6 +812,62 @@ describe('cancellation', () => {
   });
 });
 
+describe('the record says why a slot is empty', () => {
+  /**
+   * [P3.0] §7.5, end to end: Scene's preset positions twelve blocks and a
+   * bare session fills two, so the call's `notFilled` carries the other ten
+   * with their reason classes — the record's answer to *why is there no lore
+   * in this prompt*. The falsifying mutation is stamping `notFilled: []` at
+   * the success literal in `performCall`.
+   */
+  it('lands the not-filled slots on the call, reasons and all', async () => {
+    const { turn } = await runTurn();
+
+    const call = turn.request?.calls[0];
+    const lore = call?.notFilled.find((slot) => slot.source === 'lore');
+    expect(lore?.reason).toBe('no-producer');
+    // Nothing filled is also nothing listed twice: the filled blocks and the
+    // not-filled slots partition the preset's applicable blocks.
+    const filledIds = new Set(call?.blocks.map((block) => block.id));
+    for (const slot of call?.notFilled ?? []) {
+      expect(filledIds.has(slot.blockId)).toBe(false);
+    }
+    expect((call?.notFilled.length ?? 0) > 0).toBe(true);
+  });
+
+  it('empties honestly when a step supplies its own candidates', async () => {
+    // The preset was not consulted, so the list has nothing to say — a copy
+    // of the preset's gaps here would describe a collection this call never
+    // used.
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: NARRATE,
+            run: async (_input, host) => {
+              const result = await host.call({
+                candidates: [
+                  {
+                    id: 'step.own',
+                    source: { kind: 'step', stepId: NARRATE.id },
+                    reason: 'a step-authored block',
+                    role: 'system',
+                    text: 'Improvise.',
+                  },
+                ],
+              });
+              return { message: { text: result.text } };
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.request?.calls[0]?.notFilled).toEqual([]);
+  });
+});
+
 describe('the engine says what it overrode', () => {
   /**
    * [05 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
@@ -1549,6 +1605,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       // the walk stop descending exactly where the new data lives.
       'request.calls[*].budget.decisions[*].rule',
       'request.calls[*].blocks[*].tokens',
+      'request.calls[*].notFilled[*].reason',
       'effects[*].before.hour',
       'steps[*].contributed.blocks',
     ]) {
