@@ -14,6 +14,7 @@ import {
   reconcileHandEdits,
   setCast,
   readTurns,
+  readTurnById,
   setArchived,
 } from '../sessions/store.js';
 import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
@@ -40,6 +41,7 @@ import { PathEscapeError } from '../storage/paths.js';
 
 const SessionParams = Type.Object({ sessionId: Type.String() });
 const JobParams = Type.Object({ sessionId: Type.String(), jobId: Type.String() });
+const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String() });
 
 /**
  * What a session is created as.
@@ -262,6 +264,37 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         query.limit === undefined ? 100 : Math.min(Math.max(Number(query.limit), 1), 1000);
 
       return reply.send({ turns: path.slice(-limit) });
+    },
+  );
+
+  /**
+   * One turn by id, without the transcript riding along — [P3.0]. `GET
+   * /turns` costs ~10.8 KB a turn and the whole path per request; the
+   * workbench wants one turn, including one the head has passed — a re-run
+   * sibling, a compare target — which the path walk never serves.
+   *
+   * The same 404 discipline as everything here: the session resolves from
+   * the account, and a turn that exists in somebody else's session is the
+   * same "No such turn." as one that never existed — the lookup is scoped to
+   * *this* session inside the store, so a bare turn id cannot confirm
+   * existence across the boundary.
+   */
+  app.get(
+    '/sessions/:sessionId/turns/:turnId',
+    { schema: { params: TurnParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await mine(services, request, reply);
+      if (!session) return;
+
+      const { turnId } = request.params as { turnId: string };
+      const turn = await readTurnById(services.sessions, account.handle, session.id, turnId);
+      if (turn === null) {
+        return reply.status(404).send({ error: 'not-found', message: 'No such turn.' });
+      }
+      return reply.send({ turn });
     },
   );
 

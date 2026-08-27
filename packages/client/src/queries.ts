@@ -15,6 +15,7 @@ import {
   api,
   readSession,
   readTranscript,
+  readTurn,
   type Account,
   type AccountPatch,
   type ActiveJob,
@@ -393,6 +394,21 @@ export function useTranscript(sessionId: string): UseQueryResult<{ turns: TurnRe
   return useQuery({
     queryKey: ['transcript', sessionId],
     queryFn: () => readTranscript(sessionId),
+  });
+}
+
+/**
+ * One turn by id — [P3.0]'s route, for the surfaces that address a turn
+ * rather than a path: compare (P3.6), and any panel over a turn the head has
+ * passed. Default staleTime, with the reason written down: a `complete` turn
+ * is immutable and `Infinity` would be true for it, but a `suspended` one
+ * will finish, and gating the staleness on status is complexity nothing
+ * needs yet.
+ */
+export function useTurn(sessionId: string, turnId: string): UseQueryResult<{ turn: TurnRecord }> {
+  return useQuery({
+    queryKey: ['turn', sessionId, turnId],
+    queryFn: () => readTurn(sessionId, turnId),
   });
 }
 

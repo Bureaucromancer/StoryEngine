@@ -19,6 +19,7 @@ import {
   listSessionFiles,
   listSessions,
   readSession,
+  readTurnById,
   readTurns,
   replayChannels,
   setArchived,
@@ -103,6 +104,64 @@ async function aSessionOf(count: number): Promise<{ sessionId: string; turns: Tu
 
   return { sessionId: session.id, turns };
 }
+
+describe('one turn by id', () => {
+  /**
+   * [P3.0]'s read: the location index finally doing the job its header
+   * promised, with the cold read behind it because [13 §5] makes the index
+   * derived — deleting it costs a rescan and nothing else, and a route that
+   * 404'd on a missing row would make it load-bearing.
+   */
+  it('serves a turn the head has passed, by id', async () => {
+    const { sessionId, turns } = await aSessionOf(3);
+    const middle = turns[1];
+
+    const found = await readTurnById(context, 'ned', sessionId, middle?.id ?? '');
+    expect(found?.id).toBe(middle?.id);
+    expect(found?.createdAt).toBe(middle?.createdAt);
+  });
+
+  it('falls back to the cold read when the index has no row', async () => {
+    // The falsifying mutation is returning null on an index miss — the
+    // derived index becomes load-bearing exactly the way [13 §5] forbids.
+    const { sessionId, turns } = await aSessionOf(2);
+    index.db.prepare('delete from turn').run();
+
+    const found = await readTurnById(context, 'ned', sessionId, turns[0]?.id ?? '');
+    expect(found?.id).toBe(turns[0]?.id);
+  });
+
+  it('refuses to read across sessions, even with a real turn id', async () => {
+    // The boundary is structural — the location resolves under the
+    // *requested* session's directory — but that alone is not enough: both
+    // sessions' first turns share `{000001.jsonl, offset 0}`, so an aligned
+    // hit parses cleanly and would serve the wrong session's turn under the
+    // requested id. The id-match on the line read back is what refuses it,
+    // and dropping that guard is the falsifying mutation — this test then
+    // hands back the other session's turn. (The mutation is *trusting the
+    // located row* — the session short-circuit and the id-match protect this
+    // independently, so it takes removing both, which is one decision.)
+    const first = await aSessionOf(1);
+    const second = await aSessionOf(1);
+
+    const found = await readTurnById(context, 'ned', first.sessionId, second.turns[0]?.id ?? '');
+    expect(found).toBeNull();
+  });
+
+  it('hides a tombstone on both paths', async () => {
+    // `readAllTurns` skips tombstones and `readTurnAt` does not, so without
+    // the guard the two paths would disagree about whether a removed turn
+    // exists — the falsifying mutation is dropping the `removed` check on the
+    // index path.
+    const { sessionId, turns } = await aSessionOf(1);
+    const ghost: Turn = { ...turnAfter(sessionId, turns[0]?.id ?? null, 2), removed: true };
+    await appendTurnToSession(context, 'ned', sessionId, ghost);
+
+    expect(await readTurnById(context, 'ned', sessionId, ghost.id)).toBeNull();
+    index.db.prepare('delete from turn').run();
+    expect(await readTurnById(context, 'ned', sessionId, ghost.id)).toBeNull();
+  });
+});
 
 describe('a session on disk', () => {
   it('is a folder with a session.json and a turns directory', async () => {

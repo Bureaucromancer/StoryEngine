@@ -362,6 +362,19 @@ export function readTranscript(sessionId: string): Promise<{ turns: TurnRecord[]
   return request('GET', `/api/sessions/${sessionId}/turns`);
 }
 
+/**
+ * One turn, without the transcript riding along — [P3.0]. Encoded, unlike
+ * this section's other paths: the library half of this file encodes every id
+ * it puts in a URL and that is the better precedent — an id is user-adjacent
+ * input even when this client only ever mints UUIDs.
+ */
+export function readTurn(sessionId: string, turnId: string): Promise<{ turn: TurnRecord }> {
+  return request(
+    'GET',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}`,
+  );
+}
+
 export interface SubmitTurn {
   sessionId: string;
   idempotencyKey: string;

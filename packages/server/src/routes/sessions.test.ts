@@ -536,6 +536,46 @@ describe('a session with a cast assembles the whole preset', () => {
     expect(sent).toContain('Ned keeps the rain off other people');
   });
 
+  /**
+   * [P3.0]'s by-id read, through the route: one turn without the transcript
+   * riding along, and the same 404 for a turn that never existed as for one
+   * that is not this session's — "No such turn." confirms nothing.
+   */
+  it('serves one turn by its own address, and 404s one that is not there', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'By id' },
+    });
+    const sessionId = created.body.session.id as string;
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k-by-id', headTurnId: null, input: { text: 'She waited.' } },
+    });
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const head = turns.body.turns.at(-1);
+    const headId = head.id as string;
+    const one = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns/${headId}`,
+    });
+    expect(one.status).toBe(200);
+    // The whole record, byte-equal with the transcript's copy of it.
+    expect(one.body.turn).toEqual(head);
+
+    const missing = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns/01a00000-0000-7000-8000-000000000000`,
+    });
+    expect(missing.status).toBe(404);
+    expect(missing.body).toEqual({ error: 'not-found', message: 'No such turn.' });
+  });
+
   it('copies the preset rather than referencing it', async () => {
     // [02 §8]: the session owns its pack from creation, so editing the mode's
     // default never rewrites a game in progress. The asymmetry with the cast —

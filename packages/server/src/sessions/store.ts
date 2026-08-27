@@ -5,7 +5,12 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { type Preset, uuidv7 } from '@storyengine/shared';
 
-import { indexSession, indexTurn, removeSessionRows } from '../index-db/sessions.js';
+import {
+  findTurnLocation,
+  indexSession,
+  indexTurn,
+  removeSessionRows,
+} from '../index-db/sessions.js';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '../storage/files.js';
@@ -16,6 +21,7 @@ import { divergenceEffects, divergenceTurn } from './channels.js';
 import {
   appendTurn,
   readAllTurns,
+  readTurnAt,
   type SegmentLimits,
   type TurnLocation,
   walkPath,
@@ -473,4 +479,48 @@ export async function readTurns(
   const root = turnsRoot(context.layout, handle, sessionId);
   const found = await readAllTurns(root);
   return new Map(found.map(({ turn }) => [turn.id, turn]));
+}
+
+/**
+ * One turn by id, without the transcript riding along — [P3.0]. `GET /turns`
+ * costs about 10.8 KB a turn and the whole path per request; the panel wants
+ * one turn, and this is the location index finally doing the job its header
+ * promised.
+ *
+ * **Index hit first, cold read second, and the fallback is required rather
+ * than defensive** ([13 §5]): the index is derived, deleting it is a
+ * non-event, and a route that 404'd on a missing row would make it
+ * load-bearing. **The ownership boundary is structural**: the location is
+ * only ever resolved under the *requested* session's own turns directory, so
+ * a cross-session turn id cannot read across it — the sessionId and owner
+ * comparisons below merely skip a read that cannot succeed. What carries the
+ * correctness is the id-match on the line read back: two sessions' first
+ * turns share `{000001.jsonl, offset 0}`, so an unchecked hit would serve
+ * the wrong session's turn under the requested id — and a stale row after a
+ * hand-edited segment has the same shape. Both fall through to the cold
+ * read. A tombstone reads as absent on both paths — `readAllTurns` skips
+ * them and `readTurnAt` does not, so the guard lives here.
+ */
+export async function readTurnById(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+): Promise<Turn | null> {
+  const root = turnsRoot(context.layout, handle, sessionId);
+
+  const located = findTurnLocation(context.index, turnId);
+  if (
+    located !== null &&
+    located.sessionId === sessionId &&
+    located.owner === scopeOf(context, handle)
+  ) {
+    const turn = await readTurnAt(root, { segment: located.segment, offset: located.offset });
+    if (turn !== null && turn.id === turnId) {
+      return turn.removed === true ? null : turn;
+    }
+  }
+
+  const turn = (await readTurns(context, handle, sessionId)).get(turnId) ?? null;
+  return turn?.removed === true ? null : turn;
 }
