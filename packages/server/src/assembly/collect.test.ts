@@ -212,16 +212,42 @@ describe('what the preset says about a block is obeyed', () => {
 });
 
 describe('the cast fills the slots that were unreachable', () => {
-  const persona = actorWith('Ned', 'Ned keeps the rain off other people.');
-  const vera = actorWith('Vera', 'Vera runs the night desk.');
-  const marlow = actorWith('Marlow', 'Marlow owes somebody money.');
+  const persona = {
+    actor: actorWith('Ned', 'Ned keeps the rain off other people.'),
+    contentHash: 'sha256:ned-1',
+  };
+  const vera = {
+    actor: actorWith('Vera', 'Vera runs the night desk.'),
+    contentHash: 'sha256:vera-1',
+  };
+  const marlow = {
+    actor: actorWith('Marlow', 'Marlow owes somebody money.'),
+    contentHash: 'sha256:marlow-1',
+  };
 
-  it('joins the persona sections that are always shown', () => {
+  it('joins the persona sections that are always shown, and says which actor they were', () => {
     const candidates = collectCandidates(
       context({ preset: preset([block({ kind: 'slot', source: { of: 'persona' } })]), persona }),
     );
     expect(candidates[0]?.text).toContain('Ned keeps the rain off other people.');
-    expect(candidates[0]?.source).toEqual({ kind: 'persona' });
+    // The enriched source since [P3.0]: the persona is an actor too, and the
+    // hash addresses the bytes that were used. The falsifying mutation is
+    // stamping the nulls unconditionally in the collector's persona arm.
+    expect(candidates[0]?.source).toEqual({
+      kind: 'persona',
+      actorId: persona.actor.id,
+      contentHash: 'sha256:ned-1',
+    });
+  });
+
+  it('records null for a session with no persona, which is data and not an omission', () => {
+    const candidates = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', source: { of: 'persona' }, omitWhenEmpty: false })]),
+        persona: null,
+      }),
+    );
+    expect(candidates[0]?.source).toEqual({ kind: 'persona', actorId: null, contentHash: null });
   });
 
   it('emits one candidate per actor, so the budgeter can drop one and keep another', () => {
@@ -235,8 +261,15 @@ describe('the cast fills the slots that were unreachable', () => {
     );
 
     expect(candidates).toHaveLength(2);
-    expect(candidates.map((each) => each.id)).toEqual([`se.a.${vera.id}`, `se.a.${marlow.id}`]);
-    expect(candidates[0]?.source).toMatchObject({ kind: 'actor', actorId: vera.id });
+    expect(candidates.map((each) => each.id)).toEqual([
+      `se.a.${vera.actor.id}`,
+      `se.a.${marlow.actor.id}`,
+    ]);
+    expect(candidates[0]?.source).toMatchObject({
+      kind: 'actor',
+      actorId: vera.actor.id,
+      contentHash: 'sha256:vera-1',
+    });
   });
 
   it('renders traits and refuses to invent a rendering for visual', () => {
@@ -333,6 +366,29 @@ describe('history is splittable from the start', () => {
     // message is not a thing to send.
     expect(candidates.map((candidate) => candidate.role)).toEqual(['user']);
   });
+
+  /**
+   * [P3.0]: the identity is the turn, not the window position. A block id
+   * keyed by the window index names a different turn every twenty turns,
+   * which is what made any block-keyed comparison wrong from turn twenty-one
+   * onward. The falsifying mutation is restoring `${index}` in the id and the
+   * range-only source.
+   */
+  it('keys a history block by the turn, wherever the window put it', () => {
+    const seventh = turn(7);
+    const slot = preset([block({ kind: 'slot', id: 'se.h', source: { of: 'history' } })]);
+    const wide = collectCandidates(context({ preset: slot, history: [turn(1), seventh] }));
+    const narrow = collectCandidates(context({ preset: slot, history: [seventh] }));
+
+    const inWide = wide.find((candidate) => candidate.text === 'in 7');
+    const inNarrow = narrow.find((candidate) => candidate.text === 'in 7');
+    expect(inWide?.id).toBe('se.h.t7.input');
+    expect(inNarrow?.id).toBe('se.h.t7.input');
+    // The source carries the identity beside the window position, so a reader
+    // can say *which turn* and *where it sat* without conflating the two.
+    expect(inWide?.source).toMatchObject({ kind: 'history', turnId: 't7', range: [1, 1] });
+    expect(inNarrow?.source).toMatchObject({ kind: 'history', turnId: 't7', range: [0, 0] });
+  });
 });
 
 describe('a preset from a newer build', () => {
@@ -405,10 +461,10 @@ describe('in-history placement, which is the one that is not list order', () => 
    */
   it('puts a depth-zero block after the newest message', () => {
     expect(ids(0)).toEqual([
-      'se.h.0.input',
-      'se.h.0.output',
-      'se.h.1.input',
-      'se.h.1.output',
+      'se.h.t1.input',
+      'se.h.t1.output',
+      'se.h.t2.input',
+      'se.h.t2.output',
       'se.note',
     ]);
   });
@@ -418,11 +474,11 @@ describe('in-history placement, which is the one that is not list order', () => 
     // this landed at the end regardless of the depth the author wrote — and
     // then, once read, at twice the depth.
     expect(ids(2)).toEqual([
-      'se.h.0.input',
-      'se.h.0.output',
+      'se.h.t1.input',
+      'se.h.t1.output',
       'se.note',
-      'se.h.1.input',
-      'se.h.1.output',
+      'se.h.t2.input',
+      'se.h.t2.output',
     ]);
   });
 
@@ -431,10 +487,10 @@ describe('in-history placement, which is the one that is not list order', () => 
     // not "outside the run".
     expect(ids(99)).toEqual([
       'se.note',
-      'se.h.0.input',
-      'se.h.0.output',
-      'se.h.1.input',
-      'se.h.1.output',
+      'se.h.t1.input',
+      'se.h.t1.output',
+      'se.h.t2.input',
+      'se.h.t2.output',
     ]);
   });
 

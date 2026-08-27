@@ -42,10 +42,17 @@ it, the resulting block records where it came from. Same name, both ends.
 
 ```ts
 type BlockSource =
-  | { kind: "persona" }
-  | { kind: "actor"; actorId: ActorId; sectionId?: string; field?: "traits" | "visual" }
+  /** The persona is an actor too (P3.0): the id makes the block clickable and
+   *  the hash addresses the bytes that were used; both null when the session
+   *  has no persona. */
+  | { kind: "persona"; actorId: ActorId | null; contentHash: string | null }
+  /** contentHash since P3.0 — the cast is a link read fresh each turn, so the
+   *  id resolves to the actor as it is now; the hash to the actor as sent. */
+  | { kind: "actor"; actorId: ActorId; contentHash: string; sectionId?: string; field?: "traits" | "visual" }
   | { kind: "lore"; entryId: string; phase: "before" | "after" }
-  | { kind: "history"; range: [number, number] }
+  /** turnId is the identity (P3.0); the window-relative range stays as display
+   *  information — where in this prompt the turn sat. */
+  | { kind: "history"; turnId: TurnId; range: [number, number] }
   | { kind: "examples"; actorId: ActorId }
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "treatment"; part: "framing" | "tone" }

@@ -26,8 +26,26 @@
  * "a lore entry".
  */
 export type BlockSource =
-  | { kind: 'persona' }
-  | { kind: 'actor'; actorId: string; sectionId?: string; field?: 'traits' | 'visual' }
+  /**
+   * The persona is an actor too ([P3.0]): `actorId` is what makes the block
+   * clickable through to the object it came from, and `contentHash` addresses
+   * the bytes that were *used* rather than the object with that id today.
+   * Both null when the session has no persona — a persona slot with
+   * `omitWhenEmpty: false` still emits over nothing, and null is that claim.
+   */
+  | { kind: 'persona'; actorId: string | null; contentHash: string | null }
+  /**
+   * `contentHash` since [P3.0] — the cast is a *link* read fresh every turn,
+   * so the id alone resolves to whatever the actor is *now*; the hash is what
+   * gate step 4 clicks through to the actor as it was sent.
+   */
+  | {
+      kind: 'actor';
+      actorId: string;
+      contentHash: string;
+      sectionId?: string;
+      field?: 'traits' | 'visual';
+    }
   | { kind: 'lore'; entryId: string; phase: 'before' | 'after' }
   /**
    * One half of one past turn — F36.
@@ -36,8 +54,14 @@ export type BlockSource =
    * with two rows carrying the same `range` and no way to tell them apart is a
    * reader that cannot answer *whose words were these*. Which is the question
    * the split was made to fix.
+   *
+   * `turnId` is the identity ([P3.0]): `range` is an index into the *window*,
+   * so from turn twenty-one onward two records disagree about which turn
+   * `range: [0, 0]` names, and any block-keyed comparison built on it is
+   * wrong. The window-relative range stays as display information — where in
+   * this prompt the turn sat — with the id carrying what it *was*.
    */
-  | { kind: 'history'; range: [number, number]; part: 'input' | 'output' }
+  | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
   | { kind: 'examples'; actorId: string }
   | { kind: 'channel'; channelId: string }
   | { kind: 'setting'; part: 'framing' | 'tone' }

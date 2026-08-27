@@ -23,7 +23,7 @@ function candidates(): Candidate[] {
   return [
     {
       id: 'persona',
-      source: { kind: 'persona' },
+      source: { kind: 'persona', actorId: null, contentHash: null },
       reason: 'always',
       role: 'system',
       text: 'You are Vera Solano, a fixer in Rain City.',
@@ -48,7 +48,7 @@ function candidates(): Candidate[] {
     },
     {
       id: 'history-old',
-      source: { kind: 'history', range: [0, 2], part: 'output' },
+      source: { kind: 'history', turnId: 't2', range: [0, 2], part: 'output' },
       reason: 'history',
       role: 'user',
       text: 'Earlier: they met on the bridge. And then: the deal went wrong.',
@@ -66,7 +66,7 @@ function candidates(): Candidate[] {
     },
     {
       id: 'history-recent',
-      source: { kind: 'history', range: [3, 4], part: 'output' },
+      source: { kind: 'history', turnId: 't4', range: [3, 4], part: 'output' },
       reason: 'history',
       role: 'user',
       text: 'She asks what you want.',
@@ -160,7 +160,7 @@ describe('the budget verdict', () => {
     const required: Candidate[] = [
       {
         id: 'the-message',
-        source: { kind: 'history', range: [9, 9], part: 'output' },
+        source: { kind: 'history', turnId: 't9', range: [9, 9], part: 'output' },
         reason: 'the user just said it',
         role: 'user',
         text: 'A'.repeat(4000),

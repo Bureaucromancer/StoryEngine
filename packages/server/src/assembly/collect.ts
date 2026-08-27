@@ -27,8 +27,9 @@ export interface CollectContext {
   callKind: string;
   /** Oldest first, already windowed by the mode's `historyWindow`. */
   history: readonly Turn[];
-  persona: Actor | null;
-  actors: readonly Actor[];
+  /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
+  persona: { actor: Actor; contentHash: string } | null;
+  actors: readonly { actor: Actor; contentHash: string }[];
   channels: Readonly<Record<string, ChannelState>>;
   input?: { text: string };
   guidance?: string;
@@ -144,15 +145,24 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
   const source = block.source;
   switch (source.of) {
     case 'persona':
-      return emit(block, personaText(context.persona), { kind: 'persona' }, undefined);
+      return emit(
+        block,
+        personaText(context.persona?.actor ?? null),
+        {
+          kind: 'persona',
+          actorId: context.persona?.actor.id ?? null,
+          contentHash: context.persona?.contentHash ?? null,
+        },
+        undefined,
+      );
 
     case 'actor':
       // One candidate per actor, so the budgeter can drop one and keep another.
-      return context.actors.flatMap((actor) =>
+      return context.actors.flatMap(({ actor, contentHash }) =>
         emit(
           block,
           actorText(actor, source),
-          actorSource(actor.id, source),
+          actorSource(actor.id, contentHash, source),
           `${block.id}.${actor.id}`,
         ),
       );
@@ -199,8 +209,11 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           return emit(
             { ...block, priority: block.priority + index, role },
             text,
-            { kind: 'history', range: [index, index], part: of },
-            `${block.id}.${String(index)}.${of}`,
+            // The turn id is the identity and the block id is keyed by it
+            // ([P3.0]): a window-relative id names a different turn every
+            // twenty turns, which is exactly what an id must never do.
+            { kind: 'history', turnId: turn.id, range: [index, index], part: of },
+            `${block.id}.${turn.id}.${of}`,
           );
         }),
       );
@@ -314,9 +327,15 @@ function actorText(actor: Actor, source: { sectionId?: string; field?: string })
 
 function actorSource(
   actorId: string,
+  contentHash: string,
   source: { sectionId?: string; field?: string },
 ): Candidate['source'] {
   if (source.sectionId !== undefined)
-    return { kind: 'actor', actorId, sectionId: source.sectionId };
-  return { kind: 'actor', actorId, field: source.field === 'visual' ? 'visual' : 'traits' };
+    return { kind: 'actor', actorId, contentHash, sectionId: source.sectionId };
+  return {
+    kind: 'actor',
+    actorId,
+    contentHash,
+    field: source.field === 'visual' ? 'visual' : 'traits',
+  };
 }

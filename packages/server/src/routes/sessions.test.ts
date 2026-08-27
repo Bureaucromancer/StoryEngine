@@ -514,12 +514,22 @@ describe('a session with a cast assembles the whole preset', () => {
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
-    const kinds = (
-      turns.body.turns[0].request.calls[0].blocks as { source: { kind: string } }[]
-    ).map((block) => block.source.kind);
+    const blocks = turns.body.turns[0].request.calls[0].blocks as {
+      source: { kind: string; actorId?: string | null; contentHash?: string | null };
+    }[];
+    const kinds = blocks.map((block) => block.source.kind);
 
     expect(kinds).toContain('persona');
     expect(kinds).toContain('actor');
+    // And each names the object as it was *used* — [P3.0]: the id for the
+    // click-through, the hash for the bytes, end to end through the real
+    // library rather than a fixture's spelling of them.
+    const personaSource = blocks.find((block) => block.source.kind === 'persona')?.source;
+    expect(personaSource?.actorId).toBe(personaId);
+    expect(personaSource?.contentHash).toMatch(/^sha256:/);
+    const actorSource = blocks.find((block) => block.source.kind === 'actor')?.source;
+    expect(actorSource?.actorId).toBe(actorId);
+    expect(actorSource?.contentHash).toMatch(/^sha256:/);
     // And the actor's own words reached the model, rather than an empty slot.
     const sent = provider.requests[0]?.messages.map((message) => message.content).join('\n') ?? '';
     expect(sent).toContain('Vera wears a long coat');
