@@ -35,7 +35,13 @@ const readTranscript = vi.fn();
 const submitTurn = vi.fn();
 const cancelTurn = vi.fn();
 
-vi.mock('../api.js', () => ({
+// `importOriginal` spread rather than the bare factory this file used to have:
+// the page now imports its session hooks from `queries.ts`, which loads under
+// this same mock and needs `api`, `adminApi` and the rest to keep their real
+// bindings rather than becoming `undefined`. Only the six session functions
+// are replaced.
+vi.mock('../api.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api.js')>()),
   listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
   createSession: (...a: unknown[]) => createSession(...a) as unknown,
   readSession: (...a: unknown[]) => readSession(...a) as unknown,

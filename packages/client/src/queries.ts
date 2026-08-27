@@ -13,8 +13,11 @@ import {
 import {
   adminApi,
   api,
+  readSession,
+  readTranscript,
   type Account,
   type AccountPatch,
+  type ActiveJob,
   type AdminAccountList,
   type AdminConnection,
   type Binding,
@@ -28,7 +31,9 @@ import {
   type LibraryObject,
   type ObjectAddress,
   type ObjectVersion,
+  type SessionSummary,
   type SetupInput,
+  type TurnRecord,
 } from './api.js';
 
 /**
@@ -362,6 +367,32 @@ export function usePatchPrefs(): UseMutationResult<
     onSuccess: (result) => {
       client.setQueryData(['prefs'], result);
     },
+  });
+}
+
+/**
+ * The play surface's reads, lifted out of `PlayPage` for the workbench —
+ * [P3.1](../../../docs/design/workplan/05-p3-implementation.md).
+ *
+ * Play's queries were the one inline exception to this file being the model
+ * layer, and that was fine while Play was their only mount. The workbench is a
+ * second mount in a different subtree, and two components spelling the same
+ * key by hand is how a cache splits: one of them drifts a segment and both
+ * fetch, disagree, and refresh on different schedules. Lifted, the key has one
+ * spelling — and the panel opening over Play issues **no new request**,
+ * because it reads the entry PlayPage already holds, which is also what keeps
+ * PlayPage's invalidate-on-finish refreshing both surfaces at once.
+ */
+export function useSession(
+  sessionId: string,
+): UseQueryResult<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+  return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
+}
+
+export function useTranscript(sessionId: string): UseQueryResult<{ turns: TurnRecord[] }> {
+  return useQuery({
+    queryKey: ['transcript', sessionId],
+    queryFn: () => readTranscript(sessionId),
   });
 }
 

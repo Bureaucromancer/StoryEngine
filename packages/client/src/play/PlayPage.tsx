@@ -3,11 +3,12 @@
 
 import { useEffect, useState } from 'react';
 import { control, page } from '../ui/classes.js';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { cancelTurn, readSession, readTranscript, submitTurn, type TurnRecord } from '../api.js';
+import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
+import { useSession, useTranscript } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { TurnRecordDisclosure } from './TurnRecord.js';
@@ -29,14 +30,10 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const [draft, setDraft] = useState('');
   const [guidance, setGuidance] = useState('');
 
-  const session = useQuery({
-    queryKey: ['session', sessionId],
-    queryFn: () => readSession(sessionId),
-  });
-  const transcript = useQuery({
-    queryKey: ['transcript', sessionId],
-    queryFn: () => readTranscript(sessionId),
-  });
+  // Shared with the workbench through `queries.ts`, so both mounts read one
+  // cache entry and the invalidate below refreshes both ([P3.1]).
+  const session = useSession(sessionId);
+  const transcript = useTranscript(sessionId);
 
   const running = state.status === 'running';
 
