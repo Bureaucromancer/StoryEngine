@@ -514,9 +514,9 @@ describe('a session with a cast assembles the whole preset', () => {
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
-    const kinds = (turns.body.turns[0].request.blocks as { source: { kind: string } }[]).map(
-      (block) => block.source.kind,
-    );
+    const kinds = (
+      turns.body.turns[0].request.calls[0].blocks as { source: { kind: string } }[]
+    ).map((block) => block.source.kind);
 
     expect(kinds).toContain('persona');
     expect(kinds).toContain('actor');

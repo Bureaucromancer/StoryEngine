@@ -5,7 +5,7 @@ import { type GenerationParams, uuidv7 } from '@storyengine/shared';
 
 import { assemble } from '../assembly/assemble.js';
 import { render } from '../assembly/render.js';
-import type { AssembledBlock, BudgetVerdict, Candidate } from '../assembly/types.js';
+import type { AssembledBlock, BudgetVerdict, CallPurpose, Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import type { Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
@@ -14,6 +14,8 @@ import {
   ProviderError,
   type FinishReason,
   type GenerationResult,
+  type ModelRole,
+  type RenderedMessage,
   type TokenUsage,
 } from '../providers/types.js';
 import type { ModelCall } from '../sessions/types.js';
@@ -71,6 +73,28 @@ export class Cancelled extends Error {
   }
 }
 
+/**
+ * Everything a call is, the moment it exists and before it is dispatched —
+ * [P3.0]. The runner checkpoints a provisional in-flight `ModelCall` from
+ * this, which is what lets a turn killed mid-call keep its block table now
+ * that blocks live on the call: the assembly must be durable before the
+ * provider is asked, or a power cut erases the prompt the record's own
+ * docstring promises to keep.
+ */
+export interface ProvisionalCall {
+  id: string;
+  stepId: string;
+  role: ModelRole;
+  purpose: CallPurpose;
+  /** The model that will be *asked* — the success record replaces this with the one that answered. */
+  resolved: { connectionId: string; modelId: string };
+  blocks: AssembledBlock[];
+  budget: BudgetVerdict;
+  messages: RenderedMessage[];
+  params: GenerationParams;
+  startedAt: number;
+}
+
 export interface CallContext {
   definition: StepDefinition;
   bindings: RoleBindings;
@@ -88,8 +112,8 @@ export interface CallContext {
    */
   preset?: { params: GenerationParams; budget: PresetBudget };
   signal: AbortSignal;
-  /** The blocks and verdict this call produced, for the turn record. */
-  onAssembled(blocks: AssembledBlock[], verdict: BudgetVerdict): void;
+  /** The call as assembled and rendered, before dispatch — see {@link ProvisionalCall}. */
+  onCallAssembled(provisional: ProvisionalCall): void;
   /** A durable, coalesced checkpoint. The runner decides how often. */
   onProgress(event: { kind: 'started'; model: string } | { kind: 'streaming'; text: string }): void;
 }
@@ -227,16 +251,32 @@ export async function performCall(
     policy,
     purpose,
   });
-  context.onAssembled(assembled.blocks, assembled.verdict);
 
   // Never pre-folded: `systemMessage: 'fold-into-first-user'` is honoured inside
   // the adapter, and folding above it would corrupt the record's block table.
   const messages = render(assembled.blocks, { capabilities: provider.capabilities });
 
-  context.onProgress({ kind: 'started', model: resolution.modelId });
-
   const id = uuidv7();
   const startedAt = Date.now();
+  // The call exists from here — id, blocks, verdict, rendered messages — and
+  // the runner checkpoints it before anything is dispatched ([P3.0]): every
+  // exit below replaces the provisional by this same id, so only a process
+  // that died mid-call ever commits it.
+  context.onCallAssembled({
+    id,
+    stepId: definition.id,
+    role: definition.role,
+    purpose,
+    resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+    blocks: assembled.blocks,
+    budget: assembled.verdict,
+    messages,
+    params,
+    startedAt,
+  });
+
+  context.onProgress({ kind: 'started', model: resolution.modelId });
+
   let retries = 0;
 
   for (;;) {
@@ -281,6 +321,8 @@ export async function performCall(
           // The id and the model, never the connection: it carries `apiKey` and
           // `baseUrl`, and this record is a line in a file on somebody's disk.
           resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
+          blocks: assembled.blocks,
+          budget: assembled.verdict,
           messages,
           params,
           usage: result.usage,
@@ -319,6 +361,8 @@ export async function performCall(
             role: definition.role,
             purpose,
             resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+            blocks: assembled.blocks,
+            budget: assembled.verdict,
             messages,
             params,
             usage: null,
@@ -382,6 +426,8 @@ export async function performCall(
           // so here rather than left to read like a report, which is the same
           // distinction `modelThatAnswered` draws on the success path.
           resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+          blocks: assembled.blocks,
+          budget: assembled.verdict,
           messages,
           params,
           usage: null,

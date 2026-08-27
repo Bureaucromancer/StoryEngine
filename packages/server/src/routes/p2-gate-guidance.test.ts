@@ -180,18 +180,22 @@ async function readNewestTurn(): Promise<{
   input?: { text: string; raw: string };
   steps: { stepId: string; state: string; failure?: string; error?: { reason: string } }[];
   request: {
-    blocks: {
-      id: string;
-      source: { kind: string; producer?: string };
-      reason: string;
-      role: string;
-      text: string;
-      tokens: number;
-      included: boolean;
-      advisory?: true;
+    // Per call since [P3.0] — the shape's own "one per model call".
+    calls: {
+      stepId: string;
+      purpose: string;
+      blocks: {
+        id: string;
+        source: { kind: string; producer?: string };
+        reason: string;
+        role: string;
+        text: string;
+        tokens: number;
+        included: boolean;
+        advisory?: true;
+      }[];
+      budget: { decisions: { blockId: string; included: boolean; rule: string }[] };
     }[];
-    budget: { decisions: { blockId: string; included: boolean; rule: string }[] } | null;
-    calls: { stepId: string; purpose: string }[];
   };
 }> {
   const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -232,7 +236,9 @@ describe('step 17 (a) — guidance appears in the turn record as its own block',
     await takeTurn({ text: INPUT, guidance: GUIDANCE, key: 'k1', headTurnId: null });
     const record = await readNewestTurn();
 
-    const guidance = record.request.blocks.filter((block) => block.source.kind === 'guidance');
+    const guidance = record.request.calls
+      .flatMap((call) => call.blocks)
+      .filter((block) => block.source.kind === 'guidance');
     // Exactly one. Two would mean the preset's slot and something else both
     // emitted it, and the budgeter would then be dropping one of a pair the
     // record presents as independent.
@@ -268,7 +274,7 @@ describe('step 17 (a) — guidance appears in the turn record as its own block',
     await takeTurn({ text: INPUT, guidance: GUIDANCE, key: 'k1', headTurnId: null });
     const record = await readNewestTurn();
 
-    const decision = record.request.budget?.decisions.find(
+    const decision = record.request.calls[0]?.budget.decisions.find(
       (each) => each.blockId === 'se.guidance',
     );
     expect(decision?.included).toBe(true);
@@ -339,17 +345,27 @@ describe('step 17 (b) — guidance does not enter history', () => {
     const record = await readNewestTurn();
     // Over the serialised block table, for the same reason as above: a future
     // field on `AssembledBlock` must not be a place the string can hide.
-    expect(JSON.stringify(record.request.blocks)).not.toContain(GUIDANCE);
+    expect(JSON.stringify(record.request.calls.flatMap((call) => call.blocks))).not.toContain(
+      GUIDANCE,
+    );
     // No guidance-sourced block at all this time — `omitWhenEmpty` on the slot
     // is what makes an unused box cost nothing rather than emit a heading with
     // nothing under it.
-    expect(record.request.blocks.some((block) => block.source.kind === 'guidance')).toBe(false);
+    expect(
+      record.request.calls
+        .flatMap((call) => call.blocks)
+        .some((block) => block.source.kind === 'guidance'),
+    ).toBe(false);
 
     // **The guard against a vacuous pass.** Everything above would also hold if
     // the second turn assembled no history whatsoever, which is a different bug
     // wearing the same green tick. The first turn's words must be there.
-    expect(record.request.blocks.some((block) => block.source.kind === 'history')).toBe(true);
-    expect(JSON.stringify(record.request.blocks)).toContain(INPUT);
+    expect(
+      record.request.calls
+        .flatMap((call) => call.blocks)
+        .some((block) => block.source.kind === 'history'),
+    ).toBe(true);
+    expect(JSON.stringify(record.request.calls.flatMap((call) => call.blocks))).toContain(INPUT);
 
     // And the same two claims on the wire: the second call carries the first
     // turn's action and not the instructions that shaped it.
@@ -526,7 +542,9 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
     const record = await readNewestTurn();
 
     // The guidance block says *advisory* now, not merely *guidance-sourced*.
-    const guidance = record.request.blocks.find((block) => block.source.kind === 'guidance');
+    const guidance = record.request.calls
+      .flatMap((call) => call.blocks)
+      .find((block) => block.source.kind === 'guidance');
     expect(guidance?.advisory).toBe(true);
 
     // Every committed call names its purpose, and the one call that carried an

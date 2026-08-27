@@ -235,7 +235,7 @@ describe('a turn goes all the way through', () => {
     expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([02 §8]).
-    expect(turn.request?.blocks.map((block) => block.source.kind)).toContain('input');
+    expect(turn.request?.calls[0]?.blocks.map((block) => block.source.kind)).toContain('input');
     expect(turn.request?.calls).toHaveLength(1);
     expect(turn.request?.calls[0]?.resolved).toEqual({
       connectionId: CONNECTION_ID,
@@ -748,9 +748,67 @@ describe('cancellation', () => {
       finishReason: null,
     });
     expect(call?.wallMs).toBeGreaterThan(0);
+    // And the assembly rides on the interrupted call itself since [P3.0] —
+    // blocks per call is what makes this assertable at all.
+    expect(call?.blocks.length).toBeGreaterThan(0);
     // The words that had already streamed survive as the turn's output rather
     // than silently never having happened.
     expect(written[0]?.turn.output?.text.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * **A Stop in the retry backoff keeps the assembly** — [P3.0]'s one
+   * extension of finding 2's doctrine. The exception stays bare (there is
+   * genuinely no attempt to name), but with blocks on the call, dropping the
+   * checkpointed provisional would erase assembly the record used to keep at
+   * turn level — so the runner restamps it: cancelled, nothing failed,
+   * nothing answered.
+   *
+   * The window is deterministic in practice: the first attempt's throw and
+   * the catch's stopped-check are one synchronous stretch, and the cancel
+   * below arrives at least a poll cycle after the provider was asked — well
+   * inside the fixed 250ms backoff that follows. The falsifying mutation is
+   * deleting the runner's bare-Cancelled restamp: the record then commits the
+   * provisional's server-stopped stamp from a process that never died.
+   */
+  it('a Stop between attempts keeps the assembly, restamped as cancelled', async () => {
+    makeRunner({
+      script: [{ text: '', error: { class: 'transient', message: 'flaky once' } }],
+    });
+    const job = await reserve();
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+
+    await until(() => provider.requests.length === 1, 'the first attempt');
+    runner.cancel(job.id);
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the cancelled commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const calls = written[0]?.turn.request?.calls ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.outcome).toBe('cancelled');
+    expect(calls[0]?.error).toBeNull();
+    expect(calls[0]?.usage).toBeNull();
+    expect(calls[0]?.finishReason).toBeNull();
+    // The assembly the restamp exists to keep.
+    expect(calls[0]?.blocks.length).toBeGreaterThan(0);
+    expect(calls[0]?.budget.decisions.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * **A live turn never commits the provisional** — the stamp's whole
+   * safety argument, pinned. The final record shares the provisional's id and
+   * replaces it; a push instead of a replacement would commit two calls for
+   * one request, one of them claiming the server died. The falsifying
+   * mutation is making `finalise` push unconditionally.
+   */
+  it('replaces the provisional in-flight call rather than committing it', async () => {
+    const { turn } = await runTurn();
+
+    expect(turn.request?.calls).toHaveLength(1);
+    expect(turn.request?.calls[0]?.outcome).toBe('ok');
+    expect(JSON.stringify(turn.request)).not.toContain('The server stopped');
   });
 });
 
@@ -771,13 +829,15 @@ describe('the preset is what builds the prompt', () => {
     // that matters is that the *preset* is visible in the record.
     const { turn } = await runTurn();
 
-    const reasons = turn.request?.blocks.map((block) => block.reason) ?? [];
+    const reasons = turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
     // The narrator instruction is a text block the preset author wrote.
     expect(reasons).toContain('instruction');
     // …and the player's action is a slot the preset positioned.
     expect(reasons).toContain('input');
 
-    const instruction = turn.request?.blocks.find((block) => block.source.kind === 'preset');
+    const instruction = turn.request?.calls[0]?.blocks.find(
+      (block) => block.source.kind === 'preset',
+    );
     expect(instruction?.text).toContain('narrator');
   });
 
@@ -786,7 +846,7 @@ describe('the preset is what builds the prompt', () => {
     // lore, and those slots are *present* in the preset — which is what makes
     // P5 an activation change rather than a preset change.
     const { turn } = await runTurn();
-    const kinds = turn.request?.blocks.map((block) => block.source.kind) ?? [];
+    const kinds = turn.request?.calls[0]?.blocks.map((block) => block.source.kind) ?? [];
 
     expect(kinds).not.toContain('lore');
     expect(kinds).not.toContain('setting');
@@ -819,7 +879,9 @@ describe('the preset is what builds the prompt', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const history = written.at(-1)?.turn.request?.blocks.filter((b) => b.source.kind === 'history');
+    const history = written
+      .at(-1)
+      ?.turn.request?.calls[0]?.blocks.filter((b) => b.source.kind === 'history');
 
     // Two blocks for one past turn, in the order they were said, each in its own
     // voice — and the player's line is *not* the model's.
@@ -986,7 +1048,7 @@ describe('a preset block can be scoped to a kind of call', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', scoped.id, 'turns'),
     );
-    const reasons = written[0]?.turn.request?.blocks.map((block) => block.reason) ?? [];
+    const reasons = written[0]?.turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
 
     // The narrate step does not make a `summarise` call, so that block is out…
     expect(reasons).not.toContain('only for summaries');
@@ -1012,7 +1074,7 @@ describe("the preset's own settings reach the call", () => {
   it('budgets against the share the preset asks for', async () => {
     const { turn } = await runTurn();
 
-    const limit = turn.request?.budget?.limit;
+    const limit = turn.request?.calls[0]?.budget.limit;
     // Three quarters of the config ceiling — and since [P3.0], labelled as
     // what it is: the config's number (`'user'`, the live-editable one),
     // narrowed by the preset's recorded share. The old `'preset'` stamp hid
@@ -1039,7 +1101,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     // record's whole job is answering *why is this in the prompt* ([02 §8]), and
     // one block without provenance is one the workbench cannot explain.
     const { turn } = await runTurn();
-    const blocks = turn.request?.blocks ?? [];
+    const blocks = turn.request?.calls[0]?.blocks ?? [];
 
     expect(blocks.length).toBeGreaterThan(0);
     for (const block of blocks) {
@@ -1053,7 +1115,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     // bites, so it has to be computed rather than inferred from a drop that has
     // not happened.
     const { turn } = await runTurn();
-    const budget = turn.request?.budget;
+    const budget = turn.request?.calls[0]?.budget;
 
     expect(budget).toBeDefined();
     expect(budget?.limit.tokens).toBeGreaterThan(0);
@@ -1077,7 +1139,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 300 } } });
     const { turn } = await runTurn('a'.repeat(400));
 
-    const budget = turn.request?.budget;
+    const budget = turn.request?.calls[0]?.budget;
     const excluded = (budget?.decisions ?? []).filter((decision) => !decision.included);
 
     expect(excluded.length).toBeGreaterThan(0);
@@ -1429,7 +1491,11 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     for (const path of [
       'request.calls[*].resolved.modelId',
       'request.calls[*].messages[*].content',
-      'request.budget.decisions[*].rule',
+      // Moved with the verdict when blocks and budget landed on each call
+      // ([P3.0]) — a guard path pointing at the old turn-level home would let
+      // the walk stop descending exactly where the new data lives.
+      'request.calls[*].budget.decisions[*].rule',
+      'request.calls[*].blocks[*].tokens',
       'effects[*].before.hour',
       'steps[*].contributed.blocks',
     ]) {
@@ -1520,9 +1586,12 @@ function generalise(path: string): string {
  * names its parent) and `effects[*].before` ([13 §1.2.1] — the state the effect
  * inverts back to, which does not exist before the channel has a value).
  *
- * **And one that is not a permission at all**: `request.budget`. It is typed
- * `| null` for a turn that assembled nothing, and a turn that made a call is
- * not one — a missing verdict is exactly what [13 §1.5] exists to prevent.
+ * **And one that stopped being expressible at all** ([P3.0]): the old
+ * turn-level `request.budget` was typed `| null` for a turn that assembled
+ * nothing. The verdict now lives on each call and is non-null by
+ * construction — a `ModelCall` exists only downstream of `assemble()` — so
+ * the permission this note used to refuse has been removed from the shape
+ * itself, which is the stronger form of refusing it.
  */
 const NULL_IS_DATA = new Set([
   'input.actorId',

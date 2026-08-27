@@ -52,6 +52,21 @@ export interface ModelCall {
    */
   purpose: CallPurpose;
   resolved: { connectionId: string; modelId: string };
+  /**
+   * The blocks this call assembled and the verdict that ruled them — [P3.0],
+   * making [05 §3]'s *"one per model call"* the shape rather than a promise.
+   * The runner used to keep one turn-level table that every call overwrote,
+   * so an earlier call's block ids named rows no longer in it, and the
+   * per-block estimate could never sit beside this call's reported usage.
+   * The turn's blocks are a derived union now — readers fold over
+   * `request.calls`; nothing stores the union.
+   *
+   * Non-null by construction: a `ModelCall` exists only downstream of
+   * `assemble()`, including the provisional in-flight entry the runner
+   * checkpoints before dispatch.
+   */
+  blocks: AssembledBlock[];
+  budget: BudgetVerdict;
   messages: RenderedMessage[];
   params: GenerationParams;
   /** Provider-reported, or null. Never estimated — the estimate decides, the measurement records. */
@@ -122,11 +137,15 @@ export interface StepOutcome {
   wallMs: number;
 }
 
-/** What was assembled and asked for — [02 §8]'s `request`. */
+/**
+ * What was assembled and asked for — [02 §8]'s `request`.
+ *
+ * Just the calls since [P3.0]: each carries its own blocks and verdict, so a
+ * turn-level table would be either a copy or a lie. The absent-vs-empty
+ * doctrine below still applies to the field as a whole — a turn that never
+ * assembled has no `request` at all.
+ */
 export interface TurnRequest {
-  blocks: AssembledBlock[];
-  /** The verdict of the most recent assembly. Null until something is assembled. */
-  budget: BudgetVerdict | null;
   calls: ModelCall[];
 }
 

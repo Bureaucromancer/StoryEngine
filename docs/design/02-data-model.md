@@ -1140,10 +1140,14 @@ interface Turn {
   createdAt: string
   input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string }
 
+  /** One entry per model call, each carrying its own `blocks` and `budget`
+   *  (P3.0) — "one per model call" made shape rather than promise. Blocks are
+   *  re-collected per call, so the same block id can recur across calls with
+   *  different verdicts; the runner used to overwrite one turn-level table,
+   *  which left earlier calls' ids naming rows no longer in it. The turn's
+   *  blocks are a derived union readers fold; nothing stores the union. */
   request: {
-    blocks: AssembledBlock[]     // every block, in order, with source + token cost
-    budget: BudgetVerdict        // what was included, what was dropped, and why
-    calls: ModelCall[]           // one per model call: params, model, messages, tools
+    calls: ModelCall[]           // params, model, messages — and its blocks + budget
   }
 
   /** `toolCalls` is deliberately absent: no `ToolCall` type is defined anywhere

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
-import type { AssembledBlock, BudgetVerdict, Candidate } from '../assembly/types.js';
+import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { Accounts } from '../auth/accounts.js';
@@ -306,13 +306,39 @@ export class TurnRunner {
     const steps: StepOutcome[] = [];
     const calls: ModelCall[] = [];
     const effects: ChannelEffect[] = [];
-    let blocks: AssembledBlock[] = [];
-    let verdict: BudgetVerdict | null = null;
+    /**
+     * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
+     * pushes a provisional `ModelCall` into `calls` the moment assembly and
+     * rendering are done, stamped for the only case in which it survives to
+     * disk: the process dying mid-call. Every live exit from `performCall`
+     * replaces it by id, so `reconcile` — which finalises the last checkpoint
+     * verbatim — is the sole reader that ever sees the stamp. Blocks moving
+     * onto the call is what makes this necessary: without it, a power cut
+     * would erase the very block table the recovery gate pins.
+     */
+    // A holder rather than a bare `let`, for the same reason `performCall`'s
+    // `partial` is one: it is assigned from inside closures the type checker
+    // cannot follow, and a bare binding stays narrowed to its initialiser.
+    const inFlight: { pending: { call: ModelCall; startedAt: number } | null } = { pending: null };
+
+    /** The finalised record replaces the provisional it shares an id with. */
+    const finalise = (call: ModelCall): void => {
+      const at = calls.findIndex((existing) => existing.id === call.id);
+      if (at === -1) calls.push(call);
+      else calls[at] = call;
+      inFlight.pending = null;
+    };
 
     const write = (events: EventDraft[] = []): void => {
+      // A checkpoint mid-call keeps the provisional's elapsed time honest —
+      // the recovered record then says how long the call had been running at
+      // the last durable moment, not zero.
+      if (inFlight.pending !== null) {
+        inFlight.pending.call.wallMs = Date.now() - inFlight.pending.startedAt;
+      }
       draft.steps = steps;
       draft.effects = effects;
-      draft.request = { blocks, budget: verdict, calls };
+      draft.request = { calls };
       draft.tape = rng.tape;
       checkpoint(commit, job.id, {
         turn: draft,
@@ -491,10 +517,43 @@ export class TurnRunner {
                   config,
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
-                  onAssembled: (assembled, budget) => {
-                    blocks = assembled;
-                    verdict = budget;
-                    contributedBlocks = assembled.filter((block) => block.included).length;
+                  onCallAssembled: (provisional) => {
+                    contributedBlocks = provisional.blocks.filter((block) => block.included).length;
+                    const call: ModelCall = {
+                      id: provisional.id,
+                      stepId: provisional.stepId,
+                      role: provisional.role,
+                      purpose: provisional.purpose,
+                      resolved: provisional.resolved,
+                      blocks: provisional.blocks,
+                      budget: provisional.budget,
+                      messages: provisional.messages,
+                      params: provisional.params,
+                      usage: null,
+                      cost: null,
+                      wallMs: 0,
+                      finishReason: null,
+                      /**
+                       * The stamp for a process death, and nothing else ever
+                       * commits it — every live exit replaces this record by
+                       * id. Not `cancelled`: nobody pressed Stop, and blaming
+                       * the person is the mislabel the timeout work refused.
+                       * Not a new un-sent outcome either — the call *was*
+                       * sent, or was about to be; §1.6 reserves un-sent for
+                       * the dry run. `terminal` is honest: the right recovery
+                       * is a new turn, never a retry of this one.
+                       */
+                      outcome: 'error',
+                      error: {
+                        class: 'terminal',
+                        message: 'The server stopped before this call returned.',
+                      },
+                      retries: 0,
+                    };
+                    calls.push(call);
+                    inFlight.pending = { call, startedAt: provisional.startedAt };
+                    // Durable before dispatch — the whole point.
+                    write();
                   },
                   onProgress: (event) => {
                     if (event.kind === 'started') {
@@ -523,7 +582,7 @@ export class TurnRunner {
                 [...fromPreset, ...contributed],
               );
 
-              calls.push(outcome.call);
+              finalise(outcome.call);
               log?.info(
                 {
                   event: 'call.finished',
@@ -579,18 +638,35 @@ export class TurnRunner {
         // buffer is the only survivor — neither adapter attaches its
         // accumulation to the error — and gate 10 wants those words recorded.
         if (error instanceof CallFailed) {
-          calls.push(error.call);
+          finalise(error.call);
           if (error.partialText.length > 0) draft.output = { text: error.partialText };
         }
         // And a Stop that landed mid-call is the same shape from the record's
         // side — finding 2 in [16]: the interrupted call is named, the words
         // already streamed survive. Optional, because a cancel between
-        // attempts genuinely has no call to name.
+        // attempts genuinely carries no call.
         if (error instanceof Cancelled && error.call !== undefined) {
-          calls.push(error.call);
+          finalise(error.call);
           if (error.partialText !== undefined && error.partialText.length > 0) {
             draft.output = { text: error.partialText };
           }
+        }
+        /**
+         * A Stop with no call attached, while a provisional is checkpointed —
+         * the between-attempts window, or the beat between assembly and the
+         * first dispatch. Finding 2's *"a Stop between attempts stays bare"*
+         * stays true of the exception; the record extension is [P3.0]'s,
+         * because with blocks on the call, dropping the provisional here
+         * would erase assembly the record had already durably kept — a
+         * regression against what the turn-level table used to survive. The
+         * restamp says what happened: cancelled, nothing failed, real
+         * elapsed time, nothing answered.
+         */
+        if (error instanceof Cancelled && error.call === undefined && inFlight.pending !== null) {
+          inFlight.pending.call.outcome = 'cancelled';
+          inFlight.pending.call.error = null;
+          inFlight.pending.call.wallMs = Date.now() - inFlight.pending.startedAt;
+          inFlight.pending = null;
         }
 
         steps.push({
@@ -710,7 +786,7 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     effects: [],
     tape: [],
     steps: [],
-    request: { blocks: [], budget: null, calls: [] },
+    request: { calls: [] },
   };
 }
 

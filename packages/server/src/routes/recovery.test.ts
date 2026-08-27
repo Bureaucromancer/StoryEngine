@@ -261,7 +261,7 @@ describe('a turn killed mid-generation', () => {
     // Failed, because generation is never resumed — but *present*, with what it
     // managed, rather than a turn that silently never happened.
     expect(turn?.status).toBe('failed');
-    expect(turn?.request?.blocks.length ?? 0).toBeGreaterThan(0);
+    expect(turn?.request?.calls[0]?.blocks.length ?? 0).toBeGreaterThan(0);
     expect(turn?.input?.text).toBe('She waited.');
 
     // And the head advanced exactly once.
@@ -412,13 +412,13 @@ describe('a turn killed mid-generation', () => {
      * the call returned, passes the weaker form and fails this one.
      */
     const request = turn?.request;
-    const input = request?.blocks.find((block) => block.id === 'se.input');
+    const input = request?.calls[0]?.blocks.find((block) => block.id === 'se.input');
     expect(input?.text).toBe('She waited.');
     expect(input?.source.kind).toBe('input');
     expect(input?.included).toBe(true);
-    for (const block of request?.blocks ?? []) expect(block.reason).not.toBe('');
+    for (const block of request?.calls[0]?.blocks ?? []) expect(block.reason).not.toBe('');
 
-    const budget = request?.budget ?? null;
+    const budget = request?.calls[0]?.budget ?? null;
     expect(budget).not.toBeNull();
     // The honest stamp since [P3.0]: the ceiling is the config's, the share is
     // the preset's, and neither claims the other's number.
@@ -429,29 +429,51 @@ describe('a turn killed mid-generation', () => {
     // listing only the drops cannot answer "what falls out next", which is what
     // `nextToDrop` is.
     expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
-      request?.blocks.map((block) => block.id),
+      request?.calls[0]?.blocks.map((block) => block.id),
     );
     expect(budget?.nextToDrop).toContain('se.instruction');
   });
 
   /**
-   * The half of "blocks intact" this code does **not** deliver, left as a todo
-   * rather than as a passing test of the wrong thing.
+   * The half of "blocks intact" that was a `todo` until [P3.0] built the
+   * provisional call. A killed process throws nothing, so the last durable
+   * checkpoint is all there is — and the runner now checkpoints the call the
+   * moment it is assembled and rendered, before dispatch, stamped for exactly
+   * this reader: `outcome: 'error'`, class `terminal`, the server-stopped
+   * message. Not `cancelled` — nobody pressed Stop, and blaming the person is
+   * the mislabel the timeout work refused. Every live exit replaces the
+   * provisional by id, so this stamp reaches disk only over a corpse.
    *
-   * `request.calls` is empty on a killed turn. `performCall` pushes its
-   * `ModelCall` only when the call returns or the exception carries one — and
-   * a killed process throws nothing: the last durable checkpoint is all there
-   * is, and no checkpoint written mid-call contains the call, because the
-   * record is constructed on the way *out*. (A person's Stop no longer has
-   * this problem — `Cancelled` carries the interrupted call since finding 2
-   * was fixed — but a Stop is an exception path and a power cut is not.) So
-   * the recovered turn says which blocks were assembled and what the budget
-   * ruled, and cannot say which model was asked. The log knows (`call.started`
-   * binds it, asserted below); the record does not. Making this pass means a
-   * provisional call in the checkpoint, and belongs to whoever owns that
-   * decision.
+   * The falsifying mutation is skipping the provisional push in the runner's
+   * `onCallAssembled` — the todo's own documented gap returns, `calls` is
+   * empty on the recovered turn, and every assertion here fails.
    */
-  it.todo('names the model call that was in flight when the process died');
+  it('names the model call that was in flight when the process died', async () => {
+    const { sessionId, turnId } = await killMidGeneration([
+      { text: 'a long slow answer that will not finish', chunks: 20, chunkDelayMs: 25 },
+    ]);
+
+    // Reconcile runs at start; the read below is off disk, so no sign-in.
+    server = await start([]);
+    const turns = await readAllTurns(join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'));
+    const turn = turns.find((entry) => entry.turn.id === turnId)?.turn;
+
+    const call = turn?.request?.calls[0];
+    expect(call).toBeDefined();
+    // The model that was asked, because nothing answered — the same asymmetry
+    // the cancelled record draws.
+    expect(call?.resolved).toEqual({ connectionId: CONNECTION_ID, modelId: 'fake-hi' });
+    expect(call?.purpose).toBe('prose');
+    expect(call?.outcome).toBe('error');
+    expect(call?.error?.class).toBe('terminal');
+    expect(call?.error?.message).toBe('The server stopped before this call returned.');
+    // Real elapsed time up to the last durable checkpoint, not zero — the
+    // mid-call writes keep refreshing it.
+    expect(call?.wallMs).toBeGreaterThan(0);
+    // And what a call that never returned honestly lacks.
+    expect(call?.usage).toBeNull();
+    expect(call?.finishReason).toBeNull();
+  });
 });
 
 describe('the log alone reconstructs a killed turn', () => {

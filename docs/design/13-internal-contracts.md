@@ -258,6 +258,12 @@ interface ModelCall {
   /** What the role actually resolved to, recorded because the binding can
    *  change between turns and "why is this turn different" needs an answer. */
   resolved: { connectionId: string; modelId: string }
+  /** This call's assembly and its verdict (P3.0) — non-null by construction,
+   *  since a ModelCall exists only downstream of assemble(), including the
+   *  provisional in-flight entry the runner checkpoints before dispatch so a
+   *  killed process still leaves the block table it was sent. */
+  blocks: AssembledBlock[]       // §1.1's vocabulary
+  budget: BudgetVerdict          // §1.5
   messages: RenderedMessage[]     // §2
   params: GenerationParams
   /** Provider-reported, not estimated. The measured half of budgeting with a
