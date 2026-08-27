@@ -206,6 +206,28 @@ describe('guidance is advisory, and the assembler enforces it', () => {
       expect((error as Error).message).toContain('§5.2');
     }
   });
+
+  /**
+   * [P3.0]: the flag reaches the record. `admit()` read `Candidate.advisory`
+   * and then the block was built without it, which is what reduced
+   * [testing §1]'s invariant to a source-kind proxy an author-declared
+   * advisory block slips past. The falsifying mutation is deleting the spread
+   * in `assemble()`'s block literal — the exact line that was missing.
+   */
+  it('carries advisory onto the assembled block, and only where it was declared', () => {
+    const { blocks } = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      purpose: 'prose',
+    });
+
+    expect(blocks.find((block) => block.id === 'guidance')?.advisory).toBe(true);
+    // And nowhere else: an `advisory: undefined` key on every row would be
+    // noise the record never wrote before, and `false` would be a third state.
+    for (const block of blocks) {
+      if (block.id !== 'guidance') expect('advisory' in block).toBe(false);
+    }
+  });
 });
 
 describe('render', () => {

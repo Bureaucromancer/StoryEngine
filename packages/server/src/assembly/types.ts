@@ -117,6 +117,29 @@ export interface Candidate {
   advisory?: boolean;
 }
 
+/**
+ * A call's declared appetite — [03 §6].
+ *
+ * A step says what it is, and the assembler enforces what follows. `effects`
+ * and `verdict` are the two that may not see advisory content, and they are
+ * separate names because they are separate claims a step makes about itself.
+ *
+ * **`CallPurpose`, not `CallKind`.** That name is taken, by a *portable*
+ * type: [10 §8.2](../../../../docs/design/10-schemas.md)'s deliberately-open string
+ * (`"narrate" | "impersonate" | … | (string & {})`) that a preset block's
+ * `appliesTo` filters on, exported from `@storyengine/shared`. Two
+ * incompatible types under one name is how a preset importing
+ * `appliesTo: ["narrate"]` comes to match no call the engine ever makes — so
+ * the internal one, which nothing outside this repo has ever seen, yields the
+ * name.
+ *
+ * Declared here rather than beside `assemble`, because [P3.0] put it on the
+ * record: `ModelCall.purpose` is the committed half of
+ * [testing §1](../../../../docs/design/workplan/10-testing.md)'s invariant, and a
+ * contract the record carries belongs with the contracts.
+ */
+export type CallPurpose = 'prose' | 'effects' | 'verdict';
+
 /** A candidate the budgeter has ruled on — [02 §8]. */
 export interface AssembledBlock {
   id: string;
@@ -128,6 +151,16 @@ export interface AssembledBlock {
   included: boolean;
   /** Which budget rule dropped it. Absent when it was included. */
   droppedBy?: string;
+  /**
+   * Carried from the candidate, and the carrying is the point — [P3.0],
+   * [testing §1](../../../../docs/design/workplan/10-testing.md). The invariant
+   * *no advisory block ever appears in an effect-producing call* was enforced
+   * at assembly and then unrecorded, so the gate could only test a proxy (a
+   * guidance source kind) that an author-declared advisory text block slips
+   * past. With the flag on the record, the invariant is expressible over a
+   * committed turn. Absent means not advisory, as on `Candidate`.
+   */
+  advisory?: true;
 }
 
 /** [13 §1.5](../../../../docs/design/13-internal-contracts.md). */

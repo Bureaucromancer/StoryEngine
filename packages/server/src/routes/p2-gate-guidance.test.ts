@@ -41,20 +41,18 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * substitution — [P2 §2.8]'s stated purpose for it, *"the golden-file harness…
  * because it records every request"*.
  *
- * **The one thing this file cannot assert, and it is the gate's own word.**
- * Step 17 says the block appears *as an advisory block* in the record.
- * `AssembledBlock` ([`assembly/types.ts`]) has no `advisory` field: `assemble()`
- * reads `Candidate.advisory` in `admit()` and then builds the block without
- * carrying it across, so the record can say a block came from the guidance
- * *source* and cannot say it was *advisory*. The two are not the same claim —
- * `PresetBlock.advisory` is authorable on any block, and `collect()`'s `emit()`
- * takes the union (`block.advisory || …of === 'guidance'`), so a preset can mint
- * an advisory block that is not guidance and whose advisory-ness the record then
- * loses entirely. What that costs is P3's workbench: the answer to *"why was
- * this block missing from that call"* is `advisory`, and the workbench renders
- * fields the record holds. Below, the assertion is on `source.kind` —
- * deliberately the weaker, true thing — and the missing field is reported as a
- * production change rather than made here, per the boundary rule.
+ * **The claim this file could not assert until [P3.0], and now does.** Step 17
+ * says the block appears *as an advisory block* in the record, and for the
+ * whole of P2 `AssembledBlock` had no `advisory` field — `assemble()` read
+ * `Candidate.advisory` in `admit()` and built the block without carrying it
+ * across, so this file settled for `source.kind === 'guidance'`, deliberately
+ * the weaker, true thing. That proxy was never equivalent: `PresetBlock.advisory`
+ * is authorable on any block and `emit()` takes the union, so a preset can
+ * mint an advisory block that is not guidance and whose advisory-ness the
+ * record then lost. P3.0 carries the flag onto the block and the purpose onto
+ * the call, so the assertions below are on the record's own fields — the
+ * source-kind checks that remain are about *guidance* specifically (one-shot
+ * behaviour), not stand-ins for *advisory*.
  */
 
 let server: TestServer;
@@ -190,9 +188,10 @@ async function readNewestTurn(): Promise<{
       text: string;
       tokens: number;
       included: boolean;
+      advisory?: true;
     }[];
     budget: { decisions: { blockId: string; included: boolean; rule: string }[] } | null;
-    calls: { stepId: string }[];
+    calls: { stepId: string; purpose: string }[];
   };
 }> {
   const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -513,5 +512,28 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
     // a call that never left the assembler — and a record showing two calls
     // against one request would be a record nobody could reconcile.
     expect(record.request.calls.map((call) => call.stepId)).toEqual(['se.narrate']);
+  });
+
+  /**
+   * [P3.0]: the invariant over the record's own fields, replacing the proxy
+   * the header apologised for. Falsifying mutations, one per half: delete the
+   * advisory spread in `assemble()`'s block literal (the flag vanishes), or
+   * hardcode `purpose: 'effects'` at the success literal in `performCall`
+   * (the recorded call lies about what it was allowed to produce).
+   */
+  it('records the block as advisory and the committed call as prose — the invariant, on the record', async () => {
+    await runBothKinds();
+    const record = await readNewestTurn();
+
+    // The guidance block says *advisory* now, not merely *guidance-sourced*.
+    const guidance = record.request.blocks.find((block) => block.source.kind === 'guidance');
+    expect(guidance?.advisory).toBe(true);
+
+    // Every committed call names its purpose, and the one call that carried an
+    // advisory block is a prose call — [testing §1], expressible at last. The
+    // refused effects call left no ModelCall (asserted above), so over this
+    // record the invariant reads: advisory blocks appear only beside calls
+    // whose every member is prose.
+    expect(record.request.calls.map((call) => call.purpose)).toEqual(['prose']);
   });
 });

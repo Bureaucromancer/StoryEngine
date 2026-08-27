@@ -218,11 +218,14 @@ export async function performCall(
 
   // **The purpose comes from the definition, not from the request.** A step
   // that could name its own would be one honest declaration away from walking
-  // an advisory block into an effect-producing call ([03 §5.2]).
+  // an advisory block into an effect-producing call ([03 §5.2]). Computed
+  // once, because it is also stamped on every record this call can leave
+  // ([P3.0] — the invariant's committed half).
+  const purpose = callPurposeFor(definition);
   const assembled = assemble({
     candidates: request.candidates ?? candidates,
     policy,
-    purpose: callPurposeFor(definition),
+    purpose,
   });
   context.onAssembled(assembled.blocks, assembled.verdict);
 
@@ -274,6 +277,7 @@ export async function performCall(
           id,
           stepId: definition.id,
           role: definition.role,
+          purpose,
           // The id and the model, never the connection: it carries `apiKey` and
           // `baseUrl`, and this record is a line in a file on somebody's disk.
           resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
@@ -313,6 +317,7 @@ export async function performCall(
             id,
             stepId: definition.id,
             role: definition.role,
+            purpose,
             resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
             messages,
             params,
@@ -372,6 +377,7 @@ export async function performCall(
           id,
           stepId: definition.id,
           role: definition.role,
+          purpose,
           // The model that was *asked for*, because nothing answered — and said
           // so here rather than left to read like a report, which is the same
           // distinction `modelThatAnswered` draws on the success path.

@@ -250,6 +250,11 @@ interface ModelCall {
   id: string
   stepId: StepId
   role: ModelRole                 // never a model id — [07 §5.1]
+  /** What this call was allowed to produce, derived from the step's declared
+   *  contributes/writes (P3.0). Not recoverable after the fact — StepOutcome
+   *  records only the counts — and the committed half of [testing §1]'s
+   *  advisory invariant. */
+  purpose: "prose" | "effects" | "verdict"
   /** What the role actually resolved to, recorded because the binding can
    *  change between turns and "why is this turn different" needs an answer. */
   resolved: { connectionId: string; modelId: string }

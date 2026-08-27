@@ -1198,6 +1198,10 @@ interface AssembledBlock {
   tokens: number
   included: boolean
   droppedBy?: string             // which budget rule dropped it
+  /** Carried from the candidate (P3.0). With `purpose` on the call, this is
+   *  what makes [testing §1]'s invariant — no advisory block in an
+   *  effect-producing call — expressible over a committed record. */
+  advisory?: true
 }
 ```
 

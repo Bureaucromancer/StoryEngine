@@ -3,7 +3,7 @@
 
 import type { GenerationParams, Preset } from '@storyengine/shared';
 
-import type { AssembledBlock, BudgetVerdict } from '../assembly/types.js';
+import type { AssembledBlock, BudgetVerdict, CallPurpose } from '../assembly/types.js';
 import type {
   ErrorClass,
   FinishReason,
@@ -43,6 +43,14 @@ export interface ModelCall {
   id: string;
   stepId: string;
   role: ModelRole;
+  /**
+   * What this call was allowed to produce — the committed half of
+   * [testing §1](../../../../docs/design/workplan/10-testing.md)'s invariant,
+   * beside `advisory` on the block ([P3.0]). Not derivable after the fact:
+   * it is computed from the step's declared `contributes` and `writes`, and
+   * `StepOutcome` records neither — only their counts.
+   */
+  purpose: CallPurpose;
   resolved: { connectionId: string; modelId: string };
   messages: RenderedMessage[];
   params: GenerationParams;
