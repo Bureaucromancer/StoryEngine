@@ -4,9 +4,8 @@
 import { useMatch } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
-import { usePatchPrefs, usePrefs, useTranscript } from '../queries.js';
+import { useAuthState, usePatchPrefs, usePrefs, useTranscript } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { Panel } from '../ui/Panel.js';
 import {
   clampSize,
   MAX_SIZE,
@@ -15,15 +14,15 @@ import {
   workbenchSizeFromPrefs,
   workbenchSizePatch,
 } from './prefs.js';
+import { TurnSubject } from './turn/TurnSubject.js';
 
 /**
  * The workbench frame — [05 §3](../../../../docs/design/05-ui-surfaces.md),
  * built by [P3.1](../../../../docs/design/workplan/05-p3-implementation.md):
  * a non-modal `<aside>` docked at the shell's inline end, whose subject is
- * whatever the main view is showing. At this stage the subject over Play is
- * the head turn's record as stored — the block table, budget verdict and call
- * inspector are P3.2's — and over everything else it is an honest empty
- * state.
+ * whatever the main view is showing. The subject over Play is the head turn
+ * rendered by `TurnSubject` — the block table, budget verdict and call
+ * inspector, [P3.2] — and over everything else it is an honest empty state.
  *
  * **Non-modal is the load-bearing property, and it is achieved by omission.**
  * No `aria-modal`, no `useFocusTrap` — that hook must never be attached here:
@@ -241,19 +240,22 @@ function ResizeHandle(props: {
 }
 
 /**
- * Today's JSON for the current turn — the head of the transcript the play
- * surface already fetched, read from the same cache entry so opening the dock
- * issues no request. `at(-1)` because the route returns the path from the
- * head oldest-first; a read-a-turn-by-id is P3.0's, and until it lands the
- * head is the one turn the panel can name without the transcript riding
- * along.
+ * The head turn, rendered — the transcript the play surface already fetched,
+ * read from the same cache entry so opening the dock issues no request.
+ * `at(-1)` because the route returns the path from the head oldest-first.
  *
- * The `Panel` inset variant is the primitive documented as "a read-only echo
- * of stored bytes" — deliberately not a third JSON-viewer spelling beside the
- * two that already ship and disagree; consolidating those is P3.3's.
+ * The head is still the *only* turn the panel can show: read-a-turn-by-id
+ * landed with [P3.0] and `useTurn` exists, but nothing here calls it — the
+ * subject follows the main view, and the main view has no way to point at a
+ * historical turn until the transcript grows per-turn affordances ([P3.6]).
+ * Consequence, stated rather than hidden: with the raw disclosure gone from
+ * the transcript, a historical turn's record is unreachable in the UI until
+ * then. Its bytes are safe in the store; the reader is what lags.
  */
 function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
   const transcript = useTranscript(sessionId);
+  const auth = useAuthState();
+  const locale = auth.data?.account?.locale ?? undefined;
 
   if (transcript.isPending) {
     return <p className="text-sm text-ink-subtle">Loading the record…</p>;
@@ -271,10 +273,8 @@ function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
   }
   return (
     <>
-      <p className="text-sm text-ink-muted">The head turn of this session, as stored.</p>
-      <Panel variant="inset">
-        <pre className="overflow-x-auto text-xs">{JSON.stringify(head, null, 2)}</pre>
-      </Panel>
+      <p className="text-sm text-ink-muted">The head turn of this session.</p>
+      <TurnSubject turn={head} locale={locale} />
     </>
   );
 }

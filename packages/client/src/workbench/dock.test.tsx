@@ -7,7 +7,8 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Account, TurnRecord } from '../api.js';
+import type { Account } from '../api.js';
+import { ACTOR_ID, cancelledTurn, richTurn, SESSION_ID } from './turn-fixtures.js';
 
 /**
  * The panel frame over the real router —
@@ -21,11 +22,15 @@ import type { Account, TurnRecord } from '../api.js';
  * over routes — a stubbed `Outlet` could not show the subject changing under
  * a panel that stays open. The singleton-router caveat applies as everywhere:
  * the URL a test leaves is the URL the next one mounts, so every test
- * navigates explicitly in `act()` before asserting.
+ * navigates explicitly in `act()` before asserting. It is also what makes
+ * this file the one place the block table's library links resolve through
+ * real route definitions — `views.test.tsx` mocks the router wholesale.
  *
- * Two turns in the transcript, distinguished by their input text, because the
- * head turn's own JSON *contains* the previous turn's id (`parentTurnId`) —
- * an id-based assertion would pass against a panel showing the wrong turn.
+ * The transcript is the fixture module's chain: the rich turn first, the
+ * cancelled turn as head. Head-vs-first is asserted on what `TurnSubject`
+ * *renders* — only the head's call was Stopped, only the first turn has the
+ * `se.extract` call — because since [P3.2] the dock shows a rendering, not
+ * the JSON whose `parentTurnId` used to make id-based assertions ambiguous.
  */
 
 const ACCOUNT: Account = {
@@ -38,42 +43,17 @@ const ACCOUNT: Account = {
   createdAt: 0,
 };
 
-const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aed';
-
 const SESSION = {
   id: SESSION_ID,
   name: 'The Ashfall Road',
   createdAt: '2026-08-18T10:00:00.000Z',
   updatedAt: '2026-08-18T10:05:00.000Z',
-  headTurnId: 'turn-2',
+  headTurnId: 't-11',
 };
 
-// Typed as the real record since [P3.0]: the mocks are untyped, so the
-// annotation is what keeps these fixtures honest against the shared shape.
-const TURNS: TurnRecord[] = [
-  {
-    id: 'turn-1',
-    sessionId: SESSION_ID,
-    parentTurnId: null,
-    createdAt: '2026-08-18T10:00:00.000Z',
-    status: 'complete',
-    input: { actorId: null, text: 'I knock twice.', kind: 'action', raw: 'I knock twice.' },
-    output: { text: 'The door opens a handspan.' },
-    effects: [],
-    tape: [],
-  },
-  {
-    id: 'turn-2',
-    sessionId: SESSION_ID,
-    parentTurnId: 'turn-1',
-    createdAt: '2026-08-18T10:05:00.000Z',
-    status: 'complete',
-    input: { actorId: null, text: 'I step inside.', kind: 'action', raw: 'I step inside.' },
-    output: { text: 'The hall smells of wet rope.' },
-    effects: [],
-    tape: [],
-  },
-];
+// The fixture module's turns, in their own parent order: t-10 then t-11, so
+// the cancelled turn is the head `at(-1)` finds.
+const TURNS = [richTurn(), cancelledTurn()];
 
 /**
  * The prefs half is stateful, because since [P3.1a] the dock's open state and
@@ -184,7 +164,11 @@ describe('the panel frame', () => {
     await userEvent.keyboard(CHORD);
 
     const dock = screen.getByRole('complementary');
-    within(dock).getByRole('button', { name: 'Close' }).focus();
+    // Found, not named: since [P3.2] the subject carries the block table's
+    // library links, so the last control is whichever the record put there
+    // rather than the Close button the frame stage could rely on.
+    const controls = dock.querySelectorAll<HTMLElement>('a, button, [tabindex="0"]');
+    controls[controls.length - 1]?.focus();
     await userEvent.tab();
 
     // The trap's behaviour, inverted: from the dock's last control, Tab
@@ -226,9 +210,30 @@ describe('the panel frame', () => {
     await userEvent.keyboard(CHORD);
 
     const dock = screen.getByRole('complementary');
-    expect(within(dock).getByText('The head turn of this session, as stored.')).toBeTruthy();
-    expect(within(dock).getByText(/I step inside\./)).toBeTruthy();
-    expect(within(dock).queryByText(/I knock twice\./)).toBeNull();
+    expect(within(dock).getByText('The head turn of this session.')).toBeTruthy();
+    // The head's call was Stopped; se.extract exists only on the first turn.
+    expect(within(dock).getByText('Stopped')).toBeTruthy();
+    expect(within(dock).queryByText(/se\.extract/)).toBeNull();
+  });
+
+  /**
+   * The one integration path from the live route to the rendered record —
+   * `views.test.tsx` proves the components against literal props with the
+   * router mocked, so this is where the wiring is on trial: the transcript
+   * cache's head reaches `TurnSubject`, its block table renders, and a
+   * source link resolves through the *real* route table to the library page
+   * it names (gate step 4's clickable half, end to end).
+   */
+  it('reaches the head turn’s block table, with its sources linked', async () => {
+    renderApp();
+    await overPlay();
+    await userEvent.keyboard(CHORD);
+
+    const dock = screen.getByRole('complementary');
+    const table = within(dock).getByRole('table');
+    expect(within(table).getByText('se.instruction')).toBeTruthy();
+    const actor = within(table).getAllByRole('link', { name: 'Actor' })[0];
+    expect(actor?.getAttribute('href')).toBe(`/library/actors/${ACTOR_ID}`);
   });
 
   it('is honestly empty over a view with no subject', async () => {
@@ -238,24 +243,24 @@ describe('the panel frame', () => {
 
     const dock = screen.getByRole('complementary');
     expect(within(dock).getByText(/follows the main view/)).toBeTruthy();
-    expect(dock.querySelector('pre')).toBeNull();
+    expect(within(dock).queryByRole('table')).toBeNull();
   });
 
   it('stays open across navigation while its subject follows the view', async () => {
     renderApp();
     await overPlay();
     await userEvent.keyboard(CHORD);
-    expect(within(screen.getByRole('complementary')).getByText(/I step inside\./)).toBeTruthy();
+    expect(within(screen.getByRole('complementary')).getByText('Stopped')).toBeTruthy();
 
     // Gate step 2's in-memory half: still open, new subject. The reload half
     // waits on P3.1a's preference keys.
     await overLibrary();
     const overTheLibrary = screen.getByRole('complementary');
     expect(within(overTheLibrary).getByText(/follows the main view/)).toBeTruthy();
-    expect(overTheLibrary.querySelector('pre')).toBeNull();
+    expect(within(overTheLibrary).queryByRole('table')).toBeNull();
 
     await overPlay();
-    expect(within(screen.getByRole('complementary')).getByText(/I step inside\./)).toBeTruthy();
+    expect(within(screen.getByRole('complementary')).getByText('Stopped')).toBeTruthy();
   });
 
   /**
@@ -271,7 +276,7 @@ describe('the panel frame', () => {
     await overPlay();
 
     const dock = await screen.findByRole('complementary');
-    expect(within(dock).getByText(/I step inside\./)).toBeTruthy();
+    expect(within(dock).getByText('Stopped')).toBeTruthy();
     expect(patchPrefs).not.toHaveBeenCalled();
   });
 });

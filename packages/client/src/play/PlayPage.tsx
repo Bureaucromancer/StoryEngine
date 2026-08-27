@@ -11,18 +11,18 @@ import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
 import { useSession, useTranscript } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { GuidanceBox } from './GuidanceBox.js';
-import { TurnRecordDisclosure } from './TurnRecord.js';
 import { useTurnStream } from './useTurnStream.js';
 
 /**
  * The play surface — a deliberately thin chat view
  * ([P2 §3](../../../../docs/design/workplan/04-p2-implementation.md)).
  *
- * Message list, input, streaming render, reattach on reload, the collapsed
- * guidance box, and a raw record affordance. What is *not* here is the point:
- * no impersonation, no axis controls, no block table, no branching. Each has an
- * owning phase, and a chat view is exactly the surface that invites building the
- * workbench by accident.
+ * Message list, input, streaming render, reattach on reload, and the collapsed
+ * guidance box. What is *not* here is the point: no impersonation, no axis
+ * controls, no block table, no branching. Each has an owning phase, and a chat
+ * view is exactly the surface that invites building the workbench by accident.
+ * The record itself is the workbench's to show since [P3.2] — the raw
+ * disclosure this page carried through P2 is gone with it.
  */
 export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -175,7 +175,6 @@ function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
       {turn.status === 'failed' ? (
         <p className="text-sm text-warn-ink">This turn did not finish.</p>
       ) : null}
-      <TurnRecordDisclosure turn={turn} />
     </li>
   );
 }

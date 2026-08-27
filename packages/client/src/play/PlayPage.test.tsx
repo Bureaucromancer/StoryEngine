@@ -17,11 +17,12 @@ import type { StreamHandlers } from './stream.js';
  * page hands the reducer what arrives, hands the API what the form holds, and
  * puts the result somewhere a reader can perceive.
  *
- * Three of P2's claims are only checkable at this level, which is why they had
+ * Two of P2's claims are only checkable at this level, which is why they had
  * no test before this file: guidance travels in its own field and does not
- * survive the turn ([03 §5.1]), a reconnect is a status and not an error
- * ([07 §11]), and the record affordance shows the record rather than a summary
- * of it ([P2 §3]).
+ * survive the turn ([03 §5.1]), and a reconnect is a status and not an error
+ * ([07 §11]). The third this file used to hold — the raw record behind a
+ * disclosure — left with the disclosure itself: since [P3.2] the record is
+ * the workbench's subject, and `dock.test.tsx` owns that claim.
  *
  * The API module is mocked and the query client is real. The other way round —
  * mocking `useQuery` — would take the refetch-on-finish wiring out of the test,
@@ -110,21 +111,6 @@ describe('the transcript', () => {
 
     expect(await screen.findByText('I knock twice.')).toBeTruthy();
     expect(screen.getByText('The door opens a handspan.')).toBeTruthy();
-  });
-
-  /**
-   * P2 §3's *raw view turn record JSON affordance* — one `<pre>`, and the whole
-   * record in it. The assertion is on a field the summary view does not show,
-   * because a disclosure that rendered the same two sentences again would pass
-   * a laxer test while giving a reader nothing they could not already see.
-   */
-  it('puts the whole record behind the disclosure', async () => {
-    renderPage();
-
-    await userEvent.click(await screen.findByText('Turn record'));
-
-    const raw = screen.getByText(/"parentTurnId"/);
-    expect(raw.textContent).toContain('"kind": "action"');
   });
 });
 

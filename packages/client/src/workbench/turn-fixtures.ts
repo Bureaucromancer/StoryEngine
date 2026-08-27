@@ -21,7 +21,7 @@ import type { TurnRecord } from '../api.js';
  * double defining the truth ([P3 §0]'s exact warning).
  */
 
-const SESSION_ID = '01a05000-0000-7000-8000-00000000000a';
+export const SESSION_ID = '01a05000-0000-7000-8000-00000000000a';
 
 export const ACTOR_ID = '01a05000-0000-7000-8000-0000000000ac';
 export const PERSONA_ID = '01a05000-0000-7000-8000-0000000000ad';
