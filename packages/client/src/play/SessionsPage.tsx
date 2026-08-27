@@ -32,7 +32,9 @@ export function SessionsPage(): React.JSX.Element {
   });
 
   return (
-    <main className="mx-auto flex max-w-reading flex-col gap-4 p-4">
+    // A `div`, not a landmark — the shell owns the routed app's one `<main>`
+    // ([P3.−1]); this page declared a second one inside it.
+    <div className="mx-auto flex max-w-reading flex-col gap-4 p-4">
       <h1 className="text-section text-ink">Sessions</h1>
 
       <form
@@ -67,6 +69,6 @@ export function SessionsPage(): React.JSX.Element {
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   );
 }

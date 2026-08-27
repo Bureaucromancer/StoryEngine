@@ -92,7 +92,10 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   }, [state.status, sessionId, queryClient]);
 
   return (
-    <main className="mx-auto flex h-full max-w-reading flex-col gap-4 p-4">
+    // A `div`, not a landmark: the shell owns the routed app's one `<main>`
+    // ([P3.−1]) — this page nesting a second one inside it was the audit's
+    // finding, and the page's job is its content, not the document's regions.
+    <div className="mx-auto flex h-full max-w-reading flex-col gap-4 p-4">
       <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
@@ -149,7 +152,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         </div>
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
-    </main>
+    </div>
   );
 }
 

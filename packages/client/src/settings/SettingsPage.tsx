@@ -35,7 +35,9 @@ export function SettingsPage(): JSX.Element {
   const account = auth.data?.account ?? null;
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-10 p-6">
+    // A `div`, not a landmark — the shell owns the routed app's one `<main>`
+    // ([P3.−1]); this page declared a second one inside it.
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 p-6">
       <h1 className="text-title text-ink">Settings</h1>
 
       <UserSettings />
@@ -59,6 +61,6 @@ export function SettingsPage(): JSX.Element {
           <AdminInstall />
         </section>
       ) : null}
-    </main>
+    </div>
   );
 }
