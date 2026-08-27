@@ -4,10 +4,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Logger } from '../state/commit.js';
 
+import { basename, dirname, join } from 'node:path';
+
 import { type FSWatcher, watch } from 'chokidar';
 
 import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
-import { statFile } from '../storage/files.js';
+import { appendLine, statFile, unlinkFile } from '../storage/files.js';
 import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
 import { isContained } from '../storage/paths.js';
@@ -62,6 +64,12 @@ export interface WatcherOptions {
   onChange?: (event: WatchEvent) => void;
 }
 
+/**
+ * The delivery probe's filename prefix — a dotfile directly under the data
+ * root, which no layout path is. See {@link LibraryWatcher.start}.
+ */
+const PROBE_PREFIX = '.watcher-probe-';
+
 export interface WatchEvent {
   type: 'indexed' | 'removed' | 'suppressed' | 'ignored';
   path: string;
@@ -78,6 +86,8 @@ export class LibraryWatcher {
   /** The options object itself, so `keepHistoryPerObject` stays a live read. */
   readonly #options: WatcherOptions;
   #watcher: FSWatcher | null = null;
+  /** Resolves the pending delivery-probe wait, while `start()` is proving the pipe. */
+  #probeSeen: (() => void) | null = null;
   /**
    * Events are serialised through one promise chain.
    *
@@ -155,6 +165,62 @@ export class LibraryWatcher {
         ready();
       });
     });
+    await this.#proveDelivery();
+  }
+
+  /**
+   * **`ready` is not `live`, and the difference is a silently missed edit.**
+   *
+   * On macOS every `fs.watch` in the process funnels through libuv's one
+   * shared FSEvents stream on a helper thread, and each watcher added or
+   * removed — ours or anybody's — tears that stream down and recreates it
+   * "since now". chokidar's `ready` fires when the scan is done and the
+   * handles *exist*; the rebuilt stream may not be delivering yet, and a write
+   * that lands in the gap is dropped permanently, with no error and no
+   * catch-up. Measured: under load a watcher could sit event-dead for seconds
+   * after `ready` while the raw layer reported nothing at all — which is
+   * [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s central gesture failing
+   * silently, at the exact moment a rebuild has just declared the index
+   * current.
+   *
+   * So `start()` proves the pipe before returning: write a probe file under
+   * the root and wait for its own event to come back, a fresh filename per
+   * attempt because a creation the dead stream missed is never announced
+   * later. Both handlers swallow probe events — the probe is `start()`'s
+   * implementation detail, not an observation. If the root refuses the probe
+   * (read-only, or a filesystem whose events genuinely never come), give up
+   * quietly after the ladder: a broken root will say so louder on first use.
+   */
+  async #proveDelivery(): Promise<void> {
+    // Long enough for awaitWriteFinish to release the probe's add, plus slack
+    // for the helper thread this wait exists to outwait.
+    const waitMs = this.#stabilityThresholdMs + 150;
+    const written: string[] = [];
+    try {
+      for (let attempt = 0; attempt < 12 && this.#watcher; attempt += 1) {
+        const seen = new Promise<boolean>((resolve) => {
+          this.#probeSeen = () => {
+            resolve(true);
+          };
+          setTimeout(() => {
+            resolve(false);
+          }, waitMs);
+        });
+        const path = join(this.#layout.dataRoot, `${PROBE_PREFIX}${String(attempt)}`);
+        await appendLine(path, 'delivery probe\n');
+        written.push(path);
+        if (await seen) return;
+      }
+    } catch {
+      // The probe could not even be written; nothing here to prove.
+    } finally {
+      this.#probeSeen = null;
+      await Promise.all(written.map((path) => unlinkFile(path).catch(() => undefined)));
+    }
+  }
+
+  #isProbe(path: string): boolean {
+    return dirname(path) === this.#layout.dataRoot && basename(path).startsWith(PROBE_PREFIX);
   }
 
   /** Resolves once every event seen so far has been handled. */
@@ -173,6 +239,11 @@ export class LibraryWatcher {
   }
 
   async #onUpsert(path: string): Promise<void> {
+    if (this.#isProbe(path)) {
+      this.#probeSeen?.();
+      return;
+    }
+
     const parsed = this.#layout.parseObjectPath(path);
     if (!parsed) {
       this.#onChange({ type: 'ignored', path });
@@ -243,6 +314,7 @@ export class LibraryWatcher {
   }
 
   #onUnlink(path: string): void {
+    if (this.#isProbe(path)) return;
     if (!this.#layout.parseObjectPath(path)) {
       this.#onChange({ type: 'ignored', path });
       return;
