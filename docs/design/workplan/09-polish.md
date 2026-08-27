@@ -287,3 +287,25 @@ scale, and a dark theme it does not have to think about.
   a type step moved. Arrangement is not theming — E10 draws exactly that line —
   and a named recipe holding `mx-auto flex max-w-3xl` would be layout smuggled
   into the appearance layer.
+
+## 7. A filter over the sign-in gallery
+
+**Blocked on the gallery existing.** The opt-in account-gallery arrival
+screen is [15](../15-account-gallery.md), homed at P10; this item is the
+escalation that note defers, recorded here so the deferral has an address.
+
+**Today.** There is no gallery yet. When it ships, it is tiles for every
+listed account plus a *Sign in by name* link, and at household scale that is
+the whole answer — single-digit tiles are scanned, not searched
+([15 §7](../15-account-gallery.md)).
+
+**What to build, when tile count defeats scanning.** A type-to-filter box on
+the gallery, narrowing the tiles as you type — client-side, over the listing
+the screen already fetched. No schema change, no new contract: squarely
+inside this file's house rule.
+
+**The thing to get right.** [15 §7](../15-account-gallery.md) records the
+intent: once a text entry exists on the gallery, the separate by-name link
+may fold into it — a typed handle that matches no tile *is* the by-name
+case — leaving the screen one text affordance instead of two. Build the
+filter as that, not as a second box beside the link.

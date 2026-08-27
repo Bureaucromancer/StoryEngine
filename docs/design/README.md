@@ -79,6 +79,10 @@ were written in. **Start with 00, then 01.**
 | [11-cross-session-memory.md](11-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
 | [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
+| [15-account-gallery.md](15-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
+
+15 sits after 14 by number only — the slots beneath it were taken when it was
+written; it reads beside 04 and 05, which is why it is indexed here.
 
 ### The technical ground
 

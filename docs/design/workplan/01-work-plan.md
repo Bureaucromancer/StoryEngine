@@ -729,7 +729,8 @@ system library panel if it ever earns an admin action, *Restart now* with the
 supervisor detection and drain it needs, and connectivity state once P11's
 update check produces the signal. Plus the notification router and delivery
 channels, the loopback bind and its container inversion, the setup token, mDNS,
-the About surface and §13 source link.
+the account-gallery arrival screen ([15](../15-account-gallery.md)), the About
+surface and §13 source link.
 
 ### P11 — Beta hardening
 

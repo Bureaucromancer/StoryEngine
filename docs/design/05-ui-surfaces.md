@@ -100,7 +100,7 @@ what the user is doing at that moment, not by taste:
 
 | Dense — tooling | Quiet — story and arrival |
 |---|---|
-| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
+| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([15](15-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
 **The reading view is the case that proves the rule**, and it is already written
@@ -1512,6 +1512,11 @@ Available to every account, admin or not.
 - **Display name, and locale.** Both already on `Account`
   ([04 §4.2](04-server-multiuser-deployment.md)); locale defaults from
   `Accept-Language` on first login and this is where it stops being a guess.
+- **Shown on the sign-in gallery, or not** ([15 §4](15-account-gallery.md)).
+  An `Account` field rather than a preference, by this section's own test:
+  the server reads it before you are signed in. The toggle carries its
+  consequence beside it, and says so plainly when the install's arrival
+  screen means it currently changes nothing.
 - **Change your own password.** Requires the current one. **This is not account
   recovery** and does not weaken the position that there is none
   ([04 §5.1](04-server-multiuser-deployment.md)): it is a logged-in user
@@ -1570,6 +1575,11 @@ cannot send a message.
   §4.2), `enableExtensions`. Each with the consequence written next to it rather
   than in a manual — *"may add their own provider keys"*, *"may browse and edit
   their own files in the app"*.
+- **The gallery flag is set here too** ([15 §4](15-account-gallery.md)),
+  beside the capabilities but deliberately not one of them — it grants
+  nothing (§15.4). It decides whether the account appears on the sign-in
+  gallery, and the control says so, with the same consequence-beside-it
+  honesty.
 - **Disable, and reset a password.** Disable is reversible and does not delete;
   the console reset stays the break-glass for the admin who cannot log in.
 - **Removing an account is a deletion of a person's library**, and the surface

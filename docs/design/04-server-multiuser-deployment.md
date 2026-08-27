@@ -365,6 +365,11 @@ where a password is *set* and never where one is checked, so raising it locks
 nobody out of an account they already have. `--reset-password` honours no
 minimum at all, for the reason §5.1 gives.
 
+One disclosure is opt-in rather than skipped: an install may choose an
+account-gallery arrival screen, which shows listed accounts before anyone
+authenticates. The trade, and why this threat model can afford it, is argued
+in [15 §3](15-account-gallery.md).
+
 ### 4.2 Users
 
 ```ts
@@ -374,6 +379,7 @@ interface Account {
   passwordHash, salt      // scrypt, per [07 §9] — no native dependency
   role: "admin" | "user"
   enabled: boolean
+  hiddenFromGallery?: boolean  // presentation, not a capability; absent means listed. [15 §4]
   locale: string | null   // BCP-47; defaulted from Accept-Language on first login
   capabilities: Capabilities
   createdAt: number
