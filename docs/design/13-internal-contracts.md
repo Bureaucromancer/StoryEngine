@@ -282,10 +282,16 @@ first question anyone asks about a turn that came out wrong.
 
 ```ts
 interface BudgetVerdict {
-  /** The window, and where the number came from — a provider capability, a
-   *  preset ceiling, or a user override. Presets carry absolute ceilings from
-   *  ST import ([10 §8.4.1]) and a 4k number must not silently apply at 200k. */
-  limit: { tokens: number; source: "provider" | "preset" | "user" }
+  /** The window, and the honest account of where it came from (P3.0).
+   *  `source` names the origin of the *ceiling* — whichever side won the min:
+   *  the endpoint's declared window, the preset's absolute cap ([10 §8.4.1]'s
+   *  4k-must-not-apply-at-200k rule), or the config default (`"user"`, the
+   *  live-editable number). The preset's `contextShare` narrows the ceiling to
+   *  `tokens` without relabelling it: `share` present ⇒ a preset budget was in
+   *  play and `tokens === floor(ceiling × share)`; absent ⇒ `tokens === ceiling`.
+   *  The old shape stamped `"preset"` whenever a share applied, which hid the
+   *  exact remedy this field exists to suggest. */
+  limit: { tokens: number; ceiling: number; source: "provider" | "preset" | "user"; share?: number }
   reserved: number                // held back for the completion
   spent: number
   /** Ordered as considered. Every block appears, including the included ones —

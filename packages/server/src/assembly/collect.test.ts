@@ -22,7 +22,10 @@ import { collectCandidates, type CollectContext } from './collect.js';
  * union and therefore falsifies neither.
  */
 
-const GENEROUS: BudgetPolicy = { limit: { tokens: 100_000, source: 'user' }, reserved: 0 };
+const GENEROUS: BudgetPolicy = {
+  limit: { tokens: 100_000, ceiling: 100_000, source: 'user' },
+  reserved: 0,
+};
 
 function block(over: Partial<PresetBlock> & Pick<PresetBlock, 'kind'>): PresetBlock {
   return {

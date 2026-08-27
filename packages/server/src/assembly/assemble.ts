@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { AssembledBlock, BudgetVerdict, CallPurpose, Candidate } from './types.js';
+import type {
+  AssembledBlock,
+  BudgetLimit,
+  BudgetVerdict,
+  CallPurpose,
+  Candidate,
+} from './types.js';
 
 /**
  * Budget and admission — steps 2 and 3 of
@@ -31,8 +37,8 @@ export function estimateTokens(text: string): number {
 }
 
 export interface BudgetPolicy {
-  /** The window, and where the number came from. */
-  limit: { tokens: number; source: 'provider' | 'preset' | 'user' };
+  /** The window, and the honest account of where it came from. */
+  limit: BudgetLimit;
   /** Held back for the completion. */
   reserved: number;
 }

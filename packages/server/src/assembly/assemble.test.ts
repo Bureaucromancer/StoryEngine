@@ -84,7 +84,10 @@ function candidates(): Candidate[] {
   ];
 }
 
-const GENEROUS = { limit: { tokens: 4000, source: 'provider' as const }, reserved: 512 };
+const GENEROUS = {
+  limit: { tokens: 4000, ceiling: 4000, source: 'provider' as const },
+  reserved: 512,
+};
 
 describe('collect and annotate', () => {
   it('keeps the order the preset positioned, including a block inside history', () => {
@@ -133,7 +136,7 @@ describe('the budget verdict', () => {
   });
 
   it('drops lowest priority first, and names the rule that did it', () => {
-    const tight = { limit: { tokens: 60, source: 'preset' as const }, reserved: 10 };
+    const tight = { limit: { tokens: 60, ceiling: 60, source: 'preset' as const }, reserved: 10 };
     const { blocks, verdict } = assemble({ candidates: candidates(), policy: tight });
 
     const dropped = blocks.filter((block) => !block.included);
@@ -147,10 +150,10 @@ describe('the budget verdict', () => {
   it('records where the limit came from, because a 4k ceiling must not apply at 200k', () => {
     const { verdict } = assemble({
       candidates: candidates(),
-      policy: { limit: { tokens: 4096, source: 'preset' }, reserved: 256 },
+      policy: { limit: { tokens: 4096, ceiling: 4096, source: 'preset' }, reserved: 256 },
     });
 
-    expect(verdict.limit).toEqual({ tokens: 4096, source: 'preset' });
+    expect(verdict.limit).toEqual({ tokens: 4096, ceiling: 4096, source: 'preset' });
   });
 
   it('never drops a required block', () => {
@@ -167,7 +170,7 @@ describe('the budget verdict', () => {
     ];
     const { blocks } = assemble({
       candidates: required,
-      policy: { limit: { tokens: 100, source: 'provider' }, reserved: 10 },
+      policy: { limit: { tokens: 100, ceiling: 100, source: 'provider' }, reserved: 10 },
     });
 
     expect(blocks.find((block) => block.id === 'the-message')?.included).toBe(true);
@@ -267,7 +270,7 @@ describe('render', () => {
   });
 
   it('renders only what the budget included', () => {
-    const tight = { limit: { tokens: 60, source: 'provider' as const }, reserved: 10 };
+    const tight = { limit: { tokens: 60, ceiling: 60, source: 'provider' as const }, reserved: 10 };
     const { blocks } = assemble({ candidates: candidates(), policy: tight });
     const messages = render(blocks, unmerged);
 

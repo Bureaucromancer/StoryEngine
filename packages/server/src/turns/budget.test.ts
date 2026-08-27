@@ -29,22 +29,33 @@ describe('the window', () => {
     // the config default every turn would be unbudgetable.
     expect(budgetPolicyFor(CONSERVATIVE_CAPABILITIES, {}, config).limit).toEqual({
       tokens: config.limits.contextTokens,
+      ceiling: config.limits.contextTokens,
       source: 'user',
     });
 
     const known = { ...CONSERVATIVE_CAPABILITIES, maxContextTokens: 32_000 };
     expect(budgetPolicyFor(known, {}, config).limit).toEqual({
       tokens: 32_000,
+      ceiling: 32_000,
       source: 'provider',
     });
   });
 
-  it('is narrowed by the share the preset is willing to spend', () => {
+  /**
+   * [P3.0]'s inversion, and the audit's own example. The old shape stamped
+   * `source: 'preset'` here — three-quarters of the live-editable config
+   * default claimed as the preset's number, hiding the one remedy a person
+   * can reach. The share narrows; it does not own the ceiling.
+   */
+  it('is narrowed by the share without the share taking the credit', () => {
     const policy = budgetPolicyFor(CONSERVATIVE_CAPABILITIES, {}, config, preset());
 
-    expect(policy.limit.tokens).toBe(Math.floor(config.limits.contextTokens * 0.75));
-    // A first producer for a `source` the type has always had.
-    expect(policy.limit.source).toBe('preset');
+    expect(policy.limit).toEqual({
+      tokens: Math.floor(config.limits.contextTokens * 0.75),
+      ceiling: config.limits.contextTokens,
+      source: 'user',
+      share: 0.75,
+    });
   });
 
   it('lets a preset cap the window but never raise it', () => {
@@ -59,15 +70,24 @@ describe('the window', () => {
       config,
       preset({ maxContextTokens: 4_000, contextShare: 1 }),
     );
-    expect(capped.limit.tokens).toBe(4_000);
+    // The cap won the min, so the preset honestly owns the ceiling.
+    expect(capped.limit).toEqual({ tokens: 4_000, ceiling: 4_000, source: 'preset', share: 1 });
 
+    // A cap that lost the min is not the ceiling's origin — the endpoint is.
+    // The falsifying mutation is the old unconditional relabel: any declared
+    // cap stamping `'preset'` regardless of who won.
     const cannotRaise = budgetPolicyFor(
       { ...CONSERVATIVE_CAPABILITIES, maxContextTokens: 8_000 },
       {},
       config,
       preset({ maxContextTokens: 500_000, contextShare: 1 }),
     );
-    expect(cannotRaise.limit.tokens).toBe(8_000);
+    expect(cannotRaise.limit).toEqual({
+      tokens: 8_000,
+      ceiling: 8_000,
+      source: 'provider',
+      share: 1,
+    });
   });
 });
 

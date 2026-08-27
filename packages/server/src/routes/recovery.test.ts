@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
@@ -419,7 +420,10 @@ describe('a turn killed mid-generation', () => {
 
     const budget = request?.budget ?? null;
     expect(budget).not.toBeNull();
-    expect(budget?.limit.source).toBe('preset');
+    // The honest stamp since [P3.0]: the ceiling is the config's, the share is
+    // the preset's, and neither claims the other's number.
+    expect(budget?.limit.source).toBe('user');
+    expect(budget?.limit.share).toBe(SCENE_PRESET.budget.contextShare);
     expect(budget?.spent).toBeGreaterThan(0);
     // Every block ruled on, including the kept ones ([13 §1.5]) — a verdict
     // listing only the drops cannot answer "what falls out next", which is what

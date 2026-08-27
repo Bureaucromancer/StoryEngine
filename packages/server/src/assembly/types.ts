@@ -163,13 +163,35 @@ export interface AssembledBlock {
   advisory?: true;
 }
 
+/**
+ * The window a turn may spend, and the honest account of where it came from —
+ * [13 §1.5](../../../../docs/design/13-internal-contracts.md), reshaped by [P3.0].
+ *
+ * `source` names the origin of the **ceiling** — whichever side actually won:
+ * the endpoint's declared window, the preset's absolute cap, or the config
+ * default (`'user'`, because `limits.contextTokens` is the person's number and
+ * live-editable). The preset's `contextShare` then narrows the ceiling to
+ * `tokens` without relabelling it — the old shape stamped `source: 'preset'`
+ * whenever a share applied, which hid the exact remedy the field exists to
+ * suggest: a limit three-quarters of the config default is still the config's
+ * number, and the settings form is still where it changes.
+ *
+ * Invariants a reader may lean on: `share` present ⇒ a preset budget was in
+ * play and `tokens === floor(ceiling × share)`; absent ⇒ `tokens === ceiling`.
+ */
+export interface BudgetLimit {
+  /** The spendable window the budgeter enforces. */
+  tokens: number;
+  /** The resolved window before the share narrowed it. */
+  ceiling: number;
+  source: 'provider' | 'preset' | 'user';
+  /** The preset's contextShare, when one applied. */
+  share?: number;
+}
+
 /** [13 §1.5](../../../../docs/design/13-internal-contracts.md). */
 export interface BudgetVerdict {
-  /**
-   * The window, and **where the number came from**. Presets carry absolute
-   * ceilings from import, and a 4k number must not silently apply at 200k.
-   */
-  limit: { tokens: number; source: 'provider' | 'preset' | 'user' };
+  limit: BudgetLimit;
   /** Held back for the completion. */
   reserved: number;
   spent: number;

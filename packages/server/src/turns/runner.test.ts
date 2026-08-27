@@ -1013,9 +1013,13 @@ describe("the preset's own settings reach the call", () => {
     const { turn } = await runTurn();
 
     const limit = turn.request?.budget?.limit;
-    // Three quarters of the config ceiling, and labelled as the preset's — the
-    // first producer `source: 'preset'` has ever had.
-    expect(limit?.source).toBe('preset');
+    // Three quarters of the config ceiling — and since [P3.0], labelled as
+    // what it is: the config's number (`'user'`, the live-editable one),
+    // narrowed by the preset's recorded share. The old `'preset'` stamp hid
+    // the exact remedy the field exists to suggest.
+    expect(limit?.source).toBe('user');
+    expect(limit?.ceiling).toBe(DEFAULT_CONFIG.limits.contextTokens);
+    expect(limit?.share).toBe(SCENE_PRESET.budget.contextShare);
     expect(limit?.tokens).toBe(
       Math.floor(DEFAULT_CONFIG.limits.contextTokens * SCENE_PRESET.budget.contextShare),
     );
