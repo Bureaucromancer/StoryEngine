@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Account } from '../api.js';
 
@@ -67,6 +67,20 @@ const TURNS = [
   },
 ];
 
+/**
+ * The prefs half is stateful, because since [P3.1a] the dock's open state and
+ * size *are* preferences: `readPrefs` answers what was patched and `patchPrefs`
+ * merges with `null` deleting, the server's own contract. A test seeds
+ * `prefsStore` before rendering to mean "what a reload would find".
+ */
+let prefsStore: Record<string, unknown> = {};
+const patchPrefs = vi.fn();
+
+beforeEach(() => {
+  prefsStore = {};
+  patchPrefs.mockClear();
+});
+
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
   return {
@@ -75,7 +89,14 @@ vi.mock('../api.js', async (importOriginal) => {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
       listLibrary: () => Promise.resolve({ objects: [] }),
-      readPrefs: () => Promise.resolve({ prefs: {} }),
+      readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+      patchPrefs: (patch: Record<string, unknown>) => {
+        patchPrefs(patch);
+        prefsStore = Object.fromEntries(
+          Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+        );
+        return Promise.resolve({ prefs: { ...prefsStore } });
+      },
     },
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
     readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
@@ -227,5 +248,22 @@ describe('the panel frame', () => {
 
     await overPlay();
     expect(within(screen.getByRole('complementary')).getByText(/I step inside\./)).toBeTruthy();
+  });
+
+  /**
+   * Gate step 2's reload half — [P3.1a]. A fresh mount with the preference
+   * already stored *is* a reload as far as the client can tell: the dock is
+   * open before anyone presses a key, already on the right subject, and
+   * nothing writes — opening from a stored preference is a read, and a mount
+   * that patched would overwrite what it was supposed to be honouring.
+   */
+  it('a reload finds it as it was left', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    expect(within(dock).getByText(/I step inside\./)).toBeTruthy();
+    expect(patchPrefs).not.toHaveBeenCalled();
   });
 });

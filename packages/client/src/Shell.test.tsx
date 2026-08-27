@@ -21,10 +21,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authState = vi.fn();
 const notices = vi.fn();
+const readPrefs = vi.fn();
+const patchPrefs = vi.fn();
 
 vi.mock('./api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api.js')>()),
-  api: { authState: (...a: unknown[]) => authState(...a) as unknown, logout: vi.fn() },
+  api: {
+    authState: (...a: unknown[]) => authState(...a) as unknown,
+    logout: vi.fn(),
+    readPrefs: (...a: unknown[]) => readPrefs(...a) as unknown,
+    // Only the payload reaches the spy: v5 hands `mutationFn` a second
+    // context argument, and the tests assert on what would go over the wire.
+    patchPrefs: (patch: Record<string, unknown>) => patchPrefs(patch) as unknown,
+  },
   adminApi: { notices: (...a: unknown[]) => notices(...a) as unknown },
 }));
 
@@ -63,9 +72,26 @@ function account(role: 'admin' | 'user') {
   };
 }
 
+/**
+ * A tiny stateful prefs store per test, because the workbench's open state
+ * now lives there: `readPrefs` answers what was patched, and `patchPrefs`
+ * merges with `null` deleting — the same contract the server keeps, without
+ * which the optimistic mutation's `onSuccess` would overwrite the cache with
+ * something the real server would never have said.
+ */
+let prefsStore: Record<string, unknown> = {};
+
 beforeEach(() => {
   vi.clearAllMocks();
   notices.mockResolvedValue({ pendingRestart: [], canRestart: false });
+  prefsStore = {};
+  readPrefs.mockImplementation(() => Promise.resolve({ prefs: { ...prefsStore } }));
+  patchPrefs.mockImplementation((patch: Record<string, unknown>) => {
+    prefsStore = Object.fromEntries(
+      Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+    );
+    return Promise.resolve({ prefs: { ...prefsStore } });
+  });
 });
 
 function renderShell(role: 'admin' | 'user') {
@@ -221,5 +247,23 @@ describe('the workbench opener', () => {
     await userEvent.click(opener);
     expect(opener.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  /**
+   * The stored shape, pinned the way the theme's is
+   * (`SettingsPage.test.tsx`): open is `true`, closed is `null` — a deletion,
+   * because closed is the default and the absence *is* the default state
+   * ([P3.1a], `workbench/prefs.ts`). A mutation that stored `false` instead
+   * would leave a key that means nothing accumulating in everyone's file.
+   */
+  it('records open as the preference and closed as its absence', async () => {
+    renderShell('user');
+    const opener = await screen.findByRole('button', { name: 'Workbench' });
+
+    await userEvent.click(opener);
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+
+    await userEvent.click(opener);
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': null });
   });
 });

@@ -2,12 +2,13 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
+import { useCallback, useEffect, useRef, type JSX } from 'react';
 
-import { useAuthState, useLogout, useNotices } from './queries.js';
+import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
 import { useTheme } from './ui/useTheme.js';
+import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
 import { Workbench } from './workbench/Workbench.js';
 
@@ -22,16 +23,26 @@ export function Shell(): JSX.Element {
   useTheme();
 
   /**
-   * The workbench's open state — in `Shell` because this is the one mount
-   * point that survives navigation, which is what [05 §3]'s *left open while
-   * you work* costs. In-memory only at this stage: `ui.workbench-open` and
-   * the reload half of the claim are P3.1a's, through the prefs store built
-   * for exactly this case.
+   * The workbench's open state — a preference from this stage on ([P3.1a]),
+   * and the prefs *cache* is the state: `usePatchPrefs` is optimistic, so a
+   * toggle lands on screen at click speed and the server catches up, exactly
+   * the case its docstring exists for. Open survives navigation because the
+   * cache does, and survives a reload because the file does — gate step 2's
+   * two halves. The accepted cost, from [P3 §1.2]: a reload paints closed for
+   * one round-trip before an open dock reappears, which a `localStorage`
+   * mirror could hide and deliberately does not — the theme's mirror stays
+   * the client's only use of it.
    */
-  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const prefs = usePrefs();
+  const patchPrefs = usePatchPrefs();
+  const workbenchOpen = workbenchOpenFromPrefs(prefs.data?.prefs);
+  const patchOpen = patchPrefs.mutate;
   const toggleWorkbench = useCallback(() => {
-    setWorkbenchOpen((open) => !open);
-  }, []);
+    patchOpen(workbenchOpenPatch(!workbenchOpen));
+  }, [patchOpen, workbenchOpen]);
+  const closeWorkbench = useCallback(() => {
+    patchOpen(workbenchOpenPatch(false));
+  }, [patchOpen]);
   useToggleChord(toggleWorkbench);
 
   const mainRef = useRef<HTMLElement | null>(null);
@@ -140,13 +151,7 @@ export function Shell(): JSX.Element {
         <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
-        {workbenchOpen ? (
-          <Workbench
-            onClose={() => {
-              setWorkbenchOpen(false);
-            }}
-          />
-        ) : null}
+        {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
       </div>
     </div>
   );
