@@ -6,6 +6,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { TurnRecord } from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -71,13 +72,19 @@ const SESSION = {
   headTurnId: 'turn-1',
 };
 
-const TURN = {
+// Typed as the real record since [P3.0] — the mocks are untyped `vi.fn()`s,
+// so the annotation is what keeps this fixture honest against the shared
+// shape instead of drifting behind an index signature.
+const TURN: TurnRecord = {
   id: 'turn-1',
+  sessionId: SESSION.id,
   parentTurnId: null,
   createdAt: '2026-08-18T10:00:00.000Z',
-  status: 'complete' as const,
-  input: { text: 'I knock twice.', kind: 'action' },
+  status: 'complete',
+  input: { actorId: null, text: 'I knock twice.', kind: 'action', raw: 'I knock twice.' },
   output: { text: 'The door opens a handspan.' },
+  effects: [],
+  tape: [],
 };
 
 beforeEach(() => {

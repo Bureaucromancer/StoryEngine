@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { LIBRARY_DIRECTORIES } from '@storyengine/shared';
+import { LIBRARY_DIRECTORIES, type Turn as TurnRecord } from '@storyengine/shared';
 
 /**
  * The client's side of docs/api.md — plain `fetch`, one wrapper.
@@ -313,13 +313,20 @@ export const api = {
 /**
  * Sessions and turns — the play surface's half of the API.
  *
- * The shapes are re-declared here rather than imported from the server, because
- * the client may not depend on it. That is a real seam with a real cost: a
- * rename on the server side becomes a silent mismatch here, which is why the
- * server asserts its own frame shape ([routes/sessions.test.ts]). A shared
- * package for these is the proper fix and belongs with the workbench, which is
- * the first surface that needs more of them than this one does.
+ * **The turn record is the real shape now** — [P3.0] paid the debt this
+ * section used to carry: `TurnRecord` was six fields plus an index signature,
+ * re-declared here because the client may not depend on the server, and every
+ * field the workbench renders arrived through `unknown`. The shapes live in
+ * `@storyengine/shared` (`turn.ts`, internal tier — the module carries the
+ * argument), and the alias keeps this file the client's one vocabulary for
+ * them.
+ *
+ * `SessionSummary` and `ActiveJob` stay local projections on purpose: the
+ * routes serve more than these name (the job row in particular is wider on
+ * the wire), and widening the client's claim is its own decision for the
+ * surface that needs it — not a side effect of the record move.
  */
+export type { Turn as TurnRecord } from '@storyengine/shared';
 
 export interface SessionSummary {
   id: string;
@@ -328,16 +335,6 @@ export interface SessionSummary {
   updatedAt: string;
   headTurnId: string | null;
   archivedAt?: string;
-}
-
-export interface TurnRecord {
-  id: string;
-  parentTurnId: string | null;
-  createdAt: string;
-  status: 'complete' | 'failed' | 'suspended';
-  input?: { text: string; kind: string };
-  output?: { text: string };
-  [key: string]: unknown;
 }
 
 export interface ActiveJob {

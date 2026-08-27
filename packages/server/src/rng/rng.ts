@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { Draw, DrawKind, Tape } from '@storyengine/shared';
+
 import { parseDice } from './dice.js';
 import { cryptoSource, type RandomSource } from './source.js';
 
@@ -44,32 +46,11 @@ import { cryptoSource, type RandomSource } from './source.js';
  * which were fresh, so a rewrite that partly diverged says so.
  */
 
-export type DrawKind =
-  'int' | 'float' | 'bool' | 'chance' | 'pick' | 'weightedPick' | 'shuffle' | 'dice';
-
-/**
- * One recorded draw.
- *
- * `detail` is what makes the workbench legible: `skill-check:persuasion d20 → 7`
- * rather than an anonymous list of numbers.
- */
-export interface Draw {
-  /** `site:purpose#index`. Stable across a rewrite that takes the same path. */
-  key: string;
-  site: string;
-  purpose: string;
-  index: number;
-  kind: DrawKind;
-  /** How the draw was asked for — `d20`, `p=0.3`, `0..5`. */
-  detail: string;
-  /** What it produced. JSON, because the tape is part of the turn record. */
-  value: unknown;
-  /** True when this value came off a tape rather than from the source. */
-  replayed: boolean;
-}
-
-/** A turn's draws, in the order they happened. */
-export type Tape = Draw[];
+// The tape's shapes moved to `@storyengine/shared` at [P3.0] — the tape is
+// part of the turn record, and the record's shapes live together. The `Rng`
+// that produces draws stays here: shared is pure types, and randomness is
+// exactly the runtime behaviour it refuses to hold.
+export type { Draw, DrawKind, Tape } from '@storyengine/shared';
 
 export interface RngOptions {
   /** Defaults to `node:crypto`. A test or a fixture supplies its own. */

@@ -7,7 +7,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Account } from '../api.js';
+import type { Account, TurnRecord } from '../api.js';
 
 /**
  * The panel frame over the real router —
@@ -48,22 +48,30 @@ const SESSION = {
   headTurnId: 'turn-2',
 };
 
-const TURNS = [
+// Typed as the real record since [P3.0]: the mocks are untyped, so the
+// annotation is what keeps these fixtures honest against the shared shape.
+const TURNS: TurnRecord[] = [
   {
     id: 'turn-1',
+    sessionId: SESSION_ID,
     parentTurnId: null,
     createdAt: '2026-08-18T10:00:00.000Z',
-    status: 'complete' as const,
-    input: { text: 'I knock twice.', kind: 'action' },
+    status: 'complete',
+    input: { actorId: null, text: 'I knock twice.', kind: 'action', raw: 'I knock twice.' },
     output: { text: 'The door opens a handspan.' },
+    effects: [],
+    tape: [],
   },
   {
     id: 'turn-2',
+    sessionId: SESSION_ID,
     parentTurnId: 'turn-1',
     createdAt: '2026-08-18T10:05:00.000Z',
-    status: 'complete' as const,
-    input: { text: 'I step inside.', kind: 'action' },
+    status: 'complete',
+    input: { actorId: null, text: 'I step inside.', kind: 'action', raw: 'I step inside.' },
     output: { text: 'The hall smells of wet rope.' },
+    effects: [],
+    tape: [],
   },
 ];
 

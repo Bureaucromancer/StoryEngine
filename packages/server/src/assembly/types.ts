@@ -1,96 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { BlockSource } from '@storyengine/shared';
+
 /**
  * The assembly contracts — [02 §8](../../../../docs/design/02-data-model.md),
  * [13 §1.1 and §1.5](../../../../docs/design/13-internal-contracts.md).
  *
- * The pipeline's context stage is four steps
- * ([03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md)): collect,
- * annotate, budget, render. These are the shapes that travel between them and
- * into the turn record — which is the point of writing them down. The workbench
- * renders a field the record already holds, so anything the assembler knows and
- * does not record is a question the workbench cannot answer later.
+ * **The record-crossing shapes live in `@storyengine/shared` since [P3.0]**
+ * (`packages/shared/src/turn.ts`, with the contracts' documentation): what
+ * the assembler writes onto the record is what the client's workbench reads,
+ * and one declaration is what keeps the two ends one vocabulary. Re-exported
+ * here so the pipeline's import paths stay put. What stays in this module is
+ * what never leaves the server: the pre-verdict `Candidate`, and the
+ * slot-side derivation of `BlockSource`.
  */
-
-/**
- * Where a block came from — **one vocabulary, used from both ends**.
- *
- * A preset slot names a source, the assembler fills it, and the resulting block
- * records where it came from: same names, both ends. Two vocabularies would
- * mean the workbench's block list and a preset's slot list disagreeing about
- * what anything *is*, while golden files snapshot one and authors edit the
- * other.
- *
- * The identifiers are what make provenance clickable — *which* lore entry, not
- * "a lore entry".
- */
-export type BlockSource =
-  /**
-   * The persona is an actor too ([P3.0]): `actorId` is what makes the block
-   * clickable through to the object it came from, and `contentHash` addresses
-   * the bytes that were *used* rather than the object with that id today.
-   * Both null when the session has no persona — a persona slot with
-   * `omitWhenEmpty: false` still emits over nothing, and null is that claim.
-   */
-  | { kind: 'persona'; actorId: string | null; contentHash: string | null }
-  /**
-   * `contentHash` since [P3.0] — the cast is a *link* read fresh every turn,
-   * so the id alone resolves to whatever the actor is *now*; the hash is what
-   * gate step 4 clicks through to the actor as it was sent.
-   */
-  | {
-      kind: 'actor';
-      actorId: string;
-      contentHash: string;
-      sectionId?: string;
-      field?: 'traits' | 'visual';
-    }
-  | { kind: 'lore'; entryId: string; phase: 'before' | 'after' }
-  /**
-   * One half of one past turn — F36.
-   *
-   * `part` because a turn is now **two** blocks rather than one, and a reader
-   * with two rows carrying the same `range` and no way to tell them apart is a
-   * reader that cannot answer *whose words were these*. Which is the question
-   * the split was made to fix.
-   *
-   * `turnId` is the identity ([P3.0]): `range` is an index into the *window*,
-   * so from turn twenty-one onward two records disagree about which turn
-   * `range: [0, 0]` names, and any block-keyed comparison built on it is
-   * wrong. The window-relative range stays as display information — where in
-   * this prompt the turn sat — with the id carrying what it *was*.
-   */
-  | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
-  | { kind: 'examples'; actorId: string }
-  | { kind: 'channel'; channelId: string }
-  | { kind: 'setting'; part: 'framing' | 'tone' }
-  | { kind: 'goal'; goalId: string }
-  /**
-   * The guidance slot — [03 §5.1](../../../../docs/design/03-modes-and-turn-pipeline.md).
-   *
-   * **A source of its own, and it had to become one.** That section says the
-   * guidance block is *"positioned by the preset"*, which makes it slot-nameable
-   * by definition — but it was reachable only as `{kind: 'step'}`, one of the
-   * two `SlotSource` deliberately excludes. So a preset could not position the
-   * one block the section says it positions. Found at P2.5, when the first real
-   * producer needed a source to declare.
-   *
-   * `producer` because §5.1 is explicit that one slot has several producers —
-   * the user's box, a rule's `giveGuidance`, a Narrative Director push — and the
-   * workbench should say which, without three sources to keep in step.
-   */
-  | { kind: 'guidance'; producer: 'user' | 'rule' | 'step' }
-  /**
-   * What the player just did. Not `history`: history is turns that happened, and
-   * this is the one that is happening. A preset positions it — every preset
-   * decides where the player's action sits relative to the lore and the
-   * instructions — so it is a slot source for the same reason guidance is.
-   */
-  | { kind: 'input' }
-  // The two a slot can never name, because no preset positions them.
-  | { kind: 'preset'; blockId: string }
-  | { kind: 'step'; stepId: string };
+export type {
+  AssembledBlock,
+  BlockSource,
+  BudgetLimit,
+  BudgetVerdict,
+  CallPurpose,
+  NotFilledReason,
+  NotFilledSlot,
+} from '@storyengine/shared';
 
 /**
  * `BlockSource` minus the two a slot cannot name — a derivation rather than a
@@ -134,142 +67,9 @@ export interface Candidate {
    * betrayed her by now"* typed into the guidance box would otherwise trip a
    * rule, letting someone talk past a mechanic without touching it.
    *
-   * Enforced structurally rather than by convention: {@link assemble} refuses
-   * to admit an advisory block to a call declared as producing effects or
+   * Enforced structurally rather than by convention: `assemble` refuses to
+   * admit an advisory block to a call declared as producing effects or
    * verdicts.
    */
   advisory?: boolean;
-}
-
-/**
- * A call's declared appetite — [03 §6].
- *
- * A step says what it is, and the assembler enforces what follows. `effects`
- * and `verdict` are the two that may not see advisory content, and they are
- * separate names because they are separate claims a step makes about itself.
- *
- * **`CallPurpose`, not `CallKind`.** That name is taken, by a *portable*
- * type: [10 §8.2](../../../../docs/design/10-schemas.md)'s deliberately-open string
- * (`"narrate" | "impersonate" | … | (string & {})`) that a preset block's
- * `appliesTo` filters on, exported from `@storyengine/shared`. Two
- * incompatible types under one name is how a preset importing
- * `appliesTo: ["narrate"]` comes to match no call the engine ever makes — so
- * the internal one, which nothing outside this repo has ever seen, yields the
- * name.
- *
- * Declared here rather than beside `assemble`, because [P3.0] put it on the
- * record: `ModelCall.purpose` is the committed half of
- * [testing §1](../../../../docs/design/workplan/10-testing.md)'s invariant, and a
- * contract the record carries belongs with the contracts.
- */
-export type CallPurpose = 'prose' | 'effects' | 'verdict';
-
-/**
- * Why a slot collected nothing — [P3.0], the §7.5 decision. A class, not
- * prose, per the rule progress events are held to: the panel maps class to
- * sentence, and nothing durable grows another free-English field.
- *
- * - `disabled` — the author switched the block off.
- * - `not-applicable` — `appliesTo` excludes this call's kind.
- * - `no-producer` — the source has no producer at this phase (lore is P5,
- *   goals are Setup-borne, a channel has no text renderer…).
- * - `empty-source` — the producer ran and yielded nothing: an empty guidance
- *   box, an empty cast, a first turn with no history, an empty template —
- *   with `omitWhenEmpty` dropping the block rather than a heading over
- *   nothing.
- * - `unknown-slot` — a slot kind from a newer build, skipped rather than
- *   thrown ([10 §8]'s tolerant reader).
- */
-export type NotFilledReason =
-  'disabled' | 'not-applicable' | 'no-producer' | 'empty-source' | 'unknown-slot';
-
-/**
- * A preset block that emitted no candidate — [P3.0]'s answer to *why is there
- * no lore in this prompt*, decided as a **second list** rather than a third
- * `included` state: a slot that produced nothing has no text, no tokens and
- * no budget ruling, so a row among the blocks would be a block-shaped hole.
- * `blocks` keeps meaning exactly *what was assembled*.
- */
-export interface NotFilledSlot {
-  /** The preset block that positioned the slot. */
-  blockId: string;
-  /**
-   * The slot's source kind — `'preset'` for a skipped text block, the
-   * foreign word itself for an `unknown-slot`.
-   */
-  source: BlockSource['kind'] | (string & {});
-  reason: NotFilledReason;
-}
-
-/** A candidate the budgeter has ruled on — [02 §8]. */
-export interface AssembledBlock {
-  id: string;
-  source: BlockSource;
-  reason: string;
-  role: 'system' | 'user' | 'assistant';
-  text: string;
-  tokens: number;
-  included: boolean;
-  /** Which budget rule dropped it. Absent when it was included. */
-  droppedBy?: string;
-  /**
-   * Carried from the candidate, and the carrying is the point — [P3.0],
-   * [testing §1](../../../../docs/design/workplan/10-testing.md). The invariant
-   * *no advisory block ever appears in an effect-producing call* was enforced
-   * at assembly and then unrecorded, so the gate could only test a proxy (a
-   * guidance source kind) that an author-declared advisory text block slips
-   * past. With the flag on the record, the invariant is expressible over a
-   * committed turn. Absent means not advisory, as on `Candidate`.
-   */
-  advisory?: true;
-}
-
-/**
- * The window a turn may spend, and the honest account of where it came from —
- * [13 §1.5](../../../../docs/design/13-internal-contracts.md), reshaped by [P3.0].
- *
- * `source` names the origin of the **ceiling** — whichever side actually won:
- * the endpoint's declared window, the preset's absolute cap, or the config
- * default (`'user'`, because `limits.contextTokens` is the person's number and
- * live-editable). The preset's `contextShare` then narrows the ceiling to
- * `tokens` without relabelling it — the old shape stamped `source: 'preset'`
- * whenever a share applied, which hid the exact remedy the field exists to
- * suggest: a limit three-quarters of the config default is still the config's
- * number, and the settings form is still where it changes.
- *
- * Invariants a reader may lean on: `share` present ⇒ a preset budget was in
- * play and `tokens === floor(ceiling × share)`; absent ⇒ `tokens === ceiling`.
- */
-export interface BudgetLimit {
-  /** The spendable window the budgeter enforces. */
-  tokens: number;
-  /** The resolved window before the share narrowed it. */
-  ceiling: number;
-  source: 'provider' | 'preset' | 'user';
-  /** The preset's contextShare, when one applied. */
-  share?: number;
-}
-
-/** [13 §1.5](../../../../docs/design/13-internal-contracts.md). */
-export interface BudgetVerdict {
-  limit: BudgetLimit;
-  /** Held back for the completion. */
-  reserved: number;
-  spent: number;
-  /**
-   * Ordered as considered. **Every block appears, including the included
-   * ones** — a verdict listing only drops cannot answer "what falls out next".
-   */
-  decisions: {
-    blockId: string;
-    tokens: number;
-    included: boolean;
-    /** The rule, in the language the workbench shows. */
-    rule: string;
-  }[];
-  /**
-   * What would drop on the next turn at current pressure. The UI promises this
-   * is answerable *before* it happens, which requires computing it.
-   */
-  nextToDrop: string[];
 }

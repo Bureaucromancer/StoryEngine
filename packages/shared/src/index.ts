@@ -16,6 +16,9 @@
 
 export * from './ids.js';
 export * from './factories.js';
+// The turn record — internal tier, deliberately outside `schema/`: no $id, no
+// registry entry, no emitted artefact. `turn.ts` carries the argument.
+export * from './turn.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';
