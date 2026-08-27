@@ -443,6 +443,61 @@ under a header that does not.
 
 ### P3.0 — The record, repaired and then typed where the client can see it
 
+**Landed 2026-08-27**, in eight commits, in the stage's own order — every
+shape change before the move, the move before the by-id read. What each
+clause became:
+
+- **`advisory` + `purpose`** landed as the pair, and the gate-guidance suite
+  now asserts [testing §1]'s invariant over the record's own fields — the
+  source-kind proxy its header apologised for is retired.
+- **The honest budget stamp** became `BudgetLimit {tokens, ceiling, source,
+  share?}`: `source` names whichever side won the min, the share narrows
+  without relabelling, and the shipped 6144 now reads as the config's 8192 ×
+  0.75 — the live-editable remedy visible at last.
+- **Blocks and budget moved onto each `ModelCall`** (required, with
+  `notFilled` beside them), `TurnRequest` shrank to `{calls}`, and the turn's
+  blocks are a derived union nothing stores. The hidden dependency the move
+  exposed is solved rather than inherited: the runner checkpoints a
+  **provisional in-flight call** at assembly (stamped `error`/`terminal`/
+  "The server stopped before this call returned." — never `cancelled`, never
+  a minted un-sent value), every live exit replaces it by id, and
+  recovery.test's it.todo is a passing test. *One doctrine extension, made
+  deliberately:* a bare Stop between attempts restamps the provisional as
+  `cancelled` rather than dropping it — finding 2's exception stays bare,
+  and the record stops losing assembly it had already durably kept.
+- **Pre-assembly failures write no `request`** — `initialDraft` omits it and
+  `write()` assigns only once a call exists, per the record's own docstring.
+- **Sources name the object as used**: history gained `turnId` as identity
+  (stable candidate ids; `range` stays as display info), actor sources carry
+  `contentHash` (the cast resolver stopped discarding it one line from where
+  it was needed), and the persona arm gained `actorId`/`contentHash`
+  nullable. Preset sources stay unhashed with the reason in the arm.
+- **The effect vocabulary split**: `engine-computed` and `user-only` replace
+  the merged `update-policy`, and `supersedes` links the engine's clock write
+  to the same-turn refusal it overrode — [05 §3]'s third outcome as a link,
+  not an inference. **The degraded state is a recorded deferral, not code**:
+  `ChannelDefinition` ships without `schema`, so a writer is structurally
+  impossible and a guard on a validation that cannot fail would be dead code
+  impersonating a mechanism; the field's comment names the writer's arrival
+  and the panel renders it whenever present.
+- **Not-filled slots**: §7.5 decided and shipped — see the [DECIDED] entry in
+  §3(b) and the 02 §8 write-back.
+- **The move**: `packages/shared/src/turn.ts`, plain types outside
+  `PORTABLE_SCHEMAS` with the internal-tier argument in its header; the
+  server's type homes are re-export sites, the client's `TurnRecord` is the
+  real `Turn`, and the index signature every workbench field used to arrive
+  through is gone.
+- **Read a turn by id**: `findTurnLocation` (the location index's first by-id
+  reader), `readTurnById` (index hit verified by id-match, cold-read
+  fallback per [13 §5], tombstones absent on both paths), the route with the
+  file's own 404 discipline, and the client's `readTurn`/`useTurn`.
+
+Every new test was reddened by a named falsifying mutation before its
+commit; the leaf-walk's vacuous guard and NULL_IS_DATA moved with each shape
+in the same commit. Golden churn stayed stub-versus-stub and said so — no
+record was promoted into `providers/fixtures/`; the corpus is still P2C's to
+produce.
+
 The stage adopts everything [§3](#3-what-the-record-still-owes) still listed as
 P2's at the audit — adopted 2026-08-26, because a P2 that has moved on was
 never going to circle back, and the panel is the first caller that notices any
