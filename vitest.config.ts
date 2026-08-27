@@ -71,7 +71,10 @@ export default defineConfig({
           // here because an `include` elsewhere does not remove a file from
           // this one, and vitest runs a file once *per matching project* — the
           // slowest test in the suite would run twice, on both OSes.
-          exclude: ['**/node_modules/**', GATE],
+          // `*.live.test.ts` is excluded for the same mechanical reason and one
+          // more: those files make real provider calls and belong only to the
+          // project below that carries their timeout.
+          exclude: ['**/node_modules/**', GATE, '**/*.live.test.ts'],
           environment: 'node',
         },
       },
@@ -91,6 +94,32 @@ export default defineConfig({
           ...TIMEOUTS,
           root: '.',
           include: [GATE],
+          environment: 'node',
+        },
+      },
+
+      /**
+       * Live provider tests — real calls to whatever endpoint `.env` names.
+       *
+       * The tests gate themselves on `STORYENGINE_LIVE_BASE_URL` /
+       * `STORYENGINE_LIVE_MODEL`, so this project is inert in any run where the
+       * environment does not name an endpoint — including a plain `pnpm test`.
+       * `pnpm test:live` is the entry that loads `.env` first.
+       *
+       * The timeout is its own, not `TIMEOUTS`: fifteen seconds is a hang
+       * detector calibrated against stubs, and a local model's cold first token
+       * is slower than that while being exactly what the run exists to witness.
+       * Two minutes is still a hang detector — the server's own idle limit
+       * defaults to five (`limits.providerTimeoutMs`) — it is just calibrated
+       * against the thing actually being waited on.
+       */
+      {
+        test: {
+          name: 'live',
+          testTimeout: 120_000,
+          hookTimeout: 120_000,
+          root: '.',
+          include: ['packages/*/src/**/*.live.test.ts'],
           environment: 'node',
         },
       },
