@@ -2,12 +2,14 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import { useAuthState, useLogout, useNotices } from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
 import { useTheme } from './ui/useTheme.js';
+import { useToggleChord } from './workbench/useToggleChord.js';
+import { Workbench } from './workbench/Workbench.js';
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
 export function Shell(): JSX.Element {
@@ -18,6 +20,19 @@ export function Shell(): JSX.Element {
   // reaches every other surface — and so signing in applies your theme before
   // you go looking for where to set it.
   useTheme();
+
+  /**
+   * The workbench's open state — in `Shell` because this is the one mount
+   * point that survives navigation, which is what [05 §3]'s *left open while
+   * you work* costs. In-memory only at this stage: `ui.workbench-open` and
+   * the reload half of the claim are P3.1a's, through the prefs store built
+   * for exactly this case.
+   */
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const toggleWorkbench = useCallback(() => {
+    setWorkbenchOpen((open) => !open);
+  }, []);
+  useToggleChord(toggleWorkbench);
 
   const mainRef = useRef<HTMLElement | null>(null);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -57,6 +72,25 @@ export function Shell(): JSX.Element {
           </div>
           {account === null ? null : (
             <div className="flex items-center gap-3">
+              {/* The workbench's visible opener — a *button*, never a nav
+                  entry: the panel is not a place ([05 §3]), and the nav's own
+                  docstring below holds that line. `Shell.test.tsx` pins the
+                  absence of a workbench *link*; a button keeps that test green
+                  by construction, which is correct — do not "fix" the test
+                  into matching buttons. The `title` and `aria-keyshortcuts`
+                  are how the chord is discoverable from the UI, so the control
+                  and the keystroke stay equally first-class. */}
+              <Button
+                type="button"
+                size="compact"
+                onClick={toggleWorkbench}
+                aria-expanded={workbenchOpen}
+                aria-controls={workbenchOpen ? 'workbench' : undefined}
+                aria-keyshortcuts="Control+`"
+                title="Toggle the workbench (Ctrl+`)"
+              >
+                Workbench
+              </Button>
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings
@@ -95,9 +129,25 @@ export function Shell(): JSX.Element {
           auto-height container — the spec unclamps the contribution when an
           item is both growable and shrinkable — so the wrapper grew with the
           column and main scrolled anyway. */}
-      <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      {/* The dock row. The aside sits *after* main in source order, which in a
+          flex row is the inline end in LTR and RTL alike — the right dock,
+          spelled logically. Insetting is free: main is `flex-1`, so an open
+          dock narrows it and each page's `mx-auto` column re-centres in what
+          remains — [P3 §1.1]'s reading of §3's "expands over" as a claim about
+          navigation, not z-order. Closed is unmounted, not hidden: no queries
+          run, and the landmark is absent rather than lurking. */}
+      <div className="flex min-h-0 flex-1">
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+        {workbenchOpen ? (
+          <Workbench
+            onClose={() => {
+              setWorkbenchOpen(false);
+            }}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

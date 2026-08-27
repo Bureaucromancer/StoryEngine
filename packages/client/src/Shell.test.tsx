@@ -3,6 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -31,8 +32,10 @@ vi.mock('./api.js', async (importOriginal) => ({
 // entry goes, not merely that its label is on screen — the whole point of the
 // surface nav is the destination. This mock is wholesale, so every router hook
 // the Shell grows must be added here or the whole file dies at import —
-// `useRouterState` feeds the scroll reset a fixed pathname, which is all a
-// file about the header and banner needs it to do.
+// `useRouterState` feeds the scroll reset a fixed pathname, and `useMatch`
+// answers "not over Play" so an opened dock renders its empty state; the
+// subject-follows-route behaviour itself is `workbench/dock.test.tsx`'s, over
+// the real router.
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to?: string }) => (
     <a href={to ?? '#'}>{children}</a>
@@ -43,6 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
   }: {
     select: (state: { location: { pathname: string } }) => unknown;
   }) => select({ location: { pathname: '/library' } }),
+  useMatch: () => undefined,
 }));
 
 const { Shell } = await import('./Shell.js');
@@ -185,5 +189,37 @@ describe('the navigation', () => {
     await screen.findByRole('link', { name: 'StoryEngine' });
     expect(screen.queryByRole('link', { name: 'Play' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Library' })).toBeNull();
+  });
+});
+
+/**
+ * The visible opener — [P3.1](../../docs/design/workplan/05-p3-implementation.md).
+ * The user's requirement is that the onscreen control be as first-class as
+ * the chord, so it lives in the header on every page; and it is a *button*,
+ * which is what keeps "offers no workbench entry" above green by
+ * construction — the panel gains a control without gaining an address.
+ */
+describe('the workbench opener', () => {
+  it('offers the workbench as a control, never as a place', async () => {
+    renderShell('user');
+
+    expect(await screen.findByRole('button', { name: 'Workbench' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /workbench/i })).toBeNull();
+  });
+
+  it('announces its state, and the landmark follows it', async () => {
+    renderShell('user');
+
+    const opener = await screen.findByRole('button', { name: 'Workbench' });
+    expect(opener.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    await userEvent.click(opener);
+    expect(opener.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('complementary')).toBeTruthy();
+
+    await userEvent.click(opener);
+    expect(opener.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 });

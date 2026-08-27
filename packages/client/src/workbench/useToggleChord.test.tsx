@@ -58,6 +58,19 @@ describe('the workbench toggle chord', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  it('accepts the logical key when no physical code arrives', () => {
+    // Automation drivers and remote desktops synthesise keydown with an empty
+    // `code` — this repo's own browser pane sends `{ code: '', key: '`' }` —
+    // and the chord is still the chord. Mutation: drop the `event.key` arm.
+    const onToggle = vi.fn();
+    render(<Harness onToggle={onToggle} />);
+
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '`', ctrlKey: true, bubbles: true }),
+    );
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
   it('stays quiet while an editable element has focus', async () => {
     const onToggle = vi.fn();
     render(<Harness onToggle={onToggle} />);

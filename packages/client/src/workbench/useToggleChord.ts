@@ -16,11 +16,14 @@ import { useEffect } from 'react';
  *
  * **The chord is Ctrl+`**, decided at this stage rather than inherited — the
  * plan constrains it only negatively (not F12, not Ctrl+Shift+I, both spoken
- * for by devtools) — and it is matched on `event.code === 'Backquote'` rather
- * than on `event.key`: the physical key is the contract, so layouts where the
- * backquote is a dead key (which produce no `` ` `` character and report
- * `key: 'Dead'`) still land it. VS Code's panel toggle is the same chord on
- * the same key, which is the muscle memory worth borrowing.
+ * for by devtools) — and it matches the physical key *or* the logical one:
+ * `event.code === 'Backquote'` covers layouts where the backquote is a dead
+ * key (no `` ` `` character, `key: 'Dead'`), and `event.key` covers senders
+ * with no physical key to report — measured, not imagined: this project's own
+ * browser pane synthesises Ctrl+` as `{ code: '', key: '`' }`, and remote
+ * desktops do the same. One event can match both halves and still toggles
+ * once. VS Code's panel toggle is the same chord, which is the muscle memory
+ * worth borrowing.
  *
  * **The editable guard is the plan's own requirement**: text inputs are
  * everywhere — the action input, the guidance box — and a toggle that fired
@@ -36,7 +39,7 @@ import { useEffect } from 'react';
 export function useToggleChord(onToggle: () => void): void {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.code !== 'Backquote' || !event.ctrlKey) return;
+      if ((event.code !== 'Backquote' && event.key !== '`') || !event.ctrlKey) return;
       if (event.altKey || event.metaKey || event.shiftKey || event.repeat) return;
       if (isEditable(event.target)) return;
       event.preventDefault();

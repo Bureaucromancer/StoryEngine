@@ -482,6 +482,51 @@ the rest of the phase will spend itself reading.
 
 ### P3.1 — The panel frame, empty
 
+**Landed 2026-08-27**, in three commits (the query lift, the chord hook, and
+the frame commit carrying this note). The decisions the stage text left open,
+now made and verified:
+
+- **The chord is Ctrl+`** — VS Code's panel muscle memory, free of the two
+  devtools chords the plan rules out. Matched on `event.code === 'Backquote'`
+  *or* `event.key === '` + '`'`, and the second arm is measured rather than
+  defensive: automation drivers and remote desktops synthesise keydown with an
+  empty `code` — this repo's own browser pane sends `{ code: '', key: '`' }` —
+  while dead-key layouts send a code and no character. Both arms are
+  mutation-proofed in `useToggleChord.test.tsx`.
+- **The dock edge is inline-end** (right in LTR), spelled logically —
+  source-order after `<main>` in a flex row, `border-s` — at a fixed `w-96`
+  until P3.1a's drag makes the size a preference. Open state is in-memory in
+  `Shell`; the reload half of gate step 2 waits on P3.1a's keys.
+- **Escape is an element-scoped `onKeyDown` on the aside, not a document
+  listener** — the *only when focus is inside it* guard is structural, since
+  the handler only ever sees events targeted inside. The dialog-over-dock
+  interplay was walked in a real browser: a 412 conflict dialog over the open
+  dock, one Escape, only the dialog closed. The accepted corner (focus
+  clicked into the dock under an open modal closes both) is documented on the
+  component.
+- **The opener** sits in the header's account cluster as a compact `Button`
+  with `aria-expanded`, `aria-controls`, `aria-keyshortcuts` and the chord in
+  its `title` — as first-class as the keystroke. It is a button and not a nav
+  entry, so `Shell.test.tsx`'s pinned *offers no workbench entry* stays green
+  by construction; a comment at the call site warns against "fixing" that
+  test into matching buttons.
+- **The subject is route-derived** (`useMatch` on `/play/$sessionId`), which
+  is what keeps the reader stateless: over Play, the head turn's JSON in the
+  `Panel` inset variant — deliberately not a third JSON-viewer spelling;
+  P3.3 consolidates — and over everything else the honest empty state, §7.3's
+  interim answer shipped as behaviour while the design question stays open.
+
+*Ends at*, delivered: `dock.test.tsx` pins Tab escaping the dock and the
+absent `aria-modal` — the focus-trap tests inverted, with the trap itself
+attached as the falsifying mutation and caught — plus the chord over Play,
+the editable guard, inset-not-replace (both landmarks at once), Escape's two
+halves, the head turn (against a two-turn transcript, keyed on input text
+because the head's JSON contains its parent's id), and open-across-navigation
+with the subject following. Every test was reddened by its named mutation.
+The browser walk covered the chord, the guard in the real action input, both
+Escape halves, the dialog interplay, navigation persistence, the empty state,
+and both themes rendering the dock from tokens.
+
 The non-modal `<aside>` in the shell; open and closed only, no resize; the
 keyboard toggle with its editable-target guard; a visible opener; the subject
 wired to Play showing today's JSON.
