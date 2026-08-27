@@ -14,7 +14,7 @@ import {
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
-import { link } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -34,22 +34,26 @@ export function ObjectDetailPage(): JSX.Element {
   const search = routeApi.useSearch();
   if (!isLibraryKind(params.kind)) {
     return (
-      <>
+      // The page's own column ([P3.−1] — `ui/classes.ts` has the why), on
+      // both branches, so a bad address is laid out like a good one.
+      <div className={page.tooling}>
         <BackLink />
         <p role="alert" className="text-danger-ink">
           This address does not name a known kind of library object.
         </p>
-      </>
+      </div>
     );
   }
   return (
-    <ObjectDetail
-      kind={params.kind}
-      id={params.id}
-      {...(search.slug === undefined
-        ? {}
-        : { at: { source: search.source ?? 'user', slug: search.slug } })}
-    />
+    <div className={page.tooling}>
+      <ObjectDetail
+        kind={params.kind}
+        id={params.id}
+        {...(search.slug === undefined
+          ? {}
+          : { at: { source: search.source ?? 'user', slug: search.slug } })}
+      />
+    </div>
   );
 }
 

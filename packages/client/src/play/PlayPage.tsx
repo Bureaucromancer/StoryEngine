@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useEffect, useState } from 'react';
-import { control } from '../ui/classes.js';
+import { control, page } from '../ui/classes.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
@@ -95,7 +95,15 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     // A `div`, not a landmark: the shell owns the routed app's one `<main>`
     // ([P3.−1]) — this page nesting a second one inside it was the audit's
     // finding, and the page's job is its content, not the document's regions.
-    <div className="mx-auto flex h-full max-w-reading flex-col gap-4 p-4">
+    //
+    // `h-full` resolves now, and that is the whole fix: this column is the
+    // scroll container's direct child, and the shell's `<main>` has a definite
+    // height for the percentage to resolve against — where the old parent had
+    // none, which is why the transcript's `overflow-y-auto` had never once
+    // triggered. The column is `page.reading`, not the tooling width: this is
+    // the story surface, and the reading measure is the token's one designed
+    // use ([05 §1.2]).
+    <div className={`${page.reading} flex h-full flex-col gap-4`}>
       <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">

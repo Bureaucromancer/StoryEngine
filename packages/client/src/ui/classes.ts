@@ -31,7 +31,8 @@
  *   what lets a second theme redefine it.
  *
  * Position is not appearance: a margin belongs at the call site, so nothing
- * here carries one.
+ * here carries one — except the page columns, whose `mx-auto` is not a
+ * position among siblings but the column itself.
  */
 
 export const link = {
@@ -96,3 +97,24 @@ export const table = {
  */
 export const control =
   'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-muted disabled:text-ink-muted';
+
+/**
+ * The two page columns — [P3.−1]'s width settlement, spelled once.
+ *
+ * The audit found two widths under three spellings: the shell's 56rem three
+ * times, and 48rem as both `max-w-reading` and `max-w-3xl`. These are the two,
+ * each spelled here and nowhere else. `tooling` is the shell's width —
+ * [05 §1.2] names it as the measure the reading column is *against* — and
+ * `reading` is the story column's and nothing else's.
+ *
+ * **Pages own their column; the shell does not wrap the outlet.** The reason
+ * is mechanical rather than aesthetic: Play's column must be the scroll
+ * container's direct child for its `h-full` to resolve, and an auto-height
+ * centering wrapper in between is exactly how the transcript never scrolled.
+ * The flex additions a page needs — Play's `flex h-full flex-col` — are
+ * layout, and belong at the call site like any other position.
+ */
+export const page = {
+  tooling: 'mx-auto w-full max-w-4xl px-6 py-8',
+  reading: 'mx-auto w-full max-w-reading px-6 py-8',
+} as const;

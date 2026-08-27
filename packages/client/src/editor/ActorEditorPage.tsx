@@ -19,6 +19,7 @@ import {
 } from './form.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
@@ -46,8 +47,16 @@ const routeApi = getRouteApi('/library/actors/$id/edit');
 
 export function ActorEditorPage(): JSX.Element {
   const params = routeApi.useParams();
-  // Keyed by id so save-as-a-copy lands in a fresh editor rather than a stale one.
-  return <EditorLoader key={params.id} id={params.id} />;
+  return (
+    // The page's own column, now that the shell's `<main>` is a bare scroll
+    // container ([P3.−1] — `ui/classes.ts` has the why). Wrapped here rather
+    // than per branch of the loader, so pending, error and editor lay out
+    // alike. Keyed by id so save-as-a-copy lands in a fresh editor rather
+    // than a stale one.
+    <div className={page.tooling}>
+      <EditorLoader key={params.id} id={params.id} />
+    </div>
+  );
 }
 
 function EditorLoader(props: { id: string }): JSX.Element {

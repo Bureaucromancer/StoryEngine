@@ -394,6 +394,39 @@ asks `modelThatAnswered` on both paths, and its docstring names the old bug —
 
 ### P3.−1 — One main view
 
+**Landed 2026-08-27**, across two commits (`fe57f62` and the height-managed
+shell commit carrying this note). What the stage's three clauses became:
+
+- *Delete the three nested mains:* done; the three page roots are `div`s and
+  `shell-layout.test.tsx` counts exactly one `main` landmark on every routed
+  page, mutation-proofed by re-promoting one.
+- *Settle one content width:* two `page` recipes in `ui/classes.ts` — the
+  tooling column (56rem) and the reading column (48rem) — each spelled once,
+  per [05 §1.2]'s measure-against-the-shell distinction; `max-w-3xl` is gone
+  from the codebase, and SessionsPage moved from the reading measure it was
+  borrowing to the tooling width (a visible change, reversible in one line if
+  it reads badly). **Pages own their column; the shell's `<main>` is a bare
+  scroll container.** The draft had the shell wrap the outlet in a
+  `min-h-full` flex wrapper with Play's column on a zero flex basis — measured
+  in a real browser, a `flex: 1 1 0` item contributes its full content height
+  to an auto-height container, so the wrapper grew and main scrolled anyway.
+  The column being main's *direct child* is what lets Play's `h-full` resolve;
+  `Shell.tsx` and `ui/classes.ts` carry the reasoning in place.
+- *The scroll question ("nothing configured in the router to replace it"),
+  answered:* the shell resets `main.scrollTop` on a **pathname** change — a
+  search-param change (the library's kind filter) keeps its place. What is
+  lost, on purpose: Back no longer restores a list position; the upgrade when
+  a surface earns it is the router's element scroll restoration. The router's
+  own default reset targets the window and became a no-op the moment `<main>`
+  scrolled.
+
+Verified in a real browser against a six-turn session: the document no longer
+scrolls anywhere, the transcript scrolls independently under a header that
+does not, the input bar stays put, `/settings` scrolls in `main`, and a
+navigation lands at the top. jsdom proves the landmark count and that the
+reset fires; it computes no layout, so the scrolling itself stays a
+browser-pass claim.
+
 Delete the three nested `<main>` tags, settle one content width, and make the
 shell height-managed so `<main>` is the scroll container. **No panel code.**
 

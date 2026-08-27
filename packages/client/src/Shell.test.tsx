@@ -29,12 +29,20 @@ vi.mock('./api.js', async (importOriginal) => ({
 
 // The stub keeps `to` as `href` so a navigation test can assert *where* an
 // entry goes, not merely that its label is on screen — the whole point of the
-// surface nav is the destination.
+// surface nav is the destination. This mock is wholesale, so every router hook
+// the Shell grows must be added here or the whole file dies at import —
+// `useRouterState` feeds the scroll reset a fixed pathname, which is all a
+// file about the header and banner needs it to do.
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to?: string }) => (
     <a href={to ?? '#'}>{children}</a>
   ),
   Outlet: () => <div />,
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) => select({ location: { pathname: '/library' } }),
 }));
 
 const { Shell } = await import('./Shell.js');

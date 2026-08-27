@@ -187,4 +187,34 @@ describe('one main view', () => {
       });
     }
   });
+
+  /**
+   * The scroll reset — the replacement for the two native mechanisms that
+   * stopped applying when `<main>` became the scroller: the browser restored
+   * the *document*'s position, and the router's default reset targets the
+   * window (Shell.tsx carries the whole reasoning). jsdom computes no layout,
+   * so this proves the mechanism fires on a path change — not that anything
+   * visually scrolls, which is the manual pass's job.
+   *
+   * The falsifying mutation: delete the pathname effect in `Shell.tsx` and the
+   * hand-set offset survives the navigation.
+   */
+  it('returns main to the top when the path changes', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library', search: {} });
+    });
+    await screen.findByRole('heading', { name: 'Library', level: 1 });
+
+    const main = document.querySelector('main');
+    if (main === null) throw new Error('the shell rendered no main');
+    main.scrollTop = 500;
+
+    await act(async () => {
+      await router.navigate({ to: '/settings' });
+    });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+
+    expect(main.scrollTop).toBe(0);
+  });
 });

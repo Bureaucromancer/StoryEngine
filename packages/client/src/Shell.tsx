@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Link, Outlet } from '@tanstack/react-router';
-import type { JSX } from 'react';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef, type JSX } from 'react';
 
 import { useAuthState, useLogout, useNotices } from './queries.js';
 import { Button } from './ui/Button.js';
@@ -19,8 +19,31 @@ export function Shell(): JSX.Element {
   // you go looking for where to set it.
   useTheme();
 
+  const mainRef = useRef<HTMLElement | null>(null);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  /**
+   * Every page starts at its top, by hand.
+   *
+   * Two native mechanisms stopped applying when the shell became
+   * height-managed ([P3.−1]): the browser restored the *document*'s scroll
+   * position, and the router's default reset targets the window — and the
+   * window no longer scrolls, `<main>` does. This is the minimal honest
+   * replacement. Keyed on the pathname rather than the whole location, so the
+   * library's kind-filter clicks — a search param — keep their place. What is
+   * lost, on purpose: Back no longer returns you to an old list position. The
+   * upgrade when a surface earns it is the router's element scroll
+   * restoration; until a list outgrows a couple of screens, that is machinery
+   * for a problem this app does not have.
+   */
+  useEffect(() => {
+    if (mainRef.current !== null) mainRef.current.scrollTop = 0;
+  }, [pathname]);
+
   return (
-    <div className="min-h-dvh">
+    // `h-dvh`, not `min-h-dvh`: the shell claims the viewport, which is what
+    // lets `flex-1` below mean "the rest of it" and makes `<main>` the scroll
+    // container instead of the document ([P3.−1]).
+    <div className="flex h-dvh flex-col">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
@@ -55,9 +78,24 @@ export function Shell(): JSX.Element {
       </header>
       {/* **Above the outlet, not on the settings page**, because [04 §6.3] wants
           this on every page: the person who needs to know a restart is
-          outstanding is often not the person who is looking at the form. */}
+          outstanding is often not the person who is looking at the form. And
+          outside the scroll container, for the same reason — a banner that
+          scrolls away with the page is a banner on some pages. */}
       <RestartBanner isAdmin={account?.role === 'admin'} />
-      <main className="mx-auto max-w-4xl px-6 py-8">
+      {/* The scroll container, and deliberately bare: no width, no padding, no
+          wrapper. Each page owns its column through the `page` recipes in
+          `ui/classes.ts` — one spelling per width — because the column must be
+          this element's *direct child* for Play's `h-full` to resolve: a
+          percentage needs a definite height, and an auto-height centering
+          wrapper in between is exactly how the transcript never scrolled
+          ([P3.−1]). This stage's first draft had such a wrapper hold
+          `min-h-full` with Play's column as `flex-1` on a zero basis,
+          expecting a zero intrinsic contribution; measured in a real browser,
+          a `flex: 1 1 0` item contributes its full content height to an
+          auto-height container — the spec unclamps the contribution when an
+          item is both growable and shrinkable — so the wrapper grew with the
+          column and main scrolled anyway. */}
+      <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>
