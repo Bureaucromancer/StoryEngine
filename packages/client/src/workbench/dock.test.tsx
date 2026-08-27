@@ -267,3 +267,91 @@ describe('the panel frame', () => {
     expect(patchPrefs).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The splitter — [P3.1a]'s exit criterion is the first test: one drag is one
+ * write, at the width the pointer let go, because the prefs store serialises
+ * writes through a `KeyedQueue` and a PATCH per pointermove would queue
+ * behind itself for the whole gesture ([P3 §1.2]).
+ *
+ * The drag's arithmetic starts from the *committed* width rather than a
+ * measured rect, which is also what makes it assertable here: jsdom computes
+ * no layout and every rect is zero, so a measuring implementation would pass
+ * no test and fail no mutation. Coordinates are dispatched straight at the
+ * handle — pointer capture, which routes mid-drag moves to the handle in a
+ * browser, is a feature jsdom lacks and the component feature-checks.
+ */
+describe('the splitter', () => {
+  async function openOverPlay(): Promise<HTMLElement> {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+    await screen.findByRole('complementary');
+    return screen.getByRole('separator', { name: 'Workbench width' });
+  }
+
+  it('writes once per drag, at the width the pointer let go', async () => {
+    const handle = await openOverPlay();
+
+    // A `setup()` instance, unlike everywhere else in this file: the default
+    // API forgets which buttons are down between calls, and the drag has to
+    // pause mid-gesture for the not-yet-written assertion.
+    const user = userEvent.setup();
+    await user.pointer([
+      { keys: '[MouseLeft>]', target: handle, coords: { x: 800, y: 300 } },
+      { target: handle, coords: { x: 760, y: 300 } },
+      { target: handle, coords: { x: 720, y: 300 } },
+      { target: handle, coords: { x: 700, y: 300 } },
+    ]);
+    // Three moves in, nothing has been written — the whole point.
+    expect(patchPrefs).not.toHaveBeenCalled();
+
+    await user.pointer([{ keys: '[/MouseLeft]', target: handle, coords: { x: 700, y: 300 } }]);
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+    // 384 committed + (800 − 700) dragged toward main = 484.
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-size': 484 });
+
+    const dock = screen.getByRole('complementary');
+    expect(dock.style.getPropertyValue('--workbench-size')).toBe('484px');
+  });
+
+  it('reads its stored width back, clamped', async () => {
+    prefsStore = { 'ui.workbench-open': true, 'ui.workbench-size': 512 };
+    renderApp();
+    await overPlay();
+    const dock = await screen.findByRole('complementary');
+    expect(dock.style.getPropertyValue('--workbench-size')).toBe('512px');
+  });
+
+  it('will not let a hand-edited width swallow the shell', async () => {
+    prefsStore = { 'ui.workbench-open': true, 'ui.workbench-size': 10_000 };
+    renderApp();
+    await overPlay();
+    const dock = await screen.findByRole('complementary');
+    expect(dock.style.getPropertyValue('--workbench-size')).toBe('640px');
+  });
+
+  it('resizes from the keyboard, one write per gesture', async () => {
+    const handle = await openOverPlay();
+
+    handle.focus();
+    // Grow is the arrow pointing into main — ArrowLeft, this side of RTL.
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-size': 400 });
+  });
+
+  it('abandons a live adjustment on Escape without closing the dock', async () => {
+    const handle = await openOverPlay();
+
+    handle.focus();
+    // Key down, adjust, Escape while still held: the change is abandoned and
+    // the Escape is spent on it — the dock stays. The eventual keyup finds
+    // nothing live to commit.
+    await userEvent.keyboard('{ArrowLeft>}{Escape}{/ArrowLeft}');
+
+    expect(patchPrefs).not.toHaveBeenCalled();
+    const dock = screen.getByRole('complementary');
+    expect(dock.style.getPropertyValue('--workbench-size')).toBe('384px');
+  });
+});

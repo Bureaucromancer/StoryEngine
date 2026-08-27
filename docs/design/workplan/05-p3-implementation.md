@@ -558,8 +558,34 @@ person reaching for that hook.
 
 ### P3.1a — Persistence and resize
 
-The two preference keys through the existing hooks, patched on commit; a pointer
-drag setting a custom property the stylesheet consumes.
+**Landed 2026-08-27**, in two commits. `ui.workbench-open` and
+`ui.workbench-size` exist through the existing hooks, in `ui/theme.ts`'s
+helper-pair shape (`workbench/prefs.ts`); the prefs cache *is* the open state,
+so the optimistic mutation carries the toggle and gate step 2 is now
+performable in full — walked in a real browser: open, drag to 484, reload,
+still open at 484. Decisions and findings:
+
+- **Closed is the absence of the key**, as `system` is for the theme; the
+  size is a plain number, clamped **on read** ([§1.2]'s one-line defusal,
+  bounds 280–640, default 384) and on write, so a hand-edited
+  `ui.workbench-size: 10000` renders a dock that fits.
+- **The drag is the splitter's pointer half**: live width travels as the
+  aside's `--workbench-size` custom property set imperatively, so a
+  sixty-hertz drag re-renders one thin strip and not the JSON beside it, and
+  the one PATCH lands at pointerup — the `KeyedQueue` reason, exactly as
+  §1.2 wrote it down. The stage's named test exists and was mutation-proofed
+  by committing per move.
+- **The splitter grew its ARIA half** (an addition the stage did not order,
+  kept because a pointer-only control would be the client's first
+  mouse-trapped one): `role="separator"`, focusable, arrows stepping 16px
+  with one write per gesture at keyup, Escape abandoning a live adjustment
+  without closing the dock, blur committing.
+- **Two mechanism corrections the browser walk forced, recorded in place:**
+  the gesture's width lives in a ref beside the render state, because a burst
+  of pointer events inside one task reaches `commit` before React re-renders
+  and a state-read commit silently drops the write; and `setPointerCapture`
+  is wrapped, because an inactive pointer throws and losing capture is the
+  right price where losing the resize is not.
 
 *Ends at:* a test that one drag patches once rather than per pointer event.
 
