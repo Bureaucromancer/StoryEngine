@@ -724,6 +724,67 @@ is depth without the visit.
 *Ends at:* opening the panel over a **shadowed** object names the winning path —
 the one question that surface currently poses and cannot answer.
 
+**Landed 2026-08-27**, in five commits: the projection route with §7.4
+decided, the as-stored fold, the revision-list split, the subject itself,
+and this annotation. What the clauses became:
+
+- **§7.4 is closed, not worked around**: the rows are every row the index
+  holds for the id — winner first in portable-path order, shadowed copies,
+  and rows inside their tombstone settling window — and the projection is
+  best-effort, documented in [05 §3](../05-ui-surfaces.md) and docs/api.md
+  per §7's own write-back rule. Paths are portable and never native, which
+  turned out to be F22's standing doctrine rather than a new choice.
+- **The folder path is the portable path** — decided over gate step 7's
+  "paste into a file manager" phrasing, which is hereby read as *pasteable
+  under the data directory*: §1.3's letter, platform-stable, and the very
+  string the shadow winner is ordered by (F23), so the panel shows the
+  value the mechanism compares.
+- **The as-stored fold discharges [polish §2] whole**: one component on the
+  detail page, the panel, and the editor's saved-state pane (captioned
+  "not the form's working state", as §2 requires); collapsed by default
+  everywhere, with the open state the per-user `ui.as-stored-open`
+  preference. The caveat is recorded in the component's header: §2 argues
+  the collapse from a by-field view that does not exist yet, and the
+  sticky preference is what blunts it. The copy control is the client's
+  first clipboard use, feature-checked, and a copy that cannot happen says
+  so — which the walk saw for real under the driven pane's clipboard
+  policy.
+- **The revision list split per §1.4**: the list in `library/RevisionList`,
+  the powered host in the editor, kind a prop at the five call sites, and
+  the panel's host renders it with no body and therefore not a single
+  control.
+- **The ends-at, delivered twice over**: as a sentence — *"The copy that
+  loads lives at …"*, with the deciding string itself — and as the first
+  row of the table. Copy links carry their `(source, slug)` discriminator,
+  never rebuilt from `{kind, id}` (F19, kept where [polish §4] says a
+  panel would lose it), and a tombstoned row links nowhere.
+- **Degraded channel state still has no reader here**, stated rather than
+  slipped: library objects carry no `ChannelState`, so the obligation
+  P3.2's note left with "the first surface that shows channel state" moves
+  past this stage to the session view, whichever stage builds it.
+
+The browser walk ran over the scratch install, gate steps 7 and 8 live: a
+hand edit to the lorebook's JSON was picked up by the watcher and the panel
+showed the new bytes with a *Hand edit on disk* revision beside them and no
+restore button; the fold came back open after a reload, the preference
+doing polish §2's remembering; copying the folder in the file manager made
+the duplicate, the watcher indexed it unprompted, and over the shadowed
+copy the panel named the winning path — then the winner row's link
+navigated the main view through its discriminator while the dock stayed
+open and re-subjected. One environmental honesty: the two-second poll
+itself could not be observed because a driven browser pane reports
+`visibilityState: "hidden"`, which pauses interval refetches — the follow
+was verified by reload, which is what a visible tab's next poll performs;
+the interval is code the queries share with every library read. Every new
+test was reddened by a named falsifying mutation before its commit —
+sixteen across the five commits: the leaked foreign row, the filtered
+tombstone, the native path; the open-by-default fold, the unpatched
+toggle, the truncated copy, the form-fed pane; the derived current entry,
+the doubled reason, the control in the default; the dropped sentence, the
+stripped discriminator, the winner's folder, provenance reduced back to
+timestamps, the severed at-plumbing, and the flipped tombstone-over-shadow
+precedence — and no fixture was promoted anywhere.
+
 ### P3.4 — The play-surface signal, and the stateless preview
 
 [05 §3](../05-ui-surfaces.md)'s **[RESOLVED]** answer: the always-visible
