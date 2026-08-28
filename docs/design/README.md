@@ -79,10 +79,13 @@ were written in. **Start with 00, then 01.**
 | [11-cross-session-memory.md](11-cross-session-memory.md) | Characters remembering you between sessions, as an auto-maintained lorebook |
 | [04-server-multiuser-deployment.md](04-server-multiuser-deployment.md) | Server-authoritative generation, notifications, multi-user, LAN, packaging |
 | [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
+| [16-lorebooks-as-a-format.md](16-lorebooks-as-a-format.md) | Why a lorebook is worth reading, browsing and searching in its own right — and why that costs no schema |
 | [15-account-gallery.md](15-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
 
-15 sits after 14 by number only — the slots beneath it were taken when it was
-written; it reads beside 04 and 05, which is why it is indexed here.
+15 and 16 sit after 14 by number only — the slots beneath them were taken when
+they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05, whose
+lorebook and library sections it takes a position about and whose surfaces carry
+the specifications. Which is why both are indexed here.
 
 ### The technical ground
 

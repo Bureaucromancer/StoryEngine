@@ -370,6 +370,7 @@ is the one with the ceiling. Take Marinara's shape — at both levels.
 | Book-level `category` | **Removed.** Closed, mixed-axis, and duplicated by `tags` — §3.4. |
 | Images on the book and on entries | **New.** Not a port — see §3.6. |
 | Import and export of individual entries | **New.** The unit an author moves is often smaller than the book; the exchange file is a lorebook carrying a subset ([10 §5.2](10-schemas.md), [05 §11.2c](05-ui-surfaces.md)). |
+| Reading, browsing and searching the entries | **No schema change.** Every affordance is a rendering of a field that already exists — eleven of them currently have no reader at all. Position in [16](16-lorebooks-as-a-format.md); surfaces in [05 §5.3](05-ui-surfaces.md). |
 
 ### 3.6 Images on lore
 

@@ -553,12 +553,22 @@ images at all. Reasoning in [02 §3.6](02-data-model.md); the shape is two
 `EmbeddedMedia[]` fields, one on the book and one on the entry, both resolving
 into the object's folder.
 
-**Nothing reads them at 1.0 outside the editor**, and the `⚠` on
-`LoreEntry.media` is the load-bearing part of this addition rather than a
-caution. What makes it worth adding now anyway is that **typed roles cannot be
-retrofitted** ([02 §5.2.2](02-data-model.md)) — the same argument made for cards,
-unchanged. Adding images later without roles means guessing afterwards what each
-one was for, and the guess is not recoverable.
+**Nothing in the engine reads them at 1.0**, and the `⚠` on `LoreEntry.media` is
+the load-bearing part of this addition rather than a caution. What makes it worth
+adding now anyway is that **typed roles cannot be retrofitted**
+([02 §5.2.2](02-data-model.md)) — the same argument made for cards, unchanged.
+Adding images later without roles means guessing afterwards what each one was
+for, and the guess is not recoverable.
+
+*Audit correction:* this sentence read *"nothing reads them at 1.0 outside the
+editor"*, which contradicted `Lorebook.primaryMediaId` one screen above — a field
+whose entire documented purpose is *"the library card's picture"*, and whose
+consumer is therefore the library and not the editor. **The `⚠` is about
+activation, not about display.** Media is not retrieved, not budgeted and not
+sent, none of which a thumbnail on a browse row breaks, and the corrected
+sentence says *engine* because that is the boundary the warning was always
+drawing. The `⚠` on `LoreEntry.media` is untouched and means exactly what it
+said. The panel that spends `primaryMediaId` is [05 §5.3](05-ui-surfaces.md).
 
 The intended first real consumer is rendition conditioning
 ([14 §3](14-roadmap.md)): a location's `reference` image is the same shape of

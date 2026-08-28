@@ -180,13 +180,22 @@ panels are named for the kinds. What is left here is the client work.
 **What the change is.**
 
 - **Six panels**, one per portable kind (`LIBRARY_KINDS` already enumerates
-  them), using the presented names — Actors, Worlds and Games offered,
-  Lorebooks, Presets and Packages reachable.
+  them), **named for the kinds** — Actors, Lorebooks, Treatments, Setups,
+  Presets, Packages. *Correction:* this bullet read *"using the presented names —
+  Actors, Worlds and Games offered, Lorebooks, Presets and Packages reachable"*,
+  which is the renaming layer [05 §5.1](../05-ui-surfaces.md) withdrew — and
+  which the paragraph immediately above already cited as withdrawn. **The item
+  argued against itself**, and the bullet was the stale half.
 - **Shared machinery, per-kind surfaces.** One list component, one set of
   badges, filters, sorting and actions, one detail route. What each panel
   supplies is its columns, its sort and its empty state. Today's
   `ObjectTable` is most of that already, with the Kind column falling away
-  wherever it is the panel's own kind.
+  wherever it is the panel's own kind. **The Lorebooks panel's columns, badges,
+  filters and empty state are specified** at
+  [05 §5.3](../05-ui-surfaces.md) — the one kind where the per-panel choice is a
+  correction rather than a preference, because its object is a collection
+  ([16](../16-lorebooks-as-a-format.md)). The other five are still this item's to
+  choose.
 - **The all-kinds view moves behind a preference**, off by default, alongside
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
