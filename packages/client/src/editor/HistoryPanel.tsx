@@ -3,11 +3,10 @@
 
 import { useState, type JSX } from 'react';
 
-import { ApiError, type ObjectVersion } from '../api.js';
+import { ApiError, type LibraryKind, type ObjectVersion } from '../api.js';
 import { diffObjects, type FieldChange } from '../diff.js';
-import { formatTimestamp } from '../format.js';
+import { RevisionList } from '../library/RevisionList.js';
 import { Alert } from '../ui/Alert.js';
-import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import {
   useAmendVersion,
@@ -18,25 +17,15 @@ import {
 
 /**
  * The history panel — [05 §11.2a](../../../../docs/design/05-ui-surfaces.md), interaction
- * copied closely from the source it credits. Revisions newest first with the
- * live object pinned on top as *current*; restore, rename, pin, and diff.
- *
- * **The source badge is not decoration.** More things edit objects here than
- * anywhere else — a hand edit picked up from disk, a restore, later an assist
- * or an import — and *"who changed my character"* is the question this panel
- * answers.
+ * copied closely from the source it credits. The *list* itself lives in
+ * `library/RevisionList.tsx` since [P3.3] split one component across two
+ * hosts; this is the powered host — restore, rename, pin, and diff — and the
+ * kind is a prop rather than a hardcoded `'actors'`, so the panel's read-only
+ * host works for every kind while only the editor's call site names one.
  */
 
-const SOURCE_LABELS: Record<string, string> = {
-  manual: 'Edited in the app',
-  external: 'Hand edit on disk',
-  restore: 'Restored',
-  assist: 'Assist',
-  extension: 'Extension',
-  import: 'Import',
-};
-
 export interface HistoryPanelProps {
+  kind: LibraryKind;
   id: string;
   /** The saved state the diff compares against — the object, not the form. */
   currentObject: Record<string, unknown>;
@@ -46,7 +35,7 @@ export interface HistoryPanelProps {
 }
 
 export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
-  const history = useObjectHistory('actors', props.id);
+  const history = useObjectHistory(props.kind, props.id);
   const restore = useRestoreVersion();
   const amend = useAmendVersion();
 
@@ -54,12 +43,12 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
   const [renaming, setRenaming] = useState<{ id: string; reason: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const diffQuery = useVersionPayload('actors', props.id, diffVersionId);
+  const diffQuery = useVersionPayload(props.kind, props.id, diffVersionId);
 
   function handleRestore(version: ObjectVersion): void {
     setError(null);
     restore.mutate(
-      { kind: 'actors', id: props.id, versionId: version.id, contentHash: props.contentHash },
+      { kind: props.kind, id: props.id, versionId: version.id, contentHash: props.contentHash },
       {
         onSuccess: (result) => {
           props.onRestored(result);
@@ -77,7 +66,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 
   function handleRename(versionId: string, reason: string): void {
     amend.mutate(
-      { kind: 'actors', id: props.id, versionId, patch: { reason } },
+      { kind: props.kind, id: props.id, versionId, patch: { reason } },
       {
         onSuccess: () => {
           setRenaming(null);
@@ -91,7 +80,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 
   function handlePin(version: ObjectVersion): void {
     amend.mutate(
-      { kind: 'actors', id: props.id, versionId: version.id, patch: { pinned: !version.pinned } },
+      { kind: props.kind, id: props.id, versionId: version.id, patch: { pinned: !version.pinned } },
       {
         onError: (failure) => {
           setError(failure.message);
@@ -118,30 +107,11 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
       ) : null}
 
       {history.data !== undefined ? (
-        <ol className="flex flex-col gap-2">
-          <li className="rounded-md border border-line-strong bg-surface-sunken p-2 text-sm">
-            <span className="font-medium">Current</span>
-            <span className="ms-2 text-ink-subtle">The object as it is now.</span>
-          </li>
-          {history.data.versions.length === 0 ? (
-            <li className="p-2 text-sm text-ink-subtle">
-              No versions yet. The first edit records the state it replaces.
-            </li>
-          ) : null}
-          {history.data.versions.map((version) => (
-            <li key={version.id} className="rounded-md border border-line p-2 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{`Revision ${String(version.revision)}`}</span>
-                <SourceBadge kind={version.source.kind} />
-                {version.pinned ? <Badge>Pinned</Badge> : null}
-                <span className="text-ink-subtle">
-                  {formatTimestamp(version.authoredAt, props.locale)}
-                </span>
-                {version.authorVersion !== null ? (
-                  <span className="text-xs text-ink-faint">v{version.authorVersion}</span>
-                ) : null}
-              </div>
-
+        <RevisionList
+          versions={history.data.versions}
+          locale={props.locale}
+          body={(version) => (
+            <>
               {renaming?.id === version.id ? (
                 <form
                   className="mt-2 flex gap-2"
@@ -228,20 +198,11 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
                   }
                 />
               ) : null}
-            </li>
-          ))}
-        </ol>
+            </>
+          )}
+        />
       ) : null}
     </section>
-  );
-}
-
-function SourceBadge(props: { kind: string }): JSX.Element {
-  const label = SOURCE_LABELS[props.kind] ?? props.kind;
-  return props.kind === 'external' ? (
-    <Badge tone="provenance">{label}</Badge>
-  ) : (
-    <Badge>{label}</Badge>
   );
 }
 

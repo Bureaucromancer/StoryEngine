@@ -377,6 +377,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       {historyOpen ? (
         <div className="mt-6">
           <HistoryPanel
+            kind="actors"
             id={base.id}
             currentObject={base.object}
             contentHash={base.contentHash}
