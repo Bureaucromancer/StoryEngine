@@ -23,6 +23,7 @@ import { page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
+import { AsStored } from '../library/AsStored.js';
 import { HistoryPanel } from './HistoryPanel.js';
 
 /**
@@ -362,6 +363,16 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           </Button>
         </div>
       </form>
+
+      {/* The saved state, not the form's — [polish §2]'s editor pane, and the
+          caption is its required honesty: showing unsaved form state as "as
+          stored" would be a lie in the one place a user came for the truth. */}
+      <div className="mt-6">
+        <AsStored
+          value={base.object}
+          caption="The saved object, not the form's working state — what a reload would find."
+        />
+      </div>
 
       {historyOpen ? (
         <div className="mt-6">

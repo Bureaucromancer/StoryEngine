@@ -16,6 +16,7 @@ import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
+import { AsStored } from './AsStored.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -144,12 +145,7 @@ function ObjectView(props: {
         </MetadataRow>
       </dl>
 
-      <section aria-label="The object as stored">
-        <h2 className="mb-2 text-section text-ink">As stored</h2>
-        <pre className="overflow-x-auto rounded-md border border-line bg-surface p-4 text-xs">
-          {JSON.stringify(object.object, null, 2)}
-        </pre>
-      </section>
+      <AsStored value={object.object} />
     </>
   );
 }
