@@ -8,6 +8,13 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Account } from '../api.js';
+import {
+  OBJECT_ID,
+  objectRows,
+  objectVersions,
+  shadowedObject,
+  winningObject,
+} from './library-fixtures.js';
 import { ACTOR_ID, cancelledTurn, richTurn, SESSION_ID } from './turn-fixtures.js';
 
 /**
@@ -85,6 +92,13 @@ vi.mock('../api.js', async (importOriginal) => {
         );
         return Promise.resolve({ prefs: { ...prefsStore } });
       },
+      // The library subject's three reads ([P3.3]): the id-only read answers
+      // the winner, the discriminated one the shadowed copy — the same split
+      // the real route makes.
+      readObject: (...args: unknown[]) =>
+        Promise.resolve(args[2] === undefined ? winningObject() : shadowedObject()),
+      indexRows: () => Promise.resolve({ rows: objectRows() }),
+      history: () => Promise.resolve({ versions: objectVersions() }),
     },
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
     readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
@@ -119,6 +133,20 @@ async function overLibrary(): Promise<void> {
     await router.navigate({ to: '/library', search: {} });
   });
   await screen.findByRole('heading', { name: 'Library', level: 1 });
+}
+
+async function overObject(at?: { source: 'user'; slug: string }): Promise<void> {
+  await act(async () => {
+    await router.navigate({
+      to: '/library/$kind/$id',
+      params: { kind: 'lorebooks', id: OBJECT_ID },
+      search: at ?? {},
+    });
+  });
+  await screen.findByRole('heading', {
+    name: at === undefined ? 'Rain City' : 'Rain City (hand edited)',
+    level: 1,
+  });
 }
 
 const CHORD = '{Control>}[Backquote]{/Control}';
@@ -278,6 +306,43 @@ describe('the panel frame', () => {
     const dock = await screen.findByRole('complementary');
     expect(within(dock).getByText('Stopped')).toBeTruthy();
     expect(patchPrefs).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The library subject through the live route — [P3.3]'s ends-at, end to end:
+ * `subject.test.tsx` proves the views against literal props with the router
+ * mocked, so this is where the wiring is on trial — the route match reaches
+ * `LibrarySubject`, the discriminated read answers the shadowed copy, and
+ * the panel names the winning path over it.
+ */
+describe('the library subject', () => {
+  it('names the winning path over a shadowed copy', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overObject({ source: 'user', slug: 'zz-copy-of-rain-city' });
+
+    const dock = await screen.findByRole('complementary');
+    expect(
+      await within(dock).findByText(
+        'The copy that loads lives at users/ned/library/lorebooks/rain-city/lorebook.json.',
+      ),
+    ).toBeTruthy();
+    // Read-only, end to end: the revision list is there and powerless.
+    const history = within(dock).getByRole('region', { name: 'History' });
+    expect(within(history).getByText('Revision 2')).toBeTruthy();
+    expect(within(history).queryByRole('button')).toBeNull();
+  });
+
+  it('does not cry shadow over the winner', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overObject();
+
+    const dock = await screen.findByRole('complementary');
+    const table = await within(dock).findByRole('region', { name: 'Index rows' });
+    expect(within(table).getByText('Winner — shown')).toBeTruthy();
+    expect(within(dock).queryByText(/The copy that loads lives at/)).toBeNull();
   });
 });
 

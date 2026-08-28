@@ -285,6 +285,39 @@ keeps the slug it was born with, and the engine never moves a user's directories
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
 
+### `GET /api/library/:kind/:id/rows`
+
+The index rows behind the object — the workbench's projection
+([P3 §7.4](design/workplan/05-p3-implementation.md), decided: best-effort,
+every row).
+
+```json
+{
+  "rows": [
+    {
+      "path": "users/ned/library/lorebooks/rain-city/lorebook.json",
+      "source": "user",
+      "slug": "rain-city",
+      "name": "Rain City",
+      "schema": "storyengine.lorebook/1",
+      "contentHash": "sha256:…",
+      "shadowed": false,
+      "tombstonedAt": null
+    }
+  ]
+}
+```
+
+Every row the index holds for the id: the winner first in portable-path order,
+shadowed copies, and any row inside its tombstone settling window
+(`tombstonedAt` in epoch milliseconds, `null` for a live row). Paths are
+portable — root-relative, `/`-separated — never native ones. **Best-effort,
+not a contract**: the index's tables are an implementation detail
+([13 §5](design/13-internal-contracts.md)) and its migration policy is
+drop-and-rescan, so after an index schema bump this route may return less
+until the surface catches up. Read-only; the object's contents stay the read
+route's answer.
+
 ### `DELETE /api/library/:kind/:id`
 
 Hash-checked the same way: deleting something a second tab has edited is the same

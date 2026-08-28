@@ -4,6 +4,7 @@
 import { useMatch } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
+import { isLibraryKind } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs, useTranscript } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import {
@@ -14,6 +15,7 @@ import {
   workbenchSizeFromPrefs,
   workbenchSizePatch,
 } from './prefs.js';
+import { LibrarySubject } from './library/LibrarySubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
 
 /**
@@ -22,7 +24,8 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * a non-modal `<aside>` docked at the shell's inline end, whose subject is
  * whatever the main view is showing. The subject over Play is the head turn
  * rendered by `TurnSubject` — the block table, budget verdict and call
- * inspector, [P3.2] — and over everything else it is an honest empty state.
+ * inspector, [P3.2]. Over a library object it is `LibrarySubject` — the raw
+ * truth of that object, [P3.3]. Over everything else, an honest empty state.
  *
  * **Non-modal is the load-bearing property, and it is achieved by omission.**
  * No `aria-modal`, no `useFocusTrap` — that hook must never be attached here:
@@ -51,7 +54,11 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * make the reader stateful, which [05 §2] forbids.
  */
 export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
-  const match = useMatch({ from: '/play/$sessionId', shouldThrow: false });
+  const play = useMatch({ from: '/play/$sessionId', shouldThrow: false });
+  // The library detail route only ([P3 §1.3]): the list has no selection
+  // concept, so over it the panel stays honestly empty — and the actor
+  // editor is a sibling route, so it stays empty there too.
+  const object = useMatch({ from: '/library/$kind/$id', shouldThrow: false });
   const asideRef = useRef<HTMLElement | null>(null);
   const prefs = usePrefs();
   const patchPrefs = usePatchPrefs();
@@ -93,10 +100,20 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
             Close
           </Button>
         </div>
-        {match === undefined ? (
-          <EmptySubject />
+        {play !== undefined ? (
+          <PlaySubject sessionId={play.params.sessionId} />
+        ) : object !== undefined && isLibraryKind(object.params.kind) ? (
+          <LibrarySubject
+            kind={object.params.kind}
+            id={object.params.id}
+            at={
+              object.search.slug === undefined
+                ? undefined
+                : { source: object.search.source ?? 'user', slug: object.search.slug }
+            }
+          />
         ) : (
-          <PlaySubject sessionId={match.params.sessionId} />
+          <EmptySubject />
         )}
       </div>
     </aside>

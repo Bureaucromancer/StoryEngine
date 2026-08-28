@@ -28,6 +28,7 @@ import {
   type ConfigView,
   type AuthState,
   type Credentials,
+  type IndexRow,
   type LibraryKind,
   type LibraryObject,
   type ObjectAddress,
@@ -132,6 +133,20 @@ export function useObjectHistory(
   return useQuery({
     queryKey: ['library', kind, id, 'history'],
     queryFn: () => api.history(kind, id),
+    refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+/**
+ * The index rows behind an object — the workbench's projection ([P3.3]).
+ * Polled at the library cadence like every read beside it: gate step 7's
+ * hand-edit-and-watch rides on the poll, and a copy appearing on disk shows
+ * up here within it.
+ */
+export function useIndexRows(kind: LibraryKind, id: string): UseQueryResult<{ rows: IndexRow[] }> {
+  return useQuery({
+    queryKey: ['library', kind, id, 'rows'],
+    queryFn: () => api.indexRows(kind, id),
     refetchInterval: LIBRARY_POLL_MS,
   });
 }

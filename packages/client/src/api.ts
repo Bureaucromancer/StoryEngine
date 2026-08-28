@@ -68,6 +68,23 @@ export interface LibraryObject {
   object: Record<string, unknown>;
 }
 
+/**
+ * One row of the by-id index projection (docs/api.md, Library). `path` is
+ * portable — root-relative, `/`-separated — and is the string the shadow
+ * winner is decided by; `tombstonedAt` is epoch milliseconds while a deleted
+ * row sits in its settling window, `null` for a live one.
+ */
+export interface IndexRow {
+  path: string;
+  source: 'user' | 'system';
+  slug: string;
+  name: string;
+  schema: string;
+  contentHash: string;
+  shadowed: boolean;
+  tombstonedAt: number | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   /** The `error` field from the response body — `invalid-credentials`, `stale`, … */
@@ -264,6 +281,15 @@ export const api = {
         ? objectUrl(kind, id)
         : `${objectUrl(kind, id)}?source=${at.source}&slug=${encodeURIComponent(at.slug)}`,
     ),
+
+  /**
+   * The index rows behind an object (docs/api.md, Library) — best-effort by
+   * decision ([P3 §7.4]): the shape restates the derived index and may
+   * return less after an index schema bump. Paths are portable, never
+   * native; the winner of a duplicated id is the first live row.
+   */
+  indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
+    request('GET', `${objectUrl(kind, id)}/rows`),
 
   createObject: (
     kind: LibraryKind,
