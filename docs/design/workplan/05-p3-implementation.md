@@ -1088,13 +1088,18 @@ panel that keeps its last subject is more useful and quietly makes the reader
 *stateful*, which is the property [05 §2](../05-ui-surfaces.md) says it must not
 have. §3 assumes an object or a turn is always in view.
 
-**7.4 Whether an index projection is a contract.**
-[13 §5](../13-internal-contracts.md) says the index's tables are an implementation
-detail, on purpose. §3 says the panel shows the rows. Either the projection is
-versioned and 13 §5 gains a carve-out, or the route is documented as best-effort
-and may return less after a schema bump. *And smaller, but needed first:* what
-*the index rows* means concretely — the winning row, every row for the id
-including shadowed and tombstoned, or the FTS row too.
+**7.4 Whether an index projection is a contract. [DECIDED] at P3.3: it is
+best-effort, and the rows are every row for the id.** The projection returns
+every row the index holds for the id — winner first in portable-path order,
+shadowed copies, and rows inside their tombstone settling window — with
+portable paths only, never native ones (F22); the FTS row stays out, being a
+search artifact rather than an object fact, and so do `body` (the read
+route's answer) and `mtime`/`size` (watcher bookkeeping). The route is
+documented as best-effort: [13 §5](../13-internal-contracts.md) keeps its
+implementation-detail posture untouched, the drop-and-rescan migration policy
+stays honest, and the projection may return less after an index schema bump
+until the surface catches up. The answer is written into
+[05 §3](../05-ui-surfaces.md), per this section's own rule.
 
 **7.5 Whether a slot that collected nothing is a row. [DECIDED] at P3.0: it
 is an entry in a second list, not a row among the blocks.** `omitWhenEmpty`

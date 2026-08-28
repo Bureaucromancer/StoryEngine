@@ -331,6 +331,16 @@ JSON as stored, the folder path, provenance, version history, the index rows —
 which is the depth [§2.1](#21-the-library-is-the-model-play-is-the-product)
 deliberately keeps out of a browse list.
 
+*The index rows*, decided at [P3 §7.4](workplan/05-p3-implementation.md): every
+row the index holds for the id — the winner first in portable-path order, the
+shadowed copies, and any row inside its tombstone settling window — with
+portable paths only, never native ones. The route serving them is a
+**best-effort projection, not a contract**: [13 §5](13-internal-contracts.md)
+keeps the index's tables an implementation detail and the migration policy is
+drop-and-rescan, so the projection restates the index and may return less after
+a schema bump until the surface catches up. The winning path is *named* here
+because the path shown is the very string the shadow resolution orders by.
+
 What it shows for any turn, current or historical:
 
 - **The block list**, in order, each with source, inclusion reason in plain

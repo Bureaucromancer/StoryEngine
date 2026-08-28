@@ -5,7 +5,7 @@ import { cp, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook } from '@storyengine/shared';
+import { newLorebook, uuidv7 } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -196,6 +196,119 @@ describe('a duplicated id', () => {
       url: `/api/library/lorebooks/${id}?source=user&slug=${shadowed}`,
     });
     expect(response.body.shadowed).toBe(true);
+  });
+});
+
+/**
+ * The index-rows projection — [P3.3], with [P3 §7.4] decided: every row the
+ * index holds for the id, best-effort rather than a contract. This file is
+ * its natural home because the projection's reason to exist is the question
+ * this file is about: which of two copies loads, said by path.
+ */
+describe('the index-rows projection', () => {
+  it('shows every row for the id, the winner named by its portable path', async () => {
+    const { id, winner, shadowed } = await duplicateOnDisk();
+
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/rows`,
+    });
+    expect(response.status).toBe(200);
+
+    const rows = response.body.rows as {
+      path: string;
+      slug: string;
+      shadowed: boolean;
+      tombstonedAt: number | null;
+    }[];
+    expect(rows).toHaveLength(2);
+    // Winner first, because the order shown is the order that decides (F23):
+    // ascending portable path.
+    expect(rows[0]?.slug).toBe(winner);
+    expect(rows[0]?.shadowed).toBe(false);
+    expect(rows[1]?.slug).toBe(shadowed);
+    expect(rows[1]?.shadowed).toBe(true);
+    // Portable, never native (F22): forward slashes, root-relative, the exact
+    // string a person can follow under their data directory. On Windows the
+    // native spelling would carry backslashes, so the equality is the mutation
+    // trap for a projection that leaked the stored path.
+    expect(rows[0]?.path).toBe(`users/ned/library/lorebooks/${winner}/lorebook.json`);
+    expect(rows.every((row) => !row.path.includes('\\'))).toBe(true);
+    // The projection restates the row, not the object: no body rides along.
+    expect(rows[0]).not.toHaveProperty('body');
+  });
+
+  it('keeps a deleted copy visible as tombstoned, for its settling window', async () => {
+    const { id, winner, shadowed } = await duplicateOnDisk();
+
+    const current = await server.request({ method: 'GET', url: `/api/library/lorebooks/${id}` });
+    const deleted = await server.request({
+      method: 'DELETE',
+      url: `/api/library/lorebooks/${id}`,
+      headers: { 'if-match': current.body.contentHash as string },
+    });
+    expect(deleted.status).toBe(204);
+
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/rows`,
+    });
+    const rows = response.body.rows as {
+      slug: string;
+      shadowed: boolean;
+      tombstonedAt: number | null;
+    }[];
+    expect(rows).toHaveLength(2);
+
+    // The delete resolved to the winner; its row is inside the settling
+    // window, stamped rather than gone. The survivor was promoted the moment
+    // the winner died — the projection shows the dance mid-step.
+    const gone = rows.find((row) => row.slug === winner);
+    const survivor = rows.find((row) => row.slug === shadowed);
+    expect(typeof gone?.tombstonedAt).toBe('number');
+    expect(survivor?.shadowed).toBe(false);
+    expect(survivor?.tombstonedAt).toBeNull();
+  });
+
+  it('never shows another library’s rows, even for the same id', async () => {
+    const { id } = await duplicateOnDisk();
+
+    // A same-id copy planted straight into somebody else's tree — the
+    // filesystem is the fixture, and rebuild walks every user directory it
+    // finds. `amaya` sorts before `ned`, so a projection that dropped the
+    // owner filter would list this row first, as the global winner.
+    const foreign = { ...newLorebook('Foreign Copy'), id };
+    const foreignDir = join(server.dataDir, 'users', 'amaya', 'library', 'lorebooks', 'foreign');
+    await mkdir(foreignDir, { recursive: true });
+    await writeFile(join(foreignDir, 'lorebook.json'), JSON.stringify(foreign, null, 2));
+    await rebuild(server.services.index.db, server.services.layout);
+
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${id}/rows`,
+    });
+    expect(response.status).toBe(200);
+
+    const rows = response.body.rows as { path: string }[];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.path.startsWith('users/ned/'))).toBe(true);
+  });
+
+  it('answers not-found across kinds and for unknown ids, like every read', async () => {
+    const { id } = await duplicateOnDisk();
+
+    const wrongKind = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/rows`,
+    });
+    expect(wrongKind.status).toBe(404);
+    expect(wrongKind.body.error).toBe('not-found');
+
+    const unknown = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${uuidv7()}/rows`,
+    });
+    expect(unknown.status).toBe(404);
   });
 });
 

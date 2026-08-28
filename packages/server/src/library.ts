@@ -23,7 +23,13 @@ import {
   listFileErrors,
   removeFile,
 } from './index-db/ingest.js';
-import { findById, findByIdAt, type IndexedObject, listObjects } from './index-db/query.js';
+import {
+  findById,
+  findByIdAt,
+  type IndexedObject,
+  listObjects,
+  rowsForId,
+} from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { envelope, pngCardCodec } from './storage/card/index.js';
 import { moveTree, readFileBytes } from './storage/files.js';
@@ -186,6 +192,71 @@ export function fileErrors(context: LibraryContext, handle: string): LibraryFile
     detail: row.detail,
     seenAt: row.seenAt,
   }));
+}
+
+/**
+ * The index rows for an id, as the panel shows them — [P3.3]'s projection,
+ * with [P3 §7.4](../../docs/design/workplan/05-p3-implementation.md) decided
+ * 2026-08-27: **every row the index holds for the id**, shadowed and
+ * tombstoned included, and the projection is **best-effort rather than a
+ * contract** — it restates the derived index, whose tables stay an
+ * implementation detail ([13 §5](../../docs/design/13-internal-contracts.md)),
+ * so after an index schema bump it may return less until this surface
+ * catches up.
+ *
+ * Paths are portable (F22): the client needs to know *which folder*, not
+ * where the server keeps its disk. That is also what lets this surface
+ * *name the winning path* — the winner of a duplicated id is decided by
+ * ordering over exactly this string (F23), so the rows are sorted by the
+ * very value the mechanism compares, winner first.
+ */
+export interface ProjectedIndexRow {
+  path: string;
+  source: 'user' | 'system';
+  slug: string;
+  name: string;
+  schema: string;
+  contentHash: string;
+  shadowed: boolean;
+  tombstonedAt: number | null;
+}
+
+export function indexRows(
+  context: LibraryContext,
+  handle: string,
+  id: string,
+  inKind: PortableSchemaId,
+): ProjectedIndexRow[] {
+  const readable = new Set(readableOwners(handle).map(ownerKeyOf));
+  const rows = rowsForId(context.db, id).filter((row) => readable.has(row.owner));
+  if (rows.length === 0) {
+    // The same anti-leak posture as read(): rows in somebody else's library
+    // were filtered before this check, so a foreign id and an absent id are
+    // one answer.
+    throw new LibraryError('not-found', `No object with id ${id}.`);
+  }
+  const inKindRows = rows.filter((row) => row.schemaId === inKind);
+  if (inKindRows.length === 0) {
+    throw new LibraryError('not-found', `No object with id ${id} in that kind.`);
+  }
+  return inKindRows
+    .map((row) => ({
+      row,
+      // The F22 fallback fileErrors already uses: a row outside the root has
+      // no portable address, and inventing one would be worse than saying so.
+      portable: context.layout.portablePath(row.path) ?? '(outside the data directory)',
+    }))
+    .sort((a, b) => (a.portable < b.portable ? -1 : a.portable > b.portable ? 1 : 0))
+    .map(({ row, portable }) => ({
+      path: portable,
+      source: row.owner === 'system' ? ('system' as const) : ('user' as const),
+      slug: row.slug,
+      name: row.name,
+      schema: row.schemaId,
+      contentHash: row.contentHash,
+      shadowed: row.shadowed,
+      tombstonedAt: row.tombstonedAt,
+    }));
 }
 
 /**

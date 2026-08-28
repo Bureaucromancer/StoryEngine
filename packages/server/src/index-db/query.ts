@@ -170,6 +170,59 @@ export function findByPath(db: DatabaseSync, path: string): IndexedObject | null
 }
 
 /**
+ * Every row holding an id — the workbench's index-rows projection ([P3.3]).
+ *
+ * The one reader that does **not** filter tombstones, by decision
+ * ([P3 §7.4](../../../../docs/design/workplan/05-p3-implementation.md)): the
+ * projection's job is the index *as it is*, and a row inside its settling
+ * window is part of that truth for as long as the window lasts. `body` is
+ * deliberately not selected — the object's contents are the read route's
+ * answer — and `mtime_ms`/`size` stay behind too, being the watcher's
+ * change-detection bookkeeping rather than facts about the object. The
+ * native `path` is returned for the store to translate; it must never reach
+ * a client untranslated (F22).
+ */
+export interface IdRow {
+  path: string;
+  owner: string;
+  schemaId: string;
+  slug: string;
+  name: string;
+  contentHash: string;
+  shadowed: boolean;
+  tombstonedAt: number | null;
+}
+
+export function rowsForId(db: DatabaseSync, id: string): IdRow[] {
+  const rows = db
+    .prepare(
+      `select path, owner, schema_id, slug, name, content_hash, shadowed, tombstoned_at
+         from object where id = ? order by path`,
+    )
+    .all(id) as {
+    path: string;
+    owner: string;
+    schema_id: string;
+    slug: string;
+    name: string;
+    content_hash: string;
+    shadowed: number;
+    tombstoned_at: number | null;
+  }[];
+
+  return rows.map((row) => ({
+    path: row.path,
+    owner: row.owner,
+    schemaId: row.schema_id,
+    slug: row.slug,
+    name: row.name,
+    contentHash: row.content_hash,
+    shadowed: row.shadowed === 1,
+    tombstonedAt: row.tombstoned_at,
+  }));
+}
+
+/**
  * Full-text search across the indexed objects.
  *
  * FTS5 ([07 §7](../../../../docs/design/07-tech-stack.md)). Turn text joins this at P2 —
