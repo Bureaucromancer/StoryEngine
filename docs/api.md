@@ -490,6 +490,65 @@ Fastify's validator with the storage layer's Ajv, which does not coerce (F2) —
 so `?limit=10` against `Type.Integer()` is rejected as *must be integer*. The
 schemas say what is actually on the wire.
 
+### `GET /api/sessions/:sessionId/turns/:turnId`
+
+`{ turn }`, or `404 {"error":"not-found","message":"No such turn."}`. One turn
+without the transcript riding along — `GET /turns` costs about 10.8 KB a turn
+and walks the whole path, and the workbench wants one turn, including one the
+head has passed. The lookup is scoped to *this* session inside the store, so a
+bare turn id cannot confirm existence across the ownership boundary: a turn in
+somebody else's session is the same `404` as one that never existed.
+
+### `POST /api/sessions/:sessionId/preview`
+
+```
+{ input?: { text, actorId?, kind? }, guidance? }
+```
+
+What this turn **would** assemble to, if it were taken now — the stateless
+preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { preview }`.
+
+```json
+{
+  "preview": {
+    "state": "assembled",
+    "headTurnId": "0199…",
+    "pendingInput": true,
+    "stepId": "se.narrate",
+    "callKind": "narrate",
+    "purpose": "prose",
+    "resolved": { "connectionId": "0199…", "modelId": "…" },
+    "blocks": [],
+    "budget": {},
+    "notFilled": []
+  }
+}
+```
+
+**It writes nothing**: no job is reserved, no draft is checkpointed, no turn is
+appended, and no hand edit is reconciled — the last of those deliberately, since
+reconciliation appends a divergence turn and this route is called every time
+somebody pauses typing. `POST` rather than `GET` because the body carries up to
+100 000 characters of prose, which does not belong in a URL.
+
+`input` is optional: its absence is *nothing typed yet*, which is what the
+context meter shows at rest. There is no `headTurnId` — the preview assembles
+against the session's current head and echoes back which one that was.
+`pendingInput` says whether an action or guidance was supplied, which is how the
+workbench decides between showing the composed turn and the last committed one.
+
+When no model resolves for the prose role the answer is still `200`, in its
+other arm — because *nothing is bound* is a true answer to *how full is the
+context*, not a refused request:
+
+```json
+{ "preview": { "state": "unmeasurable", "reason": "role-unbound", "notFilled": [] } }
+```
+
+`reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
+or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
+this prompt* is answerable without a model.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a

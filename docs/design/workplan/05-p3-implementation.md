@@ -911,6 +911,15 @@ headroom-aware *what falls out next* phrasing — all its inputs are already in 
 verdict, so this is the viewer's honesty rather than the assembler's; and
 per-block estimate beside per-call reported.
 
+*Added at P3.4, because this list was short by the one item §6 admits to:* **the
+stateless assemble route, and the gather and the call-plan it is carved from.**
+§6 says the meter "needs a server affordance nobody has built" and this
+inventory never named it, so the phase's own account of its server work missed a
+route, a shared reader and a seam. `POST /sessions/:sessionId/preview` is the
+route; `gatherAssemblyInputs` and `planCall` are what a turn and a preview now
+share, which is also §1.7's *assemble-without-dispatch as a parameterised
+function* discharged.
+
 ### And one debt to point at rather than ratify
 
 **A block's `reason` is free English prose in a durable record**, which is the
@@ -951,6 +960,15 @@ that most of a gate like this is not automatable and that is the point.
    generating anything — and on a turn with plenty of headroom it does not claim
    the system instruction is about to fall out.
 6. Per-block estimate beside per-call reported, on a turn where they differ.
+6a. **The meter reflects the pending input, not the last committed turn.** Type
+    into the action box and the fill changes without anything being sent; clear
+    it and the panel falls back to the head. With nothing bound to the prose
+    role the meter is still there, saying it cannot measure and why. *The one
+    step that fails if the preview ever becomes a second assembler:* the number
+    the meter shows is the verdict the panel shows, because both read one server
+    answer. **A gate addition, labelled as one** — the gate was written before
+    §1.6 created P3.4 and had no step for the stage, so nothing in it would fail
+    if the meter never shipped.
 7. Over a library object: the as-stored view matches the bytes on disk — hand-edit
    the file and watch the panel follow — the folder path is one you can paste into
    a file manager, and the revision list is there **with no restore button on it**.

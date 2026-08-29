@@ -21,6 +21,7 @@ import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
+import { previewAssembly } from '../turns/preview.js';
 import { PathEscapeError } from '../storage/paths.js';
 
 /**
@@ -74,6 +75,32 @@ const TurnsQuery = Type.Object({ limit: Type.Optional(Type.String({ pattern: '^[
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
 
 const ArchiveBody = Type.Object({ archived: Type.Boolean() }, { additionalProperties: false });
+
+/**
+ * What a preview is asked about — [P3.4].
+ *
+ * Field for field the half of `SubmitBody` that describes *what would be
+ * sent*, so the preview's inputs cannot drift from the submission's. What it
+ * deliberately lacks is the half about *committing*: no `idempotencyKey`,
+ * because nothing is reserved, and no `headTurnId`, because nothing is
+ * committed against one.
+ */
+const PreviewBody = Type.Object(
+  {
+    input: Type.Optional(
+      Type.Object(
+        {
+          text: Type.String({ maxLength: 100_000 }),
+          actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          kind: Type.Optional(Type.String({ maxLength: 40 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    guidance: Type.Optional(Type.String({ maxLength: 4000 })),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * A turn submission — [P2 §2.10].
@@ -298,6 +325,56 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     },
   );
 
+  /**
+   * What this turn *would* assemble to — the stateless preview ([P3.4]).
+   *
+   * **A POST that writes nothing**, and the two halves of that are separate
+   * claims. POST because the body carries up to a hundred thousand characters
+   * of somebody's prose, which cannot go in a URL — and because the CSRF
+   * header rides along, so a cross-site page cannot loop this into re-reading
+   * every turn on disk. Writes nothing because [P3 §1.6] scoped this stage
+   * that way: no job is reserved, no draft is checkpointed, no record is
+   * appended, and — through `readMine` rather than `mine` — no hand edit is
+   * reconciled into a divergence turn.
+   *
+   * `input` is optional, matching the collector's own `input?`: *nothing typed
+   * yet* is the same shape on the wire as it is in `CollectContext`, and it is
+   * the reading the meter shows at rest. There is no `headTurnId` in the body
+   * — the preview assembles against the session's current head and echoes back
+   * which one that was; a stale preview corrects itself on the next keystroke,
+   * where refusing would blank the meter at the moment somebody is watching it.
+   */
+  app.post(
+    '/sessions/:sessionId/preview',
+    { schema: { params: SessionParams, body: PreviewBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+
+      const body = request.body as { input?: { text: string }; guidance?: string };
+      const preview = await previewAssembly(
+        {
+          sessions: services.sessions,
+          accounts: services.accounts,
+          providers: services.providers,
+          config: services.config,
+        },
+        {
+          account: account.handle,
+          sessionId: session.id,
+          parentTurnId: session.headTurnId ?? null,
+          ...(body.input === undefined ? {} : { input: body.input }),
+          ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+        },
+      );
+
+      return reply.send({ preview });
+    },
+  );
+
   app.post(
     '/sessions/:sessionId/turns',
     { schema: { params: SessionParams, body: SubmitBody } },
@@ -513,6 +590,41 @@ function headerCursor(request: FastifyRequest): string | undefined {
  *
  * One helper rather than the check repeated in seven handlers, which is how one
  * of them ends up without it.
+ */
+/**
+ * The session, if it is this account's — **without `mine()`'s reconciliation**.
+ *
+ * For the one route that must not write: the preview ([P3.4]). `mine()`
+ * reconciles hand edits, which takes the non-reentrant session lock and, when
+ * the file has diverged, **appends a user-authored divergence turn**. Both are
+ * correct for a read somebody performed once by opening a session, and wrong
+ * for one that fires every time a person pauses typing: it would contend the
+ * lock `finaliseTurn` needs, and it would make looking at a meter move the
+ * head the meter is measuring against.
+ *
+ * Skipping reconciliation is consistent rather than a hole — `POST /turns`
+ * does not reconcile either, and the door for it is the session read the play
+ * surface already performs on arrival.
+ */
+async function readMine(
+  services: AppServices,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<Awaited<ReturnType<typeof readSession>>> {
+  const { sessionId } = request.params as { sessionId: string };
+  const handle = request.account?.handle ?? '';
+
+  const session = await readSession(services.sessions, handle, sessionId);
+  if (session === null) {
+    await reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+    return null;
+  }
+  return session;
+}
+
+/**
+ * The same check, plus the reconciliation — the door every *other* session
+ * route goes through. See {@link readMine} for the one that may not take it.
  */
 async function mine(
   services: AppServices,

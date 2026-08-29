@@ -19,6 +19,9 @@ export * from './factories.js';
 // The turn record — internal tier, deliberately outside `schema/`: no $id, no
 // registry entry, no emitted artefact. `turn.ts` carries the argument.
 export * from './turn.js';
+// What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
+// Beside the record rather than in it: it is never written to disk.
+export * from './preview.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';
