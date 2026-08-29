@@ -795,6 +795,80 @@ Clicking the meter opens the panel already on the current turn.
 *Ends at:* the meter reflects the pending input rather than the last committed
 turn. **This is the stage the revision created**, and the old plan had it last.
 
+**Landed 2026-08-29**, in seven commits: the shared gather, the call plan, the
+preview route, the debounce, the meter, the panel's preview arm, and the fix
+the browser walk turned up. What the clauses became:
+
+- **The seam was where §1.6 said it would be.** `performCall` split into
+  `planCall` — resolve, budget, assemble, render — and a dispatch half that
+  mints the id and checkpoints; the pure prefix turned out to hold no signal
+  check at all, so stopping there costs nothing and leaves nothing behind.
+  With `gatherAssemblyInputs` beneath it, a preview and a real turn read one
+  path, which is §1.7's *assemble-without-dispatch as a parameterised
+  function* discharged rather than promised.
+- **Not a second collector, deliberately.** The drift a parallel one invites
+  is silent, not loud: the mode's `historyWindow`, the `callKind` that drives
+  `appliesTo`, and `callPurposeFor`, which is [03 §5.2]'s structural
+  enforcement — a preview computing its own purpose could show a block table
+  containing guidance for a call `assemble` would refuse.
+- **§7.4's sibling question, answered in passing:** §3(c) never listed the
+  server affordance §6 admits the meter needs, so the phase's own inventory
+  was short by a route, a shared reader and a seam. Corrected there.
+- **Unmeasurable is a 200.** *Nothing is bound to the prose role* is a true
+  answer to *how full is the context*, not a refused request, and a 4xx would
+  push the sentence into the client's error channel and tempt the meter into
+  an alert. The reason travels as a class; `notFilled` rides on both arms,
+  because *why is there no lore in this prompt* needs no model and an
+  unconfigured install is where somebody is most likely to ask.
+- **The preview does not reconcile.** `readMine` joins `mine` for the one
+  route that must not write: reconciliation takes the session lock and
+  appends a divergence turn, which is correct for a read somebody performs by
+  opening a session and wrong for one that fires whenever they pause typing.
+- **The meter is a button, not a `role="meter"`** — ARIA prunes a button's
+  descendants, so a nested meter would announce nothing; the figure lives in
+  the button's name, which is what `aria-valuetext` would have carried. The
+  number sits beside the bar rather than on the fill, because `contrast.test`
+  enumerates the text-on-surface pairs the palette guarantees.
+- **The estimate is labelled, never corrected**, and [06 E5] gains the
+  recording line: the shipped approximator is `ceil(length/4)` rather than the
+  BPE one that section proposes, the one measurement was 10.3% low — exactly
+  its stated tolerance — and a fudge factor would make the meter disagree with
+  the drops the budgeter actually made.
+- **The panel's subject over Play widened, and the rule did not.** It is now
+  *the turn about to be taken, or the one last taken*; both halves derive from
+  the route and one shared cache entry whose reader provably cannot fetch
+  (`skipToken` is the mechanism), and the entry is dropped at submit and again
+  on leave. Written into [05 §3] per §7's write-back rule, and into the
+  `Workbench` docstring.
+
+The browser walk ran over the scratch install and **found a bug the suite
+could not**: `removeQueries` destroys an entry that still has observers
+without notifying them, so with the dock open the meter and the panel both
+kept rendering the reading a submitted turn had consumed. `resetQueries`
+notifies. It was invisible to the page test because only one observer mounts
+there; the regression now lives in `dock.test.tsx`, where the second one
+exists. Walked and verified: on the unconfigured install the meter is present
+and says *nothing is bound to the prose role*; with a connection bound by
+hand it read 282 of 23,200 at rest, moved to 320 for a hundred and forty-nine
+characters typed with the transcript untouched — **the ends-at, in a
+browser** — and clicking it opened the dock onto the pending assembly showing
+*the same figure on both surfaces*, ten block rows and no Cost section.
+Clearing the draft returned both to 350 and to the head. One preview measured
+**7ms median** over five runs against an eight-turn session, an order of
+magnitude under the 100ms this stage set as the trigger for revisiting a
+cache, so there is none.
+
+Two mutations found weak assertions rather than passing quietly, and both
+tests were sharpened before landing: the debounce's burst test originally
+checked only the end state, which uncleared timers still reach, and its
+unmount test advanced the clock before counting timers, which zeroes the
+count either way. One guard was **removed** rather than shipped — a sequence
+number against out-of-order previews could not be made to fail, because the
+mutation observer never runs a superseded mutation's `onSuccess`, so the test
+now pins the behaviour at the level that matters and holds whoever provides
+it. Every other new test was reddened by a named falsifying mutation before
+its commit; no fixture was promoted anywhere.
+
 ### P3.5 — The live half, or its explicit refusal
 
 Decide [04 §3.3](../04-server-multiuser-deployment.md) rather than assert it:
