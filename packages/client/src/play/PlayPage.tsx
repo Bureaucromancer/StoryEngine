@@ -109,8 +109,20 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
 
   useEffect(() => {
     if (running) return;
+    /**
+     * **Only ever ask about text the composer still holds.**
+     *
+     * The settled value lags the box by a debounce, and submitting empties
+     * the box at once — so a turn that finishes inside that beat would
+     * otherwise have this fire with the text just *sent*, and the panel would
+     * offer "what would be sent if this turn were taken now" for a turn
+     * already taken. Comparing against the live draft is the invariant that
+     * says it plainly; the settled value catches up a beat later and the
+     * at-rest reading is asked for then.
+     */
+    if (settled.text !== draft || settled.guidance !== guidance) return;
     refreshPreview(settled);
-  }, [settled, running, refreshPreview]);
+  }, [settled, draft, guidance, running, refreshPreview]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three

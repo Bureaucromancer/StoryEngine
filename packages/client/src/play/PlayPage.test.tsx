@@ -578,4 +578,42 @@ describe('the context meter', () => {
       ).toBeTruthy();
     });
   });
+
+  it('does not ask about text it has already sent', async () => {
+    /**
+     * The debounce lags the cleared draft: `send` empties `draft` at once, but
+     * `settled` still holds what was typed for another beat. If the turn ends
+     * inside that beat, the effect fires with the *submitted* text and the
+     * panel is handed a "what would be sent" preview of a turn already taken.
+     */
+    renderPage();
+    await screen.findByText('I knock twice.');
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalled();
+    });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledWith(SESSION.id, { text: 'I step in.', guidance: '' });
+    });
+    const sentAt = previewTurn.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    // The turn finishes almost at once, as an unbound install's does.
+    await act(async () => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.1',
+        data: { jobId: 'job-1', seq: 1, key: 'turn.finished', params: { state: 'failed' }, at: 0 },
+      });
+      await Promise.resolve();
+    });
+
+    // Every ask from the submit onwards, and the window matters: a stale one
+    // fires the instant `running` flips false, so clearing the mock after the
+    // finish frame would throw away the only evidence.
+    await new Promise((settle) => setTimeout(settle, 700));
+    const asked = previewTurn.mock.calls.slice(sentAt).map((call) => call[1]);
+    expect(asked).not.toContainEqual({ text: 'I step in.', guidance: '' });
+  });
 });

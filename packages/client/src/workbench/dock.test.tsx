@@ -643,4 +643,53 @@ describe('the panel over a turn being taken', () => {
     });
     expect(within(dock).queryByText(/This turn is being taken/)).toBeNull();
   });
+
+  it('is already on the turn when the dock is opened mid-flight', async () => {
+    /**
+     * **Opening the dock mid-turn finds the turn**, not the one before it.
+     *
+     * The live entry is written by the play surface, and while the dock is
+     * shut nothing observes it — so this asserts the entry is still there to
+     * be read when somebody opens the panel between two events, rather than
+     * the panel falling through to the *previous* turn's record while a turn
+     * is plainly running. It survives because a cache entry's options come
+     * from its observers, so with no reader mounted the entry keeps the
+     * default lifetime rather than the reader's zero.
+     */
+    stagedPreview = restingPreview();
+    prefsStore = {};
+    renderApp();
+    await overPlay();
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    await act(async () => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.1',
+        data: { jobId: 'job-9', seq: 1, key: 'turn.started', params: { turnId: 't-9' }, at: 0 },
+      });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.2',
+        data: {
+          jobId: 'job-9',
+          seq: 2,
+          key: 'step.started',
+          params: { stepId: 'se.narrate', stage: 'generate' },
+          at: 0,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    // Opened after the last event, with nothing further to come — and after
+    // a pause, because a cache entry with no observers is collected on a
+    // timer and the question is what a reader finds *later*, not instantly.
+    await new Promise((settle) => setTimeout(settle, 60));
+    await userEvent.keyboard(CHORD);
+    const dock = await screen.findByRole('complementary');
+
+    expect(await within(dock).findByText(/This turn is being taken/)).toBeTruthy();
+    expect(within(dock).getByText('se.narrate')).toBeTruthy();
+  });
 });
