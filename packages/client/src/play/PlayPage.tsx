@@ -79,11 +79,16 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([03 §5.1]).
       setGuidance('');
-      // **The record supersedes the preview** ([P3.4]). Dropped rather than
+      // **The record supersedes the preview** ([P3.4]). Cleared rather than
       // left to be refreshed, so the panel returns to the head at once
       // instead of showing a preview of a turn that is already running — and
       // when this one commits, the head *is* it, with its real block table.
-      queryClient.removeQueries({ queryKey: previewKey(sessionId) });
+      //
+      // `reset`, not `remove`, and the browser walk is what found the
+      // difference: removing a query that still has observers destroys the
+      // entry without notifying them, so the meter and the panel went on
+      // rendering the value they had last been handed. Resetting notifies.
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
   });
 

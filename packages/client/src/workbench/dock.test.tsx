@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -115,8 +115,10 @@ vi.mock('../api.js', async (importOriginal) => {
     readTranscript: () => Promise.resolve({ turns: TURNS }),
     // The meter's question, answered with whatever the test has staged
     // ([P3.4]). Play mounts under the real router here, so this is called for
-    // real the moment the surface appears.
+    // real the moment the surface appears — and so is the submission the
+    // preview-clearing test drives, which is why that is stubbed too.
     previewTurn: () => Promise.resolve({ preview: stagedPreview }),
+    submitTurn: () => Promise.resolve({ jobId: 'job-1', cursor: 'job-1.0' }),
   };
 });
 
@@ -503,5 +505,34 @@ describe('the context meter and the panel', () => {
     const meter = screen.getByRole('button', { name: /Context fill/ });
     expect(meter.getAttribute('aria-label')).toContain('86 of 5,344');
     expect(within(dock).getByText(/86 of 5,344 tokens spent/)).toBeTruthy();
+  });
+
+  it('drops the composed reading from both surfaces when the turn is submitted', async () => {
+    /**
+     * **The half `PlayPage.test.tsx` cannot hold**, and the reason this test
+     * exists: with the dock open there are *two* observers on the preview
+     * entry. `removeQueries` destroys such an entry without notifying either
+     * of them, so the meter kept the composed figure and the panel kept
+     * showing a turn that was already running — found in a browser, invisible
+     * to a page test with one observer. `resetQueries` notifies. The
+     * falsifying mutation is going back to `remove`.
+     */
+    stagedPreview = pendingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    await within(dock).findByText(/What would be sent if this turn were taken now/);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'Go on.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Context fill has not been measured yet.' }),
+      ).toBeTruthy();
+    });
+    expect(within(dock).queryByText(/What would be sent if this turn were taken now/)).toBeNull();
   });
 });

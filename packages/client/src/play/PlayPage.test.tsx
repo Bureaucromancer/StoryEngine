@@ -547,4 +547,35 @@ describe('the context meter', () => {
     });
     expect(screen.getByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
   });
+
+  it('clears the preview when the turn is submitted, so the record can take over', async () => {
+    /**
+     * The claim, at this level: the composed reading does not outlive the
+     * submission that consumed it.
+     *
+     * **This test does not distinguish `reset` from `remove`, and the note
+     * matters** — with only this page mounted, removing the entry and
+     * re-rendering produces the same empty reading. The browser walk found a
+     * case where it does not: with the dock open there is a second observer,
+     * and `removeQueries` destroyed the entry *without notifying either*, so
+     * both surfaces went on rendering the value they had last been handed.
+     * `dock.test.tsx` holds that half. The falsifying mutation for this one
+     * is dropping the call entirely.
+     */
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    previewTurn.mockResolvedValue(previewOf(2_500));
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    expect(await screen.findByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    // The composed reading is gone the moment the turn is reserved.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Context fill has not been measured yet.' }),
+      ).toBeTruthy();
+    });
+  });
 });
