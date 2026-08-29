@@ -961,3 +961,70 @@ defaults, both of which had to be right before either could be offered — not a
 dial that hands the design problem to the user. The test this entry sets was met
 in the order it asks for: the surfaces were made correct, and *then* one of them
 was made selectable.
+
+### E11. The prose editor — open, leaning plain text with decorations
+
+Write ([17 §12](17-write-mode.md)) needs the first structured editor this
+repository has had, and nothing in any manifest is one today. The decision is
+open, and the reason it can safely stay open is that **the requirement is much
+narrower than "a rich text editor"**, and stating the requirement is most of the
+work:
+
+> **The editor must maintain externally-held, offset-keyed annotations across
+> arbitrary edits.**
+
+That falls out of two decisions already made. The canonical form is plain
+Markdown on disk ([17 §5.2](17-write-mode.md)), so an editor whose document model
+is a node tree makes the file a *render* of that model and reintroduces the
+two-sources-of-truth failure [02 §5.2](02-data-model.md) rejects for cards. And
+mentions, provenance and beat positions are all overlays under *annotate, never
+rewrite* ([05 §13.1](05-ui-surfaces.md)), so none of them may be injected into
+the authored bytes.
+
+**Lean: a plain-text editor with a first-class position-mapping API and
+decoration sets**, rather than a rich-text document model. A textarea with a
+mirrored overlay is a genuine fallback and loses block widgets, per-span hit
+targets and long-document virtualisation.
+
+**Why leaving it open costs nothing.** The document on disk is Markdown, the
+annotations are offsets in `manuscript.json`, and no part of the server, the
+schemas or the API knows what the editor is — client-internal in the same
+structural sense [07 §6](07-tech-stack.md) makes the framework choice reversible.
+Two constraints hold whichever way it goes: read-only rendering must not require
+the editor bundle, or the reading view ([05 §12](05-ui-surfaces.md)) takes a
+dependency on it; and if the beat interaction turns out to need rich structured
+content *inside* the prose, the plain-text model is wrong and the storage
+decision reopens with it. *[17 §12]*
+
+### E12. The remaining Write-mode shapes — four, all cheap, none blocking
+
+Collected rather than given entries of their own, because each is a local choice
+inside [17](17-write-mode.md) that changes nothing outside it. Recorded so they
+are re-checked rather than re-argued.
+
+- **Sessions per manuscript — lean: one.** A Write session is a tool and the
+  manuscript is the work ([17 §4.5](17-write-mode.md)), so the session is created
+  lazily and never shown. Several would matter mainly for two humans, which is a
+  non-goal ([17 §14](17-write-mode.md)).
+- **Manuscript version granularity — lean: a manifest, not per node.** A version
+  is the set of content hashes for `manuscript.json` and every `text/*.md`
+  ([17 §5.4](17-write-mode.md)). Payloads are already content-addressed, so an
+  unchanged node costs nothing and restore is atomic — which is what Scrivener's
+  snapshots actually are. It depends on one property worth verifying rather than
+  assuming: snapshot payloads must stay opaque digest-addressed bytes.
+- **Where automatic plurals are configured — lean: the matcher, not the entry.**
+  It is a property of the language rather than of a lore entry
+  ([17 §9.2](17-write-mode.md)), so a per-entry boolean would be the wrong shape
+  repeated a hundred times.
+- **Whether Write is finally the feature that wants templating inside a text
+  block — lean: still no.** [03 §5](03-modes-and-turn-pipeline.md) already
+  intends templates to render *within* a block, so this is not a refusal of
+  templating; it is a question about a small residue — a manuscript title, a POV
+  name — each of which is arguably a slot ([17 §11.1](17-write-mode.md)). A
+  template language admitted for three tokens is admitted permanently.
+
+And one that is **not** in this list because it is not open: whether the codex is
+a new kind. It is not ([17 §9](17-write-mode.md)), and the reopening condition —
+a lore entry gaining a portable cross-install identity
+([16 §4.1](16-lorebooks-as-a-format.md)) — is recorded there rather than here.
+*[17 §§4.5, 5.4, 9.2, 11.1]*

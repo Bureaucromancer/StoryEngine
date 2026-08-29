@@ -11,10 +11,11 @@ guessing at it.
 
 ---
 
-## 0. What is in 1.0, and what is 2.0
+## 0. What is in 1.0, what is 2.0, and what is 3.0
 
 **1.0 ships two modes: Scene, and Adventure–Freeform.**
 **2.0 adds Adventure–Campaign and Messages.**
+**3.0 adds Write — long-form prose over a manuscript ([17](../17-write-mode.md)).**
 
 The cut is by *where this project has an opinion*, which is a better criterion
 than feature count:
@@ -30,10 +31,17 @@ than feature count:
   schedules, autonomous messaging, profiles, reactions, and a great deal of look
   and feel, for comparatively little that the pipeline does not already do.
   It is the easiest place to spend six months on polish.
+- **Write** is cut on a different axis, and the criterion above does not
+  reach it: it is *downstream*, not unopinionated. It consumes lorebook
+  activation, mention resolution, the mode contract as a real interface, and
+  the summary chain — and it is the first mode needing a surface of its own
+  ([17](../17-write-mode.md), [14 §2e](../14-roadmap.md)).
 
-**The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0.**
+**The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0 →
+3.0 beta series → 3.0.**
 1.0 is a real release with a `release/1.0` branch that persists
-([11 §2](11-repo-and-releases.md)); 2.0 work continues on `main`.
+([11 §2](11-repo-and-releases.md)); 2.0 work continues on `main`, and 3.0 after
+it on the same pattern.
 
 ### 0.1 What this removes from 1.0
 
@@ -69,6 +77,17 @@ a namespaced key, and Campaign's state lives in channels the mode declares.
 Neither touches Actor, Lorebook, Treatment, Setup or Package. If either turns out
 to need a schema change, the mode contract or the data model was wrong — and
 finding that out at 2.0 is exactly what the stability tiers exist to prevent.
+
+**Write's version of this check is the mirror of it, and needs stating because
+it does not pass unchanged.** 3.0 adds a *kind* — Manuscript — which is not a
+change to an existing portable schema, and [17 §5](../17-write-mode.md) argues
+it into the internal tier precisely so that it is not one. The rule for Write is
+therefore: **it may change internal-tier shapes and may not break portable
+ones.** The turn record's anchor and the span overlay are internal and free
+([10 §1](../10-schemas.md)); the three lore-entry fields it wants are optional
+additions and therefore not a bump ([10 §2](../10-schemas.md)). If Write turns
+out to need a *breaking* portable change, the same conclusion applies as above:
+the data model was wrong.
 
 ### 0.3 The honest cost
 

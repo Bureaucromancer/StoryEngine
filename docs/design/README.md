@@ -11,7 +11,8 @@ worked from rather than argued with.
 **Phase: alpha, building P1** — see the [root README](../../README.md) for what
 actually runs today. **1.0 ships Scene and Adventure–Freeform; Adventure–Campaign
 and Messages are 2.0** ([work plan §0](workplan/01-work-plan.md)), as is the authored-rule
-vocabulary ([work plan §0.4](workplan/01-work-plan.md)). Distribution, when there is something to
+vocabulary ([work plan §0.4](workplan/01-work-plan.md)); **Write is 3.0**
+([17](17-write-mode.md), [14 §2e](14-roadmap.md)). Distribution, when there is something to
 distribute, is build-it-yourself until beta — which is defined as *feature
 complete to the 1.0 spec*. See [releases §0](workplan/11-repo-and-releases.md).
 
@@ -81,11 +82,14 @@ were written in. **Start with 00, then 01.**
 | [05-ui-surfaces.md](05-ui-surfaces.md) | Web-only client, density stance, home, library and play, the workbench panel, file access, editors |
 | [16-lorebooks-as-a-format.md](16-lorebooks-as-a-format.md) | Why a lorebook is worth reading, browsing and searching in its own right — and why that costs no schema |
 | [15-account-gallery.md](15-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
+| [17-write-mode.md](17-write-mode.md) | Long-form prose as a mode: the manuscript kind, beats, the outline views, and a third top-level surface |
 
-15 and 16 sit after 14 by number only — the slots beneath them were taken when
-they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05, whose
-lorebook and library sections it takes a position about and whose surfaces carry
-the specifications. Which is why both are indexed here.
+15, 16 and 17 sit after 14 by number only — the slots beneath them were taken
+when they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05,
+whose lorebook and library sections it takes a position about and whose surfaces
+carry the specifications; 17 reads after 03 and 05, whose mode contract it
+extends and whose surface count it changes. Which is why all three are indexed
+here.
 
 ### The technical ground
 
@@ -127,14 +131,20 @@ they still have to exist before code does.
    native mobile app — and it is a view onto server-side state, not the place
    generation happens. The only secondary interface is direct file access to the
    data directory, offered in-UI as a permission level.
-3. **Four chat modes across two releases.** **1.0**: Scene (SillyTavern/Marinara
-   RP) and Adventure–Freeform (the Aventuras shape). **2.0**: Adventure–Campaign
-   (the Marinara RPG shape) and Messages (Marinara "Convo"). The cut is by where
-   this project has an opinion — Campaign is already well done in Marinara and
-   what we add is the substrate beneath it, while Messages is presentationally
-   expensive for what it adds mechanically. Modes are specified as an *extension
+3. **Four chat modes across two releases, and a fifth mode that is not a chat
+   mode.** **1.0**: Scene (SillyTavern/Marinara RP) and Adventure–Freeform (the
+   Aventuras shape). **2.0**: Adventure–Campaign (the Marinara RPG shape) and
+   Messages (Marinara "Convo"). The cut is by where this project has an
+   opinion — Campaign is already well done in Marinara and what we add is the
+   substrate beneath it, while Messages is presentationally expensive for what
+   it adds mechanically. **3.0**: **Write**, which keeps the pipeline and
+   changes the artefact — long-form prose over a manuscript
+   ([17](17-write-mode.md)). Its cut is by a different criterion, being
+   downstream rather than unopinionated. Modes are specified as an *extension
    point* rather than a fixed feature set, so the 2.0 pair should need no change
-   to the 1.0 schemas ([work plan §0.2](workplan/01-work-plan.md)).
+   to the 1.0 schemas ([work plan §0.2](workplan/01-work-plan.md)) — and **Write
+   is the real test of that claim**, because it is the first mode that needs the
+   contract to grow rather than to be configured.
 4. **Data objects that make sense for LLM workflows**, stored as files on disk,
    with character cards stored natively as cards — drag a folder out of the
    storage directory and you have exported it.
@@ -154,3 +164,8 @@ they still have to exist before code does.
 - **Mode** — the thing that defines how a turn is built and what state it owns.
 - **Channel** — a named, typed slice of session state owned by a mode or
   extension (HP, quests, clock, weather, relationship, …).
+- **Manuscript** — the long-form artefact: a binder of nodes, with the prose in
+  Markdown files beside it. A library kind, and internal tier
+  ([17 §5](17-write-mode.md)).
+- **Beat** — a short instruction with a position in a manuscript. The Write
+  mode's unit of input ([17 §7](17-write-mode.md)).

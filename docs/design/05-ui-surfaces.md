@@ -202,6 +202,13 @@ Plus the **reading view** (§12) — the story as prose, with the machinery
 stripped. The workbench and the reading view answer opposite questions over the
 same records.
 
+**A third surface arrives with Write at 3.0** ([17 §6](17-write-mode.md)) — a
+mode whose layout is document-shaped rather than session-shaped, and which
+therefore cannot live inside Play without making Play's layout conditional on
+the mode. **Two is a fact about what ships, not a principle**, and it is worth
+saying so here rather than letting a count be cited later as a rule. Nothing
+about the demotion below changes: a reader is still not a surface.
+
 **The workbench used to be listed here as a third peer, and is not one.** The
 demotion is in navigation only, and the distinction matters because this section
 previously ran the two together: *"'Peer' is a design-process claim as much as a

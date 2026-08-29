@@ -763,6 +763,13 @@ Four chat modes across two releases — **Scene and Adventure–Freeform at 1.0*
 assistant (§7.4), which is not a chat mode but is
 built out of the same parts.
 
+**And a fifth mode at 3.0 that is also not a chat mode: Write**, specified in
+[17](17-write-mode.md) rather than here. It gets a pointer rather than a §7.5
+deliberately: everything above configures the pipeline over the same artefact,
+while Write changes what the result lands in — a manuscript rather than a
+transcript — so listing it as Scene's peer would invite exactly the reading
+[17 §6](17-write-mode.md) exists to prevent.
+
 ### 7.1 Messages — **2.0**
 
 Messenger-shaped. Marinara's Conversation mode is the reference and it is the
