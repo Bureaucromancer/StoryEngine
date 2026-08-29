@@ -651,7 +651,7 @@ became a standing gap rather than an anecdote.
 
 **What needs a person.** Steps 1 and 9 above all: every test in this repository
 runs against `FakeProvider`, so *"paste in a real key and take a turn"* is
-exactly the gap [12 §1.1](12-p2-manual-gate.md) already names, and P2B is the
+exactly the gap [12 §2.2](12-p2-manual-gate.md) already names, and P2B is the
 phase where it stops being theoretical. Run it against at least one hosted
 endpoint and one local runtime, because §2.6's caveat about `/models` is the
 kind of thing only a real llama.cpp answers.

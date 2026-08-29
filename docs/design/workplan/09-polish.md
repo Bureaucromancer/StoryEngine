@@ -42,12 +42,22 @@ long text rendered as text rather than as a JSON string with `\n` in it, empty
 fields either omitted or shown as explicitly empty, and lists as lists.
 
 **The thing to get right.** It should be recognisably *the same view* as the
-editor's, not a second layout that drifts. The editor already derives its fields
-from the schema ([Field.tsx](../../../packages/client/src/editor/Field.tsx),
-[form.ts](../../../packages/client/src/editor/form.ts)); the read view should
-derive them the same way, so a schema addition shows up in both without a second
-edit. That is the whole design constraint — one description of a kind's fields,
-two renderings of it.
+editor's, not a second layout that drifts. That is the whole design constraint —
+one description of a kind's fields, two renderings of it.
+
+**Correction, because this item used to claim the first half already existed.**
+It said *the editor already derives its fields from the schema*, and it does
+not. `ActorForm` names its six fields by hand
+([form.ts](../../../packages/client/src/editor/form.ts)) and
+[ActorEditorPage.tsx](../../../packages/client/src/editor/ActorEditorPage.tsx)
+writes one `<Field>` per field in JSX; the primitive those are built from
+([Field.tsx](../../../packages/client/src/ui/Field.tsx) — in `ui/`, not
+`editor/`, which is what made the old link dangle) owns a label, a control and
+an assist slot, and knows nothing about any schema. So the read view **cannot**
+derive its fields *the same way* as the editor, because the editor does not
+derive them at all. The single description is work this item has to do rather
+than something it inherits, and that is the difference between a second
+rendering and a small piece of design.
 
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition

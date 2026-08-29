@@ -47,7 +47,7 @@ as a finding — a prediction made before looking is the closest an author gets
 to not knowing.
 
 **The scenario list, closed.** [12 §2](12-p2-manual-gate.md) is the list and it
-is not added to during the phase. [P2C §3.3](15-p2c-first-real-run.md) and the
+is not added to during the phase. [P2C.1](15-p2c-first-real-run.md) and the
 long pass are the deliberately unscripted halves; the scripted pass is not the
 place to follow a hunch.
 
