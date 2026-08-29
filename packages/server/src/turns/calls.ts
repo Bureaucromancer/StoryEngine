@@ -216,11 +216,48 @@ function withIdleTimeout(
   };
 }
 
-export async function performCall(
-  context: CallContext,
+/**
+ * A call as it is before it has an identity — everything assembly decides,
+ * and nothing dispatch does.
+ *
+ * The split point is where [P3 §1.6] said it would be: *an early exit at a
+ * seam where a cancellation is already thrown*. The pure prefix has no signal
+ * check of its own (the first is inside the retry loop below), mints no id and
+ * writes no checkpoint, so stopping here costs nothing and leaves nothing
+ * behind.
+ */
+export type PlannedCall = Omit<ProvisionalCall, 'id' | 'startedAt'>;
+
+/** {@link CallContext} minus the things only a dispatch needs. */
+export type PlanContext = Omit<CallContext, 'signal' | 'onCallAssembled' | 'onProgress'>;
+
+export interface CallPlan {
+  /** Everything the record keeps, minus the identity a dispatch mints. */
+  call: PlannedCall;
+  /**
+   * The connection the role resolved to. **What dispatch needs and the record
+   * never keeps** — a `Connection` holds `apiKey` and `baseUrl`, and the
+   * record is a line in a JSONL file on somebody's disk ([13 §1.4]). Handed
+   * back rather than re-derived, so `performCall` cannot resolve the role a
+   * second time and get a second answer.
+   */
+  connection: Connection;
+}
+
+/**
+ * Resolve, budget, assemble and render — the half a preview stops after.
+ *
+ * Both of its throws are load-bearing and stay throws: `RoleUnresolved` is how
+ * the preview learns there is no denominator to measure against, and
+ * `AdvisoryLeakError` is [03 §5.2]'s structural guarantee, which a preview
+ * must not be able to route around. [P3 §1.7]'s *assemble-without-dispatch as
+ * a parameterised function* is this function.
+ */
+export function planCall(
+  context: PlanContext,
   request: StepCallRequest,
   candidates: readonly Candidate[],
-): Promise<CallOutcome> {
+): CallPlan {
   const { definition } = context;
   if (definition.role === null) {
     throw new Error(`Step ${definition.id} made a call but declares no role.`);
@@ -269,27 +306,40 @@ export async function performCall(
   // the adapter, and folding above it would corrupt the record's block table.
   const messages = render(assembled.blocks, { capabilities: provider.capabilities });
 
+  return {
+    call: {
+      stepId: definition.id,
+      role: definition.role,
+      purpose,
+      resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
+      blocks: assembled.blocks,
+      budget: assembled.verdict,
+      notFilled,
+      messages,
+      params,
+    },
+    connection: resolution.connection,
+  };
+}
+
+export async function performCall(
+  context: CallContext,
+  request: StepCallRequest,
+  candidates: readonly Candidate[],
+): Promise<CallOutcome> {
+  const { call: planned, connection } = planCall(context, request, candidates);
+  const provider = context.providers(connection);
+  const { params, messages } = planned;
+
   const id = uuidv7();
   const startedAt = Date.now();
   // The call exists from here — id, blocks, verdict, rendered messages — and
   // the runner checkpoints it before anything is dispatched ([P3.0]): every
   // exit below replaces the provisional by this same id, so only a process
   // that died mid-call ever commits it.
-  context.onCallAssembled({
-    id,
-    stepId: definition.id,
-    role: definition.role,
-    purpose,
-    resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
-    blocks: assembled.blocks,
-    budget: assembled.verdict,
-    notFilled,
-    messages,
-    params,
-    startedAt,
-  });
+  context.onCallAssembled({ id, startedAt, ...planned });
 
-  context.onProgress({ kind: 'started', model: resolution.modelId });
+  context.onProgress({ kind: 'started', model: planned.resolved.modelId });
 
   let retries = 0;
 
@@ -308,7 +358,7 @@ export async function performCall(
       const result = await invoke(
         provider,
         {
-          modelId: resolution.modelId,
+          modelId: planned.resolved.modelId,
           messages,
           params,
           ...(request.schema === undefined ? {} : { schema: request.schema }),
@@ -329,17 +379,14 @@ export async function performCall(
         usage: result.usage,
         call: {
           id,
-          stepId: definition.id,
-          role: definition.role,
-          purpose,
-          // The id and the model, never the connection: it carries `apiKey` and
-          // `baseUrl`, and this record is a line in a file on somebody's disk.
-          resolved: { connectionId: resolution.connection.id, modelId: result.modelId },
-          blocks: assembled.blocks,
-          budget: assembled.verdict,
-          notFilled,
-          messages,
-          params,
+          ...planned,
+          // **The one field the plan does not get the last word on.** The plan
+          // holds the model that was *asked*; on the success path the record
+          // keeps the one that *answered*, which the adapter reports and which
+          // can differ from the binding. The id and the model, never the
+          // connection: it carries `apiKey` and `baseUrl`, and this record is a
+          // line in a file on somebody's disk.
+          resolved: { connectionId: planned.resolved.connectionId, modelId: result.modelId },
           usage: result.usage,
           cost: result.cost,
           wallMs: Date.now() - startedAt,
@@ -372,15 +419,10 @@ export async function performCall(
         throw new Cancelled({
           call: {
             id,
-            stepId: definition.id,
-            role: definition.role,
-            purpose,
-            resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
-            blocks: assembled.blocks,
-            budget: assembled.verdict,
-            notFilled,
-            messages,
-            params,
+            // The plan verbatim — the same nine fields the provisional was
+            // checkpointed with, so a cancelled call's record cannot drift
+            // from the one the block table already showed.
+            ...planned,
             usage: null,
             cost: null,
             wallMs: Date.now() - startedAt,
@@ -435,18 +477,10 @@ export async function performCall(
         partial.text,
         {
           id,
-          stepId: definition.id,
-          role: definition.role,
-          purpose,
-          // The model that was *asked for*, because nothing answered — and said
-          // so here rather than left to read like a report, which is the same
-          // distinction `modelThatAnswered` draws on the success path.
-          resolved: { connectionId: resolution.connection.id, modelId: resolution.modelId },
-          blocks: assembled.blocks,
-          budget: assembled.verdict,
-          notFilled,
-          messages,
-          params,
+          // The plan verbatim, which carries the model that was *asked for* —
+          // because nothing answered. The same distinction `modelThatAnswered`
+          // draws on the success path.
+          ...planned,
           usage: null,
           cost: null,
           wallMs: Date.now() - startedAt,
