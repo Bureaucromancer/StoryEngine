@@ -5,7 +5,7 @@ import { useMatch } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
 import { isLibraryKind } from '../api.js';
-import { useAuthState, usePatchPrefs, usePrefs, useTranscript } from '../queries.js';
+import { useAuthState, usePatchPrefs, usePrefs, usePreview, useTranscript } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import {
   clampSize,
@@ -16,6 +16,7 @@ import {
   workbenchSizePatch,
 } from './prefs.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
+import { PreviewSubject } from './turn/PreviewSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
 
 /**
@@ -52,6 +53,15 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * router is what keeps that true, and the empty state over subjectless routes
  * is [P3 §7.3]'s interim answer — remembering the last subject would quietly
  * make the reader stateful, which [05 §2] forbids.
+ *
+ * **[P3.4] widened what the subject over Play *is*, and left the rule
+ * alone.** It is now the turn about to be taken, falling back to the head
+ * when nothing is composed — because the meter that opens this panel is about
+ * the pending input, and a panel answering about the previous turn would
+ * contradict the control that opened it. The panel still holds no state: it
+ * chooses on the route and on one cache entry whose reader provably cannot
+ * fetch, and that entry is dropped at submit and again on leave. Written back
+ * into [05 §3] rather than left as an implicit reinterpretation.
  */
 export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
   const play = useMatch({ from: '/play/$sessionId', shouldThrow: false });
@@ -257,22 +267,37 @@ function ResizeHandle(props: {
 }
 
 /**
- * The head turn, rendered — the transcript the play surface already fetched,
- * read from the same cache entry so opening the dock issues no request.
- * `at(-1)` because the route returns the path from the head oldest-first.
+ * The turn this session would send next, or the one it last sent — [P3.4].
  *
- * The head is still the *only* turn the panel can show: read-a-turn-by-id
- * landed with [P3.0] and `useTurn` exists, but nothing here calls it — the
- * subject follows the main view, and the main view has no way to point at a
- * historical turn until the transcript grows per-turn affordances ([P3.6]).
- * Consequence, stated rather than hidden: with the raw disclosure gone from
- * the transcript, a historical turn's record is unreachable in the UI until
- * then. Its bytes are safe in the store; the reader is what lags.
+ * **The subject over Play widened at P3.4, and the rule did not.** It used to
+ * be *the head turn*; it is now *the turn about to be taken, falling back to
+ * the head when nothing is composed* — because the meter that opens this panel
+ * is about the pending input, and a panel that answered about the previous
+ * turn would contradict the control that opened it ([P3 §1.6]).
+ *
+ * That is a wider object for the rule, not a breach of it. The panel still
+ * holds no state: the two facts it chooses on are the **route** (which
+ * session) and the **cache** (what the composer last asked the server), and
+ * `usePreview` is a reader that provably cannot fetch — `skipToken` is the
+ * mechanism. Nothing about the composer is remembered anywhere the panel can
+ * reach, the entry is dropped when a turn is submitted because the record
+ * supersedes it, and it is dropped again when the surface is left.
+ *
+ * The head half is unchanged, including its limit: the head is still the only
+ * *committed* turn the panel can show, because the main view has no way to
+ * point at a historical one until the transcript grows per-turn affordances
+ * ([P3.6]).
  */
 function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
   const transcript = useTranscript(sessionId);
+  const preview = usePreview(sessionId);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
+
+  const pending = preview.data?.preview;
+  if (pending?.pendingInput === true) {
+    return <PreviewSubject preview={pending} locale={locale} />;
+  }
 
   if (transcript.isPending) {
     return <p className="text-sm text-ink-subtle">Loading the record…</p>;

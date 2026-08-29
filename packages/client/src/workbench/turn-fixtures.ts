@@ -3,7 +3,7 @@
 
 import type { ModelCall } from '@storyengine/shared';
 
-import type { TurnRecord } from '../api.js';
+import type { TurnPreview, TurnRecord } from '../api.js';
 
 /**
  * Turn records for the workbench's tests — **test-only, and never promoted**.
@@ -306,5 +306,41 @@ export function divergenceTurn(): TurnRecord {
       },
     ],
     tape: [],
+  };
+}
+
+/**
+ * A pending assembly — what the meter is showing and what the panel opens on
+ * ([P3.4]). Not a record: no id, no call, nothing has been sent.
+ */
+export function pendingPreview(): TurnPreview {
+  const call = proseCall();
+  return {
+    state: 'assembled',
+    headTurnId: 't-10',
+    pendingInput: true,
+    stepId: 'se.narrate',
+    callKind: 'narrate',
+    purpose: 'prose',
+    resolved: call.resolved,
+    blocks: call.blocks,
+    budget: call.budget,
+    notFilled: call.notFilled,
+  };
+}
+
+/** The same, before anything is typed — the at-rest reading. */
+export function restingPreview(): TurnPreview {
+  return { ...pendingPreview(), pendingInput: false };
+}
+
+/** An install with no model bound: no denominator, and it says why. */
+export function unmeasurablePreview(): TurnPreview {
+  return {
+    state: 'unmeasurable',
+    headTurnId: 't-10',
+    pendingInput: true,
+    reason: 'role-unbound',
+    notFilled: proseCall().notFilled,
   };
 }

@@ -4,7 +4,14 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ACTOR_ID, cancelledTurn, divergenceTurn, richTurn } from '../turn-fixtures.js';
+import {
+  ACTOR_ID,
+  cancelledTurn,
+  divergenceTurn,
+  pendingPreview,
+  richTurn,
+  unmeasurablePreview,
+} from '../turn-fixtures.js';
 
 /**
  * The turn views over literal fixtures — the `HistoryPanel.test` style: no
@@ -39,6 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 const { TurnSubject } = await import('./TurnSubject.js');
+const { PreviewSubject } = await import('./PreviewSubject.js');
 
 describe('the block table', () => {
   it('keeps a dropped block as a faded row with the responsible rule', () => {
@@ -178,5 +186,50 @@ describe('two calls render as two sections', () => {
     // per-call truth a union table would have to blur.
     const second = screen.getByRole('region', { name: 'Call 2: se.extract' });
     expect(within(second).queryByText('Advisory')).toBeNull();
+  });
+});
+
+describe('the turn about to be taken', () => {
+  it('renders the pending assembly through the same views a record uses', () => {
+    render(<PreviewSubject preview={pendingPreview()} locale={undefined} />);
+
+    // The block table and the verdict are unchanged components fed assembly
+    // data directly — which is the evidence the panel is a reader rather than
+    // a second assembler.
+    expect(screen.getByText('se.instruction')).toBeTruthy();
+    expect(screen.getByText('over budget — priority 20')).toBeTruthy();
+    // An **included** row's rule, which comes only from the verdict: the
+    // table falls back to `droppedBy` for drops, so a `rulesOf` that returned
+    // nothing would still label every dropped row correctly and leave the
+    // kept ones silently blank. This is the assertion that notices.
+    expect(screen.getByText('included — priority 90')).toBeTruthy();
+    expect(screen.getByText(/Nothing is close to falling out/)).toBeTruthy();
+    expect(
+      screen.getByText('What would be sent if this turn were taken now — nothing has been sent.'),
+    ).toBeTruthy();
+  });
+
+  it('names the model that would be asked, and says the figures are estimates', () => {
+    render(<PreviewSubject preview={pendingPreview()} locale={undefined} />);
+
+    expect(screen.getByText('se.narrate')).toBeTruthy();
+    expect(screen.getByText(/Token counts are estimated from the text/)).toBeTruthy();
+    // No wall time, no usage, no rendered messages: this call has not
+    // happened, which is a different claim from having reported nothing.
+    expect(screen.queryByText('Wall time')).toBeNull();
+  });
+
+  it('keeps the not-filled answer when it cannot be budgeted at all', () => {
+    render(<PreviewSubject preview={unmeasurablePreview()} locale={undefined} />);
+
+    // The falsifying mutation is rendering `NotFilledList` only on the
+    // assembled arm — which would take *why is there no lore in this prompt*
+    // away from exactly the install most likely to be asking.
+    expect(screen.getByText(/Nothing is bound to the prose role/)).toBeTruthy();
+    expect(screen.getByText('Collected nothing')).toBeTruthy();
+    expect(screen.getByText('se.lore')).toBeTruthy();
+    // And no block table: a list of blocks nothing has ruled on would be a
+    // second assembly shape for a state that already has an honest answer.
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });

@@ -389,6 +389,24 @@ meter — and clicking it opens the panel in place, already on the current turn.
 full workbench beside every message is still not the answer; a full workbench one
 keystroke behind every message is.
 
+*Built at [P3.4], which settled what "the current turn" means here.* The meter
+is fed by a **stateless assemble** — candidates in, blocks and a verdict out,
+with no job, no draft, no record and no head moved — and clicking it opens the
+panel **onto that same answer**, falling back to the last committed turn when
+nothing is composed. Anything else would have the panel contradict the control
+that opened it, since the meter's whole reason to exist is that the previous
+turn's verdict is stale by exactly the thing being typed.
+
+So the panel's subject over Play is *what this session would send next, or what
+it last sent*. **That widens the rule's object without touching the rule**: the
+panel is still a reader with no state of its own, because both halves derive
+from the route and from one shared cache entry the panel cannot write to or
+fetch. The preview does not outlive the composition — it is dropped when the
+turn is submitted, because the record supersedes it, and again when the surface
+is left. With no model bound there is no context window and therefore no
+denominator; the meter stays visible and says so, since *nothing is bound* is a
+true answer to *how full is the context* rather than an error.
+
 **Two of the features above do not fit a panel, and should not be forced into
 one.**
 

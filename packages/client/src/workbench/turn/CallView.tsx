@@ -13,6 +13,7 @@ import { Fine, SubsectionTitle } from '../../ui/Text.js';
 import { BlockTable } from './BlockTable.js';
 import { BudgetVerdictView } from './BudgetVerdictView.js';
 import { NotFilledList } from './NotFilledList.js';
+import { rulesOf } from './rules.js';
 
 /**
  * One model call, whole — [05 §3]'s *"one per model call"*, now that the
@@ -84,11 +85,7 @@ export function CallView({
         <Badge tone="neutral">{PURPOSE_LABELS[call.purpose]}</Badge>
       </div>
 
-      <BlockTable
-        blocks={call.blocks}
-        rules={new Map(call.budget.decisions.map((decision) => [decision.blockId, decision.rule]))}
-        locale={locale}
-      />
+      <BlockTable blocks={call.blocks} rules={rulesOf(call.budget)} locale={locale} />
       <BudgetVerdictView verdict={call.budget} locale={locale} />
       <NotFilledList notFilled={call.notFilled} />
 

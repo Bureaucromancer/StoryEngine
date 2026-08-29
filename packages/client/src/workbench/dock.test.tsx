@@ -7,7 +7,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Account } from '../api.js';
+import type { Account, TurnPreview } from '../api.js';
 import {
   OBJECT_ID,
   objectRows,
@@ -15,7 +15,14 @@ import {
   shadowedObject,
   winningObject,
 } from './library-fixtures.js';
-import { ACTOR_ID, cancelledTurn, richTurn, SESSION_ID } from './turn-fixtures.js';
+import {
+  ACTOR_ID,
+  cancelledTurn,
+  pendingPreview,
+  restingPreview,
+  richTurn,
+  SESSION_ID,
+} from './turn-fixtures.js';
 
 /**
  * The panel frame over the real router —
@@ -70,10 +77,13 @@ const TURNS = [richTurn(), cancelledTurn()];
  */
 let prefsStore: Record<string, unknown> = {};
 const patchPrefs = vi.fn();
+/** What the preview route answers this test — staged before `renderApp`. */
+let stagedPreview: TurnPreview = restingPreview();
 
 beforeEach(() => {
   prefsStore = {};
   patchPrefs.mockClear();
+  stagedPreview = restingPreview();
 });
 
 vi.mock('../api.js', async (importOriginal) => {
@@ -103,6 +113,10 @@ vi.mock('../api.js', async (importOriginal) => {
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
     readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
     readTranscript: () => Promise.resolve({ turns: TURNS }),
+    // The meter's question, answered with whatever the test has staged
+    // ([P3.4]). Play mounts under the real router here, so this is called for
+    // real the moment the surface appears.
+    previewTurn: () => Promise.resolve({ preview: stagedPreview }),
   };
 });
 
@@ -431,5 +445,63 @@ describe('the splitter', () => {
     expect(patchPrefs).not.toHaveBeenCalled();
     const dock = screen.getByRole('complementary');
     expect(dock.style.getPropertyValue('--workbench-size')).toBe('384px');
+  });
+});
+
+/**
+ * The meter and the panel, through the live route — [P3.4]'s ends-at at the
+ * level `views.test.tsx` cannot reach. What is on trial here is the wiring:
+ * that one server answer feeds both surfaces, and that the panel's subject
+ * over Play widened to *the turn about to be taken* without the panel gaining
+ * any state of its own.
+ */
+describe('the context meter and the panel', () => {
+  it('shows the composed turn while something is composed', async () => {
+    stagedPreview = pendingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    // The pending assembly, not the head turn's record: no Cost section, and
+    // the sentence that says nothing has been sent. The falsifying mutation
+    // is inverting the `pendingInput` test in `PlaySubject`.
+    expect(
+      await within(dock).findByText(
+        'What would be sent if this turn were taken now — nothing has been sent.',
+      ),
+    ).toBeTruthy();
+    expect(within(dock).queryByRole('region', { name: 'Cost' })).toBeNull();
+  });
+
+  it('falls back to the head turn when nothing is composed', async () => {
+    stagedPreview = restingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    expect(within(dock).getByText('The head turn of this session.')).toBeTruthy();
+    expect(within(dock).queryByText(/What would be sent if this turn were taken now/)).toBeNull();
+  });
+
+  it('reads one answer, so the meter and the panel cannot disagree', async () => {
+    stagedPreview = pendingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    await within(dock).findByText(/What would be sent if this turn were taken now/);
+
+    // 86 of 5,344 — one fixture's numbers, reported by the meter's accessible
+    // name and by the panel's verdict, because both read the same cache
+    // entry. Asserted as the same string on both surfaces rather than as two
+    // separate correct-looking numbers, which is what would survive them
+    // fetching separately. The falsifying mutation is giving `usePreview` a
+    // real `queryFn`.
+    const meter = screen.getByRole('button', { name: /Context fill/ });
+    expect(meter.getAttribute('aria-label')).toContain('86 of 5,344');
+    expect(within(dock).getByText(/86 of 5,344 tokens spent/)).toBeTruthy();
   });
 });
