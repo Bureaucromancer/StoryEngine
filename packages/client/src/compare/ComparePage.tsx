@@ -259,9 +259,17 @@ function CallPair({
           <code className="break-all text-xs">{JSON.stringify(before.params)}</code>
           <code className="break-all text-xs">{JSON.stringify(after.params)}</code>
         </Row>
+        {/* Window, reserved and spent together, because the walk found the
+            first two are needed to explain the third: the meter's denominator
+            is window *minus* reserved, so a page showing only the window
+            reads as disagreeing with the meter by exactly the reservation. */}
         <Row label="Window">
           {formatCount(before.budget.limit.tokens, locale)}
           {formatCount(after.budget.limit.tokens, locale)}
+        </Row>
+        <Row label="Reserved for the answer">
+          {formatCount(before.budget.reserved, locale)}
+          {formatCount(after.budget.reserved, locale)}
         </Row>
         <Row label="Spent">
           {formatCount(before.budget.spent, locale)}

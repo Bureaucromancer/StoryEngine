@@ -162,6 +162,24 @@ describe('the compare view', () => {
     expect(cells[1]).toBe('Not counted');
   });
 
+  it('gives the budget as window, reserved and spent, so the arithmetic is on the page', async () => {
+    // The browser walk found this: the page showed a 24,000 window beside a
+    // meter reading 23,200, and the difference is the reservation — which was
+    // nowhere on screen, so the two surfaces read as disagreeing. Three rows,
+    // and the subtraction is visible. The mutation is dropping the reserved
+    // row, which restores the apparent contradiction.
+    serve([richTurn(), cancelledTurn()]);
+
+    await renderCompare({ before: 't-10', after: 't-11' });
+
+    const labels = within(section('Call 1'))
+      .getAllByRole('row')
+      .map((row) => row.querySelector('th')?.textContent);
+    expect(labels).toContain('Window');
+    expect(labels).toContain('Reserved for the answer');
+    expect(labels).toContain('Spent');
+  });
+
   it('shows both outputs, and says which turn produced none', async () => {
     serve([richTurn(), cancelledTurn()]);
 

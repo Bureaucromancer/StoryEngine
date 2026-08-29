@@ -947,6 +947,58 @@ the in-flight one, which is the difference between *asked* and *answered*.
 The addressable full view: id-keyed block alignment, same-session pairs, entered
 from the panel.
 
+**Landed 2026-08-29**, in three commits, whole. *Ends at:* two turns of one
+session at `/compare/:sessionId?before=&after=`, their blocks paired by id with
+a word for what became of each, their call parameters and budgets side by side,
+both outputs, and the panel's one-click way in from the head turn.
+
+- **[DECIDED] §7.2: the escalation stands, and its ground is addressability.**
+  Written into [05 §3](../05-ui-surfaces.md) by striking the old reason rather
+  than quietly editing it, because the old reason was load-bearing for §11.2a's
+  panel diff and somebody will read that section next. See §7.2 for the
+  argument.
+- **The aligner is the stage's one algorithm**, and its interesting output is
+  the class `ruling`: a block whose text, tokens and inclusion are identical
+  but whose rule moved. Without that class a history block reports as *changed*
+  every time the window slides past it — the view would accuse a reader of an
+  edit they did not make, on the surface built to tell them what they changed.
+  The explanation renders only for history rows, because a preset block whose
+  ruling moved really is somebody's doing.
+- **Calls pair by ordinal, and the page says so.** Nothing in the record aligns
+  calls across turns. Pairing by step id would drop a renamed step silently; so
+  the rule is position, both step ids are printed, and a mismatch is stated
+  rather than left as the news nobody notices. A call only one side made says
+  that instead of being aligned against nothing.
+- **No server work at all.** P3.0's read-a-turn-by-id route was built for this
+  and had no caller until now; the transcript walk from the head cannot serve a
+  turn the head has passed, which is the case the address exists for.
+
+Gate step 9 walked in a browser against the scratch install: the session's
+copied preset was hand-edited on disk (`se.instruction`, priority 90 → 45), the
+same action taken again, and the comparison shows **exactly one row of news** —
+`se.instruction`, *included — priority 90* against *included — priority 45*,
+**Ruling moved** — with every other block Unchanged and faded, the two history
+blocks the new turn added reading `absent` on the before side rather than zero,
+and the address in the URL bar ready to paste. The panel's link navigated to it.
+
+Three things the walk changed or admitted:
+
+- **The budget arithmetic went on the page.** The comparison showed a 24,000
+  window beside a meter reading 23,200, which reads as two surfaces disagreeing;
+  the difference is the reservation, and it was nowhere on screen. Window,
+  reserved and spent are now three rows, so the subtraction is visible.
+- **The table says *that* a block changed, not *how*.** A row whose text was
+  edited reads **Changed** with both token counts; the prose itself is not
+  diffed. §1.5 asks for the block table aligned by id and the call parameters,
+  which is what shipped — but a reader who wants the two texts has to open each
+  turn's record, and that is a real limit of this view rather than an oversight.
+  A per-block text diff is the obvious next thing and is deliberately not here.
+- **The 404 sentence is proven by test and not by the walk.** Under a driven
+  browser pane, which reports `visibilityState: hidden`, the single configured
+  retry never ran, so a deliberately bad turn id sat on *Reading both turns…*
+  for minutes instead of reaching the error arm. The arm itself is covered by a
+  mutation-proofed test; the walk of it is honestly marked not performed.
+
 ### P3.7 — Promote a dry run
 
 Last, and the first thing cut. §1.6 lists what it costs.
