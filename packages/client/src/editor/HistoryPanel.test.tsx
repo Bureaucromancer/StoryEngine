@@ -60,6 +60,7 @@ beforeEach(() => {
 function renderPanel() {
   return render(
     <HistoryPanel
+      kind="actors"
       id="01a008de-7e08-70d0-899c-f6869d6b9aeb"
       currentObject={current}
       contentHash="sha256:ccc"

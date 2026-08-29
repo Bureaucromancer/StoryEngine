@@ -2,26 +2,47 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useEffect, useState } from 'react';
-import { control } from '../ui/classes.js';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { control, page } from '../ui/classes.js';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { cancelTurn, readSession, readTranscript, submitTurn, type TurnRecord } from '../api.js';
+import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
+import {
+  liveKey,
+  previewKey,
+  useAuthState,
+  usePreview,
+  useRefreshPreview,
+  useSession,
+  useTranscript,
+} from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
-import { TurnRecordDisclosure } from './TurnRecord.js';
+import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
+
+/**
+ * How long a pause has to be before the meter asks — [P3.4].
+ *
+ * Long enough that a burst of typing is one question and not thirty (each
+ * costs the server a read of every segment in the session), short enough that
+ * the answer is there by the time somebody looks up from the sentence they
+ * just finished.
+ */
+const PREVIEW_DEBOUNCE_MS = 400;
 
 /**
  * The play surface — a deliberately thin chat view
  * ([P2 §3](../../../../docs/design/workplan/04-p2-implementation.md)).
  *
- * Message list, input, streaming render, reattach on reload, the collapsed
- * guidance box, and a raw record affordance. What is *not* here is the point:
- * no impersonation, no axis controls, no block table, no branching. Each has an
- * owning phase, and a chat view is exactly the surface that invites building the
- * workbench by accident.
+ * Message list, input, streaming render, reattach on reload, and the collapsed
+ * guidance box. What is *not* here is the point: no impersonation, no axis
+ * controls, no block table, no branching. Each has an owning phase, and a chat
+ * view is exactly the surface that invites building the workbench by accident.
+ * The record itself is the workbench's to show since [P3.2] — the raw
+ * disclosure this page carried through P2 is gone with it.
  */
 export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -29,14 +50,12 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   const [draft, setDraft] = useState('');
   const [guidance, setGuidance] = useState('');
 
-  const session = useQuery({
-    queryKey: ['session', sessionId],
-    queryFn: () => readSession(sessionId),
-  });
-  const transcript = useQuery({
-    queryKey: ['transcript', sessionId],
-    queryFn: () => readTranscript(sessionId),
-  });
+  // Shared with the workbench through `queries.ts`, so both mounts read one
+  // cache entry and the invalidate below refreshes both ([P3.1]).
+  const session = useSession(sessionId);
+  const transcript = useTranscript(sessionId);
+  const auth = useAuthState();
+  const locale = auth.data?.account?.locale ?? undefined;
 
   const running = state.status === 'running';
 
@@ -61,8 +80,49 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([03 §5.1]).
       setGuidance('');
+      // **The record supersedes the preview** ([P3.4]). Cleared rather than
+      // left to be refreshed, so the panel returns to the head at once
+      // instead of showing a preview of a turn that is already running — and
+      // when this one commits, the head *is* it, with its real block table.
+      //
+      // `reset`, not `remove`, and the browser walk is what found the
+      // difference: removing a query that still has observers destroys the
+      // entry without notifying them, so the meter and the panel went on
+      // rendering the value they had last been handed. Resetting notifies.
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
   });
+
+  /**
+   * The meter's question, asked on every pause — [P3.4].
+   *
+   * `running` is in the dependencies rather than only in the guard, so the
+   * turn *finishing* re-previews against the new head without a second effect
+   * to keep in step with this one. Nothing is asked while a turn is in
+   * flight: the input is disabled, the head is moving, and the entry was
+   * dropped at submit.
+   */
+  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS);
+  const refresh = useRefreshPreview(sessionId);
+  const refreshPreview = refresh.mutate;
+  const preview = usePreview(sessionId);
+
+  useEffect(() => {
+    if (running) return;
+    /**
+     * **Only ever ask about text the composer still holds.**
+     *
+     * The settled value lags the box by a debounce, and submitting empties
+     * the box at once — so a turn that finishes inside that beat would
+     * otherwise have this fire with the text just *sent*, and the panel would
+     * offer "what would be sent if this turn were taken now" for a turn
+     * already taken. Comparing against the live draft is the invariant that
+     * says it plainly; the settled value catches up a beat later and the
+     * at-rest reading is asked for then.
+     */
+    if (settled.text !== draft || settled.guidance !== guidance) return;
+    refreshPreview(settled);
+  }, [settled, draft, guidance, running, refreshPreview]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -91,8 +151,43 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
   }, [state.status, sessionId, queryClient]);
 
+  /**
+   * The turn being taken, mirrored where the panel can read it — [P3.5].
+   *
+   * The dock is this page's sibling in the shell, so the cache is the only
+   * thing they share; this is the same bridge the meter's preview uses, in the
+   * same direction. **Written from the reducer rather than fetched**, because
+   * the frames arrive here and nowhere else, and `useLiveTurn` is a reader
+   * that provably cannot ask.
+   *
+   * Cleared on unmount: a turn's progress is not a fact about a session
+   * somebody has stopped watching, and leaving it would have the panel
+   * announce a turn as running to a reader who has navigated away from the
+   * stream that would have told them it finished.
+   */
+  useEffect(() => {
+    queryClient.setQueryData(liveKey(sessionId), { live: state.live });
+  }, [state.live, sessionId, queryClient]);
+
+  useEffect(() => {
+    return () => {
+      void queryClient.resetQueries({ queryKey: liveKey(sessionId) });
+    };
+  }, [sessionId, queryClient]);
+
   return (
-    <main className="mx-auto flex h-full max-w-reading flex-col gap-4 p-4">
+    // A `div`, not a landmark: the shell owns the routed app's one `<main>`
+    // ([P3.−1]) — this page nesting a second one inside it was the audit's
+    // finding, and the page's job is its content, not the document's regions.
+    //
+    // `h-full` resolves now, and that is the whole fix: this column is the
+    // scroll container's direct child, and the shell's `<main>` has a definite
+    // height for the percentage to resolve against — where the old parent had
+    // none, which is why the transcript's `overflow-y-auto` had never once
+    // triggered. The column is `page.reading`, not the tooling width: this is
+    // the story surface, and the reading measure is the token's one designed
+    // use ([05 §1.2]).
+    <div className={`${page.reading} flex h-full flex-col gap-4`}>
       <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
@@ -119,6 +214,14 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           if (draft.trim().length > 0) send.mutate();
         }}
       >
+        {/* Above the input rather than beside Send: a fill reads as a fill
+            only when it is wide, and the input row is already tight with its
+            button at the narrowest width the phase supports. */}
+        <ContextMeter
+          preview={preview.data?.preview}
+          busy={running || refresh.isPending}
+          locale={locale}
+        />
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">What do you do?</span>
@@ -149,7 +252,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         </div>
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
-    </main>
+    </div>
   );
 }
 
@@ -167,7 +270,6 @@ function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
       {turn.status === 'failed' ? (
         <p className="text-sm text-warn-ink">This turn did not finish.</p>
       ) : null}
-      <TurnRecordDisclosure turn={turn} />
     </li>
   );
 }

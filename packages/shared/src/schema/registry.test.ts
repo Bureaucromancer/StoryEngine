@@ -154,6 +154,63 @@ describe('unknown-field preservation (docs/design/10-schemas.md §2)', () => {
   });
 });
 
+describe('writing samples are additive, so older files still validate', () => {
+  /**
+   * [10 §2]: "new optional fields are free" — which is the whole reason Actor,
+   * Lorebook and Treatment stayed at `/1` when they gained `writingSamples`.
+   * The claim only holds if a file written before the field existed still
+   * validates, and that file is not hypothetical: every card and book on disk
+   * today predates it.
+   */
+  const carriers = ['actor', 'lorebook', 'treatment'] as const;
+
+  it('validates each carrier with the field absent entirely', () => {
+    // Mutation: drop `Type.Optional` from any of the three declarations and
+    // this fails for that kind — which is exactly the change that would strand
+    // everybody's existing library behind a validation error.
+    for (const kind of carriers) {
+      const object: Record<string, unknown> = { ...library[kind] };
+      delete object['writingSamples'];
+
+      expect(validate(object), kind).toEqual({ valid: true });
+    }
+  });
+
+  it('accepts a populated list, priority and all', () => {
+    // The other half: absent is legal, and so is the fully-specified shape.
+    // Mutation: rename any required property of `WritingSample` and this fails.
+    for (const kind of carriers) {
+      const object = {
+        ...library[kind],
+        writingSamples: [
+          {
+            id: 'ws-1',
+            title: 'The rain never stops',
+            body: 'Neon bled into the puddles and nobody looked up.',
+            enabled: true,
+            priority: 40,
+            note: 'the register, not the plot',
+          },
+        ],
+      };
+
+      expect(validate(object), kind).toEqual({ valid: true });
+    }
+  });
+
+  it('leaves an omitted list omitted rather than defaulting it', () => {
+    // Ajv runs `useDefaults: false`, and §2 makes deliberate meaning of the
+    // difference between null and absent. Factories are the only thing that
+    // materialises `[]`; validation must not.
+    const validator = createValidator().compile(PORTABLE_SCHEMAS[ACTOR_SCHEMA]);
+    const object: Record<string, unknown> = { ...library.actor };
+    delete object['writingSamples'];
+
+    validator(object);
+    expect(Object.hasOwn(object, 'writingSamples')).toBe(false);
+  });
+});
+
 describe('timestamps', () => {
   it('accepts RFC 3339 and rejects prose', () => {
     expect(isTimestamp('2026-08-13T12:00:00.000Z')).toBe(true);

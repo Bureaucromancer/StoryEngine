@@ -42,12 +42,22 @@ long text rendered as text rather than as a JSON string with `\n` in it, empty
 fields either omitted or shown as explicitly empty, and lists as lists.
 
 **The thing to get right.** It should be recognisably *the same view* as the
-editor's, not a second layout that drifts. The editor already derives its fields
-from the schema ([Field.tsx](../../../packages/client/src/editor/Field.tsx),
-[form.ts](../../../packages/client/src/editor/form.ts)); the read view should
-derive them the same way, so a schema addition shows up in both without a second
-edit. That is the whole design constraint — one description of a kind's fields,
-two renderings of it.
+editor's, not a second layout that drifts. That is the whole design constraint —
+one description of a kind's fields, two renderings of it.
+
+**Correction, because this item used to claim the first half already existed.**
+It said *the editor already derives its fields from the schema*, and it does
+not. `ActorForm` names its six fields by hand
+([form.ts](../../../packages/client/src/editor/form.ts)) and
+[ActorEditorPage.tsx](../../../packages/client/src/editor/ActorEditorPage.tsx)
+writes one `<Field>` per field in JSX; the primitive those are built from
+([Field.tsx](../../../packages/client/src/ui/Field.tsx) — in `ui/`, not
+`editor/`, which is what made the old link dangle) owns a label, a control and
+an assist slot, and knows nothing about any schema. So the read view **cannot**
+derive its fields *the same way* as the editor, because the editor does not
+derive them at all. The single description is work this item has to do rather
+than something it inherits, and that is the difference between a second
+rendering and a small piece of design.
 
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition
@@ -180,13 +190,22 @@ panels are named for the kinds. What is left here is the client work.
 **What the change is.**
 
 - **Six panels**, one per portable kind (`LIBRARY_KINDS` already enumerates
-  them), using the presented names — Actors, Worlds and Games offered,
-  Lorebooks, Presets and Packages reachable.
+  them), **named for the kinds** — Actors, Lorebooks, Treatments, Setups,
+  Presets, Packages. *Correction:* this bullet read *"using the presented names —
+  Actors, Worlds and Games offered, Lorebooks, Presets and Packages reachable"*,
+  which is the renaming layer [05 §5.1](../05-ui-surfaces.md) withdrew — and
+  which the paragraph immediately above already cited as withdrawn. **The item
+  argued against itself**, and the bullet was the stale half.
 - **Shared machinery, per-kind surfaces.** One list component, one set of
   badges, filters, sorting and actions, one detail route. What each panel
   supplies is its columns, its sort and its empty state. Today's
   `ObjectTable` is most of that already, with the Kind column falling away
-  wherever it is the panel's own kind.
+  wherever it is the panel's own kind. **The Lorebooks panel's columns, badges,
+  filters and empty state are specified** at
+  [05 §5.3](../05-ui-surfaces.md) — the one kind where the per-panel choice is a
+  correction rather than a preference, because its object is a collection
+  ([16](../16-lorebooks-as-a-format.md)). The other five are still this item's to
+  choose.
 - **The all-kinds view moves behind a preference**, off by default, alongside
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
@@ -287,3 +306,25 @@ scale, and a dark theme it does not have to think about.
   a type step moved. Arrangement is not theming — E10 draws exactly that line —
   and a named recipe holding `mx-auto flex max-w-3xl` would be layout smuggled
   into the appearance layer.
+
+## 7. A filter over the sign-in gallery
+
+**Blocked on the gallery existing.** The opt-in account-gallery arrival
+screen is [15](../15-account-gallery.md), homed at P10; this item is the
+escalation that note defers, recorded here so the deferral has an address.
+
+**Today.** There is no gallery yet. When it ships, it is tiles for every
+listed account plus a *Sign in by name* link, and at household scale that is
+the whole answer — single-digit tiles are scanned, not searched
+([15 §7](../15-account-gallery.md)).
+
+**What to build, when tile count defeats scanning.** A type-to-filter box on
+the gallery, narrowing the tiles as you type — client-side, over the listing
+the screen already fetched. No schema change, no new contract: squarely
+inside this file's house rule.
+
+**The thing to get right.** [15 §7](../15-account-gallery.md) records the
+intent: once a text entry exists on the gallery, the separate by-name link
+may fold into it — a typed handle that matches no tile *is* the by-name
+case — leaving the screen one text affordance instead of two. Build the
+filter as that, not as a second box beside the link.

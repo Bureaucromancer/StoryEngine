@@ -13,6 +13,71 @@ import type { SseFrame } from './sse.js';
  * test is actually good at.
  */
 
+/**
+ * One step of the turn being taken, as the progress events describe it —
+ * [P3.5].
+ *
+ * **Not a `StepOutcome`, deliberately**, and the difference is the whole of
+ * what P3.5 decided. The record's step carries what a step *did*; this
+ * carries what the event feed has *said so far*, which is a smaller and
+ * differently-shaped thing: `running` is a state no committed step can be in,
+ * the timings are the ones the events reported rather than the ones the
+ * record measured, and the call's figures arrive in two instalments. Naming
+ * it apart is what stops somebody rendering it through the record's views and
+ * inheriting claims the events never made.
+ */
+export interface LiveStep {
+  stepId: string;
+  stage: string;
+  state: 'running' | 'ok' | 'skipped' | 'failed';
+  /** Why it was skipped — a class, as the server sends it. */
+  skipReason: string | null;
+  /** The failure class. Never a provider's words: those stay in the log. */
+  error: string | null;
+  /** What the step reported on finishing. Absent while it runs. */
+  ms: number | null;
+  contributed: { blocks: number; effects: number } | null;
+  /** The call this step made, once it has started one. */
+  call: {
+    role: string;
+    model: string;
+    /** An estimate of the output so far, from `call.streaming`. */
+    tokens: number | null;
+    /** Measured, from `call.finished`. Null until then, and null if unreported. */
+    promptTokens: number | null;
+    completionTokens: number | null;
+    ms: number | null;
+  } | null;
+}
+
+/** A channel change as the event feed reports it — [P3.5]. */
+export interface LiveEffect {
+  channelId: string;
+  accepted: boolean;
+  /**
+   * Which policy refused, when one did — the same class the record carries,
+   * so the live view and the record cannot disagree about *why*. That
+   * agreement is [P3.5]'s stated precondition, and it is why the event grew
+   * this field.
+   */
+  reason: string | null;
+}
+
+/**
+ * The turn being taken, as far as the events have said — [P3.5].
+ *
+ * Rebuilt from the event feed alone, which is what makes it survive a
+ * reconnect: a fresh attach replays every event for the job from seq 0, so
+ * this reconstructs itself without needing the draft the snapshot carries.
+ */
+export interface LiveTurn {
+  turnId: string | null;
+  steps: LiveStep[];
+  effects: LiveEffect[];
+  /** Terminal once `turn.finished` names it. */
+  state: 'running' | 'complete' | 'failed' | 'suspended';
+}
+
 export interface PlayState {
   /** The job being watched, or null between turns. */
   jobId: string | null;
@@ -23,8 +88,18 @@ export interface PlayState {
   /** The highest sequence seen per job, so a replayed frame is ignored. */
   seen: Readonly<Record<string, number>>;
   status: 'idle' | 'running' | 'finished' | 'reconnecting' | 'failed';
-  /** The turn as last checkpointed — what the record affordance shows. */
-  turn: unknown;
+  /**
+   * The turn under construction, from the events — [P3.5], and the field the
+   * stage asked for when it said *the reducer keeps enough*.
+   *
+   * It replaces a `turn: unknown` that held the snapshot's draft record and
+   * that **nothing ever read**: it was written once at attach, went stale for
+   * the rest of the turn, and its docstring named an affordance deleted at
+   * P3.2. Keeping a record nobody reads while the events that could answer
+   * the question went unrendered was the exact shape of the problem this
+   * stage was asked to decide.
+   */
+  live: LiveTurn | null;
   /** A failure class, never a message: the server sends classes ([01 §2]). */
   error: string | null;
 }
@@ -35,7 +110,7 @@ export const INITIAL: PlayState = {
   cursor: null,
   seen: {},
   status: 'idle',
-  turn: null,
+  live: null,
   error: null,
 };
 
@@ -108,7 +183,18 @@ function applySnapshot(state: PlayState, data: unknown): PlayState {
     // a no-op rather than a duplicate.
     seen:
       cursor === null || jobId === null ? state.seen : { ...state.seen, [jobId]: seqOf(cursor) },
-    turn: data['turn'] ?? null,
+    /**
+     * **The snapshot's `turn` is deliberately dropped** — [P3.5].
+     *
+     * It carries the whole checkpointed draft, and the stage decided against
+     * rendering it: it arrives once, at open, and then goes stale for the rest
+     * of the turn, so a view fed from it would freeze mid-sentence while the
+     * events kept flowing past. The events are what this client keeps instead,
+     * and the backlog replays from seq 0 on a fresh attach — so `live` is
+     * rebuilt by the frames that follow this one rather than seeded from here.
+     * The draft comes back when something can use it whole: P3.7's dry run.
+     */
+    live: state.live,
     status: job === null ? 'idle' : statusOf(job['status']),
     error: null,
   };
@@ -129,14 +215,177 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
    */
   if (seq <= (state.seen[jobId] ?? 0)) return state;
 
-  const finished = keyOf(frame.data) === 'turn.finished';
+  const key = keyOf(frame.data);
+  const finished = key === 'turn.finished';
   return {
     ...state,
     jobId,
     seen: { ...state.seen, [jobId]: seq },
     cursor: frame.id ?? state.cursor,
     status: finished ? 'finished' : state.status === 'idle' ? 'running' : state.status,
+    live: applyToLive(state.live, key, paramsOf(frame.data)),
   };
+}
+
+/**
+ * The turn under construction, folded from one event — [P3.5].
+ *
+ * **Every arm reads only what its own event carries**, which is the property
+ * that keeps this a rendering of the feed rather than a reconstruction of the
+ * record. Where the events are silent the fields stay null and the view says
+ * so; nothing here infers, and nothing here reaches for the draft.
+ *
+ * Unknown keys fall through unchanged, so a server that grows a twelfth event
+ * does not break a client that has not learned it yet.
+ */
+function applyToLive(
+  live: LiveTurn | null,
+  key: string | null,
+  params: Record<string, unknown>,
+): LiveTurn | null {
+  if (key === 'turn.started') {
+    // A fresh turn replaces whatever the last one left behind.
+    return { turnId: stringOr(params['turnId'], null), steps: [], effects: [], state: 'running' };
+  }
+  if (live === null) return live;
+
+  switch (key) {
+    case 'step.started':
+      return withStep(live, params, (step) => ({ ...step, state: 'running' }));
+    case 'step.skipped':
+      return withStep(live, params, (step) => ({
+        ...step,
+        state: 'skipped',
+        skipReason: stringOr(params['reason'], null),
+      }));
+    case 'step.finished':
+      return withStep(live, params, (step) => ({
+        ...step,
+        state: 'ok',
+        ms: numberOr(params['ms'], null),
+        contributed: contributedOf(params['contributed']),
+      }));
+    case 'step.failed':
+      return withStep(live, params, (step) => ({
+        ...step,
+        state: 'failed',
+        error: stringOr(params['error'], null),
+      }));
+    case 'call.started':
+      return withStep(live, params, (step) => ({
+        ...step,
+        call: {
+          role: stringOr(params['role'], ''),
+          model: stringOr(params['model'], ''),
+          tokens: null,
+          promptTokens: null,
+          completionTokens: null,
+          ms: null,
+        },
+      }));
+    case 'call.streaming':
+      return withStep(live, params, (step) =>
+        step.call === null
+          ? step
+          : { ...step, call: { ...step.call, tokens: numberOr(params['tokens'], null) } },
+      );
+    case 'call.finished':
+      return withStep(live, params, (step) =>
+        step.call === null
+          ? step
+          : {
+              ...step,
+              call: {
+                ...step.call,
+                // Null rather than zero when the provider reported nothing —
+                // the same distinction the record draws ([13 §1.4]).
+                promptTokens: numberOr(params['promptTokens'], null),
+                completionTokens: numberOr(params['completionTokens'], null),
+                ms: numberOr(params['ms'], null),
+              },
+            },
+      );
+    case 'effect.applied': {
+      const channelId = stringOr(params['channelId'], null);
+      if (channelId === null) return live;
+      return {
+        ...live,
+        effects: [
+          ...live.effects,
+          {
+            channelId,
+            accepted: params['accepted'] === true,
+            reason: stringOr(params['reason'], null),
+          },
+        ],
+      };
+    }
+    case 'turn.finished':
+      return { ...live, state: terminalOf(params['state']) };
+    default:
+      return live;
+  }
+}
+
+/**
+ * Finds the step the event names and rewrites it, appending it first if this
+ * is the first anyone has heard of it.
+ *
+ * Appending rather than requiring `step.started` first is what makes a
+ * reconnect mid-step land somewhere sensible: the backlog replays from seq 0,
+ * so it will normally have the start — but a `skipped` step never emits one
+ * at all, and a view that dropped those would silently lose the answer
+ * [04 §3.3] names as the whole point of `skipped` being visible.
+ */
+function withStep(
+  live: LiveTurn,
+  params: Record<string, unknown>,
+  change: (step: LiveStep) => LiveStep,
+): LiveTurn {
+  const stepId = stringOr(params['stepId'], null);
+  if (stepId === null) return live;
+
+  const at = live.steps.findIndex((step) => step.stepId === stepId);
+  const existing = live.steps[at] ?? {
+    stepId,
+    stage: stringOr(params['stage'], ''),
+    state: 'running' as const,
+    skipReason: null,
+    error: null,
+    ms: null,
+    contributed: null,
+    call: null,
+  };
+  // `stage` travels only on `step.started`; a later event must not blank it.
+  const stage = stringOr(params['stage'], existing.stage);
+  const next = change({ ...existing, stage });
+
+  return {
+    ...live,
+    steps:
+      at === -1 ? [...live.steps, next] : live.steps.map((step, i) => (i === at ? next : step)),
+  };
+}
+
+function contributedOf(value: unknown): { blocks: number; effects: number } | null {
+  if (!isRecord(value)) return null;
+  return { blocks: numberOr(value['blocks'], 0), effects: numberOr(value['effects'], 0) };
+}
+
+function terminalOf(value: unknown): LiveTurn['state'] {
+  return value === 'complete' || value === 'failed' || value === 'suspended' ? value : 'running';
+}
+
+function stringOr<T extends string | null>(value: unknown, fallback: T): string | T {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function numberOr<T extends number | null>(value: unknown, fallback: T): number | T {
+  return typeof value === 'number' ? value : fallback;
+}
+
+function paramsOf(data: Record<string, unknown>): Record<string, unknown> {
+  return isRecord(data['params']) ? data['params'] : {};
 }
 
 function applyDelta(state: PlayState, data: unknown): PlayState {

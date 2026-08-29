@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { AssembledBlock, BudgetVerdict, Candidate } from './types.js';
+import type {
+  AssembledBlock,
+  BudgetLimit,
+  BudgetVerdict,
+  CallPurpose,
+  Candidate,
+} from './types.js';
 
 /**
  * Budget and admission — steps 2 and 3 of
@@ -31,32 +37,14 @@ export function estimateTokens(text: string): number {
 }
 
 export interface BudgetPolicy {
-  /** The window, and where the number came from. */
-  limit: { tokens: number; source: 'provider' | 'preset' | 'user' };
+  /** The window, and the honest account of where it came from. */
+  limit: BudgetLimit;
   /** Held back for the completion. */
   reserved: number;
 }
 
 /** The priority a candidate that did not declare one is treated as having. */
 const DEFAULT_PRIORITY = 50;
-
-/**
- * A call's declared appetite — [03 §6].
- *
- * A step says what it is, and the assembler enforces what follows. `effects`
- * and `verdict` are the two that may not see advisory content, and they are
- * separate names because they are separate claims a step makes about itself.
- *
- * **`CallPurpose`, not `CallKind`.** That name is taken, by a *portable*
- * type: [10 §8.2](../../../../docs/design/10-schemas.md)'s deliberately-open string
- * (`"narrate" | "impersonate" | … | (string & {})`) that a preset block's
- * `appliesTo` filters on, exported from `@storyengine/shared`. Two
- * incompatible types under one name is how a preset importing
- * `appliesTo: ["narrate"]` comes to match no call the engine ever makes — so
- * the internal one, which nothing outside this repo has ever seen, yields the
- * name.
- */
-export type CallPurpose = 'prose' | 'effects' | 'verdict';
 
 export interface AssembleOptions {
   candidates: readonly Candidate[];
@@ -124,6 +112,9 @@ export function assemble(options: AssembleOptions): Assembly {
       tokens,
       included: droppedBy === undefined,
       ...(droppedBy === undefined ? {} : { droppedBy }),
+      // The flag survives onto the record — [P3.0]. Dropping it here is what
+      // reduced [testing §1]'s invariant to a source-kind proxy.
+      ...(candidate.advisory === true ? { advisory: true as const } : {}),
     };
   });
 

@@ -210,6 +210,39 @@ export function searchTurns(
 }
 
 /**
+ * One turn's location, scoped to its owner — [P3.0], the query the location
+ * index existed for and never had. The header's promise — *"reading … a
+ * query instead of a walk through every segment on disk"* — had exactly zero
+ * by-id readers until the workbench's read-a-turn route.
+ *
+ * **The owner comes from the session row, not the turn row** — the same join
+ * `searchTurns` draws and for the same reason ([04 §4.3]): denormalising the
+ * owner onto the turn would give the rule two places to be wrong.
+ */
+export function findTurnLocation(
+  db: DatabaseSync,
+  turnId: string,
+): { sessionId: string; owner: string; segment: string; offset: number } | null {
+  const row = db
+    .prepare(
+      `select turn.session_id, session.owner, turn.segment, turn.offset
+         from turn
+         join session on session.session_id = turn.session_id
+        where turn.turn_id = ?`,
+    )
+    .get(turnId) as
+    { session_id: string; owner: string; segment: string; offset: number } | undefined;
+
+  if (row === undefined) return null;
+  return {
+    sessionId: row.session_id,
+    owner: row.owner,
+    segment: row.segment,
+    offset: row.offset,
+  };
+}
+
+/**
  * A deterministic dump of the session half of the index, for the CI gate.
  *
  * The same discipline as the object snapshot: content only. What must agree

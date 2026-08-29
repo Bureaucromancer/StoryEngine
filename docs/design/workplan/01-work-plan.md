@@ -11,10 +11,11 @@ guessing at it.
 
 ---
 
-## 0. What is in 1.0, and what is 2.0
+## 0. What is in 1.0, what is 2.0, and what is 3.0
 
 **1.0 ships two modes: Scene, and Adventure–Freeform.**
 **2.0 adds Adventure–Campaign and Messages.**
+**3.0 adds Write — long-form prose over a manuscript ([17](../17-write-mode.md)).**
 
 The cut is by *where this project has an opinion*, which is a better criterion
 than feature count:
@@ -30,10 +31,17 @@ than feature count:
   schedules, autonomous messaging, profiles, reactions, and a great deal of look
   and feel, for comparatively little that the pipeline does not already do.
   It is the easiest place to spend six months on polish.
+- **Write** is cut on a different axis, and the criterion above does not
+  reach it: it is *downstream*, not unopinionated. It consumes lorebook
+  activation, mention resolution, the mode contract as a real interface, and
+  the summary chain — and it is the first mode needing a surface of its own
+  ([17](../17-write-mode.md), [14 §2e](../14-roadmap.md)).
 
-**The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0.**
+**The release line is therefore: alpha → beta → 1.0 → 2.0 beta series → 2.0 →
+3.0 beta series → 3.0.**
 1.0 is a real release with a `release/1.0` branch that persists
-([11 §2](11-repo-and-releases.md)); 2.0 work continues on `main`.
+([11 §2](11-repo-and-releases.md)); 2.0 work continues on `main`, and 3.0 after
+it on the same pattern.
 
 ### 0.1 What this removes from 1.0
 
@@ -69,6 +77,17 @@ a namespaced key, and Campaign's state lives in channels the mode declares.
 Neither touches Actor, Lorebook, Treatment, Setup or Package. If either turns out
 to need a schema change, the mode contract or the data model was wrong — and
 finding that out at 2.0 is exactly what the stability tiers exist to prevent.
+
+**Write's version of this check is the mirror of it, and needs stating because
+it does not pass unchanged.** 3.0 adds a *kind* — Manuscript — which is not a
+change to an existing portable schema, and [17 §5](../17-write-mode.md) argues
+it into the internal tier precisely so that it is not one. The rule for Write is
+therefore: **it may change internal-tier shapes and may not break portable
+ones.** The turn record's anchor and the span overlay are internal and free
+([10 §1](../10-schemas.md)); the three lore-entry fields it wants are optional
+additions and therefore not a bump ([10 §2](../10-schemas.md)). If Write turns
+out to need a *breaking* portable change, the same conclusion applies as above:
+the data model was wrong.
 
 ### 0.3 The honest cost
 
@@ -671,7 +690,25 @@ migration.
   phase lost and the reason it is merely large rather than impossible.
 - Setup objects and the declarative setup wizard.
 - Party as a timeline, always non-empty ([03 §8](../03-modes-and-turn-pipeline.md)).
-- Plot hooks and the selector.
+- **Plot hooks and the selector — the mechanism.** The pool and its four sources,
+  the mechanical filter, the judgement pass, firing through the guidance slot,
+  and the three things [03 §6.1](../03-modes-and-turn-pipeline.md) specifies
+  around them: the **pacing dial** as a channel, **Commit** with its bounded
+  patience, and **`introduces`** — a character as a hook
+  ([10 §6.1a](../10-schemas.md)).
+
+  *This lands here and not earlier because of what it reads, not what it is.*
+  The introduction hook's eligibility turns on *introduced*, which
+  [03 §8.1](../03-modes-and-turn-pipeline.md) defines over presence and party
+  effects — both P7, both two bullets below. The dial is a channel with an
+  `init` policy, and channels are P7. Building any of it sooner means inventing
+  a prefill path and an introduced-yet signal that this phase then replaces.
+
+  *Two corrections this phase discharges*, both pre-existing and both cheap here:
+  hook firing state moves out of the session file into a channel, because a flat
+  set does not branch ([02 §4.1](../02-data-model.md)); and the selector writes
+  its own line into the turn record, because a pacing-held turn is otherwise
+  indistinguishable from a judged-none one.
 - **Goals** — the chain, the progress channel, narrative completion, and the
   three offers at conclusion ([03 §7.3.3](../03-modes-and-turn-pipeline.md)).
 - **Presence and status channels**, and the editable cast panel over them
@@ -729,7 +766,8 @@ system library panel if it ever earns an admin action, *Restart now* with the
 supervisor detection and drain it needs, and connectivity state once P11's
 update check produces the signal. Plus the notification router and delivery
 channels, the loopback bind and its container inversion, the setup token, mDNS,
-the About surface and §13 source link.
+the account-gallery arrival screen ([15](../15-account-gallery.md)), the About
+surface and §13 source link.
 
 ### P11 — Beta hardening
 
@@ -738,6 +776,15 @@ absorb: the assistant, editors-are-not-dumb-forms across every editor, the
 reading view ([05 §12](../05-ui-surfaces.md)), impersonation in Scene
 ([03 §3.1](../03-modes-and-turn-pipeline.md)), the plot-hook selector, the in-app
 update check, and the localisation catalogue extraction sweep (§0.4).
+
+**The plot-hook selector here is the *tuning*, not the build** — a correction,
+because this line and P7's have both read as owning it and two homes for one job
+is a scheduling argument waiting to be had. P7 ships the mechanism. What is left
+for hardening is the part that can only be done by playing: what the four pacing
+levels resolve to, how long a commitment should wait, how the judgement prompt is
+worded, and the hook panel ([05 §10.1](../05-ui-surfaces.md)) that makes a large
+pool authorable. §2 already lists *that hook pacing works at all* among the
+hypotheses nothing has tested, and this is the phase that tests it.
 
 **Packaging here is the container and the tarball only** (§0.4). The other four
 artifacts ([04 §5.4](../04-server-multiuser-deployment.md)) are a 1.0 requirement,

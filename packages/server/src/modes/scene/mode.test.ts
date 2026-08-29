@@ -87,6 +87,25 @@ describe('the default preset is a real portable object', () => {
     expect(SCENE_PRESET.provenance.createdAt).toBe(SCENE_PRESET.provenance.updatedAt);
   });
 
+  it('ranks writing samples above history and below lore', () => {
+    // [10 §3.1]. The constant is the whole behaviour of the feature under
+    // pressure, and it is not self-evident: history is emitted at
+    // `priority + index` across the window, so this preset's history spans
+    // 10..29 rather than sitting at its declared 10. A sample at 20 therefore
+    // outlives the oldest turns and dies before the newest, and before lore.
+    //
+    // Asserted as a *relationship* rather than a bare 20, so re-tuning the
+    // scale stays free and only changing the order of sacrifice trips it.
+    const priorityOf = (of: string): number | undefined =>
+      SCENE_PRESET.blocks.find((block) => block.kind === 'slot' && block.source.of === of)
+        ?.priority;
+
+    const samples = priorityOf('samples');
+    expect(samples).toBeDefined();
+    expect(samples).toBeGreaterThan(priorityOf('history') ?? 0);
+    expect(samples).toBeLessThan(priorityOf('lore') ?? 0);
+  });
+
   it('namespaces every block id', () => {
     // F18's reservation, applied where the first `se.*` ids in a shipped
     // artefact appear.

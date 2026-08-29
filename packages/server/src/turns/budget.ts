@@ -34,7 +34,7 @@ export function budgetPolicyFor(
   preset?: PresetBudget,
 ): BudgetPolicy {
   /**
-   * The window, resolved in the order the design gives.
+   * The ceiling, resolved in the order the design gives.
    *
    * The endpoint knows best, then the config's ceiling. **A preset's
    * `maxContextTokens` is a cap on that, not a substitute for it** — [10 §8.3]'s
@@ -47,20 +47,36 @@ export function budgetPolicyFor(
       ? { tokens: config.limits.contextTokens, source: 'user' as const }
       : { tokens: capabilities.maxContextTokens, source: 'provider' as const };
 
+  /**
+   * `source` follows the side that won the min — [P3.0]. The old shape
+   * relabelled `'preset'` whenever a cap was merely *declared*, so a 500k cap
+   * that lost to an 8k endpoint still claimed the number. On equality the
+   * preset keeps the label: both claims are true and the preset named the
+   * figure explicitly.
+   */
   const capped =
-    preset?.maxContextTokens == null
+    preset?.maxContextTokens == null || preset.maxContextTokens > resolved.tokens
       ? resolved
-      : { tokens: Math.min(resolved.tokens, preset.maxContextTokens), source: 'preset' as const };
+      : { tokens: preset.maxContextTokens, source: 'preset' as const };
 
   /**
    * And the share the preset is willing to spend on context — [10 §8.3]'s
    * *shares and floors against the resolved window*, which is what makes a
-   * preset portable across window sizes at all.
+   * preset portable across window sizes at all. Recorded as `share` beside the
+   * untouched `ceiling` rather than by relabelling `source` — the relabel was
+   * the lie [13 §1.5] existed to prevent: three-quarters of the live-editable
+   * config default reading as the preset's own number, hiding the one remedy
+   * a person can actually reach.
    */
   const limit =
     preset === undefined
-      ? capped
-      : { tokens: Math.floor(capped.tokens * preset.contextShare), source: 'preset' as const };
+      ? { tokens: capped.tokens, ceiling: capped.tokens, source: capped.source }
+      : {
+          tokens: Math.floor(capped.tokens * preset.contextShare),
+          ceiling: capped.tokens,
+          source: capped.source,
+          share: preset.contextShare,
+        };
 
   return {
     limit,

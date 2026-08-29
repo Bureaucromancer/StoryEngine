@@ -23,7 +23,7 @@ function candidates(): Candidate[] {
   return [
     {
       id: 'persona',
-      source: { kind: 'persona' },
+      source: { kind: 'persona', actorId: null, contentHash: null },
       reason: 'always',
       role: 'system',
       text: 'You are Vera Solano, a fixer in Rain City.',
@@ -48,7 +48,7 @@ function candidates(): Candidate[] {
     },
     {
       id: 'history-old',
-      source: { kind: 'history', range: [0, 2], part: 'output' },
+      source: { kind: 'history', turnId: 't2', range: [0, 2], part: 'output' },
       reason: 'history',
       role: 'user',
       text: 'Earlier: they met on the bridge. And then: the deal went wrong.',
@@ -66,7 +66,7 @@ function candidates(): Candidate[] {
     },
     {
       id: 'history-recent',
-      source: { kind: 'history', range: [3, 4], part: 'output' },
+      source: { kind: 'history', turnId: 't4', range: [3, 4], part: 'output' },
       reason: 'history',
       role: 'user',
       text: 'She asks what you want.',
@@ -84,7 +84,10 @@ function candidates(): Candidate[] {
   ];
 }
 
-const GENEROUS = { limit: { tokens: 4000, source: 'provider' as const }, reserved: 512 };
+const GENEROUS = {
+  limit: { tokens: 4000, ceiling: 4000, source: 'provider' as const },
+  reserved: 512,
+};
 
 describe('collect and annotate', () => {
   it('keeps the order the preset positioned, including a block inside history', () => {
@@ -133,7 +136,7 @@ describe('the budget verdict', () => {
   });
 
   it('drops lowest priority first, and names the rule that did it', () => {
-    const tight = { limit: { tokens: 60, source: 'preset' as const }, reserved: 10 };
+    const tight = { limit: { tokens: 60, ceiling: 60, source: 'preset' as const }, reserved: 10 };
     const { blocks, verdict } = assemble({ candidates: candidates(), policy: tight });
 
     const dropped = blocks.filter((block) => !block.included);
@@ -147,17 +150,17 @@ describe('the budget verdict', () => {
   it('records where the limit came from, because a 4k ceiling must not apply at 200k', () => {
     const { verdict } = assemble({
       candidates: candidates(),
-      policy: { limit: { tokens: 4096, source: 'preset' }, reserved: 256 },
+      policy: { limit: { tokens: 4096, ceiling: 4096, source: 'preset' }, reserved: 256 },
     });
 
-    expect(verdict.limit).toEqual({ tokens: 4096, source: 'preset' });
+    expect(verdict.limit).toEqual({ tokens: 4096, ceiling: 4096, source: 'preset' });
   });
 
   it('never drops a required block', () => {
     const required: Candidate[] = [
       {
         id: 'the-message',
-        source: { kind: 'history', range: [9, 9], part: 'output' },
+        source: { kind: 'history', turnId: 't9', range: [9, 9], part: 'output' },
         reason: 'the user just said it',
         role: 'user',
         text: 'A'.repeat(4000),
@@ -167,7 +170,7 @@ describe('the budget verdict', () => {
     ];
     const { blocks } = assemble({
       candidates: required,
-      policy: { limit: { tokens: 100, source: 'provider' }, reserved: 10 },
+      policy: { limit: { tokens: 100, ceiling: 100, source: 'provider' }, reserved: 10 },
     });
 
     expect(blocks.find((block) => block.id === 'the-message')?.included).toBe(true);
@@ -204,6 +207,28 @@ describe('guidance is advisory, and the assembler enforces it', () => {
     } catch (error) {
       expect((error as Error).message).toContain('guidance');
       expect((error as Error).message).toContain('§5.2');
+    }
+  });
+
+  /**
+   * [P3.0]: the flag reaches the record. `admit()` read `Candidate.advisory`
+   * and then the block was built without it, which is what reduced
+   * [testing §1]'s invariant to a source-kind proxy an author-declared
+   * advisory block slips past. The falsifying mutation is deleting the spread
+   * in `assemble()`'s block literal — the exact line that was missing.
+   */
+  it('carries advisory onto the assembled block, and only where it was declared', () => {
+    const { blocks } = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      purpose: 'prose',
+    });
+
+    expect(blocks.find((block) => block.id === 'guidance')?.advisory).toBe(true);
+    // And nowhere else: an `advisory: undefined` key on every row would be
+    // noise the record never wrote before, and `false` would be a third state.
+    for (const block of blocks) {
+      if (block.id !== 'guidance') expect('advisory' in block).toBe(false);
     }
   });
 });
@@ -245,7 +270,7 @@ describe('render', () => {
   });
 
   it('renders only what the budget included', () => {
-    const tight = { limit: { tokens: 60, source: 'provider' as const }, reserved: 10 };
+    const tight = { limit: { tokens: 60, ceiling: 60, source: 'provider' as const }, reserved: 10 };
     const { blocks } = assemble({ candidates: candidates(), policy: tight });
     const messages = render(blocks, unmerged);
 
@@ -358,5 +383,98 @@ describe('the token estimate', () => {
     expect(estimateTokens('')).toBe(0);
     expect(estimateTokens('abcd')).toBe(1);
     expect(estimateTokens('abcde')).toBe(2);
+  });
+});
+
+describe('where a writing sample sits in the order of sacrifice', () => {
+  /**
+   * [10 §3.1] and the Scene preset's `se.samples`, which is priority 20.
+   *
+   * The number is not arbitrary and it is not obvious: history blocks are
+   * emitted at `priority + index` across the window, so Scene's history spans
+   * 10..29 rather than sitting at 10. A sample at 20 therefore drops *after*
+   * the oldest turns and *before* the newest, and before lore at 25 — which is
+   * the intended reading of "a nicety that improves voice": losing it costs
+   * tone, never continuity or facts.
+   *
+   * This is the test that would catch somebody re-tuning the constant without
+   * meaning to change what falls out of a full context first.
+   */
+  function trio(): Candidate[] {
+    const text = 'x'.repeat(40); // 10 tokens each, so the arithmetic is legible
+    return [
+      {
+        id: 'history-oldest',
+        source: { kind: 'history', turnId: 't1', range: [0, 0], part: 'output' },
+        reason: 'history',
+        role: 'user',
+        text,
+        priority: 10,
+      },
+      {
+        id: 'sample',
+        source: {
+          kind: 'samples',
+          owner: { kind: 'actor', id: 'a1', contentHash: 'h' },
+          sampleId: 's0',
+        },
+        reason: 'writing samples',
+        role: 'system',
+        text,
+        priority: 20,
+      },
+      {
+        id: 'lore',
+        source: { kind: 'lore', entryId: 'e1', phase: 'before' },
+        reason: "keyword match: 'cathedral'",
+        role: 'system',
+        text,
+        priority: 25,
+      },
+    ];
+  }
+
+  it('drops the oldest history first, then the sample, and keeps lore', () => {
+    // 30 tokens of content into 12 means two must go. Mutation: flip the
+    // comparator in `assemble`'s `sacrificial` sort and lore drops instead of
+    // surviving; change `se.samples` to outrank lore and the sample survives.
+    const { blocks, verdict } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 12, ceiling: 12, source: 'user' }, reserved: 0 },
+    });
+
+    const included = blocks.filter((block) => block.included).map((block) => block.id);
+    expect(included).toEqual(['lore']);
+
+    const dropped = blocks.filter((block) => !block.included).map((block) => block.id);
+    expect(dropped).toEqual(['history-oldest', 'sample']);
+    expect(verdict.spent).toBe(10);
+  });
+
+  it('sacrifices the sample before lore but after the oldest turn', () => {
+    // The ordering claim on its own, at a pressure where exactly one block
+    // goes: the sample must outlive nothing but history. Mutation: give the
+    // sample priority 30 and `history-oldest` stops being the first to go.
+    const { blocks } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 22, ceiling: 22, source: 'user' }, reserved: 0 },
+    });
+
+    expect(blocks.filter((block) => !block.included).map((block) => block.id)).toEqual([
+      'history-oldest',
+    ]);
+  });
+
+  it('names the sample as what goes next while it is still included', () => {
+    // The panel promises "what is about to fall out" is answerable before it
+    // happens. With only history gone, the sample is the next survivor in
+    // sacrifice order. Mutation: return the last dropped id from `nextToDrop`
+    // instead of the next survivor and this reads 'history-oldest'.
+    const { verdict } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 22, ceiling: 22, source: 'user' }, reserved: 0 },
+    });
+
+    expect(verdict.nextToDrop).toEqual(['sample']);
   });
 });

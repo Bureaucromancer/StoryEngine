@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -182,6 +182,10 @@ vi.mock('../api.js', async (importOriginal) => {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
       listLibrary: () => Promise.resolve({ objects: [server.envelope()] }),
+      // The as-stored fold reads and writes a preference since [P3.3]; a
+      // stateless pair keeps it deterministic — every test starts folded.
+      readPrefs: () => Promise.resolve({ prefs: {} }),
+      patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
       updateObject: (
         kind: unknown,
@@ -283,11 +287,13 @@ describe('a second save after leaving the editor and coming back', () => {
     await screen.findByText('Saved.');
     await settled(client);
 
-    // Away. "As stored" belongs to the detail page alone — the actor's *name*
-    // would match on both pages, and a query that passed while the editor was
-    // still mounted would test nothing at all.
+    // Away. The Edit link belongs to the detail page alone — the actor's
+    // *name* would match on both pages, and a query that passed while the
+    // editor was still mounted would test nothing at all. (The old beacon was
+    // the "As stored" heading, which stopped being detail-page-only when
+    // [P3.3] discharged [polish §2] and the editor gained the same fold.)
     await userEvent.click(screen.getByRole('link', { name: 'Back to the actor' }));
-    await screen.findByRole('heading', { name: 'As stored' });
+    await screen.findByRole('link', { name: 'Edit' });
     expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
 
     // …and back.
@@ -409,5 +415,26 @@ describe('a save over a change that really did arrive from elsewhere', () => {
     expect(server.stored()['name']).toBe('Vera Solano, rewritten on disk');
     expect(server.updates).toEqual([{ presented: 'sha256:revision-0', returned: null }]);
     expect(screen.queryByText('Saved.')).toBeNull();
+  });
+});
+
+/**
+ * [polish §2]'s editor pane, discharged at [P3.3]: the fold shows the *saved*
+ * object and says so, because showing unsaved form state as "as stored" would
+ * be a lie in the one place a user came for the truth. The falsifying
+ * mutation is handing the pane the form's working state instead of the base.
+ */
+describe("the editor's as-stored pane", () => {
+  it('shows the saved object, not the form’s working state', async () => {
+    renderApp();
+    await openTheEditor();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), ', the fixer');
+    await userEvent.click(screen.getByText('As stored'));
+
+    const pane = screen.getByRole('region', { name: 'The object as stored' });
+    expect(pane.textContent).toContain('"Vera Solano"');
+    expect(pane.textContent).not.toContain('the fixer');
+    expect(within(pane).getByText(/what a reload would find/)).toBeTruthy();
   });
 });

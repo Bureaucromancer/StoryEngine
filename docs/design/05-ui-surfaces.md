@@ -100,7 +100,7 @@ what the user is doing at that moment, not by taste:
 
 | Dense — tooling | Quiet — story and arrival |
 |---|---|
-| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6) |
+| Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([15](15-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
 **The reading view is the case that proves the rule**, and it is already written
@@ -201,6 +201,13 @@ and no panel background, so tool chrome cannot land on one by accident.
 Plus the **reading view** (§12) — the story as prose, with the machinery
 stripped. The workbench and the reading view answer opposite questions over the
 same records.
+
+**A third surface arrives with Write at 3.0** ([17 §6](17-write-mode.md)) — a
+mode whose layout is document-shaped rather than session-shaped, and which
+therefore cannot live inside Play without making Play's layout conditional on
+the mode. **Two is a fact about what ships, not a principle**, and it is worth
+saying so here rather than letting a count be cited later as a rule. Nothing
+about the demotion below changes: a reader is still not a surface.
 
 **The workbench used to be listed here as a third peer, and is not one.** The
 demotion is in navigation only, and the distinction matters because this section
@@ -331,7 +338,24 @@ JSON as stored, the folder path, provenance, version history, the index rows —
 which is the depth [§2.1](#21-the-library-is-the-model-play-is-the-product)
 deliberately keeps out of a browse list.
 
-What it shows for any turn, current or historical:
+*The index rows*, decided at [P3 §7.4](workplan/05-p3-implementation.md): every
+row the index holds for the id — the winner first in portable-path order, the
+shadowed copies, and any row inside its tombstone settling window — with
+portable paths only, never native ones. The route serving them is a
+**best-effort projection, not a contract**: [13 §5](13-internal-contracts.md)
+keeps the index's tables an implementation detail and the migration policy is
+drop-and-rescan, so the projection restates the index and may return less after
+a schema bump until the surface catches up. The winning path is *named* here
+because the path shown is the very string the shadow resolution orders by.
+
+What it shows for any turn, current or historical — meaning any turn that has
+been *taken*. A turn still being taken is a different subject with a different
+feed, decided at [P3.5] and specified in
+[04 §3.3](04-server-multiuser-deployment.md): while the server is working the
+panel renders the progress events — which step is running, which was skipped
+and why, which failed and with what class, what each call asked and what it
+reported — and says that is what it is showing. The record below arrives whole
+when the turn commits, and the two are never on screen at once.
 
 - **The block list**, in order, each with source, inclusion reason in plain
   language ("keyword match: *cathedral*", "sticky, 2 messages remaining", "party
@@ -379,13 +403,42 @@ meter — and clicking it opens the panel in place, already on the current turn.
 full workbench beside every message is still not the answer; a full workbench one
 keystroke behind every message is.
 
+*Built at [P3.4], which settled what "the current turn" means here.* The meter
+is fed by a **stateless assemble** — candidates in, blocks and a verdict out,
+with no job, no draft, no record and no head moved — and clicking it opens the
+panel **onto that same answer**, falling back to the last committed turn when
+nothing is composed. Anything else would have the panel contradict the control
+that opened it, since the meter's whole reason to exist is that the previous
+turn's verdict is stale by exactly the thing being typed.
+
+So the panel's subject over Play is *what this session would send next, or what
+it last sent*. **That widens the rule's object without touching the rule**: the
+panel is still a reader with no state of its own, because both halves derive
+from the route and from one shared cache entry the panel cannot write to or
+fetch. The preview does not outlive the composition — it is dropped when the
+turn is submitted, because the record supersedes it, and again when the surface
+is left. With no model bound there is no context window and therefore no
+denominator; the meter stays visible and says so, since *nothing is bound* is a
+true answer to *how full is the context* rather than an error.
+
 **Two of the features above do not fit a panel, and should not be forced into
 one.**
 
-- **Diff two turns** is inherently two-subject, and a panel scoped to what the
-  main view is showing has one subject by construction. Comparison escalates to a
-  full view. Devtools has the same seam and draws it the same way — inspection is
-  a panel activity, profiling is not.
+- **Diff two turns** escalates to a full view. ~~It is inherently two-subject,
+  and a panel scoped to what the main view is showing has one subject by
+  construction.~~ **[P3.6] replaced that reason with a better one, and kept the
+  conclusion.** Subject count cannot be what does the work here: §11.2a ships a
+  two-payload diff *inside* a panel and cites this very section as its
+  precedent, so the two paragraphs contradicted each other for as long as both
+  stood. What actually forces a view is **addressability** — a comparison has
+  to be bookmarkable, pasteable into a bug report, and reopenable after the head
+  has moved past both turns, and a panel whose subject follows the main view can
+  be none of those. The address is `/compare/:sessionId?before=&after=`, and the
+  panel keeps the *entry point* rather than the comparison, which is also §1.1's
+  per-visit answer: you leave once, deliberately, and arrive somewhere you can
+  point at. Nothing about the panel becomes stateful to make this work.
+  Devtools has the same seam and draws it the same way — inspection is a panel
+  activity, profiling is not.
 - **Promote a dry run** mutates rather than reads. It stays, because §3's
   rewrite-versus-reroll scoping already makes it safe, but a panel that changes
   things has to say so more loudly than a read-only one would: dry-run state is
@@ -625,6 +678,14 @@ Where it should differ:
   moves is often smaller than the unit the library browses. The library's job
   stays whole objects; the review step and the file format are shared rather than
   reimplemented one level down.
+- **But *reading* below the object lives here.** §5.3 puts a lorebook's entries
+  on its detail page — browsable, filterable, individually addressable — which
+  reads as a contradiction of the bullet above until the line between them is
+  said out loud: **reading below the object belongs to the library; writing below
+  it belongs to the editor.** That is §2.1's *browse and inspect are raw; editing
+  is assisted* restated one level down, and it is the same division, not a new
+  one. A lorebook is the only kind this arises for, because it is the only kind
+  whose object is a collection ([16 §1.1](16-lorebooks-as-a-format.md)).
 
 ### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
@@ -719,6 +780,250 @@ of one query, alongside the delete confirmation's reference counts
 ([02 §10.1](02-data-model.md)) and the package closure
 ([10 §9.1](10-schemas.md)). Anything that makes the index cheaper or staler is
 therefore a decision about all three at once.
+
+### 5.3 The Lorebooks panel, and the book as a document
+
+**§5 says each panel carries the columns, sort and empty state its kind actually
+wants. This is that, for the kind where it is not a preference but a
+correction** — a lorebook is the only library kind whose object is a collection,
+so a surface that addresses only the container is off by one level for this kind
+and no other. The position is [16](16-lorebooks-as-a-format.md); this section is
+what it asks the library to build, and it holds the whole design rather than
+leaving it to whoever builds the page, for the same reason §5.2 does.
+
+The governing rule, from [16 §3](16-lorebooks-as-a-format.md), because every
+decision below is an application of it:
+
+> **Raw is a claim about the words, not about the layout.** The reading view may
+> re-arrange, and it may not re-word.
+
+**None of this is a promotion.** Lorebooks stay one panel among the six §5.1
+named, reached through the one detail route, with no surface of their own.
+
+#### The panel
+
+**The test for a column: does it answer a question you would otherwise have to
+open the book to answer?** That is what disqualifies the tempting ones and
+admits an unobvious one.
+
+| Column | Field |
+|---|---|
+| Name, with badges on the name cell | `name`, plus `enabled` and `scope` |
+| **Entries** | `entries.length` |
+| **Tags** | `tags` |
+| Source / shadowed | as every panel |
+| Updated | `provenance`, through the shared formatters |
+
+**`enabled: false` has to be visible in the list.** A disabled book that renders
+identically to an enabled one is the *my lorebook never fires* diagnosis arriving
+one surface too late, and it is the cheapest possible answer to it. Text first
+and colour second, as the rest of the library's badges already are.
+
+**The entry count earns its place because the generic table cannot tell a
+three-entry book from a three-hundred-entry one**, and almost everything a person
+wants to decide about a book — open it, search it, export it, trust it — depends
+on which of those it is.
+
+**`tags` gets its documented consumer at last.** [10 §5](10-schemas.md) says tags
+are *"what the library's filters read"*, and nothing has ever read them.
+
+**Refused as columns, by name:** `tokenBudget`, `scanDepth`, `entryLimit`,
+`recursiveScanning`. Those are tuning, a browse list is for finding, and they
+belong on the book's own page where §5's *near-raw* commitment already puts them.
+
+Filters: tags, scope, enabled, source. Sorts: name, updated, entry count.
+
+**A cover from `primaryMediaId` is right in principle and should be expected to
+arrive late.** The field's documented purpose is the library card's picture
+([10 §5.1](10-schemas.md), corrected there), so this is not an invention — but
+there is no asset-serving route today, and adding one means owner scoping and
+path containment rather than a presentation decision. A text row is not a
+failure.
+
+**The empty state points at import**, because an empty lorebook shelf is
+overwhelmingly a pre-import state rather than a blank page anybody meant to have.
+
+#### The book as a document
+
+**Not a new page.** This is what the existing detail route renders when the kind
+is `lorebooks` — one detail route, one place where the shadowed-copy
+discriminator lives, and §5's *one detail route* promise kept rather than
+quietly spent.
+
+**An entry's address is a validated search param on that route** — the book, plus
+which entry is in focus.
+
+*The alternatives, and why they lose.* A fragment is cheap and is not a
+selection: it cannot hand the view a focused state and it is invisible to the
+layer that would act on one. A child route addresses beautifully and creates a
+second detail route for one kind, which then has to thread the shadowed-copy
+discriminator through two places — the failure [polish §4](workplan/09-polish.md)
+names directly. A search param is what the library already uses to make a
+filtered view a link like any other, and the existing posture for a malformed one
+applies unchanged: **dropped rather than rejected**, degrading to the whole book,
+which is a real page rather than an error.
+
+*The cost, stated.* That param bag now carries two different jobs — *which copy
+of the object* and *which entry within it*. Acceptable, and worth a comment where
+it is read, so that the next person does not parse the entry key as a third
+disambiguator.
+
+**The layout.** A header carrying the book's own fields — name, badges,
+`description`, tags, the real folder path (§5's legible disk layout), *Used by*
+per §5.2 — and the book-level activation settings as one quiet strip.
+[02 §3.1](02-data-model.md)'s *each flag is a direct UI control* is satisfied by
+**reachable, not by prominent**, and this is the first place that distinction has
+to be made explicitly. Then a rail for the folder tree, the filters and the
+search box; then the entries.
+
+**An entry renders as a readable unit**: its name, its `tag`, its keys as an
+index-term row, `description` set apart above the body, `content` in reading
+measure and clamped with an expand — and, folded beneath, *as configured*,
+carrying every remaining field in the schema's own groups. The fold is the same
+component §11.2d specifies for the editor, in its read-only mode, so that a field
+added to the schema appears in both without a second edit
+([polish §1](workplan/09-polish.md)).
+
+**The default density is the readable one, clamped, with an expand-all.** Compact
+is one click away. Defaulting to compact would look more sensible and would be
+wrong: the premise of the whole section is that these are documents, and a page
+that opens as a table has settled that question before the reader arrives.
+
+**The default order is the file's array order — not `order`, which is *injection*
+order.** Silently sorting a reading list by injection order conflates two
+different things, and it is the kind of small lie that teaches a false model of
+what the field means. Sort by injection order is offered, labelled, and chosen
+rather than assumed.
+
+#### Folders are gates, and nothing may read otherwise
+
+> **Turning a folder off must never look like turning its entries off.**
+
+[10 §5](10-schemas.md) is explicit that a folder gate leaves each entry's own
+`enabled` *preserved rather than mutated*. So an entry has three distinct ways of
+being off, and it must say **which, in words**: *off*, *off: its folder is off*,
+*off: the book is off*. This is [00 §3.3](00-stance.md)'s legibility rule applied
+at the single likeliest source of *why doesn't this fire*, and getting it wrong
+costs a user an afternoon. `folderId: null` gets a real **Ungrouped** node rather
+than being quietly omitted, because a nullable field that renders as nothing
+hides entries.
+
+**A folders panel, listing each folder with its gate and the number of entries it
+governs.** The column is headed **Gate** — the schema's own word for it, so not
+invented vocabulary. This is where *does this timeline contain the 747 airborne
+carrier* becomes a one-screen answer, and it is a rendering of `folders[].enabled`
+and nothing else. Counts belong beside the book too: *214 entries, 31 off* is the
+shape of a book's variants, and it is invisible at every surface today.
+
+#### Search, which is two features at very different prices
+
+**Within a book, it is free, and that is the strongest fact in this section.**
+The detail route already holds the whole object; filtering and highlighting
+across `name`, `keys`, `secondaryKeys`, `description` and `content` is local,
+immediate, and needs nothing from the server. Half of *searchable in its own
+right* has already been paid for and never spent.
+
+**Clicking a key chip filters the book to the entries carrying that key.** One
+small behaviour, and it is what turns [16 §2](16-lorebooks-as-a-format.md)'s soft
+indexing from an observation into a working index — keywords stop being trigger
+configuration the moment they are clickable.
+
+**Across the library it is real server work**, and it is specified at §14.5 rather
+than here, because it belongs to the one search surface rather than to this
+panel. What matters here is the boundary: **the input mounted in this panel is
+scoped to it**, and it is the same component the eventual cross-library box will
+use. §5's *shared handling, distinct surfaces* one level down — and the failure
+it exists to prevent, *a search box per kind*, is exactly what building a
+lorebook-only global search would be.
+
+#### Links between entries are offered, not drawn
+
+**The idea is right and the inline rendering is wrong, and the difference is who
+is making the claim.**
+
+An entry's name and keys are the surface forms of a concept, so the places they
+occur in other entries are real and worth surfacing. But **an underlined name
+inside a body reads as an activation preview, and it is not one**: the scanner
+runs over chat text, not over entry content, except during recursion — and
+`recursiveScanning` defaults to false. A link drawn there asserts a relationship
+the engine does not have, which is the same failure the `⚠` on `LoreEntry.media`
+exists to prevent and the same one §13.1 answers with confidence marking. Four
+further objections, each sufficient on its own: `useRegex` entries are not
+literals; `matchWholeWords` and `caseSensitive` are per-entry, so there is no
+single pass with one rule set; short and common keys force a stop-list, which is
+invented policy and *invisible* invented policy at that; and two entries may
+share a key, so any winner is a rule the file does not contain.
+
+> **So: each entry carries *Mentions* and *Mentioned by* as derived, labelled
+> sections, and the prose is left alone.** Every row names what matched.
+
+A list under a heading makes no claim about firing, where an underline inside a
+sentence does. Ambiguity is survivable in a list and fatal inline. And this is
+§5.2's shape exactly, one level down — *outbound is a thing you arrange, inbound
+is a thing you discover* — which is why it needs no new argument, only this one.
+
+**Derived at render and never indexed.** It recomputes in milliseconds over an
+object already in hand; an index would buy nothing and inherit an invalidation
+problem.
+
+**Inline highlighting is scheduled rather than refused.** Once a real matcher
+exists it stops being a guess about linking and becomes the keyword test applied
+to entry content instead of pasted text — at which point it can say the true
+thing, *this is what the scanner sees*. Off by default even then.
+
+#### Print, and copy as Markdown
+
+**A setting should be readable as a setting, without the machinery — which is
+§12's argument, and this is its second subject.** The formats are §12.2's,
+unchanged and for its reasons: **HTML with a real print stylesheet, plus
+Markdown**, which covers PDF without any PDF code and gives a person something to
+paste elsewhere.
+
+**The fence, and it is the whole design:**
+
+> **No JavaScript in the output.** No search box, no toggles, no collapse
+> handlers. If it needs a script it is an application, and the application is
+> StoryEngine. A print stylesheet, a fold element where a fold is wanted, anchors
+> for entry links, and nothing else.
+
+The reason is the format's own: a lorebook is worth exchanging because it is
+*just the corpus*, and shipping a self-contained HTML application with an
+embedded index would rebuild the thing that property exists to avoid, at the cost
+of the property itself.
+
+**And this is not an export target.** It never sits beside the object export in a
+menu, because sitting there implies a round trip and there is none. It is
+**Print** and **Copy as Markdown** on the book's own page, and §12.3's table —
+for a person versus for another install, lossy versus lossless — transfers
+unchanged.
+
+#### Composability, and one derived line
+
+§5.2 is most of the answer already: *Used by* is what tells a lorebook it is not
+an orphan. **Do not re-inherit its overstatement** — that section says the panel
+*costs no new machinery* because the derived index answers it already, and
+[P3 §5](workplan/05-p3-implementation.md) records the audit finding that no link
+table exists. It is schema work, a query and a surface, and it is not this
+section's to unblock.
+
+One addition that costs no field: **a *played alongside* line** — which other
+lorebooks appear beside this one in the same Treatment's or Package's links.
+Co-occurrence computed rather than compatibility declared, so it is always
+current and cannot decay, which is why [16 §4.2](16-lorebooks-as-a-format.md)
+refuses the field version. Free once the link table exists, and impossible
+before it.
+
+#### What this is not
+
+- **Not a second surface.** Everything above is the Lorebooks panel and the
+  existing detail route. §2's two surfaces are unchanged.
+- **Not an editor.** The read view holds no form state at all; the edit
+  affordance is a link into the editor at the entry's address. That is §2.1's
+  browse/edit line, and statelessness is what enforces it rather than
+  discipline.
+- **Not a prediction.** Nothing here says *will fire*. It renders configuration;
+  the workbench renders behaviour (§3), and the gap between them is the thing
+  neither should paper over.
 
 ---
 
@@ -906,6 +1211,50 @@ UI notes:
   "she fails the check" into the box should be able to see that this text
   reached the narrator and not the resolver — otherwise the guarantee in
   [03 §5.2](03-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
+
+### 10.1 The hook panel, which is the same slot from the other side
+
+Plot hooks have had no surface in this document, while
+[03 §6.1](03-modes-and-turn-pipeline.md) has said since it was written that
+authoring affordances for them are *"part of the feature, not polish"*. This is
+that surface, and it belongs here rather than in a section of its own for a
+structural reason: **a fired hook enters the prompt through the guidance slot**,
+so §10 is not really about a text box, it is about what pushes into that slot —
+the player's instruction on one side and the author's waiting pool on the other.
+
+It is not the cast panel's neighbour ([§13](#13-showing-what-the-engine-understands)),
+which was the other candidate. That section is two views of one observation about
+identity resolution, and a hook panel shares neither the observation nor the
+subject.
+
+**What it shows**, which is [03 §6.1](03-modes-and-turn-pipeline.md)'s list made
+concrete: which hooks have fired and when, which are eligible right now, and
+which are blocked **with the clause that blocked them** — *waiting on turn 40*,
+*Vera is not in this session*, *superseded by a lorebook hook naming the same
+character*. Eligibility is live rather than computed on demand, because the
+selector's mechanical filter already runs every turn.
+
+**And what it is holding back.** The pacing dial sits here, because it is the
+control that explains an empty panel: a session at `sparse` with six eligible
+hooks and nothing firing is working correctly, and without the dial in view that
+is indistinguishable from broken. The same applies to the selector's own turn
+record — *held by pacing* and *judged: none* are different answers and the panel
+must not merge them.
+
+**One control, not both.** *Commit* is here — it is a move in the story. *Force-
+fire* is not: it is a test of the material and lives in the workbench beside the
+keyword test and the dry run ([§3](#3-workbench--the-inspector-panel)), which is
+also where a lapsed commitment's notice can offer it. Splitting them keeps a
+control that skips the engine's judgement out of the surface people play on.
+
+**Half of this is already free.** The workbench's block list shows every block's
+source and its inclusion reason in plain language, so a fired hook is legible
+there the moment the selector names one — the panel here is for the hooks that
+have *not* fired, which is the half nothing else can show.
+
+*Entrances are shown by label, never by text.* An unfired entrance is hidden
+content ([11 §6](11-cross-session-memory.md)), and a panel that spoils the
+arrival to the person about to read it defeats the feature.
 
 ---
 
@@ -1122,6 +1471,59 @@ came from — no transclusion, no live pointer at the source book, no sync back.
 The same invariant sessions are held to ([00 §3.1](00-stance.md)), for the same
 reason: content that keeps changing under the author is worse than content that
 is visibly stale.
+
+### 11.2d The entry editor's shape is the schema's shape
+
+**A `LoreEntry` has around forty fields, four of which are what an author came to
+write.** The editor therefore has a disclosure problem, and the tempting solution
+— promote a friendly handful, hide the rest behind *advanced* — is the one
+[02 §3.1](02-data-model.md) forecloses when it says *each flag is a direct UI
+control*, and the one §2.1 forecloses again when it forbids hidden fields.
+
+**The answer is that the structure already exists, in the schema file, and the
+only editorial decision left is which groups start open.**
+
+`LoreEntry` is written under comment banners — **Matching**, **Firing**,
+**Timing**, **Placement**, **Grouping and gating**, **Recursion** — with
+identity (`name`, `content`, `description`) un-bannered at the head, and the
+field an author reaches for first leading each group. So: **one disclosure per
+banner, in the schema's order, labelled with the schema's own words.** Two of the
+banners already carry an editorial subtitle — *four distinct behaviours, not four
+takes on one*; *three flags, all earning their place* — and those are the
+section's help text, written by the person who chose the fields.
+
+That answers the invented-vocabulary objection completely, because the vocabulary
+is the file's. It also means a field added to the schema lands in the editor and
+in §5.3's read-only fold without a second edit, which is
+[polish §1](workplan/09-polish.md)'s constraint met by construction rather than
+by remembering.
+
+**Open by default: Matching and Firing.** That puts `name`, `content`,
+`description`, `keys` and `enabled` on screen without scrolling — which is the
+durable core of the format ([16 §2](16-lorebooks-as-a-format.md)) — while leaving
+the schema's grouping and order **verbatim**. The core is made loud without being
+*lifted*, and lifting is the thing that would have broken the verbatim claim.
+
+**The invariant that makes progressive disclosure compatible with *no hidden
+fields*:**
+
+> **A closed section must name what is inside it that is not at its default.**
+> *Matching (3 set)*. *Timing (sticky 4)*.
+
+A collapse that conceals a non-default value is a hidden field, and §2.1 forbids
+those. A collapse that advertises its non-defaults is a summary, and the
+difference is exactly the difference between an entry whose surprising behaviour
+is discoverable and one whose is not.
+
+**`media` stays inline** and does not become a disclosure — §11.2b already
+settled that, on the grounds that the point is seeing the place while writing
+about it.
+
+**And a minimum is not the full treatment.** The first editor owes create,
+rename, delete, and the durable core plus the folder gates, with everything else
+visible and read-only; the galleries, the field assist (§11.1) and the entry-level
+exchange (§11.2c) are the full editor and arrive with it. The P1 precedent — real
+write path, no assist — is the model for the first pass.
 
 ### 11.3 Image slots
 
@@ -1487,6 +1889,47 @@ same results list, one more retriever behind it.
   library is searchable because it is readable, and another account's sessions
   are neither.
 
+### 14.5 And the library, which is the same surface
+
+**§5 has listed *search* among the library's verbs since it was written and has
+never said what it returns.** This is that, and it is short because the answer is
+that there is one search surface rather than two.
+
+**One query, three kinds of hit: objects, turns, and lore entries.** Objects and
+turns are §14's subject already. Lore entries are the new one, and they are new
+in a way worth naming precisely, because it is the thing that decides whether the
+index should carry them at all.
+
+> **A fragment is indexable when it has an address.**
+
+`LoreEntry.id` is what turns a hit inside an object into a link. Without it a
+match can be found and cannot be *shown* — the result names a three-hundred-entry
+book and leaves the reader to hunt, which is the problem search exists to
+prevent. This is why the library index carries lore entries and does not carry,
+say, an actor's greetings or a preset's block text.
+
+*The tidier alternative is rejected:* indexing text-bearing leaves generically,
+wherever they occur. It sounds principled and produces anonymous fragments with
+nothing to link to, so a hit cannot be labelled, cannot be navigated to, and
+cannot be distinguished from its neighbours. The special case is the principled
+one, and the rule above is what keeps it from spreading — `PlotHook` and Openings
+are the next two structures that qualify, and they qualify for the same stated
+reason rather than by analogy.
+
+**Hits carry a snippet, which is what makes them worth returning.** A result that
+names the book without showing the matched text is what the index gives today and
+it is close to useless at book scale.
+
+**The panel's search box is scoped to the panel** (§5.3), and is the same
+component this surface uses. §5 already names the failure to avoid — *a search
+box per kind* — and the way to avoid it is one component with a scope, not a
+prohibition on searching from where you happen to be standing.
+
+**Nothing here changes §14.3.** Lexical, verifiable, no provider, and embeddings
+would extend this surface rather than replace it — for lore entries exactly as
+for turns, and [06 E2](06-open-questions.md)'s judgement that semantic retrieval
+is worth less for lorebooks than it looks applies with its original force.
+
 ---
 
 ## 15. Administration, accounts and settings
@@ -1512,6 +1955,11 @@ Available to every account, admin or not.
 - **Display name, and locale.** Both already on `Account`
   ([04 §4.2](04-server-multiuser-deployment.md)); locale defaults from
   `Accept-Language` on first login and this is where it stops being a guess.
+- **Shown on the sign-in gallery, or not** ([15 §4](15-account-gallery.md)).
+  An `Account` field rather than a preference, by this section's own test:
+  the server reads it before you are signed in. The toggle carries its
+  consequence beside it, and says so plainly when the install's arrival
+  screen means it currently changes nothing.
 - **Change your own password.** Requires the current one. **This is not account
   recovery** and does not weaken the position that there is none
   ([04 §5.1](04-server-multiuser-deployment.md)): it is a logged-in user
@@ -1570,6 +2018,11 @@ cannot send a message.
   §4.2), `enableExtensions`. Each with the consequence written next to it rather
   than in a manual — *"may add their own provider keys"*, *"may browse and edit
   their own files in the app"*.
+- **The gallery flag is set here too** ([15 §4](15-account-gallery.md)),
+  beside the capabilities but deliberately not one of them — it grants
+  nothing (§15.4). It decides whether the account appears on the sign-in
+  gallery, and the control says so, with the same consequence-beside-it
+  honesty.
 - **Disable, and reset a password.** Disable is reversible and does not delete;
   the console reset stays the break-glass for the admin who cannot log in.
 - **Removing an account is a deletion of a person's library**, and the surface

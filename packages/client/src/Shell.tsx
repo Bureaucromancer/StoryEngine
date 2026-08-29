@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Link, Outlet } from '@tanstack/react-router';
-import type { JSX } from 'react';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useCallback, useEffect, useRef, type JSX } from 'react';
 
-import { useAuthState, useLogout, useNotices } from './queries.js';
+import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
 import { useTheme } from './ui/useTheme.js';
+import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
+import { useToggleChord } from './workbench/useToggleChord.js';
+import { Workbench } from './workbench/Workbench.js';
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
 export function Shell(): JSX.Element {
@@ -19,8 +22,54 @@ export function Shell(): JSX.Element {
   // you go looking for where to set it.
   useTheme();
 
+  /**
+   * The workbench's open state — a preference from this stage on ([P3.1a]),
+   * and the prefs *cache* is the state: `usePatchPrefs` is optimistic, so a
+   * toggle lands on screen at click speed and the server catches up, exactly
+   * the case its docstring exists for. Open survives navigation because the
+   * cache does, and survives a reload because the file does — gate step 2's
+   * two halves. The accepted cost, from [P3 §1.2]: a reload paints closed for
+   * one round-trip before an open dock reappears, which a `localStorage`
+   * mirror could hide and deliberately does not — the theme's mirror stays
+   * the client's only use of it.
+   */
+  const prefs = usePrefs();
+  const patchPrefs = usePatchPrefs();
+  const workbenchOpen = workbenchOpenFromPrefs(prefs.data?.prefs);
+  const patchOpen = patchPrefs.mutate;
+  const toggleWorkbench = useCallback(() => {
+    patchOpen(workbenchOpenPatch(!workbenchOpen));
+  }, [patchOpen, workbenchOpen]);
+  const closeWorkbench = useCallback(() => {
+    patchOpen(workbenchOpenPatch(false));
+  }, [patchOpen]);
+  useToggleChord(toggleWorkbench);
+
+  const mainRef = useRef<HTMLElement | null>(null);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  /**
+   * Every page starts at its top, by hand.
+   *
+   * Two native mechanisms stopped applying when the shell became
+   * height-managed ([P3.−1]): the browser restored the *document*'s scroll
+   * position, and the router's default reset targets the window — and the
+   * window no longer scrolls, `<main>` does. This is the minimal honest
+   * replacement. Keyed on the pathname rather than the whole location, so the
+   * library's kind-filter clicks — a search param — keep their place. What is
+   * lost, on purpose: Back no longer returns you to an old list position. The
+   * upgrade when a surface earns it is the router's element scroll
+   * restoration; until a list outgrows a couple of screens, that is machinery
+   * for a problem this app does not have.
+   */
+  useEffect(() => {
+    if (mainRef.current !== null) mainRef.current.scrollTop = 0;
+  }, [pathname]);
+
   return (
-    <div className="min-h-dvh">
+    // `h-dvh`, not `min-h-dvh`: the shell claims the viewport, which is what
+    // lets `flex-1` below mean "the rest of it" and makes `<main>` the scroll
+    // container instead of the document ([P3.−1]).
+    <div className="flex h-dvh flex-col">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
@@ -34,6 +83,25 @@ export function Shell(): JSX.Element {
           </div>
           {account === null ? null : (
             <div className="flex items-center gap-3">
+              {/* The workbench's visible opener — a *button*, never a nav
+                  entry: the panel is not a place ([05 §3]), and the nav's own
+                  docstring below holds that line. `Shell.test.tsx` pins the
+                  absence of a workbench *link*; a button keeps that test green
+                  by construction, which is correct — do not "fix" the test
+                  into matching buttons. The `title` and `aria-keyshortcuts`
+                  are how the chord is discoverable from the UI, so the control
+                  and the keystroke stay equally first-class. */}
+              <Button
+                type="button"
+                size="compact"
+                onClick={toggleWorkbench}
+                aria-expanded={workbenchOpen}
+                aria-controls={workbenchOpen ? 'workbench' : undefined}
+                aria-keyshortcuts="Control+`"
+                title="Toggle the workbench (Ctrl+`)"
+              >
+                Workbench
+              </Button>
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings
@@ -55,11 +123,36 @@ export function Shell(): JSX.Element {
       </header>
       {/* **Above the outlet, not on the settings page**, because [04 §6.3] wants
           this on every page: the person who needs to know a restart is
-          outstanding is often not the person who is looking at the form. */}
+          outstanding is often not the person who is looking at the form. And
+          outside the scroll container, for the same reason — a banner that
+          scrolls away with the page is a banner on some pages. */}
       <RestartBanner isAdmin={account?.role === 'admin'} />
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <Outlet />
-      </main>
+      {/* The scroll container, and deliberately bare: no width, no padding, no
+          wrapper. Each page owns its column through the `page` recipes in
+          `ui/classes.ts` — one spelling per width — because the column must be
+          this element's *direct child* for Play's `h-full` to resolve: a
+          percentage needs a definite height, and an auto-height centering
+          wrapper in between is exactly how the transcript never scrolled
+          ([P3.−1]). This stage's first draft had such a wrapper hold
+          `min-h-full` with Play's column as `flex-1` on a zero basis,
+          expecting a zero intrinsic contribution; measured in a real browser,
+          a `flex: 1 1 0` item contributes its full content height to an
+          auto-height container — the spec unclamps the contribution when an
+          item is both growable and shrinkable — so the wrapper grew with the
+          column and main scrolled anyway. */}
+      {/* The dock row. The aside sits *after* main in source order, which in a
+          flex row is the inline end in LTR and RTL alike — the right dock,
+          spelled logically. Insetting is free: main is `flex-1`, so an open
+          dock narrows it and each page's `mx-auto` column re-centres in what
+          remains — [P3 §1.1]'s reading of §3's "expands over" as a claim about
+          navigation, not z-order. Closed is unmounted, not hidden: no queries
+          run, and the landmark is absent rather than lurking. */}
+      <div className="flex min-h-0 flex-1">
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+        {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
+      </div>
     </div>
   );
 }

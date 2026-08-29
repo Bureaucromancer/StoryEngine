@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useLibrary } from '../queries.js';
+import { page } from '../ui/classes.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -28,7 +29,9 @@ export function LibraryPage(): JSX.Element {
   const library = useLibrary(search.kind);
 
   return (
-    <>
+    // The page's own column, now that the shell's `<main>` is a bare scroll
+    // container ([P3.−1] — `ui/classes.ts` has the why).
+    <div className={page.tooling}>
       <h1 className="mb-4 text-title text-ink">Library</h1>
       <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
         <FilterLink kind={undefined} current={search.kind} />
@@ -46,7 +49,7 @@ export function LibraryPage(): JSX.Element {
       {library.data !== undefined ? (
         <ObjectTable objects={library.data.objects} kind={search.kind} />
       ) : null}
-    </>
+    </div>
   );
 }
 

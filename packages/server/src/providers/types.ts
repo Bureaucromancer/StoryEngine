@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { GenerationParams } from '@storyengine/shared';
+import type {
+  ErrorClass,
+  FinishReason,
+  GenerationParams,
+  RenderedMessage,
+  TokenUsage,
+} from '@storyengine/shared';
 
 /**
  * The provider layer's contracts — [13 §2, §3](../../../../docs/design/13-internal-contracts.md)
@@ -29,18 +35,18 @@ import type { GenerationParams } from '@storyengine/shared';
  * is what makes an install portable, an extension safe to share, and an actor's
  * `modelHint` resolvable as a *request* rather than as a binding.
  */
-export const MODEL_ROLES = [
-  'prose',
-  'fast',
-  'reasoning',
-  'vision',
-  'image',
-  'video',
-  'speech',
-  'embedding',
-] as const;
-
-export type ModelRole = (typeof MODEL_ROLES)[number];
+// The role vocabulary and the wire-adjacent record shapes moved to
+// `@storyengine/shared` at [P3.0] — they are fields of the turn record, and
+// the record's shapes live together (`packages/shared/src/turn.ts`).
+// Re-exported so this module stays the provider layer's one import site.
+export { MODEL_ROLES } from '@storyengine/shared';
+export type {
+  ErrorClass,
+  FinishReason,
+  ModelRole,
+  RenderedMessage,
+  TokenUsage,
+} from '@storyengine/shared';
 
 /**
  * What an endpoint can do, and where it stops.
@@ -73,36 +79,6 @@ export interface ProviderCapabilities {
   reportsUsage: boolean;
 }
 
-/**
- * A rendered message, on its way to a provider —
- * [13 §2](../../../../docs/design/13-internal-contracts.md).
- *
- * `fromBlocks` is the requirement merging must not break: the workbench maps
- * every sent byte back to the block that produced it, and a merge that
- * concatenates six blocks into one string without recording which six destroys
- * that mapping quietly, and only noticeably when somebody is debugging.
- */
-export interface RenderedMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-  /** Which blocks produced this message, in order. Non-empty always. */
-  fromBlocks: string[];
-}
-
-/** Provider-reported token usage. Never estimated — see `ModelCall.usage`. */
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-}
-
-/**
- * How a call went, in the vocabulary the record and the UI both use.
- *
- * The class is what lets the UI offer the right recovery rather than surfacing
- * a provider string ([13 §1.4](../../../../docs/design/13-internal-contracts.md)).
- */
-export type ErrorClass = 'transient' | 'retryable' | 'terminal';
-
 export class ProviderError extends Error {
   readonly class: ErrorClass;
   /** The provider's own words, for the log. Never rendered as UI copy. */
@@ -130,15 +106,6 @@ export interface GenerationRequest {
   schema?: object;
   signal?: AbortSignal;
 }
-
-/**
- * Why generation stopped, in the vocabulary a reader can act on.
- *
- * Narrower than the SDK's, deliberately: this is what reaches a turn record and
- * eventually a person, and a class travels where a provider's own string must
- * not ([13 §1.4](../../../../docs/design/13-internal-contracts.md)).
- */
-export type FinishReason = 'stop' | 'length' | 'filtered' | 'tool' | 'unknown';
 
 export interface GenerationResult {
   text: string;

@@ -33,9 +33,20 @@ rather than examples, and properties make better tests than cases:
 | Export → import preserves unknown fields | [10 §2](../10-schemas.md) |
 | No advisory block ever appears in an effect-producing call | [03 §5.2](../03-modes-and-turn-pipeline.md) |
 | No portable object contains a connection or credential | [00 §3.2](../00-stance.md) |
+| A hook committed or fired on a turn is uncommitted and unfired after a rewind past it | [02 §4.1](../02-data-model.md) |
+| The same path selects the same entrance | [03 §6.1](../03-modes-and-turn-pipeline.md) |
+| A closure walk over a Treatment reaches an actor named only by `introduces` | [10 §9.1](../10-schemas.md) |
+| A fired introduction hook whose arrival was never narrated is not left marked fired | [03 §6.1](../03-modes-and-turn-pipeline.md) |
 
 These are cheap to assert and they fail loudly when a refactor breaks the design
 rather than the code.
+
+*The four hook rows arrive with P7 and are listed now because each states a
+property the obvious implementation gets wrong.* Firing state kept as a session
+field passes every functional test and fails the first; an entrance chosen off
+the RNG tape fails the second; a package walker that only follows `cast` fails
+the third; and treating *delivered* as *fired* fails the fourth by losing a
+character permanently the first time a narrator ignores its guidance.
 
 ---
 

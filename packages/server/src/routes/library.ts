@@ -12,6 +12,7 @@ import {
   amendVersion,
   create,
   fileErrors,
+  indexRows,
   LibraryError,
   list,
   read,
@@ -248,6 +249,45 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
             : { slug: query.slug, source: query.source ?? 'user' },
         );
         return await reply.header('etag', row.contentHash).send(present(row));
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
+   * The index rows behind an object — the workbench's projection ([P3.3]).
+   *
+   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [13 §5] keeps
+   * the index's tables an implementation detail and the migration policy is
+   * drop-and-rescan, so this route *restates* rather than promises — after an
+   * index schema bump it may return less until the surface catches up. What it
+   * restates: every row the index holds for the id — the winner first in
+   * portable-path order, the shadowed copies, and any row inside its tombstone
+   * settling window — which is what lets the panel name the winning path over
+   * a shadowed object (the stage's ends-at). Read-only, like everything the
+   * panel is allowed to be.
+   */
+  app.get(
+    '/library/:kind/:id/rows',
+    { schema: { params: ObjectParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const schemaId = schemaFor(request.params as { kind: string }, reply);
+      if (!schemaId) return;
+
+      try {
+        return await reply.send({
+          rows: indexRows(
+            services.library,
+            account.handle,
+            (request.params as { id: string }).id,
+            schemaId,
+          ),
+        });
       } catch (error) {
         respondToLibraryError(error, reply);
         return;

@@ -23,11 +23,22 @@ import type { LibraryContext } from '../library.js';
  * It lives in `turns/` and not in `modes/`, because it touches the library and a
  * mode does no I/O.
  */
+/**
+ * An actor with the address of the bytes that were read — [P3.0]. The cast is
+ * a link resolved fresh each turn, so the id names whatever the actor is
+ * *now*; the hash is what lets a block's source resolve to the object as it
+ * was **used**, which is the difference between provenance and a guess.
+ */
+export interface CastMember {
+  actor: Actor;
+  contentHash: string;
+}
+
 export function resolveCast(
   library: LibraryContext,
   handle: string,
   cast: { persona?: unknown; actors?: unknown } | null | undefined,
-): { persona: Actor | null; actors: Actor[] } {
+): { persona: CastMember | null; actors: CastMember[] } {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
    * `readSession` validates nothing beyond the id being a string, and
@@ -44,16 +55,20 @@ export function resolveCast(
     actors: actors
       .filter((id): id is string => typeof id === 'string')
       .map((id) => oneActor(library, handle, id))
-      .filter((actor): actor is Actor => actor !== null),
+      .filter((member): member is CastMember => member !== null),
   };
 }
 
-function oneActor(library: LibraryContext, handle: string, id: string): Actor | null {
+function oneActor(library: LibraryContext, handle: string, id: string): CastMember | null {
   try {
     const row = read(library, handle, id, ACTOR_SCHEMA);
     // Validated rather than cast: a hand-edited actor that no longer matches its
-    // schema is exactly the case this function exists to survive.
-    return validate(row.body).valid ? (row.body as Actor) : null;
+    // schema is exactly the case this function exists to survive. The hash
+    // rides along instead of being discarded one line from where the record
+    // needs it ([P3.0]).
+    return validate(row.body).valid
+      ? { actor: row.body as Actor, contentHash: row.contentHash }
+      : null;
   } catch {
     // Not found, or not this account's. Both mean the same thing here.
     return null;

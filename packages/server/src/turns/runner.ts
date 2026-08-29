@@ -2,16 +2,13 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
-import type { AssembledBlock, BudgetVerdict, Candidate } from '../assembly/types.js';
+import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
-import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { Accounts } from '../auth/accounts.js';
-import { resolveConnections } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { Rng } from '../rng/rng.js';
 import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
-import { walkPath } from '../sessions/segments.js';
-import { applyEffects, readSession, readTurns, replayChannels } from '../sessions/store.js';
+import { applyEffects } from '../sessions/store.js';
 import type {
   ChannelEffect,
   ChannelState,
@@ -38,9 +35,9 @@ import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
+import { gatherAssemblyInputs } from './gather.js';
 import { collectCandidates } from '../assembly/collect.js';
-import { DEFAULT_MODE_ID, modeById, planFor } from '../modes/registry.js';
-import { resolveCast } from './cast.js';
+import { planFor } from '../modes/registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 /**
@@ -306,13 +303,43 @@ export class TurnRunner {
     const steps: StepOutcome[] = [];
     const calls: ModelCall[] = [];
     const effects: ChannelEffect[] = [];
-    let blocks: AssembledBlock[] = [];
-    let verdict: BudgetVerdict | null = null;
+    /**
+     * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
+     * pushes a provisional `ModelCall` into `calls` the moment assembly and
+     * rendering are done, stamped for the only case in which it survives to
+     * disk: the process dying mid-call. Every live exit from `performCall`
+     * replaces it by id, so `reconcile` — which finalises the last checkpoint
+     * verbatim — is the sole reader that ever sees the stamp. Blocks moving
+     * onto the call is what makes this necessary: without it, a power cut
+     * would erase the very block table the recovery gate pins.
+     */
+    // A holder rather than a bare `let`, for the same reason `performCall`'s
+    // `partial` is one: it is assigned from inside closures the type checker
+    // cannot follow, and a bare binding stays narrowed to its initialiser.
+    const inFlight: { pending: { call: ModelCall; startedAt: number } | null } = { pending: null };
+
+    /** The finalised record replaces the provisional it shares an id with. */
+    const finalise = (call: ModelCall): void => {
+      const at = calls.findIndex((existing) => existing.id === call.id);
+      if (at === -1) calls.push(call);
+      else calls[at] = call;
+      inFlight.pending = null;
+    };
 
     const write = (events: EventDraft[] = []): void => {
+      // A checkpoint mid-call keeps the provisional's elapsed time honest —
+      // the recovered record then says how long the call had been running at
+      // the last durable moment, not zero.
+      if (inFlight.pending !== null) {
+        inFlight.pending.call.wallMs = Date.now() - inFlight.pending.startedAt;
+      }
       draft.steps = steps;
       draft.effects = effects;
-      draft.request = { blocks, budget: verdict, calls };
+      // Only once something was assembled — [P3.0], and the record's own
+      // docstring: *absent* means this never happened, and an empty `request`
+      // on a turn that failed before assembly is a record claiming a prompt
+      // was built. `divergenceTurn` had this right from the start.
+      if (calls.length > 0) draft.request = { calls };
       draft.tape = rng.tape;
       checkpoint(commit, job.id, {
         turn: draft,
@@ -327,83 +354,49 @@ export class TurnRunner {
     log?.info({ event: 'job.running' }, 'Turn started');
     write([turnStarted(job.turnId)]);
 
-    // Unlocked, and every read happens before any step runs.
-    const session = await readSession(commit.sessions, job.account, job.sessionId);
-    const turnsById = await readTurns(commit.sessions, job.account, job.sessionId);
-    const history = walkPath(turnsById, job.parentTurnId);
-    let running: Record<string, ChannelState> = session
-      ? session.channels
-      : replayChannels(history);
-
     /**
-     * **The capability, not a literal** — [P2A §2.1], [04 §4.5].
-     *
-     * This passed `{ privateConnections: true }` from P2.5 until now, which
-     * defeated the one check [04 §4.5] calls load-bearing. It calls it that
-     * precisely because the alternative — hiding personal connections in the
-     * UI — is a trivial bypass for anyone with `fileAccess: "write"`, and a
-     * turn is where a connection is actually *used*.
-     *
-     * An account that has vanished between reservation and run resolves to no
-     * capabilities rather than to the defaults. Defaulting would mean a deleted
-     * account's queued turn ran with more authority than a live one whose
-     * capability had been revoked, which is the wrong way round.
+     * Unlocked, and every read happens before any step runs — now through the
+     * gather a preview shares ([P3.4]), so the two cannot drift on the values
+     * that fail silently. **It stays inside this `try`**: a throw in here — a
+     * hand-edited `accounts.json` reaches one — must commit a failed turn
+     * rather than leave the job running with `finishedAt` null, which wedges
+     * the session's one-active-job index until the process restarts. That is
+     * what `runner.test.ts`'s *cannot even be set up* case exists to catch.
      */
-    const account = await this.#options.accounts.find(job.account);
-    const capabilities = account?.capabilities ?? { privateConnections: false };
-    const { usable, disabled } = await resolveConnections(
-      commit.sessions.layout,
-      job.account,
-      capabilities,
+    const inputs = await gatherAssemblyInputs(
+      { sessions: commit.sessions, accounts: this.#options.accounts },
+      { account: job.account, sessionId: job.sessionId, parentTurnId: job.parentTurnId },
     );
+    const { history, windowed, usable, bindings, defaults, mode, preset, cast } = inputs;
+    let running: Record<string, ChannelState> = inputs.channels;
 
     /**
      * **Revoking disables; it never deletes** ([04 §4.5]).
      *
      * The files are still on disk and `resolveConnections` has always returned
-     * this list — nothing populated it in production, because the literal above
-     * meant the branch that fills it could not be reached. Logged as a count
-     * rather than as names: [04 §4.5] keeps a connection opaque, and the fact
-     * an operator needs when somebody reports "my model stopped working" is
-     * that connections were ignored and how many.
+     * this list — nothing populated it in production, because a literal in the
+     * gather's capability line meant the branch that fills it could not be
+     * reached. Logged as a count rather than as names: [04 §4.5] keeps a
+     * connection opaque, and the fact an operator needs when somebody reports
+     * "my model stopped working" is that connections were ignored and how many.
+     *
+     * The logging is here rather than in the gather because a preview runs
+     * every time somebody pauses typing, and these lines are what an operator
+     * searches for — they belong to the turn, not to the read.
      */
-    if (disabled.length > 0) {
+    if (inputs.disabled.length > 0) {
       log?.info(
-        { event: 'connections.disabled', ignored: disabled.length },
+        { event: 'connections.disabled', ignored: inputs.disabled.length },
         'Personal connections ignored: the account may not use its own',
       );
     }
-    // Two layers ([P2B §2.1]): the account's own, and the install defaults it
-    // falls back to per role. Read together because a turn resolves every role
-    // against both, and a second read per role would be the same two files.
-    const bindings = await readBindings(commit.sessions.layout, job.account);
-    const defaults = await readSystemBindings(commit.sessions.layout);
 
-    /**
-     * **What the session is playing decides what runs**, and an unknown mode
-     * resolves to the default rather than refusing.
-     *
-     * [00 §3.3]: a session whose mode came from a newer build, or from an
-     * extension that is not installed, is still somebody's story and should
-     * still open. The substitution is logged so that it is not silent.
-     */
-    const declared = session?.mode?.id ?? DEFAULT_MODE_ID;
-    const mode = modeById(declared) ?? modeById(DEFAULT_MODE_ID);
-    if (mode === null) throw new Error('No default mode is registered.');
-    if (declared !== mode.definition.id) {
+    if (inputs.declaredMode !== mode.definition.id) {
       log?.warn(
-        { event: 'mode.substituted', declared, using: mode.definition.id },
+        { event: 'mode.substituted', declared: inputs.declaredMode, using: mode.definition.id },
         'Unknown mode; playing the default',
       );
     }
-
-    const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
-    const cast = resolveCast(
-      { db: commit.sessions.index, layout: commit.sessions.layout, keepHistoryPerObject: 0 },
-      job.account,
-      session?.cast,
-    );
-    const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
     /**
      * Candidates the *steps* contributed, kept outside the loop.
@@ -491,10 +484,45 @@ export class TurnRunner {
                   config,
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
-                  onAssembled: (assembled, budget) => {
-                    blocks = assembled;
-                    verdict = budget;
-                    contributedBlocks = assembled.filter((block) => block.included).length;
+                  notFilled: fromPreset.notFilled,
+                  onCallAssembled: (provisional) => {
+                    contributedBlocks = provisional.blocks.filter((block) => block.included).length;
+                    const call: ModelCall = {
+                      id: provisional.id,
+                      stepId: provisional.stepId,
+                      role: provisional.role,
+                      purpose: provisional.purpose,
+                      resolved: provisional.resolved,
+                      blocks: provisional.blocks,
+                      budget: provisional.budget,
+                      notFilled: provisional.notFilled,
+                      messages: provisional.messages,
+                      params: provisional.params,
+                      usage: null,
+                      cost: null,
+                      wallMs: 0,
+                      finishReason: null,
+                      /**
+                       * The stamp for a process death, and nothing else ever
+                       * commits it — every live exit replaces this record by
+                       * id. Not `cancelled`: nobody pressed Stop, and blaming
+                       * the person is the mislabel the timeout work refused.
+                       * Not a new un-sent outcome either — the call *was*
+                       * sent, or was about to be; §1.6 reserves un-sent for
+                       * the dry run. `terminal` is honest: the right recovery
+                       * is a new turn, never a retry of this one.
+                       */
+                      outcome: 'error',
+                      error: {
+                        class: 'terminal',
+                        message: 'The server stopped before this call returned.',
+                      },
+                      retries: 0,
+                    };
+                    calls.push(call);
+                    inFlight.pending = { call, startedAt: provisional.startedAt };
+                    // Durable before dispatch — the whole point.
+                    write();
                   },
                   onProgress: (event) => {
                     if (event.kind === 'started') {
@@ -520,10 +548,10 @@ export class TurnRunner {
                   },
                 },
                 request,
-                [...fromPreset, ...contributed],
+                [...fromPreset.candidates, ...contributed],
               );
 
-              calls.push(outcome.call);
+              finalise(outcome.call);
               log?.info(
                 {
                   event: 'call.finished',
@@ -552,7 +580,7 @@ export class TurnRunner {
           effects.push(effect);
           running = applyEffects(running, [effect]);
           contributedEffects += 1;
-          written.push(effectApplied(effect.channelId, effect.applied));
+          written.push(effectApplied(effect.channelId, effect.applied, effect.rejectedReason));
         }
         if (result.message) draft.output = result.message;
 
@@ -579,18 +607,35 @@ export class TurnRunner {
         // buffer is the only survivor — neither adapter attaches its
         // accumulation to the error — and gate 10 wants those words recorded.
         if (error instanceof CallFailed) {
-          calls.push(error.call);
+          finalise(error.call);
           if (error.partialText.length > 0) draft.output = { text: error.partialText };
         }
         // And a Stop that landed mid-call is the same shape from the record's
         // side — finding 2 in [16]: the interrupted call is named, the words
         // already streamed survive. Optional, because a cancel between
-        // attempts genuinely has no call to name.
+        // attempts genuinely carries no call.
         if (error instanceof Cancelled && error.call !== undefined) {
-          calls.push(error.call);
+          finalise(error.call);
           if (error.partialText !== undefined && error.partialText.length > 0) {
             draft.output = { text: error.partialText };
           }
+        }
+        /**
+         * A Stop with no call attached, while a provisional is checkpointed —
+         * the between-attempts window, or the beat between assembly and the
+         * first dispatch. Finding 2's *"a Stop between attempts stays bare"*
+         * stays true of the exception; the record extension is [P3.0]'s,
+         * because with blocks on the call, dropping the provisional here
+         * would erase assembly the record had already durably kept — a
+         * regression against what the turn-level table used to survive. The
+         * restamp says what happened: cancelled, nothing failed, real
+         * elapsed time, nothing answered.
+         */
+        if (error instanceof Cancelled && error.call === undefined && inFlight.pending !== null) {
+          inFlight.pending.call.outcome = 'cancelled';
+          inFlight.pending.call.error = null;
+          inFlight.pending.call.wallMs = Date.now() - inFlight.pending.startedAt;
+          inFlight.pending = null;
         }
 
         steps.push({
@@ -677,6 +722,7 @@ export class TurnRunner {
           proposedBy: { kind: 'engine' },
         },
         running,
+        supersededProposal(effects, SE_CLOCK),
       );
       effects.push(effect);
     }
@@ -710,7 +756,9 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     effects: [],
     tape: [],
     steps: [],
-    request: { blocks: [], budget: null, calls: [] },
+    // No `request`: nothing has been assembled, and the field's absence is the
+    // claim ([02 §8] — *absent* and *empty* are different claims, and the
+    // workbench renders the difference).
   };
 }
 
@@ -734,6 +782,24 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
     model: calls.at(-1)?.resolved.modelId ?? null,
   };
+}
+
+/**
+ * The most recent same-turn refusal this engine write replaces — [P3.0], and
+ * [05 §3]'s third effect outcome. A model that decided it was suddenly
+ * midnight was refused with its reason; the engine's own advance landing
+ * afterwards is the *override*, and the link is what lets the panel say so
+ * rather than inferring it from adjacency. Null when nothing on the channel
+ * was refused this turn, which is the ordinary case and is data.
+ */
+function supersededProposal(effects: readonly ChannelEffect[], channelId: string): string | null {
+  for (let at = effects.length - 1; at >= 0; at -= 1) {
+    const effect = effects[at];
+    if (effect?.channelId === channelId && !effect.applied) {
+      return effect.id;
+    }
+  }
+  return null;
 }
 
 function classifyStep(error: unknown): StepFailureReason {

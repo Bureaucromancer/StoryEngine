@@ -285,6 +285,39 @@ keeps the slug it was born with, and the engine never moves a user's directories
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
 
+### `GET /api/library/:kind/:id/rows`
+
+The index rows behind the object — the workbench's projection
+([P3 §7.4](design/workplan/05-p3-implementation.md), decided: best-effort,
+every row).
+
+```json
+{
+  "rows": [
+    {
+      "path": "users/ned/library/lorebooks/rain-city/lorebook.json",
+      "source": "user",
+      "slug": "rain-city",
+      "name": "Rain City",
+      "schema": "storyengine.lorebook/1",
+      "contentHash": "sha256:…",
+      "shadowed": false,
+      "tombstonedAt": null
+    }
+  ]
+}
+```
+
+Every row the index holds for the id: the winner first in portable-path order,
+shadowed copies, and any row inside its tombstone settling window
+(`tombstonedAt` in epoch milliseconds, `null` for a live row). Paths are
+portable — root-relative, `/`-separated — never native ones. **Best-effort,
+not a contract**: the index's tables are an implementation detail
+([13 §5](design/13-internal-contracts.md)) and its migration policy is
+drop-and-rescan, so after an index schema bump this route may return less
+until the surface catches up. Read-only; the object's contents stay the read
+route's answer.
+
 ### `DELETE /api/library/:kind/:id`
 
 Hash-checked the same way: deleting something a second tab has edited is the same
@@ -457,6 +490,65 @@ Fastify's validator with the storage layer's Ajv, which does not coerce (F2) —
 so `?limit=10` against `Type.Integer()` is rejected as *must be integer*. The
 schemas say what is actually on the wire.
 
+### `GET /api/sessions/:sessionId/turns/:turnId`
+
+`{ turn }`, or `404 {"error":"not-found","message":"No such turn."}`. One turn
+without the transcript riding along — `GET /turns` costs about 10.8 KB a turn
+and walks the whole path, and the workbench wants one turn, including one the
+head has passed. The lookup is scoped to *this* session inside the store, so a
+bare turn id cannot confirm existence across the ownership boundary: a turn in
+somebody else's session is the same `404` as one that never existed.
+
+### `POST /api/sessions/:sessionId/preview`
+
+```
+{ input?: { text, actorId?, kind? }, guidance? }
+```
+
+What this turn **would** assemble to, if it were taken now — the stateless
+preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { preview }`.
+
+```json
+{
+  "preview": {
+    "state": "assembled",
+    "headTurnId": "0199…",
+    "pendingInput": true,
+    "stepId": "se.narrate",
+    "callKind": "narrate",
+    "purpose": "prose",
+    "resolved": { "connectionId": "0199…", "modelId": "…" },
+    "blocks": [],
+    "budget": {},
+    "notFilled": []
+  }
+}
+```
+
+**It writes nothing**: no job is reserved, no draft is checkpointed, no turn is
+appended, and no hand edit is reconciled — the last of those deliberately, since
+reconciliation appends a divergence turn and this route is called every time
+somebody pauses typing. `POST` rather than `GET` because the body carries up to
+100 000 characters of prose, which does not belong in a URL.
+
+`input` is optional: its absence is *nothing typed yet*, which is what the
+context meter shows at rest. There is no `headTurnId` — the preview assembles
+against the session's current head and echoes back which one that was.
+`pendingInput` says whether an action or guidance was supplied, which is how the
+workbench decides between showing the composed turn and the last committed one.
+
+When no model resolves for the prose role the answer is still `200`, in its
+other arm — because *nothing is bound* is a true answer to *how full is the
+context*, not a refused request:
+
+```json
+{ "preview": { "state": "unmeasurable", "reason": "role-unbound", "notFilled": [] } }
+```
+
+`reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
+or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
+this prompt* is answerable without a model.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a
@@ -488,6 +580,12 @@ bad `Last-Event-ID` cannot brick a reconnect.
 `call.started`, `call.streaming`, `call.finished`, `effect.applied`,
 `turn.finished`. They are **structural** — the client renders them — and carry a
 failure *class*, never a provider's words.
+
+`effect.applied` carries `{ channelId, accepted, reason }`, where `reason` names
+the policy that refused — the same class the turn record keeps
+(`engine-computed`, `user-only`, `unknown-channel`, open for an extension's own)
+— and is `null` when the effect applied. Added at [P3.5] so the live view and
+the record cannot disagree about *why* something was refused.
 
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/04-p2-implementation.md)

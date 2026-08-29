@@ -514,16 +514,66 @@ describe('a session with a cast assembles the whole preset', () => {
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
-    const kinds = (turns.body.turns[0].request.blocks as { source: { kind: string } }[]).map(
-      (block) => block.source.kind,
-    );
+    const blocks = turns.body.turns[0].request.calls[0].blocks as {
+      source: { kind: string; actorId?: string | null; contentHash?: string | null };
+    }[];
+    const kinds = blocks.map((block) => block.source.kind);
 
     expect(kinds).toContain('persona');
     expect(kinds).toContain('actor');
+    // And each names the object as it was *used* — [P3.0]: the id for the
+    // click-through, the hash for the bytes, end to end through the real
+    // library rather than a fixture's spelling of them.
+    const personaSource = blocks.find((block) => block.source.kind === 'persona')?.source;
+    expect(personaSource?.actorId).toBe(personaId);
+    expect(personaSource?.contentHash).toMatch(/^sha256:/);
+    const actorSource = blocks.find((block) => block.source.kind === 'actor')?.source;
+    expect(actorSource?.actorId).toBe(actorId);
+    expect(actorSource?.contentHash).toMatch(/^sha256:/);
     // And the actor's own words reached the model, rather than an empty slot.
     const sent = provider.requests[0]?.messages.map((message) => message.content).join('\n') ?? '';
     expect(sent).toContain('Vera wears a long coat');
     expect(sent).toContain('Ned keeps the rain off other people');
+  });
+
+  /**
+   * [P3.0]'s by-id read, through the route: one turn without the transcript
+   * riding along, and the same 404 for a turn that never existed as for one
+   * that is not this session's — "No such turn." confirms nothing.
+   */
+  it('serves one turn by its own address, and 404s one that is not there', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'By id' },
+    });
+    const sessionId = created.body.session.id as string;
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k-by-id', headTurnId: null, input: { text: 'She waited.' } },
+    });
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const head = turns.body.turns.at(-1);
+    const headId = head.id as string;
+    const one = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns/${headId}`,
+    });
+    expect(one.status).toBe(200);
+    // The whole record, byte-equal with the transcript's copy of it.
+    expect(one.body.turn).toEqual(head);
+
+    const missing = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns/01a00000-0000-7000-8000-000000000000`,
+    });
+    expect(missing.status).toBe(404);
+    expect(missing.body).toEqual({ error: 'not-found', message: 'No such turn.' });
   });
 
   it('copies the preset rather than referencing it', async () => {
@@ -536,7 +586,9 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { name: 'Owns its preset' },
     });
 
-    expect(created.body.session.preset.blocks).toHaveLength(12);
+    // Tracks the Scene preset's block count, so it moves when that preset
+    // gains a block — 13 since the writing-samples slot ([10 §3.1]).
+    expect(created.body.session.preset.blocks).toHaveLength(13);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 

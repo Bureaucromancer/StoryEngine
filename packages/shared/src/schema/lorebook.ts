@@ -3,7 +3,15 @@
 
 import { type Static, Type } from '@sinclair/typebox';
 
-import { AssetRef, EmbeddedMedia, GeneratedMap, Id, Metadata, Provenance } from './common.js';
+import {
+  AssetRef,
+  EmbeddedMedia,
+  GeneratedMap,
+  Id,
+  Metadata,
+  Provenance,
+  WritingSample,
+} from './common.js';
 import { PlotHook } from './hook.js';
 
 /**
@@ -232,6 +240,36 @@ export const Lorebook = Type.Object(
      */
     hooks: Type.Optional(Type.Array(PlotHook)),
     entries: Type.Array(LoreEntry),
+    /**
+     * Prose from this world, offered as an exemplar — §WritingSample.
+     *
+     * **This field overrides a standing refusal, and the override is recorded
+     * rather than quietly taken.** [16 §4](../../../../docs/design/16-lorebooks-as-a-format.md)
+     * refuses new lorebook fields by name, and the argument was a count: eleven
+     * activation fields already ship, validate and round-trip while nothing
+     * reads them as the field they are, so adding a twelfth would be "buying
+     * machinery to avoid building a surface".
+     *
+     * That argument is sound and is not being disputed on its merits. It is
+     * being overridden because this field is not the kind it was aimed at: a
+     * writing sample **has a reader on the day it lands** — the assembler fills
+     * a slot from it and the block table shows what it cost — so it does not
+     * join the unread eleven, it is the first new field in a while that does
+     * not. §4's own instruction is that refusals be recorded with their reasons
+     * "so that they get re-checked rather than re-argued"; this is that
+     * re-check, and it went the other way.
+     *
+     * **Book-scoped, not entry-scoped, and that is the load-bearing part.** An
+     * entry-level sample would have to activate, which means keys, scan depth
+     * and the whole matching apparatus — and a tone exemplar that appears only
+     * when somebody says a magic word is not a tone exemplar. Samples here
+     * belong to the book the way `media` does.
+     *
+     * The portability rule in §4.2 holds: this is a fact about the *book* —
+     * how this world reads — not a fact about how one person likes to play it,
+     * so it travels with an export the way `description` does.
+     */
+    writingSamples: Type.Optional(Type.Array(WritingSample)),
 
     /**
      * Organisational, and the only such axis — a closed `category` union was

@@ -12,6 +12,7 @@ import {
   Openings,
   Provenance,
   Ref,
+  WritingSample,
 } from './common.js';
 import { PlotHook } from './hook.js';
 
@@ -90,6 +91,21 @@ export const Treatment = Type.Object(
     framing: Type.String(),
 
     tone: TreatmentTone,
+    /**
+     * Prose from this world, offered as an exemplar — §WritingSample.
+     *
+     * **The demonstrative twin of `tone.styleNotes`**, and the reason both
+     * exist: `styleNotes` says "terse, hardboiled, present tense", which a model
+     * must interpret; a sample is a page of the thing itself, which it can
+     * imitate. Neither replaces the other, and an author with only one of them
+     * is not doing it wrong.
+     *
+     * This is also the field that keeps the §6 invariant honest under pressure.
+     * A Treatment of Rain City still does not *describe* Rain City — a sample
+     * demonstrates how Rain City is written, and world facts stay in the linked
+     * lorebook where a second treatment can disagree with them.
+     */
+    writingSamples: Type.Optional(Type.Array(WritingSample)),
 
     /** Where the world content actually lives. */
     lore: Type.Array(LoreLink),

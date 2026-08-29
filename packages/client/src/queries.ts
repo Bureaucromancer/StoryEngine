@@ -3,6 +3,7 @@
 
 import {
   QueryClient,
+  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -10,11 +11,17 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
+import type { LiveTurn } from './play/reducer.js';
 import {
   adminApi,
   api,
+  previewTurn,
+  readSession,
+  readTranscript,
+  readTurn,
   type Account,
   type AccountPatch,
+  type ActiveJob,
   type AdminAccountList,
   type AdminConnection,
   type Binding,
@@ -24,11 +31,16 @@ import {
   type ConfigView,
   type AuthState,
   type Credentials,
+  type IndexRow,
   type LibraryKind,
   type LibraryObject,
   type ObjectAddress,
   type ObjectVersion,
+  type PendingInput,
+  type SessionSummary,
   type SetupInput,
+  type TurnPreview,
+  type TurnRecord,
 } from './api.js';
 
 /**
@@ -126,6 +138,20 @@ export function useObjectHistory(
   return useQuery({
     queryKey: ['library', kind, id, 'history'],
     queryFn: () => api.history(kind, id),
+    refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+/**
+ * The index rows behind an object — the workbench's projection ([P3.3]).
+ * Polled at the library cadence like every read beside it: gate step 7's
+ * hand-edit-and-watch rides on the poll, and a copy appearing on disk shows
+ * up here within it.
+ */
+export function useIndexRows(kind: LibraryKind, id: string): UseQueryResult<{ rows: IndexRow[] }> {
+  return useQuery({
+    queryKey: ['library', kind, id, 'rows'],
+    queryFn: () => api.indexRows(kind, id),
     refetchInterval: LIBRARY_POLL_MS,
   });
 }
@@ -361,6 +387,142 @@ export function usePatchPrefs(): UseMutationResult<
     },
     onSuccess: (result) => {
       client.setQueryData(['prefs'], result);
+    },
+  });
+}
+
+/**
+ * The play surface's reads, lifted out of `PlayPage` for the workbench —
+ * [P3.1](../../../docs/design/workplan/05-p3-implementation.md).
+ *
+ * Play's queries were the one inline exception to this file being the model
+ * layer, and that was fine while Play was their only mount. The workbench is a
+ * second mount in a different subtree, and two components spelling the same
+ * key by hand is how a cache splits: one of them drifts a segment and both
+ * fetch, disagree, and refresh on different schedules. Lifted, the key has one
+ * spelling — and the panel opening over Play issues **no new request**,
+ * because it reads the entry PlayPage already holds, which is also what keeps
+ * PlayPage's invalidate-on-finish refreshing both surfaces at once.
+ */
+export function useSession(
+  sessionId: string,
+): UseQueryResult<{ session: SessionSummary; activeJob: ActiveJob | null }> {
+  return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
+}
+
+export function useTranscript(sessionId: string): UseQueryResult<{ turns: TurnRecord[] }> {
+  return useQuery({
+    queryKey: ['transcript', sessionId],
+    queryFn: () => readTranscript(sessionId),
+  });
+}
+
+/**
+ * One turn by id — [P3.0]'s route, for the surfaces that address a turn
+ * rather than a path: compare (P3.6), and any panel over a turn the head has
+ * passed. Default staleTime, with the reason written down: a `complete` turn
+ * is immutable and `Infinity` would be true for it, but a `suspended` one
+ * will finish, and gating the staleness on status is complexity nothing
+ * needs yet.
+ */
+export function useTurn(sessionId: string, turnId: string): UseQueryResult<{ turn: TurnRecord }> {
+  return useQuery({
+    queryKey: ['turn', sessionId, turnId],
+    queryFn: () => readTurn(sessionId, turnId),
+  });
+}
+
+export function previewKey(sessionId: string): readonly unknown[] {
+  return ['preview', sessionId];
+}
+
+export function liveKey(sessionId: string): readonly unknown[] {
+  return ['live', sessionId];
+}
+
+/**
+ * The turn being taken, read from one cache entry nobody fetches — [P3.5].
+ *
+ * The same shape as {@link usePreview} and for the same reason: the panel is a
+ * sibling of the play surface in the shell's tree, so the only thing the two
+ * share is this cache. `skipToken` is again the mechanism — the panel cannot
+ * ask for a turn's progress, it can only read what the surface watching the
+ * stream has already been told, which keeps the reader a reader.
+ *
+ * **The stream is the writer, and it is the only one.** `PlayPage` mirrors its
+ * reducer's `live` here as frames arrive; the entry is cleared when the
+ * surface unmounts, because a turn's progress is not a fact about a session
+ * you are no longer watching.
+ */
+export function useLiveTurn(sessionId: string): UseQueryResult<{ live: LiveTurn | null }> {
+  return useQuery<{ live: LiveTurn | null }>({
+    queryKey: liveKey(sessionId),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
+/**
+ * The pending assemble, read from one cache entry that **nobody fetches** —
+ * [P3.4].
+ *
+ * `queryFn: skipToken` is the mechanism and the guarantee at once: this hook
+ * *cannot* issue a request, so the meter and the workbench cannot end up
+ * asking separately and showing different numbers. There is one answer, at an
+ * address the route names, written by the composer through
+ * {@link useRefreshPreview} — which is what lets the panel render a pending
+ * turn while staying the reader [05 §2] says it must be. Its subject still
+ * comes from the route and the cache; nothing about the composer is
+ * remembered anywhere the panel can reach.
+ *
+ * `gcTime: 0` is [P3 §1.6] made mechanical — *the meter's numerator does not
+ * exist at rest*. Leave Play and the entry goes with the last observer,
+ * instead of lingering to be shown as fact on the way back.
+ *
+ * **Deliberately not polled.** Every other session-scoped read here either
+ * polls or is invalidated on the turn's finish; this one is driven by typing,
+ * and a `refetchInterval` would re-read every segment on disk on a timer for
+ * a surface nobody is touching.
+ */
+export function usePreview(sessionId: string): UseQueryResult<{ preview: TurnPreview }> {
+  // The type argument is explicit because `skipToken` gives the inference
+  // nothing to work from — there is no `queryFn` whose return it could read.
+  return useQuery<{ preview: TurnPreview }>({
+    queryKey: previewKey(sessionId),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
+/**
+ * The composer's writer: a POST that writes nothing, landing in the cache.
+ *
+ * Two existing patterns composed rather than a new one — `useFetchModels`
+ * blesses the POST-shaped read, and `usePatchPrefs` blesses a hook writing the
+ * cache directly.
+ *
+ * **Out-of-order answers need no guard here, and that is a finding rather than
+ * an assumption.** Two previews are in flight whenever the endpoint is slower
+ * than the debounce, which is exactly the install somebody is debugging when
+ * they look at the meter — so a stale answer landing last would settle the
+ * meter on a keystroke already typed past. A sequence number was written to
+ * prevent it and then removed: this observer does not run a superseded
+ * mutation's `onSuccess` at all, so the guard could not be made to fail. The
+ * behaviour is pinned by *the last answer wins when two are in flight* in
+ * `PlayPage.test.tsx`, which holds whoever provides it; if a future version
+ * changes that, the test reddens and the guard comes back with a reason.
+ */
+export function useRefreshPreview(
+  sessionId: string,
+): UseMutationResult<{ preview: TurnPreview }, Error, PendingInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (pending: PendingInput) => previewTurn(sessionId, pending),
+    onSuccess: (answer) => {
+      client.setQueryData(previewKey(sessionId), answer);
     },
   });
 }

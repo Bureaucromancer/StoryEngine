@@ -5,6 +5,7 @@ import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/
 import type { JSX } from 'react';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
+import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage } from './editor/ActorEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
@@ -29,6 +30,19 @@ import { Alert } from './ui/Alert.js';
 
 export interface LibrarySearch {
   kind?: LibraryKind;
+}
+
+/**
+ * The two turns a comparison is over — [P3.6].
+ *
+ * Both optional, and dropped rather than rejected when malformed, the same
+ * way `kind` and `source` are: a truncated paste still means something (this
+ * session, no pair yet) and the page says what it is missing. Rejecting would
+ * turn a half-copied link into an error card.
+ */
+export interface CompareSearch {
+  before?: string;
+  after?: string;
 }
 
 /** Which copy of a duplicated id the detail page is showing (F19). */
@@ -125,6 +139,28 @@ const objectRoute = createRoute({
   component: ObjectDetailPage,
 });
 
+/**
+ * The comparison — the one full view this phase adds, and the reason it is a
+ * view rather than a panel is in the address: [P3 §7.2] re-grounds [05 §3]'s
+ * escalation on **addressability**, and a bookmarkable pair of turn ids is
+ * exactly what a panel scoped to the main view cannot be.
+ *
+ * A sibling of Play rather than a child: the tree here is flat, and `PlayPage`
+ * renders no outlet to nest into.
+ */
+const compareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/compare/$sessionId',
+  validateSearch: (search: Record<string, unknown>): CompareSearch => ({
+    ...(typeof search['before'] === 'string' ? { before: search['before'] } : {}),
+    ...(typeof search['after'] === 'string' ? { after: search['after'] } : {}),
+  }),
+  component: function Compare() {
+    const { sessionId } = compareRoute.useParams();
+    return <ComparePage sessionId={sessionId} pair={compareRoute.useSearch()} />;
+  },
+});
+
 const actorEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/actors/$id/edit',
@@ -138,6 +174,7 @@ const routeTree = rootRoute.addChildren([
   actorEditorRoute,
   sessionsRoute,
   playRoute,
+  compareRoute,
   settingsRoute,
 ]);
 

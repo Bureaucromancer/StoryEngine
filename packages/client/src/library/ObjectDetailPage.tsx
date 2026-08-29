@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link } from '@tanstack/react-router';
-import type { JSX, ReactNode } from 'react';
+import type { JSX } from 'react';
 
 import {
   ApiError,
@@ -14,7 +14,9 @@ import {
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
-import { link } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
+import { MetadataRow } from '../ui/MetadataRow.js';
+import { AsStored } from './AsStored.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -34,22 +36,26 @@ export function ObjectDetailPage(): JSX.Element {
   const search = routeApi.useSearch();
   if (!isLibraryKind(params.kind)) {
     return (
-      <>
+      // The page's own column ([P3.−1] — `ui/classes.ts` has the why), on
+      // both branches, so a bad address is laid out like a good one.
+      <div className={page.tooling}>
         <BackLink />
         <p role="alert" className="text-danger-ink">
           This address does not name a known kind of library object.
         </p>
-      </>
+      </div>
     );
   }
   return (
-    <ObjectDetail
-      kind={params.kind}
-      id={params.id}
-      {...(search.slug === undefined
-        ? {}
-        : { at: { source: search.source ?? 'user', slug: search.slug } })}
-    />
+    <div className={page.tooling}>
+      <ObjectDetail
+        kind={params.kind}
+        id={params.id}
+        {...(search.slug === undefined
+          ? {}
+          : { at: { source: search.source ?? 'user', slug: search.slug } })}
+      />
+    </div>
   );
 }
 
@@ -139,21 +145,7 @@ function ObjectView(props: {
         </MetadataRow>
       </dl>
 
-      <section aria-label="The object as stored">
-        <h2 className="mb-2 text-section text-ink">As stored</h2>
-        <pre className="overflow-x-auto rounded-md border border-line bg-surface p-4 text-xs">
-          {JSON.stringify(object.object, null, 2)}
-        </pre>
-      </section>
-    </>
-  );
-}
-
-function MetadataRow(props: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <>
-      <dt className="font-medium text-ink-subtle">{props.label}</dt>
-      <dd className="text-ink">{props.children}</dd>
+      <AsStored value={object.object} />
     </>
   );
 }

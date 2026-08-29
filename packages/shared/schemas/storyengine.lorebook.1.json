@@ -838,6 +838,42 @@
         }
       }
     },
+    "writingSamples": {
+      "type": "array",
+      "items": {
+        "title": "WritingSample",
+        "description": "Prose offered as an exemplar of tone rather than a description of it. Carried by Actor, Treatment and Lorebook; positioned and budgeted by a preset slot, never injected merely by existing.",
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "enabled",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "tags": {
       "type": "array",
       "items": {

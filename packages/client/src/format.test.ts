@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatEpochMs, formatTimestamp, timestampsOf } from './format.js';
+import {
+  formatCount,
+  formatDuration,
+  formatEpochMs,
+  formatTimestamp,
+  timestampsOf,
+} from './format.js';
 
 /**
  * Date formatting, and the one input that used to take the page down with it.
@@ -81,5 +87,34 @@ describe('timestampsOf', () => {
 describe('an unparsable timestamp', () => {
   it('comes back unchanged, because the value is still information', () => {
     expect(formatTimestamp('whenever', 'en-GB')).toBe('whenever');
+  });
+});
+
+/**
+ * The number half, added at [P3.2] with the workbench's token and wall-time
+ * columns — 07 §12.6 mandates `Intl` for numbers, and §12.6a classes a
+ * hand-rolled duration as a rewrite if deferred. Locales are pinned to
+ * `en-US` where an exact string is asserted, so the tests describe the
+ * formatter and not the machine.
+ */
+describe('counts and durations', () => {
+  it('groups a count the way the locale reads it', () => {
+    expect(formatCount(128_000, 'en-US')).toBe('128,000');
+    expect(formatCount(61, 'en-US')).toBe('61');
+  });
+
+  it('gives a duration the precision its magnitude deserves', () => {
+    expect(formatDuration(999, 'en-US')).toBe('999 ms');
+    // The real record's 59-second model call, as a person reads it.
+    expect(formatDuration(59_029, 'en-US')).toBe('59 sec');
+    expect(formatDuration(90_000, 'en-US')).toBe('1.5 min');
+  });
+
+  it('falls back rather than throwing on a typed locale', () => {
+    // The same P2A stance as the dates: the value also arrives from a
+    // hand-editable file, so the check lives where the value is used. The
+    // falsifying mutation is rethrowing instead of falling back.
+    expect(() => formatCount(1000, 'en_GB')).not.toThrow();
+    expect(() => formatDuration(1000, 'en_GB')).not.toThrow();
   });
 });

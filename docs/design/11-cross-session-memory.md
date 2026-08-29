@@ -173,9 +173,14 @@ Mitigations, in order of how much they cost:
 - **Warn at session creation** when a new session's treatment or package matches
   an existing one, and offer to start isolated. Cheap and catches the common
   case.
-- **Never import memories derived from hidden content** — a hook's premise, a
-  hidden channel, GM-only state. Extraction should refuse those at the source
-  rather than filtering them later.
+- **Never import memories derived from hidden content** — a hook's premise, an
+  unfired hook's entrances ([10 §6.1a](10-schemas.md)), a hidden channel, GM-only
+  state. Extraction should refuse those at the source rather than filtering them
+  later. *Entrances are on the list for the same reason as premises and are worse
+  if leaked: an entrance is not a summary of an arrival, it is the finished prose
+  of one, so a bleed reproduces the exact words a second playthrough was supposed
+  to reach freshly.* Which also raises what the first mitigation is worth — a
+  replayed treatment does not merely repeat a beat, it repeats the sentence.
 - **[OPEN]** Whether sessions seeded from the same package should default to not
   sharing with each other. Tempting, and probably too clever — a continuing
   campaign in the same package is a normal thing to want.

@@ -2,8 +2,8 @@
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
-- **§1–3, the roadmap** — things *we* intend to build after 1.0. §2b is
-  committed with a release attached; the rest is intent. An item earns
+- **§1–3, the roadmap** — things *we* intend to build after 1.0. **§2b and §2e
+  are committed with a release attached; the rest is intent.** An item earns
   a place by being *additive*: if deferring it would force a data-model change
   later, it belongs in 1.0 instead, and the test for each entry is "what does
   this oblige 1.0 to do?"
@@ -222,9 +222,10 @@ All four are small. None is a feature at 1.0; all four are preconditions.
 
 **Adventure–Campaign** and **Messages** are scheduled for a 2.0 series
 ([work plan §0](workplan/01-work-plan.md)), which puts them in a different category from
-everything else in this document. §1–2 are things we intend to build and might
+most of this document. §1–2 are things we intend to build and might
 not; §4 is things we hope someone else builds. These two are **committed work
-with a release attached**.
+with a release attached** — as is §2e, which was written later and takes the
+same category rather than a new one.
 
 Their designs are already written — Messages in
 [03 §7.1](03-modes-and-turn-pipeline.md), Campaign in
@@ -402,6 +403,22 @@ hook's `id`** rather than getting a fresh one. `PlotHook.id` exists and
 what needs pinning at 1.0 is that copying preserves it. One line now,
 unrecoverable later.
 
+*(The clause about the session tracking firings is superseded — that state is a
+channel as of [02 §4.1](02-data-model.md). Nothing here changes: the obligation
+was always about the **id** surviving the copy, and where the firing record lives
+is orthogonal to it.)*
+
+**An introduction hook needs a second de-duplication key, and id is not it.**
+[10 §6.1a](10-schemas.md)'s `introduces` fires on a character rather than an
+event, so the failure it must avoid is *this person arriving for the first time,
+twice*. Id-matching catches only the case where the **same hook** fired before;
+it misses the commoner one, where a different hook — or the narrator, unprompted
+— introduced them in session one. So within a World the suppression key is the
+**subject**, not the hook: a character already introduced in this continuity has
+no first arrival left to stage. Cheap to note now, and it costs 1.0 nothing,
+because the *introduced* predicate it needs already exists per-session
+([03 §8.1](03-modes-and-turn-pipeline.md)) and only its scope widens.
+
 **A known collision, recorded rather than rediscovered.** Two *stable-tier*
 schemas already spend the word: `PlotHook.magnitude` no longer does, but
 `Lorebook.category: "world" | …` still carries it, and `hook.magnitude` was
@@ -412,6 +429,51 @@ world as a whole" — which coexists with a capital-W kind without real ambiguit
 Worth knowing that portable schemas cannot be cleaned up later without a version
 bump ([10 §2](10-schemas.md)), so any *new* use of the word in a portable
 structure between now and then should be refused.
+
+---
+
+## 2e. Write — the 3.0 mode
+
+**Write is scheduled for a 3.0 series**, which puts it in §2b's category rather
+than §1–2's: committed work with a release attached, not intent. **There is no
+3.0 anywhere else in these documents.** The term starts here and in
+[17](17-write-mode.md), and the release line it extends is in
+[work plan §0](workplan/01-work-plan.md).
+
+Its design is [17](17-write-mode.md), so as with §2b there is nothing to add
+here beyond the scheduling. What travels with it: the **Manuscript** kind
+([17 §5](17-write-mode.md)) and the seventh library panel it costs, the Write
+surface and the `top-level` arm on the mode contract's surface declarations
+([17 §6](17-write-mode.md)), beats ([17 §§7–8](17-write-mode.md)), the three
+outline views ([17 §10](17-write-mode.md)), the codex read as a query over the
+existing library rather than a new kind ([17 §9](17-write-mode.md)), and this
+repository's first structured editor ([17 §12](17-write-mode.md)).
+
+**Why a release of its own, rather than a fifth mode inside 2.0.** Not because it
+is unopinionated — it is the most opinionated thing in this document, and
+[17 §1](17-write-mode.md) states the position it takes about what LLM prose
+writing is actually for. It is deferred because it is **downstream**: it consumes
+lorebook activation, mention resolution, the mode contract as a real interface
+rather than a shape one built-in mode happens to fit, and the summary chain. That
+is the same argument [work plan §0](workplan/01-work-plan.md) makes for building
+Campaign against a proven substrate, and it holds harder here, because Write is
+the first mode that needs the contract to *grow* rather than to be configured.
+
+**It meets this document's bar, and the check is worth naming rather than
+assuming.** §1's test is *what does this oblige 1.0 to do* — and the answer is a
+table in [17 §13](17-write-mode.md) rather than a section here, because two of
+its rows land at **1.0**, not at 2.0, and belong beside the argument that
+produces them. The two that matter: the mention-span overlay has to carry a
+tagged entity reference from the first span ever written, and session export
+([06 B12](06-open-questions.md)) must not freeze the turn record before
+[17 §4](17-write-mode.md) is settled.
+
+**Two entries above acquire a second consumer**, which is worth a line each
+rather than a rewrite. §2c.1's story bible is *what a session established*;
+Write's outline is what a manuscript *intends*, and the two want the same
+derived-never-authoritative discipline. And §3's **manual chapterisation** row
+stops being only a reading feature: a binder is chapterisation authored up front,
+which is the same information arriving from the other end.
 
 ---
 

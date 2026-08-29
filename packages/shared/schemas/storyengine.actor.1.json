@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://storyengine.dev/schemas/storyengine.actor.1.json",
   "title": "Actor",
-  "description": "A character. Deliberately absent: system_prompt, post_history_instructions, depth_prompt, talkativeness, mes_example and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. Per-session numbers live in channels and must never appear here.",
+  "description": "A character. Deliberately absent: system_prompt, post_history_instructions, depth_prompt, talkativeness and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. mes_example is no longer among them: it lands in writingSamples, which a preset slot still positions and budgets, so the rule holds and only the container changed. Per-session numbers live in channels and must never appear here.",
   "type": "object",
   "required": [
     "schema",
@@ -253,6 +253,42 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "writingSamples": {
+      "type": "array",
+      "items": {
+        "title": "WritingSample",
+        "description": "Prose offered as an exemplar of tone rather than a description of it. Carried by Actor, Treatment and Lorebook; positioned and budgeted by a preset slot, never injected merely by existing.",
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "enabled",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
         }
       }
     },

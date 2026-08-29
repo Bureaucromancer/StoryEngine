@@ -3,7 +3,7 @@
 
 import type { GenerationParams } from '@storyengine/shared';
 
-import type { CallPurpose } from '../assembly/assemble.js';
+import type { CallPurpose } from '../assembly/types.js';
 import type { Candidate } from '../assembly/types.js';
 import type { ModelRole, TokenUsage } from '../providers/types.js';
 import type { Rng } from '../rng/rng.js';

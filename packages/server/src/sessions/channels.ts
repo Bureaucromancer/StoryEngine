@@ -159,6 +159,7 @@ export function clockEffect(
     proposedBy: { kind: 'engine' },
     applied: true,
     rejectedReason: null,
+    supersedes: null,
     channelVersion: CLOCK_CHANNEL.version,
     scope: 'session',
   };
@@ -236,6 +237,7 @@ function effect(
     proposedBy: { kind: 'user' },
     applied: true,
     rejectedReason: null,
+    supersedes: null,
     channelVersion: state?.version ?? 1,
     scope: 'session',
   };

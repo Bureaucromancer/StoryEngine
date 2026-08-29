@@ -505,6 +505,65 @@ conceptual drift, so it is documented as being for hooks genuinely inseparable
 from a piece of lore, with Treatments staying the default answer.
 *[02 §4.1, 10 §5]*
 
+**C7d. A character as a plot hook. — RESOLVED: an optional `introduces` block,
+and the subject is not in `involves`.** A hook whose content is *bring this
+person into the story*, optionally guided by written alternates in the spirit of
+a card's greetings. Additive and optional, so the schema stays `/1` on the same
+argument that let `requires` and `onFire` be removed.
+
+The whole reason it needs a field rather than a naming convention is that it
+needs **the opposite eligibility test**, and `involves` cannot hold both. That
+inversion is exactly one of `involves`' three clauses: the subject must not be
+introduced, but must still resolve, must not be dead or gone, and must be neither
+the persona nor already in the party. Exempting it from the entire check would
+fire an arrival for someone the session recorded dead — the severe failure the
+check exists for, reintroduced by the feature meant to use it.
+
+Two consequences that had to be designed rather than discovered. **Firing writes
+no effect**, because `onFire` is 2.0 and `se.presence` is model-proposed, so the
+arrival is narrated and state follows the story — which means the narrator can
+decline, so the firing is **provisional until the arrival is confirmed** or the
+hook is silently and permanently lost. And **firing must supply the subject's
+card and aliases for that turn**, because an actor outside the session cast
+contributes neither, leaving the narrator describing a stranger and the mention
+pass unable to link the arrival it just wrote.
+
+Allowed on lorebook-carried hooks, over the objection that it makes a Lorebook
+depend on an Actor for the first time: banning it would contradict C7c's own
+argument, since *the stranger from the Flower Kingdom* is close to that case's
+canonical form, and the dependency is soft — an unresolvable subject breaks the
+hook, never the book. *[02 §4.1, 10 §6.1a]*
+
+**C7e. Hook pacing and firing by hand. — RESOLVED: a dial that is a channel, and
+two controls that are not two strengths of one.** [03 §6.1](03-modes-and-turn-pipeline.md)
+had promised *"a cooldown after firing, a cadence rather than running every turn,
+and an author-facing pacing treatment"* without saying what any of them were.
+
+The dial is sparse / normal / aggressive / manual-only, and it is a **channel** —
+session-scoped, user-only, never injected, initialised from a Treatment's
+advisory value and overridable by a Setup. That buys mid-session change recorded
+as an effect and correct branching with no new concept, and it is what a live
+setting has to be here; a plain session field would not reconstruct at a node.
+The numbers a level resolves to are engine code, while how a level *reads to a
+model* is the prompt pack's, which is the half of C-series precedent that
+actually transfers.
+
+**The dial is not a step condition.** A committed hook needs the selector
+consulted every turn and a sparse dial needs it consulted rarely, and one step
+cannot declare both — nor can a condition see the channel state that would tell
+it. So the step runs every turn and the dial gates the judgement call inside it,
+which costs nothing because the mechanical filter was always free. The price is
+that a held turn looks identical to a judged-none turn from outside, so the
+selector writes its own line into the turn record.
+
+**Commit** is the play control: must-fire now, exempt from cooldown and cadence,
+but the engine still chooses the moment, with three turns of patience and a
+**lapse rather than a firing** at the deadline — firing at the deadline would
+deliver the twist at the moment already rejected three times. **Force-fire**
+stays the authoring control and stays a real turn; a scratch preview was
+considered and declined, because rewind is a pointer here and a second assembly
+path is a poor trade for a slightly shorter audition loop. *[02 §4.1, 03 §6.1]*
+
 **C8. Branch snapshot interval. — RESOLVED: tuneable, and generous during
 alpha.** Snapshot often and keep many; they are derived and disposable
 ([09 §4](09-branching.md)), so the cost is disk and the benefit is that branch
@@ -737,6 +796,19 @@ known and consistent direction, rather than one model per provider. One
 dependency, no bundled model files, and a measurable error to tune the margin
 against.
 
+*Recorded at P3.4, because a surface now shows this number to people.* The
+shipped approximator is not the BPE one above: it is `ceil(length / 4)`, with
+no dependency at all. The posture is vindicated and the implementation is not
+what this section describes, which is worth saying rather than quietly
+reconciling in either direction. The one real measurement — P3.2's browser
+walk — was **356 estimated against 397 reported, 10.3% low**, sitting exactly
+on the ~10% tolerance argued for here; the delta is the chat template, which
+`length/4` cannot see. The context meter therefore **labels rather than
+corrects**: it says *estimated* and shows the number the budgeter actually
+ruled with, because a corrected figure would disagree with the drops the
+verdict recorded, and the margin already lives in `reserveOutputTokens`. A
+better approximator remains open; a fudge factor at the surface is closed.
+
 ### E6. Backup and restore — a command, not a feature
 
 **Opinionated: the design already did most of this, so do not build a
@@ -889,3 +961,70 @@ defaults, both of which had to be right before either could be offered — not a
 dial that hands the design problem to the user. The test this entry sets was met
 in the order it asks for: the surfaces were made correct, and *then* one of them
 was made selectable.
+
+### E11. The prose editor — open, leaning plain text with decorations
+
+Write ([17 §12](17-write-mode.md)) needs the first structured editor this
+repository has had, and nothing in any manifest is one today. The decision is
+open, and the reason it can safely stay open is that **the requirement is much
+narrower than "a rich text editor"**, and stating the requirement is most of the
+work:
+
+> **The editor must maintain externally-held, offset-keyed annotations across
+> arbitrary edits.**
+
+That falls out of two decisions already made. The canonical form is plain
+Markdown on disk ([17 §5.2](17-write-mode.md)), so an editor whose document model
+is a node tree makes the file a *render* of that model and reintroduces the
+two-sources-of-truth failure [02 §5.2](02-data-model.md) rejects for cards. And
+mentions, provenance and beat positions are all overlays under *annotate, never
+rewrite* ([05 §13.1](05-ui-surfaces.md)), so none of them may be injected into
+the authored bytes.
+
+**Lean: a plain-text editor with a first-class position-mapping API and
+decoration sets**, rather than a rich-text document model. A textarea with a
+mirrored overlay is a genuine fallback and loses block widgets, per-span hit
+targets and long-document virtualisation.
+
+**Why leaving it open costs nothing.** The document on disk is Markdown, the
+annotations are offsets in `manuscript.json`, and no part of the server, the
+schemas or the API knows what the editor is — client-internal in the same
+structural sense [07 §6](07-tech-stack.md) makes the framework choice reversible.
+Two constraints hold whichever way it goes: read-only rendering must not require
+the editor bundle, or the reading view ([05 §12](05-ui-surfaces.md)) takes a
+dependency on it; and if the beat interaction turns out to need rich structured
+content *inside* the prose, the plain-text model is wrong and the storage
+decision reopens with it. *[17 §12]*
+
+### E12. The remaining Write-mode shapes — four, all cheap, none blocking
+
+Collected rather than given entries of their own, because each is a local choice
+inside [17](17-write-mode.md) that changes nothing outside it. Recorded so they
+are re-checked rather than re-argued.
+
+- **Sessions per manuscript — lean: one.** A Write session is a tool and the
+  manuscript is the work ([17 §4.5](17-write-mode.md)), so the session is created
+  lazily and never shown. Several would matter mainly for two humans, which is a
+  non-goal ([17 §14](17-write-mode.md)).
+- **Manuscript version granularity — lean: a manifest, not per node.** A version
+  is the set of content hashes for `manuscript.json` and every `text/*.md`
+  ([17 §5.4](17-write-mode.md)). Payloads are already content-addressed, so an
+  unchanged node costs nothing and restore is atomic — which is what Scrivener's
+  snapshots actually are. It depends on one property worth verifying rather than
+  assuming: snapshot payloads must stay opaque digest-addressed bytes.
+- **Where automatic plurals are configured — lean: the matcher, not the entry.**
+  It is a property of the language rather than of a lore entry
+  ([17 §9.2](17-write-mode.md)), so a per-entry boolean would be the wrong shape
+  repeated a hundred times.
+- **Whether Write is finally the feature that wants templating inside a text
+  block — lean: still no.** [03 §5](03-modes-and-turn-pipeline.md) already
+  intends templates to render *within* a block, so this is not a refusal of
+  templating; it is a question about a small residue — a manuscript title, a POV
+  name — each of which is arguably a slot ([17 §11.1](17-write-mode.md)). A
+  template language admitted for three tokens is admitted permanently.
+
+And one that is **not** in this list because it is not open: whether the codex is
+a new kind. It is not ([17 §9](17-write-mode.md)), and the reopening condition —
+a lore entry gaining a portable cross-install identity
+([16 §4.1](16-lorebooks-as-a-format.md)) — is recorded there rather than here.
+*[17 §§4.5, 5.4, 9.2, 11.1]*

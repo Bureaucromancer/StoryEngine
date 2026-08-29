@@ -17,12 +17,19 @@ what is deferred rather than forgotten.
 | **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
 | **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — Adventure–Campaign and Messages ([01 §0](01-work-plan.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
+| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — Write ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
 
 **1.0 is a real release, not a staging post.** It ships two modes — Scene and
 Adventure–Freeform — chosen as the ones this project has opinions about, with
 Campaign and Messages held for a 2.0 series ([01 §0](01-work-plan.md)). The
 release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.
+
+**The gate definition does not change as the series go up.** *Feature complete
+to the 3.0 spec* is checkable against [17](../17-write-mode.md) exactly as the
+first one is checkable against the 1.0 design notes, and the branch model needs
+nothing new: §2 already makes release branches per **minor line**, so 3.0 is one
+more line rather than a new pattern.
 
 **Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0
 spec" is a usefully hard line — it is checkable against the design documents

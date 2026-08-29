@@ -57,7 +57,12 @@ describe('a proposal is judged against the channel that owns it', () => {
       );
 
       expect(effect.applied).toBe(false);
-      expect(effect.rejectedReason).toBe('update-policy');
+      // The *which* policy, not one merged string — [P3.0]. `'update-policy'`
+      // could not say whether the remedy was "the engine computes this" or
+      // "only a person may change this", and those are different sentences.
+      // (The `'user-only'` reason gains a producer with the first user-only
+      // channel; no shipped channel declares that policy yet.)
+      expect(effect.rejectedReason).toBe('engine-computed');
       // And it changes nothing: `after` is the value that was already there, so
       // a replay that ignores `applied` still cannot move the clock.
       expect(effect.after).toEqual(CLOCK_START);

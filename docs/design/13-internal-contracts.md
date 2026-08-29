@@ -42,11 +42,22 @@ it, the resulting block records where it came from. Same name, both ends.
 
 ```ts
 type BlockSource =
-  | { kind: "persona" }
-  | { kind: "actor"; actorId: ActorId; sectionId?: string; field?: "traits" | "visual" }
+  /** The persona is an actor too (P3.0): the id makes the block clickable and
+   *  the hash addresses the bytes that were used; both null when the session
+   *  has no persona. */
+  | { kind: "persona"; actorId: ActorId | null; contentHash: string | null }
+  /** contentHash since P3.0 — the cast is a link read fresh each turn, so the
+   *  id resolves to the actor as it is now; the hash to the actor as sent. */
+  | { kind: "actor"; actorId: ActorId; contentHash: string; sectionId?: string; field?: "traits" | "visual" }
   | { kind: "lore"; entryId: string; phase: "before" | "after" }
-  | { kind: "history"; range: [number, number] }
-  | { kind: "examples"; actorId: ActorId }
+  /** turnId is the identity (P3.0); the window-relative range stays as display
+   *  information — where in this prompt the turn sat. */
+  | { kind: "history"; turnId: TurnId; range: [number, number] }
+  /** One writing sample, from whichever kind carried it — [10 §3.1],
+   *  [18](18-writing-samples.md). `owner` rather than a bare `actorId` because
+   *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
+   *  carries one — the carrier is a link read fresh every turn. */
+  | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "treatment"; part: "framing" | "tone" }
   | { kind: "goal"; goalId: string }
@@ -243,6 +254,17 @@ interface ChannelDefinition {
 replay path, so guessing its contract before a channel needs one is the thing §6
 refuses to do for `WidgetSpec`.
 
+**`InitPolicy` now has a named first consumer, which is how §6 wanted it to
+arrive.** The hook-pacing dial ([03 §6.1](03-modes-and-turn-pipeline.md),
+[10 §6.1b](10-schemas.md)) is a session channel with `update: "user-only"`,
+`budget: null`, and an init that reads a Treatment's advisory value — which
+exercises exactly the *from treatment* arm [03 §4](03-modes-and-turn-pipeline.md)
+describes and nothing has needed until now. It is a P7 dependency rather than a
+free consequence: the dial cannot be built before the policy is, and scheduling
+the two apart would have the dial invent its own prefill path. Worth having,
+because a contract designed against one real need beats one designed against
+three imagined ones — which is §6's own argument for deferring it.
+
 ### 1.4 `ModelCall`
 
 ```ts
@@ -250,9 +272,24 @@ interface ModelCall {
   id: string
   stepId: StepId
   role: ModelRole                 // never a model id — [07 §5.1]
+  /** What this call was allowed to produce, derived from the step's declared
+   *  contributes/writes (P3.0). Not recoverable after the fact — StepOutcome
+   *  records only the counts — and the committed half of [testing §1]'s
+   *  advisory invariant. */
+  purpose: "prose" | "effects" | "verdict"
   /** What the role actually resolved to, recorded because the binding can
    *  change between turns and "why is this turn different" needs an answer. */
   resolved: { connectionId: string; modelId: string }
+  /** This call's assembly and its verdict (P3.0) — non-null by construction,
+   *  since a ModelCall exists only downstream of assemble(), including the
+   *  provisional in-flight entry the runner checkpoints before dispatch so a
+   *  killed process still leaves the block table it was sent. */
+  blocks: AssembledBlock[]       // §1.1's vocabulary
+  budget: BudgetVerdict          // §1.5
+  /** The preset blocks that emitted nothing for this call, each with a reason
+   *  class (P3.0, closing [P3 §7.5]) — the record's answer to "why is there
+   *  no lore in this prompt". Empty when a step supplied its own candidates. */
+  notFilled: { blockId: string; source: string; reason: string }[]
   messages: RenderedMessage[]     // §2
   params: GenerationParams
   /** Provider-reported, not estimated. The measured half of budgeting with a
@@ -277,10 +314,16 @@ first question anyone asks about a turn that came out wrong.
 
 ```ts
 interface BudgetVerdict {
-  /** The window, and where the number came from — a provider capability, a
-   *  preset ceiling, or a user override. Presets carry absolute ceilings from
-   *  ST import ([10 §8.4.1]) and a 4k number must not silently apply at 200k. */
-  limit: { tokens: number; source: "provider" | "preset" | "user" }
+  /** The window, and the honest account of where it came from (P3.0).
+   *  `source` names the origin of the *ceiling* — whichever side won the min:
+   *  the endpoint's declared window, the preset's absolute cap ([10 §8.4.1]'s
+   *  4k-must-not-apply-at-200k rule), or the config default (`"user"`, the
+   *  live-editable number). The preset's `contextShare` narrows the ceiling to
+   *  `tokens` without relabelling it: `share` present ⇒ a preset budget was in
+   *  play and `tokens === floor(ceiling × share)`; absent ⇒ `tokens === ceiling`.
+   *  The old shape stamped `"preset"` whenever a share applied, which hid the
+   *  exact remedy this field exists to suggest. */
+  limit: { tokens: number; ceiling: number; source: "provider" | "preset" | "user"; share?: number }
   reserved: number                // held back for the completion
   spent: number
   /** Ordered as considered. Every block appears, including the included ones —

@@ -265,7 +265,9 @@ The property that actually forces a full view is **addressability**: a compariso
 has to be bookmarkable, pasteable into a bug report, and reopenable after the head
 has moved past both turns. A panel scoped to what the main view is showing can
 never be any of those. That is a substitution this plan is proposing, not one the
-design has made — §6.1 records the amendment owed.
+design has made — §7.2 records the amendment owed. **[P3.6] made it**: §7.2 is
+decided, and [05 §3](../05-ui-surfaces.md) now grounds the escalation on
+addressability in its own words.
 
 *Two mechanical requirements.* The existing object differ cannot be reused for the
 block table: it aligns arrays by index, so one inserted block reports everything
@@ -394,6 +396,39 @@ asks `modelThatAnswered` on both paths, and its docstring names the old bug —
 
 ### P3.−1 — One main view
 
+**Landed 2026-08-27**, across two commits (`fe57f62` and the height-managed
+shell commit carrying this note). What the stage's three clauses became:
+
+- *Delete the three nested mains:* done; the three page roots are `div`s and
+  `shell-layout.test.tsx` counts exactly one `main` landmark on every routed
+  page, mutation-proofed by re-promoting one.
+- *Settle one content width:* two `page` recipes in `ui/classes.ts` — the
+  tooling column (56rem) and the reading column (48rem) — each spelled once,
+  per [05 §1.2]'s measure-against-the-shell distinction; `max-w-3xl` is gone
+  from the codebase, and SessionsPage moved from the reading measure it was
+  borrowing to the tooling width (a visible change, reversible in one line if
+  it reads badly). **Pages own their column; the shell's `<main>` is a bare
+  scroll container.** The draft had the shell wrap the outlet in a
+  `min-h-full` flex wrapper with Play's column on a zero flex basis — measured
+  in a real browser, a `flex: 1 1 0` item contributes its full content height
+  to an auto-height container, so the wrapper grew and main scrolled anyway.
+  The column being main's *direct child* is what lets Play's `h-full` resolve;
+  `Shell.tsx` and `ui/classes.ts` carry the reasoning in place.
+- *The scroll question ("nothing configured in the router to replace it"),
+  answered:* the shell resets `main.scrollTop` on a **pathname** change — a
+  search-param change (the library's kind filter) keeps its place. What is
+  lost, on purpose: Back no longer restores a list position; the upgrade when
+  a surface earns it is the router's element scroll restoration. The router's
+  own default reset targets the window and became a no-op the moment `<main>`
+  scrolled.
+
+Verified in a real browser against a six-turn session: the document no longer
+scrolls anywhere, the transcript scrolls independently under a header that
+does not, the input bar stays put, `/settings` scrolls in `main`, and a
+navigation lands at the top. jsdom proves the landmark count and that the
+reset fires; it computes no layout, so the scrolling itself stays a
+browser-pass claim.
+
 Delete the three nested `<main>` tags, settle one content width, and make the
 shell height-managed so `<main>` is the scroll container. **No panel code.**
 
@@ -409,6 +444,61 @@ mounts and they are not this stage's problem — and a transcript that scrolls
 under a header that does not.
 
 ### P3.0 — The record, repaired and then typed where the client can see it
+
+**Landed 2026-08-27**, in eight commits, in the stage's own order — every
+shape change before the move, the move before the by-id read. What each
+clause became:
+
+- **`advisory` + `purpose`** landed as the pair, and the gate-guidance suite
+  now asserts [testing §1]'s invariant over the record's own fields — the
+  source-kind proxy its header apologised for is retired.
+- **The honest budget stamp** became `BudgetLimit {tokens, ceiling, source,
+  share?}`: `source` names whichever side won the min, the share narrows
+  without relabelling, and the shipped 6144 now reads as the config's 8192 ×
+  0.75 — the live-editable remedy visible at last.
+- **Blocks and budget moved onto each `ModelCall`** (required, with
+  `notFilled` beside them), `TurnRequest` shrank to `{calls}`, and the turn's
+  blocks are a derived union nothing stores. The hidden dependency the move
+  exposed is solved rather than inherited: the runner checkpoints a
+  **provisional in-flight call** at assembly (stamped `error`/`terminal`/
+  "The server stopped before this call returned." — never `cancelled`, never
+  a minted un-sent value), every live exit replaces it by id, and
+  recovery.test's it.todo is a passing test. *One doctrine extension, made
+  deliberately:* a bare Stop between attempts restamps the provisional as
+  `cancelled` rather than dropping it — finding 2's exception stays bare,
+  and the record stops losing assembly it had already durably kept.
+- **Pre-assembly failures write no `request`** — `initialDraft` omits it and
+  `write()` assigns only once a call exists, per the record's own docstring.
+- **Sources name the object as used**: history gained `turnId` as identity
+  (stable candidate ids; `range` stays as display info), actor sources carry
+  `contentHash` (the cast resolver stopped discarding it one line from where
+  it was needed), and the persona arm gained `actorId`/`contentHash`
+  nullable. Preset sources stay unhashed with the reason in the arm.
+- **The effect vocabulary split**: `engine-computed` and `user-only` replace
+  the merged `update-policy`, and `supersedes` links the engine's clock write
+  to the same-turn refusal it overrode — [05 §3]'s third outcome as a link,
+  not an inference. **The degraded state is a recorded deferral, not code**:
+  `ChannelDefinition` ships without `schema`, so a writer is structurally
+  impossible and a guard on a validation that cannot fail would be dead code
+  impersonating a mechanism; the field's comment names the writer's arrival
+  and the panel renders it whenever present.
+- **Not-filled slots**: §7.5 decided and shipped — see the [DECIDED] entry in
+  §3(b) and the 02 §8 write-back.
+- **The move**: `packages/shared/src/turn.ts`, plain types outside
+  `PORTABLE_SCHEMAS` with the internal-tier argument in its header; the
+  server's type homes are re-export sites, the client's `TurnRecord` is the
+  real `Turn`, and the index signature every workbench field used to arrive
+  through is gone.
+- **Read a turn by id**: `findTurnLocation` (the location index's first by-id
+  reader), `readTurnById` (index hit verified by id-match, cold-read
+  fallback per [13 §5], tombstones absent on both paths), the route with the
+  file's own 404 discipline, and the client's `readTurn`/`useTurn`.
+
+Every new test was reddened by a named falsifying mutation before its
+commit; the leaf-walk's vacuous guard and NULL_IS_DATA moved with each shape
+in the same commit. Golden churn stayed stub-versus-stub and said so — no
+record was promoted into `providers/fixtures/`; the corpus is still P2C's to
+produce.
 
 The stage adopts everything [§3](#3-what-the-record-still-owes) still listed as
 P2's at the audit — adopted 2026-08-26, because a P2 that has moved on was
@@ -449,6 +539,51 @@ the rest of the phase will spend itself reading.
 
 ### P3.1 — The panel frame, empty
 
+**Landed 2026-08-27**, in three commits (the query lift, the chord hook, and
+the frame commit carrying this note). The decisions the stage text left open,
+now made and verified:
+
+- **The chord is Ctrl+`** — VS Code's panel muscle memory, free of the two
+  devtools chords the plan rules out. Matched on `event.code === 'Backquote'`
+  *or* `event.key === '` + '`'`, and the second arm is measured rather than
+  defensive: automation drivers and remote desktops synthesise keydown with an
+  empty `code` — this repo's own browser pane sends `{ code: '', key: '`' }` —
+  while dead-key layouts send a code and no character. Both arms are
+  mutation-proofed in `useToggleChord.test.tsx`.
+- **The dock edge is inline-end** (right in LTR), spelled logically —
+  source-order after `<main>` in a flex row, `border-s` — at a fixed `w-96`
+  until P3.1a's drag makes the size a preference. Open state is in-memory in
+  `Shell`; the reload half of gate step 2 waits on P3.1a's keys.
+- **Escape is an element-scoped `onKeyDown` on the aside, not a document
+  listener** — the *only when focus is inside it* guard is structural, since
+  the handler only ever sees events targeted inside. The dialog-over-dock
+  interplay was walked in a real browser: a 412 conflict dialog over the open
+  dock, one Escape, only the dialog closed. The accepted corner (focus
+  clicked into the dock under an open modal closes both) is documented on the
+  component.
+- **The opener** sits in the header's account cluster as a compact `Button`
+  with `aria-expanded`, `aria-controls`, `aria-keyshortcuts` and the chord in
+  its `title` — as first-class as the keystroke. It is a button and not a nav
+  entry, so `Shell.test.tsx`'s pinned *offers no workbench entry* stays green
+  by construction; a comment at the call site warns against "fixing" that
+  test into matching buttons.
+- **The subject is route-derived** (`useMatch` on `/play/$sessionId`), which
+  is what keeps the reader stateless: over Play, the head turn's JSON in the
+  `Panel` inset variant — deliberately not a third JSON-viewer spelling;
+  P3.3 consolidates — and over everything else the honest empty state, §7.3's
+  interim answer shipped as behaviour while the design question stays open.
+
+*Ends at*, delivered: `dock.test.tsx` pins Tab escaping the dock and the
+absent `aria-modal` — the focus-trap tests inverted, with the trap itself
+attached as the falsifying mutation and caught — plus the chord over Play,
+the editable guard, inset-not-replace (both landmarks at once), Escape's two
+halves, the head turn (against a two-turn transcript, keyed on input text
+because the head's JSON contains its parent's id), and open-across-navigation
+with the subject following. Every test was reddened by its named mutation.
+The browser walk covered the chord, the guard in the real action input, both
+Escape halves, the dialog interplay, navigation persistence, the empty state,
+and both themes rendering the dock from tokens.
+
 The non-modal `<aside>` in the shell; open and closed only, no resize; the
 keyboard toggle with its editable-target guard; a visible opener; the subject
 wired to Play showing today's JSON.
@@ -480,8 +615,34 @@ person reaching for that hook.
 
 ### P3.1a — Persistence and resize
 
-The two preference keys through the existing hooks, patched on commit; a pointer
-drag setting a custom property the stylesheet consumes.
+**Landed 2026-08-27**, in two commits. `ui.workbench-open` and
+`ui.workbench-size` exist through the existing hooks, in `ui/theme.ts`'s
+helper-pair shape (`workbench/prefs.ts`); the prefs cache *is* the open state,
+so the optimistic mutation carries the toggle and gate step 2 is now
+performable in full — walked in a real browser: open, drag to 484, reload,
+still open at 484. Decisions and findings:
+
+- **Closed is the absence of the key**, as `system` is for the theme; the
+  size is a plain number, clamped **on read** ([§1.2]'s one-line defusal,
+  bounds 280–640, default 384) and on write, so a hand-edited
+  `ui.workbench-size: 10000` renders a dock that fits.
+- **The drag is the splitter's pointer half**: live width travels as the
+  aside's `--workbench-size` custom property set imperatively, so a
+  sixty-hertz drag re-renders one thin strip and not the JSON beside it, and
+  the one PATCH lands at pointerup — the `KeyedQueue` reason, exactly as
+  §1.2 wrote it down. The stage's named test exists and was mutation-proofed
+  by committing per move.
+- **The splitter grew its ARIA half** (an addition the stage did not order,
+  kept because a pointer-only control would be the client's first
+  mouse-trapped one): `role="separator"`, focusable, arrows stepping 16px
+  with one write per gesture at keyup, Escape abandoning a live adjustment
+  without closing the dock, blur committing.
+- **Two mechanism corrections the browser walk forced, recorded in place:**
+  the gesture's width lives in a ref beside the render state, because a burst
+  of pointer events inside one task reaches `commit` before React re-renders
+  and a state-read commit silently drops the write; and `setPointerCapture`
+  is wrapped, because an inactive pointer throws and losing capture is the
+  right price where losing the resize is not.
 
 *Ends at:* a test that one drag patches once rather than per pointer event.
 
@@ -506,6 +667,80 @@ continuation of one.
 
 *Ends at:* `TurnRecordDisclosure` is deleted. Its own docstring hands the job here.
 
+**Landed 2026-08-27**, in three commits: the helpers (formatters, the source
+address, headroom, the lifted `MetadataRow`), the views over literal fixtures,
+and the subject swap that ended at the ends-at — `TurnRecordDisclosure` is
+deleted, and `dock.test.tsx` now owns the show-the-record claim its test held.
+What the clauses became, and what the walk saw:
+
+- **Blocks render per call**, because that is what the record says since
+  P3.0: the same preset block legitimately recurs across calls with
+  different verdicts, and a derived-union table would invent a
+  reconciliation sentence per conflict. The ordinary one-call turn reads as
+  *the* table with no extra chrome.
+- **The estimate-beside-reported sentence is the first measurement**, as §0
+  required saying: the walk's head showed *356 estimated, 397 reported*
+  with no alarm attached — the delta is the chat template, and until P2C.1
+  delivers a baseline there is nothing to call a regression.
+- **Degraded state has no turn-side reader yet, honestly**: the turn record
+  carries no `ChannelState`, so the panel clause "renders `degraded`
+  whenever present" has nothing to attach to on the *turn* subject — the
+  reader half arrives with the first surface that shows channel state
+  (P3.3's library subject or the session view, whichever lands first). The
+  field, its comment, and the writer's arrival condition are P3.0's.
+- **A consequence stated rather than hidden**: with the disclosure gone the
+  head is the only turn whose record the UI can reach — `readTurnById` and
+  `useTurn` exist but their first caller is the transcript's per-turn
+  affordance (P3.6). The bytes are safe; the reader lags.
+
+The browser walk ran over the scratch install with no live endpoint up, so
+the head was one hand-written, self-labelling dev-fixture turn appended to
+the scratch session's own segment — never promoted anywhere, per §0.
+Verified live: every source rendered as a label (no raw kinds), the actor
+and persona sources clicked through to the library page **navigating the
+main view** while the dock stayed open and switched to its honest empty
+state (the §7.1 interim decision, end to end); the roomy verdict said *356
+of 5,120* without crying wolf and still named the first to fall; the idle
+timeout rendered as its own failure in the boundary's words with the
+model-that-was-asked sentence beside it; both 30-block tables rendered as
+tables scrolling inside their own wrapper with no page-level overflow —
+with one polish note: long history block ids wrap at the default dock
+width, so a 30-block call runs tall. Cost-null-as-unknown could not be
+walked (the fixture head's cost is counted) and stays pinned by its unit
+test and named mutation. One unplanned verification: the hand-edit was
+*caught* — the store appended a real user-attributed divergence turn on
+boot, and the panel rendered its requestless record with the
+made-no-request sentence, the absent-vs-empty doctrine live on screen.
+
+**Amended 2026-08-29, from manual testing: the panel read the record as this
+build writes it, not as the disk holds it.** Opening the workbench over a
+session whose turns predate P3.0 threw `call.blocks.filter` and took the panel
+down with it — `blocks`, `budget`, `notFilled` and `purpose` all arrived with
+that repair, and *two of the three sessions in this repo's own data directory
+are the older shape*. The walk above could not have caught it: it ran against a
+hand-written fixture turn, which is by construction current.
+
+Three things the fix settles, all one doctrine:
+
+- **The four fields are optional on `ModelCall`, and absence means *old*, never
+  *empty*.** *Free to move* ([10 §1]) licenses changing the shape; it never
+  said the files vanish. Backfilling `[]` on read was refused for the reason
+  the whole panel exists: it would claim *this call assembled no blocks*, a
+  fact about the prompt, where the truth is *nobody recorded them*, a fact
+  about the build. The optional type is what made the compiler enumerate the
+  readers — `CallView` and P3.6's compare view, and nothing else.
+- **`request: { calls: [] }` is not `request: undefined`**, and used to render
+  as silence where the second rendered a sentence. Assembly ran and produced no
+  call — an unbound prose role is the common cause — and the panel now says so.
+- **`cost.model: ""` is P2's spelling of `null`**, and rendering it literally
+  put a labelled row on screen with nothing beside it.
+
+The lesson generalises past this fix and belongs with [P3 §7]'s open items
+rather than in it: **a reader over the record is a reader over every version of
+the record that is still on disk**, and the record's internal tier makes that
+more true, not less. P4's importers write objects that outlive their writers in
+the same way.
+
 ### P3.3 — The library subject
 
 The as-stored view, collapsed by default with a copy control and a bounded height
@@ -520,6 +755,67 @@ is depth without the visit.
 *Ends at:* opening the panel over a **shadowed** object names the winning path —
 the one question that surface currently poses and cannot answer.
 
+**Landed 2026-08-27**, in five commits: the projection route with §7.4
+decided, the as-stored fold, the revision-list split, the subject itself,
+and this annotation. What the clauses became:
+
+- **§7.4 is closed, not worked around**: the rows are every row the index
+  holds for the id — winner first in portable-path order, shadowed copies,
+  and rows inside their tombstone settling window — and the projection is
+  best-effort, documented in [05 §3](../05-ui-surfaces.md) and docs/api.md
+  per §7's own write-back rule. Paths are portable and never native, which
+  turned out to be F22's standing doctrine rather than a new choice.
+- **The folder path is the portable path** — decided over gate step 7's
+  "paste into a file manager" phrasing, which is hereby read as *pasteable
+  under the data directory*: §1.3's letter, platform-stable, and the very
+  string the shadow winner is ordered by (F23), so the panel shows the
+  value the mechanism compares.
+- **The as-stored fold discharges [polish §2] whole**: one component on the
+  detail page, the panel, and the editor's saved-state pane (captioned
+  "not the form's working state", as §2 requires); collapsed by default
+  everywhere, with the open state the per-user `ui.as-stored-open`
+  preference. The caveat is recorded in the component's header: §2 argues
+  the collapse from a by-field view that does not exist yet, and the
+  sticky preference is what blunts it. The copy control is the client's
+  first clipboard use, feature-checked, and a copy that cannot happen says
+  so — which the walk saw for real under the driven pane's clipboard
+  policy.
+- **The revision list split per §1.4**: the list in `library/RevisionList`,
+  the powered host in the editor, kind a prop at the five call sites, and
+  the panel's host renders it with no body and therefore not a single
+  control.
+- **The ends-at, delivered twice over**: as a sentence — *"The copy that
+  loads lives at …"*, with the deciding string itself — and as the first
+  row of the table. Copy links carry their `(source, slug)` discriminator,
+  never rebuilt from `{kind, id}` (F19, kept where [polish §4] says a
+  panel would lose it), and a tombstoned row links nowhere.
+- **Degraded channel state still has no reader here**, stated rather than
+  slipped: library objects carry no `ChannelState`, so the obligation
+  P3.2's note left with "the first surface that shows channel state" moves
+  past this stage to the session view, whichever stage builds it.
+
+The browser walk ran over the scratch install, gate steps 7 and 8 live: a
+hand edit to the lorebook's JSON was picked up by the watcher and the panel
+showed the new bytes with a *Hand edit on disk* revision beside them and no
+restore button; the fold came back open after a reload, the preference
+doing polish §2's remembering; copying the folder in the file manager made
+the duplicate, the watcher indexed it unprompted, and over the shadowed
+copy the panel named the winning path — then the winner row's link
+navigated the main view through its discriminator while the dock stayed
+open and re-subjected. One environmental honesty: the two-second poll
+itself could not be observed because a driven browser pane reports
+`visibilityState: "hidden"`, which pauses interval refetches — the follow
+was verified by reload, which is what a visible tab's next poll performs;
+the interval is code the queries share with every library read. Every new
+test was reddened by a named falsifying mutation before its commit —
+sixteen across the five commits: the leaked foreign row, the filtered
+tombstone, the native path; the open-by-default fold, the unpatched
+toggle, the truncated copy, the form-fed pane; the derived current entry,
+the doubled reason, the control in the default; the dropped sentence, the
+stripped discriminator, the winner's folder, provenance reduced back to
+timestamps, the severed at-plumbing, and the flipped tombstone-over-shadow
+precedence — and no fixture was promoted anywhere.
+
 ### P3.4 — The play-surface signal, and the stateless preview
 
 [05 §3](../05-ui-surfaces.md)'s **[RESOLVED]** answer: the always-visible
@@ -530,6 +826,80 @@ Clicking the meter opens the panel already on the current turn.
 *Ends at:* the meter reflects the pending input rather than the last committed
 turn. **This is the stage the revision created**, and the old plan had it last.
 
+**Landed 2026-08-29**, in seven commits: the shared gather, the call plan, the
+preview route, the debounce, the meter, the panel's preview arm, and the fix
+the browser walk turned up. What the clauses became:
+
+- **The seam was where §1.6 said it would be.** `performCall` split into
+  `planCall` — resolve, budget, assemble, render — and a dispatch half that
+  mints the id and checkpoints; the pure prefix turned out to hold no signal
+  check at all, so stopping there costs nothing and leaves nothing behind.
+  With `gatherAssemblyInputs` beneath it, a preview and a real turn read one
+  path, which is §1.7's *assemble-without-dispatch as a parameterised
+  function* discharged rather than promised.
+- **Not a second collector, deliberately.** The drift a parallel one invites
+  is silent, not loud: the mode's `historyWindow`, the `callKind` that drives
+  `appliesTo`, and `callPurposeFor`, which is [03 §5.2]'s structural
+  enforcement — a preview computing its own purpose could show a block table
+  containing guidance for a call `assemble` would refuse.
+- **§7.4's sibling question, answered in passing:** §3(c) never listed the
+  server affordance §6 admits the meter needs, so the phase's own inventory
+  was short by a route, a shared reader and a seam. Corrected there.
+- **Unmeasurable is a 200.** *Nothing is bound to the prose role* is a true
+  answer to *how full is the context*, not a refused request, and a 4xx would
+  push the sentence into the client's error channel and tempt the meter into
+  an alert. The reason travels as a class; `notFilled` rides on both arms,
+  because *why is there no lore in this prompt* needs no model and an
+  unconfigured install is where somebody is most likely to ask.
+- **The preview does not reconcile.** `readMine` joins `mine` for the one
+  route that must not write: reconciliation takes the session lock and
+  appends a divergence turn, which is correct for a read somebody performs by
+  opening a session and wrong for one that fires whenever they pause typing.
+- **The meter is a button, not a `role="meter"`** — ARIA prunes a button's
+  descendants, so a nested meter would announce nothing; the figure lives in
+  the button's name, which is what `aria-valuetext` would have carried. The
+  number sits beside the bar rather than on the fill, because `contrast.test`
+  enumerates the text-on-surface pairs the palette guarantees.
+- **The estimate is labelled, never corrected**, and [06 E5] gains the
+  recording line: the shipped approximator is `ceil(length/4)` rather than the
+  BPE one that section proposes, the one measurement was 10.3% low — exactly
+  its stated tolerance — and a fudge factor would make the meter disagree with
+  the drops the budgeter actually made.
+- **The panel's subject over Play widened, and the rule did not.** It is now
+  *the turn about to be taken, or the one last taken*; both halves derive from
+  the route and one shared cache entry whose reader provably cannot fetch
+  (`skipToken` is the mechanism), and the entry is dropped at submit and again
+  on leave. Written into [05 §3] per §7's write-back rule, and into the
+  `Workbench` docstring.
+
+The browser walk ran over the scratch install and **found a bug the suite
+could not**: `removeQueries` destroys an entry that still has observers
+without notifying them, so with the dock open the meter and the panel both
+kept rendering the reading a submitted turn had consumed. `resetQueries`
+notifies. It was invisible to the page test because only one observer mounts
+there; the regression now lives in `dock.test.tsx`, where the second one
+exists. Walked and verified: on the unconfigured install the meter is present
+and says *nothing is bound to the prose role*; with a connection bound by
+hand it read 282 of 23,200 at rest, moved to 320 for a hundred and forty-nine
+characters typed with the transcript untouched — **the ends-at, in a
+browser** — and clicking it opened the dock onto the pending assembly showing
+*the same figure on both surfaces*, ten block rows and no Cost section.
+Clearing the draft returned both to 350 and to the head. One preview measured
+**7ms median** over five runs against an eight-turn session, an order of
+magnitude under the 100ms this stage set as the trigger for revisiting a
+cache, so there is none.
+
+Two mutations found weak assertions rather than passing quietly, and both
+tests were sharpened before landing: the debounce's burst test originally
+checked only the end state, which uncleared timers still reach, and its
+unmount test advanced the clock before counting timers, which zeroes the
+count either way. One guard was **removed** rather than shipped — a sequence
+number against out-of-order previews could not be made to fail, because the
+mutation observer never runs a superseded mutation's `onSuccess`, so the test
+now pins the behaviour at the level that matters and holds whoever provides
+it. Every other new test was reddened by a named falsifying mutation before
+its commit; no fixture was promoted anywhere.
+
 ### P3.5 — The live half, or its explicit refusal
 
 Decide [04 §3.3](../04-server-multiuser-deployment.md) rather than assert it:
@@ -538,10 +908,125 @@ or the plan states the live view is deferred and the record views accept a parti
 record. If it is built, a refused effect needs a reason or the live and durable
 views disagree about what happened.
 
+**Landed 2026-08-29**, in three commits, and **built rather than deferred** —
+but not the build the stage assumed. §3.3 was decided *against its own central
+claim*, which is what "decide it rather than assert it" turned out to mean:
+
+- **[DECIDED]: the live view is the event feed rendered, not the turn record
+  rendered early.** §3.3 says the live view *is* the record while it is still
+  being written, "one component rather than a live view and a separate history
+  view that disagree" — and the transport that same section specifies cannot
+  carry it. The draft reaches a client **once**, in the snapshot at open, and
+  everything after is the structural event list. A component fed from the draft
+  would freeze at the instant of attach while the turn moved on beneath it,
+  which is a disagreement of its own arrived at by the route meant to prevent
+  one; and reconstructing the record from event params is the client-side
+  recomputation §5 forbids. So there are two components, and **the seam between
+  them is time rather than shape**: the feed while the turn runs, the record
+  once it commits, never both at once. Written back into [04 §3.3] and
+  [05 §3](../05-ui-surfaces.md).
+- **The reducer keeps enough** — the stage's own phrase, honoured for a *step*
+  view rather than a record: steps with their stage and state, the model each
+  call asked and the figures it later reports, effects, the terminal state.
+  Folded from the events alone, which is what makes it survive a reconnect: a
+  fresh attach replays every event for the job from seq 0, so it rebuilds
+  itself with no help from the snapshot.
+- **A field deleted, and the decision is why.** `PlayState.turn` held the
+  snapshot's draft, nothing had ever read it, and its docstring named the
+  raw-JSON affordance deleted at P3.2. Keeping a record nobody read while the
+  events that could answer the question went unrendered was precisely the
+  problem this stage was asked to decide. It returns when something can use it
+  whole: P3.7.
+- **The precondition, discharged rather than dodged.** P3.0 gave the *record*
+  its three refusal outcomes but `events.ts` was never in that scope, so the
+  disagreement the stage predicted survived in exactly one place: a live reader
+  said *refused* where the record said *refused because the engine computes
+  this channel*. `effect.applied` now carries the same class the record does.
+- **Honestly not delivered:** the record's own views are untouched, so the
+  stage's alternative branch — *the record views accept a partial record* —
+  was never needed; it was already true and walked at P3.2.
+
+The browser walk needed a prop and says so: the scratch install's endpoint
+refuses instantly, so a turn was over before it could be watched, and a
+throwaway slow stub was stood up to give the live view a window to be observed
+in. Both halves of gate step 8a then walked in a browser — the panel went from
+the head record, to the composed preview, to *"This turn is being taken…
+Nothing has been reported yet"*, to `se.narrate` **Running** / *Asked slow-1*,
+to **Ran** / *slow-1 answered: 412 prompt, 23 completion in 4.3 sec*, and back
+to the record now reading **Answered**; and against a stub made to fail slowly,
+to `se.narrate` **Failed** / *retryable* — the failure attached to the step, as
+a class, with the stub's own words never reaching the screen. **One of §3.3's
+three claims could not be walked:** *skipped is visible* has no shipped
+producer, because Scene declares one step whose cadence is every turn — the
+same admission gate step 15 already makes about effects. It is covered by the
+reducer's and the view's tests and by nothing else, and that is said here
+rather than left to be discovered.
+
+Mutations, each watched red then restored: requiring a `step.started` before a
+step exists reddened the skipped-step test — skipped never announces itself
+first; passing `null` for the refusal reason at the runner's call site reddened
+the new wiring test while the record still read correctly; dropping the
+`running` check left a finished turn's progress on screen in place of the
+record it produced; severing the page's mirror reddened both live tests; and
+rendering the streamed estimate through the finished call's sentence reddened
+the in-flight one, which is the difference between *asked* and *answered*.
+
 ### P3.6 — Compare
 
 The addressable full view: id-keyed block alignment, same-session pairs, entered
 from the panel.
+
+**Landed 2026-08-29**, in four commits, whole. *Ends at:* two turns of one
+session at `/compare/:sessionId?before=&after=`, their blocks paired by id with
+a word for what became of each, their call parameters and budgets side by side,
+both outputs, and the panel's one-click way in from the head turn.
+
+- **[DECIDED] §7.2: the escalation stands, and its ground is addressability.**
+  Written into [05 §3](../05-ui-surfaces.md) by striking the old reason rather
+  than quietly editing it, because the old reason was load-bearing for §11.2a's
+  panel diff and somebody will read that section next. See §7.2 for the
+  argument.
+- **The aligner is the stage's one algorithm**, and its interesting output is
+  the class `ruling`: a block whose text, tokens and inclusion are identical
+  but whose rule moved. Without that class a history block reports as *changed*
+  every time the window slides past it — the view would accuse a reader of an
+  edit they did not make, on the surface built to tell them what they changed.
+  The explanation renders only for history rows, because a preset block whose
+  ruling moved really is somebody's doing.
+- **Calls pair by ordinal, and the page says so.** Nothing in the record aligns
+  calls across turns. Pairing by step id would drop a renamed step silently; so
+  the rule is position, both step ids are printed, and a mismatch is stated
+  rather than left as the news nobody notices. A call only one side made says
+  that instead of being aligned against nothing.
+- **No server work at all.** P3.0's read-a-turn-by-id route was built for this
+  and had no caller until now; the transcript walk from the head cannot serve a
+  turn the head has passed, which is the case the address exists for.
+
+Gate step 9 walked in a browser against the scratch install: the session's
+copied preset was hand-edited on disk (`se.instruction`, priority 90 → 45), the
+same action taken again, and the comparison shows **exactly one row of news** —
+`se.instruction`, *included — priority 90* against *included — priority 45*,
+**Ruling moved** — with every other block Unchanged and faded, the two history
+blocks the new turn added reading `absent` on the before side rather than zero,
+and the address in the URL bar ready to paste. The panel's link navigated to it.
+
+Three things the walk changed or admitted:
+
+- **The budget arithmetic went on the page.** The comparison showed a 24,000
+  window beside a meter reading 23,200, which reads as two surfaces disagreeing;
+  the difference is the reservation, and it was nowhere on screen. Window,
+  reserved and spent are now three rows, so the subtraction is visible.
+- **The table says *that* a block changed, not *how*.** A row whose text was
+  edited reads **Changed** with both token counts; the prose itself is not
+  diffed. §1.5 asks for the block table aligned by id and the call parameters,
+  which is what shipped — but a reader who wants the two texts has to open each
+  turn's record, and that is a real limit of this view rather than an oversight.
+  A per-block text diff is the obvious next thing and is deliberately not here.
+- **The 404 sentence is proven by test and not by the walk.** Under a driven
+  browser pane, which reports `visibilityState: hidden`, the single configured
+  retry never ran, so a deliberately bad turn id sat on *Reading both turns…*
+  for minutes instead of reaching the error arm. The arm itself is covered by a
+  mutation-proofed test; the walk of it is honestly marked not performed.
 
 ### P3.7 — Promote a dry run
 
@@ -621,10 +1106,15 @@ that item is gated on a design answer rather than on effort.*
 - **A content hash of a block's source object**, so the gate's *clickable through
   to the object it came from* resolves to the object that was **used** rather than
   the object with that id today.
-- **Not-filled slots, represented somehow** — or the plan states that an absent
-  slot is invisible and owns the consequence. On the only real turn available, ten
-  of twelve blocks left no row. This decides whether the panel can answer *why is
-  there no lore in this prompt*, and it is genuinely open — §6.5.
+- ~~**Not-filled slots, represented somehow**~~ **[DECIDED] at P3.0**, per
+  §7.5's resolution: a second list, never a third `included` state — each call
+  carries `notFilled: { blockId, source, reason }[]` with the reason a class
+  (`disabled` / `not-applicable` / `no-producer` / `empty-source` /
+  `unknown-slot`), because a slot that produced no candidate has no text, no
+  tokens and no budget ruling, and a row among the blocks would be a
+  block-shaped hole. Written back into [02 §8] as the contract. The measured
+  motivation stands: on the only real turn available, ten of twelve blocks
+  left no row.
 - **Effects need to distinguish their three outcomes.** An engine-computed refusal
   and a user-only refusal write the identical policy string, the degraded state
   has no writer anywhere, and the engine's replacement carries no link to the
@@ -640,6 +1130,15 @@ presenter; the index-rows projection route; the kind on the revision list;
 headroom-aware *what falls out next* phrasing — all its inputs are already in the
 verdict, so this is the viewer's honesty rather than the assembler's; and
 per-block estimate beside per-call reported.
+
+*Added at P3.4, because this list was short by the one item §6 admits to:* **the
+stateless assemble route, and the gather and the call-plan it is carved from.**
+§6 says the meter "needs a server affordance nobody has built" and this
+inventory never named it, so the phase's own account of its server work missed a
+route, a shared reader and a seam. `POST /sessions/:sessionId/preview` is the
+route; `gatherAssemblyInputs` and `planCall` are what a turn and a preview now
+share, which is also §1.7's *assemble-without-dispatch as a parameterised
+function* discharged.
 
 ### And one debt to point at rather than ratify
 
@@ -681,10 +1180,26 @@ that most of a gate like this is not automatable and that is the point.
    generating anything — and on a turn with plenty of headroom it does not claim
    the system instruction is about to fall out.
 6. Per-block estimate beside per-call reported, on a turn where they differ.
+6a. **The meter reflects the pending input, not the last committed turn.** Type
+    into the action box and the fill changes without anything being sent; clear
+    it and the panel falls back to the head. With nothing bound to the prose
+    role the meter is still there, saying it cannot measure and why. *The one
+    step that fails if the preview ever becomes a second assembler:* the number
+    the meter shows is the verdict the panel shows, because both read one server
+    answer. **A gate addition, labelled as one** — the gate was written before
+    §1.6 created P3.4 and had no step for the stage, so nothing in it would fail
+    if the meter never shipped.
 7. Over a library object: the as-stored view matches the bytes on disk — hand-edit
    the file and watch the panel follow — the folder path is one you can paste into
    a file manager, and the revision list is there **with no restore button on it**.
 8. Over a **shadowed** object, the index rows name the winning path.
+8a. **The panel says what is happening while it happens.** Take a turn with the
+    panel open: the step running is named, a skipped step says why, and a
+    failure is attached to the step rather than to the turn — and when the turn
+    commits the panel shows the record instead, without either view lingering
+    beside the other. *A gate addition, labelled as one*, on the same footing
+    as 6a: §4 was written before P3.5 was decided, and nothing in it would fail
+    if the live half had never been built or had been built dishonestly.
 9. **Compare:** hand-edit the session's own copied preset on disk, drop a block's
    priority, take the same turn again — the compare view shows exactly what
    changed, and its address can be pasted into a bug report.
@@ -866,12 +1381,23 @@ cost, charged for a click nobody meant as navigation. Re-subjecting the panel
 keeps your place and breaks the rule. *Devtools breaks the rule here:* clicking a
 network row does not navigate the page.
 
-**7.2 Whether the diff's escalation argument survives.** §3 grounds it in a panel
-having one subject by construction, and [05 §11.2a](../05-ui-surfaces.md) already
-ships a two-payload diff inside a panel citing §3 as precedent. The two
-contradict. §1.5 re-grounds the escalation on addressability, which is the
-property that actually carries it — but that is a substitution this plan proposes,
-not one the design has made.
+**7.2 Whether the diff's escalation argument survives. [DECIDED] at P3.6: the
+escalation stands, and its ground is addressability rather than subject count.**
+The old argument — that a panel scoped to the main view has one subject by
+construction — could not be the one doing the work, because
+[05 §11.2a](../05-ui-surfaces.md) ships a two-payload diff *inside* a panel and
+cites §3 as its precedent; two sections of one document cannot both be right.
+What carries the escalation is that a comparison must be **bookmarkable,
+pasteable into a bug report, and reopenable after the head has moved past both
+turns**, and a panel whose subject follows the main view can be none of those.
+So `/compare/:sessionId?before=&after=` is a full view, the panel keeps the
+*entry point* rather than the comparison (which is also [05 §1.1]'s
+depth-is-charged-per-visit answer: you leave once, deliberately), and the
+stateless-reader rule of [05 §2] is untouched — nothing about the panel became
+stateful to make this work. The answer is written into
+[05 §3](../05-ui-surfaces.md), per this section's own rule; §11.2a needs no
+amendment, because under the new ground a panel diff and a compare view are
+distinguished by whether anybody needs to *point at* the comparison later.
 
 **7.3 What the panel shows where the main view has no subject** — the sessions
 list, settings, the auth screens, and later home. An empty panel is honest; a
@@ -879,17 +1405,24 @@ panel that keeps its last subject is more useful and quietly makes the reader
 *stateful*, which is the property [05 §2](../05-ui-surfaces.md) says it must not
 have. §3 assumes an object or a turn is always in view.
 
-**7.4 Whether an index projection is a contract.**
-[13 §5](../13-internal-contracts.md) says the index's tables are an implementation
-detail, on purpose. §3 says the panel shows the rows. Either the projection is
-versioned and 13 §5 gains a carve-out, or the route is documented as best-effort
-and may return less after a schema bump. *And smaller, but needed first:* what
-*the index rows* means concretely — the winning row, every row for the id
-including shadowed and tombstoned, or the FTS row too.
+**7.4 Whether an index projection is a contract. [DECIDED] at P3.3: it is
+best-effort, and the rows are every row for the id.** The projection returns
+every row the index holds for the id — winner first in portable-path order,
+shadowed copies, and rows inside their tombstone settling window — with
+portable paths only, never native ones (F22); the FTS row stays out, being a
+search artifact rather than an object fact, and so do `body` (the read
+route's answer) and `mtime`/`size` (watcher bookkeeping). The route is
+documented as best-effort: [13 §5](../13-internal-contracts.md) keeps its
+implementation-detail posture untouched, the drop-and-rescan migration policy
+stays honest, and the projection may return less after an index schema bump
+until the surface catches up. The answer is written into
+[05 §3](../05-ui-surfaces.md), per this section's own rule.
 
-**7.5 Whether a slot that collected nothing is a row.** `omitWhenEmpty` is an
-authoring feature about the *prompt*; §3 is a surface about the *explanation*.
-Whether the record carries not-filled blocks — and therefore whether `included`
-grows a third state or a second list appears — is undecided in both
-[02 §8](../02-data-model.md) and §3, and it decides whether the panel can answer
-*why is there no lore in this prompt*.
+**7.5 Whether a slot that collected nothing is a row. [DECIDED] at P3.0: it
+is an entry in a second list, not a row among the blocks.** `omitWhenEmpty`
+stays an authoring feature about the *prompt*; the record now carries the
+*explanation* as `ModelCall.notFilled` — one entry per preset block that
+emitted no candidate, with the reason as a class rather than prose. `included`
+stays two-valued: a slot that was never assembled has nothing for a budget to
+rule on. The answer is written into [02 §8](../02-data-model.md); the panel's
+*why is there no lore in this prompt* is a rendering of the record.

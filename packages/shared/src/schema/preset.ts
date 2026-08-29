@@ -108,7 +108,26 @@ export const SlotSource = Type.Union(
       phase: Type.Union([Type.Literal('before'), Type.Literal('after')]),
     }),
     Type.Object({ of: Type.Literal('history') }),
-    Type.Object({ of: Type.Literal('examples') }),
+    /**
+     * Writing samples — [10 §3.1]. **Renamed from `examples`**, which named the
+     * SillyTavern field it was reserved for rather than the thing it fills; the
+     * carrier is `writingSamples` on three kinds, and one concept under two
+     * names is exactly the drift [13 §1.1] exists to prevent. Safe to rename
+     * rather than add because this schema is `/0`, no shipped preset positions
+     * the old arm, and `default:` in the collector skips an unknown slot
+     * instead of throwing.
+     *
+     * `from` absent means **every carrier**, in the fixed order treatment →
+     * lore → actor: the stance on the material, then the world, then the
+     * person, which is the order they narrow in. An author who wants a
+     * character's samples somewhere other than the setting's names one.
+     */
+    Type.Object({
+      of: Type.Literal('samples'),
+      from: Type.Optional(
+        Type.Union([Type.Literal('actor'), Type.Literal('treatment'), Type.Literal('lore')]),
+      ),
+    }),
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
     Type.Object({
       of: Type.Literal('setting'),

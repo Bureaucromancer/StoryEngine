@@ -519,7 +519,7 @@ could be refused. That is the difference between absent and disabled expressed
 as a mechanism, and it is directly testable.
 
 *Not done here:* any settings end-to-end journey. The Playwright tier does not
-exist ([12 §1.2](12-p2-manual-gate.md)) and P2A does not create it.
+exist ([testing §3.5](10-testing.md)) and P2A does not create it.
 
 *Ends at:* one route, one navigation entry, two halves.
 

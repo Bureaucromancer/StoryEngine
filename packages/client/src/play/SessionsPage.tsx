@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createSession, listSessions } from '../api.js';
 import { Button } from '../ui/Button.js';
-import { link } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
 
 /**
  * The list of sessions, and the one control that makes a new one.
@@ -32,7 +32,12 @@ export function SessionsPage(): React.JSX.Element {
   });
 
   return (
-    <main className="mx-auto flex max-w-reading flex-col gap-4 p-4">
+    // A `div`, not a landmark — the shell owns the routed app's one `<main>`
+    // ([P3.−1]); this page declared a second one inside it. The column is
+    // `page.tooling`, not the reading measure it used to borrow: a
+    // list-plus-form management page is tooling, and the reading measure is
+    // the story column's ([05 §1.2]).
+    <div className={`${page.tooling} flex flex-col gap-4`}>
       <h1 className="text-section text-ink">Sessions</h1>
 
       <form
@@ -67,6 +72,6 @@ export function SessionsPage(): React.JSX.Element {
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   );
 }

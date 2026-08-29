@@ -4,7 +4,7 @@
 import type { Actor, Preset, PresetBlock } from '@storyengine/shared';
 
 import type { ChannelState, Turn } from '../sessions/types.js';
-import type { Candidate } from './types.js';
+import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
  * Step 1 of [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md) — collect.
@@ -27,29 +27,55 @@ export interface CollectContext {
   callKind: string;
   /** Oldest first, already windowed by the mode's `historyWindow`. */
   history: readonly Turn[];
-  persona: Actor | null;
-  actors: readonly Actor[];
+  /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
+  persona: { actor: Actor; contentHash: string } | null;
+  actors: readonly { actor: Actor; contentHash: string }[];
   channels: Readonly<Record<string, ChannelState>>;
   input?: { text: string };
   guidance?: string;
 }
 
-export function collectCandidates(context: CollectContext): Candidate[] {
+export interface Collected {
+  candidates: Candidate[];
+  /**
+   * Every preset block that emitted nothing, with the reason as a class —
+   * [P3.0]'s §7.5 decision. On the one real turn measured before this
+   * existed, ten of twelve blocks left no row, and the panel could not answer
+   * *why is there no lore in this prompt*. Now the record can.
+   */
+  notFilled: NotFilledSlot[];
+}
+
+export function collectCandidates(context: CollectContext): Collected {
   const sequence: Candidate[] = [];
+  const notFilled: NotFilledSlot[] = [];
   /** In-history blocks, held back until the history run is known. */
   const injected: { fromEnd: number; tiebreak: number; order: number; candidates: Candidate[] }[] =
     [];
   let historyStart: number | null = null;
   let historyCount = 0;
 
+  const skipped = (block: PresetBlock, reason: NotFilledReason): void => {
+    notFilled.push({ blockId: block.id, source: sourceKindOf(block), reason });
+  };
+
   for (const [order, block] of context.preset.blocks.entries()) {
-    if (!block.enabled) continue;
+    if (!block.enabled) {
+      skipped(block, 'disabled');
+      continue;
+    }
     // Empty means all — which is what dissolves the eight special-cased
     // template fields [10 §8.4.3] describes.
-    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) continue;
+    if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) {
+      skipped(block, 'not-applicable');
+      continue;
+    }
 
     const filled = fill(block, context);
-    if (filled.length === 0) continue;
+    if (filled.length === 0) {
+      skipped(block, emptyReason(block));
+      continue;
+    }
 
     if (block.placement.at === 'in-history') {
       injected.push({
@@ -68,7 +94,51 @@ export function collectCandidates(context: CollectContext): Candidate[] {
     sequence.push(...filled);
   }
 
-  return splice(sequence, injected, historyStart, historyCount);
+  return { candidates: splice(sequence, injected, historyStart, historyCount), notFilled };
+}
+
+/** The slot's source kind for a not-filled row; `'preset'` for a text block. */
+function sourceKindOf(block: PresetBlock): string {
+  return block.kind === 'text' ? 'preset' : block.source.of;
+}
+
+/**
+ * Why `fill()` came back empty, computed from the block rather than threaded
+ * through it — the reasons are structural per source kind, and keeping
+ * `fill()`'s signature simple keeps its eleven arms readable.
+ */
+function emptyReason(block: PresetBlock): NotFilledReason {
+  if (block.kind === 'text') return 'empty-source';
+  switch (block.source.of) {
+    case 'lore':
+    case 'setting':
+    case 'goal':
+    case 'channel':
+      // The same list `fill()` returns nothing for, each for its stated
+      // reason — no producer at this phase.
+      return 'no-producer';
+
+    case 'samples':
+      /**
+       * **The one source kind whose reason depends on which carrier it names**,
+       * because the carriers landed at different times. A slot naming the
+       * Treatment or the Lorebook has no producer at all — a session references
+       * neither — while the actor arm is live, so its emptiness means the cast
+       * simply has no samples. Collapsing both to `no-producer` would tell an
+       * author their preset is waiting on the engine when it is waiting on them.
+       */
+      return block.source.from === 'treatment' || block.source.from === 'lore'
+        ? 'no-producer'
+        : 'empty-source';
+    case 'persona':
+    case 'actor':
+    case 'history':
+    case 'guidance':
+    case 'input':
+      return 'empty-source';
+    default:
+      return 'unknown-slot';
+  }
 }
 
 /**
@@ -144,15 +214,24 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
   const source = block.source;
   switch (source.of) {
     case 'persona':
-      return emit(block, personaText(context.persona), { kind: 'persona' }, undefined);
+      return emit(
+        block,
+        personaText(context.persona?.actor ?? null),
+        {
+          kind: 'persona',
+          actorId: context.persona?.actor.id ?? null,
+          contentHash: context.persona?.contentHash ?? null,
+        },
+        undefined,
+      );
 
     case 'actor':
       // One candidate per actor, so the budgeter can drop one and keep another.
-      return context.actors.flatMap((actor) =>
+      return context.actors.flatMap(({ actor, contentHash }) =>
         emit(
           block,
           actorText(actor, source),
-          actorSource(actor.id, source),
+          actorSource(actor.id, contentHash, source),
           `${block.id}.${actor.id}`,
         ),
       );
@@ -199,8 +278,11 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           return emit(
             { ...block, priority: block.priority + index, role },
             text,
-            { kind: 'history', range: [index, index], part: of },
-            `${block.id}.${String(index)}.${of}`,
+            // The turn id is the identity and the block id is keyed by it
+            // ([P3.0]): a window-relative id names a different turn every
+            // twenty turns, which is exactly what an id must never do.
+            { kind: 'history', turnId: turn.id, range: [index, index], part: of },
+            `${block.id}.${turn.id}.${of}`,
           );
         }),
       );
@@ -226,17 +308,58 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        */
       return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined);
 
+    case 'samples': {
+      /**
+       * Writing samples — [10 §3.1]. Prose offered as an exemplar of tone
+       * rather than a description of it.
+       *
+       * **Only the actor carrier can produce anything yet, and the other two
+       * return nothing for the reason `lore` does.** A session references
+       * neither a Treatment nor a Lorebook, so those arms have no object to
+       * read; the slot *rendering empty* is what keeps that a wiring change
+       * rather than a preset change when P5 gives a session both.
+       *
+       * **One candidate per sample, not one per carrier**, which is the same
+       * choice the `actor` arm makes and for the same reason: the budgeter's
+       * only move against a single block is to drop all of it, and a person who
+       * pasted three samples would rather lose one. It is also what makes a
+       * per-sample `priority` mean anything — the sample's own number overrides
+       * the block's, exactly as the history arm rewrites `priority` per turn.
+       *
+       * Disabled samples are skipped here rather than filtered upstream, so a
+       * disabled sample costs nothing and appears nowhere — `enabled: false` is
+       * a draft the author is still deciding about, not a budget casualty.
+       */
+      const from = source.from;
+      if (from === 'treatment' || from === 'lore') return [];
+
+      return context.actors.flatMap(({ actor, contentHash }) =>
+        (actor.writingSamples ?? [])
+          .filter((sample) => sample.enabled)
+          .flatMap((sample) =>
+            emit(
+              { ...block, priority: sample.priority ?? block.priority },
+              sample.body,
+              {
+                kind: 'samples',
+                owner: { kind: 'actor', id: actor.id, contentHash },
+                sampleId: sample.id,
+              },
+              `${block.id}.${actor.id}.${sample.id}`,
+            ),
+          ),
+      );
+    }
+
     /**
      * Nothing, each for its own stated reason. Lore is P5, and the slot
      * *rendering empty* is what makes that an activation change rather than a
-     * preset change; a P2.6 session carries no Treatment; the Actor schema has no
-     * example-dialogue field, deliberately; goals are Setup-borne; and a channel
-     * value is an object with no channel-to-text renderer specified — which is
-     * also why the clock's budget is null.
+     * preset change; a P2.6 session carries no Treatment; goals are
+     * Setup-borne; and a channel value is an object with no channel-to-text
+     * renderer specified — which is also why the clock's budget is null.
      */
     case 'lore':
     case 'setting':
-    case 'examples':
     case 'goal':
     case 'channel':
       return [];
@@ -314,9 +437,15 @@ function actorText(actor: Actor, source: { sectionId?: string; field?: string })
 
 function actorSource(
   actorId: string,
+  contentHash: string,
   source: { sectionId?: string; field?: string },
 ): Candidate['source'] {
   if (source.sectionId !== undefined)
-    return { kind: 'actor', actorId, sectionId: source.sectionId };
-  return { kind: 'actor', actorId, field: source.field === 'visual' ? 'visual' : 'traits' };
+    return { kind: 'actor', actorId, contentHash, sectionId: source.sectionId };
+  return {
+    kind: 'actor',
+    actorId,
+    contentHash,
+    field: source.field === 'visual' ? 'visual' : 'traits',
+  };
 }

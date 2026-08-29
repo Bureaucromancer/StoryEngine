@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { LIBRARY_DIRECTORIES } from '@storyengine/shared';
+import {
+  LIBRARY_DIRECTORIES,
+  type Turn as TurnRecord,
+  type TurnPreview,
+} from '@storyengine/shared';
 
 /**
  * The client's side of docs/api.md — plain `fetch`, one wrapper.
@@ -66,6 +70,23 @@ export interface LibraryObject {
   contentHash: string;
   shadowed: boolean;
   object: Record<string, unknown>;
+}
+
+/**
+ * One row of the by-id index projection (docs/api.md, Library). `path` is
+ * portable — root-relative, `/`-separated — and is the string the shadow
+ * winner is decided by; `tombstonedAt` is epoch milliseconds while a deleted
+ * row sits in its settling window, `null` for a live one.
+ */
+export interface IndexRow {
+  path: string;
+  source: 'user' | 'system';
+  slug: string;
+  name: string;
+  schema: string;
+  contentHash: string;
+  shadowed: boolean;
+  tombstonedAt: number | null;
 }
 
 export class ApiError extends Error {
@@ -265,6 +286,15 @@ export const api = {
         : `${objectUrl(kind, id)}?source=${at.source}&slug=${encodeURIComponent(at.slug)}`,
     ),
 
+  /**
+   * The index rows behind an object (docs/api.md, Library) — best-effort by
+   * decision ([P3 §7.4]): the shape restates the derived index and may
+   * return less after an index schema bump. Paths are portable, never
+   * native; the winner of a duplicated id is the first live row.
+   */
+  indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
+    request('GET', `${objectUrl(kind, id)}/rows`),
+
   createObject: (
     kind: LibraryKind,
     object: Record<string, unknown>,
@@ -313,13 +343,32 @@ export const api = {
 /**
  * Sessions and turns — the play surface's half of the API.
  *
- * The shapes are re-declared here rather than imported from the server, because
- * the client may not depend on it. That is a real seam with a real cost: a
- * rename on the server side becomes a silent mismatch here, which is why the
- * server asserts its own frame shape ([routes/sessions.test.ts]). A shared
- * package for these is the proper fix and belongs with the workbench, which is
- * the first surface that needs more of them than this one does.
+ * **The turn record is the real shape now** — [P3.0] paid the debt this
+ * section used to carry: `TurnRecord` was six fields plus an index signature,
+ * re-declared here because the client may not depend on the server, and every
+ * field the workbench renders arrived through `unknown`. The shapes live in
+ * `@storyengine/shared` (`turn.ts`, internal tier — the module carries the
+ * argument), and the alias keeps this file the client's one vocabulary for
+ * them.
+ *
+ * `SessionSummary` and `ActiveJob` stay local projections on purpose: the
+ * routes serve more than these name (the job row in particular is wider on
+ * the wire), and widening the client's claim is its own decision for the
+ * surface that needs it — not a side effect of the record move.
  */
+export type { Turn as TurnRecord } from '@storyengine/shared';
+
+/**
+ * The preview's answer, re-exported for the same reason: the meter and the
+ * panel both render it, and neither should reach past this module for a shape
+ * the API defines ([P3.4]).
+ */
+export type {
+  AssembledPreview,
+  TurnPreview,
+  UnmeasurablePreview,
+  UnmeasurableReason,
+} from '@storyengine/shared';
 
 export interface SessionSummary {
   id: string;
@@ -328,16 +377,6 @@ export interface SessionSummary {
   updatedAt: string;
   headTurnId: string | null;
   archivedAt?: string;
-}
-
-export interface TurnRecord {
-  id: string;
-  parentTurnId: string | null;
-  createdAt: string;
-  status: 'complete' | 'failed' | 'suspended';
-  input?: { text: string; kind: string };
-  output?: { text: string };
-  [key: string]: unknown;
 }
 
 export interface ActiveJob {
@@ -365,6 +404,19 @@ export function readTranscript(sessionId: string): Promise<{ turns: TurnRecord[]
   return request('GET', `/api/sessions/${sessionId}/turns`);
 }
 
+/**
+ * One turn, without the transcript riding along — [P3.0]. Encoded, unlike
+ * this section's other paths: the library half of this file encodes every id
+ * it puts in a URL and that is the better precedent — an id is user-adjacent
+ * input even when this client only ever mints UUIDs.
+ */
+export function readTurn(sessionId: string, turnId: string): Promise<{ turn: TurnRecord }> {
+  return request(
+    'GET',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}`,
+  );
+}
+
 export interface SubmitTurn {
   sessionId: string;
   idempotencyKey: string;
@@ -387,6 +439,31 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
 
 export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: string }> {
   return request('POST', `/api/sessions/${sessionId}/jobs/${jobId}/cancel`);
+}
+
+/** What the composer holds — the two fields a preview is asked about. */
+export interface PendingInput {
+  text: string;
+  guidance: string;
+}
+
+/**
+ * What this turn *would* assemble to (docs/api.md, Sessions) — [P3.4].
+ *
+ * **A POST that writes nothing**, in `adminApi.fetchModels`' shape: the body
+ * carries up to a hundred thousand characters of somebody's prose, which does
+ * not belong in a URL. Empty strings are omitted rather than sent, so *nothing
+ * typed yet* reaches the collector as the absent `input?` it models rather
+ * than as an empty block.
+ */
+export function previewTurn(
+  sessionId: string,
+  pending: PendingInput,
+): Promise<{ preview: TurnPreview }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/preview`, {
+    ...(pending.text === '' ? {} : { input: { text: pending.text } }),
+    ...(pending.guidance === '' ? {} : { guidance: pending.guidance }),
+  });
 }
 
 /** An account as the admin list reports it, plus the dead-end flag. */
