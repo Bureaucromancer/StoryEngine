@@ -252,6 +252,44 @@ interface ModelHint {
 }
 ```
 
+### 3.1 WritingSample
+
+Prose offered as an exemplar — *show, do not tell*. Carried by Actor, Lorebook
+and Treatment; the full argument is [18](18-writing-samples.md).
+
+The rest of this design describes style: `tone.styleNotes` says "terse,
+hardboiled", `se.voice` is register and verbal tics and is explicit that it is
+not what somebody sounds like. This is the field that *demonstrates* it — a
+passage from the setting, pasted whole. The precedent is [14 §2.4](14-roadmap.md),
+which already separated a style exemplar from a likeness for pictures on the
+grounds that style is a property of the production rather than of the person.
+
+```ts
+interface WritingSample {
+  id: string
+  /** Names it for the author, in the editor and the block table. Never injected. */
+  title: string
+  /** The prose itself. The only field that reaches a model. */
+  body: string
+  /** Off keeps it on the object without spending a turn on it — a draft, not a
+   *  budget casualty. Distinct from deletion, deliberately. */
+  enabled: boolean
+  /** Budget priority. Absent = inherit the slot block's, which is how every
+   *  other candidate behaves; present, it ranks samples against each other. */
+  priority?: number
+  /** Why this sample is here, for a person reading the object. Never injected. */
+  note: string
+}
+```
+
+**A list rather than one blob** on each carrier, because the budgeter's only move
+against a single block is to drop all of it. **Optional on all three kinds**, so
+it is additive and none of them bumped a version (§2).
+
+**No `maxLength`.** No portable schema carries one, and a sample is the field
+most likely to invite the first — [18 §5](18-writing-samples.md) states the
+budget consequence instead, which is where it is actually enforced.
+
 ---
 
 ## 4. Actor
@@ -276,6 +314,11 @@ interface Actor {
 
   profile: ActorProfile
   openings: Openings
+  /** Prose written *as* this person, offered as an exemplar — §3.1.
+   *  Top-level rather than under `profile`, and beside `openings`: the profile
+   *  is what somebody is like, while a sample demonstrates how they are
+   *  written, which [14 §2.4](14-roadmap.md) classes as production. */
+  writingSamples?: WritingSample[]
   lore: Ref[]                      // linked lorebooks, not embedded
 
   media: EmbeddedMedia[]           // travels inside the card
@@ -346,10 +389,18 @@ list, and a preset can reorder or drop `se.background` without special-casing.
 
 **Deliberately absent**, and this is most of the design:
 `system_prompt`, `post_history_instructions`, `depth_prompt`, `talkativeness`,
-`mes_example`, `scenario`. Prompt assembly is owned by the preset and the mode,
-not by the description of a person ([00 §2.4](00-stance.md)). Dialogue examples
-are a `Section` with `disposition: "on-demand"`. Per-session numbers — HP,
+`scenario`. Prompt assembly is owned by the preset and the mode, not by the
+description of a person ([00 §2.4](00-stance.md)). Per-session numbers — HP,
 inventory — live in channels and must never appear here.
+
+> **`mes_example` left this list.** It was here, and the sentence beside it read
+> ~~"Dialogue examples are a `Section` with `disposition: "on-demand"`"~~. They
+> are now `writingSamples` ([§3.1](#31-writingsample), [18](18-writing-samples.md)).
+> The reasoning that put them in a Section is unchanged and still holds — the
+> card declares no assembly, and a sample is still positioned and budgeted by a
+> preset slot. What failed was the container: a `Section` has no `priority`, and
+> [00 §2.6](00-stance.md) requires every block to carry one, so a sample in a
+> Section could not participate in the rule the budgeter is built on.
 
 ---
 
@@ -380,6 +431,11 @@ interface Lorebook {
    *  this lorebook is active. Treatments remain the primary home. [02 §4.1] */
   hooks?: PlotHook[]
   entries: LoreEntry[]
+  /** Prose from this world, offered as an exemplar — §3.1. Book-scoped rather
+   *  than on an entry: an exemplar that appears only when somebody says a magic
+   *  word is not an exemplar. Overrides [16 §4](16-lorebooks-as-a-format.md)'s
+   *  refusal of new fields; the reasoning is [18 §6.2](18-writing-samples.md). */
+  writingSamples?: WritingSample[]
 
   /** Organisational, and the only such axis — a closed `category` union was
    *  removed rather than renamed. See below. */
@@ -655,6 +711,13 @@ interface Treatment {
     contentRating: "sfw" | "nsfw" | null
     styleNotes: string
   }
+
+  /** Prose from this world, offered as an exemplar — §3.1. The demonstrative
+   *  twin of `tone.styleNotes` and not a replacement for it: a directive is
+   *  cheap and vague, an exemplar expensive and specific. The §6 invariant
+   *  holds — a sample shows how Rain City is *written*, while what Rain City
+   *  *is* stays in the linked lorebook. */
+  writingSamples?: WritingSample[]
 
   lore: LoreLink[]                 // where the world content actually lives
   cast: CastEntry[]
@@ -1206,7 +1269,12 @@ type SlotSource =
   | { of: "actor"; field: "traits" | "visual" }
   | { of: "lore"; phase: "before" | "after" }
   | { of: "history" }
-  | { of: "examples" }
+  /** Writing samples — §3.1, [18 §4](18-writing-samples.md). **Renamed from
+   *  `examples`**, which named ST's `mes_example` rather than the thing it
+   *  fills; free to rename because this schema is `/0` and no shipped preset
+   *  positioned the old arm. `from` absent = every carrier, in the order
+   *  treatment → lore → actor. */
+  | { of: "samples"; from?: "actor" | "treatment" | "lore" }
   | { of: "channel"; channelId: ChannelId }
   | { of: "treatment"; part: "framing" | "tone" }
   | { of: "goal" }                          // [03 §7.3.3]

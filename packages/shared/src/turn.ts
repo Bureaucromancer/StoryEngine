@@ -148,7 +148,25 @@ export type BlockSource =
    * display information — where in this prompt the turn sat.
    */
   | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
-  | { kind: 'examples'; actorId: string }
+  /**
+   * One writing sample, from whichever kind carried it — [10 §3.1].
+   *
+   * `owner` rather than a bare `actorId` because the sample slot outgrew the
+   * actor: a Treatment and a Lorebook carry samples too, and the block table
+   * has to be able to say *which object this prose came from* to stay
+   * clickable. `sampleId` addresses the sample within it, so a block survives
+   * the author reordering the list.
+   *
+   * `contentHash` for the reason the `actor` arm carries one ([P3.0]): every
+   * carrier of a sample is reached by *link* and read fresh each turn, so the
+   * id alone resolves to whatever that object is **now**. The hash is what gate
+   * step 4 clicks through to the sample as it was actually sent.
+   */
+  | {
+      kind: 'samples';
+      owner: { kind: 'actor' | 'treatment' | 'lore'; id: string; contentHash: string };
+      sampleId: string;
+    }
   | { kind: 'channel'; channelId: string }
   | { kind: 'setting'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }

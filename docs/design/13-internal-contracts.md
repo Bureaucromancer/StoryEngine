@@ -53,7 +53,11 @@ type BlockSource =
   /** turnId is the identity (P3.0); the window-relative range stays as display
    *  information — where in this prompt the turn sat. */
   | { kind: "history"; turnId: TurnId; range: [number, number] }
-  | { kind: "examples"; actorId: ActorId }
+  /** One writing sample, from whichever kind carried it — [10 §3.1],
+   *  [18](18-writing-samples.md). `owner` rather than a bare `actorId` because
+   *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
+   *  carries one — the carrier is a link read fresh every turn. */
+  | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "treatment"; part: "framing" | "tone" }
   | { kind: "goal"; goalId: string }

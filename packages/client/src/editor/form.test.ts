@@ -214,3 +214,123 @@ describe('diffObjects', () => {
     expect(diffObjects(base, structuredClone(base))).toEqual([]);
   });
 });
+
+describe('writing samples, the first list the form can grow and shrink', () => {
+  /** An actor whose samples carry a field this build has never heard of. */
+  function actorWithSamples(): Record<string, unknown> {
+    const actor = newActor('Vera Solano') as unknown as Record<string, unknown>;
+    actor['writingSamples'] = [
+      {
+        id: 'ws-1',
+        title: 'The rain never stops',
+        body: 'Neon bled into the puddles.',
+        enabled: true,
+        note: 'the register, not the plot',
+        priority: 40,
+        stanceFromTheFuture: { keep: 'me' },
+      },
+    ];
+    return actor;
+  }
+
+  it('leaves an absent list absent rather than writing an empty one', () => {
+    // **The no-op rule where this field would break it** ([02 §11.1]).
+    // Assigning `[]` onto a card that never had the field is a change: the
+    // editor would mark a freshly-opened old actor dirty, and the first save
+    // would rewrite a file nobody edited. Mutation: assign unconditionally and
+    // `formChanges` turns true here.
+    const base = newActor('Vera Solano') as unknown as Record<string, unknown>;
+    delete base['writingSamples'];
+
+    const form = formFromActor(base);
+    expect(form.samples).toEqual([]);
+    expect(formChanges(base, form)).toBe(false);
+    expect(Object.hasOwn(applyForm(base, form), 'writingSamples')).toBe(false);
+  });
+
+  it('carries unknown fields inside a sample through a round trip', () => {
+    // The module's first promise is per-object, and a sample is an object.
+    // Mutation: build `next` without `...previous` and the future field is
+    // stripped by anybody who opens the editor and saves.
+    const base = actorWithSamples();
+    const applied = applyForm(base, formFromActor(base));
+
+    expect(applied['writingSamples']).toEqual(base['writingSamples']);
+    expect(formChanges(base, formFromActor(base))).toBe(false);
+  });
+
+  it('treats a blank priority as no opinion, not as zero', () => {
+    // `Number('')` is 0, which is the *lowest* priority in the pack rather
+    // than "inherit the block's" — a coercion here would quietly make every
+    // sample the first thing dropped from a full context.
+    // Mutation: replace the `Number.isFinite` guard with `Number(...)`.
+    const base = actorWithSamples();
+    const form = formFromActor(base);
+    expect(form.samples[0]?.priorityText).toBe('40');
+
+    form.samples[0] = { ...form.samples[0]!, priorityText: '  ' };
+    const applied = applyForm(base, form) as { writingSamples: Record<string, unknown>[] };
+
+    expect(Object.hasOwn(applied.writingSamples[0]!, 'priority')).toBe(false);
+  });
+
+  it('keeps a hand-written sample missing `enabled` switched on', () => {
+    // The storage thesis invites hand-edited cards, and the forgiving
+    // direction is the one where prose the author can see is prose that gets
+    // sent. Mutation: read `sample.enabled === true` and this flips off.
+    const base = newActor('Vera') as unknown as Record<string, unknown>;
+    base['writingSamples'] = [{ id: 'ws-1', title: 't', body: 'b', note: '' }];
+
+    expect(formFromActor(base).samples[0]?.enabled).toBe(true);
+  });
+
+  it('refuses a sample list that is not a list of objects', () => {
+    // The crash guard, not schema validation — `formFromActor` dereferences
+    // `title` and `body`, so a hand-edited card holding strings must get a
+    // sentence rather than a white screen.
+    const base = newActor('Vera') as unknown as Record<string, unknown>;
+    base['writingSamples'] = ['just a string'];
+    expect(actorFormShape(base)).toBe('a writing sample is not an object');
+
+    base['writingSamples'] = 'not a list';
+    expect(actorFormShape(base)).toBe('its "writingSamples" is not a list');
+
+    // Absent stays legal — every card written before the field has none.
+    delete base['writingSamples'];
+    expect(actorFormShape(base)).toBeNull();
+  });
+
+  it('yields to a concurrent edit when the user never touched samples', () => {
+    // The 412 merge. Reapplying an untouched list would overwrite whatever
+    // the other writer added — the exact data-eating `reapplyEdits` exists to
+    // stop. Mutation: return `edited.samples` unconditionally.
+    const pristine = formFromActor(actorWithSamples());
+    const edited = { ...pristine, name: 'Vera S.' };
+    const fresh = {
+      ...pristine,
+      samples: [
+        ...pristine.samples,
+        { id: 'ws-2', title: 'theirs', body: 'x', enabled: true, priorityText: '' },
+      ],
+    };
+
+    expect(reapplyEdits(pristine, edited, fresh).samples).toHaveLength(2);
+  });
+
+  it('keeps the user’s list when they did touch samples', () => {
+    // The other half: "reapply my edits" must not discard the sample they
+    // just wrote. Mutation: return `fresh.samples` unconditionally.
+    const pristine = formFromActor(actorWithSamples());
+    const edited = {
+      ...pristine,
+      samples: [
+        ...pristine.samples,
+        { id: 'ws-3', title: 'mine', body: 'y', enabled: true, priorityText: '' },
+      ],
+    };
+    const fresh = { ...pristine, samples: [] };
+
+    const merged = reapplyEdits(pristine, edited, fresh);
+    expect(merged.samples.map((sample) => sample.id)).toEqual(['ws-1', 'ws-3']);
+  });
+});

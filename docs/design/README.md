@@ -83,6 +83,7 @@ were written in. **Start with 00, then 01.**
 | [16-lorebooks-as-a-format.md](16-lorebooks-as-a-format.md) | Why a lorebook is worth reading, browsing and searching in its own right — and why that costs no schema |
 | [15-account-gallery.md](15-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
 | [17-write-mode.md](17-write-mode.md) | Long-form prose as a mode: the manuscript kind, beats, the outline views, and a third top-level surface |
+| [18-writing-samples.md](18-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
 
 15, 16 and 17 sit after 14 by number only — the slots beneath them were taken
 when they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05,

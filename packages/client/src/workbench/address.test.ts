@@ -25,7 +25,16 @@ const EVERY_ARM: BlockSource[] = [
   { kind: 'actor', actorId: 'a-2', contentHash: 'sha256:y' },
   { kind: 'lore', entryId: 'e-1', phase: 'before' },
   { kind: 'history', turnId: 't-1', range: [0, 0], part: 'input' },
-  { kind: 'examples', actorId: 'a-3' },
+  {
+    kind: 'samples',
+    owner: { kind: 'actor', id: 'a-3', contentHash: 'sha256:z' },
+    sampleId: 's-1',
+  },
+  {
+    kind: 'samples',
+    owner: { kind: 'treatment', id: 'tr-1', contentHash: 'sha256:w' },
+    sampleId: 's-2',
+  },
   { kind: 'channel', channelId: 'se.clock' },
   { kind: 'setting', part: 'framing' },
   { kind: 'goal', goalId: 'g-1' },

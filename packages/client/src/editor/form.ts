@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Actor, Section } from '@storyengine/shared';
+import type { Actor, Section, WritingSample } from '@storyengine/shared';
 
 /**
  * The mapping between an actor object and the editor's form state — pure, and
@@ -24,6 +24,23 @@ export interface SectionForm {
   disposition: Section['disposition'];
 }
 
+/**
+ * One writing sample as the form holds it — [10 §3.1].
+ *
+ * `priorityText` rather than `number | undefined` because the field is an
+ * input and an input's empty state is a string. Blank means *inherit the slot
+ * block's priority*, which is the common case and must stay expressible; a
+ * form that coerced blank to 0 would silently make every sample the first
+ * thing dropped.
+ */
+export interface SampleForm {
+  id: string;
+  title: string;
+  body: string;
+  enabled: boolean;
+  priorityText: string;
+}
+
 export interface ActorForm {
   name: string;
   pronouns: string;
@@ -32,6 +49,8 @@ export interface ActorForm {
   tagsText: string;
   traitsText: string;
   sections: SectionForm[];
+  /** Unlike sections, this list can grow and shrink — see `applyForm`. */
+  samples: SampleForm[];
 }
 
 export function splitLines(text: string): string[] {
@@ -79,6 +98,19 @@ export function actorFormShape(object: Record<string, unknown>): string | null {
     if (typeof fields['title'] !== 'string') return 'a profile section has no "title" string';
     if (typeof fields['body'] !== 'string') return 'a profile section has no "body" string';
   }
+  // Absent is legal and common — every card written before the field existed
+  // has none ([10 §2]). Only a present-but-wrong shape is a refusal.
+  const samples: unknown = object['writingSamples'];
+  if (samples !== undefined) {
+    if (!Array.isArray(samples)) return 'its "writingSamples" is not a list';
+    for (const sample of samples as unknown[]) {
+      if (typeof sample !== 'object' || sample === null) return 'a writing sample is not an object';
+      const fields = sample as Record<string, unknown>;
+      if (typeof fields['id'] !== 'string') return 'a writing sample has no "id" string';
+      if (typeof fields['title'] !== 'string') return 'a writing sample has no "title" string';
+      if (typeof fields['body'] !== 'string') return 'a writing sample has no "body" string';
+    }
+  }
   return null;
 }
 
@@ -96,6 +128,18 @@ export function formFromActor(object: Record<string, unknown>): ActorForm {
       title: section.title,
       body: section.body,
       disposition: section.disposition,
+    })),
+    samples: (actor.writingSamples ?? []).map((sample) => ({
+      id: sample.id,
+      title: sample.title,
+      body: sample.body,
+      // A card hand-edited to omit `enabled` reads as on, which is the
+      // forgiving direction: the alternative silently stops sending prose the
+      // author can see in the editor. Widened before the test because the
+      // declared type says `boolean` and this whole module exists for files
+      // that are not what the type says they are.
+      enabled: (sample.enabled as boolean | undefined) ?? true,
+      priorityText: sample.priority === undefined ? '' : String(sample.priority),
     })),
   };
 }
@@ -118,6 +162,46 @@ export function applyForm(base: Record<string, unknown>, form: ActorForm): Recor
     const edited = form.sections.find((candidate) => candidate.id === section.id);
     return edited ? { ...section, title: edited.title, body: edited.body } : section;
   });
+
+  /**
+   * Writing samples, which are the first list in this form that can **grow and
+   * shrink** — sections are a fixed set edited in place.
+   *
+   * Two traps, both of which this handles deliberately:
+   *
+   * - **Unknown fields inside a sample survive**, via `...before`. The
+   *   module's first promise ([10 §2]) is per-object, and a sample is an
+   *   object; rebuilding one from the form's five fields would strip anything
+   *   a newer build wrote into it.
+   * - **An absent list stays absent.** Assigning `[]` onto a card that never
+   *   had the field is a change, which would mark a freshly-opened old actor
+   *   dirty and defeat the no-op rule ([02 §11.1]) the moment anybody pressed
+   *   save. So the field is written only when there is something to write or
+   *   it was already there.
+   */
+  const before = new Map((actor.writingSamples ?? []).map((sample) => [sample.id, sample]));
+  if (form.samples.length > 0 || Object.hasOwn(clone, 'writingSamples')) {
+    actor.writingSamples = form.samples.map((sample) => {
+      const previous = before.get(sample.id);
+      const next: WritingSample = {
+        ...previous,
+        id: sample.id,
+        title: sample.title,
+        body: sample.body,
+        enabled: sample.enabled,
+        note: previous?.note ?? '',
+      };
+
+      // Blank means *inherit the block's priority*, so it must delete rather
+      // than coerce — `Number('')` is 0, which would be the lowest priority
+      // in the pack rather than no opinion at all.
+      const priority = Number.parseInt(sample.priorityText.trim(), 10);
+      if (Number.isFinite(priority)) next.priority = priority;
+      else delete next.priority;
+
+      return next;
+    });
+  }
 
   return clone;
 }
@@ -170,5 +254,24 @@ export function reapplyEdits(pristine: ActorForm, edited: ActorForm, fresh: Acto
         body: after.body !== before.body ? after.body : section.body,
       };
     }),
+    /**
+     * **Coarse on purpose, and the coarseness is the safe direction.**
+     *
+     * Every other field here merges per-field because the set of fields is
+     * fixed. Samples are a list the user can add to and delete from, so "did
+     * this one change" is not answerable for a sample that exists on one side
+     * only: a sample missing from `fresh` might be one the other writer
+     * deleted or one this writer added, and the two want opposite outcomes.
+     *
+     * Rather than guess, this asks the one question that *is* answerable —
+     * *did this user touch samples at all?* — and takes one side whole. Untouched
+     * yields to the newer object, which is what stops a stale copy overwriting
+     * a concurrent edit; touched keeps the user's list, which is what stops
+     * "reapply my edits" silently discarding the sample they just wrote.
+     */
+    samples:
+      JSON.stringify(edited.samples) === JSON.stringify(pristine.samples)
+        ? fresh.samples
+        : edited.samples,
   };
 }

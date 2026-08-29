@@ -306,6 +306,32 @@ an entry's content is sample text and the matcher is now real. Off by default.
 *Ends at:* the demo — fired/why/cost/dropped, in the workbench, against the
 imported library.
 
+#### P5.9 — Writing samples, the other two carriers
+
+[18 §7](../18-writing-samples.md) shipped the `samples` slot with only its
+**actor** arm live. The treatment and lore arms return nothing and report
+`no-producer`, because a session references neither object — the same posture
+`se.lore` held through P2 to P4, and it resolves here for the same reason: this
+phase is where a session first reaches a Treatment and its linked books.
+
+Three things, none of them large once the retriever exists:
+
+- `gatherAssemblyInputs` carries the session's Treatment and its linked
+  Lorebooks, so `previewAssembly` and the runner cannot disagree about them —
+  the drift that module's docstring exists to prevent.
+- The `samples` arm fills from both, in the declared order **treatment → lore →
+  actor**, each sample its own candidate with its own priority.
+- The empty reason stops discriminating on the carrier once every carrier has a
+  producer: `no-producer` becomes `empty-source` throughout, and the test that
+  currently pins the split is the one that has to change deliberately.
+
+**Book-scoped, so it does not touch activation.** A sample is not an entry and
+never matches a keyword; it rides with the book the way `media` does. That is
+what keeps this a stage of P5 rather than a feature of the retriever.
+
+*Ends at:* a treatment's sample and a character's sample in one prompt, each
+addressable in the block table, each with its own cost and its own drop rule.
+
 ---
 
 ## 3. Verification — the P5 exit gate

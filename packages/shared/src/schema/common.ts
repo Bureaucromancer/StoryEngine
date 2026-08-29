@@ -173,6 +173,67 @@ export const Openings = Type.Object(
 );
 export type Openings = Static<typeof Openings>;
 
+/**
+ * A piece of prose offered as an exemplar — *show, do not tell*.
+ *
+ * Everything else in these schemas that touches style **describes** it.
+ * `Treatment.tone.styleNotes` says "terse, hardboiled"; `se.voice` is register
+ * and verbal tics and is precise that it is not what a person sounds like
+ * ([10 §4](../../../../docs/design/10-schemas.md)). A writing sample is the
+ * other half: a short story from the setting, a page of a character's
+ * narration, pasted whole and meant to be read as *this is the register*.
+ *
+ * The precedent is already in the corpus for pictures. [14 §2.4] separates a
+ * style exemplar from a likeness because "style is a property of the
+ * *production*, not the person" — the same character in ink wash and in
+ * photoreal is still that character. This is that argument applied to prose,
+ * which is why the three kinds that can carry one are the three that describe
+ * production: the person, the world, and the stance on the world.
+ *
+ * **Not a Section, and this supersedes a standing decision.**
+ * [02 §2.7] and [10 §4] route ST's `mes_example` to a `Section` with
+ * `disposition: "on-demand"`, on the reasoning that the card is not a prompt
+ * configuration file. That reasoning survives untouched — a sample is still
+ * positioned and budgeted by a *slot*, never by the card. What did not survive
+ * is the container: a Section has no priority, and [00 §2.6] requires every
+ * block to be budgeted, with "never trim this" expressed as a priority value
+ * rather than as the absence of a budget. A sample that could not carry its own
+ * priority could not participate in the one rule the budgeter is built on.
+ */
+export const WritingSample = Type.Object(
+  {
+    id: Id,
+    /** Names it for the author, in the editor and the block table. Never injected. */
+    title: Type.String(),
+    /** The prose itself. This is the only field that reaches a model. */
+    body: Type.String(),
+    /**
+     * Off keeps a sample in the object without spending a turn on it. A deleted
+     * sample is gone; a disabled one is a draft the author is still deciding
+     * about, and conflating the two costs somebody their writing.
+     */
+    enabled: Type.Boolean(),
+    /**
+     * Budget priority, in the preset's own vocabulary ([10 §8.2]).
+     *
+     * Absent means *inherit the slot block's priority*, which is how every
+     * other candidate already behaves — so the common case needs no number and
+     * the author reaches for one only to rank samples against each other.
+     */
+    priority: Type.Optional(Type.Number()),
+    /** Why this sample is here, for a person reading the object. Never injected. */
+    note: Type.String(),
+  },
+  {
+    title: 'WritingSample',
+    description:
+      'Prose offered as an exemplar of tone rather than a description of it. ' +
+      'Carried by Actor, Treatment and Lorebook; positioned and budgeted by a ' +
+      'preset slot, never injected merely by existing.',
+  },
+);
+export type WritingSample = Static<typeof WritingSample>;
+
 export const SourceRect = Type.Object(
   {
     x: Type.Number({ minimum: 0, maximum: 1 }),

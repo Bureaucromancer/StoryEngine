@@ -192,6 +192,43 @@ export const SCENE_PRESET: Preset = {
         phase: 'before',
       },
     },
+    /**
+     * Writing samples — [10 §3.1].
+     *
+     * **Priority 20 puts it between history's floor and lore**, and the
+     * arithmetic is worth stating because it is not obvious. History blocks are
+     * emitted at `priority + index` over a 20-turn window, so this preset's
+     * history occupies 10..29 rather than a single 10. A sample at 20 therefore
+     * survives roughly the ten oldest turns falling out and drops before the ten
+     * newest — which is the intended reading of "a nicety that improves voice":
+     * losing it costs tone, never continuity.
+     *
+     * **Not advisory.** A sample is content a model may see on any call;
+     * marking it advisory would bar it from every effects and verdict call
+     * ([03 §6]), which is not what an exemplar is for.
+     *
+     * `from` is omitted, so it names every carrier. Only the actor arm produces
+     * anything today; the block is positioned now so that P5 wiring the other
+     * two is a change in what fills the slot rather than a change to the
+     * preset — the same posture `se.lore` has held since P2.
+     */
+    {
+      id: 'se.samples',
+      label: 'writing samples',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 20,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'samples',
+      },
+    },
     {
       id: 'se.history',
       label: 'history',

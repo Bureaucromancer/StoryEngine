@@ -112,12 +112,24 @@ function emptyReason(block: PresetBlock): NotFilledReason {
   switch (block.source.of) {
     case 'lore':
     case 'setting':
-    case 'examples':
     case 'goal':
     case 'channel':
       // The same list `fill()` returns nothing for, each for its stated
       // reason — no producer at this phase.
       return 'no-producer';
+
+    case 'samples':
+      /**
+       * **The one source kind whose reason depends on which carrier it names**,
+       * because the carriers landed at different times. A slot naming the
+       * Treatment or the Lorebook has no producer at all — a session references
+       * neither — while the actor arm is live, so its emptiness means the cast
+       * simply has no samples. Collapsing both to `no-producer` would tell an
+       * author their preset is waiting on the engine when it is waiting on them.
+       */
+      return block.source.from === 'treatment' || block.source.from === 'lore'
+        ? 'no-producer'
+        : 'empty-source';
     case 'persona':
     case 'actor':
     case 'history':
@@ -296,17 +308,58 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        */
       return emit(block, context.input?.text ?? '', { kind: 'input' }, undefined);
 
+    case 'samples': {
+      /**
+       * Writing samples — [10 §3.1]. Prose offered as an exemplar of tone
+       * rather than a description of it.
+       *
+       * **Only the actor carrier can produce anything yet, and the other two
+       * return nothing for the reason `lore` does.** A session references
+       * neither a Treatment nor a Lorebook, so those arms have no object to
+       * read; the slot *rendering empty* is what keeps that a wiring change
+       * rather than a preset change when P5 gives a session both.
+       *
+       * **One candidate per sample, not one per carrier**, which is the same
+       * choice the `actor` arm makes and for the same reason: the budgeter's
+       * only move against a single block is to drop all of it, and a person who
+       * pasted three samples would rather lose one. It is also what makes a
+       * per-sample `priority` mean anything — the sample's own number overrides
+       * the block's, exactly as the history arm rewrites `priority` per turn.
+       *
+       * Disabled samples are skipped here rather than filtered upstream, so a
+       * disabled sample costs nothing and appears nowhere — `enabled: false` is
+       * a draft the author is still deciding about, not a budget casualty.
+       */
+      const from = source.from;
+      if (from === 'treatment' || from === 'lore') return [];
+
+      return context.actors.flatMap(({ actor, contentHash }) =>
+        (actor.writingSamples ?? [])
+          .filter((sample) => sample.enabled)
+          .flatMap((sample) =>
+            emit(
+              { ...block, priority: sample.priority ?? block.priority },
+              sample.body,
+              {
+                kind: 'samples',
+                owner: { kind: 'actor', id: actor.id, contentHash },
+                sampleId: sample.id,
+              },
+              `${block.id}.${actor.id}.${sample.id}`,
+            ),
+          ),
+      );
+    }
+
     /**
      * Nothing, each for its own stated reason. Lore is P5, and the slot
      * *rendering empty* is what makes that an activation change rather than a
-     * preset change; a P2.6 session carries no Treatment; the Actor schema has no
-     * example-dialogue field, deliberately; goals are Setup-borne; and a channel
-     * value is an object with no channel-to-text renderer specified — which is
-     * also why the clock's budget is null.
+     * preset change; a P2.6 session carries no Treatment; goals are
+     * Setup-borne; and a channel value is an object with no channel-to-text
+     * renderer specified — which is also why the clock's budget is null.
      */
     case 'lore':
     case 'setting':
-    case 'examples':
     case 'goal':
     case 'channel':
       return [];

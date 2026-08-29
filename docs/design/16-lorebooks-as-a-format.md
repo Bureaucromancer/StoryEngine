@@ -194,7 +194,29 @@ model, and it is the right price.
 
 ---
 
-## 4. The schema verdict: no changes
+## 4. The schema verdict: ~~no changes~~ one change, and it is recorded
+
+> **Overridden once, deliberately, by [18](18-writing-samples.md).**
+> `Lorebook.writingSamples` was added after this section refused it. The
+> override is written here rather than only there because §4.2 below asks that
+> refusals be recorded with their reasons "so that they get re-checked rather
+> than re-argued" — this is the re-check, and it went the other way.
+>
+> **The count below is not disputed. The new field is simply not the kind it
+> counts.** Every field in the table ships and is read by nothing; a writing
+> sample has a reader on the day it lands — the assembler fills a slot from it,
+> and the block table shows what it cost. It does not join the unread eleven.
+>
+> The two constraints this section actually protects both hold. The field is
+> **book-scoped rather than on an entry**, because an exemplar that appears only
+> when somebody says a magic word is not an exemplar — so it buys no activation
+> machinery, which is what the count was guarding against. And it is **a fact
+> about the book rather than about how you like the book**, so §4.2's
+> portability rule is satisfied: it travels with an export the way `description`
+> does.
+>
+> Everything else in §4 and §4.1 stands, and the four candidate gaps refused
+> there are still refused.
 
 **And the argument is stronger than conservatism — it is a count.**
 
@@ -225,9 +247,10 @@ renders the file's *bytes* where a reader renders its *meaning*, and the gap
 between those two is the interface this document is asking for. **A dump is
 evidence that nothing was hidden, not evidence that anything was shown.**
 
-**This document proposes no field, and that table is the reason.** A pass that
-added one while eleven went unread would be buying machinery to avoid building a
-surface. It is also the advice the idea arrived with — *do not invent some grand
+~~**This document proposes no field, and that table is the reason.**~~ — see the
+override above; it proposed none, and exactly one was added later against it. A
+pass that added one while eleven went unread would be buying machinery to avoid
+building a surface, and that remains the test any *next* field has to pass. It is also the advice the idea arrived with — *do not invent some grand
 new schema to accomplish it* — and it agrees with this project's own precedent:
 [02 §3.4](02-data-model.md) removed `category` rather than renaming it, on the
 grounds that `tags` already did the job openly, and [10 §5](10-schemas.md) keeps

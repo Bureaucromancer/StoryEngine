@@ -586,7 +586,11 @@ shorthand for the reserved `se.summary` *section*, not a field:
   a new Treatment draft" ([02 §2.7]) becomes "created and reported" under the
   posture this plan decided.
 - `first_mes` / `alternate_greetings` → `openings.written`, first as primary.
-- `mes_example` → the `examples` section, disposition `on-demand`.
+- `mes_example` → **one `writingSamples` entry**, enabled, titled from the card
+  name ([18](../18-writing-samples.md)). ~~the `examples` section, disposition
+  `on-demand`~~ — the destination moved when dialogue examples stopped being a
+  `Section`; a `Section` carries no `priority` and [00 §2.6] requires one. A
+  redirect, not new import surface: still one row, still one destination.
 - `system_prompt`, `post_history_instructions`, `depth_prompt` → `compat`,
   surfaced as "this card wants to override prompts; review". `talkativeness` —
   in the deliberately-absent list with no destination row until now — goes to

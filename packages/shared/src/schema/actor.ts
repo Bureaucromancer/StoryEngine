@@ -16,6 +16,7 @@ import {
   Ref,
   SourceRect,
   VisualDescriptors,
+  WritingSample,
 } from './common.js';
 
 /**
@@ -112,6 +113,22 @@ export const Actor = Type.Object(
 
     profile: ActorProfile,
     openings: Openings,
+    /**
+     * Prose written *as* this person, offered as an exemplar — §WritingSample.
+     *
+     * **Top-level rather than under `profile`, and beside `openings` on
+     * purpose.** `profile` is what someone is like; a sample is a demonstration
+     * of how they are written, which [14 §2.4] classes as production rather
+     * than identity. `openings` is the existing field with exactly that
+     * character — prose that shows rather than states — so the two belong
+     * together.
+     *
+     * Optional because it is additive: a card written before this field existed
+     * must still validate, which [10 §2] makes the price of not bumping to
+     * `/2`. Absent and empty mean the same thing here, deliberately — there is
+     * no "this character has declined to have samples" to express.
+     */
+    writingSamples: Type.Optional(Type.Array(WritingSample)),
     /** Linked lorebooks, not embedded. */
     lore: Type.Array(Ref),
 
@@ -137,10 +154,12 @@ export const Actor = Type.Object(
     title: 'Actor',
     description:
       'A character. Deliberately absent: system_prompt, ' +
-      'post_history_instructions, depth_prompt, talkativeness, mes_example and ' +
-      'scenario. Prompt assembly is owned by the preset and the mode, not by ' +
-      'the description of a person. Per-session numbers live in channels and ' +
-      'must never appear here.',
+      'post_history_instructions, depth_prompt, talkativeness and scenario. ' +
+      'Prompt assembly is owned by the preset and the mode, not by the ' +
+      'description of a person. mes_example is no longer among them: it lands ' +
+      'in writingSamples, which a preset slot still positions and budgets, so ' +
+      'the rule holds and only the container changed. Per-session numbers live ' +
+      'in channels and must never appear here.',
   },
 );
 export type Actor = Static<typeof Actor>;

@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { newActor, type Actor, type Preset, type PresetBlock } from '@storyengine/shared';
+import {
+  newActor,
+  type Actor,
+  type Preset,
+  type PresetBlock,
+  type WritingSample,
+} from '@storyengine/shared';
 
 import { SCENE_PRESET } from '../modes/scene/preset.js';
 import type { Turn } from '../sessions/types.js';
@@ -591,5 +597,177 @@ describe('in-history placement, which is the one that is not list order', () => 
     ).candidates.map((candidate) => candidate.id);
 
     expect(none).toEqual(['se.input', 'se.note']);
+  });
+});
+
+describe('writing samples, which are shown rather than described', () => {
+  function withSamples(name: string, samples: Partial<WritingSample>[]): Actor {
+    const actor = newActor(name);
+    return {
+      ...actor,
+      writingSamples: samples.map((over, index) => ({
+        id: `s${String(index)}`,
+        title: `sample ${String(index)}`,
+        body: `prose ${String(index)}`,
+        enabled: true,
+        note: '',
+        ...over,
+      })),
+    };
+  }
+
+  function samplesBlock(over: Partial<PresetBlock> = {}): PresetBlock {
+    return block({
+      kind: 'slot',
+      id: 'se.samples',
+      label: 'writing samples',
+      priority: 20,
+      source: { of: 'samples' },
+      ...over,
+    });
+  }
+
+  const cast = (...actors: Actor[]): CollectContext['actors'] =>
+    actors.map((actor) => ({ actor, contentHash: `hash-${actor.name}` }));
+
+  it('emits one candidate per sample rather than one per actor', () => {
+    // **The choice that makes a per-sample priority mean anything.** One block
+    // for all of an actor's samples would leave the budgeter with a single
+    // move — drop every sample — and a person who pasted three would rather
+    // lose one. Mutation: join the bodies into a single `emit` and the length
+    // falls to 1.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        actors: cast(withSamples('Vera', [{}, {}, {}])),
+      }),
+    );
+
+    expect(candidates).toHaveLength(3);
+    expect(candidates.map((candidate) => candidate.text)).toEqual([
+      'prose 0',
+      'prose 1',
+      'prose 2',
+    ]);
+    // Ids stay addressable per sample, so a block survives a reorder.
+    expect(candidates.map((candidate) => candidate.id)).toEqual([
+      expect.stringContaining('.s0'),
+      expect.stringContaining('.s1'),
+      expect.stringContaining('.s2'),
+    ]);
+  });
+
+  it('skips a disabled sample entirely rather than budgeting it away', () => {
+    // `enabled: false` is a draft the author is still deciding about, not a
+    // budget casualty: it must cost nothing and appear nowhere, including in
+    // the block table. Mutation: drop the `.filter` and the length becomes 2.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        actors: cast(withSamples('Vera', [{ enabled: false }, { body: 'kept' }])),
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe('kept');
+  });
+
+  it("lets a sample's own priority override the block's", () => {
+    // The author's lever for ranking samples against each other, and the whole
+    // reason `priority` is on the sample rather than only on the slot.
+    // Mutation: pass `block` unmodified to `emit` and both come back 20.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ priority: 20 })]),
+        actors: cast(withSamples('Vera', [{ priority: 75 }, {}])),
+      }),
+    );
+
+    expect(candidates.map((candidate) => candidate.priority)).toEqual([75, 20]);
+  });
+
+  it('records which object and which sample the prose came from', () => {
+    // [P3.0]: the carrier is a *link* read fresh every turn, so the id alone
+    // resolves to whatever that object is now — the hash is what the gate
+    // clicks through to the sample as it was actually sent. Mutation: drop
+    // `contentHash` from the source and this fails.
+    const actor = withSamples('Vera', [{}]);
+    const { candidates } = collectCandidates(
+      context({ preset: preset([samplesBlock()]), actors: cast(actor) }),
+    );
+
+    expect(candidates[0]?.source).toEqual({
+      kind: 'samples',
+      owner: { kind: 'actor', id: actor.id, contentHash: 'hash-Vera' },
+      sampleId: 's0',
+    });
+  });
+
+  it('fills only the carrier named by `from`', () => {
+    // Treatment and Lorebook have no producer yet, so naming one must yield
+    // nothing even when the cast is full of samples — otherwise a preset
+    // asking for the setting's voice would silently get a character's.
+    // Mutation: delete the early return and the actor's samples leak in.
+    const actors = cast(withSamples('Vera', [{}, {}]));
+
+    for (const from of ['treatment', 'lore'] as const) {
+      const { candidates } = collectCandidates(
+        context({ preset: preset([samplesBlock({ source: { of: 'samples', from } })]), actors }),
+      );
+      expect(candidates).toHaveLength(0);
+    }
+
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'actor' } })]),
+        actors,
+      }),
+    );
+    expect(candidates).toHaveLength(2);
+  });
+
+  it('separates a slot waiting on the engine from one waiting on the author', () => {
+    // **The reason `emptyReason` discriminates on `from`.** Collapsing both to
+    // `no-producer` would tell an author their preset is blocked on P5 when it
+    // is blocked on them having written a sample. Mutation: return a single
+    // constant from the `samples` arm and one of these two flips.
+    const waitingOnEngine = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
+        actors: cast(withSamples('Vera', [{}])),
+      }),
+    );
+    expect(waitingOnEngine.notFilled).toEqual([
+      { blockId: 'se.samples', source: 'samples', reason: 'no-producer' },
+    ]);
+
+    const waitingOnAuthor = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        actors: cast(newActor('Vera')),
+      }),
+    );
+    expect(waitingOnAuthor.notFilled).toEqual([
+      { blockId: 'se.samples', source: 'samples', reason: 'empty-source' },
+    ]);
+  });
+
+  it('tolerates an actor written before the field existed', () => {
+    // The additive-change claim where it actually bites: a card on disk from
+    // before this field validates with `writingSamples` absent, and the
+    // collector must read that as no samples rather than throwing.
+    // Mutation: drop the `?? []` and this throws.
+    const stripped: Actor = { ...newActor('Vera') };
+    delete (stripped as { writingSamples?: unknown }).writingSamples;
+
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        actors: [{ actor: stripped, contentHash: 'h' }],
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
+    expect(notFilled[0]?.reason).toBe('empty-source');
   });
 });

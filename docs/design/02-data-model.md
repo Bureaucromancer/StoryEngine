@@ -81,15 +81,22 @@ either as a block. The split between prose `se.appearance` and structured
 video pipelines, which need attributes rather than a paragraph.
 
 Deliberately **absent**: `system_prompt`, `post_history_instructions`,
-`depth_prompt`, `talkativeness`, `mes_example`, `scenario`. Those are
-prompt-assembly decisions and belong to the preset and the mode. See
-[00 §2.4](00-stance.md).
+`depth_prompt`, `talkativeness`, `scenario`. Those are prompt-assembly decisions
+and belong to the preset and the mode. See [00 §2.4](00-stance.md).
 
-`mes_example` in particular is worth naming: dialogue examples are a *style
-sample*, and where they go and how many survive budgeting is a preset decision.
-They belong in `sections` with a disposition, not as a magic field — and under
-this decision that is no longer a demotion, since the conventional four live
-there too.
+`mes_example` was on that list, and the note beside it read: ~~dialogue examples
+are a *style sample*, and where they go and how many survive budgeting is a
+preset decision; they belong in `sections` with a disposition, not as a magic
+field~~. **The first half of that was right and became the feature.** Dialogue
+examples *are* a style sample — which is a thing a Treatment and a Lorebook want
+as much as a person does, so it became `writingSamples` on all three
+([10 §3.1](10-schemas.md), [18](18-writing-samples.md)).
+
+What changed is only the container, and the reason is narrow: where a sample goes
+and what survives budgeting is still a preset decision, but a `Section` carries
+no `priority`, and [00 §2.6](00-stance.md) makes "never trim this" a priority
+value rather than the absence of a budget. A sample that could not rank itself
+could not take part in that rule.
 
 ### 2.2 Roles and the persona flag
 
@@ -175,7 +182,7 @@ A shim, not an adoption:
 | `personality` | `profile.traits` + `profile.summary` (heuristic; user-editable) |
 | `scenario` | **Not the actor's.** Offered as a new Treatment draft. |
 | `first_mes`, `alternate_greetings` | `openings.written` |
-| `mes_example` | `profile.sections["examples"]`, disposition `on-demand` |
+| `mes_example` | `writingSamples`, one entry, enabled ([18](18-writing-samples.md)) |
 | `system_prompt`, `post_history_instructions`, `depth_prompt` | `compat` + surfaced in the importer as "this card wants to override prompts; review" |
 | `character_book` | extracted to a real Lorebook, linked |
 | `extensions.*` | `compat` verbatim |

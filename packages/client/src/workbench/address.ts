@@ -20,8 +20,11 @@ import type { BlockSource } from '@storyengine/shared';
  *   a label until one does.
  * - **history** names a turn, not a library object; its address arrives with
  *   the compare view (P3.6).
- * - **preset / input / guidance / step / channel / setting / goal / examples**
- *   — no library object behind them at this phase.
+ * - **samples** names a sample inside whichever object carried it. The actor
+ *   carrier links, for the reason `actor` does — it is a library object with a
+ *   page. Treatment and Lorebook get a label until those pages exist.
+ * - **preset / input / guidance / step / channel / setting / goal** — no
+ *   library object behind them at this phase.
  */
 export interface SourceAddress {
   label: string;
@@ -39,7 +42,7 @@ const SOURCE_LABELS: Record<string, string> = {
   actor: 'Actor',
   lore: 'Lore',
   history: 'History',
-  examples: 'Examples',
+  samples: 'Writing sample',
   channel: 'Channel',
   setting: 'Setting',
   goal: 'Goal',
@@ -57,6 +60,12 @@ export function blockSourceAddress(source: BlockSource): SourceAddress {
   }
   if (source.kind === 'persona' && source.actorId !== null) {
     return { label, link: { kind: 'actors', id: source.actorId } };
+  }
+  // A sample the cast carried is prose on somebody's card, so the block table
+  // can click through to it — the same claim the `actor` arm makes. The other
+  // two carriers have no editor page to reach yet.
+  if (source.kind === 'samples' && source.owner.kind === 'actor') {
+    return { label, link: { kind: 'actors', id: source.owner.id } };
   }
   return { label };
 }

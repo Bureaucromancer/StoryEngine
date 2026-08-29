@@ -258,8 +258,24 @@
                     ],
                     "properties": {
                       "of": {
-                        "const": "examples",
+                        "const": "samples",
                         "type": "string"
+                      },
+                      "from": {
+                        "anyOf": [
+                          {
+                            "const": "actor",
+                            "type": "string"
+                          },
+                          {
+                            "const": "treatment",
+                            "type": "string"
+                          },
+                          {
+                            "const": "lore",
+                            "type": "string"
+                          }
+                        ]
                       }
                     }
                   },

@@ -586,7 +586,9 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { name: 'Owns its preset' },
     });
 
-    expect(created.body.session.preset.blocks).toHaveLength(12);
+    // Tracks the Scene preset's block count, so it moves when that preset
+    // gains a block — 13 since the writing-samples slot ([10 §3.1]).
+    expect(created.body.session.preset.blocks).toHaveLength(13);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 

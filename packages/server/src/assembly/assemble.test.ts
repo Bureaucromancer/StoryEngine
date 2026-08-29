@@ -385,3 +385,96 @@ describe('the token estimate', () => {
     expect(estimateTokens('abcde')).toBe(2);
   });
 });
+
+describe('where a writing sample sits in the order of sacrifice', () => {
+  /**
+   * [10 §3.1] and the Scene preset's `se.samples`, which is priority 20.
+   *
+   * The number is not arbitrary and it is not obvious: history blocks are
+   * emitted at `priority + index` across the window, so Scene's history spans
+   * 10..29 rather than sitting at 10. A sample at 20 therefore drops *after*
+   * the oldest turns and *before* the newest, and before lore at 25 — which is
+   * the intended reading of "a nicety that improves voice": losing it costs
+   * tone, never continuity or facts.
+   *
+   * This is the test that would catch somebody re-tuning the constant without
+   * meaning to change what falls out of a full context first.
+   */
+  function trio(): Candidate[] {
+    const text = 'x'.repeat(40); // 10 tokens each, so the arithmetic is legible
+    return [
+      {
+        id: 'history-oldest',
+        source: { kind: 'history', turnId: 't1', range: [0, 0], part: 'output' },
+        reason: 'history',
+        role: 'user',
+        text,
+        priority: 10,
+      },
+      {
+        id: 'sample',
+        source: {
+          kind: 'samples',
+          owner: { kind: 'actor', id: 'a1', contentHash: 'h' },
+          sampleId: 's0',
+        },
+        reason: 'writing samples',
+        role: 'system',
+        text,
+        priority: 20,
+      },
+      {
+        id: 'lore',
+        source: { kind: 'lore', entryId: 'e1', phase: 'before' },
+        reason: "keyword match: 'cathedral'",
+        role: 'system',
+        text,
+        priority: 25,
+      },
+    ];
+  }
+
+  it('drops the oldest history first, then the sample, and keeps lore', () => {
+    // 30 tokens of content into 12 means two must go. Mutation: flip the
+    // comparator in `assemble`'s `sacrificial` sort and lore drops instead of
+    // surviving; change `se.samples` to outrank lore and the sample survives.
+    const { blocks, verdict } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 12, ceiling: 12, source: 'user' }, reserved: 0 },
+    });
+
+    const included = blocks.filter((block) => block.included).map((block) => block.id);
+    expect(included).toEqual(['lore']);
+
+    const dropped = blocks.filter((block) => !block.included).map((block) => block.id);
+    expect(dropped).toEqual(['history-oldest', 'sample']);
+    expect(verdict.spent).toBe(10);
+  });
+
+  it('sacrifices the sample before lore but after the oldest turn', () => {
+    // The ordering claim on its own, at a pressure where exactly one block
+    // goes: the sample must outlive nothing but history. Mutation: give the
+    // sample priority 30 and `history-oldest` stops being the first to go.
+    const { blocks } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 22, ceiling: 22, source: 'user' }, reserved: 0 },
+    });
+
+    expect(blocks.filter((block) => !block.included).map((block) => block.id)).toEqual([
+      'history-oldest',
+    ]);
+  });
+
+  it('names the sample as what goes next while it is still included', () => {
+    // The panel promises "what is about to fall out" is answerable before it
+    // happens. With only history gone, the sample is the next survivor in
+    // sacrifice order. Mutation: return the last dropped id from `nextToDrop`
+    // instead of the next survivor and this reads 'history-oldest'.
+    const { verdict } = assemble({
+      candidates: trio(),
+      policy: { limit: { tokens: 22, ceiling: 22, source: 'user' }, reserved: 0 },
+    });
+
+    expect(verdict.nextToDrop).toEqual(['sample']);
+  });
+});

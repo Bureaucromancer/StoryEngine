@@ -21,7 +21,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
-import { Field } from '../ui/Field.js';
+import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
 import { AsStored } from '../library/AsStored.js';
 import { HistoryPanel } from './HistoryPanel.js';
@@ -341,6 +341,116 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             </div>
           </fieldset>
         ))}
+
+        {/*
+          Writing samples — [10 §3.1]. **The first list in this editor that can
+          grow and shrink**; sections are a fixed set edited in place, which is
+          why they need no add or remove control and this does.
+
+          Rendered after the sections because it is the least-used field on the
+          card and the longest: putting a page of pasted prose above the
+          one-line identity fields would bury them.
+        */}
+        <section className="flex flex-col gap-3">
+          <SubsectionTitle as="h2">Writing samples</SubsectionTitle>
+          <p className="text-xs text-ink-faint">
+            Prose in this character&rsquo;s voice, offered to the model as an example to write like
+            — not a description of how they sound. Each one is budgeted like any other block, and
+            the lowest priority is dropped first when a prompt runs long.
+          </p>
+
+          {form.samples.length === 0 ? (
+            <p className="text-sm text-ink-muted">None yet.</p>
+          ) : (
+            form.samples.map((sample, index) => {
+              const patchSample = (over: Partial<(typeof form.samples)[number]>): void => {
+                patchForm({
+                  samples: form.samples.map((candidate, position) =>
+                    position === index ? { ...candidate, ...over } : candidate,
+                  ),
+                });
+              };
+
+              return (
+                <fieldset key={sample.id} className="rounded-md border border-line p-4">
+                  <legend className="px-1 text-sm font-medium text-ink-muted">
+                    {sample.title === '' ? 'Untitled sample' : sample.title}
+                    {sample.enabled ? null : (
+                      <span className="ms-2 text-xs font-normal text-ink-faint">off</span>
+                    )}
+                  </legend>
+                  <div className="flex flex-col gap-3">
+                    <Field
+                      label="Title"
+                      value={sample.title}
+                      onChange={(title) => {
+                        patchSample({ title });
+                      }}
+                      hint="For you, in the editor and the block table. Never sent."
+                    />
+                    <Field
+                      label="Sample"
+                      value={sample.body}
+                      onChange={(body) => {
+                        patchSample({ body });
+                      }}
+                      multiline
+                      rows={10}
+                      hint="Paste a passage. This is the only part the model sees."
+                    />
+                    <Field
+                      label="Priority"
+                      value={sample.priorityText}
+                      onChange={(priorityText) => {
+                        patchSample({ priorityText });
+                      }}
+                      hint="Blank inherits the preset's. Higher survives longer under a full context."
+                    />
+                    <CheckboxField
+                      label="Send this sample"
+                      checked={sample.enabled}
+                      onChange={(enabled) => {
+                        patchSample({ enabled });
+                      }}
+                      hint="Off keeps it on the card without spending a turn on it."
+                    />
+                    <div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          patchForm({
+                            samples: form.samples.filter((_, position) => position !== index),
+                          });
+                        }}
+                      >
+                        Remove this sample
+                      </Button>
+                    </div>
+                  </div>
+                </fieldset>
+              );
+            })
+          )}
+
+          <div>
+            <Button
+              type="button"
+              onClick={() => {
+                patchForm({
+                  samples: [
+                    ...form.samples,
+                    // A fresh id rather than an index: `applyForm` matches on it
+                    // to carry unknown fields through, and a reorder must not
+                    // repoint one sample's data at another.
+                    { id: uuidv7(), title: '', body: '', enabled: true, priorityText: '' },
+                  ],
+                });
+              }}
+            >
+              Add a writing sample
+            </Button>
+          </div>
+        </section>
 
         <div className="flex items-center gap-3">
           <Button
