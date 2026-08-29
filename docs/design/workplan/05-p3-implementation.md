@@ -947,7 +947,7 @@ the in-flight one, which is the difference between *asked* and *answered*.
 The addressable full view: id-keyed block alignment, same-session pairs, entered
 from the panel.
 
-**Landed 2026-08-29**, in three commits, whole. *Ends at:* two turns of one
+**Landed 2026-08-29**, in four commits, whole. *Ends at:* two turns of one
 session at `/compare/:sessionId?before=&after=`, their blocks paired by id with
 a word for what became of each, their call parameters and budgets side by side,
 both outputs, and the panel's one-click way in from the head turn.
