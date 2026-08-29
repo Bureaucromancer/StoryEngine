@@ -286,31 +286,51 @@ export interface ModelCall {
   stepId: string;
   role: ModelRole;
   /**
+   * **The four fields below arrived together at [P3.0], and are optional for
+   * one reason: a record on disk may be older than this build.**
+   *
+   * *Free to move* ([10 §1]) says the shape may change without ceremony, and
+   * it does — but it never said the files vanish. Every install that ran P2
+   * has turns whose calls predate this repair sitting in its data directory,
+   * and a reader is a reader over **what is on disk**, not over what today's
+   * writer would produce. Typing them as always-present made that a lie the
+   * compiler enforced, and the workbench paid for it by throwing
+   * `call.blocks.filter` on the first P2-era turn somebody opened.
+   *
+   * The alternative — backfilling `[]` on read — was refused: it would say
+   * *this call assembled no blocks*, a claim about the prompt, when the truth
+   * is *nobody recorded them*, a claim about the build. That is exactly the
+   * absent-versus-empty line [02 §8] draws and the workbench is built on.
+   *
+   * **This build always writes all four**; the runner mints a `ModelCall`
+   * only downstream of assembly, including the provisional in-flight entry it
+   * checkpoints before dispatch. Absence means *old*, never *empty*.
+   */
+
+  /**
    * What this call was allowed to produce — the committed half of
    * [testing §1]'s invariant, beside `advisory` on the block ([P3.0]). Not
    * derivable after the fact: it is computed from the step's declared
    * `contributes` and `writes`, and `StepOutcome` records neither — only
    * their counts.
    */
-  purpose: CallPurpose;
+  purpose?: CallPurpose;
   resolved: { connectionId: string; modelId: string };
   /**
    * The blocks this call assembled and the verdict that ruled them — [P3.0],
    * making [05 §3]'s *"one per model call"* the shape rather than a promise.
    * The turn's blocks are a derived union — readers fold over
-   * `request.calls`; nothing stores the union. Non-null by construction: a
-   * `ModelCall` exists only downstream of assembly, including the provisional
-   * in-flight entry the runner checkpoints before dispatch.
+   * `request.calls`; nothing stores the union.
    */
-  blocks: AssembledBlock[];
-  budget: BudgetVerdict;
+  blocks?: AssembledBlock[];
+  budget?: BudgetVerdict;
   /**
    * The preset blocks that emitted nothing for this call, each with a reason
    * class — [P3.0]'s §7.5 decision. Empty when a step supplied its own
    * candidates: the preset was not consulted, so it honestly has nothing to
-   * say.
+   * say — which is why *absent* here cannot mean empty.
    */
-  notFilled: NotFilledSlot[];
+  notFilled?: NotFilledSlot[];
   messages: RenderedMessage[];
   params: GenerationParams;
   /** Provider-reported, or null. Never estimated — the estimate decides, the measurement records. */

@@ -36,8 +36,13 @@ export function CostSummary({
             : formatCount(cost.completionTokens, locale)}
         </MetadataRow>
         <MetadataRow label="Wall time">{formatDuration(cost.wallMs, locale)}</MetadataRow>
+        {/* An empty string is P2's spelling of the same fact: it wrote `""`
+            where the contract now writes `null`, and reading it literally put
+            a labelled row on screen with nothing beside it. Blank is not a
+            model id, so treating it as *nothing answered* reads the older
+            record rather than inventing anything. */}
         <MetadataRow label="Model">
-          {cost.model === null ? (
+          {cost.model === null || cost.model.trim() === '' ? (
             'Nothing answered'
           ) : (
             <code className="break-all text-xs">{cost.model}</code>

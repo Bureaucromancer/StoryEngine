@@ -37,6 +37,13 @@ export function TurnSubject({
         // Absent, not empty: a hand-edit divergence turn, or a turn that
         // failed before assembly ever ran.
         <Note>This turn made no request — nothing was assembled and nothing was sent.</Note>
+      ) : turn.request.calls.length === 0 ? (
+        // Present and empty, which is a *different* claim and used to render
+        // as nothing at all — the reader saw the header, then the effects,
+        // with no account of the prompt in between. Assembly ran here and
+        // produced no call: the commonest cause is an unbound prose role, and
+        // the step list below carries the reason.
+        <Note>This turn assembled no call — it ended before any model was asked.</Note>
       ) : (
         turn.request.calls.map((call, at) => (
           <CallView

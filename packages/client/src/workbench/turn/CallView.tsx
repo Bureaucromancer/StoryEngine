@@ -9,7 +9,7 @@ import { formatCount, formatDuration } from '../../format.js';
 import { Badge } from '../../ui/Badge.js';
 import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Panel } from '../../ui/Panel.js';
-import { Fine, SubsectionTitle } from '../../ui/Text.js';
+import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
 import { BlockTable } from './BlockTable.js';
 import { BudgetVerdictView } from './BudgetVerdictView.js';
 import { OUTCOME_LABELS, OUTCOME_TONES } from './labels.js';
@@ -36,7 +36,7 @@ import { rulesOf } from './rules.js';
  *   a baseline.
  */
 
-const PURPOSE_LABELS: Record<ModelCall['purpose'], string> = {
+const PURPOSE_LABELS: Record<NonNullable<ModelCall['purpose']>, string> = {
   prose: 'Prose',
   effects: 'Effects',
   verdict: 'Verdict',
@@ -53,9 +53,27 @@ export function CallView({
   count: number;
   locale: string | undefined;
 }): JSX.Element {
-  const estimated = call.blocks
-    .filter((block) => block.included)
-    .reduce((sum, block) => sum + block.tokens, 0);
+  /**
+   * **A call recorded before [P3.0] carries none of this**, and the panel
+   * reads what is on disk rather than what this build would write — so the
+   * assembly half is a section that can be absent, exactly like `request`,
+   * `steps` and `cost` are on the turn itself.
+   *
+   * The two travel together (one repair added both), and they are checked
+   * together rather than separately because a block table with no verdict
+   * would render every row unruled — which reads as *nothing was dropped*,
+   * a claim about the budget rather than about the record.
+   */
+  const blocks = call.blocks;
+  const budget = call.budget;
+  const assembly = blocks === undefined || budget === undefined ? null : { blocks, budget };
+
+  const estimated =
+    assembly === null
+      ? null
+      : assembly.blocks
+          .filter((block) => block.included)
+          .reduce((sum, block) => sum + block.tokens, 0);
 
   return (
     <section aria-label={`Call ${String(ordinal)}: ${call.stepId}`} className="flex flex-col gap-3">
@@ -64,12 +82,24 @@ export function CallView({
           {count > 1 ? `Call ${String(ordinal)} — ${call.stepId}` : call.stepId}
         </SubsectionTitle>
         <Badge tone={OUTCOME_TONES[call.outcome]}>{OUTCOME_LABELS[call.outcome]}</Badge>
-        <Badge tone="neutral">{PURPOSE_LABELS[call.purpose]}</Badge>
+        {call.purpose === undefined ? null : (
+          <Badge tone="neutral">{PURPOSE_LABELS[call.purpose]}</Badge>
+        )}
       </div>
 
-      <BlockTable blocks={call.blocks} rules={rulesOf(call.budget)} locale={locale} />
-      <BudgetVerdictView verdict={call.budget} locale={locale} />
-      <NotFilledList notFilled={call.notFilled} />
+      {assembly === null ? (
+        <Note>
+          This call predates the block table: it was recorded before the turn kept what went into
+          the prompt, so there is nothing to show here. What was asked, and what came back, are
+          below.
+        </Note>
+      ) : (
+        <>
+          <BlockTable blocks={assembly.blocks} rules={rulesOf(assembly.budget)} locale={locale} />
+          <BudgetVerdictView verdict={assembly.budget} locale={locale} />
+          <NotFilledList notFilled={call.notFilled ?? []} />
+        </>
+      )}
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
         <MetadataRow label="Model">
@@ -78,10 +108,17 @@ export function CallView({
         <MetadataRow label="Params">
           <code className="break-all text-xs">{JSON.stringify(call.params)}</code>
         </MetadataRow>
+        {/* The estimate is a fold over the blocks, so a call with no blocks
+            on file has only the provider's own figure to report — and saying
+            "0 estimated" there would invent a measurement. */}
         <MetadataRow label="Prompt tokens">
-          {call.usage === null
-            ? `${formatCount(estimated, locale)} estimated — none reported`
-            : `${formatCount(estimated, locale)} estimated, ${formatCount(call.usage.promptTokens, locale)} reported`}
+          {estimated === null
+            ? call.usage === null
+              ? 'Not recorded'
+              : `${formatCount(call.usage.promptTokens, locale)} reported`
+            : call.usage === null
+              ? `${formatCount(estimated, locale)} estimated — none reported`
+              : `${formatCount(estimated, locale)} estimated, ${formatCount(call.usage.promptTokens, locale)} reported`}
         </MetadataRow>
         {call.usage === null ? null : (
           <MetadataRow label="Completion tokens">

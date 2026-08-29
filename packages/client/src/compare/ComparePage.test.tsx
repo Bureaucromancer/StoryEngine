@@ -8,7 +8,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Turn } from '@storyengine/shared';
 
 import { ApiError } from '../api.js';
-import { cancelledTurn, divergenceTurn, richTurn, SESSION_ID } from '../workbench/turn-fixtures.js';
+import {
+  cancelledTurn,
+  divergenceTurn,
+  legacyTurn,
+  richTurn,
+  SESSION_ID,
+} from '../workbench/turn-fixtures.js';
 
 /**
  * The comparison view — [P3.6].
@@ -144,7 +150,7 @@ describe('the compare view', () => {
 
     await renderCompare({ before: 't-12', after: 't-12' });
 
-    expect(screen.getByText(/Neither of these turns assembled a request/)).toBeTruthy();
+    expect(screen.getByText(/Neither of these turns assembled a call/)).toBeTruthy();
   });
 
   it('reports an uncounted cost as uncounted, never as free', async () => {
@@ -190,6 +196,30 @@ describe('the compare view', () => {
     expect(outputs.textContent).toContain('This turn produced no output.');
   });
 
+  it('will not align a call recorded before the turn kept its blocks', async () => {
+    // The same P2-era record that crashed the workbench reaches this view
+    // through the panel's compare link, and a comparison spanning [P3.0]
+    // has one readable side and one that never kept its blocks. The
+    // mutation is handing the aligner an undefined side, which throws in
+    //  and takes the page down.
+    serve([legacyTurn(), richTurn()]);
+
+    await renderCompare({ before: 't-13', after: 't-10' });
+
+    expect(screen.getByText(/The earlier call was recorded before the turn kept/)).toBeTruthy();
+  });
+
+  it('says a budget nobody kept was not recorded, rather than showing a zero', async () => {
+    serve([legacyTurn(), richTurn()]);
+
+    await renderCompare({ before: 't-13', after: 't-10' });
+
+    const rows = within(section('Call 1')).getAllByRole('row');
+    const window = rows.find((row) => row.textContent.startsWith('Window'));
+    const cells = [...(window?.querySelectorAll('td') ?? [])].map((cell) => cell.textContent);
+    expect(cells[0]).toBe('Not recorded');
+    expect(cells[1]).toBe('6,144');
+  });
   it('says plainly when an id is not in this session', async () => {
     // The failure this surface will actually meet: a hand-typed id, a saved
     // link to a removed turn, or a turn of somebody else's session — which

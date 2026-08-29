@@ -712,6 +712,35 @@ test and named mutation. One unplanned verification: the hand-edit was
 boot, and the panel rendered its requestless record with the
 made-no-request sentence, the absent-vs-empty doctrine live on screen.
 
+**Amended 2026-08-29, from manual testing: the panel read the record as this
+build writes it, not as the disk holds it.** Opening the workbench over a
+session whose turns predate P3.0 threw `call.blocks.filter` and took the panel
+down with it — `blocks`, `budget`, `notFilled` and `purpose` all arrived with
+that repair, and *two of the three sessions in this repo's own data directory
+are the older shape*. The walk above could not have caught it: it ran against a
+hand-written fixture turn, which is by construction current.
+
+Three things the fix settles, all one doctrine:
+
+- **The four fields are optional on `ModelCall`, and absence means *old*, never
+  *empty*.** *Free to move* ([10 §1]) licenses changing the shape; it never
+  said the files vanish. Backfilling `[]` on read was refused for the reason
+  the whole panel exists: it would claim *this call assembled no blocks*, a
+  fact about the prompt, where the truth is *nobody recorded them*, a fact
+  about the build. The optional type is what made the compiler enumerate the
+  readers — `CallView` and P3.6's compare view, and nothing else.
+- **`request: { calls: [] }` is not `request: undefined`**, and used to render
+  as silence where the second rendered a sentence. Assembly ran and produced no
+  call — an unbound prose role is the common cause — and the panel now says so.
+- **`cost.model: ""` is P2's spelling of `null`**, and rendering it literally
+  put a labelled row on screen with nothing beside it.
+
+The lesson generalises past this fix and belongs with [P3 §7]'s open items
+rather than in it: **a reader over the record is a reader over every version of
+the record that is still on disk**, and the record's internal tier makes that
+more true, not less. P4's importers write objects that outlive their writers in
+the same way.
+
 ### P3.3 — The library subject
 
 The as-stored view, collapsed by default with a copy control and a bounded height

@@ -8,6 +8,7 @@ import {
   ACTOR_ID,
   cancelledTurn,
   divergenceTurn,
+  legacyTurn,
   pendingPreview,
   richTurn,
   unmeasurablePreview,
@@ -176,6 +177,72 @@ describe('a turn with no request', () => {
   });
 });
 
+describe('a turn that assembled no call at all', () => {
+  /**
+   * `request: { calls: [] }` is not `request: undefined` — the first says
+   * assembly ran and produced no call (the prose role was unbound, so there
+   * was nothing to ask), the second says assembly never ran. Both are real
+   * records in this repo's data directory, and the panel used to render the
+   * second's sentence and the first's silence.
+   */
+  it('says so rather than rendering nothing between the header and the effects', () => {
+    const turn = { ...divergenceTurn(), request: { calls: [] } };
+    render(<TurnSubject turn={turn} locale={undefined} />);
+
+    expect(screen.getByText(/assembled no call/)).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('keeps that distinct from a turn that never assembled anything', () => {
+    render(<TurnSubject turn={divergenceTurn()} locale={undefined} />);
+
+    expect(screen.queryByText(/assembled no call/)).toBeNull();
+    expect(screen.getByText(/made no request/)).toBeTruthy();
+  });
+});
+
+describe('a cost recorded before null meant nobody answered', () => {
+  it('reads an empty model as nothing answered, which is what P2 wrote', () => {
+    // P2 wrote  where the contract now says . Rendering the
+    // empty string put a labelled row on screen with nothing beside it.
+    const turn = {
+      ...richTurn(),
+      cost: { promptTokens: 0, completionTokens: 0, wallMs: 0, model: '' },
+    };
+    render(<TurnSubject turn={turn} locale={undefined} />);
+
+    expect(
+      within(screen.getByRole('region', { name: 'Cost' })).getByText('Nothing answered'),
+    ).toBeTruthy();
+  });
+});
+describe('a turn recorded before P3.0 repaired the record', () => {
+  /**
+   * The panel is a reader over what is **on disk**, not over what this build
+   * would write. `blocks`, `budget`, `notFilled` and `purpose` arrived at
+   * [P3.0]; every turn taken before it lacks them, and those turns are still
+   * in every install that ran P2 — two of the three sessions in this repo's
+   * own data directory are exactly this shape. Reading one threw
+   * `call.blocks.filter` and took the whole panel down with it.
+   */
+  it('renders the call it can read instead of throwing', () => {
+    render(<TurnSubject turn={legacyTurn()} locale={undefined} />);
+
+    // The facts a P2 record does carry are still shown.
+    expect(screen.getAllByText('se.narrate').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/gemma-4-31B/).length).toBeGreaterThan(0);
+  });
+
+  it('says the block table is missing rather than rendering an empty one', () => {
+    render(<TurnSubject turn={legacyTurn()} locale={undefined} />);
+
+    // Absent, not empty — the same distinction the no-request case draws. An
+    // empty table would claim this call assembled nothing, which is a fact
+    // about the prompt; the truth is a fact about the build that wrote it.
+    expect(screen.getByText(/predates the block table/)).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+});
 describe('two calls render as two sections', () => {
   it('keeps each call’s blocks its own — no derived union', () => {
     render(<TurnSubject turn={richTurn()} locale={undefined} />);

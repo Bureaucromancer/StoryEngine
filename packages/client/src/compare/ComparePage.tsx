@@ -4,7 +4,7 @@
 import { Link } from '@tanstack/react-router';
 import type { JSX, ReactNode } from 'react';
 
-import type { ModelCall, Turn } from '@storyengine/shared';
+import type { AssembledBlock, BudgetVerdict, ModelCall, Turn } from '@storyengine/shared';
 
 import { ApiError } from '../api.js';
 import { formatCount, formatDuration, formatTimestamp } from '../format.js';
@@ -173,10 +173,12 @@ function Comparison({
       </section>
 
       {count === 0 ? (
-        // Absent, not empty. A turn with no `request` assembled nothing —
-        // a divergence turn, or one that failed before assembly — and an
-        // empty block table would report that as *nothing was in the prompt*.
-        <Note>Neither of these turns assembled a request, so there is nothing to align.</Note>
+        // Absent or empty, and the sentence has to be true of both: a turn
+        // with no `request` never assembled, a turn with `calls: []` assembled
+        // and produced no call, and neither has anything to align. Worded as
+        // *call* rather than *request* so it says the same thing `TurnSubject`
+        // does on the same records.
+        <Note>Neither of these turns assembled a call, so there is nothing to align.</Note>
       ) : null}
 
       {Array.from({ length: count }, (_, at) => (
@@ -229,6 +231,11 @@ function CallPair({
     );
   }
 
+  // Computed after the guard above, not beside `title`: `assemblyOf` reads
+  // the call, and a call that only one side made is not there to be read.
+  const beforeAssembly = assemblyOf(before);
+  const afterAssembly = assemblyOf(after);
+
   return (
     <section aria-label={title} className="flex flex-col gap-3">
       <SectionTitle>{title}</SectionTitle>
@@ -239,11 +246,21 @@ function CallPair({
         </Note>
       )}
 
-      <AlignedBlockTable
-        before={{ blocks: before.blocks, budget: before.budget }}
-        after={{ blocks: after.blocks, budget: after.budget }}
-        locale={locale}
-      />
+      {/* Both sides need blocks and a verdict to be alignable, and a call
+          recorded before [P3.0] has neither — so a comparison reaching back
+          across that repair says which side it cannot read rather than
+          aligning a table against nothing. */}
+      {beforeAssembly === null || afterAssembly === null ? (
+        <Note>
+          {beforeAssembly === null && afterAssembly === null
+            ? 'Neither of these calls kept what went into its prompt — both were recorded before the turn carried its blocks, so there is nothing to align.'
+            : beforeAssembly === null
+              ? 'The earlier call was recorded before the turn kept what went into its prompt, so there is nothing to align the later one against.'
+              : 'The later call was recorded before the turn kept what went into its prompt, so there is nothing to align the earlier one against.'}
+        </Note>
+      ) : (
+        <AlignedBlockTable before={beforeAssembly} after={afterAssembly} locale={locale} />
+      )}
 
       <SubsectionTitle>What was asked</SubsectionTitle>
       <TwoColumn>
@@ -264,16 +281,16 @@ function CallPair({
             is window *minus* reserved, so a page showing only the window
             reads as disagreeing with the meter by exactly the reservation. */}
         <Row label="Window">
-          {formatCount(before.budget.limit.tokens, locale)}
-          {formatCount(after.budget.limit.tokens, locale)}
+          {budgeted(before, (verdict) => formatCount(verdict.limit.tokens, locale))}
+          {budgeted(after, (verdict) => formatCount(verdict.limit.tokens, locale))}
         </Row>
         <Row label="Reserved for the answer">
-          {formatCount(before.budget.reserved, locale)}
-          {formatCount(after.budget.reserved, locale)}
+          {budgeted(before, (verdict) => formatCount(verdict.reserved, locale))}
+          {budgeted(after, (verdict) => formatCount(verdict.reserved, locale))}
         </Row>
         <Row label="Spent">
-          {formatCount(before.budget.spent, locale)}
-          {formatCount(after.budget.spent, locale)}
+          {budgeted(before, (verdict) => formatCount(verdict.spent, locale))}
+          {budgeted(after, (verdict) => formatCount(verdict.spent, locale))}
         </Row>
         <Row label="Outcome">
           {OUTCOME_LABELS[before.outcome]}
@@ -351,4 +368,22 @@ function Output({ label, text }: { label: string; text: string | undefined }): J
 /** `null` is *nobody counted*; the turn cost view draws the same distinction. */
 function counted(count: number | null | undefined, locale: string | undefined): string {
   return count === null || count === undefined ? 'Not counted' : formatCount(count, locale);
+}
+
+/**
+ * The alignable half of a call, or `null` when the record predates it.
+ *
+ * `blocks` and `budget` arrived together at [P3.0] and are absent together on
+ * a P2-era record; pairing them here means the table's two inputs are proven
+ * present at one site rather than at four, and `CallView` draws the same line
+ * for the same reason.
+ */
+function assemblyOf(call: ModelCall): { blocks: AssembledBlock[]; budget: BudgetVerdict } | null {
+  const { blocks, budget } = call;
+  return blocks === undefined || budget === undefined ? null : { blocks, budget };
+}
+
+/** A figure from a verdict, or the honest word when no verdict was kept. */
+function budgeted(call: ModelCall, read: (verdict: BudgetVerdict) => string): string {
+  return call.budget === undefined ? 'Not recorded' : read(call.budget);
 }

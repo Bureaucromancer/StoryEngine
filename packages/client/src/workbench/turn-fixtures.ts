@@ -26,7 +26,19 @@ export const SESSION_ID = '01a05000-0000-7000-8000-00000000000a';
 export const ACTOR_ID = '01a05000-0000-7000-8000-0000000000ac';
 export const PERSONA_ID = '01a05000-0000-7000-8000-0000000000ad';
 
-function proseCall(): ModelCall {
+/**
+ * A call with the four [P3.0] fields present.
+ *
+ * They are optional on `ModelCall` because a record on disk may predate them
+ * (see the type, and `legacyTurn()` below) — but every call *this* build
+ * writes has them, and so does every fixture here except that one. Saying so
+ * in the type is what lets the fixtures below read `base.blocks` without
+ * either an assertion or a guard for a case they construct away.
+ */
+type RecordedCall = ModelCall &
+  Required<Pick<ModelCall, 'blocks' | 'budget' | 'notFilled' | 'purpose'>>;
+
+function proseCall(): RecordedCall {
   return {
     id: 'call-1',
     stepId: 'se.narrate',
@@ -144,7 +156,7 @@ function proseCall(): ModelCall {
 }
 
 /** The second call: an extractor that timed out — the fourth failure shape. */
-function stalledCall(): ModelCall {
+function stalledCall(): RecordedCall {
   const base = proseCall();
   return {
     ...base,
@@ -342,5 +354,34 @@ export function unmeasurablePreview(): TurnPreview {
     pendingInput: true,
     reason: 'role-unbound',
     notFilled: proseCall().notFilled,
+  };
+}
+
+/**
+ * A turn as **P2 wrote them** — the shape sitting in real data directories
+ * today, and the one the workbench crashed on.
+ *
+ * `blocks`, `budget`, `notFilled` and `purpose` all arrived with [P3.0]'s
+ * repair of the record. Turns taken before it carry a `ModelCall` without
+ * them, they are on disk in every install that ran P2, and the panel is a
+ * reader over what is *on disk* rather than over what this build would write.
+ * Two of the three sessions in this repo's own data directory are this shape.
+ *
+ * Test-only and never promoted, like everything else here — but unlike the
+ * others this fixture is a transcription rather than an invention: it is
+ * `proseCall()` with exactly the four fields P3.0 added removed.
+ */
+export function legacyTurn(): TurnRecord {
+  const { blocks, budget, notFilled, purpose, ...call } = proseCall();
+  void blocks;
+  void budget;
+  void notFilled;
+  void purpose;
+  return {
+    ...richTurn(),
+    id: 't-13',
+    parentTurnId: 't-12',
+    request: { calls: [call] },
+    // P2 wrote steps; the absence here is only to keep the fixture small.
   };
 }
