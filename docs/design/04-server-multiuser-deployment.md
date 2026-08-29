@@ -179,7 +179,7 @@ turn.started
   step.finished   { stepId, contributed: { blocks, effects }, ms }
   step.failed     { stepId, error, willRetry }
   step.skipped    { stepId, reason }        // `when` predicate was false
-  effect.applied  { channelId, accepted }
+  effect.applied  { channelId, accepted, reason }   // the refusing policy, or null
 turn.finished     { state: "complete" | "failed" | "suspended" }
 job.progress      { jobId, kind, state }    // renditions and other async work
 ```

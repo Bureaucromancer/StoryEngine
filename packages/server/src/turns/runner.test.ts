@@ -916,6 +916,53 @@ describe('the engine says what it overrode', () => {
     expect(refused?.id).toBeDefined();
     expect(clock?.supersedes).toBe(refused?.id);
   });
+
+  /**
+   * **The live feed says the same thing the record does** — [P3.5]'s stated
+   * precondition, and the reason `effect.applied` grew a third param.
+   *
+   * Before this, the event carried `{channelId, accepted}` only: a live reader
+   * could say *refused* where the record said *refused because the engine
+   * computes this channel*, which is exactly the disagreement the stage
+   * predicted. The falsifying mutation is passing `null` at the call site —
+   * the record still reads correctly, and only this notices.
+   */
+  it('publishes the refusal’s reason, not merely that it was refused', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: NARRATE,
+            run: async (_input, host) => {
+              const result = await host.call({});
+              return {
+                message: { text: result.text },
+                effects: [
+                  {
+                    channelId: SE_CLOCK,
+                    op: { type: 'set', path: '/' },
+                    after: { day: 9, hour: 0, minute: 0 },
+                    proposedBy: { kind: 'step', stepId: NARRATE.id },
+                  },
+                ],
+              };
+            },
+          },
+        ],
+      },
+    });
+
+    const { job, turn } = await runTurn();
+
+    const published = readEvents(commit, job.id).filter((event) => event.key === 'effect.applied');
+    expect(published).toHaveLength(1);
+    const params = published[0]?.params as { channelId: string; accepted: boolean; reason: string };
+    expect(params.accepted).toBe(false);
+    expect(params.channelId).toBe(SE_CLOCK);
+    // The same class the record kept, so the two views cannot drift.
+    expect(params.reason).toBe('engine-computed');
+    expect(params.reason).toBe(turn.effects.find((effect) => !effect.applied)?.rejectedReason);
+  });
 });
 
 describe('the advisory guard is not decoration', () => {

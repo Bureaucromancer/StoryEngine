@@ -580,7 +580,7 @@ export class TurnRunner {
           effects.push(effect);
           running = applyEffects(running, [effect]);
           contributedEffects += 1;
-          written.push(effectApplied(effect.channelId, effect.applied));
+          written.push(effectApplied(effect.channelId, effect.applied, effect.rejectedReason));
         }
         if (result.message) draft.output = result.message;
 

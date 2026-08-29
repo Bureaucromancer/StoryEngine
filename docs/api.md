@@ -581,6 +581,12 @@ bad `Last-Event-ID` cannot brick a reconnect.
 `turn.finished`. They are **structural** — the client renders them — and carry a
 failure *class*, never a provider's words.
 
+`effect.applied` carries `{ channelId, accepted, reason }`, where `reason` names
+the policy that refused — the same class the turn record keeps
+(`engine-computed`, `user-only`, `unknown-channel`, open for an extension's own)
+— and is `null` when the effect applied. Added at [P3.5] so the live view and
+the record cannot disagree about *why* something was refused.
+
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/04-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.

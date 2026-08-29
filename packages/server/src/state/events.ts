@@ -116,9 +116,26 @@ export const callFinished = (
   },
 });
 
-export const effectApplied = (channelId: string, accepted: boolean): EventDraft => ({
+/**
+ * A channel change, and — when it was refused — **which policy refused it**.
+ *
+ * The reason is here because [P3.5] built the live view: without it a live
+ * reader says *refused* where the record says *refused because the engine
+ * computes this channel*, and the stage's own precondition names that
+ * disagreement as the thing to prevent. It is the same class the record
+ * carries (`ChannelEffect.rejectedReason`, [P3.0]) rather than a second
+ * vocabulary — `'engine-computed'`, `'user-only'`, `'unknown-channel'`, open
+ * for an extension's own — so the two views cannot drift apart by
+ * construction. `null` when the effect applied: absent-versus-empty, on the
+ * wire as in the record.
+ */
+export const effectApplied = (
+  channelId: string,
+  accepted: boolean,
+  reason: string | null,
+): EventDraft => ({
   key: 'effect.applied',
-  params: { channelId, accepted },
+  params: { channelId, accepted, reason },
 });
 
 export const turnFinished = (state: 'complete' | 'failed' | 'suspended'): EventDraft => ({

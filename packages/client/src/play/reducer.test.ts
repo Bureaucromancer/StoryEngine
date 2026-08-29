@@ -193,3 +193,163 @@ describe('submitting', () => {
     expect(next.jobId).toBe('a-later-job');
   });
 });
+
+/**
+ * The turn under construction — [P3.5].
+ *
+ * The stage decided [04 §3.3] against its own *one component live and
+ * historical* claim: the live view is the **progress events** rendered, not
+ * the record rendered early. So these assert what the feed says and nothing
+ * more — no field here is inferred, and none is borrowed from the draft the
+ * snapshot carries.
+ */
+const event = (
+  seq: number,
+  key: string,
+  params: Record<string, unknown> = {},
+): { event: string; id: string; data: unknown } => ({
+  event: 'progress',
+  id: `job-1.${String(seq)}`,
+  data: { jobId: 'job-1', seq, key, params, at: 0 },
+});
+
+describe('the live turn', () => {
+  it('is nothing until a turn starts, and starts empty', () => {
+    const before = run(INITIAL, [snapshot()]);
+    expect(before.live).toBeNull();
+
+    const started = run(before, [event(1, 'turn.started', { turnId: 't-1' })]);
+    expect(started.live).toEqual({ turnId: 't-1', steps: [], effects: [], state: 'running' });
+  });
+
+  it('follows a step from started to finished, with what it reported', () => {
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'step.started', { stepId: 'se.narrate', stage: 'generate' }),
+      event(3, 'call.started', { stepId: 'se.narrate', role: 'prose', model: 'gemma-4' }),
+      event(4, 'call.streaming', { stepId: 'se.narrate', tokens: 42 }),
+      event(5, 'call.finished', {
+        stepId: 'se.narrate',
+        promptTokens: 397,
+        completionTokens: 214,
+        ms: 23_412,
+      }),
+      event(6, 'step.finished', {
+        stepId: 'se.narrate',
+        contributed: { blocks: 2, effects: 0 },
+        ms: 23_500,
+      }),
+    ]);
+
+    expect(state.live?.steps).toHaveLength(1);
+    const step = state.live?.steps[0];
+    expect(step?.state).toBe('ok');
+    expect(step?.stage).toBe('generate');
+    expect(step?.ms).toBe(23_500);
+    expect(step?.contributed).toEqual({ blocks: 2, effects: 0 });
+    // The call's figures arrive in two instalments and both land on one step.
+    expect(step?.call).toEqual({
+      role: 'prose',
+      model: 'gemma-4',
+      tokens: 42,
+      promptTokens: 397,
+      completionTokens: 214,
+      ms: 23_412,
+    });
+  });
+
+  it('keeps a skipped step, which never announces itself first', () => {
+    // [04 §3.3]: *a step whose `when` predicate was false is a common source of
+    // "why didn't that happen?", and silence is the worst possible answer.*
+    // `step.skipped` arrives with no preceding `step.started`, so a fold that
+    // required one would drop exactly the answer the event exists to give.
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'step.skipped', { stepId: 'se.recap', reason: 'cadence' }),
+    ]);
+
+    expect(state.live?.steps).toHaveLength(1);
+    expect(state.live?.steps[0]?.state).toBe('skipped');
+    expect(state.live?.steps[0]?.skipReason).toBe('cadence');
+  });
+
+  it('records a failure as the class the server sent, never a message', () => {
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'step.started', { stepId: 'se.narrate', stage: 'generate' }),
+      event(3, 'step.failed', { stepId: 'se.narrate', error: 'terminal', willRetry: false }),
+      event(4, 'turn.finished', { state: 'failed' }),
+    ]);
+
+    expect(state.live?.steps[0]?.state).toBe('failed');
+    expect(state.live?.steps[0]?.error).toBe('terminal');
+    expect(state.live?.state).toBe('failed');
+  });
+
+  it('carries why an effect was refused, so it cannot disagree with the record', () => {
+    // [P3.5]'s stated precondition. Before this stage the event carried only
+    // `{channelId, accepted}`, so a live reader said *refused* where the record
+    // said *refused because the engine computes this channel*.
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'effect.applied', {
+        channelId: 'se.clock',
+        accepted: false,
+        reason: 'engine-computed',
+      }),
+      event(3, 'effect.applied', { channelId: 'se.clock', accepted: true, reason: null }),
+    ]);
+
+    expect(state.live?.effects).toEqual([
+      { channelId: 'se.clock', accepted: false, reason: 'engine-computed' },
+      { channelId: 'se.clock', accepted: true, reason: null },
+    ]);
+  });
+
+  it('rebuilds itself from a replayed backlog, which is what a reattach delivers', () => {
+    // A fresh attach replays every event for the job from seq 0
+    // (`attach.ts`: `from = ... : 0`), so the live view reconstructs without
+    // ever needing the draft the snapshot carries. This is the property that
+    // let the stage drop the snapshot's `turn` entirely.
+    const backlog = [
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'step.started', { stepId: 'se.narrate', stage: 'generate' }),
+      event(3, 'call.started', { stepId: 'se.narrate', role: 'prose', model: 'gemma-4' }),
+    ];
+
+    const live = run(INITIAL, [snapshot(), ...backlog]);
+    const reattached = run(INITIAL, [snapshot(), ...backlog]);
+
+    expect(reattached.live).toEqual(live.live);
+    expect(reattached.live?.steps[0]?.call?.model).toBe('gemma-4');
+  });
+
+  it('replaces the last turn rather than appending to it', () => {
+    const first = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'step.started', { stepId: 'se.narrate', stage: 'generate' }),
+      event(3, 'turn.finished', { state: 'complete' }),
+    ]);
+    const second = run(first, [event(4, 'turn.started', { turnId: 't-2' })]);
+
+    expect(second.live?.turnId).toBe('t-2');
+    expect(second.live?.steps).toEqual([]);
+    expect(second.live?.state).toBe('running');
+  });
+
+  it('ignores an event it has not learned, rather than breaking on it', () => {
+    const state = run(INITIAL, [
+      snapshot(),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'job.progress', { jobId: 'j', kind: 'rendition', state: 'running' }),
+    ]);
+
+    expect(state.live?.steps).toEqual([]);
+    expect(state.live?.state).toBe('running');
+  });
+});
