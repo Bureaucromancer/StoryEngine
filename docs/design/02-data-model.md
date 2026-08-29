@@ -518,7 +518,20 @@ Compatible export to third-party lorebook formats drops them, like everything
 else we add ([10 §2](10-schemas.md)) — worth knowing, not a reason to decline.
 
 Session creation copies hooks from all sources, per prefill-not-binding
-([00 §3.1](00-stance.md)), and the session tracks which have fired.
+([00 §3.1](00-stance.md)).
+
+**Which have fired is channel state, not a session field.** *(Correction. This
+said "the session tracks which have fired", and a session-level set is exactly
+what [03 §8](03-modes-and-turn-pipeline.md) demolished for party membership:
+kept outside channels it does not reconstruct at a node, does not appear as an
+effect in the turn record, and does not branch correctly. Fire a hook, rewind
+past it, and the flat set leaves the hook burnt on a line where it never
+happened.)* The **pool** stays session-wide — adding a hook mid-session is an
+authoring act, not a story event, and must survive a rewind — while everything
+about *what has happened to* a hook is per-node and lives in a channel. That
+split is also what makes a committed hook ([03 §6.1](03-modes-and-turn-pipeline.md))
+implementable at all: patience, cooldown and un-commit-on-rewind are each
+measured along a path.
 
 **The copy keeps the source hook's `id`.** Not a detail: it is the only thing
 that makes cross-session de-duplication possible later, and a World
@@ -536,6 +549,7 @@ is worth placing precisely, because it looks like three things it is not:
 | A lorebook entry | Lore is retrieved by *relevance* to what is being discussed. A hook is selected by *narrative readiness*. Opposite criteria; a hook must stay out of context until it fires. |
 | The Narrative Director's Secret Plot | That is a model-generated hidden arc. This is an author-written pool of discrete, specific events. |
 | An authored rule ([08 §3](08-infinite-worlds.md)) | **A hook is the inverse of a trigger.** A trigger says "when X happens, do Y". A hook is a Y looking for its moment. |
+| An `Openings` entry (§6) — for the introduction hook below | An opening is how a *session* starts; an entrance is how a character arrives in a story already running. The substructure is nearly the same and the moment is not, which is why they are two names. |
 
 That last line is the useful framing: rules are condition-first, hooks are
 content-first, and the two compose — a hook's `onFire` effects are ordinary rule
@@ -552,6 +566,76 @@ of a system like this is firing a hook about someone who died four sessions ago,
 and it is a *severe* failure — it destroys confidence in the whole mechanism in
 one message. Mechanical eligibility must be checked before anything else, and a
 hook whose cast is gone should be quietly retired rather than adapted.
+
+The introduction hook below is an **exception to where the subject is declared,
+not a repeal of this paragraph**. Its subject is named in `introduces.actor`
+rather than `involves` because it must be eligible only while that character is
+*not* yet introduced — but the other two halves of the check, not dead and not
+gone, apply to it exactly as they do here, and for the reason just given.
+
+#### A character as a hook
+
+> **Definition: [10 §6.1a](10-schemas.md).**
+
+A hook can *be* a character rather than describe an event: the arrival of the
+stranger, the return of the sister, the fixer who turns up when you are already
+in trouble. Authors reach for this constantly and currently have to fake it by
+writing "X arrives" in a premise, which loses the link to the card and gets the
+eligibility exactly backwards.
+
+**It is a hook and not an opening, and the distinction is the whole reason it
+needs its own field.** An `Openings` entry is how a session *starts*; nothing
+selects it, and it plays once at a moment already known. An arrival is a Y
+looking for its moment in a story already running, which is the definition at the
+top of this section. The alternates look identical on the page — several written
+variants with a designated primary — and mean two different things, which is why
+they are `entrances` and not more openings.
+
+**`premise` is the instruction, `entrances` are the content**, the same division
+[§6](#6-openings) already draws between a seed and a written
+opening. An author who has written the arrival gets it woven; an author who has
+only said what should happen gets it improvised. Both are useful and neither is
+the degraded case.
+
+**Firing an introduction hook writes nothing by itself, and cannot.** It is
+tempting to have it add the character to the cast directly, and that is an
+`onFire` effect — the vocabulary deferred to 2.0 ([06 C7](06-open-questions.md)).
+The available path is the one [03 §5.2](03-modes-and-turn-pipeline.md) already
+blesses: the hook contributes guidance, the narrator writes the arrival, and
+presence follows the story like any other model-proposed change. Saying so
+plainly is what stops `onFire` being reintroduced through this feature's side
+door, and it has one consequence that must be designed for rather than
+discovered.
+
+**That consequence: a fired introduction hook is *provisional* until the arrival
+is confirmed.** Guidance is advisory, so the narrator may ignore it. For most
+hooks a miss is an annoyance. Here it is silent and permanent — the hook is
+marked fired, the character never arrived, and because introduction is
+once-only it never fires again. So the hook is committed as fired only when the
+extraction pass confirms the character is present, and reverts to eligible
+otherwise, with the attempt recorded. Same asymmetry, and the same answer, as
+flagging a death rather than applying it quietly
+([03 §8.1](03-modes-and-turn-pipeline.md)).
+
+**Firing also has to supply what the assembler cannot.** A character who is not
+in the session cast contributes no block to the prompt and no aliases to the
+keyword pass — so without help the narrator would be describing a stranger from
+the entrance text alone, and the mention resolver would fail to link the arrival
+it had just written, on the one turn where the link matters most. Firing
+therefore contributes the subject's card for that turn and adds their aliases to
+the scan. Neither is a new mechanism; both are existing producers pointed at an
+actor the cast does not yet contain.
+
+**Only one introduction hook per character is eligible at a time.** With four
+sources, the likely collision is a treatment's hook and a lorebook's naming the
+same character — which is not a pathological case but the one hooks-on-lorebooks
+exists to serve. `blockedBy` is manual and cross-source, so authors cannot
+express this themselves. The engine picks by weight and then by source, and the
+losers retire as **superseded** rather than silently: an author must never find
+an entrance they wrote unused and unexplained. The same word covers the other way
+this happens — the narrator introduces the character spontaneously and the
+authored entrance is pre-empted. Quiet retirement is for a cast that is gone;
+this is not that, and the author wants to know.
 
 **[OPEN]** Whether hooks are also a shareable kind in their own right — a "hook
 pack" droppable onto any treatment. Attractive for generic material ("a stranger

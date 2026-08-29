@@ -671,7 +671,25 @@ migration.
   phase lost and the reason it is merely large rather than impossible.
 - Setup objects and the declarative setup wizard.
 - Party as a timeline, always non-empty ([03 §8](../03-modes-and-turn-pipeline.md)).
-- Plot hooks and the selector.
+- **Plot hooks and the selector — the mechanism.** The pool and its four sources,
+  the mechanical filter, the judgement pass, firing through the guidance slot,
+  and the three things [03 §6.1](../03-modes-and-turn-pipeline.md) specifies
+  around them: the **pacing dial** as a channel, **Commit** with its bounded
+  patience, and **`introduces`** — a character as a hook
+  ([10 §6.1a](../10-schemas.md)).
+
+  *This lands here and not earlier because of what it reads, not what it is.*
+  The introduction hook's eligibility turns on *introduced*, which
+  [03 §8.1](../03-modes-and-turn-pipeline.md) defines over presence and party
+  effects — both P7, both two bullets below. The dial is a channel with an
+  `init` policy, and channels are P7. Building any of it sooner means inventing
+  a prefill path and an introduced-yet signal that this phase then replaces.
+
+  *Two corrections this phase discharges*, both pre-existing and both cheap here:
+  hook firing state moves out of the session file into a channel, because a flat
+  set does not branch ([02 §4.1](../02-data-model.md)); and the selector writes
+  its own line into the turn record, because a pacing-held turn is otherwise
+  indistinguishable from a judged-none one.
 - **Goals** — the chain, the progress channel, narrative completion, and the
   three offers at conclusion ([03 §7.3.3](../03-modes-and-turn-pipeline.md)).
 - **Presence and status channels**, and the editable cast panel over them
@@ -739,6 +757,15 @@ absorb: the assistant, editors-are-not-dumb-forms across every editor, the
 reading view ([05 §12](../05-ui-surfaces.md)), impersonation in Scene
 ([03 §3.1](../03-modes-and-turn-pipeline.md)), the plot-hook selector, the in-app
 update check, and the localisation catalogue extraction sweep (§0.4).
+
+**The plot-hook selector here is the *tuning*, not the build** — a correction,
+because this line and P7's have both read as owning it and two homes for one job
+is a scheduling argument waiting to be had. P7 ships the mechanism. What is left
+for hardening is the part that can only be done by playing: what the four pacing
+levels resolve to, how long a commitment should wait, how the judgement prompt is
+worded, and the hook panel ([05 §10.1](../05-ui-surfaces.md)) that makes a large
+pool authorable. §2 already lists *that hook pacing works at all* among the
+hypotheses nothing has tested, and this is the phase that tests it.
 
 **Packaging here is the container and the tarball only** (§0.4). The other four
 artifacts ([04 §5.4](../04-server-multiuser-deployment.md)) are a 1.0 requirement,

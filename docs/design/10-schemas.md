@@ -660,6 +660,9 @@ interface Treatment {
   cast: CastEntry[]
   openings: Openings
   hooks: PlotHook[]                // §6.1
+  /** Advisory. What pacing this material wants; a Setup may override and a
+   *  session owns it thereafter. §6.1b. */
+  hookPacing?: HookPacing
 
   /** Advisory only. A treatment proposes a mode; it never configures production
    *  treatments. [00 §3.2] */
@@ -735,6 +738,31 @@ interface PlotHook {
   weight: number                   // relative likelihood among eligible hooks
   delivery: "guidance" | "seed" | "immediate"
   once: boolean
+
+  /** Present when the hook *is* a character's arrival rather than an event —
+   *  §6.1a. Optional, so the schema stays `/1`. */
+  introduces?: Introduction
+}
+
+/** A character as a hook. §6.1a. */
+interface Introduction {
+  actor: Ref
+  /** Written alternates. Empty is legal: then `premise` steers an improvised
+   *  arrival. */
+  entrances: Entrance[]
+  /** The one a manual fire uses, and the one the editor shows first. The
+   *  selector otherwise draws across all of them — *not* "always use this". */
+  primaryEntranceId: string | null
+}
+
+interface Entrance {
+  id: string
+  label: string
+  text: string
+  /** When this entrance fits — guidance to the *selector*, not to the narrator.
+   *  Deliberately not `Opening.note`'s meaning ("this steers the expansion"),
+   *  which has nothing to say about a written alternate. */
+  note?: string
 }
 ```
 
@@ -755,6 +783,101 @@ using at all.
 **They return additively.** Two optional fields on an object that already has
 optional fields is not a breaking change, so the schema stays `/1` when the
 vocabulary arrives ([13 §2](#2-versioning-and-compatibility)).
+
+### 6.1a A character as a hook
+
+`involves` lets a hook *reference* actors. `introduces` is the hook that **is**
+one: the content is *bring this person into the story*, optionally guided by one
+of several authored entrances. The reason it earns a field rather than being an
+ordinary hook with a name in its premise is that it needs the opposite
+eligibility test, and there is nowhere else to say so.
+
+**`premise` is the instruction; `entrances` are the content.** The same division
+`Openings` makes in §3 — *a written opening is content, a seed is an
+instruction* — which settles `delivery` without a new arm: with entrances
+present, `guidance` weaves the chosen one; with none, `seed` expands the premise
+into an arrival. The borrowing stops there. There is no expand-then-promote path
+and no `fromPremiseId`, because nothing here plays the part `Openings.seeds`
+plays; the analogy is about what the two fields *are*, not about a loop between
+them.
+
+**Subject eligibility inverts exactly one of `involves`' three tests, and the
+other two still hold.** `involves` means *dead, gone, or never introduced*. An
+introduction hook is eligible only while its subject is **not** introduced —
+but a subject who is dead is no more introducible than an `involves` cast member
+who is. Exempting the subject from the whole check would fire *"Vera walks into
+the bar"* for a Vera the session recorded dead four sessions ago, which is the
+severe failure [02 §4.1](02-data-model.md) exists to name. So the predicate is
+written out rather than described as an inversion:
+
+> Eligible when the subject **resolves**, is **not yet introduced**, carries no
+> terminal status, is **not the persona**, and is **not already in the party**.
+
+The last two are not hypothetical: a Setup's `cast.partyDefault` (§7) can name
+the same actor a lorebook-borne hook wants to introduce.
+
+**The subject belongs in `introduces.actor` and not in `involves`**, which stays
+available for the other characters an entrance depends on — *only if her brother
+is still alive*.
+
+**A dangling subject is a broken hook, not a retired one**, and this is the one
+place `Ref`'s never-block rule ([§3](#3-shared-substructures)) needs a second
+answer. A dangling `involves` entry retires a hook quietly, which is mercy for a
+cast that is gone. A dangling `introduces.actor` can never succeed at all —
+there is no actor to introduce — so it is ineligible **with a visible reason**
+and the author is told. Same field type, opposite treatment.
+
+**`once` is moot when `introduces` is present, and that is better than a
+constraint.** Introduction is monotone along a path and the predicate already
+excludes an introduced subject, so the hook is self-limiting whatever the flag
+says. Refusing `once: false` here would be the stable tier's first validation
+refusal and would buy nothing — the engine derives it and the editor explains
+it. (A *return* after a departure is a real and different thing: that subject is
+introduced, so it belongs in `involves` and is an ordinary hook.)
+
+**`magnitude` is unconstrained and will usually be `personal`.** Said here
+because a required field with no good answer is what makes an author distrust a
+form.
+
+**An empty `premise` is legal when entrances are present** — the entrances are
+the content. The selector's judgement pass is described as reading premises, so
+where there is none it reads the entrance labels.
+
+**Lorebooks may carry these too, with one cost stated.** [02 §4.1](02-data-model.md)'s
+allowed-but-secondary rule applies unchanged, and *the stranger from the Flower
+Kingdom* is close to its canonical case. It does mean a Lorebook can depend on an
+Actor for the first time — softly, since an unresolvable subject breaks the hook
+and never the book — and compatible export to third-party formats drops the whole
+thing, like everything else we add ([§2](#2-versioning-and-compatibility)).
+
+### 6.1b `HookPacing` — an authored default, never a binding
+
+```ts
+type HookPacing = "sparse" | "normal" | "aggressive" | "manual-only"
+```
+
+Semantics belong to the selector and are specified at
+[03 §6.1](03-modes-and-turn-pipeline.md). What is settled *here* is only where the
+value may be written down, and the answer is the shape `openings` already uses:
+**a Treatment proposes, a Setup overrides, and the running session owns it.**
+
+**A Treatment may carry it, which is not obvious and is worth the sentence.**
+Pacing looks like a property of a game rather than of a reading of a world, which
+would put it on Setup alone. But a treatment is where hooks primarily live
+([02 §4.1](02-data-model.md)), and *this material wants to be sparse* is a real
+authorial intent that would otherwise be lost the moment somebody builds a Setup
+over it. `modeHints` (§6) is the precedent for an advisory-only field there, and
+the channel that carries the live value already has a *from treatment* init arm
+([03 §4](03-modes-and-turn-pipeline.md)) — so the mechanism exists and declining
+to use it would be the arbitrary choice.
+
+**Optional on both, because a required field added to a published `/1` is a `/2`
+change** ([§2](#2-versioning-and-compatibility)). Absent means unspecified, which
+the session resolves to its own default; it does not mean `normal`.
+
+**Not a production setting**, and it does not become one by being live: it says
+how much authored plot should be pushed at a player, which is authorial, and it
+has nowhere to put an endpoint or a key ([00 §3.2](00-stance.md)).
 
 ### 6.2 `contentRating` is advisory — and says so
 
@@ -824,6 +947,8 @@ interface Setup {
   openings: Openings
   /** Additional to the treatment's, not a replacement. */
   hooks: PlotHook[]
+  /** Overrides the treatment's when present. §6.1b. */
+  hookPacing?: HookPacing
   /** §7.1. Ordered: goals[0] is where play begins. Empty = no win condition,
    *  which is the deliberate opt-out rather than the default. */
   goals: Goal[]
@@ -911,6 +1036,21 @@ over one world, which is the whole point of the split.
 **Difficulty is deliberately not here.** It is Adventure's, not every mode's, so
 it lives in `mode.config` where the host does not interpret it. Modelling it on
 Setup would imply Messages and Scene have a difficulty, which they do not.
+
+**`hookPacing` (§6.1b) *is* here, for the reason that is the exact converse**, and
+the contrast is drawn rather than left implicit because the two look alike and are
+not. Hooks are on every Treatment and every Setup and are mode-agnostic, so the
+argument that keeps difficulty in `mode.config` — *it belongs to one mode* — does
+not reach pacing at all.
+
+> **[OPEN] Where difficulty's *live* value lives is a question this paragraph does
+> not answer, and did not used to have to.** `mode.config` is opaque to the host
+> by design, while [03 §7.3.1](03-modes-and-turn-pipeline.md) requires difficulty
+> to be *"changeable mid-session, recorded as an effect like anything else"* — and
+> an effect path cannot carry something the host has no schema for. The two
+> statements have coexisted because nothing consumed them together. Hook pacing
+> does not inherit the problem, because it is a channel from the start rather than
+> a `mode.config` key, but the next dial will, so it is recorded here.
 
 ---
 

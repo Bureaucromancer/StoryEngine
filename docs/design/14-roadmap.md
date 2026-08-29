@@ -402,6 +402,22 @@ hook's `id`** rather than getting a fresh one. `PlotHook.id` exists and
 what needs pinning at 1.0 is that copying preserves it. One line now,
 unrecoverable later.
 
+*(The clause about the session tracking firings is superseded — that state is a
+channel as of [02 §4.1](02-data-model.md). Nothing here changes: the obligation
+was always about the **id** surviving the copy, and where the firing record lives
+is orthogonal to it.)*
+
+**An introduction hook needs a second de-duplication key, and id is not it.**
+[10 §6.1a](10-schemas.md)'s `introduces` fires on a character rather than an
+event, so the failure it must avoid is *this person arriving for the first time,
+twice*. Id-matching catches only the case where the **same hook** fired before;
+it misses the commoner one, where a different hook — or the narrator, unprompted
+— introduced them in session one. So within a World the suppression key is the
+**subject**, not the hook: a character already introduced in this continuity has
+no first arrival left to stage. Cheap to note now, and it costs 1.0 nothing,
+because the *introduced* predicate it needs already exists per-session
+([03 §8.1](03-modes-and-turn-pipeline.md)) and only its scope widens.
+
 **A known collision, recorded rather than rediscovered.** Two *stable-tier*
 schemas already spend the word: `PlotHook.magnitude` no longer does, but
 `Lorebook.category: "world" | …` still carries it, and `hook.magnitude` was

@@ -539,6 +539,18 @@ and the consumer of [02 §4.1](02-data-model.md)'s hook pool.
    ago, and it also cuts thirty hooks to a handful before anything expensive
    happens — a package with a large pool must not mean thirty premises in a
    prompt every turn.
+
+   **An introduction hook ([10 §6.1a](10-schemas.md)) reverses one clause of
+   this and keeps the rest**: its subject must *not* be introduced, must still
+   resolve, must carry no terminal status, and must be neither the persona nor
+   already in the party. The reversal is why the subject is declared in
+   `introduces.actor` rather than `involves` — one field cannot mean *must be
+   here* and *must not be here at once* — and the clauses it keeps are why the
+   subject is not simply exempt.
+
+   ***"Introduced" is defined at [§8.1](#81-presence-and-status-who-is-here-and-who-is-still-alive)***,
+   which it had to be: this filter and `involves` have both spent the word since
+   they were written, and neither said what it meant.
 2. **Judgement.** One cheap call over the survivors: *is now a good moment, and
    which of these fits what just happened?* Weighted, and permitted to answer
    "none".
@@ -559,18 +571,134 @@ effects are ordinary channel effects and are not. That is correct — the author
 declared those consequences deliberately, whereas the narrator's rendering of
 the twist should not be able to reach back into the machinery.
 
+**An introduction hook's firing is provisional, and that is not a special case
+so much as an honest reading of the slot it fires through.** Guidance is
+advisory; the narrator may decline it. For an event hook a decline is a miss and
+the pool is none the worse. For an introduction hook it is a silent permanent
+loss — marked fired, character never arrived, and once-only. So the hook is
+recorded *provisionally fired* and becomes fired only when the extract stage
+confirms the subject present on that turn; unconfirmed, it returns to the pool
+with the attempt on the record. Bias toward under-firing, exactly as
+[§7.3.3](#733-goals-an-adventure-has-a-win-condition-by-default) chose for goal
+completion and [§8.1](#81-presence-and-status-who-is-here-and-who-is-still-alive)
+for death.
+
+**And it carries two things into the turn that the assembler cannot supply.** A
+subject who is not in the session cast contributes no block and no aliases, so
+without help the narrator writes a stranger from the entrance text alone and the
+mention pass ([§8.2](#82-mention-resolution-is-an-extract-step)) fails to link
+the arrival on the one turn it matters. Firing therefore contributes the
+subject's card for that turn and adds their aliases to the shared keyword scan.
+Both are existing producers pointed at an actor the cast does not yet contain —
+and the scan is the third consumer of the one pass, which is the argument for
+having built it as a pass rather than a lorebook feature.
+
 **Pacing is what makes this work or fail.** A selector that fires every third
-turn produces incoherence, not drama. At minimum it needs a cooldown after
-firing, a cadence rather than running every turn, and an author-facing pacing
-treatment (sparse / normal / aggressive / manual-only). Running only at scene or
-chapter boundaries is a plausible default, since those are already the moments a
-twist naturally lands.
+turn produces incoherence, not drama. It needs a cooldown after firing, a cadence
+rather than judging every turn, and an author-facing dial:
+
+```ts
+type HookPacing = "sparse" | "normal" | "aggressive" | "manual-only"
+```
+
+**The dial is a channel** ([§4](#4-channels-the-extensibility-mechanism-that-matters)):
+session scope, `update: "user-only"`, `budget: null` so it never enters a prompt,
+and `init` *from treatment*. Every property it needs is already there — it is
+changeable mid-session, the change is an effect on the record, and it branches
+correctly — so it costs no new concept. A Treatment proposes it, a Setup
+overrides, the session owns it thereafter ([10 §6.1b](10-schemas.md)).
+
+**The dial is *not* a `StepCondition`, and the reason is worth recording because
+it is invisible from this document.** A committed hook (below) needs the selector
+consulted every turn; a `sparse` dial needs it consulted rarely; one step cannot
+declare both. And a condition cannot see channel state at all, so it can know
+neither how long since the last firing nor that a hook is committed. So **the
+selector step runs every turn and the dial is a gate inside it, before the
+judgement call.** That costs nothing, because stage 1 is deliberately model-free —
+and re-reading the phrase above, it is the *judgement* that has a cadence, not
+the step.
+
+Two things follow that are worth having anyway: eligibility can be shown live on
+every turn, which is one of the authoring affordances below; and `manual-only` is
+a coherent state rather than a dead step, because the filter still runs and still
+reports and only the judgement is off.
+
+**Level → cadence, cooldown and patience is engine code; the level's prose is the
+prompt pack's.** [§7.3.1](#731-difficulty-is-a-sycophancy-dial-not-a-stat-modifier)
+puts difficulty's levels in the pack, and the half of that argument which
+transfers is the half about *prose* — how "sparse" should read to a model
+genuinely belongs where an author can edit it. The numbers do not: their effect is
+that a step does not run, which is invisible in the turn record by construction,
+and letting a portable preset set internal scheduling inverts the dependency the
+step contract exists to keep one-way.
+
+**`aggressive` must not reach railroading**, which is this section's version of
+§7.3.1's *obstruction must not reach unreachability*. The dial changes how often a
+hook is **considered**. Guidance stays advisory at every setting and none of them
+makes the narrator comply — otherwise the top of the dial is not brisk pacing, it
+is the directedness [§7.3.2](#732-resistance-and-directedness-are-separate-axes)
+spends a section refusing.
+
+**Nothing about a held hook may be invisible.** A selector that returns early
+because of pacing is indistinguishable, from the outside, from one that ran and
+judged *none* — and a step's skip reason is derived from its condition, so it
+cannot carry this. The selector therefore writes its own line into the turn
+record: pacing-held, nothing eligible, judged none, or fired X, with the
+per-hook reasons behind it. This is the standard the assembler already meets when
+it records why a slot was not filled, and without it *which are blocked and by
+what* is answerable in the abstract but never for the turn in front of you.
 
 **Authoring affordances are part of the feature, not polish.** Somebody with
 thirty hooks cannot test them by playing to turn 200. They need to see which
 fired, which are eligible now, which are blocked *and by what*, and to force-fire
 any hook to see how it reads. Without the last one, large hook pools are
 unauthorable in practice.
+
+#### Firing a hook by hand: two controls, and they are not two strengths of one
+
+**Commit** is the play affordance and the one this design had been missing. *"I
+want this to happen — not necessarily on this turn"* is the sentence the whole
+feature is for, and until now the only way to act on it was to add a hook and
+hope. Committing a hook marks it must-fire immediately: it skips eligibility (a
+person overriding a filter is a decision, not a bug), it is exempt from cooldown
+and cadence, and it opens the pacing gate every turn until it lands — which is
+what makes *immediately* an honest word under `sparse`. What it does **not** do is
+choose the moment. Stage 2 still runs, with the question changed from *whether*
+to *where*, and that is the difference between committing a hook and forcing one.
+
+Three rules keep it honest.
+
+- **Skipping the filter must say what it skipped.** The failure this section
+  names twice is a hook firing about someone dead four sessions ago; a control
+  that permits it silently reintroduces that failure by hand. The confirmation
+  names the clause that failed and proceeds.
+- **Patience is bounded, and the deadline is a lapse rather than a firing.**
+  Three turns. A commitment that waits forever is indistinguishable from no
+  commitment, and one that fires anyway at the deadline delivers the twist at the
+  exact moment the selector has already rejected three times — the worst
+  available moment, and the incoherence this section opened by warning about. So
+  it returns to the pool and **says so**, because a silent lapse is worse than
+  either outcome. A constant rather than a setting: pacing is untested, and a
+  number nobody has played against is a guess, not a tunable.
+- **Patience counts turns on the path**, like every other cadence here. Commit at
+  ten, fire at twelve, rewind to eleven, and the commitment correctly survives
+  with one turn already spent — which only holds if the count is derived from the
+  path rather than stored.
+
+**Force-fire** is the authoring affordance above, and it stays what it sounds
+like: the hook is delivered on the next turn with no judgement call at all. *The
+alternative was considered and declined.* A scratch preview that generates
+without joining the tree would spare the author a rewind — but rewind here is a
+pointer ([09](09-branching.md)), the rewrite-versus-reroll distinction is already
+specified, and the workbench already promotes a dry run. Auditioning a hook is
+therefore a short loop, and buying a marginally shorter one with a second
+assembly path to keep correct is a bad trade. Recorded so the preview reading is
+not rediscovered as an oversight.
+
+The two live in different places for a reason that is not filing: Commit is a
+move in the story and belongs where the story is played; force-fire is a test of
+the material and belongs in the workbench, beside the keyword test and the dry
+run it is a sibling of ([05 §3](05-ui-surfaces.md)).
 
 #### Scope: data structures from the beginning, a simple selector early
 
@@ -775,6 +903,14 @@ on the difficulty slider. This is also where plot hooks
 ([02 §4.1](02-data-model.md)) belong on the dial: hooks are the *honest* form of
 directedness, authored and selected in the open, which is a better mechanism
 than a narrator improvising a pull.
+
+**So there is a third control, and it is specified at [§6.1](#61-the-plot-hook-selector)
+rather than here**: hook pacing, sparse through manual-only. It is a channel and
+not a mode setting, because hooks are on every treatment and every setup and are
+not one mode's feature the way difficulty is ([10 §7](10-schemas.md)). The floor
+that keeps it from becoming the hidden passenger this section is about: the dial
+changes how often a hook is *considered*, never whether the narrator must use
+one.
 
 #### 7.3.3 Goals: an adventure has a win condition by default
 
@@ -1045,6 +1181,24 @@ on another is a natural consequence rather than a special case
 party is a timeline of commitment; presence is a fact about the current scene.
 Party members are frequently absent, and present actors are frequently not party
 members. Two concepts, two channels, one panel.
+
+**And *introduced* is neither, which is why it needs saying.** [§6.1](#61-the-plot-hook-selector)
+and [10 §6.1](10-schemas.md) have both spent the word as a mechanical
+predicate — *cast alive and introduced*, *dead, gone, or never introduced* —
+since they were written, and no section ever defined it. Neither channel above
+means it: `se.presence` is *in this scene right now*, so a character introduced
+in chapter one and absent since reads `false` and is emphatically not
+*never introduced*.
+
+> **Introduced: this actor has been the subject of a presence or party effect at
+> some point on the path to this node.**
+
+Derived rather than stored, and deliberately: it needs no third channel, it is
+monotone along a path so it can only be acquired and never lost, and it branches
+correctly for nothing — rewind past a character's arrival and they are
+un-introduced again, which is what anyone would expect and would otherwise have
+had to be built. The introduction hook ([10 §6.1a](10-schemas.md)) is what forced
+the definition, but the debt was already there.
 
 **Status changes to `dead` are flagged, not applied quietly.** Models kill
 characters in passing, and the two error directions are not symmetric — a missed

@@ -1187,6 +1187,50 @@ UI notes:
   reached the narrator and not the resolver — otherwise the guarantee in
   [03 §5.2](03-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
 
+### 10.1 The hook panel, which is the same slot from the other side
+
+Plot hooks have had no surface in this document, while
+[03 §6.1](03-modes-and-turn-pipeline.md) has said since it was written that
+authoring affordances for them are *"part of the feature, not polish"*. This is
+that surface, and it belongs here rather than in a section of its own for a
+structural reason: **a fired hook enters the prompt through the guidance slot**,
+so §10 is not really about a text box, it is about what pushes into that slot —
+the player's instruction on one side and the author's waiting pool on the other.
+
+It is not the cast panel's neighbour ([§13](#13-showing-what-the-engine-understands)),
+which was the other candidate. That section is two views of one observation about
+identity resolution, and a hook panel shares neither the observation nor the
+subject.
+
+**What it shows**, which is [03 §6.1](03-modes-and-turn-pipeline.md)'s list made
+concrete: which hooks have fired and when, which are eligible right now, and
+which are blocked **with the clause that blocked them** — *waiting on turn 40*,
+*Vera is not in this session*, *superseded by a lorebook hook naming the same
+character*. Eligibility is live rather than computed on demand, because the
+selector's mechanical filter already runs every turn.
+
+**And what it is holding back.** The pacing dial sits here, because it is the
+control that explains an empty panel: a session at `sparse` with six eligible
+hooks and nothing firing is working correctly, and without the dial in view that
+is indistinguishable from broken. The same applies to the selector's own turn
+record — *held by pacing* and *judged: none* are different answers and the panel
+must not merge them.
+
+**One control, not both.** *Commit* is here — it is a move in the story. *Force-
+fire* is not: it is a test of the material and lives in the workbench beside the
+keyword test and the dry run ([§3](#3-workbench--the-inspector-panel)), which is
+also where a lapsed commitment's notice can offer it. Splitting them keeps a
+control that skips the engine's judgement out of the surface people play on.
+
+**Half of this is already free.** The workbench's block list shows every block's
+source and its inclusion reason in plain language, so a fired hook is legible
+there the moment the selector names one — the panel here is for the hooks that
+have *not* fired, which is the half nothing else can show.
+
+*Entrances are shown by label, never by text.* An unfired entrance is hidden
+content ([11 §6](11-cross-session-memory.md)), and a panel that spoils the
+arrival to the person about to read it defeats the feature.
+
 ---
 
 ## 11. Editors are not dumb forms

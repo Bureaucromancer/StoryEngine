@@ -250,6 +250,17 @@ interface ChannelDefinition {
 replay path, so guessing its contract before a channel needs one is the thing §6
 refuses to do for `WidgetSpec`.
 
+**`InitPolicy` now has a named first consumer, which is how §6 wanted it to
+arrive.** The hook-pacing dial ([03 §6.1](03-modes-and-turn-pipeline.md),
+[10 §6.1b](10-schemas.md)) is a session channel with `update: "user-only"`,
+`budget: null`, and an init that reads a Treatment's advisory value — which
+exercises exactly the *from treatment* arm [03 §4](03-modes-and-turn-pipeline.md)
+describes and nothing has needed until now. It is a P7 dependency rather than a
+free consequence: the dial cannot be built before the policy is, and scheduling
+the two apart would have the dial invent its own prefill path. Worth having,
+because a contract designed against one real need beats one designed against
+three imagined ones — which is §6's own argument for deferring it.
+
 ### 1.4 `ModelCall`
 
 ```ts
