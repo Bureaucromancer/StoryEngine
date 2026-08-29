@@ -21,9 +21,9 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [02-triage.md](02-triage.md) | Build-versus-fork, and per-subsystem verdicts on the source projects: adopt, port, rebuild, discard, buy |
 | [03-p1-implementation.md](03-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
 | [04-p2-implementation.md](04-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
-| [05-p3-implementation.md](05-p3-implementation.md) | P3 skeleton — the workbench as a reader over the record |
-| [06-p4-implementation.md](06-p4-implementation.md) | P4 skeleton — import from the three sources, presets first; ends at PLAYABLE |
-| [07-p5-implementation.md](07-p5-implementation.md) | P5 skeleton — lore activation, budgets, trim order, skip reporting |
+| [05-p3-implementation.md](05-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
+| [06-p4-implementation.md](06-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
+| [07-p5-implementation.md](07-p5-implementation.md) | P5 skeleton — the lorebook as a document, then lore activation, budgets, trim order, skip reporting |
 | [08-p6-implementation.md](08-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
@@ -34,6 +34,11 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [15-p2c-first-real-run.md](15-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
 | [16-p2c-log.md](16-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
 | [17-p2c-brief.md](17-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
+| [18-p7-implementation.md](18-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes |
+| [19-p8-implementation.md](19-p8-implementation.md) | P8 skeleton — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook |
+| [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration |
+| [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery |
+| [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering |
 
 ## How to read them
 
@@ -43,11 +48,23 @@ checklist of decisions that are cheap now and expensive later, and the
 beta does, because it is where the design starts being tested by use.
 
 **The phase documents are written just ahead of the phase.** 03, 04, 13, 14 and
-15 are detailed because they are current or just finished; 05 was a skeleton and
-has been revised now that P3 is next; 06 through 08 are still skeletons and will
-be filled in as each phase approaches. A phase document is not a design document:
-where one contradicts the design, the design is what to fix first — and 14 §1 is
-that case, three documents describing a fallback layer no code implements.
+15 are detailed because they are current or just finished; 05 and 06 were
+skeletons and have been revised now that P3 has landed and P4 is next; 07, 08
+and 18 through 22 are skeletons and will be filled in as each phase approaches.
+A phase document is not a design document: where one contradicts the design, the
+design is what to fix first — and 14 §1 is that case, three documents describing
+a fallback layer no code implements.
+
+**Every phase through 1.0 now has a document, and the far ones are deliberately
+thin.** 18 through 22 were written in one pass so that the phases after PLAYABLE
+have addresses rather than paragraphs in [01](01-work-plan.md) — but a skeleton
+five phases out is not a plan, and [18 §0](18-p7-implementation.md) states in one
+place what all five are for: **collect the deferrals already made to the phase,
+name the decisions the revisit has to make, and hold the shape of the exit
+gate.** The first of those is the load-bearing one. More than a dozen documents
+have sent something to P7 alone, and a deferral nobody collects is a deferral
+that gets lost — which is the failure [01 §2.3](01-work-plan.md) exists to
+prevent, read from the far end.
 
 **A revisit is worth more than a first draft, and 05 is the evidence.** Its
 skeleton instructed itself to be re-read *against what the P2 turn record
