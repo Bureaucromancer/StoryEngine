@@ -11,6 +11,7 @@ import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
+import { callOnRecord, onRecord } from '../test-record.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
 /**
@@ -257,16 +258,18 @@ describe('a turn killed mid-generation', () => {
       join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns'),
     );
     expect(written).toHaveLength(1);
-    const turn = written[0]?.turn;
+    const turn = onRecord(written[0], 'the recovered turn on disk').turn;
     // Failed, because generation is never resumed — but *present*, with what it
     // managed, rather than a turn that silently never happened.
-    expect(turn?.status).toBe('failed');
-    expect(turn?.request?.calls[0]?.blocks.length ?? 0).toBeGreaterThan(0);
-    expect(turn?.input?.text).toBe('She waited.');
+    expect(turn.status).toBe('failed');
+    expect(onRecord(callOnRecord(turn).blocks, 'the recovered blocks').length).toBeGreaterThan(0);
+    expect(turn.input?.text).toBe('She waited.');
 
-    // And the head advanced exactly once.
+    // And the head advanced exactly once. Read off the narrowed turn rather than
+    // through `turn?.id`, which compared undefined against undefined and passed
+    // for the wrong reason if the response body ever stopped carrying a head.
     const session = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
-    expect(session.body.session.headTurnId).toBe(turn?.id);
+    expect(session.body.session.headTurnId).toBe(turn.id);
   });
 
   it('leaves the session usable, not permanently busy', async () => {
@@ -411,14 +414,24 @@ describe('a turn killed mid-generation', () => {
      * A draft that checkpointed only ids, or that wrote `budget: null` until
      * the call returned, passes the weaker form and fails this one.
      */
-    const request = turn?.request;
-    const input = request?.calls[0]?.blocks.find((block) => block.id === 'se.input');
+    const call = callOnRecord(onRecord(turn, 'the recovered turn on disk'));
+    const blocks = onRecord(call.blocks, 'the blocks on the in-flight call');
+    // **Not `onRecord`, and the distinction is the one that helper is built on.**
+    // An absent `se.input` block is not a thin record — `blocks` above already
+    // proved the writer recorded what it assembled. It is the assembler having
+    // left the player's own message out of the recovered prompt, which is this
+    // gate's central behavioural claim and belongs in a reported expectation
+    // rather than in a throw that says the build stopped writing.
+    const input = blocks.find((block) => block.id === 'se.input');
     expect(input?.text).toBe('She waited.');
     expect(input?.source.kind).toBe('input');
     expect(input?.included).toBe(true);
-    for (const block of request?.calls[0]?.blocks ?? []) expect(block.reason).not.toBe('');
+    // No `?? []` on the walk. An empty list would have run zero assertions and
+    // passed, and the only thing standing in its way was the accident that the
+    // three expectations above execute first.
+    for (const block of blocks) expect(block.reason).not.toBe('');
 
-    const budget = request?.calls[0]?.budget ?? null;
+    const budget = call.budget ?? null;
     expect(budget).not.toBeNull();
     // The honest stamp since [P3.0]: the ceiling is the config's, the share is
     // the preset's, and neither claims the other's number.
@@ -429,7 +442,7 @@ describe('a turn killed mid-generation', () => {
     // listing only the drops cannot answer "what falls out next", which is what
     // `nextToDrop` is.
     expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
-      request?.calls[0]?.blocks.map((block) => block.id),
+      blocks.map((block) => block.id),
     );
     expect(budget?.nextToDrop).toContain('se.instruction');
   });

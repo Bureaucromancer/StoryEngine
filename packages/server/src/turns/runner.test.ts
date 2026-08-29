@@ -28,6 +28,7 @@ import { Layout } from '../storage/layout.js';
 import { Accounts } from '../auth/accounts.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
+import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
 import { NARRATE } from '../modes/scene/mode.js';
 import { SCENE_PRESET } from '../modes/scene/preset.js';
@@ -242,9 +243,18 @@ describe('a turn goes all the way through', () => {
     expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([02 §8]).
-    expect(turn.request?.calls[0]?.blocks.map((block) => block.source.kind)).toContain('input');
-    expect(turn.request?.calls).toHaveLength(1);
-    expect(turn.request?.calls[0]?.resolved).toEqual({
+    // Bound once, and read from that binding below. Two spellings of the same
+    // call — a narrowed one here and `turn.request?.calls[0]?.` on the next
+    // lines — both survive tsc, which is precisely why they drift: a reader has
+    // to check whether the difference means anything, and here it never did.
+    const call = callOnRecord(turn);
+    const blocks = onRecord(call.blocks, 'the assembled blocks');
+    expect(blocks.map((block) => block.source.kind)).toContain('input');
+    // Still read off `request` rather than the binding: *how many calls the turn
+    // made* is a claim about the request, and asserting it through a helper that
+    // already picked call zero would be asserting it against itself.
+    expect(onRecord(turn.request, 'the request on the committed turn').calls).toHaveLength(1);
+    expect(call.resolved).toEqual({
       connectionId: CONNECTION_ID,
       modelId: 'fake-hi',
     });
@@ -757,7 +767,7 @@ describe('cancellation', () => {
     expect(call?.wallMs).toBeGreaterThan(0);
     // And the assembly rides on the interrupted call itself since [P3.0] —
     // blocks per call is what makes this assertable at all.
-    expect(call?.blocks.length).toBeGreaterThan(0);
+    expect(onRecord(call?.blocks, 'the cancelled call and its blocks').length).toBeGreaterThan(0);
     // The words that had already streamed survive as the turn's output rather
     // than silently never having happened.
     expect(written[0]?.turn.output?.text.length).toBeGreaterThan(0);
@@ -792,15 +802,21 @@ describe('cancellation', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const calls = written[0]?.turn.request?.calls ?? [];
+    const turn = onRecord(written[0], 'the cancelled turn on disk').turn;
+    const calls = onRecord(turn.request, 'the request on the cancelled turn').calls;
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.outcome).toBe('cancelled');
-    expect(calls[0]?.error).toBeNull();
-    expect(calls[0]?.usage).toBeNull();
-    expect(calls[0]?.finishReason).toBeNull();
-    // The assembly the restamp exists to keep.
-    expect(calls[0]?.blocks.length).toBeGreaterThan(0);
-    expect(calls[0]?.budget.decisions.length).toBeGreaterThan(0);
+    const call = onRecord(calls[0], 'the restamped call');
+    expect(call.outcome).toBe('cancelled');
+    expect(call.error).toBeNull();
+    expect(call.usage).toBeNull();
+    expect(call.finishReason).toBeNull();
+    // The assembly the restamp exists to keep. The `?? []` this binding used to
+    // end in was the escape hatch: a record with no request at all turned every
+    // line below into an assertion about an empty list, and only the length
+    // check above stood between that and a green run over a turn that assembled
+    // nothing. Narrowing removes the hatch rather than guarding it.
+    expect(onRecord(call.blocks, 'the restamped blocks').length).toBeGreaterThan(0);
+    expect(onRecord(call.budget, 'the restamped budget').decisions.length).toBeGreaterThan(0);
   });
 
   /**
@@ -830,16 +846,26 @@ describe('the record says why a slot is empty', () => {
   it('lands the not-filled slots on the call, reasons and all', async () => {
     const { turn } = await runTurn();
 
-    const call = turn.request?.calls[0];
-    const lore = call?.notFilled.find((slot) => slot.source === 'lore');
+    const call = callOnRecord(turn);
+    const notFilled = onRecord(call.notFilled, 'the not-filled slots on the call');
+    const lore = notFilled.find((slot) => slot.source === 'lore');
     expect(lore?.reason).toBe('no-producer');
     // Nothing filled is also nothing listed twice: the filled blocks and the
-    // not-filled slots partition the preset's applicable blocks.
-    const filledIds = new Set(call?.blocks.map((block) => block.id));
-    for (const slot of call?.notFilled ?? []) {
+    // not-filled slots partition the preset's applicable blocks — which is a
+    // claim about two *populated* lists. `new Set(undefined)` is an empty set
+    // rather than an error, so the check below would have passed once per slot
+    // while proving nothing, and the `?? []` on the loop let it run zero times
+    // besides. Both sides are pinned non-empty first, and the guard that used to
+    // sit underneath the loop now stands in front of it, where it can prevent a
+    // zero-iteration pass rather than merely notice one afterwards.
+    const filledIds = new Set(
+      onRecord(call.blocks, 'the blocks the call filled').map((block) => block.id),
+    );
+    expect(filledIds.size).toBeGreaterThan(0);
+    expect(notFilled.length).toBeGreaterThan(0);
+    for (const slot of notFilled) {
       expect(filledIds.has(slot.blockId)).toBe(false);
     }
-    expect((call?.notFilled.length ?? 0) > 0).toBe(true);
   });
 
   it('empties honestly when a step supplies its own candidates', async () => {
@@ -982,15 +1008,14 @@ describe('the preset is what builds the prompt', () => {
     // that matters is that the *preset* is visible in the record.
     const { turn } = await runTurn();
 
-    const reasons = turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+    const reasons = blocks.map((block) => block.reason);
     // The narrator instruction is a text block the preset author wrote.
     expect(reasons).toContain('instruction');
     // …and the player's action is a slot the preset positioned.
     expect(reasons).toContain('input');
 
-    const instruction = turn.request?.calls[0]?.blocks.find(
-      (block) => block.source.kind === 'preset',
-    );
+    const instruction = blocks.find((block) => block.source.kind === 'preset');
     expect(instruction?.text).toContain('narrator');
   });
 
@@ -999,8 +1024,23 @@ describe('the preset is what builds the prompt', () => {
     // lore, and those slots are *present* in the preset — which is what makes
     // P5 an activation change rather than a preset change.
     const { turn } = await runTurn();
-    const kinds = turn.request?.calls[0]?.blocks.map((block) => block.source.kind) ?? [];
+    const kinds = onRecord(callOnRecord(turn).blocks, 'the assembled blocks').map(
+      (block) => block.source.kind,
+    );
 
+    // **Two negatives cannot carry a test.** Narrowing makes an *absent* record
+    // loud and says nothing whatever about an *empty* one: a list that was never
+    // built contains no 'lore' just as happily as a real assembly does, and this
+    // block held nothing but negatives, so `?? []` over a turn with no request
+    // in it was a green run. The obvious repair — extending the chain to
+    // `?.blocks?.map(…) ?? []` — would have widened exactly that hole while
+    // silencing the compiler. So the kinds that must be here are asserted first,
+    // and the drop `omitWhenEmpty` performs then reads as a *difference* rather
+    // than as a void. Neither positive is a new claim: the sibling test above
+    // pins a `source.kind === 'preset'` block on this same default `runTurn()`,
+    // and the record test at the top of the file pins 'input'.
+    expect(kinds).toContain('preset');
+    expect(kinds).toContain('input');
     expect(kinds).not.toContain('lore');
     expect(kinds).not.toContain('setting');
   });
@@ -1032,17 +1072,18 @@ describe('the preset is what builds the prompt', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const history = written
-      .at(-1)
-      ?.turn.request?.calls[0]?.blocks.filter((b) => b.source.kind === 'history');
+    const latest = onRecord(written.at(-1), 'the second turn on disk').turn;
+    const history = onRecord(callOnRecord(latest).blocks, 'the assembled blocks').filter(
+      (b) => b.source.kind === 'history',
+    );
 
     // Two blocks for one past turn, in the order they were said, each in its own
     // voice — and the player's line is *not* the model's.
-    expect(history?.map((block) => [block.role, block.text])).toEqual([
+    expect(history.map((block) => [block.role, block.text])).toEqual([
       ['user', 'The first thing.'],
       ['assistant', expect.any(String)],
     ]);
-    expect(history?.[1]?.text).not.toContain('The first thing.');
+    expect(history[1]?.text).not.toContain('The first thing.');
   });
 });
 
@@ -1211,11 +1252,17 @@ describe('a preset block can be scoped to a kind of call', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', scoped.id, 'turns'),
     );
-    const reasons = written[0]?.turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
+    const scopedTurn = onRecord(written[0], 'the scoped turn on disk').turn;
+    const reasons = onRecord(callOnRecord(scopedTurn).blocks, 'the assembled blocks').map(
+      (block) => block.reason,
+    );
 
     // The narrate step does not make a `summarise` call, so that block is out…
     expect(reasons).not.toContain('only for summaries');
     // …and the unscoped one is still in, so this is not passing on an empty list.
+    // That guard is load-bearing and stays exactly where it is: narrowing makes
+    // an *absent* record loud, but an assembly that ran and produced nothing
+    // would still slip past the negative above on its own.
     expect(reasons).toContain('input');
   });
 });
@@ -1237,15 +1284,20 @@ describe("the preset's own settings reach the call", () => {
   it('budgets against the share the preset asks for', async () => {
     const { turn } = await runTurn();
 
-    const limit = turn.request?.calls[0]?.budget.limit;
+    const limit = onRecord(callOnRecord(turn).budget, 'the budget verdict').limit;
     // Three quarters of the config ceiling — and since [P3.0], labelled as
     // what it is: the config's number (`'user'`, the live-editable one),
     // narrowed by the preset's recorded share. The old `'preset'` stamp hid
     // the exact remedy the field exists to suggest.
-    expect(limit?.source).toBe('user');
-    expect(limit?.ceiling).toBe(DEFAULT_CONFIG.limits.contextTokens);
-    expect(limit?.share).toBe(SCENE_PRESET.budget.contextShare);
-    expect(limit?.tokens).toBe(
+    expect(limit.source).toBe('user');
+    expect(limit.ceiling).toBe(DEFAULT_CONFIG.limits.contextTokens);
+    // `share` is left unnarrowed on purpose: it is genuinely optional on
+    // `BudgetLimit`, and absent versus wrong is a real distinction here —
+    // [P3.0]'s invariant is that a present `share` means
+    // `tokens === floor(ceiling × share)`, so an `undefined` reported by `toBe`
+    // is precisely the mutation this line exists to catch.
+    expect(limit.share).toBe(SCENE_PRESET.budget.contextShare);
+    expect(limit.tokens).toBe(
       Math.floor(DEFAULT_CONFIG.limits.contextTokens * SCENE_PRESET.budget.contextShare),
     );
   });
