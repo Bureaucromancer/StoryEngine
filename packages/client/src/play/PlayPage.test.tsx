@@ -6,7 +6,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TurnRecord } from '../api.js';
+import type { TurnPreview, TurnRecord } from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -36,21 +36,45 @@ const readSession = vi.fn();
 const readTranscript = vi.fn();
 const submitTurn = vi.fn();
 const cancelTurn = vi.fn();
+const previewTurn = vi.fn();
+const patchPrefs = vi.fn();
+let prefsStore: Record<string, unknown> = {};
 
 // `importOriginal` spread rather than the bare factory this file used to have:
 // the page now imports its session hooks from `queries.ts`, which loads under
 // this same mock and needs `api`, `adminApi` and the rest to keep their real
 // bindings rather than becoming `undefined`. Only the six session functions
 // are replaced.
-vi.mock('../api.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api.js')>()),
-  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
-  createSession: (...a: unknown[]) => createSession(...a) as unknown,
-  readSession: (...a: unknown[]) => readSession(...a) as unknown,
-  readTranscript: (...a: unknown[]) => readTranscript(...a) as unknown,
-  submitTurn: (...a: unknown[]) => submitTurn(...a) as unknown,
-  cancelTurn: (...a: unknown[]) => cancelTurn(...a) as unknown,
-}));
+vi.mock('../api.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api.js')>();
+  return {
+    ...actual,
+    listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
+    createSession: (...a: unknown[]) => createSession(...a) as unknown,
+    readSession: (...a: unknown[]) => readSession(...a) as unknown,
+    readTranscript: (...a: unknown[]) => readTranscript(...a) as unknown,
+    submitTurn: (...a: unknown[]) => submitTurn(...a) as unknown,
+    cancelTurn: (...a: unknown[]) => cancelTurn(...a) as unknown,
+    // Since [P3.4] the page carries the context meter, which reads the auth
+    // state for its locale, reads and writes the workbench preference, and
+    // asks for a preview on every pause. These were the *real* functions
+    // under the spread, so without them the page issues real fetches into
+    // jsdom.
+    previewTurn: (...a: unknown[]) => previewTurn(...a) as unknown,
+    api: {
+      ...actual.api,
+      authState: () => Promise.resolve({ setupRequired: false, account: null }),
+      readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+      patchPrefs: (patch: Record<string, unknown>) => {
+        patchPrefs(patch);
+        prefsStore = Object.fromEntries(
+          Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+        );
+        return Promise.resolve({ prefs: { ...prefsStore } });
+      },
+    },
+  };
+});
 
 /** The last handlers the page opened a stream with — the test's way to speak. */
 let handlers: StreamHandlers;
@@ -88,12 +112,38 @@ const TURN: TurnRecord = {
   tape: [],
 };
 
+/** A preview whose numbers are readable in an assertion rather than realistic. */
+function previewOf(spent: number): { preview: TurnPreview } {
+  return {
+    preview: {
+      state: 'assembled',
+      headTurnId: 'turn-1',
+      pendingInput: spent > 100,
+      stepId: 'se.narrate',
+      callKind: 'narrate',
+      purpose: 'prose',
+      resolved: { connectionId: 'conn-1', modelId: 'fake-hi' },
+      blocks: [],
+      budget: {
+        limit: { tokens: 6144, ceiling: 8192, source: 'user', share: 0.75 },
+        reserved: 1024,
+        spent,
+        decisions: [],
+        nextToDrop: [],
+      },
+      notFilled: [],
+    },
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  prefsStore = {};
   readSession.mockResolvedValue({ session: SESSION, activeJob: null });
   readTranscript.mockResolvedValue({ turns: [TURN] });
   submitTurn.mockResolvedValue({ jobId: 'job-1', cursor: 'job-1.0' });
   cancelTurn.mockResolvedValue({ jobId: 'job-1' });
+  previewTurn.mockResolvedValue(previewOf(100));
 });
 
 function renderPage() {
@@ -332,5 +382,169 @@ describe('a turn that finishes instantly', () => {
     });
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+  });
+});
+
+/**
+ * The context meter — [P3.4]'s ends-at, at the level a person meets it.
+ *
+ * Real timers here, and `waitFor` rather than clock control: the debounce's
+ * own boundary is pinned deterministically in `useDebouncedInput.test.tsx`,
+ * and `userEvent` schedules on real timers, so faking them here would hang
+ * the typing rather than test it. What this file owes is the join — that
+ * typing reaches the server, that the answer reaches the meter, and that the
+ * meter opens the dock.
+ */
+describe('the context meter', () => {
+  it('asks at rest, before anything is typed', async () => {
+    renderPage();
+
+    // The always-visible half: a reading exists before the first keystroke,
+    // and it is the context as it stands. The falsifying mutation is gating
+    // the effect on a non-empty draft.
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledWith(SESSION.id, { text: '', guidance: '' });
+    });
+    expect(await screen.findByRole('button', { name: /Context fill: 100 of 5,120/ })).toBeTruthy();
+  });
+
+  it('reflects the pending input rather than the last committed turn', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalled();
+    });
+
+    previewTurn.mockResolvedValue(previewOf(2_500));
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+
+    // The stage's ends-at: the number moves for text that has not been sent.
+    // The falsifying mutation is dropping `settled` from the effect's deps,
+    // which leaves the meter showing the at-rest reading for ever.
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledWith(SESSION.id, {
+        text: 'I step in.',
+        guidance: '',
+      });
+    });
+    expect(await screen.findByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
+  });
+
+  it('asks once for a burst of typing, not once per keystroke', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'abcdefghij');
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledWith(SESSION.id, { text: 'abcdefghij', guidance: '' });
+    });
+
+    // Ten keystrokes, and the server was asked about the settled value — not
+    // about each letter on the way to it. The mutation is removing the
+    // debounce, which turns every keystroke into a transcript read.
+    expect(previewTurn.mock.calls.length).toBeLessThan(5);
+  });
+
+  it('opens the dock once, and does not patch when it is already open', async () => {
+    renderPage();
+    const meter = await screen.findByRole('button', { name: /Context fill/ });
+
+    await userEvent.click(meter);
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+
+    // Already open: clicking again must not write. `dock.test.tsx` asserts the
+    // inverse of this on mount, and a redundant patch would redden it.
+    await waitFor(() => {
+      expect(meter.getAttribute('aria-expanded')).toBe('true');
+    });
+    await userEvent.click(meter);
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays visible and says why when nothing is bound', async () => {
+    previewTurn.mockResolvedValue({
+      preview: {
+        state: 'unmeasurable',
+        headTurnId: null,
+        pendingInput: false,
+        reason: 'role-unbound',
+        notFilled: [],
+      },
+    });
+    renderPage();
+
+    // [P3.4]'s decision: the meter is always visible, and an install with no
+    // model says so rather than vanishing or implying zero. The falsifying
+    // mutation is returning null from the meter on this arm.
+    expect(
+      await screen.findByRole('button', {
+        name: 'Context fill is unmeasurable: nothing is bound to the prose role.',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('asks nothing while a turn is in flight', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'Go on.');
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledTimes(2);
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    // The input is disabled, the head is moving, and the preview entry was
+    // dropped at submit — asking now would measure a turn nobody can change.
+    // The mutation is dropping the `running` guard.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
+    });
+    expect(previewTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets the last answer win when two are in flight', async () => {
+    /**
+     * Only bites when the endpoint is slower than the debounce — which is
+     * exactly the install somebody is debugging when they look at the meter:
+     * a stale answer landing last would settle the meter on a keystroke the
+     * person has already typed past.
+     *
+     * **The guard this was written for does not exist**, and this test is why
+     * it does not: a sequence number in `useRefreshPreview` could not be made
+     * to fail, because the mutation observer never runs a superseded
+     * mutation's `onSuccess`. So the claim is pinned here at the level that
+     * matters — the last answer wins — and it holds whoever provides it. If a
+     * future version of the query library stops providing it, this reddens
+     * and the guard comes back with a reason attached.
+     */
+    // Hand-rolled rather than `Promise.withResolvers`, which this tsconfig's
+    // lib does not carry.
+    let settleTheStaleOne = (answer: { preview: TurnPreview }): void => void answer;
+    const slow = new Promise<{ preview: TurnPreview }>((resolve) => {
+      settleTheStaleOne = resolve;
+    });
+    previewTurn.mockReturnValueOnce(slow).mockResolvedValue(previewOf(2_500));
+
+    renderPage();
+    await screen.findByText('I knock twice.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'Later.');
+
+    // The second answer arrives first and is shown.
+    await waitFor(() => {
+      expect(previewTurn).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
+
+    // Then the stale first answer lands. It must not win.
+    await act(async () => {
+      settleTheStaleOne(previewOf(100));
+      await slow;
+    });
+    expect(screen.getByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
   });
 });

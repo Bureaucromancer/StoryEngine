@@ -3,6 +3,7 @@
 
 import {
   QueryClient,
+  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -13,6 +14,7 @@ import {
 import {
   adminApi,
   api,
+  previewTurn,
   readSession,
   readTranscript,
   readTurn,
@@ -33,8 +35,10 @@ import {
   type LibraryObject,
   type ObjectAddress,
   type ObjectVersion,
+  type PendingInput,
   type SessionSummary,
   type SetupInput,
+  type TurnPreview,
   type TurnRecord,
 } from './api.js';
 
@@ -424,6 +428,74 @@ export function useTurn(sessionId: string, turnId: string): UseQueryResult<{ tur
   return useQuery({
     queryKey: ['turn', sessionId, turnId],
     queryFn: () => readTurn(sessionId, turnId),
+  });
+}
+
+export function previewKey(sessionId: string): readonly unknown[] {
+  return ['preview', sessionId];
+}
+
+/**
+ * The pending assemble, read from one cache entry that **nobody fetches** —
+ * [P3.4].
+ *
+ * `queryFn: skipToken` is the mechanism and the guarantee at once: this hook
+ * *cannot* issue a request, so the meter and the workbench cannot end up
+ * asking separately and showing different numbers. There is one answer, at an
+ * address the route names, written by the composer through
+ * {@link useRefreshPreview} — which is what lets the panel render a pending
+ * turn while staying the reader [05 §2] says it must be. Its subject still
+ * comes from the route and the cache; nothing about the composer is
+ * remembered anywhere the panel can reach.
+ *
+ * `gcTime: 0` is [P3 §1.6] made mechanical — *the meter's numerator does not
+ * exist at rest*. Leave Play and the entry goes with the last observer,
+ * instead of lingering to be shown as fact on the way back.
+ *
+ * **Deliberately not polled.** Every other session-scoped read here either
+ * polls or is invalidated on the turn's finish; this one is driven by typing,
+ * and a `refetchInterval` would re-read every segment on disk on a timer for
+ * a surface nobody is touching.
+ */
+export function usePreview(sessionId: string): UseQueryResult<{ preview: TurnPreview }> {
+  // The type argument is explicit because `skipToken` gives the inference
+  // nothing to work from — there is no `queryFn` whose return it could read.
+  return useQuery<{ preview: TurnPreview }>({
+    queryKey: previewKey(sessionId),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
+/**
+ * The composer's writer: a POST that writes nothing, landing in the cache.
+ *
+ * Two existing patterns composed rather than a new one — `useFetchModels`
+ * blesses the POST-shaped read, and `usePatchPrefs` blesses a hook writing the
+ * cache directly.
+ *
+ * **Out-of-order answers need no guard here, and that is a finding rather than
+ * an assumption.** Two previews are in flight whenever the endpoint is slower
+ * than the debounce, which is exactly the install somebody is debugging when
+ * they look at the meter — so a stale answer landing last would settle the
+ * meter on a keystroke already typed past. A sequence number was written to
+ * prevent it and then removed: this observer does not run a superseded
+ * mutation's `onSuccess` at all, so the guard could not be made to fail. The
+ * behaviour is pinned by *the last answer wins when two are in flight* in
+ * `PlayPage.test.tsx`, which holds whoever provides it; if a future version
+ * changes that, the test reddens and the guard comes back with a reason.
+ */
+export function useRefreshPreview(
+  sessionId: string,
+): UseMutationResult<{ preview: TurnPreview }, Error, PendingInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (pending: PendingInput) => previewTurn(sessionId, pending),
+    onSuccess: (answer) => {
+      client.setQueryData(previewKey(sessionId), answer);
+    },
   });
 }
 

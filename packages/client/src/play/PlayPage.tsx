@@ -8,10 +8,29 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { uuidv7 } from '@storyengine/shared';
 
 import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
-import { useSession, useTranscript } from '../queries.js';
+import {
+  previewKey,
+  useAuthState,
+  usePreview,
+  useRefreshPreview,
+  useSession,
+  useTranscript,
+} from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
+import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
+
+/**
+ * How long a pause has to be before the meter asks — [P3.4].
+ *
+ * Long enough that a burst of typing is one question and not thirty (each
+ * costs the server a read of every segment in the session), short enough that
+ * the answer is there by the time somebody looks up from the sentence they
+ * just finished.
+ */
+const PREVIEW_DEBOUNCE_MS = 400;
 
 /**
  * The play surface — a deliberately thin chat view
@@ -34,6 +53,8 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   // cache entry and the invalidate below refreshes both ([P3.1]).
   const session = useSession(sessionId);
   const transcript = useTranscript(sessionId);
+  const auth = useAuthState();
+  const locale = auth.data?.account?.locale ?? undefined;
 
   const running = state.status === 'running';
 
@@ -58,8 +79,32 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([03 §5.1]).
       setGuidance('');
+      // **The record supersedes the preview** ([P3.4]). Dropped rather than
+      // left to be refreshed, so the panel returns to the head at once
+      // instead of showing a preview of a turn that is already running — and
+      // when this one commits, the head *is* it, with its real block table.
+      queryClient.removeQueries({ queryKey: previewKey(sessionId) });
     },
   });
+
+  /**
+   * The meter's question, asked on every pause — [P3.4].
+   *
+   * `running` is in the dependencies rather than only in the guard, so the
+   * turn *finishing* re-previews against the new head without a second effect
+   * to keep in step with this one. Nothing is asked while a turn is in
+   * flight: the input is disabled, the head is moving, and the entry was
+   * dropped at submit.
+   */
+  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS);
+  const refresh = useRefreshPreview(sessionId);
+  const refreshPreview = refresh.mutate;
+  const preview = usePreview(sessionId);
+
+  useEffect(() => {
+    if (running) return;
+    refreshPreview(settled);
+  }, [settled, running, refreshPreview]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -127,6 +172,14 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           if (draft.trim().length > 0) send.mutate();
         }}
       >
+        {/* Above the input rather than beside Send: a fill reads as a fill
+            only when it is wide, and the input row is already tight with its
+            button at the narrowest width the phase supports. */}
+        <ContextMeter
+          preview={preview.data?.preview}
+          busy={running || refresh.isPending}
+          locale={locale}
+        />
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">What do you do?</span>

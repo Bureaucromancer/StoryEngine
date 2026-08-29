@@ -30,6 +30,13 @@ export interface Headroom {
  */
 const HEADROOM_WARN_RATIO = 0.85;
 
+/**
+ * *And the meter it was named for arrived at [P3.4].* `ContextMeter` is this
+ * function's second caller, which is what stops the two surfaces disagreeing
+ * about *close to full*: the threshold is decided here, once, and stays
+ * module-private so neither can hold its own copy.
+ */
+
 export function headroom(verdict: BudgetVerdict): Headroom {
   const available = Math.max(0, verdict.limit.tokens - verdict.reserved);
   const imminent = available === 0 || verdict.spent >= HEADROOM_WARN_RATIO * available;

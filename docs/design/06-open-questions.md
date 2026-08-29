@@ -737,6 +737,19 @@ known and consistent direction, rather than one model per provider. One
 dependency, no bundled model files, and a measurable error to tune the margin
 against.
 
+*Recorded at P3.4, because a surface now shows this number to people.* The
+shipped approximator is not the BPE one above: it is `ceil(length / 4)`, with
+no dependency at all. The posture is vindicated and the implementation is not
+what this section describes, which is worth saying rather than quietly
+reconciling in either direction. The one real measurement — P3.2's browser
+walk — was **356 estimated against 397 reported, 10.3% low**, sitting exactly
+on the ~10% tolerance argued for here; the delta is the chat template, which
+`length/4` cannot see. The context meter therefore **labels rather than
+corrects**: it says *estimated* and shows the number the budgeter actually
+ruled with, because a corrected figure would disagree with the drops the
+verdict recorded, and the margin already lives in `reserveOutputTokens`. A
+better approximator remains open; a fudge factor at the surface is closed.
+
 ### E6. Backup and restore — a command, not a feature
 
 **Opinionated: the design already did most of this, so do not build a

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { LIBRARY_DIRECTORIES, type Turn as TurnRecord } from '@storyengine/shared';
+import {
+  LIBRARY_DIRECTORIES,
+  type Turn as TurnRecord,
+  type TurnPreview,
+} from '@storyengine/shared';
 
 /**
  * The client's side of docs/api.md — plain `fetch`, one wrapper.
@@ -354,6 +358,18 @@ export const api = {
  */
 export type { Turn as TurnRecord } from '@storyengine/shared';
 
+/**
+ * The preview's answer, re-exported for the same reason: the meter and the
+ * panel both render it, and neither should reach past this module for a shape
+ * the API defines ([P3.4]).
+ */
+export type {
+  AssembledPreview,
+  TurnPreview,
+  UnmeasurablePreview,
+  UnmeasurableReason,
+} from '@storyengine/shared';
+
 export interface SessionSummary {
   id: string;
   name: string;
@@ -423,6 +439,31 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
 
 export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: string }> {
   return request('POST', `/api/sessions/${sessionId}/jobs/${jobId}/cancel`);
+}
+
+/** What the composer holds — the two fields a preview is asked about. */
+export interface PendingInput {
+  text: string;
+  guidance: string;
+}
+
+/**
+ * What this turn *would* assemble to (docs/api.md, Sessions) — [P3.4].
+ *
+ * **A POST that writes nothing**, in `adminApi.fetchModels`' shape: the body
+ * carries up to a hundred thousand characters of somebody's prose, which does
+ * not belong in a URL. Empty strings are omitted rather than sent, so *nothing
+ * typed yet* reaches the collector as the absent `input?` it models rather
+ * than as an empty block.
+ */
+export function previewTurn(
+  sessionId: string,
+  pending: PendingInput,
+): Promise<{ preview: TurnPreview }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/preview`, {
+    ...(pending.text === '' ? {} : { input: { text: pending.text } }),
+    ...(pending.guidance === '' ? {} : { guidance: pending.guidance }),
+  });
 }
 
 /** An account as the admin list reports it, plus the dead-end flag. */
