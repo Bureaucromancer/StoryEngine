@@ -265,7 +265,9 @@ The property that actually forces a full view is **addressability**: a compariso
 has to be bookmarkable, pasteable into a bug report, and reopenable after the head
 has moved past both turns. A panel scoped to what the main view is showing can
 never be any of those. That is a substitution this plan is proposing, not one the
-design has made — §6.1 records the amendment owed.
+design has made — §7.2 records the amendment owed. **[P3.6] made it**: §7.2 is
+decided, and [05 §3](../05-ui-surfaces.md) now grounds the escalation on
+addressability in its own words.
 
 *Two mechanical requirements.* The existing object differ cannot be reused for the
 block table: it aligns arrays by index, so one inserted block reports everything
@@ -1298,12 +1300,23 @@ cost, charged for a click nobody meant as navigation. Re-subjecting the panel
 keeps your place and breaks the rule. *Devtools breaks the rule here:* clicking a
 network row does not navigate the page.
 
-**7.2 Whether the diff's escalation argument survives.** §3 grounds it in a panel
-having one subject by construction, and [05 §11.2a](../05-ui-surfaces.md) already
-ships a two-payload diff inside a panel citing §3 as precedent. The two
-contradict. §1.5 re-grounds the escalation on addressability, which is the
-property that actually carries it — but that is a substitution this plan proposes,
-not one the design has made.
+**7.2 Whether the diff's escalation argument survives. [DECIDED] at P3.6: the
+escalation stands, and its ground is addressability rather than subject count.**
+The old argument — that a panel scoped to the main view has one subject by
+construction — could not be the one doing the work, because
+[05 §11.2a](../05-ui-surfaces.md) ships a two-payload diff *inside* a panel and
+cites §3 as its precedent; two sections of one document cannot both be right.
+What carries the escalation is that a comparison must be **bookmarkable,
+pasteable into a bug report, and reopenable after the head has moved past both
+turns**, and a panel whose subject follows the main view can be none of those.
+So `/compare/:sessionId?before=&after=` is a full view, the panel keeps the
+*entry point* rather than the comparison (which is also [05 §1.1]'s
+depth-is-charged-per-visit answer: you leave once, deliberately), and the
+stateless-reader rule of [05 §2] is untouched — nothing about the panel became
+stateful to make this work. The answer is written into
+[05 §3](../05-ui-surfaces.md), per this section's own rule; §11.2a needs no
+amendment, because under the new ground a panel diff and a compare view are
+distinguished by whether anybody needs to *point at* the comparison later.
 
 **7.3 What the panel shows where the main view has no subject** — the sessions
 list, settings, the auth screens, and later home. An empty panel is honest; a

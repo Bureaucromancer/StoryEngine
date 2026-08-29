@@ -293,6 +293,24 @@ describe('the panel frame', () => {
     expect(actor?.getAttribute('href')).toBe(`/library/actors/${ACTOR_ID}`);
   });
 
+  /**
+   * The panel's one way out — [P3.6]. Asserted here rather than in
+   * `views.test.tsx` because the claim is about the *address*: the link is
+   * built from the head and its parent and resolved through the real route
+   * table, which is the whole of why comparison is a view and not a second
+   * subject in this panel ([P3 §7.2]).
+   */
+  it('offers the head turn a comparison with the one before it, as an address', async () => {
+    renderApp();
+    await overPlay();
+    await userEvent.keyboard(CHORD);
+
+    const dock = screen.getByRole('complementary');
+    const compare = within(dock).getByRole('link', { name: 'Compare with the turn before it' });
+    // The head is the cancelled turn, whose parent is the rich one.
+    expect(compare.getAttribute('href')).toBe(`/compare/${SESSION_ID}?before=t-10&after=t-11`);
+  });
+
   it('is honestly empty over a view with no subject', async () => {
     renderApp();
     await overLibrary();

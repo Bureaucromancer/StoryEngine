@@ -424,10 +424,21 @@ true answer to *how full is the context* rather than an error.
 **Two of the features above do not fit a panel, and should not be forced into
 one.**
 
-- **Diff two turns** is inherently two-subject, and a panel scoped to what the
-  main view is showing has one subject by construction. Comparison escalates to a
-  full view. Devtools has the same seam and draws it the same way — inspection is
-  a panel activity, profiling is not.
+- **Diff two turns** escalates to a full view. ~~It is inherently two-subject,
+  and a panel scoped to what the main view is showing has one subject by
+  construction.~~ **[P3.6] replaced that reason with a better one, and kept the
+  conclusion.** Subject count cannot be what does the work here: §11.2a ships a
+  two-payload diff *inside* a panel and cites this very section as its
+  precedent, so the two paragraphs contradicted each other for as long as both
+  stood. What actually forces a view is **addressability** — a comparison has
+  to be bookmarkable, pasteable into a bug report, and reopenable after the head
+  has moved past both turns, and a panel whose subject follows the main view can
+  be none of those. The address is `/compare/:sessionId?before=&after=`, and the
+  panel keeps the *entry point* rather than the comparison, which is also §1.1's
+  per-visit answer: you leave once, deliberately, and arrive somewhere you can
+  point at. Nothing about the panel becomes stateful to make this work.
+  Devtools has the same seam and draws it the same way — inspection is a panel
+  activity, profiling is not.
 - **Promote a dry run** mutates rather than reads. It stays, because §3's
   rewrite-versus-reroll scoping already makes it safe, but a panel that changes
   things has to say so more loudly than a read-only one would: dry-run state is

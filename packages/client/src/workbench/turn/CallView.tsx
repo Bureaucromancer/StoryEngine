@@ -6,12 +6,13 @@ import type { JSX } from 'react';
 import type { ModelCall } from '@storyengine/shared';
 
 import { formatCount, formatDuration } from '../../format.js';
-import { Badge, type BadgeTone } from '../../ui/Badge.js';
+import { Badge } from '../../ui/Badge.js';
 import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Panel } from '../../ui/Panel.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
 import { BlockTable } from './BlockTable.js';
 import { BudgetVerdictView } from './BudgetVerdictView.js';
+import { OUTCOME_LABELS, OUTCOME_TONES } from './labels.js';
 import { NotFilledList } from './NotFilledList.js';
 import { rulesOf } from './rules.js';
 
@@ -34,25 +35,6 @@ import { rulesOf } from './rules.js';
  *   still empty this is the first measurement rather than a regression from
  *   a baseline.
  */
-
-const OUTCOME_LABELS: Record<ModelCall['outcome'], string> = {
-  ok: 'Answered',
-  refused: 'Refused',
-  truncated: 'Truncated',
-  incomplete: 'Incomplete',
-  error: 'Failed',
-  cancelled: 'Stopped',
-};
-
-const OUTCOME_TONES: Record<ModelCall['outcome'], BadgeTone> = {
-  ok: 'neutral',
-  refused: 'danger',
-  truncated: 'danger',
-  incomplete: 'danger',
-  error: 'danger',
-  // A person's Stop is not a failure, and painting it as one blames them.
-  cancelled: 'neutral',
-};
 
 const PURPOSE_LABELS: Record<ModelCall['purpose'], string> = {
   prose: 'Prose',

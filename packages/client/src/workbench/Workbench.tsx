@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useMatch } from '@tanstack/react-router';
+import { Link, useMatch } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
 import { isLibraryKind } from '../api.js';
@@ -14,6 +14,7 @@ import {
   useTranscript,
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { link } from '../ui/classes.js';
 import {
   clampSize,
   MAX_SIZE,
@@ -338,6 +339,25 @@ function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
   return (
     <>
       <p className="text-sm text-ink-muted">The head turn of this session.</p>
+      {/* **The panel supplies the entry point, and the view supplies the
+          address** — [P3 §1.5]. Rendered only when there is something to
+          compare against: the first turn of a session has no before, and a
+          link to a comparison that cannot exist is worse than no link. The
+          destination is a full view rather than a second subject here, which
+          is [P3 §7.2]'s settlement in one element: you leave once, on
+          purpose, and arrive somewhere you can bookmark. */}
+      {head.parentTurnId === null ? null : (
+        <p>
+          <Link
+            to="/compare/$sessionId"
+            params={{ sessionId }}
+            search={{ before: head.parentTurnId, after: head.id }}
+            className={link.inline}
+          >
+            Compare with the turn before it
+          </Link>
+        </p>
+      )}
       <TurnSubject turn={head} locale={locale} />
     </>
   );
