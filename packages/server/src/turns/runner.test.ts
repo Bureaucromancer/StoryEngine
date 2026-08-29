@@ -6,13 +6,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { uuidv7 } from '@storyengine/shared';
+
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { readClock, SE_CLOCK } from '../sessions/channels.js';
 import { readAllTurns } from '../sessions/segments.js';
-import { createSession, readSession, type SessionContext } from '../sessions/store.js';
+import {
+  appendTurnToSession,
+  createSession,
+  readSession,
+  type SessionContext,
+} from '../sessions/store.js';
 import type { Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
 import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
@@ -1915,5 +1922,55 @@ describe('the install default bindings', () => {
     // reason `resolveRole` tells them apart.
     expect(turn.status).toBe('failed');
     expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+  });
+});
+
+describe('the history the runner hands the collector', () => {
+  /**
+   * The wiring half of [P3.4]'s gather split, and the reason it is asserted
+   * here rather than in `gather.test.ts`: that test proves `windowed` *is* the
+   * mode's window; only a turn through the real loop proves the runner hands
+   * the collector **that** array and not the whole path. Both are `Turn[]`, so
+   * swapping them typechecks, passes every other test in this file, and grows
+   * every prompt for the rest of the session's life.
+   *
+   * The past is written straight to disk rather than run — the runner reads
+   * history from the segments, and twenty-five real turns would buy the same
+   * assertion for twenty-five times the wall clock.
+   */
+  it('cuts it to the mode’s window, however long the session is', async () => {
+    let parent: string | null = null;
+    for (let hour = 1; hour <= 25; hour += 1) {
+      const past: Turn = {
+        id: uuidv7(),
+        sessionId,
+        parentTurnId: parent,
+        createdAt: new Date(Date.UTC(2026, 7, 16, hour)).toISOString(),
+        status: 'complete',
+        input: { actorId: null, kind: 'do', text: `Turn ${String(hour)}.`, raw: '' },
+        output: { text: `The answer to turn ${String(hour)}.` },
+        effects: [],
+        tape: [],
+      };
+      await appendTurnToSession(sessions, ACCOUNT, sessionId, past);
+      parent = past.id;
+    }
+
+    const job = await reserve('windowed-key', parent);
+    runner.start(job, { input: { actorId: null, kind: 'do', text: 'And now?', raw: '' } });
+    await until(() => readJob(state.db, job.id)?.status === 'committed', 'the job to commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
+    );
+    const blocks = written.at(-1)?.turn.request?.calls[0]?.blocks ?? [];
+    const fromHistory = blocks.filter((block) => block.source.kind === 'history');
+    const turnIds = new Set(
+      fromHistory.map((block) => (block.source.kind === 'history' ? block.source.turnId : '')),
+    );
+
+    // Twenty turns of history, not twenty-five — and the newest ones.
+    expect(turnIds.size).toBe(20);
+    expect(turnIds.has(parent ?? '')).toBe(true);
   });
 });

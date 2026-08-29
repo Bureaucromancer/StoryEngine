@@ -4,14 +4,11 @@
 import { AdvisoryLeakError, estimateTokens } from '../assembly/assemble.js';
 import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
-import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { Accounts } from '../auth/accounts.js';
-import { resolveConnections } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { Rng } from '../rng/rng.js';
 import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
-import { walkPath } from '../sessions/segments.js';
-import { applyEffects, readSession, readTurns, replayChannels } from '../sessions/store.js';
+import { applyEffects } from '../sessions/store.js';
 import type {
   ChannelEffect,
   ChannelState,
@@ -38,9 +35,9 @@ import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
+import { gatherAssemblyInputs } from './gather.js';
 import { collectCandidates } from '../assembly/collect.js';
-import { DEFAULT_MODE_ID, modeById, planFor } from '../modes/registry.js';
-import { resolveCast } from './cast.js';
+import { planFor } from '../modes/registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 /**
@@ -357,83 +354,49 @@ export class TurnRunner {
     log?.info({ event: 'job.running' }, 'Turn started');
     write([turnStarted(job.turnId)]);
 
-    // Unlocked, and every read happens before any step runs.
-    const session = await readSession(commit.sessions, job.account, job.sessionId);
-    const turnsById = await readTurns(commit.sessions, job.account, job.sessionId);
-    const history = walkPath(turnsById, job.parentTurnId);
-    let running: Record<string, ChannelState> = session
-      ? session.channels
-      : replayChannels(history);
-
     /**
-     * **The capability, not a literal** — [P2A §2.1], [04 §4.5].
-     *
-     * This passed `{ privateConnections: true }` from P2.5 until now, which
-     * defeated the one check [04 §4.5] calls load-bearing. It calls it that
-     * precisely because the alternative — hiding personal connections in the
-     * UI — is a trivial bypass for anyone with `fileAccess: "write"`, and a
-     * turn is where a connection is actually *used*.
-     *
-     * An account that has vanished between reservation and run resolves to no
-     * capabilities rather than to the defaults. Defaulting would mean a deleted
-     * account's queued turn ran with more authority than a live one whose
-     * capability had been revoked, which is the wrong way round.
+     * Unlocked, and every read happens before any step runs — now through the
+     * gather a preview shares ([P3.4]), so the two cannot drift on the values
+     * that fail silently. **It stays inside this `try`**: a throw in here — a
+     * hand-edited `accounts.json` reaches one — must commit a failed turn
+     * rather than leave the job running with `finishedAt` null, which wedges
+     * the session's one-active-job index until the process restarts. That is
+     * what `runner.test.ts`'s *cannot even be set up* case exists to catch.
      */
-    const account = await this.#options.accounts.find(job.account);
-    const capabilities = account?.capabilities ?? { privateConnections: false };
-    const { usable, disabled } = await resolveConnections(
-      commit.sessions.layout,
-      job.account,
-      capabilities,
+    const inputs = await gatherAssemblyInputs(
+      { sessions: commit.sessions, accounts: this.#options.accounts },
+      { account: job.account, sessionId: job.sessionId, parentTurnId: job.parentTurnId },
     );
+    const { history, windowed, usable, bindings, defaults, mode, preset, cast } = inputs;
+    let running: Record<string, ChannelState> = inputs.channels;
 
     /**
      * **Revoking disables; it never deletes** ([04 §4.5]).
      *
      * The files are still on disk and `resolveConnections` has always returned
-     * this list — nothing populated it in production, because the literal above
-     * meant the branch that fills it could not be reached. Logged as a count
-     * rather than as names: [04 §4.5] keeps a connection opaque, and the fact
-     * an operator needs when somebody reports "my model stopped working" is
-     * that connections were ignored and how many.
+     * this list — nothing populated it in production, because a literal in the
+     * gather's capability line meant the branch that fills it could not be
+     * reached. Logged as a count rather than as names: [04 §4.5] keeps a
+     * connection opaque, and the fact an operator needs when somebody reports
+     * "my model stopped working" is that connections were ignored and how many.
+     *
+     * The logging is here rather than in the gather because a preview runs
+     * every time somebody pauses typing, and these lines are what an operator
+     * searches for — they belong to the turn, not to the read.
      */
-    if (disabled.length > 0) {
+    if (inputs.disabled.length > 0) {
       log?.info(
-        { event: 'connections.disabled', ignored: disabled.length },
+        { event: 'connections.disabled', ignored: inputs.disabled.length },
         'Personal connections ignored: the account may not use its own',
       );
     }
-    // Two layers ([P2B §2.1]): the account's own, and the install defaults it
-    // falls back to per role. Read together because a turn resolves every role
-    // against both, and a second read per role would be the same two files.
-    const bindings = await readBindings(commit.sessions.layout, job.account);
-    const defaults = await readSystemBindings(commit.sessions.layout);
 
-    /**
-     * **What the session is playing decides what runs**, and an unknown mode
-     * resolves to the default rather than refusing.
-     *
-     * [00 §3.3]: a session whose mode came from a newer build, or from an
-     * extension that is not installed, is still somebody's story and should
-     * still open. The substitution is logged so that it is not silent.
-     */
-    const declared = session?.mode?.id ?? DEFAULT_MODE_ID;
-    const mode = modeById(declared) ?? modeById(DEFAULT_MODE_ID);
-    if (mode === null) throw new Error('No default mode is registered.');
-    if (declared !== mode.definition.id) {
+    if (inputs.declaredMode !== mode.definition.id) {
       log?.warn(
-        { event: 'mode.substituted', declared, using: mode.definition.id },
+        { event: 'mode.substituted', declared: inputs.declaredMode, using: mode.definition.id },
         'Unknown mode; playing the default',
       );
     }
-
-    const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
-    const cast = resolveCast(
-      { db: commit.sessions.index, layout: commit.sessions.layout, keepHistoryPerObject: 0 },
-      job.account,
-      session?.cast,
-    );
-    const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
     /**
      * Candidates the *steps* contributed, kept outside the loop.
