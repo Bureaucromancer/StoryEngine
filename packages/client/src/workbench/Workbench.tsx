@@ -5,7 +5,14 @@ import { useMatch } from '@tanstack/react-router';
 import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
 import { isLibraryKind } from '../api.js';
-import { useAuthState, usePatchPrefs, usePrefs, usePreview, useTranscript } from '../queries.js';
+import {
+  useAuthState,
+  useLiveTurn,
+  usePatchPrefs,
+  usePrefs,
+  usePreview,
+  useTranscript,
+} from '../queries.js';
 import { Button } from '../ui/Button.js';
 import {
   clampSize,
@@ -16,6 +23,7 @@ import {
   workbenchSizePatch,
 } from './prefs.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
+import { LiveSubject } from './live/LiveSubject.js';
 import { PreviewSubject } from './turn/PreviewSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
 
@@ -291,8 +299,22 @@ function ResizeHandle(props: {
 function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
   const transcript = useTranscript(sessionId);
   const preview = usePreview(sessionId);
+  const liveTurn = useLiveTurn(sessionId);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
+
+  /**
+   * **A turn being taken outranks both** — [P3.5]. While the server is working
+   * there is nothing to compose (the input is disabled) and the head is about
+   * to be superseded, so the honest subject is the one thing that is actually
+   * happening. It is the event feed rendered rather than the record rendered
+   * early, which is the decision the stage made about [04 §3.3]; the record
+   * takes over the moment the turn commits and the transcript refetches.
+   */
+  const live = liveTurn.data?.live;
+  if (live?.state === 'running') {
+    return <LiveSubject live={live} locale={locale} />;
+  }
 
   const pending = preview.data?.preview;
   if (pending?.pendingInput === true) {

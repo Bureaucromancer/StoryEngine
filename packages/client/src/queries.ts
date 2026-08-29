@@ -11,6 +11,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
+import type { LiveTurn } from './play/reducer.js';
 import {
   adminApi,
   api,
@@ -433,6 +434,33 @@ export function useTurn(sessionId: string, turnId: string): UseQueryResult<{ tur
 
 export function previewKey(sessionId: string): readonly unknown[] {
   return ['preview', sessionId];
+}
+
+export function liveKey(sessionId: string): readonly unknown[] {
+  return ['live', sessionId];
+}
+
+/**
+ * The turn being taken, read from one cache entry nobody fetches — [P3.5].
+ *
+ * The same shape as {@link usePreview} and for the same reason: the panel is a
+ * sibling of the play surface in the shell's tree, so the only thing the two
+ * share is this cache. `skipToken` is again the mechanism — the panel cannot
+ * ask for a turn's progress, it can only read what the surface watching the
+ * stream has already been told, which keeps the reader a reader.
+ *
+ * **The stream is the writer, and it is the only one.** `PlayPage` mirrors its
+ * reducer's `live` here as frames arrive; the entry is cleared when the
+ * surface unmounts, because a turn's progress is not a fact about a session
+ * you are no longer watching.
+ */
+export function useLiveTurn(sessionId: string): UseQueryResult<{ live: LiveTurn | null }> {
+  return useQuery<{ live: LiveTurn | null }>({
+    queryKey: liveKey(sessionId),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
 }
 
 /**

@@ -9,6 +9,7 @@ import { uuidv7 } from '@storyengine/shared';
 
 import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
 import {
+  liveKey,
   previewKey,
   useAuthState,
   usePreview,
@@ -137,6 +138,30 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
   }, [state.status, sessionId, queryClient]);
+
+  /**
+   * The turn being taken, mirrored where the panel can read it — [P3.5].
+   *
+   * The dock is this page's sibling in the shell, so the cache is the only
+   * thing they share; this is the same bridge the meter's preview uses, in the
+   * same direction. **Written from the reducer rather than fetched**, because
+   * the frames arrive here and nowhere else, and `useLiveTurn` is a reader
+   * that provably cannot ask.
+   *
+   * Cleared on unmount: a turn's progress is not a fact about a session
+   * somebody has stopped watching, and leaving it would have the panel
+   * announce a turn as running to a reader who has navigated away from the
+   * stream that would have told them it finished.
+   */
+  useEffect(() => {
+    queryClient.setQueryData(liveKey(sessionId), { live: state.live });
+  }, [state.live, sessionId, queryClient]);
+
+  useEffect(() => {
+    return () => {
+      void queryClient.resetQueries({ queryKey: liveKey(sessionId) });
+    };
+  }, [sessionId, queryClient]);
 
   return (
     // A `div`, not a landmark: the shell owns the routed app's one `<main>`

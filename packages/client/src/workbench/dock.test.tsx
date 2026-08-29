@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Account, TurnPreview } from '../api.js';
+import type { StreamHandlers } from '../play/stream.js';
 import {
   OBJECT_ID,
   objectRows,
@@ -122,8 +123,20 @@ vi.mock('../api.js', async (importOriginal) => {
   };
 });
 
+/**
+ * The stream, captured rather than merely silenced — [P3.5].
+ *
+ * It was a bare stub until the panel gained a live arm; now the frames are how
+ * a test says *the server is working*, so the handlers have to be reachable.
+ * The same trick `PlayPage.test.tsx` has always used, for the same reason.
+ */
+let handlers: StreamHandlers;
+
 vi.mock('../play/stream.js', () => ({
-  openTurnStream: () => ({ close: () => undefined }),
+  openTurnStream: (_id: string, given: StreamHandlers) => {
+    handlers = given;
+    return { close: () => undefined };
+  },
 }));
 
 const { router } = await import('../router.js');
@@ -534,5 +547,100 @@ describe('the context meter and the panel', () => {
       ).toBeTruthy();
     });
     expect(within(dock).queryByText(/What would be sent if this turn were taken now/)).toBeNull();
+  });
+});
+
+/**
+ * The turn being taken — [P3.5], through the live route.
+ *
+ * The panel is a sibling of the play surface, so this is the wiring on trial:
+ * the frames arrive at the page, the page mirrors them into the shared cache
+ * entry, and the panel reads them without being able to ask for them itself.
+ */
+describe('the panel over a turn being taken', () => {
+  it('shows the progress while it runs, and outranks the composed preview', async () => {
+    stagedPreview = pendingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    // Composing: the preview is the subject, as P3.4 left it.
+    await within(dock).findByText(/What would be sent if this turn were taken now/);
+
+    // The server starts reporting.
+    await act(async () => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.1',
+        data: { jobId: 'job-9', seq: 1, key: 'turn.started', params: { turnId: 't-9' }, at: 0 },
+      });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.2',
+        data: {
+          jobId: 'job-9',
+          seq: 2,
+          key: 'step.started',
+          params: { stepId: 'se.narrate', stage: 'generate' },
+          at: 0,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    // A turn being taken outranks a turn being composed: there is nothing to
+    // compose while the input is disabled, and the head is about to move.
+    expect(
+      await within(dock).findByText(
+        'This turn is being taken. What follows is what the server has reported so far.',
+      ),
+    ).toBeTruthy();
+    expect(within(dock).getByText('se.narrate')).toBeTruthy();
+    expect(within(dock).getByText('Running')).toBeTruthy();
+    expect(within(dock).queryByText(/What would be sent if this turn were taken now/)).toBeNull();
+  });
+
+  it('hands back to the record when the turn finishes', async () => {
+    stagedPreview = restingPreview();
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+
+    await act(async () => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.1',
+        data: { jobId: 'job-9', seq: 1, key: 'turn.started', params: { turnId: 't-9' }, at: 0 },
+      });
+      await Promise.resolve();
+    });
+    expect(await within(dock).findByText(/This turn is being taken/)).toBeTruthy();
+
+    await act(async () => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-9.2',
+        data: {
+          jobId: 'job-9',
+          seq: 2,
+          key: 'turn.finished',
+          params: { state: 'complete' },
+          at: 0,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    // The live view is for a turn in flight only. Once it is not, the record
+    // is the subject again — the falsifying mutation is dropping the
+    // `state === 'running'` test in `PlaySubject`, which leaves a finished
+    // turn's progress on screen in place of the record it produced.
+    await waitFor(() => {
+      expect(within(dock).getByText('The head turn of this session.')).toBeTruthy();
+    });
+    expect(within(dock).queryByText(/This turn is being taken/)).toBeNull();
   });
 });
