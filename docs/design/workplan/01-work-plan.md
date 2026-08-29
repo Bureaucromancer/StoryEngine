@@ -538,6 +538,9 @@ anyone uses it. It is the reason P1 carries an editor at all.
 
 ### P2 — One turn, end to end
 
+**Expanded into a working plan: [04](04-p2-implementation.md)** — the P1 audit
+and hardening stage, the turn pipeline, and the exit gate.
+
 The spine. Deliberately with the crudest possible mode.
 
 - Provider layer, model roles, capability record.
@@ -645,6 +648,9 @@ each in P2's record rather than work for this phase.
 
 ### P4 — Import
 
+**Expanded into a working plan: [06](06-p4-implementation.md)**, the revisit its
+skeleton asked for, performed against the repo rather than against the design.
+
 Cards, lorebooks and presets from SillyTavern, Marinara and Aventuras. The
 largest PORT in the triage ([02 §4](02-triage.md)) and the reason to do it now:
 it turns an empty install into a realistic library.
@@ -667,6 +673,11 @@ workbench, is recognisably the preset that went in.
 
 ### P5 — Lorebooks and retrieval
 
+**Skeleton: [07](07-p5-implementation.md)**, restructured into two halves — the
+book as a *document* first, the retriever second, because half of *why doesn't
+this entry fire* is a reading problem before it is a matching one. Must be
+revisited after PLAYABLE, whose findings are about exactly this phase's subject.
+
 Full activation semantics, folders, the two-tier budget, trim order, skip
 reporting. Now testable against P4's real library rather than fixtures.
 
@@ -675,6 +686,10 @@ they cost, and what the budget dropped.
 
 ### P6 — The turn tree
 
+**Skeleton: [08](08-p6-implementation.md)** — mostly sequencing, unusually,
+because [09](../09-branching.md) and [07 §14.5](../07-tech-stack.md) already
+decided the tree model, swipes-as-branches, snapshots-as-cache and the tape.
+
 Branching, rewrite/reroll, the RNG tape, sibling navigation.
 
 **Why before modes:** it changes the shape of the turn store, and every mode
@@ -682,6 +697,12 @@ built after it inherits the behaviour for free. Built after modes, it is a
 migration.
 
 ### P7 — Modes and channels
+
+**Skeleton: [18](18-p7-implementation.md)**, whose §0 states what a skeleton
+several phases out is for and applies to [19](19-p8-implementation.md) through
+[22](22-p11-implementation.md) as well. Its first finding: the move of the Scene
+mode behind the SDK is a *move* or a *rewrite*, and `modes/contract.ts` already
+knows which.
 
 - The mode contract as a real interface; built-ins as separate packages
   consuming the published SDK ([07 §10](../07-tech-stack.md)).
@@ -730,6 +751,11 @@ retained modes are the more similar pair. §0.3 records what that costs.
 
 ### P8 — Memory
 
+**Skeleton: [19](19-p8-implementation.md)**, which found the phase's one storage
+decision hiding outside both design documents: `memories/` sits beside `library/`
+and outside everything the index walks, while [11 §7](../11-cross-session-memory.md)
+asks for the ordinary lorebook editor, which needs a library address.
+
 Cross-session memory as an auto-maintained lorebook ([11](../11-cross-session-memory.md))
 is designed and buildable.
 
@@ -747,10 +773,21 @@ safe. Chapterisation is roadmap ([14 §3](../14-roadmap.md)), not P8.
 
 ### P9 — Renditions
 
+**Skeleton: [20](20-p9-implementation.md)**, and its first stage is a contract
+rather than a feature: `Rendition` is specified in
+[03 §10.1](../03-modes-and-turn-pipeline.md) and appears in no schema document at
+all. The provider layer speaks chat and no image endpoint does, which is the
+phase's one real question.
+
 Per-turn and on-demand illustration ([03 §10](../03-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.
 
 ### P10 — Multi-user, notifications, deployment
+
+**Skeleton: [21](21-p10-implementation.md)**, which gives a remainder phase the
+spine it does not have by default: *this is the phase that makes the install
+reachable, and safe, for someone who is not the developer.* Anything here off
+that line gets checked against P11 before it is built.
 
 **Accounts, login and first-run moved to P1** ([03 §1.3](03-p1-implementation.md))
 — they were always small, and the alternative was a stub identity threaded
@@ -770,6 +807,11 @@ the account-gallery arrival screen ([15](../15-account-gallery.md)), the About
 surface and §13 source link.
 
 ### P11 — Beta hardening
+
+**Skeleton: [22](22-p11-implementation.md)**, whose exit gate *is* the beta gate
+— the one structural difference from every other phase document. Its first stage
+is the audit that produces the list, because the list exists today only as *home
+P11* scattered across the phase documents. And §8 below is what it rewrites.
 
 Everything left that the 1.0 spec commits to and the phases above did not
 absorb: the assistant, editors-are-not-dumb-forms across every editor, the
@@ -866,7 +908,9 @@ The other half is release engineering, and it belongs in the beta bar rather
 than after it: build chains, release automation, and the workflows that make
 shipping repeatable rather than an event. Sketched here only to hold the shape —
 **this section is awaiting expansion** and should be rewritten rather than
-extended:
+extended. **[22](22-p11-implementation.md) names that rewrite as P11's** — its
+§1.1 and its P11.9 stage — because a hardening phase that does not know what it
+is hardening toward ends when someone gets tired:
 
 - CI that builds, tests and produces artifacts on every merge.
 - Reproducible builds of the container and the tarball, from a tag. **Those two
