@@ -877,6 +877,69 @@ or the plan states the live view is deferred and the record views accept a parti
 record. If it is built, a refused effect needs a reason or the live and durable
 views disagree about what happened.
 
+**Landed 2026-08-29**, in three commits, and **built rather than deferred** —
+but not the build the stage assumed. §3.3 was decided *against its own central
+claim*, which is what "decide it rather than assert it" turned out to mean:
+
+- **[DECIDED]: the live view is the event feed rendered, not the turn record
+  rendered early.** §3.3 says the live view *is* the record while it is still
+  being written, "one component rather than a live view and a separate history
+  view that disagree" — and the transport that same section specifies cannot
+  carry it. The draft reaches a client **once**, in the snapshot at open, and
+  everything after is the structural event list. A component fed from the draft
+  would freeze at the instant of attach while the turn moved on beneath it,
+  which is a disagreement of its own arrived at by the route meant to prevent
+  one; and reconstructing the record from event params is the client-side
+  recomputation §5 forbids. So there are two components, and **the seam between
+  them is time rather than shape**: the feed while the turn runs, the record
+  once it commits, never both at once. Written back into [04 §3.3] and
+  [05 §3](../05-ui-surfaces.md).
+- **The reducer keeps enough** — the stage's own phrase, honoured for a *step*
+  view rather than a record: steps with their stage and state, the model each
+  call asked and the figures it later reports, effects, the terminal state.
+  Folded from the events alone, which is what makes it survive a reconnect: a
+  fresh attach replays every event for the job from seq 0, so it rebuilds
+  itself with no help from the snapshot.
+- **A field deleted, and the decision is why.** `PlayState.turn` held the
+  snapshot's draft, nothing had ever read it, and its docstring named the
+  raw-JSON affordance deleted at P3.2. Keeping a record nobody read while the
+  events that could answer the question went unrendered was precisely the
+  problem this stage was asked to decide. It returns when something can use it
+  whole: P3.7.
+- **The precondition, discharged rather than dodged.** P3.0 gave the *record*
+  its three refusal outcomes but `events.ts` was never in that scope, so the
+  disagreement the stage predicted survived in exactly one place: a live reader
+  said *refused* where the record said *refused because the engine computes
+  this channel*. `effect.applied` now carries the same class the record does.
+- **Honestly not delivered:** the record's own views are untouched, so the
+  stage's alternative branch — *the record views accept a partial record* —
+  was never needed; it was already true and walked at P3.2.
+
+The browser walk needed a prop and says so: the scratch install's endpoint
+refuses instantly, so a turn was over before it could be watched, and a
+throwaway slow stub was stood up to give the live view a window to be observed
+in. Both halves of gate step 8a then walked in a browser — the panel went from
+the head record, to the composed preview, to *"This turn is being taken…
+Nothing has been reported yet"*, to `se.narrate` **Running** / *Asked slow-1*,
+to **Ran** / *slow-1 answered: 412 prompt, 23 completion in 4.3 sec*, and back
+to the record now reading **Answered**; and against a stub made to fail slowly,
+to `se.narrate` **Failed** / *retryable* — the failure attached to the step, as
+a class, with the stub's own words never reaching the screen. **One of §3.3's
+three claims could not be walked:** *skipped is visible* has no shipped
+producer, because Scene declares one step whose cadence is every turn — the
+same admission gate step 15 already makes about effects. It is covered by the
+reducer's and the view's tests and by nothing else, and that is said here
+rather than left to be discovered.
+
+Mutations, each watched red then restored: requiring a `step.started` before a
+step exists reddened the skipped-step test — skipped never announces itself
+first; passing `null` for the refusal reason at the runner's call site reddened
+the new wiring test while the record still read correctly; dropping the
+`running` check left a finished turn's progress on screen in place of the
+record it produced; severing the page's mirror reddened both live tests; and
+rendering the streamed estimate through the finished call's sentence reddened
+the in-flight one, which is the difference between *asked* and *answered*.
+
 ### P3.6 — Compare
 
 The addressable full view: id-keyed block alignment, same-session pairs, entered
@@ -1047,6 +1110,13 @@ that most of a gate like this is not automatable and that is the point.
    the file and watch the panel follow — the folder path is one you can paste into
    a file manager, and the revision list is there **with no restore button on it**.
 8. Over a **shadowed** object, the index rows name the winning path.
+8a. **The panel says what is happening while it happens.** Take a turn with the
+    panel open: the step running is named, a skipped step says why, and a
+    failure is attached to the step rather than to the turn — and when the turn
+    commits the panel shows the record instead, without either view lingering
+    beside the other. *A gate addition, labelled as one*, on the same footing
+    as 6a: §4 was written before P3.5 was decided, and nothing in it would fail
+    if the live half had never been built or had been built dishonestly.
 9. **Compare:** hand-edit the session's own copied preset on disk, drop a block's
    priority, take the same turn again — the compare view shows exactly what
    changed, and its address can be pasted into a bug report.

@@ -348,7 +348,14 @@ drop-and-rescan, so the projection restates the index and may return less after
 a schema bump until the surface catches up. The winning path is *named* here
 because the path shown is the very string the shadow resolution orders by.
 
-What it shows for any turn, current or historical:
+What it shows for any turn, current or historical — meaning any turn that has
+been *taken*. A turn still being taken is a different subject with a different
+feed, decided at [P3.5] and specified in
+[04 §3.3](04-server-multiuser-deployment.md): while the server is working the
+panel renders the progress events — which step is running, which was skipped
+and why, which failed and with what class, what each call asked and what it
+reported — and says that is what it is showing. The record below arrives whole
+when the turn commits, and the two are never on screen at once.
 
 - **The block list**, in order, each with source, inclusion reason in plain
   language ("keyword match: *cathedral*", "sticky, 2 messages remaining", "party

@@ -162,13 +162,42 @@ drops mid-turn and reattaches needs the turn's state *now* plus everything since
 not a replay from the beginning. Snapshot-plus-cursor is the same shape the turn
 record already has ([§3.3](#33-progress-events-the-live-view-is-the-turn-record-being-built)).
 
-### 3.3 Progress events: the live view is the turn record being built
+### 3.3 Progress events: what the live view is, and what it is not
 
-The status view people actually want — *where in the chain are we, and what
-exactly failed* — is the turn record ([02 §8](02-data-model.md)) rendered while
-it is still being written. Same shape live and afterwards, which means one
-mental model and one component rather than a live view and a separate history
-view that disagree.
+The status view people actually want is *where in the chain are we, and what
+exactly failed*.
+
+**[DECIDED] at [P3.5]: that view is the event feed rendered, not the turn
+record rendered early.** This section said the opposite — that the live view
+*is* the record ([02 §8](02-data-model.md)) rendered while it is still being
+written, "same shape live and afterwards, one mental model and one component
+rather than a live view and a separate history view that disagree" — and P3.5
+was the stage that had to build it and found the claim unsupported by the
+transport this same section specifies.
+
+The reason is mechanical. The draft record reaches a client **once**: in the
+snapshot at open. Everything after that is the event list below, which carries
+no blocks, no budget and no call record. So a component fed from the draft
+would show a block table frozen at the instant of attach while the turn moved
+on beneath it — a live view and a record that disagree, arrived at by the route
+that was supposed to prevent one. The alternative, reconstructing the record
+from event params, is client-side recomputation of what the server already
+computed, which [05 §3](05-ui-surfaces.md) forbids in the same breath as it
+calls the workbench a reader.
+
+So there are two components, deliberately, and the seam between them is
+**time** rather than shape: while the turn runs the panel renders this event
+feed and says what it is; when the turn commits the record arrives whole and
+renders itself. They are never on screen together, which is what stops them
+disagreeing. The three things the feed buys — below — are exactly the three the
+record cannot show until afterwards, which is why the feed is worth rendering
+at all rather than waiting.
+
+*One consequence, closed in the same stage:* a refused effect's event now
+carries **which policy refused**, not merely that something was. Without it the
+live view says *refused* where the record says *refused because the engine
+computes this channel*, and the two disagree about the one thing a reader is
+asking.
 
 ```
 turn.started
