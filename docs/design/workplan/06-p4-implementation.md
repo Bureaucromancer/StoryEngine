@@ -1581,3 +1581,113 @@ is a full view by §1.4's addressability argument, so its rows navigate the
 main view like any other link. [P3 §7.3] (the panel over a subjectless view)
 gains one more surface — the review route — and inherits the same interim
 answer: honestly empty.
+
+---
+
+## 7. The completeness audit — 2026-08-30
+
+**Run after P4.4's Landed record, against the code rather than against the
+stage records.** The stage records say what each session set out to do; this
+section says what is true. Six findings, three of them defects nobody had
+written down, and the ordering below is by what a person would hit first rather
+than by how hard each is to fix.
+
+The recorded cuts are *not* repeated here — the browser directory upload, the
+addressable report, the zip profile archive and the missing real corpus are all
+named in §5 and in the P4.3 and P4.4 records, and being named is what they
+needed. What follows is what was **not** named.
+
+### 7.1 The single-file upload never grew past P4.1
+
+`routes/import.ts:196` converts Marinara envelopes and the three SillyTavern
+preset kinds. It does not convert a V2/V3 card PNG, a JSON card, or a
+SillyTavern lorebook — all three of which the *sweep* converts, through the same
+library, on the same build.
+
+Two different wrong answers come out of that gap:
+
+- A card PNG returns `recorded` with `import.file.notYetConvertible`, whose
+  comment reads *"a file this build will convert at P4.2"* (`:226`). P4.2
+  landed. The note now tells a person their file is fine but the software is
+  unfinished, which was true when it was written and is false today.
+- A lorebook JSON falls past all three preset probes and returns
+  `unrecognised` — *"Could not be identified"*. That is worse than the PNG
+  case, because it is a **confident wrong answer** about a file this build
+  reads perfectly well one code path over.
+
+`routes/import.test.ts:93` pins the PNG behaviour green, so the suite reports
+the gap as correct.
+
+**Why it matters more than its size.** *Upload one card* is the most common
+single import anyone does, and the first thing a person will try. The sweep is
+the impressive arm and the upload is the arm that gets used. Convergence here is
+one call into the existing readers, not new conversion work.
+
+### 7.2 The `fileAccess` control still describes the permission it used to be
+
+Gate step 10 was amended on 2026-08-30 to require that the control be *out of
+"Recorded for later" and that its labels name the sweep*. It was not done, and
+P4.4 was recorded as landed anyway.
+
+`routes/import.ts:128` refuses the sweep when `fileAccess` is `none`, so the
+capability gates something real today. But `AdminAccounts.tsx:169` still sits
+inside the fieldset whose legend reads **"Recorded for later"** and whose
+sentence reads *"These features have not shipped"*, with the three labels *No
+file browser*, *May read their own files*, *May edit their own files*.
+
+So an administrator granting `read` is told they are enabling a file browser
+over that person's own content, and is in fact granting **a server-side read of
+any path on the machine outside `/data`** — which is precisely the widening
+[05 §4.2.2] argued for in the open, on the grounds that a widening nobody can
+see is the dangerous kind. The document was amended; the surface that carries
+the decision to the person making it was not.
+
+[01 §2.2] forbids a control that does nothing. This is its inverse and the more
+serious one: a control that does **more** than its label admits. The `/data`
+carve-out in `local-source.ts:86` is what keeps this from being a
+privilege-escalation route between users, and it holds — the defect is in what
+the grantor is told, not in what the grant permits.
+
+### 7.3 Gate step 9 was never run
+
+*"Rebuild equals incremental, after a bulk import"* — described in the gate as
+the best stress the [13 §5] assertion will ever get. `rebuild-property.test.ts`
+exists and predates P4; no import test rebuilds. The one thing P4 could
+contribute to that invariant, it did not contribute.
+
+### 7.4 `import_job` and `import_event` are created and never written
+
+`state/migrations.ts:141` and `:176`. The migration landed at P4.4 as §1.3
+decided; the writer was cut with the addressable report. The cut was recorded,
+the **schema consequence** was not: the operational store now carries two tables
+no code touches, which is exactly the shape of a migration that gets
+misremembered as load-bearing later.
+
+### 7.5 CHARX and `.seactor` are unimplemented and unrecorded
+
+§1.3 (`:417`) and §1.10 (`:1155`) both list them among what the card converter
+covers. Neither exists. Both are zip containers — the same blocker as the
+deferred Marinara profile archive — but only the profile archive's deferral was
+written down, so these two read as shipped.
+
+### 7.6 Gate step 11, precisely
+
+The substance holds: the report is `{key, params, level}` and the sentences are
+composed client-side. What is not true is the word **fetch** — the report exists
+only in the POST response and there is no address to re-read it from. That is
+the recorded cut, so this is a wording repair to the gate rather than a finding
+against the code, and it is listed here so the gate is not read as met in a
+sense it was not.
+
+### 7.7 What the audit confirmed rather than faulted
+
+Named because an audit that only lists faults is not a measurement:
+
+- Gate step 3's credential rule is a **property over the whole imported
+  corpus**, not an example — `fixture-pair.test.ts:155` walks every object of
+  every kind and asserts the fixture's credential appears in none of them.
+- Gate step 4's depth reading is real and tested in *messages*
+  (`collect.test.ts:529`), including the grouped-splice ordering.
+- Gate steps 1, 6, 8, 13, 14 and 15 all have the tests their text describes.
+- Every other `at P4.x` reference in the source is past-tense and accurate;
+  `routes/import.ts:200` is the only stale forward-promise in the codebase.
