@@ -32,7 +32,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * the schema from empty, `STEPS[1]` would take version 1 to version 2, and so
  * on. The current version is therefore the length of this array.
  */
-const STEPS: string[] = [
+export const STEPS: string[] = [
   `
 -- ── Jobs ─────────────────────────────────────────────────────────────────────
 --
@@ -119,6 +119,62 @@ create table draft (
 -- string that cannot be translated later.
 create table event (
   job_id  text not null references job(id) on delete cascade,
+  seq     integer not null,
+  key     text not null,
+  params  text not null,
+  at      real not null,
+  primary key (job_id, seq)
+) strict;
+`,
+  `
+-- ── Import jobs ──────────────────────────────────────────────────────────────
+--
+-- **Sibling tables rather than a widening of \`job\`** ([P4 §1.3]). A sweep is a
+-- job in every sense the vocabulary above means — it runs, it emits progress,
+-- it finishes — but it has no session, and \`job\` is session-shaped all the way
+-- down: \`session_id\` is \`not null\`, the one-active-per-session index is
+-- partial on it, \`idempotency\`'s primary key includes it, and \`draft\` and
+-- \`event\` both foreign-key to \`job\`. Making that column nullable would weaken
+-- a uniqueness guarantee and two foreign keys that turns depend on, to spare
+-- import one table. The migration chain is append-only by its own rule at the
+-- top of this file, which is the shape this decision was written for.
+create table import_job (
+  id           text primary key,
+  account      text not null,
+  -- **Where the sweep was pointed, recorded once and here.**
+  -- [13 §4.1](../../../../docs/design/13-internal-contracts.md)'s foreign-path
+  -- doctrine: source files are named relative to this root everywhere else — in
+  -- the review, in the log, in \`VersionRecord.from\` — because the log is the
+  -- thing people paste into issues. The absolute path lives on the job record,
+  -- where the person who typed it can see it and nobody else has to.
+  root         text not null,
+  -- Which source the probe decided this root is ([P4 §1.3]): the classification
+  -- is stored because the review has to be able to say *what it thought it was
+  -- looking at*, which is the difference between "found four cards" and "read
+  -- your Marinara library".
+  source       text not null,
+  -- queued | running | finished | refused.
+  --
+  -- \`refused\` is the arm the turn vocabulary deliberately lacks, and import
+  -- needs it for a reason turns do not have: a root can be rejected **before
+  -- anything is written** — a live install, a storage format we do not know
+  -- ([P4 §1.3]) — and that is not a failed run, it is a run that correctly did
+  -- not start. A poisoned *file* never lands here; it is one row in the review
+  -- and the sweep completes around it.
+  status       text not null,
+  created_at   real not null,
+  updated_at   real not null,
+  finished_at  real
+) strict;
+
+create index import_job_by_account on import_job(account, created_at);
+
+-- Progress for a sweep, in the same shape and for the same reason as \`event\`:
+-- a key and its params, never prose. Import occupies \`job.progress\`, which has
+-- been declared in the progress vocabulary with no emitter since P2 and was
+-- left open for exactly this.
+create table import_event (
+  job_id  text not null references import_job(id) on delete cascade,
   seq     integer not null,
   key     text not null,
   params  text not null,
