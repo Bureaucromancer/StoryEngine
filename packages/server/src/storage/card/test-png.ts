@@ -80,6 +80,45 @@ export function base64TextChunk(keyword: string, value: unknown): Chunk {
 }
 
 /**
+ * The same payload in a **compressed** `zTXt` chunk, which is how Character
+ * Tavern writes cards — the class of file the reader could not see at all
+ * before P4.0.
+ */
+export function base64ZTextChunk(keyword: string, value: unknown): Chunk {
+  const text = Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
+  return {
+    name: 'zTXt',
+    // keyword \0 compressionMethod(0 = zlib) compressedText
+    data: Uint8Array.from(
+      Buffer.concat([
+        Buffer.from(keyword, 'latin1'),
+        Buffer.from([0, 0]),
+        deflateSync(Buffer.from(text, 'latin1')),
+      ]),
+    ),
+  };
+}
+
+/** And in `iTXt`, whose text is UTF-8 and whose compression is a flag. */
+export function base64ITextChunk(keyword: string, value: unknown, compress: boolean): Chunk {
+  const text = Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
+  const body = Buffer.from(text, 'utf8');
+  return {
+    name: 'iTXt',
+    // keyword \0 flag method language \0 translatedKeyword \0 text
+    data: Uint8Array.from(
+      Buffer.concat([
+        Buffer.from(keyword, 'latin1'),
+        Buffer.from([0, compress ? 1 : 0, 0]),
+        Buffer.from([0]),
+        Buffer.from([0]),
+        compress ? deflateSync(body) : body,
+      ]),
+    ),
+  };
+}
+
+/**
  * A minimal decoder, so the tests can assert on chunks without depending on the
  * same helper the code under test uses to read them.
  */

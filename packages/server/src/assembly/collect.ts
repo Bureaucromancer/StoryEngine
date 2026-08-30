@@ -390,9 +390,25 @@ function emit(
 ): Candidate[] {
   if (text.length === 0 && block.omitWhenEmpty) return [];
 
+  /**
+   * **All occurrences, and a function replacement rather than a string one.**
+   * Both halves are corrections, both found by the P4 readiness audit, and the
+   * second is the one that bites.
+   *
+   * `String.replace` with a string pattern fills only the *first* `{{content}}`,
+   * so a wrapper naming it twice — which a converted `scenario_format` may
+   * ([10 §8.4.2]) — left the second as literal braces in the prompt.
+   *
+   * The sharper bug is that a *string* replacement interprets `$&`, `` $` ``,
+   * `$'` and `$1` in the replacement as patterns. `text` here is the filled
+   * slot: at P4 that is somebody else's card, lorebook or preset prose, and
+   * `$&` occurring in it would splice the wrapper's own placeholder back into
+   * the output. A function replacement is returned verbatim, so the fix is not
+   * "escape the input" — it is "stop treating the input as a pattern".
+   */
   const wrapped =
     block.kind === 'slot' && block.wrapper !== undefined
-      ? block.wrapper.replace('{{content}}', text)
+      ? block.wrapper.replaceAll('{{content}}', () => text)
       : text;
 
   // The union, not the special case: an author- or import-declared advisory
