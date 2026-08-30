@@ -132,7 +132,7 @@ function proseCall(): RecordedCall {
     },
     notFilled: [
       { blockId: 'se.lore', source: 'lore', reason: 'no-producer' },
-      { blockId: 'se.setting', source: 'setting', reason: 'no-producer' },
+      { blockId: 'se.treatment', source: 'treatment', reason: 'no-producer' },
       { blockId: 'se.samples', source: 'samples', reason: 'empty-source' },
     ],
     messages: [

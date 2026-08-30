@@ -168,7 +168,7 @@ export type BlockSource =
       sampleId: string;
     }
   | { kind: 'channel'; channelId: string }
-  | { kind: 'setting'; part: 'framing' | 'tone' }
+  | { kind: 'treatment'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
   /**
    * The guidance slot — [03 §5.1]. `producer` because one slot has several

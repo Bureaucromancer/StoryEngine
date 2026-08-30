@@ -36,7 +36,7 @@ const EVERY_ARM: BlockSource[] = [
     sampleId: 's-2',
   },
   { kind: 'channel', channelId: 'se.clock' },
-  { kind: 'setting', part: 'framing' },
+  { kind: 'treatment', part: 'framing' },
   { kind: 'goal', goalId: 'g-1' },
   { kind: 'guidance', producer: 'user' },
   { kind: 'input' },
@@ -71,5 +71,17 @@ describe('every source has an address', () => {
   it('labels a source kind from a newer build with the word itself', () => {
     const foreign = { kind: 'weather' } as unknown as BlockSource;
     expect(blockSourceAddress(foreign).label).toBe('weather');
+  });
+
+  /**
+   * The other direction, and the one P4.0's rename made real: a record written
+   * *before* the slot literal became `treatment` carries `kind: 'setting'` and
+   * is never rewritten, because the turn record is free-to-move tier and
+   * history is not migrated. It must still read as a sentence rather than as a
+   * bare word — which is the difference between this and the test above.
+   */
+  it('still labels the retired setting spelling, from records older than the rename', () => {
+    const retired = { kind: 'setting', part: 'framing' } as unknown as BlockSource;
+    expect(blockSourceAddress(retired).label).toBe('Setting');
   });
 });

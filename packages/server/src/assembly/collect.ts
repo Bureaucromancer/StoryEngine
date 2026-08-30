@@ -111,7 +111,7 @@ function emptyReason(block: PresetBlock): NotFilledReason {
   if (block.kind === 'text') return 'empty-source';
   switch (block.source.of) {
     case 'lore':
-    case 'setting':
+    case 'treatment':
     case 'goal':
     case 'channel':
       // The same list `fill()` returns nothing for, each for its stated
@@ -359,7 +359,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * renderer specified — which is also why the clock's budget is null.
      */
     case 'lore':
-    case 'setting':
+    case 'treatment':
     case 'goal':
     case 'channel':
       return [];

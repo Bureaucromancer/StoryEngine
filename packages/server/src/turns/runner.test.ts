@@ -1042,7 +1042,7 @@ describe('the preset is what builds the prompt', () => {
     expect(kinds).toContain('preset');
     expect(kinds).toContain('input');
     expect(kinds).not.toContain('lore');
-    expect(kinds).not.toContain('setting');
+    expect(kinds).not.toContain('treatment');
   });
 
   /**
