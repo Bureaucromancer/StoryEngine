@@ -680,10 +680,16 @@ rather than during P4.3.
 
 ### P5 — Lorebooks and retrieval
 
-**Skeleton: [07](07-p5-implementation.md)**, restructured into two halves — the
-book as a *document* first, the retriever second, because half of *why doesn't
-this entry fire* is a reading problem before it is a matching one. Must be
-revisited after PLAYABLE, whose findings are about exactly this phase's subject.
+**Expanded into a working plan: [07](07-p5-implementation.md)**, restructured
+into two halves — the book as a *document* first, the retriever second, because
+half of *why doesn't this entry fire* is a reading problem before it is a
+matching one.
+
+**Half-revisited, deliberately.** Audited against the repo at P4's close, with
+the decisions that audit forces settled and the four that genuinely need
+PLAYABLE's findings marked and left open. That checkpoint's findings are about
+exactly this phase's subject, so the remaining half of the revisit waits for
+them rather than guessing.
 
 Full activation semantics, folders, the two-tier budget, trim order, skip
 reporting. Now testable against P4's real library rather than fixtures.
