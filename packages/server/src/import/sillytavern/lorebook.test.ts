@@ -162,3 +162,47 @@ describe('the parses-but-is-wrong table', () => {
     });
   }
 });
+
+/**
+ * **Aventuras' SillyTavern export, which is why this converter reads two
+ * spellings** ([P4 §1.5]).
+ *
+ * The Aventuras survey turned up something better than the extraction path it
+ * was gated on: Aventuras exports lorebooks *as SillyTavern files*, so its lore
+ * arrives through this converter with no Aventuras-specific code at all. It also
+ * exposed a bug — its export writes the book-level settings in snake_case, as
+ * the V3 `character_book` spec does, and this read only camelCase. An embedded
+ * book's scan depth and budget were being silently replaced by our defaults.
+ */
+describe('a book written the way the V3 spec and Aventuras write it', () => {
+  const AVENTURAS_EXPORT = {
+    name: 'Aventura Export',
+    description: 'Exported from Aventura',
+    scan_depth: 5,
+    token_budget: 4096,
+    recursive_scanning: true,
+    entries: {
+      '0': { uid: 0, key: ['rail'], content: 'Pay at the rail.', comment: 'The rail' },
+    },
+  };
+
+  it('reads the book-level settings in snake_case', () => {
+    const result = convertLorebook(AVENTURAS_EXPORT, 'fallback');
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.lorebook.scanDepth).toBe(5);
+    expect(result.value.lorebook.tokenBudget).toBe(4096);
+    expect(result.value.lorebook.recursiveScanning).toBe(true);
+  });
+
+  it('still reads the camelCase form, which other tools write', () => {
+    const result = convertLorebook(
+      { name: 'x', scanDepth: 7, tokenBudget: 100, entries: {} },
+      'fallback',
+    );
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.lorebook.scanDepth).toBe(7);
+    expect(result.value.lorebook.tokenBudget).toBe(100);
+  });
+});

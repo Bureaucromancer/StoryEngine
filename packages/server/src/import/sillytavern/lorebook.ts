@@ -255,13 +255,21 @@ function applyBookFields(
     }
   }
 
-  const scanDepth = num(input['scanDepth']);
+  /**
+   * **Both spellings, because both occur.** A standalone `worlds/*.json` carries
+   * no book-level settings at all — in SillyTavern those are global
+   * (`world_info_depth`, `world_info_budget`) — but the **V3 `character_book`
+   * spec** does, in snake_case, and so does Aventuras' SillyTavern export.
+   * Reading only the camelCase form meant an embedded book's scan depth and
+   * budget were silently replaced by our defaults, which is the quiet kind of
+   * wrong: the book imports and behaves differently.
+   */
+  const scanDepth = num(input['scan_depth']) ?? num(input['scanDepth']);
   if (scanDepth !== null) lorebook.scanDepth = scanDepth;
-  const budget = num(input['tokenBudget']);
+  const budget = num(input['token_budget']) ?? num(input['tokenBudget']);
   if (budget !== null) lorebook.tokenBudget = budget;
-  if (typeof input['recursiveScanning'] === 'boolean') {
-    lorebook.recursiveScanning = input['recursiveScanning'];
-  }
+  const recursive = input['recursive_scanning'] ?? input['recursiveScanning'];
+  if (typeof recursive === 'boolean') lorebook.recursiveScanning = recursive;
 }
 
 /**

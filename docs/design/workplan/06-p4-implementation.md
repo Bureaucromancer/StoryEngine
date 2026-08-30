@@ -738,13 +738,38 @@ through the store reader:
 
 **Aventuras** (v0.7.8, single-user Tauri app, "local database"):
 
-- **The extraction path is the survey's gating question — nothing documents
+- ~~**The extraction path is the survey's gating question — nothing documents
   how data leaves the app.** Until an artefact exists that a person can hand
   the importer, conversion cannot even be designed. If the survey finds none,
   P4.3 ships the finding, the review's "not yet importable" category covers
-  the formats, and that is a completed stage rather than a failure — the
-  fallback is named now so it is not negotiated under pressure.
-- What maps if the path exists: `VaultCharacter` → actor (its own shape, *not*
+  the formats, and that is a completed stage rather than a failure.~~
+
+  **Surveyed at P4.3, against `8ae0d79a` (2026-08-16), and the gate opens:
+  there are three extraction paths, not none.** The question was written from
+  the documentation, and the answer was in the source.
+
+  - **Lorebooks export *as SillyTavern files***
+    (`lorebookImportExport/export/formats.ts:13`), one of three offered formats
+    beside `aventura` and `text`. So Aventuras lore arrives through the
+    converter P4.2 already shipped, with **no Aventuras-specific code at all** —
+    the best possible answer to the gating question, and one nothing in this
+    plan anticipated.
+  - **Characters and scenarios export as their own raw JSON**
+    (`export/vault.ts:137`) — `VaultCharacter` and `VaultScenario` verbatim,
+    which is the shape [survey §4](../01-source-survey.md) already documented as
+    *not* V2. A converter for these is small and is the honest remaining work.
+  - **The whole vault exports as a zip of a SQLite snapshot**
+    (`services/backupService.ts:45`), zipped in native Rust. This is the heavy
+    path: a zip reader plus a SQLite reader, and `node:sqlite` is already here.
+
+  *Finding this cost something and paid for itself.* Aventuras' SillyTavern
+  export writes book-level settings in **snake_case**, as the V3
+  `character_book` spec does — and P4.2's converter read only camelCase, so an
+  embedded book's `scan_depth` and `token_budget` were being silently replaced
+  by our defaults. A book that imports and behaves differently. Fixed at P4.3,
+  with the Aventuras export shape as its test.
+- What maps ~~if the path exists~~ *when the converter is written*:
+  `VaultCharacter` → actor (its own shape, *not*
   V2 — the skeleton's "the other two orbit ST" holds for Marinara only);
   `Entry`'s static half → lorebook entries, its typed per-entry state being
   channel-shaped P7 material; `PackTemplate` is **already Liquid** — no macro
@@ -1136,6 +1161,42 @@ extraction and linking; personas. §1.11's lorebook converter with the decode
 tables. **The fixture-pair assertion goes green here**, in its §3 step 2 form.
 
 ### P4.3 — Marinara, then Aventuras — ~~survey first~~ the store reader first
+
+**Landed 2026-08-30**, in three commits.
+
+- *The Marinara store reader:* built behind §1.3's seam, reading both table
+  layouts — and **which layout a table is in is a question for the filesystem
+  rather than the manifest**, because a crash between the shard migration and
+  its first flush leaves sharded data under a version-2 manifest. The
+  SillyTavern walker did not change to accommodate any of it, which is the
+  check the seam was given.
+- *The converters:* redirections, as §1.5 predicted. **Two traps, both
+  camouflaged by everything around them reading as a rename**: Marinara numbers
+  at-depth `2` where SillyTavern numbers it `4`, so one shared table would send
+  every at-depth entry to the wrong place; and stored booleans arrive as the
+  *strings* `"true"` and `"false"`, so `=== true` disables every block in a
+  preset. Both import and validate. `selectiveLogic` has five arms to our four,
+  and the fifth is narrowed-and-flagged.
+- *§1.8's disposition map:* driven by the reader, so a table Marinara adds is
+  `unrecognised` and counted.
+- *The archive and the envelope:* an envelope becomes a table with one row in
+  it, and a **native profile becomes a data root held in memory** — the store
+  reader reads it unchanged and never learns it arrived as one file, which is
+  §1.3's *an archive is a root read through a different file source* paying out
+  with no new code. **The zip form is the one piece deferred with a reason**:
+  it needs a zip reader plus §1.3's bounds, which is not the *cheap tail* §5
+  described, and the native JSON profile carries the same content.
+- *The Aventuras survey:* **the gating question opened.** Three extraction paths
+  exist, and the best of them needed no code — Aventuras exports lorebooks *as
+  SillyTavern files*. Writing that up found a P4.2 bug: its export uses the V3
+  spec's snake_case book-level fields, which our converter did not read, so an
+  embedded book's scan depth and budget were silently replaced by defaults.
+- *The fixture corpus earned its keep twice.* It caught an actor being lost over
+  an unreadable portrait — the poisoned-file rule violated one level down.
+
+*Ends at:* a Marinara data root, a profile envelope and a single-object envelope
+all importing, with the SillyTavern paths untouched.
+
 
 *Restructured at the amendment.* The Marinara survey it was going to open with
 has been performed (§1.5), so this stops being a stage that might discover it
