@@ -7,12 +7,17 @@ import {
   type ImportItemReport,
   type ImportNote,
   type ImportReport,
+  type Actor,
   type Lorebook,
   type Treatment,
 } from '@storyengine/shared';
 
 import { create, type LibraryContext } from '../library.js';
+import { codecFor } from '../storage/card/index.js';
 import { classifyRoot } from './detect.js';
+import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
+import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
+import { MarinaraReader } from './marinara/reader.js';
 import { convertCard } from './sillytavern/card.js';
 import { convertLorebook } from './sillytavern/lorebook.js';
 import { convertChatCompletionPreset } from './sillytavern/preset.js';
@@ -103,6 +108,7 @@ function readerFor(kind: string, files: FileSource): SourceReader | null {
   // assembled by hand is the ST tree with most of it missing, and the walker
   // already reports what it does not recognise.
   if (kind === 'sillytavern' || kind === 'loose-files') return new SillyTavernReader(files);
+  if (kind === 'marinara') return new MarinaraReader(files);
   return null;
 }
 
@@ -139,6 +145,18 @@ class Writer {
         return this.#preset(candidate, convertSyspromptPreset);
       case 'sillytavern.preset.text':
         return this.#preset(candidate, convertTextCompletionPreset);
+
+      // Marinara's are redirections rather than a second conversion: a Marinara
+      // card is a V2 card, and its preset is the same prompt-manager lineage
+      // [10 §8.4] was written against ([P4 §1.5]).
+      case 'marinara.character':
+        return this.#card(candidate);
+      case 'marinara.persona':
+        return this.#marinaraPersona(candidate);
+      case 'marinara.lorebook':
+        return this.#marinaraLorebook(candidate);
+      case 'marinara.preset':
+        return this.#marinaraPreset(candidate);
       default:
         return { source: candidate.source, disposition: 'unrecognised', notes: [] };
     }
@@ -155,21 +173,8 @@ class Writer {
       if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
     }
 
-    const pixels = candidate.assets?.[0]
-      ? await this.#request.files.read(candidate.assets[0])
-      : null;
-
-    try {
-      await create(
-        this.#request.library,
-        this.#request.handle,
-        actor,
-        undefined,
-        pixels ? { cardPixels: pixels } : undefined,
-      );
-    } catch {
-      return { source: candidate.source, disposition: 'unrecognised', notes };
-    }
+    const stored = await this.#createActor(candidate, actor, notes);
+    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
 
     if (scenario !== null) this.#rememberScenario(scenario, actor.id, lorebook?.id);
 
@@ -191,22 +196,109 @@ class Writer {
     const actor = converted.value.actor;
     actor.roles = ['persona'];
 
-    const pixels = candidate.assets?.[0]
-      ? await this.#request.files.read(candidate.assets[0])
-      : null;
+    const notes: ImportNote[] = [];
+    const stored = await this.#createActor(candidate, actor, notes);
+    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
+    return { source: candidate.source, disposition: 'converted', objectId: actor.id, notes };
+  }
 
+  /**
+   * Writes an actor, with its portrait if there is a usable one.
+   *
+   * **A portrait that will not read costs the portrait, not the actor.** The
+   * fixture corpus caught this: an avatar file that is not an image made
+   * `create()` refuse the whole card, so a character was lost over its picture.
+   * That is the poisoned-file rule violated one level down — one bad asset never
+   * costs the object it belongs to, exactly as one bad file never aborts a
+   * sweep ([13 §4.1.1]).
+   */
+  async #createActor(
+    candidate: ImportCandidate,
+    actor: Actor,
+    notes: ImportNote[],
+  ): Promise<boolean> {
+    const asset = candidate.assets?.[0];
+    const pixels = asset === undefined ? null : await this.#request.files.read(asset);
+
+    if (pixels !== null && codecFor(pixels) === null) {
+      notes.push({
+        key: 'import.card.portraitUnreadable',
+        params: { file: asset ?? '', actor: actor.name },
+        level: 'warn',
+      });
+      return this.#write(actor, notes, null);
+    }
+    return this.#write(actor, notes, pixels);
+  }
+
+  async #write(actor: Actor, notes: ImportNote[], pixels: Uint8Array | null): Promise<boolean> {
     try {
       await create(
         this.#request.library,
         this.#request.handle,
         actor,
         undefined,
-        pixels ? { cardPixels: pixels } : undefined,
+        pixels === null ? undefined : { cardPixels: pixels },
       );
-    } catch {
-      return { source: candidate.source, disposition: 'unrecognised', notes: [] };
+      return true;
+    } catch (error) {
+      notes.push({
+        key: 'import.file.notStored',
+        params: { object: actor.name, reason: error instanceof Error ? error.name : 'unknown' },
+        level: 'warn',
+      });
+      return false;
     }
-    return { source: candidate.source, disposition: 'converted', objectId: actor.id, notes: [] };
+  }
+
+  async #marinaraPersona(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const item = await this.#card(candidate);
+    return item;
+  }
+
+  async #marinaraLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const payload = candidate.payload as {
+      book: unknown;
+      entries: unknown[];
+      folders: unknown[];
+      actorIds: string[];
+    };
+    const converted = convertMarinaraLorebook(payload.book, payload.entries, payload.folders);
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+
+    const { lorebook, notes } = converted.value;
+    // Links resolve or dangle like any other reference ([00 §3.3]); the ids are
+    // Marinara's and ours are minted fresh, so these are expected to dangle
+    // until §1.3's identity work gives them somewhere to point.
+    if (payload.actorIds.length > 0) {
+      notes.push({
+        key: 'import.lore.characterLinksDangle',
+        params: { count: payload.actorIds.length },
+        level: 'info',
+      });
+    }
+
+    const stored = await this.#store(lorebook, notes);
+    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
+    return { source: candidate.source, disposition: 'converted', objectId: lorebook.id, notes };
+  }
+
+  async #marinaraPreset(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const payload = candidate.payload as {
+      preset: unknown;
+      sections: unknown[];
+      choiceBlocks: unknown[];
+    };
+    const converted = convertMarinaraPreset(payload.preset, payload.sections, payload.choiceBlocks);
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+
+    const { preset, notes } = converted.value;
+    try {
+      await create(this.#request.library, this.#request.handle, preset);
+    } catch {
+      return { source: candidate.source, disposition: 'unrecognised', notes };
+    }
+    return { source: candidate.source, disposition: 'converted', objectId: preset.id, notes };
   }
 
   async #lorebook(candidate: ImportCandidate): Promise<ImportItemReport> {

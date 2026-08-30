@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { makePng } from '../../storage/card/test-png.js';
+
 /**
  * A synthesised Marinara data root
  * ([P4 §1.2](../../../../../docs/design/workplan/06-p4-implementation.md)).
@@ -169,7 +171,11 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     'storage/tables/messages/chat_1.json': json([{ id: 'm1', chatId: 'chat_1', content: 'hi' }]),
     'storage/tables/messages/orphaned-rows.json': json([{ id: 'm2', chatId: null, content: '?' }]),
 
-    // Assets referenced by the rows above.
-    'avatars/char_vera.png': 'pretend this is a portrait',
+    // Assets referenced by the rows above. A real PNG, so the happy path is
+    // exercised rather than assumed…
+    'avatars/char_vera.png': makePng(),
+    // …and one that is not, because an avatar file that is not an image used to
+    // cost the whole character. A bad portrait must cost the portrait.
+    'avatars/char_broken.png': 'pretend this is a portrait',
   };
 }

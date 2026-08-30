@@ -86,20 +86,31 @@ export async function classifyRoot(files: FileSource): Promise<RootClassificatio
   }
 
   if (kind === 'marinara') {
-    for (const mark of MARINARA_LIVE_MARKS) {
-      if (await files.exists(mark)) return { ok: false, refusal: 'live-install' };
-    }
-    const format = await readMarinaraFormat(files);
-    // An unreadable or absent manifest is not a refusal: the store recovers one
-    // from its `.bak` or infers it, so requiring it would refuse a directory the
-    // app itself would open. A manifest that *states* a version we do not know
-    // is a different thing, and stops us.
-    if (format !== null && format > MARINARA_KNOWN_FORMAT) {
-      return { ok: false, refusal: 'unknown-format' };
-    }
+    const refusal = await marinaraPreflight(files);
+    if (refusal !== null) return { ok: false, refusal };
   }
 
   return { ok: true, kind };
+}
+
+/**
+ * The reasons a Marinara root is refused **before anything is written**.
+ *
+ * One implementation, called from two places: the classifier reaches it so a
+ * root is refused as early as possible, and the reader's own `survey()` reaches
+ * it so a reader constructed directly cannot skip the check. Two copies of a
+ * pre-flight is one copy that eventually stops matching.
+ */
+export async function marinaraPreflight(files: FileSource): Promise<SourceRefusal | null> {
+  for (const mark of MARINARA_LIVE_MARKS) {
+    if (await files.exists(mark)) return 'live-install';
+  }
+  const format = await readMarinaraFormat(files);
+  // An unreadable or absent manifest is not a refusal: the store recovers one
+  // from its `.bak` or infers it, so requiring it would refuse a directory the
+  // app itself would open. A manifest that *states* a version we do not know is
+  // a different thing, and stops us.
+  return format !== null && format > MARINARA_KNOWN_FORMAT ? 'unknown-format' : null;
 }
 
 /**
