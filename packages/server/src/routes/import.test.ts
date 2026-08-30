@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -185,3 +188,120 @@ describe('the upload limit is read per request', () => {
     expect((await upload('Harbour.json', big)).status).toBe(201);
   });
 });
+
+/**
+ * The server-path sweep, and the permission it turns on ([P4 §1.3],
+ * [05 §4.2.2]).
+ *
+ * `fileAccess` spent three phases as a capability that gated nothing. This is
+ * where it gets teeth — and the tests below are mostly about the teeth rather
+ * than about the sweep, because a widened permission with an unenforced
+ * carve-out is worse than no permission at all.
+ */
+describe('pointing the server at a directory', () => {
+  it('refuses an account with no file access', async () => {
+    // Default is `none`, and the admin created at setup has it.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/sweep',
+      payload: { root: '/somewhere/SillyTavern/data' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('no-file-access');
+  });
+
+  it('refuses a folder inside our own data directory, even with the grant', async () => {
+    // **The carve-out**, through the route. Without it, `fileAccess: read`
+    // becomes a way to reach another account's library.
+    await grantFileAccess();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/sweep',
+      payload: { root: server.dataDir },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('inside-data-root');
+  });
+
+  it('refuses a relative path rather than resolving it against the cwd', async () => {
+    await grantFileAccess();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/sweep',
+      payload: { root: 'data' },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('not-absolute');
+  });
+
+  it('sweeps a real directory and answers with the report', async () => {
+    await grantFileAccess();
+    const root = await mkdtemp(join(tmpdir(), 'se-sweep-'));
+    await mkdir(join(root, 'OpenAI Settings'), { recursive: true });
+    await mkdir(join(root, 'characters'), { recursive: true });
+    await mkdir(join(root, 'worlds'), { recursive: true });
+    await writeFile(join(root, 'settings.json'), '{}');
+    await writeFile(join(root, 'OpenAI Settings', 'Harbour.json'), JSON.stringify(PRESET));
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.report.source).toBe('sillytavern');
+      expect(response.body.report.counts.converted).toBeGreaterThan(0);
+
+      const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
+      expect(listed.body.objects.map((row: { name: string }) => row.name)).toContain('Harbour');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('names source files relative to the root, never absolutely', async () => {
+    // [13 §4.1.1]: a review somebody pastes into an issue must not be a
+    // description of their filesystem. The root lives on the job record; the
+    // rows do not repeat it.
+    await grantFileAccess();
+    const root = await mkdtemp(join(tmpdir(), 'se-sweep-'));
+    await mkdir(join(root, 'OpenAI Settings'), { recursive: true });
+    await mkdir(join(root, 'characters'), { recursive: true });
+    await mkdir(join(root, 'worlds'), { recursive: true });
+    await writeFile(join(root, 'settings.json'), '{}');
+    await writeFile(join(root, 'OpenAI Settings', 'Harbour.json'), JSON.stringify(PRESET));
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+
+      const sources = (response.body.report.items as { source: string }[]).map((i) => i.source);
+      expect(sources).toContain('OpenAI Settings/Harbour.json');
+      for (const source of sources) {
+        expect(source, `${source} leaks the root`).not.toContain(root);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+/** Grants the admin `read`, which [05 §4.2.2] says is enough for a sweep. */
+async function grantFileAccess(): Promise<void> {
+  const response = await server.request({
+    method: 'PATCH',
+    url: '/api/admin/accounts/ned',
+    payload: { capabilities: { fileAccess: 'read' } },
+  });
+  expect(response.status, JSON.stringify(response.body)).toBe(200);
+}

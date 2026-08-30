@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
 import type { ImportItemReport, ImportNote } from '@storyengine/shared';
@@ -14,7 +15,10 @@ import {
   readEnvelope,
   singleObjectAsFileSource,
 } from '../import/marinara/envelope.js';
+import type { ConflictPolicy } from '../import/identity.js';
+import type { SourceRefusal } from '../import/source.js';
 import { sweep } from '../import/sweep.js';
+import { openLocalSource, type RootRefusal } from '../storage/local-source.js';
 import { create, LibraryError } from '../library.js';
 
 /**
@@ -103,6 +107,90 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const result = await importOneFile(services, account.handle, file.filename, bytes);
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
+
+  /**
+   * The server-path sweep — point the server at a data directory
+   * ([P4 §1.3]).
+   *
+   * **Gated on `fileAccess`, as [05 §4.2.2] widened it**, and the widening is
+   * only safe because of what `openLocalSource` refuses: a root inside `/data`.
+   * Without that, this route would be a way for one account to read another's
+   * library, which the scope table says `never`.
+   *
+   * `read` is enough. The sweep never writes to the source, and requiring
+   * `write` would mean asking for a permission over the user's own files in
+   * order to read somebody else's.
+   */
+  app.post('/import/sweep', { schema: { body: SweepBody } }, async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    if (account.capabilities.fileAccess === 'none') {
+      return reply.code(403).send({
+        error: 'no-file-access',
+        message: 'This account may not point the server at a directory.',
+      });
+    }
+
+    const body = request.body as { root: string; onConflict?: ConflictPolicy };
+    const opened = await openLocalSource(body.root, services.layout.dataRoot);
+    if (!opened.ok) {
+      // The root is named back only in the message a person asked for. It never
+      // reaches a log line or a per-item row ([13 §4.1.1]).
+      return reply
+        .code(422)
+        .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
+    }
+
+    const outcome = await sweep({
+      library: services.library,
+      handle: account.handle,
+      files: opened.source,
+      ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
+    });
+
+    if (!outcome.ok) {
+      return reply
+        .code(422)
+        .send({ error: outcome.refusal, message: sweepRefusalMessage(outcome.refusal) });
+    }
+    return reply.code(200).send({ report: outcome.report });
+  });
+}
+
+const SweepBody = Type.Object(
+  {
+    /** Absolute, and outside the data directory. Both are refused rather than fixed up. */
+    root: Type.String({ minLength: 1, maxLength: 4096 }),
+    onConflict: Type.Optional(
+      Type.Union([Type.Literal('replace'), Type.Literal('keep-both'), Type.Literal('skip')]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+function refusalMessage(refusal: RootRefusal): string {
+  switch (refusal) {
+    case 'inside-data-root':
+      return 'That folder is inside this install’s own data directory. Import reads other applications’ folders.';
+    case 'not-absolute':
+      return 'Give the full path to the folder.';
+    case 'unreadable-root':
+      return 'There is no readable folder at that path.';
+  }
+}
+
+function sweepRefusalMessage(refusal: SourceRefusal): string {
+  switch (refusal) {
+    case 'live-install':
+      return 'That application is running, or is part-way through an upgrade. Close it and try again.';
+    case 'unknown-format':
+      return 'That folder was written by a newer version than this build understands.';
+    case 'ambiguous-root':
+      return 'That folder looks like two different applications at once.';
+    case 'unreadable-root':
+      return 'There is nothing readable at that path.';
+  }
 }
 
 /**
