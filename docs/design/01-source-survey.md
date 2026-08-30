@@ -38,6 +38,78 @@ when surveyed. Marinara now persists relational tables as JSON snapshots under
 [00 §3.4](00-stance.md)'s. The distinction is load-bearing for
 [triage §2A](workplan/02-triage.md).
 
+### The library on disk — surveyed 2026-08-29, at `34442e26d`
+
+*Added 2026-08-29, because P4 needed it and no document had it.* The correction
+above was the whole of what this corpus recorded about where a Marinara library
+lives, and the layout it names has since been superseded. Everything below is
+`Pasta-Devs/Marinara-Engine` v2.4.3 at
+`34442e26da577ff0d95ee890a87024e35831bfa9` (2026-08-18) — **pinned, because an
+unpinned survey of this repository is stale on arrival**
+([triage §2A.2](workplan/02-triage.md) measured 712 commits in nine days).
+
+**A data root is a store beside its assets.** `storage/manifest.json` carries
+`{ version, savedAt, backend: "file-native", tables: { name: rowCount },
+shards? }` (`packages/server/src/db/file-backed-store.ts:89`, `:1034`,
+`:3009`); `storage/tables/` holds the rows; and seventeen asset directories sit
+beside `storage/` — `avatars`, `sprites`, `backgrounds`, `gallery`, `fonts`,
+`lorebooks/images`, `prompts/images` and ten more, enumerated once as
+`BACKUP_DIRS` (`packages/server/src/routes/backup.routes.ts:67`).
+
+**The rows are not one file per table.** At storage format 4
+(`STORAGE_VERSION`, `file-backed-store.ts:239`) sixteen tables shard into
+`storage/tables/<table>/<shardKey>.json`, with children whose parent is unknown
+collected under `orphaned-rows.json`; every other table stays
+`storage/tables/<table>.json`, a JSON array of rows. The sharded sixteen
+(`SHARDED_TABLES`, `file-backed-store.ts:259`) are *exactly* the chat- and
+session-scoped tables — `messages`, `message_swipes`, `memory_chunks`, the
+`game_*` and `conversation_call_*` families — and nothing else, which means the
+half of the store a library import would read is entirely flat, `lorebooks`
+deliberately so.
+
+**The manifest states the version and cannot be trusted for the layout.** A
+lost manifest is recovered from its `.bak` or inferred from the tables
+themselves, and a crash between the shard migration and its first flush leaves
+sharded data sitting under a version-2 manifest — Marinara's own comment says
+so (`file-backed-store.ts:2596`). Which shape a table is in is a question for
+the filesystem: a directory, or a file.
+
+**An object is a join, not a file.** A character is `characters` plus
+`character_card_versions`, `character_images` and a file under `avatars/`; a
+lorebook is `lorebooks` plus `lorebook_entries`, `lorebook_folders` and the two
+link tables; a preset is `prompt_presets` plus `prompt_sections`,
+`prompt_groups` and `choice_blocks`. This is the structural difference from
+SillyTavern that matters most, and §4's concept table understates it: ST's tree
+is one file per object; Marinara's is a relational store that happens to be
+written as files. A row in `characters.json` carries its card in a `data`
+**string** — JSON inside JSON.
+
+**Three shapes leave the app**, all of which a person can hand an importer: the
+data root itself; a profile archive, the same tree zipped behind a
+`ProfileArchiveStorageSnapshot` (`backup.routes.ts:254`); and a single-object
+`.marinara.json` — an `ExportEnvelope { type, version, exportedAt, data }` over
+eight `ExportType` values covering characters, personas, lorebooks, presets and
+the profile itself (`packages/shared/src/types/export.ts:8`).
+
+**What a reader meets that is not data.** A live install saves on a 750 ms
+debounce and marks itself with `.writer-lease` and `owner.json`
+(`file-backed-store.ts:240-241`); a store part-way through the
+monolith-to-shard migration carries `.migrating` (`:297`); tables and the
+manifest may each have a `.bak` sibling, which is a second copy of the same
+rows rather than more of them. The store refuses outright to open a format
+newer than it knows (`StorageFormatTooNewError`, `file-backed-store.ts:2569`).
+And the data root holds `.encryption-key`
+(`packages/server/src/utils/crypto.ts:56`) — a credential, not content, and one
+Marinara's own backup writer deliberately omits from the archive it builds
+(`backup.routes.ts:3121`).
+
+**`feat/scenarios` is gone from the remote but not lost.** A local checkout at
+`a5b72ef91b8867c2e3bff547ad25d1df2f0eb8c6` (2026-08-04) preserves
+`packages/shared/src/types/scenario.ts` and the four design plans under
+`.github/plans/scenarios/` that [triage §4](workplan/02-triage.md) called worth
+more than the code. Nothing scenario-shaped ships, so that verdict stands; what
+changes is that the design is readable rather than only remembered.
+
 ### What it gets right and we should take
 
 **Three chat modes as a first-class concept.** `ChatMode = "conversation" |
@@ -249,10 +321,24 @@ That header-auth-behind-a-trusted-proxy pattern is directly reusable for the
 Tailscale integration in [04](04-server-multiuser-deployment.md).
 
 **Per-user directory tree** (`USER_DIRECTORY_TEMPLATE`, `src/constants.js:16`) —
-~30 named subdirectories per user (`characters`, `chats`, `groups`,
+thirty named subdirectories per user (`characters`, `chats`, `groups`,
 `group chats`, `worlds`, `backgrounds`, `themes`, `vectors`, `backups`, plus one
 settings directory per backend family). Files on disk, human-navigable, no
 database. The *storage philosophy* is what StoryEngine wants.
+
+*Counted 2026-08-29, at `8172dcd`:* thirty-one keys, one of which is the root
+itself. An importer that means to account for everything it saw needs the whole
+list, not the familiar names — `thumbnails` and its three children, `user` with
+`user/images`, `user/files` and `user/workflows`, `movingUI`, `extensions`,
+`assets`, `instruct`, `context`, `sysprompt`, `reasoning` and `QuickReplies` are
+all in it.
+
+**Personas live in `User Avatars/`, and their text lives in `settings.json`.**
+The directory holds one image per persona; the name and description sit under
+`power_user.personas` and `power_user.persona_descriptions`
+(`public/scripts/personas.js:234`, `:523`). Recorded here because this survey
+never had it and P4 needs it: a persona is not a file, so importing one means
+reading the settings file, which is not otherwise an import target.
 
 **PNG card embedding** (`src/character-card-parser.js`) — the reference
 implementation, and better than expected: it *splices tEXt chunks* rather than
@@ -260,6 +346,13 @@ re-encoding the image, removes existing `chara`/`ccv3` chunks before writing to
 avoid mismatch, writes both V2 (`chara`) and V3 (`ccv3`) chunks, and reads with
 V3 taking precedence. StoryEngine should copy this technique (chunk splicing, no
 pixel re-encode) even while rejecting the payload schema.
+
+*One thing the reference implementation does not cover, noted 2026-08-29:* cards
+in the wild also arrive with their payload in a **compressed** `zTXt` chunk —
+Character Tavern writes them that way, and Marinara's importer reads both
+(`packages/server/src/services/import/st-bulk.importer.ts:32`). A reader that
+handles `tEXt` alone does not fail on those cards; it fails to recognise them as
+cards at all.
 
 `src/charx.js` handles the V3 CHARX format — a zip carrying the card plus its
 assets — which is the precedent for "what happens when a character has sprites".
