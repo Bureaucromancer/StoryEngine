@@ -10,6 +10,7 @@ import { marinaraFixture } from '../fixtures/test-marinara.js';
 import { MemoryFileSource } from '../memory-source.js';
 import { malformedInputs } from '../parse.js';
 import { sweep } from '../sweep.js';
+import { profileAsFileSource, readEnvelope, singleObjectAsFileSource } from './envelope.js';
 import { convertLorebook } from './lorebook.js';
 import { convertPreset } from './preset.js';
 
@@ -336,5 +337,107 @@ describe('sweeping a Marinara data root', () => {
     expect(outcome).toEqual({ ok: false, refusal: 'unknown-format' });
     const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
     expect(actors.body.objects).toEqual([]);
+  });
+});
+
+/**
+ * Marinara's single-file exports, which are the same reader over a different
+ * file source ([P4 §1.3]).
+ *
+ * The design claim being tested is that no second conversion path was needed:
+ * an envelope becomes a table with one row in it, and a native profile becomes
+ * a whole data root held in memory. If either had needed its own converter, the
+ * seam would have been in the wrong place.
+ */
+describe('the single-file export formats', () => {
+  let server: TestServer;
+
+  beforeEach(async () => {
+    server = await makeTestServer();
+    await setUpAdmin(server);
+  });
+
+  afterEach(async () => {
+    await server.dispose();
+  });
+
+  async function importEnvelope(envelope: unknown) {
+    const files =
+      readEnvelope(envelope)?.type === 'marinara_profile'
+        ? profileAsFileSource((envelope as { data: unknown }).data)
+        : singleObjectAsFileSource(readEnvelope(envelope)!);
+    expect(files).not.toBeNull();
+    return sweep({ library: server.services.library, handle: 'ned', files: files! });
+  }
+
+  it('reads a single character envelope through the same converter as the table', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_character',
+      version: 1,
+      data: { id: 'c1', data: JSON.stringify({ name: 'Maris Okonkwo', description: 'Ferry.' }) },
+    });
+
+    expect(outcome.ok).toBe(true);
+    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
+    expect(actors.body.objects.map((row: { name: string }) => row.name)).toContain('Maris Okonkwo');
+  });
+
+  it('reads a lorebook envelope, whose entries are nested rather than a second table', async () => {
+    const outcome = await importEnvelope({
+      type: 'marinara_lorebook',
+      version: 1,
+      data: {
+        id: 'b1',
+        name: 'Ferry lore',
+        entries: [{ id: 'e1', lorebookId: 'b1', name: 'The rail', content: 'Pay at the rail.' }],
+      },
+    });
+
+    expect(outcome.ok).toBe(true);
+    const books = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect(books.body.objects.map((row: { name: string }) => row.name)).toContain('Ferry lore');
+  });
+
+  it('reads a whole native profile as a data root held in memory', async () => {
+    // The claim §1.3 makes about the seam, tested literally: the store reader
+    // is unchanged and does not learn that this arrived as one file.
+    const outcome = await importEnvelope({
+      type: 'marinara_profile',
+      version: 1,
+      data: {
+        version: 1,
+        tables: {
+          characters: [{ id: 'c1', data: JSON.stringify({ name: 'Vera Solano' }) }],
+          lorebooks: [{ id: 'b1', name: 'Rain City' }],
+          lorebook_entries: [],
+        },
+        files: [],
+      },
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.report.counts.converted).toBeGreaterThanOrEqual(2);
+  });
+
+  it('records the session-shaped envelope kinds rather than converting them', () => {
+    // `marinara_chat_preset`, `marinara_chat_settings_profile` and
+    // `marinara_memory_recall` are session- and memory-shaped. Recorded with the
+    // class that says when, never quietly dropped.
+    for (const type of [
+      'marinara_chat_preset',
+      'marinara_chat_settings_profile',
+      'marinara_memory_recall',
+    ]) {
+      const envelope = readEnvelope({ type, version: 1, data: {} });
+      expect(envelope?.type).toBe(type);
+      expect(singleObjectAsFileSource(envelope!)).toBeNull();
+    }
+  });
+
+  it('is not fooled by JSON that is not an envelope', () => {
+    expect(readEnvelope({ type: 'something_else', data: {} })).toBeNull();
+    expect(readEnvelope('a string')).toBeNull();
+    expect(readEnvelope(null)).toBeNull();
   });
 });

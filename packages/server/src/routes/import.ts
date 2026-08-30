@@ -9,6 +9,12 @@ import { type AppServices, requireAccount } from '../app.js';
 import { convertChatCompletionPreset } from '../import/sillytavern/preset.js';
 import { convertSyspromptPreset } from '../import/sillytavern/sysprompt.js';
 import { convertTextCompletionPreset } from '../import/sillytavern/text-completion.js';
+import {
+  profileAsFileSource,
+  readEnvelope,
+  singleObjectAsFileSource,
+} from '../import/marinara/envelope.js';
+import { sweep } from '../import/sweep.js';
 import { create, LibraryError } from '../library.js';
 
 /**
@@ -135,6 +141,46 @@ async function importOneFile(
     return item('recorded', [
       { key: 'import.file.notYetConvertible', params: { filename }, level: 'info' },
     ]);
+  }
+
+  // Marinara's own export formats, which are the same reader over a different
+  // file source ([P4 §1.3]) — a `.marinara.json` is one row of a table that
+  // happens to have travelled alone.
+  const envelope = readEnvelope(parsed);
+  if (envelope !== null) {
+    const files =
+      envelope.type === 'marinara_profile'
+        ? profileAsFileSource(envelope.data)
+        : singleObjectAsFileSource(envelope);
+
+    if (files === null) {
+      return item('recorded', [
+        {
+          key: 'import.file.notYetConvertible',
+          params: { filename, kind: envelope.type },
+          level: 'info',
+        },
+      ]);
+    }
+
+    const outcome = await sweep({ library: services.library, handle, files });
+    if (!outcome.ok) {
+      return item('unrecognised', [
+        {
+          key: 'import.file.refused',
+          params: { filename, refusal: outcome.refusal },
+          level: 'warn',
+        },
+      ]);
+    }
+    // One envelope can carry a whole profile, so the answer is the report rather
+    // than a single row — the route reports the first item and the counts speak
+    // for the rest.
+    const converted = outcome.report.items.find((row) => row.disposition === 'converted');
+    return {
+      item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
+      notes: outcome.report.items.flatMap((row) => row.notes),
+    };
   }
 
   const converted = convertPreset(parsed, presetNameFrom(filename));
