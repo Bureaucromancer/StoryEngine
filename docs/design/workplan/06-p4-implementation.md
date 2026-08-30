@@ -325,6 +325,15 @@ a real library becomes a named outstanding manual task on the P2C precedent —
 person-blocked, blocking nothing in P4, written down here so it is not
 discovered missing at PLAYABLE. Gate step 1 is restated accordingly (§3).
 
+*And it now has an owner, which it did not on the day it was written
+(2026-08-30).* A task recorded only in the phase that cannot supply it is a task
+nobody owns, so the prerequisite is written into
+[P5 §1.6](07-p5-implementation.md) — the document whose own argument for its
+shape depends on having real books — and [16 §6](../16-lorebooks-as-a-format.md)
+records that its falsification counts wait for it. P4 is unaffected either way;
+what changed is that the phase after this one has stopped assuming this one
+produced a corpus.
+
 **What synthesis means for a source whose library is a database.** For
 SillyTavern it means what it always meant: hand-authored cards, worlds and
 preset files in a fixture directory. For Marinara it means a fixture **data
@@ -1033,10 +1042,23 @@ Not a stage of P4 and listed so it is not forgotten: wire the crude Scene mode
 to the imported library — the preset picker from P4.1 is the wiring — sit
 down, and play ([01 §4.1]). The four hypotheses get their answers here, the
 answers feed the revisit of [07](07-p5-implementation.md) before P5 starts,
-and [16 §6](../16-lorebooks-as-a-format.md)'s two corpus counts (Mentions and
+~~and [16 §6](../16-lorebooks-as-a-format.md)'s two corpus counts (Mentions and
 folders across the imported corpus) run shortly after import lands, as that
-document asks. **PLAYABLE needs the P2C sessions to have run** (§0) — a real
+document asks.~~ **PLAYABLE needs the P2C sessions to have run** (§0) — a real
 endpoint, proven, not the stub.
+
+**The corpus counts do not run here, and saying so is this phase's obligation
+rather than P5's.** *Corrected 2026-08-30.* [16 §6] specifies four falsification
+tests that run "against the imported library rather than against fixtures", none
+runnable before P4 and all of them "shortly after". §1.2 has since established
+that **there is no such library** — no used SillyTavern or Marinara install on
+hand — so P4 imports the corpus it synthesised, and counting Mentions across
+fixtures we authored measures our own assumptions rather than anybody's books.
+The tests are not failed, and they are not quietly skipped: they wait, and
+**acquiring a real library is now a named prerequisite of P5's document half**
+([P5 §1.6](07-p5-implementation.md)), person-blocked with lead time in the same
+way the P2C sessions are. P4 still closes without it; what changes is that the
+phase after this one no longer assumes this one produced it.
 
 ---
 

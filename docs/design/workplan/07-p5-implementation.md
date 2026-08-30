@@ -143,6 +143,32 @@ books rather than seeds. P5 already follows P4, so this placement buys the
 dependency for nothing — where a lettered phase would have been the same
 sequence with more numbering.
 
+> **The dependency stopped being free on 2026-08-29, and this is the correction
+> rather than a note.** [P4 §1.2](06-p4-implementation.md) established that
+> **no real corpus exists** — no used SillyTavern or Marinara install is on
+> hand — and that P4 therefore runs on fixtures it synthesised. So "P5 already
+> follows P4" no longer buys the dependency: P4 produces a library, not a
+> *corpus*, and the difference is the whole of what this paragraph was relying
+> on. A reading view sized against fixtures we wrote is sized against our own
+> assumptions, and [16 §6](../16-lorebooks-as-a-format.md)'s counts run over
+> those fixtures would confirm whatever the fixtures were built to contain.
+>
+> **Acquiring a real library is therefore a prerequisite of this half**, not a
+> convenience: person-blocked, with lead time, in the same class as the P2C
+> sessions ([P4 §0](06-p4-implementation.md)) — someone has to find a
+> SillyTavern or Marinara install with years of books in it and put it
+> somewhere the importer can reach. It is named here because this is the
+> document whose argument depends on it, and a prerequisite recorded only in
+> the phase that cannot supply it is a prerequisite nobody owns.
+>
+> **What it does not do is block the phase.** The half is written against
+> fixtures and the corpus sharpens it; only [16 §6]'s falsification counts
+> genuinely require real books, and P5.3's gate is restated below so that a
+> task with unknown lead time cannot hold a phase closed. If the corpus is
+> still absent when this phase is planned, §1.6's own escape applies: the
+> halves are separable, "reversing them changes nothing else in this plan", and
+> the reversal becomes the obvious call rather than a discovery.
+
 *The objection, and why it loses.* This delays activation, which is the feature,
 and a reader over books that nothing retrieves from is a document viewer for
 documents nothing uses. That is real, and it is answered by the size: the
@@ -259,8 +285,16 @@ building.
 the retriever half's tester, where it stops being a guess about linking and
 becomes *this is what the scanner sees*.
 
-*Ends at:* the count from [16 §6](../16-lorebooks-as-a-format.md) run over the
-imported corpus, and recorded — whichever way it comes out.
+*Ends at:* ~~the count from [16 §6](../16-lorebooks-as-a-format.md) run over the
+imported corpus, and recorded — whichever way it comes out.~~ **the count from
+[16 §6](../16-lorebooks-as-a-format.md) written as a script, run over whatever
+library is to hand, and recorded with what it ran against stated beside it.**
+*Restated 2026-08-30 (§1.6):* the falsification value is in real books and there
+may be none when this stage lands, so the stage owes the **instrument and the
+reading**, while the *verdict* on the premise waits for a corpus. A phase must
+not be held closed by a task with unknown lead time. The count over synthesised
+fixtures is still worth recording — it is the control the real reading gets
+compared against.
 
 ### The retriever half
 
@@ -357,6 +391,18 @@ gates is one somebody will try to exit halfway, so it says which is which.
 6. **Only a person can walk:** open a book you did not author and judge whether
    the page reads as a document or as a form. This is the claim the phase is
    making and no assertion covers it.
+
+*Which of these need real books, settled 2026-08-30 (§1.6) so the gate is not
+walked into and then argued about.* **Step 1 does not:** three hundred entries
+is a load, and a synthesised book of that size exercises the layout, the
+virtualisation and the address exactly as an authored one would. **Step 6
+does** — "a book you did not author" is false by construction for a fixture we
+wrote, and the judgement it asks for is about somebody else's organising
+habits. It is met by the **handful of explicitly-permissive real books** the
+corpus policy already keeps in the repository
+([testing §5](10-testing.md)), which is what that handful is for; it does not
+need the private corpus. **Only [16 §6]'s falsification counts need that**, and
+P5.3 is written so they do not hold the phase closed.
 
 ### The retriever half
 

@@ -354,8 +354,26 @@ Core* as a tag is exactly what tags are for.
 
 Every test here is cheap, and all four run against the imported library rather
 than against fixtures — which means none can be run before
-[P4](workplan/06-p4-implementation.md), and all of them should be run shortly
-after.
+[P4](workplan/06-p4-implementation.md), ~~and all of them should be run shortly
+after~~.
+
+> **Amended 2026-08-30: "shortly after P4" was written expecting P4 to produce a
+> corpus, and it will not.** [P4 §1.2](workplan/06-p4-implementation.md)
+> established that no used SillyTavern or Marinara install is on hand, so P4
+> imports fixtures that were synthesised for it. Running these counts over those
+> fixtures would confirm whatever the fixtures were built to contain — the
+> premise under test is a claim about **how real authors chose keys**, and a
+> corpus we wrote cannot answer it either way.
+>
+> So the tests are **deferred until a real library exists, not skipped**, and
+> that is a weaker position than this section wanted: the warrant in §2 stays
+> unfalsified for longer than intended, and this document should be read as
+> holding an untested premise rather than a tested one. Acquiring a library is a
+> named prerequisite of [P5 §1.6](workplan/07-p5-implementation.md)'s document
+> half — person-blocked, with lead time — and the two counts run when it lands.
+> The instrument itself is not deferred: P5.3 writes the script and runs it over
+> whatever is to hand, recording what it ran against, so the real reading has a
+> control to be compared with.
 
 - **Count the mentions across the whole imported corpus.** *Mentions* pairs
   entries whose `name` or keys occur in another entry's `content`. If real books
