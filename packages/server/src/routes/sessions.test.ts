@@ -5,8 +5,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor } from '@storyengine/shared';
+import { newActor, newPreset } from '@storyengine/shared';
 
+import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
@@ -754,5 +755,94 @@ describe('the snapshot frame carries what a client needs to render', () => {
     expect(data.text).toBeNull();
     expect(data.cursor).toBeNull();
     await stream.abort();
+  });
+});
+
+/**
+ * **A session can play an imported preset** — [P4 §1.9], the wiring PLAYABLE
+ * needs and the minimum that makes it possible at all.
+ *
+ * A library full of imported presets that no session can play is a library
+ * nobody can evaluate, which is why this lands at P4.1 rather than waiting for
+ * P7's surface. The recorded position that *"choosing a different pack is P7's
+ * surface"* is amended in place rather than contradicted: P7 keeps browsing,
+ * previewing and switching mid-session.
+ */
+describe('creating a session with a chosen preset', () => {
+  let server: TestServer;
+
+  beforeEach(async () => {
+    server = await makeTestServer();
+    await setUpAdmin(server);
+  });
+
+  afterEach(async () => {
+    await server.dispose();
+  });
+
+  async function makePreset(name: string): Promise<string> {
+    const preset = newPreset(name);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/presets',
+      payload: { object: preset },
+    });
+    expect(created.status).toBe(201);
+    return preset.id;
+  }
+
+  it('copies the named preset instead of the mode default', async () => {
+    const id = await makePreset('Harbour');
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A session', preset: id },
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.session.preset.name).toBe('Harbour');
+  });
+
+  it('still copies the mode default when none is named', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A session' },
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.session.preset.id).toBe(SCENE_PRESET.id);
+  });
+
+  it('refuses an unknown preset rather than falling back to the default', async () => {
+    // Falling back would give somebody a different prompt pack than they asked
+    // for and say nothing, which is the same surprise an unknown mode gets
+    // refused for a few lines above.
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A session', preset: '01950000-0000-7000-8000-000000000000' },
+    });
+
+    expect(created.status).toBe(422);
+    expect(created.body.error).toBe('unknown-preset');
+  });
+
+  it('refuses an id that is not a preset', async () => {
+    const actor = newActor('Vera Solano');
+    await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: { object: actor },
+    });
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A session', preset: actor.id },
+    });
+
+    expect(created.status).toBe(422);
   });
 });

@@ -4,7 +4,10 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { PRESET_SCHEMA } from '@storyengine/shared';
+
 import { type AppServices, requireAccount } from '../app.js';
+import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
   createSession,
@@ -50,8 +53,16 @@ const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String()
  * `mode` and `cast` are here because without them half the shipped preset is
  * unreachable: the persona and actor slots resolve empty, so every prompt built
  * by this server used 4 of its 12 blocks and every test over assembly asserted
- * on absent input. The preset is **not** a parameter — a session copies its
- * mode's default, and choosing a different pack is P7's surface.
+ * on absent input. ~~The preset is **not** a parameter — a session copies its
+ * mode's default, and choosing a different pack is P7's surface.~~
+ *
+ * **Amended at P4.1 ([P4 §1.9]), rather than silently contradicted.** The
+ * preset *is* a parameter now, and only just: an optional id, copied at
+ * creation. P7 keeps the **surface** — browsing, previewing, switching
+ * mid-session — and this is the minimum that makes PLAYABLE possible at all,
+ * because a library full of imported presets that no session can play is a
+ * library nobody can evaluate. The session still copies rather than links
+ * ([02 §8]): editing a preset must not silently change a game in progress.
  */
 const CastBody = Type.Object(
   {
@@ -65,6 +76,12 @@ const CreateBody = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 200 }),
     mode: Type.Optional(Type.String({ maxLength: 100 })),
+    /**
+     * A preset from the library, copied instead of the mode's default
+     * ([P4 §1.9]). Omitted = the mode's default, which is what every session
+     * before this got.
+     */
+    preset: Type.Optional(Type.String({ maxLength: 200 })),
     cast: Type.Optional(CastBody),
   },
   { additionalProperties: false },
@@ -133,6 +150,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const body = request.body as {
       name: string;
       mode?: string;
+      preset?: string;
       cast?: { persona: string | null; actors: string[] };
     };
 
@@ -160,14 +178,44 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       });
     }
 
+    /**
+     * The named preset, or the mode's default ([P4 §1.9]).
+     *
+     * Read through the ordinary library door, so it is subject to the same
+     * ownership rule as everything else: another account's preset is
+     * `not-found`, never `forbidden`, because confirming that an id exists
+     * elsewhere leaks the one fact that separation exists to keep ([04 §4.3]).
+     *
+     * `preset.modes` is deliberately **not** checked. It is advisory ([10 §8.2])
+     * — a preset written for a mode you do not have still imports, still shows,
+     * and still plays if you insist. Refusing here would turn a hint into a
+     * gate, and the phase that fills a library with other people's presets is
+     * the worst possible place to do that.
+     */
+    let preset;
+    if (body.preset === undefined) {
+      preset = structuredClone(mode.definition.assembly.defaultPreset);
+    } else {
+      let row;
+      try {
+        row = read(services.library, account.handle, body.preset, PRESET_SCHEMA);
+      } catch (error) {
+        if (error instanceof LibraryError && error.code === 'not-found') {
+          return reply.code(422).send({ error: 'unknown-preset', message: 'No such preset.' });
+        }
+        throw error;
+      }
+      // **Copied, not referenced** ([02 §8]), exactly as the default is: the
+      // session owns its prompt pack from here, so editing the library's copy
+      // never rewrites a game in progress.
+      preset = structuredClone(row.body) as typeof mode.definition.assembly.defaultPreset;
+    }
+
     try {
       const session = await createSession(services.sessions, account.handle, {
         name: body.name,
         mode: { id: mode.definition.id, config: null },
-        // **Copied, not referenced** ([02 §8]): the session owns its prompt pack
-        // from here, so editing the mode's default never rewrites a game in
-        // progress.
-        preset: structuredClone(mode.definition.assembly.defaultPreset),
+        preset,
         ...(body.cast === undefined ? {} : { cast: body.cast }),
       });
       return await reply.code(201).send({ session });

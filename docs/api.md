@@ -437,12 +437,33 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name, mode?, cast? }` → `201 { session }`, and a list. **`archived` is the
-string `"true"`, not a boolean** — see the note under the turn routes.
+`{ name, mode?, preset?, cast? }` → `201 { session }`, and a list. **`archived`
+is the string `"true"`, not a boolean** — see the note under the turn routes.
 
 `cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
 Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
 a preset reachable from a session rather than only from a fixture.
+
+**`preset` is a library preset's id, copied instead of the mode's default**, and
+it arrived at P4.1 for one reason: a library full of imported presets that no
+session can play is a library nobody can evaluate. Omitted, a session gets the
+mode's default exactly as before. `422 unknown-preset` when there is no such
+preset — falling back would hand somebody a different prompt pack than they
+asked for and say nothing, which is what an unknown `mode` is refused for below.
+Another account's preset is `422` too, by way of a `404` inside: the path is the
+owner, and confirming an id exists elsewhere leaks the fact that separation
+exists to keep.
+
+**`preset.modes` is not checked**, deliberately. It is advisory — a preset
+written for a mode you do not have still imports, still shows, and still plays
+if you insist ([10 §8.2](design/10-schemas.md)) — and turning a hint into a gate
+would be worst in exactly the phase that fills a library with other people's
+presets.
+
+**Copied, never linked**, like the default it replaces: the session owns its
+prompt pack from creation, so editing the library's copy never rewrites a game
+in progress ([02 §8](design/02-data-model.md)). Browsing, previewing and
+switching mid-session remain P7's surface.
 
 **An unknown `mode` is refused here rather than resolved to the default.** The
 runner falls back for a session *already* playing a mode this build does not
