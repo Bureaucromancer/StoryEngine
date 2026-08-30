@@ -961,6 +961,62 @@ the skeleton's "carried as-is" glossed, decided here:
 
 ### P4.0 — Corpus, harness, and the ground work
 
+**Landed 2026-08-30**, in ten commits. What each clause became, and the three
+places the stage found the plan wrong:
+
+- *§1.2's corpus:* built as two synthesised roots — content maps rather than
+  committed files, so card images are constructed and a binary never enters a
+  diff. Eleven tests keep them honest, because a fixture nobody checks stops
+  being one. The Marinara root lies about itself twice on purpose: a version-2
+  manifest over a sharded table, and a card double-encoded inside its row.
+- *The parses-but-is-wrong harness:* `ParseOutcome` plus a table generated from
+  the parser's own valid example. Tested against two parsers — one that obeys
+  the contract and one that guards the shape then trusts the fields — because a
+  harness that cannot fail hands every later parser a green light it never
+  earned.
+- *§1.7's rename:* done, and **the plan was wrong about it in the dangerous
+  direction.** "The treatment literal never made it into code" — it had, as the
+  `samples.from` carrier, which is a different axis from the slot kind. A
+  find-and-replace over the word would have merged two vocabularies. The schema
+  now says so beside the arm.
+- *§1.3's write-path extension:* `create()` grew a card-pixels parameter rather
+  than gaining a sibling that writes files itself, so the kind queue, the
+  id-conflict check and the synchronous ingest still apply. A test creates the
+  same actor twice and still conflicts, which is what that choice buys.
+- *The wrapper fix:* both halves. First-occurrence-only was the known one; the
+  filled text also being a *replacement string*, so `$&` in imported prose
+  rewrote the output, was not. That bug bit while this document's amendment was
+  being written, in the script inserting the sentence describing it.
+- *The card reader:* widened to compressed `zTXt` and to `iTXt`. Our own
+  envelope stays `tEXt`-only, because `write()` removes our chunk by looking for
+  a `tEXt` with our keyword and a reader accepting more than the writer removes
+  would leave two envelopes in one file.
+- *The shared types and the module skeleton:* the seam is a **source reader
+  yielding candidates**, with the file source beneath it — and `FileSource`
+  being an interface is not a testing convenience, it is the `node:fs` boundary
+  rule. Candidates and observations share one stream, because *nothing is
+  silently dropped* is a property of a single pass.
+- *The two vendored registries:* thirty-one SillyTavern directories and
+  eighty-one Marinara tables, each with a disposition and four tests — coverage,
+  the reverse direction, the snapshot's own size, and that no entry claims
+  `unrecognised`. The last three exist because coverage alone can be satisfied
+  dishonestly.
+- *The sweep-as-job vocabulary:* `import_job` / `import_event` as `STEPS[1]`,
+  and the migration chain's own preserving rule got its first test — until now
+  there was one step, so the upgrade path had never run.
+- *P2C finding 8:* reproduced and fixed. **The plan said "verified fixed or
+  fixed here" and it was neither fixed nor, as it turned out, one bug**: *the
+  file changed* and *the file broke* were answered identically, and splitting
+  them fixed the loop while making the ordinary 412 more useful than it had
+  been.
+- *The fixture-pair CI assertion:* wired as its own project, red on purpose,
+  with the assertion spelled out in full. `pnpm test` negates the project rather
+  than the file carrying a skip, so **removing that negation is part of P4.2
+  making it pass** and cannot be forgotten separately.
+
+*Ends at:* `pnpm test:fixture-pair` failing with `ImportNotImplementedError`
+naming the stage that owes it, and the rest of the gate green.
+
 §1.2's corpus built (synthesised structural cases for both folder sources —
 including a Marinara fixture data root with one sharded table — permissive real
 ones, ~~the private corpus's location documented outside the repo~~ *and the
@@ -1280,7 +1336,10 @@ surface is a nicety recorded here and built by nobody yet.
 makes it true): [05 §5] — the review posture, post-hoc, amended by strike
 (§1.4, lands with P4.4). [10 §8.4.2] — text-completion fields to `compat`;
 [10 §8.4.3] — the heading's "Eight" becomes "Nine" (both with P4.1).
-[13 §4.1] — the foreign-path doctrine (with P4.0). [testing §5/§6] — which
+~~[13 §4.1] — the foreign-path doctrine (with P4.0).~~ *Paid at P4.0: it is
+[13 §4.1.1](../13-internal-contracts.md), and it turned out to be the same rule
+one root over — relative to the sweep root rather than the data root, with the
+root itself recorded once on the job.* [testing §5/§6] — which
 corpus CI runs (with P4.0). routes/sessions.ts's recorded P7 position — the
 copy-at-creation amendment (with P4.1). [02 §2.7] — the table restated in
 section terms with `talkativeness`'s destination (with P4.2); 02's header
