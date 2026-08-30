@@ -7,18 +7,18 @@ import { defineConfig } from 'vitest/config';
 const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
 
 /**
- * The import gate ([testing §5.1]), wired at P4.0 and **expected to fail until
- * P4.2** — a gate written after the code is a gate written to pass.
+ * The import gate ([testing §5.1]) — wired at P4.0 while it still failed, and
+ * green since P4.2. A gate written after the code is a gate written to pass.
  *
  * Its own project for the same reason `GATE` has one: a named CI step cannot be
  * retired by a `test.skip` nobody notices.
  *
- * **And `pnpm test` negates this project rather than the file being skipped.**
- * A suite that is expected to be red teaches people to ignore it, so the
- * ordinary run stays honest — but the exclusion is one visible word in
- * `package.json` rather than a `skip` inside the test, which means **P4.2
- * removing it is part of making this pass** and cannot be forgotten separately.
- * A skip would have hidden the same fact somewhere nobody looks.
+ * *`pnpm test` negated this project while it was red*, so that a suite expected
+ * to fail could not teach people to ignore it — as one visible word in
+ * `package.json` rather than a `skip` inside the file, precisely so that
+ * removing it was part of making the gate pass rather than a separate errand
+ * somebody had to remember. It was removed at P4.2, which is the mechanism
+ * working.
  */
 const FIXTURE_PAIR = 'packages/server/src/import/fixture-pair.test.ts';
 

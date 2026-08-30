@@ -23,7 +23,7 @@
     "lint:es": "eslint . --max-warnings 0",
     "reset-data": "node tools/reset-data.mjs",
     "seed": "node tools/seed.mjs",
-    "test": "vitest run --project !fixture-pair",
+    "test": "vitest run",
     "test:gate": "vitest run --project gate",
     "test:fixture-pair": "vitest run --project fixture-pair",
     "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run --project live",
