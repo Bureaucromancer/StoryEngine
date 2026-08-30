@@ -198,6 +198,52 @@ layer with no caller, on the grounds that it would be building P7's UI against
 P7's unwritten contract. This phase writes the contract; the surface follows in
 the same phase or is named as debt with an owner, not left as a third comment.
 
+### 1.10 What import recorded and left here — the deferrals §0 exists to collect
+
+**Added 2026-08-30**, and it is §0's first job discharged rather than a new
+decision: this document was drafted the same day
+[P4](06-p4-implementation.md)'s plan was amended, on a different branch, and
+neither met the other. P4 defers a named body of material to this phase and
+nothing here collected it.
+
+**What P4 imports, records and does not convert, because this phase is where it
+would have a home** ([P4 §1.8](06-p4-implementation.md)'s disposition tables):
+
+- **Party-shaped** — SillyTavern's `groups` and `group chats`, Marinara's
+  `character_groups` and `persona_groups`. P4's note is the one that matters
+  here: *member references would resolve-or-dangle if they ever convert*, which
+  is a statement about §1.6's party-as-a-channel model rather than about
+  import.
+- **Channel- and mode-shaped** — Marinara's six `game_*` tables and
+  `spatial_context_snapshots`, and Aventuras' typed per-entry state. P4 calls
+  these "channel-shaped P7 material" in as many words.
+- **Setup-shaped** — Marinara's `GameSetupConfig`, ~70 fields mixing narrative
+  and production. Recorded, not converted, with
+  [00 §3.2](../00-stance.md) stripping the production half if it ever converts.
+  §P7.4 builds setup objects and the wizard, so this is the stage that inherits
+  the question.
+- **Extension- and agent-shaped** — Marinara's `agent_configs`, `agent_runs`,
+  `agent_memory` and `capability_documents`, waiting on the extension host this
+  phase makes real.
+
+**The decision the revisit owes, and it is one decision rather than four:**
+*does P7 convert any of it, or does "recorded" turn out to be where it stays?*
+The honest default is the second. Every item above is a foreign engine's
+runtime state, and [06 E4](../06-open-questions.md) already closed chat and
+session import on the grounds that *"a half-working importer generates more
+support burden than no importer at all"* — an argument that does not weaken
+when the state gets more mode-specific. What would change it is a *format*
+argument rather than a completeness one: if this phase's channel and setup
+shapes turn out to be close enough to a source's that conversion is a table
+rather than a rewrite, the case reopens for that one shape only.
+
+**And one thing P4 took from this phase rather than leaving to it**, recorded
+so the revisit does not find it as a contradiction: session creation grows an
+optional preset id at [P4 §1.9](06-p4-implementation.md), amending
+routes/sessions.ts's *"choosing a different pack is P7's surface"* in place.
+P7 keeps the surface — browsing, previewing, switching mid-session. P4 took
+only copy-at-creation, because PLAYABLE needs it.
+
 ---
 
 ## 2. Stages
