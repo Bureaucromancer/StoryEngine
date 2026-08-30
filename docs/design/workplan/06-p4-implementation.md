@@ -437,9 +437,26 @@ order priced in §5):
   constructor `bodyLimit` stays as the outer bound; the honest tier is the
   per-request check.
 - **The directory sweep runs both ways.** A **server-side path**, gated on the
-  `fileAccess` capability — its first real teeth; the grant surface is the
-  admin accounts page, per [01 §2.3]'s no-configuration-without-a-surface rule
-  — for the self-hosted single box the demo describes. And a **browser
+  `fileAccess` capability — ~~its first real teeth; the grant surface is the
+  admin accounts page, per [01 §2.3]'s no-configuration-without-a-surface
+  rule~~ — for the self-hosted single box the demo describes. *Corrected
+  2026-08-30, and it was a permission-widening error rather than a wording
+  one:* `fileAccess` is specified in three places as a file browser **over the
+  user's own directory**, and [05 §4.2]'s table scopes it to roots under
+  `/data/users/<own handle>/`. A sweep reads a path the user names anywhere on
+  the host, which is outside every row of that table, so gating on the
+  capability as written would have widened it by implication — the exact
+  failure [05 §4.2.1] exists to record. **Decided: widen it by decision, with
+  `/data` carved out** — the new [05 §4.2.2] holds the argument, the bounded
+  grant and what it costs. Three consequences for this phase: a sweep root
+  inside `/data` is **refused**, so the capability never becomes a route to
+  another user's library; the grant surface is not built, because
+  `AdminAccounts.tsx` already renders the control — what P4.4 ships is moving
+  it out of the "Recorded for later" fieldset and **relabelling it**, since
+  three labels that say *file browser* over a permission that now also means
+  *read a path I name* are worse than no permission at all; and the
+  capability's own code comment (accounts.ts:75) becomes wrong the day the
+  sweep lands, so it rides the same stage (§6.4). And a **browser
   directory upload** (`webkitdirectory`, many files with relative paths
   through the same multipart route) for a client that is not on the server's
   machine. ~~One sweep engine over an abstract file source with two adapters —
@@ -587,12 +604,25 @@ import job's id; the panel over it stays an ordinary reader.
 
 **The report is structured data, never stored prose.** [07 §12.5–12.6] and
 [06 A2d]: the server emits facts — reason classes, counts, field lists,
-`{key, params}` — and the sentence is composed at display time through
-Intl/ICU. A report stored as English sentences would be A2d's latent bug
-rebuilt. The reason-class vocabulary is a shared type (the client imports only
-from `@storyengine/shared` — [P3.0]'s precedent for the turn record), and the
-client label maps stay open with raw-word fallback, because a newer build's
-class can arrive from disk.
+`{key, params}` — and the sentence is composed at display time ~~through
+Intl/ICU~~ **on the client, from the class**. A report stored as English
+sentences would be A2d's latent bug rebuilt. The reason-class vocabulary is a
+shared type (the client imports only from `@storyengine/shared` — [P3.0]'s
+precedent for the turn record), and the client label maps stay open with
+raw-word fallback, because a newer build's class can arrive from disk.
+
+*Corrected 2026-08-30, because "through Intl/ICU" named machinery that does not
+exist* — the same shape of error §1.6 caught for Liquid, and smaller only
+because the fix is a sentence rather than a dependency. `format.ts` is `Intl`
+for dates, numbers and durations; there is no message catalogue, no ICU
+formatter and no i18n dependency anywhere in the workspace, and the label maps
+are literal English objects. The catalogue extraction that would change that is
+[P11 §1.3](22-p11-implementation.md)'s pre-beta sweep. So P4 renders through
+the label maps this codebase already has — and the decision above is what keeps
+**the largest body of user-facing prose any phase has added** off that sweep's
+debt list, where [P3 §3](05-p3-implementation.md)'s free-English block `reason`
+already sits. Emitting `{key, params}` now is the cheap half; it is only cheap
+before the strings are written.
 
 **Per-kind honesty the skeleton's "what went to `compat`" glossed:** Actors
 and Presets carry `compat`; Lorebooks, Treatments and Setups carry `metadata`
@@ -987,7 +1017,10 @@ review category that says when.
 
 §1.4 rendered: the routed report view over the structured report; the two
 sweep transports over one engine (§1.3), the server-path side gated on
-`fileAccess` with its grant surface in admin accounts; the re-import
+`fileAccess` ~~with its grant surface in admin accounts~~ **as [05 §4.2.2]
+widened it — with the `/data` carve-out enforced in code, the existing control
+moved out of "Recorded for later", and its three labels rewritten to say what
+the permission now means**; the re-import
 skip/replace/keep-both flow; the client delete affordance and its api.ts
 function; the import entry point on the Library page (whose empty-state
 sentence finally learns the word "import"); `address.ts` grows the preset
@@ -1064,12 +1097,24 @@ endpoint, proven, not the stub.
    post-import library.
 10. **The config surface is honest**: the `LIVE_APPLIERS` row for
     `limits.maxUploadMb` reads `applied` and its test passes; the `fileAccess`
-    grant surface exists where an admin can reach it. **And the standing line
-    from [01 §2.3]:** if this phase built anything else that needs a value
-    set, name where someone sets it before calling the phase done.
+    grant surface exists where an admin can reach it — ~~exists~~ *and, since
+    2026-08-30, **says what it grants**: the control is out of "Recorded for
+    later" and its labels name the sweep, not only the browser* ([05 §4.2.2]).
+    **And the standing line from [01 §2.3]:** if this phase built anything else
+    that needs a value set, name where someone sets it before calling the phase
+    done.
 11. **The report is data**: fetch the review report over the API — reason
     classes, counts and parameters, no stored English prose; the sentences are
-    composed client-side through Intl/ICU.
+    composed client-side ~~through Intl/ICU~~ **from the reason class through
+    the same open-keyed label maps every other class-to-word surface uses**.
+    *Corrected 2026-08-30:* there is no ICU message layer in this repository —
+    `format.ts` is `Intl` for dates, numbers and durations, the label maps are
+    literal English objects, and the catalogue extraction that would change
+    that is [P11 §1.3](22-p11-implementation.md)'s. The decision §1.4 makes is
+    unaffected and is the point: emitting `{key, params}` rather than sentences
+    is what keeps this phase's large new body of user-facing prose **off**
+    P11's sweep debt, beside the workbench `reason` field that is already on
+    it.
 12. **Undo is real in-app**: delete a badly-imported object from the client;
     the tombstone behaviour is visible and the library reflects it.
 
@@ -1238,6 +1283,24 @@ the import-job tables beside the turn-job ones (with P4.0), and
 `@fastify/multipart` and LiquidJS (with the stage that opens an archive) —
 **three new dependencies in one phase, which is worth seeing written in one
 sentence rather than discovered one at a time**.
+
+*The 2026-08-30 re-evaluation paid two more on the day and owes three:*
+[05 §4.2](../05-ui-surfaces.md) gained §4.2.2 — the deliberate widening of
+`fileAccess`, with `/data` carved out — and
+[04 §4.2](../04-server-multiuser-deployment.md)'s `Capabilities` comment now
+says the capability carries two powers. *Owed, all riding P4.4 with the sweep:*
+`accounts.ts:75`'s comment, which describes only the browser;
+`AdminAccounts.tsx:159`'s three labels, which describe only the browser and sit
+under a "Recorded for later" legend that stops being true; and
+`storage/README.md:68`, which says `files.ts` is "one place to add a permission
+check when `fileAccess` grows teeth" — a forward-looking line this phase makes
+true, so it gains the sweep rather than a correction. *Checked and deliberately
+not on the list:* `layout.ts:171` and `:302` say `accounts.json` sits outside
+every user directory "whatever `fileAccess` a user is granted", and the
+carve-out is what keeps that true rather than what threatens it. **A widened
+permission behind unchanged labels is the one item on this list that is not
+bookkeeping**, which is why it is a gate step (§3.10) rather than a write-back
+alone.
 
 **6.5 What P4's landing changes for the panel's rules.** [P3 §7.1] (whether the
 panel may re-subject itself) stays open and P4 does not force it: the review

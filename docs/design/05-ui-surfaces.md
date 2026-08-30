@@ -524,10 +524,55 @@ Scoped roots, resolved and enforced server-side:
 | `/data/system/connections/` | **never** | never — system connections are usable, not readable ([04 §4.5](04-server-multiuser-deployment.md)) |
 | `/data/users/<other>/` | never | never |
 | `/data/config.json`, `/data/index/`, operational state | never | never |
+| Any path **outside `/data`**, named by the user, read-only, import only | yes — §4.2.2 | n/a |
 
 **Content roots, not the whole user directory.** An earlier draft rooted this at
 `/data/users/<own handle>/` and reasoned that everything in it is theirs to
 break. That was wrong, and §4.2.1 is why.
+
+#### 4.2.2 The import sweep widens `read`, deliberately — and `/data` is carved out
+
+*Added 2026-08-30, decided for [P4 §1.3](workplan/06-p4-implementation.md).*
+P4's server-side directory sweep points the server at a SillyTavern or Marinara
+data directory somewhere on the host and reads it. Nothing in the table above
+covers that: every row is a path under `/data`, and the capability was written
+and named for **a file browser over the user's own directory**. Gating the sweep
+on `fileAccess` without saying so would have widened a scoped permission by
+implication, which is the failure §4.2.1 exists to record.
+
+**So it is widened by decision instead, and the widening is one row:**
+`fileAccess: "read"` also permits *naming a path outside `/data` for a
+read-only import sweep*. Two things make that a bounded grant rather than a
+blank one:
+
+- **`/data` is carved out.** A sweep root inside the data directory is refused,
+  whatever the table above says about the user's own content. Otherwise
+  `fileAccess: "read"` would become a route to `/data/users/<other>/library/` —
+  which the table says `never`, and which the 404-for-everything posture
+  ([04 §4.4](04-server-multiuser-deployment.md)) exists to prevent. The file
+  browser reaches the user's own content; the sweep reaches foreign apps. They
+  do not overlap, and the code enforces the gap rather than trusting the two
+  rules to stay compatible.
+- **Read-only, and the report is relative.** The sweep never writes to the
+  source, and [13 §4.1](13-internal-contracts.md)'s foreign-path doctrine names
+  files relative to the sweep root rather than absolutely, so the review does
+  not become a filesystem map.
+
+**The cost, named rather than filed under "not a security product".** Inside
+that carve-out this is still host filesystem read, through the server's own
+user, of any directory the grantee names — the review counts what it saw even
+where it converts nothing, so filenames are disclosed even when contents are
+not. The default stays `none` and the grant stays admin-only, and the honest
+statement of the bar is: **grant this to someone you would give a shell to on
+that machine.** That is a stronger requirement than the rest of the capability
+carries, which is precisely why it is written here instead of being left to be
+inferred from a phase document.
+
+**And the surface has to say so.** The account settings today label this
+capability `No file browser` / `May read their own files` / `May edit their own
+files` — three labels that describe only the browser. A widened permission
+behind unchanged labels is worse than no permission at all, so the relabel ships
+with the sweep ([P4 §2](workplan/06-p4-implementation.md), P4.4), not after it.
 
 #### 4.2.1 `account.json` is not content
 
