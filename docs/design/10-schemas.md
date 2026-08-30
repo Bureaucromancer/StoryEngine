@@ -408,7 +408,9 @@ inventory — live in channels and must never appear here.
 
 Entry activation is taken from Marinara close to unchanged, because it is a
 decade of empirical tuning and it is the interchange format
-([02 §3](02-data-model.md)). The changes are four, all scoped.
+([02 §3](02-data-model.md)). The changes are ~~four~~ **five**, all scoped —
+corrected at P4.2, where the converter had to enumerate them and the code's own
+header had counted five for some time.
 
 ```ts
 interface Lorebook {

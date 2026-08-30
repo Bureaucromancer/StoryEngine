@@ -1097,6 +1097,36 @@ P7 position amended in the same commit. Docs ride along: 10 §8.4.2 (compat),
 
 ### P4.2 — SillyTavern cards and lorebooks
 
+**Landed 2026-08-30**, in two commits. **The fixture-pair assertion is green**,
+and `pnpm test` no longer negates its project — the removal being part of making
+it pass is the mechanism P4.0 wired for, working.
+
+- *§1.10's card converter:* built, with the `personality` row checked against
+  P4.1's `charPersonality` marker rather than on its own. Only the sections the
+  mapping fills are created, so three of the five Scene actor blocks render
+  empty by design — asserted here rather than discovered at the gate.
+- *Scenario → Treatment with sweep-level dedupe:* the converter returns the
+  text and the **sweep** creates the object, because *one treatment per distinct
+  scenario text* is not a property a converter handed one card can enforce. A
+  pack of twelve cards sharing a premise yields one treatment with twelve
+  actors in its cast.
+- *§1.11's decode tables:* both, with mutation-proofed tests. `world_info_logic`
+  is not in our union's order, so an array indexed by the integer would have
+  been shorter and wrong; and ST spells the enabled flag inverted as `disable`,
+  which read straight through turns every entry off. Neither mutation fails
+  anything but its own test — the book still imports and still validates, which
+  is what makes these the worst bugs available here.
+- *Personas:* the tree's one irregular case, since the name and description live
+  in `settings.json` rather than beside the image.
+- *The gate:* green — **and it caught something on its first honest run.** It
+  reported `history` as `empty-source`, correctly, because a session with no
+  turns has no history. That is not a conversion disagreement, so the test now
+  takes a turn first, which is what §3 step 2 said all along and the first draft
+  skipped. A gate that cannot tell an honest empty from a disagreement is one
+  that gets edited until it passes.
+
+*Ends at:* `pnpm test:fixture-pair` green, and the whole suite green with it.
+
 §1.10's card converter — V2/V3 PNG, CHARX, JSON card, `.seactor` — checked
 **against** P4.1's slot targets, which is the whole point of
 [testing §5.1](10-testing.md): the card importer and the preset importer
@@ -1391,11 +1421,13 @@ one root over — relative to the sweep root rather than the data root, with the
 root itself recorded once on the job.* [testing §5/§6] — which
 corpus CI runs (with P4.0). routes/sessions.ts's recorded P7 position — the
 ~~copy-at-creation amendment (with P4.1).~~ *Paid at P4.1, by strike in the
-comment itself.* [02 §2.7] — the table restated in
+comment itself.* ~~[02 §2.7] — the table restated in
 section terms with `talkativeness`'s destination (with P4.2); 02's header
 self-contradiction ("see [10] … 13 is current") fixed in passing. [10 §5]'s
 "the changes are four" — five, as the code's header already counts (with
-P4.2). And the two stale code comments this audit caught: layout.ts:74–79
+P4.2).~~ *All three paid at P4.2. The header contradiction had been read wrong
+at least once while writing the importer, which is what a self-contradicting
+pointer costs.* And the two stale code comments this audit caught: layout.ts:74–79
 (package shape "settled at P4") and lorebook.ts:231 ("Settings remain the
 primary home").
 
