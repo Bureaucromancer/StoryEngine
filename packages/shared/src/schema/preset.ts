@@ -220,7 +220,7 @@ export const SlotBlock = Type.Object(
     /**
      * Optional wrapper, with `{{content}}` standing for the filled value.
      * "Scenario: {{content}}" — exactly ST's `scenario_format` and `wi_format`,
-     * generalised from eight fixed fields to a property of any slot. Absent =
+     * generalised from nine fixed fields to a property of any slot. Absent =
      * emit the content bare.
      */
     wrapper: Type.Optional(Type.String()),

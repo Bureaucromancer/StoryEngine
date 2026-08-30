@@ -1254,7 +1254,7 @@ interface SlotBlock extends BlockCommon {
   source: SlotSource
   /** Optional wrapper, with `{{content}}` standing for the filled value.
    *  "Scenario: {{content}}" — this is exactly ST's `scenario_format` and
-   *  `wi_format`, generalised from eight fixed fields to a property of any
+   *  `wi_format`, generalised from nine fixed fields to a property of any
    *  slot. Absent = emit the content bare. */
   wrapper?: string
 }
@@ -1391,7 +1391,7 @@ The marker identifiers map one to one:
 | `charDescription` | `{ of: "actor", sectionId: "se.summary" }` |
 | `charPersonality` | `{ of: "actor", field: "traits" }` — see below |
 | `personaDescription` | `{ of: "persona" }` |
-| `dialogueExamples` | `{ of: "examples" }` |
+| `dialogueExamples` | ~~`{ of: "examples" }`~~ `{ of: "samples" }` — the arm was renamed when dialogue examples stopped being a `Section` ([§3.1](#31-writing-samples)); corrected at P4.1 |
 | `scenario` | `{ of: "treatment", part: "framing" }` |
 
 The `scenario` row is the interesting one, and it is the same move
@@ -1442,17 +1442,20 @@ named consequence, never as a silent drop.
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
   completion, which is unsupported ([07 §5.5](07-tech-stack.md)).
 - **Text-completion presets** convert to `params` only, and most of their fields
-  drop: `dry_*`, `smoothing_*`, `mirostat_*`, `xtc_*`, `tfs`, `eta_cutoff`,
-  `epsilon_cutoff`, `num_beams` and the rest are backend-specific sampler
-  controls with no chat-API equivalent. Worth stating plainly in the review:
-  *"this preset was mostly sampler settings for a local backend; 6 of 41 fields
-  carried over."*
+  ~~drop~~ **land in `compat`**: `dry_*`, `smoothing_*`, `mirostat_*`, `xtc_*`,
+  `tfs`, `eta_cutoff`, `epsilon_cutoff`, `num_beams` and the rest are
+  backend-specific sampler controls with no chat-API equivalent. *Corrected at
+  P4.1:* this said "drop" while `GenerationParams`' own comment said `compat`,
+  and the code comment wins — it is the reading consistent with §2's
+  preservation rule and [00 §2.4](00-stance.md)'s *nothing is lost and re-export
+  is possible*. Worth stating plainly in the review either way: *"this preset was
+  mostly sampler settings for a local backend; 6 of 41 fields carried over."*
 - **Reasoning presets** (`prefix`/`suffix`/`separator`) parse reasoning blocks
   out of output. Nothing at 1.0 consumes them; they go to `compat`.
 - **`sysprompt` presets** convert well and are the easy case: `content` becomes
   a `TextBlock` at the top, `post_history` a `TextBlock` after history.
 
-#### 8.4.3 Eight special-cased fields that become ordinary blocks
+#### 8.4.3 ~~Eight~~ **Nine** special-cased fields that become ordinary blocks
 
 The most satisfying part of the conversion, and the strongest evidence that
 `appliesTo` and `wrapper` are the right two fields rather than one field too

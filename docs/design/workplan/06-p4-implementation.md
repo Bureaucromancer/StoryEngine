@@ -1039,6 +1039,51 @@ amendment — §1.8 carries the answer.*
 
 ### P4.1 — SillyTavern presets, and the renderer they need
 
+**Landed 2026-08-30**, in five commits. What each clause became:
+
+- *The full §8.4 conversion:* three preset kinds — chat-completion, sysprompt,
+  text-completion. Four corrections to §8.4 came out of implementing it, and
+  all four are written back in this stage's docs commit: the heading's
+  "Eight" is nine (its own table always had nine rows); text-completion
+  samplers land in `compat` rather than dropping, because `GenerationParams`'
+  comment was right and the prose was not; `dialogueExamples` maps to
+  `samples`, since the arm was renamed when dialogue examples stopped being a
+  `Section`; and `scenario` maps to `treatment`, which the marker table always
+  spelled correctly.
+- *The vendored `sensitiveFields` drop:* ST's own list, with a test that the
+  snapshot covers every field §8.4.4 names and is a superset of them.
+  Present-and-empty is not present — ST writes these keys into every preset,
+  and reporting eleven removals on a file that carried none is how a warning
+  stops being read.
+- *Per-character order handling:* §8.4.2's rule, plus the half it left
+  unstated — group default in place of an absent global with a note, group
+  default dropped with a note when both exist.
+- *§1.6's renderer:* Liquid, block-scoped, over a closed namespace of two
+  names. Most of its tests are about what it may **not** reach, because the
+  risk in adding a template language to an assembler is not bad
+  interpolation — it is quietly acquiring a second assembler. A template that
+  will not compile emits its own source rather than throwing.
+- *The macro table:* closed, and closed in a stronger sense than §8.4.2's
+  sentence implies — mapped, refused **with a reason**, or unrecognised. The
+  refusals carry the decisions: macros naming a *body* are what slots supply,
+  and `{{random}}`/`{{time}}` would break replay, which is the RNG rule and the
+  record's reproducibility arriving from two directions.
+- *The upload route and the `LIVE_APPLIERS` flip:* `limits.maxUploadMb` is read
+  per request and now reads `applied`, after three phases as [13 §4.3]'s
+  standing example of an honestly-unread key. The exemplar moved to
+  `trash.retentionDays`; **a key stops being an example of dishonesty by
+  becoming honest**, which is the table working rather than a defect in it.
+  Getting the 413 right needed a catch rather than a check — the plugin throws
+  past `file.truncated`, and the app's handler would have called a large file a
+  malformed one.
+- *§1.9's preset-at-creation:* one optional id, copied not linked, with the
+  recorded P7 position amended in the same commit. `preset.modes` is
+  deliberately not checked: it is advisory, and the phase that fills a library
+  with other people's presets is the worst place to turn a hint into a gate.
+
+*Ends at:* a preset uploaded through the route, converted, credential-free, and
+playable in a session created against it.
+
 The full [10 §8.4] conversion under §1.1's sharpened tables: marker table
 (with the renamed literal), the nine special-cased fields, the vendored
 `sensitiveFields` drop, per-character order handling, sysprompt and
@@ -1334,14 +1379,19 @@ surface is a nicety recorded here and built by nobody yet.
 
 **6.4 Write-backs this plan owes and schedules** (each rides the stage that
 makes it true): [05 §5] — the review posture, post-hoc, amended by strike
-(§1.4, lands with P4.4). [10 §8.4.2] — text-completion fields to `compat`;
-[10 §8.4.3] — the heading's "Eight" becomes "Nine" (both with P4.1).
+(§1.4, lands with P4.4). ~~[10 §8.4.2] — text-completion fields to `compat`;
+[10 §8.4.3] — the heading's "Eight" becomes "Nine" (both with P4.1).~~ *Paid at
+P4.1, and two more the conversion found: §8.4.1's `dialogueExamples` row said
+`examples`, an arm renamed to `samples`, and its `wrapper` prose said eight in a
+third place. [07 §7] gained `liquidjs` and `@fastify/multipart`, argued rather
+than noticed in a lockfile.*
 ~~[13 §4.1] — the foreign-path doctrine (with P4.0).~~ *Paid at P4.0: it is
 [13 §4.1.1](../13-internal-contracts.md), and it turned out to be the same rule
 one root over — relative to the sweep root rather than the data root, with the
 root itself recorded once on the job.* [testing §5/§6] — which
 corpus CI runs (with P4.0). routes/sessions.ts's recorded P7 position — the
-copy-at-creation amendment (with P4.1). [02 §2.7] — the table restated in
+~~copy-at-creation amendment (with P4.1).~~ *Paid at P4.1, by strike in the
+comment itself.* [02 §2.7] — the table restated in
 section terms with `talkativeness`'s destination (with P4.2); 02's header
 self-contradiction ("see [10] … 13 is current") fixed in passing. [10 §5]'s
 "the changes are four" — five, as the code's header already counts (with
