@@ -4,12 +4,12 @@
 import {
   CONVENTIONAL_SECTION_IDS,
   newActor,
-  uuidv7,
   type Actor,
   type ImportNote,
   type Lorebook,
 } from '@storyengine/shared';
 
+import { stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 import { convertLorebook } from './lorebook.js';
 
@@ -196,8 +196,11 @@ function applyOpenings(card: Readonly<Record<string, unknown>>, actor: Actor): v
   }
   if (texts.length === 0) return;
 
+  // Derived rather than minted, so converting the same card twice produces the
+  // same object — which is what makes re-import identity a byte comparison
+  // rather than a guess ([P4 §1.3]).
   actor.openings.written = texts.map((text, index) => ({
-    id: uuidv7(),
+    id: stableId('opening', actor.name, String(index), text),
     label: index === 0 ? 'Opening' : `Alternate ${String(index)}`,
     text,
   }));
@@ -218,7 +221,7 @@ function applySample(card: Readonly<Record<string, unknown>>, actor: Actor): voi
 
   actor.writingSamples = [
     {
-      id: uuidv7(),
+      id: stableId('sample', actor.name),
       title: `${actor.name} — dialogue examples`,
       body: example,
       enabled: true,

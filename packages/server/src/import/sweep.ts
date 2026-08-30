@@ -2,8 +2,15 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  ACTOR_SCHEMA,
+  LOREBOOK_SCHEMA,
   newTreatment,
+  PRESET_SCHEMA,
+  TREATMENT_SCHEMA,
+  uuidv7,
   type ImportDisposition,
+  type PortableSchemaId,
+  type Provenance,
   type ImportItemReport,
   type ImportNote,
   type ImportReport,
@@ -12,7 +19,8 @@ import {
   type Treatment,
 } from '@storyengine/shared';
 
-import { create, type LibraryContext } from '../library.js';
+import { identify, stampImported, type ConflictPolicy } from './identity.js';
+import { create, update, type LibraryContext } from '../library.js';
 import { codecFor } from '../storage/card/index.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
@@ -56,6 +64,15 @@ export interface SweepRequest {
   files: FileSource;
   /** Identifies the review; the sweep job's id in a real run. */
   jobId?: string;
+  /**
+   * What a re-import does when the file has changed ([P4 §1.3]).
+   *
+   * `replace` is the default because it is the safe one: the write goes through
+   * `update()` and history snapshots the state it replaced, so a person's own
+   * edits become a version rather than a loss. `keep-both` doubles deliberately
+   * and says so; `skip` writes nothing and reports the difference.
+   */
+  onConflict?: ConflictPolicy;
 }
 
 export type SweepOutcome =
@@ -169,16 +186,26 @@ class Writer {
     const { actor, lorebook, scenario, notes } = converted.value;
 
     if (lorebook !== null) {
+      // The book travelled inside the card, so its identity is the card file.
+      stampImported(lorebook, `${candidate.source}#character_book`);
       const stored = await this.#store(lorebook, notes);
       if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
     }
 
-    const stored = await this.#createActor(candidate, actor, notes);
-    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
+    stampImported(actor, candidate.source);
+    const outcome = await this.#createActor(candidate, actor, notes);
+    if (outcome === 'failed') {
+      return { source: candidate.source, disposition: 'unrecognised', notes };
+    }
 
     if (scenario !== null) this.#rememberScenario(scenario, actor.id, lorebook?.id);
 
-    return { source: candidate.source, disposition: 'converted', objectId: actor.id, notes };
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: actor.id,
+      notes,
+    };
   }
 
   async #persona(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -197,9 +224,14 @@ class Writer {
     actor.roles = ['persona'];
 
     const notes: ImportNote[] = [];
-    const stored = await this.#createActor(candidate, actor, notes);
-    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
-    return { source: candidate.source, disposition: 'converted', objectId: actor.id, notes };
+    stampImported(actor, candidate.source);
+    const outcome = await this.#createActor(candidate, actor, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: actor.id,
+      notes,
+    };
   }
 
   /**
@@ -216,7 +248,7 @@ class Writer {
     candidate: ImportCandidate,
     actor: Actor,
     notes: ImportNote[],
-  ): Promise<boolean> {
+  ): Promise<string> {
     const asset = candidate.assets?.[0];
     const pixels = asset === undefined ? null : await this.#request.files.read(asset);
 
@@ -231,23 +263,103 @@ class Writer {
     return this.#write(actor, notes, pixels);
   }
 
-  async #write(actor: Actor, notes: ImportNote[], pixels: Uint8Array | null): Promise<boolean> {
+  async #write(actor: Actor, notes: ImportNote[], pixels: Uint8Array | null): Promise<string> {
+    return this.store(actor, ACTOR_SCHEMA, notes, pixels);
+  }
+
+  /**
+   * Writes one converted object, through the re-import rule
+   * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+   *
+   * **Every object goes through here**, which is the point: a rule applied at
+   * some call sites is a rule that doubles the library at the others. Before
+   * this, the sweep wrote through `create()` alone, so a second run over the
+   * same directory either collided on the global id check or quietly produced a
+   * second copy of everything.
+   */
+  async store(
+    object: { id: string; name: string; provenance: Provenance },
+    schemaId: PortableSchemaId,
+    notes: ImportNote[],
+    pixels: Uint8Array | null = null,
+  ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'> {
+    const { library, handle } = this.#request;
+    const identity = await identify(library, handle, schemaId, object);
+
+    if (identity.kind === 'unchanged') {
+      notes.push({
+        key: 'import.object.unchanged',
+        params: { object: object.name },
+        level: 'info',
+      });
+      return 'unchanged';
+    }
+
+    if (identity.kind === 'changed') {
+      switch (this.#request.onConflict ?? 'replace') {
+        case 'skip':
+          notes.push({
+            key: 'import.object.differsAndKept',
+            params: { object: object.name },
+            level: 'warn',
+          });
+          return 'skipped';
+        case 'keep-both':
+          // A fresh id and a slug the write path suffixes for us, both named.
+          object.id = uuidv7();
+          notes.push({
+            key: 'import.object.keptBoth',
+            params: { object: object.name },
+            level: 'warn',
+          });
+          break;
+        case 'replace': {
+          try {
+            await update(library, handle, identity.id, object, identity.contentHash, {
+              // **The `{ kind: 'import' }` attribution's first writer**, three
+              // phases after the type declared it with "no writers until their
+              // phases". History snapshots the replaced state, so the person's
+              // own edits survive as a version rather than being destroyed.
+              source: { kind: 'import', from: object.provenance.originalFilename ?? '' },
+              reason: 'Replaced by a re-import',
+            });
+            notes.push({
+              key: 'import.object.replaced',
+              params: { object: object.name },
+              level: 'info',
+            });
+            return 'replaced';
+          } catch (error) {
+            notes.push({
+              key: 'import.file.notStored',
+              params: {
+                object: object.name,
+                reason: error instanceof Error ? error.name : 'unknown',
+              },
+              level: 'warn',
+            });
+            return 'failed';
+          }
+        }
+      }
+    }
+
     try {
       await create(
-        this.#request.library,
-        this.#request.handle,
-        actor,
+        library,
+        handle,
+        object,
         undefined,
         pixels === null ? undefined : { cardPixels: pixels },
       );
-      return true;
+      return identity.kind === 'changed' ? 'kept-both' : 'created';
     } catch (error) {
       notes.push({
         key: 'import.file.notStored',
-        params: { object: actor.name, reason: error instanceof Error ? error.name : 'unknown' },
+        params: { object: object.name, reason: error instanceof Error ? error.name : 'unknown' },
         level: 'warn',
       });
-      return false;
+      return 'failed';
     }
   }
 
@@ -278,9 +390,14 @@ class Writer {
       });
     }
 
-    const stored = await this.#store(lorebook, notes);
-    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
-    return { source: candidate.source, disposition: 'converted', objectId: lorebook.id, notes };
+    stampImported(lorebook, candidate.source);
+    const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: lorebook.id,
+      notes,
+    };
   }
 
   async #marinaraPreset(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -293,12 +410,14 @@ class Writer {
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { preset, notes } = converted.value;
-    try {
-      await create(this.#request.library, this.#request.handle, preset);
-    } catch {
-      return { source: candidate.source, disposition: 'unrecognised', notes };
-    }
-    return { source: candidate.source, disposition: 'converted', objectId: preset.id, notes };
+    stampImported(preset, candidate.source);
+    const outcome = await this.store(preset, PRESET_SCHEMA, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: preset.id,
+      notes,
+    };
   }
 
   async #lorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -306,9 +425,14 @@ class Writer {
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { lorebook, notes } = converted.value;
-    const stored = await this.#store(lorebook, notes);
-    if (!stored) return { source: candidate.source, disposition: 'unrecognised', notes };
-    return { source: candidate.source, disposition: 'converted', objectId: lorebook.id, notes };
+    stampImported(lorebook, candidate.source);
+    const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+    return {
+      source: candidate.source,
+      disposition: Writer.dispositionOf(outcome),
+      objectId: lorebook.id,
+      notes,
+    };
   }
 
   async #preset(
@@ -323,19 +447,14 @@ class Writer {
     const converted = convert(candidate.payload, nameOf(candidate.source));
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
-    const preset = converted.value.preset as { id: string };
-    try {
-      await create(this.#request.library, this.#request.handle, preset);
-    } catch {
-      return {
-        source: candidate.source,
-        disposition: 'unrecognised',
-        notes: converted.value.notes,
-      };
-    }
+    const preset = stampImported(
+      converted.value.preset as { id: string; name: string; provenance: Provenance },
+      candidate.source,
+    );
+    const outcome = await this.store(preset, PRESET_SCHEMA, converted.value.notes);
     return {
       source: candidate.source,
-      disposition: 'converted',
+      disposition: Writer.dispositionOf(outcome),
       objectId: preset.id,
       notes: converted.value.notes,
     };
@@ -392,33 +511,30 @@ class Writer {
         },
       ];
 
-      try {
-        await create(this.#request.library, this.#request.handle, treatment);
-        reports.push({
-          source: treatment.name,
-          disposition: 'converted',
-          objectId: treatment.id,
-          notes,
-        });
-      } catch {
-        reports.push({ source: treatment.name, disposition: 'unrecognised', notes });
-      }
+      // A treatment has no source file of its own — it is synthesised from the
+      // scenario text several cards shared — so its `originalFilename` is that
+      // text's identity rather than a path. Which makes re-import work for it
+      // too: the same scenario on a second sweep finds the treatment it made.
+      stampImported(treatment, `scenario:${treatment.framing.slice(0, 120)}`);
+      const outcome = await this.store(treatment, TREATMENT_SCHEMA, notes);
+      reports.push({
+        source: treatment.name,
+        disposition: Writer.dispositionOf(outcome),
+        objectId: treatment.id,
+        notes,
+      });
     }
     return reports;
   }
 
   async #store(lorebook: Lorebook, notes: ImportNote[]): Promise<boolean> {
-    try {
-      await create(this.#request.library, this.#request.handle, lorebook);
-      return true;
-    } catch {
-      notes.push({
-        key: 'import.file.notStored',
-        params: { object: lorebook.name },
-        level: 'warn',
-      });
-      return false;
-    }
+    return (await this.store(lorebook, LOREBOOK_SCHEMA, notes)) !== 'failed';
+  }
+
+  /** `created` and `unchanged` are different rows in the review, so map them. */
+  static dispositionOf(outcome: string): ImportItemReport['disposition'] {
+    if (outcome === 'unchanged' || outcome === 'skipped') return 'unchanged';
+    return outcome === 'failed' ? 'unrecognised' : 'converted';
   }
 }
 
@@ -449,6 +565,7 @@ function countBy(items: readonly ImportItemReport[]): Record<ImportDisposition, 
     recorded: 0,
     'by-position': 0,
     skipped: 0,
+    unchanged: 0,
     unrecognised: 0,
   };
   for (const item of items) counts[item.disposition] += 1;

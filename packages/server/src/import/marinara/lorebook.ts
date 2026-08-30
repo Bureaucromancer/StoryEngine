@@ -3,13 +3,13 @@
 
 import {
   newLorebook,
-  uuidv7,
   type ImportNote,
   type LoreEntry,
   type LoreFilter,
   type Lorebook,
 } from '@storyengine/shared';
 
+import { stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -102,7 +102,7 @@ export function convertLorebook(
   if (category.length > 0 && category !== 'uncategorized') lorebook.tags = [category];
 
   lorebook.folders = folders.filter(isRecord).map((row) => ({
-    id: str(row['id']) || uuidv7(),
+    id: str(row['id']) || stableId('folder', str(row['name'])),
     name: str(row['name']),
     enabled: bool(row['enabled'], true),
     order: num(row['order']) ?? 0,
@@ -130,9 +130,9 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
   }
 
   return {
-    // Renumbered freely ([10 §5.2]) — and the same rule is why re-import cannot
-    // match entries by id, which §1.3's object-level identity rule works around.
-    id: uuidv7(),
+    // Renumbered freely ([10 §5.2]) — and derived rather than minted, so a
+    // second sweep of the same store produces the same book.
+    id: stableId('entry', name, str(row['content'])),
     name,
     content: str(row['content']),
     description: str(row['description']),

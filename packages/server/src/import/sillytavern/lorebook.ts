@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import {
-  newLorebook,
-  uuidv7,
-  type ImportNote,
-  type LoreEntry,
-  type Lorebook,
-} from '@storyengine/shared';
+import { newLorebook, type ImportNote, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
+import { stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -165,10 +160,16 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
   }
 
   return {
-    // **Entry ids may be renumbered freely** ([10 §5.2], reaffirmed by [16 §4.1]),
-    // so a fresh id is legal — and the same rule is why re-import cannot match
-    // *entries* by id, which §1.3's object-level identity rule works around.
-    id: uuidv7(),
+    /**
+     * **Entry ids may be renumbered freely** ([10 §5.2], reaffirmed by
+     * [16 §4.1]) — and the same rule is why re-import cannot match *entries* by
+     * id, which §1.3's object-level rule works around.
+     *
+     * Derived rather than minted, though, so converting the same book twice
+     * produces the same book: a minted id would make every re-import differ on
+     * a field the source never had a say in.
+     */
+    id: stableId('entry', name, str(row['content'])),
     name,
     content: str(row['content']),
     description: '',

@@ -488,6 +488,26 @@ export interface CreateFrom {
   cardPixels: Uint8Array;
 }
 
+/**
+ * The hash an object *would* have if it were stored, without storing it.
+ *
+ * Exposed for import's re-import identity rule ([P4 §1.3]), which has to answer
+ * *is this byte-identical to what is already here* before deciding whether to
+ * write at all. `encodeObject` is the only honest way to know, because it is
+ * what the write path itself would produce — a structural comparison would
+ * answer about the objects rather than about the files.
+ */
+export async function encodeForCompare(
+  context: LibraryContext,
+  owner: LibraryOwner,
+  schemaId: PortableSchemaId,
+  slug: string,
+  object: unknown,
+): Promise<string> {
+  const { contentHash } = await encodeObject(context.layout, owner, schemaId, slug, object);
+  return contentHash;
+}
+
 export async function create(
   context: LibraryContext,
   handle: string,

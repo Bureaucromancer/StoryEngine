@@ -62,6 +62,16 @@ export type ImportDisposition =
   | 'by-position'
   /** Deliberately not taken — derived data, another app's subsystem — and counted. */
   | 'skipped'
+  /**
+   * A re-import of something already here, byte-identical to what is stored.
+   *
+   * **Distinct from `skipped`, which means we chose not to take it.** This one
+   * was taken and turned out to be the same — the no-op rule ([02 §11.1])
+   * extended to import, and the answer somebody re-running a sweep most needs
+   * to see, because it is the difference between *nothing happened* and
+   * *nothing needed to*.
+   */
+  | 'unchanged'
   /** The sweep could not classify it. Counted, never silently passed over. */
   | 'unrecognised';
 
@@ -126,5 +136,6 @@ export const IMPORT_DISPOSITIONS = [
   'recorded',
   'by-position',
   'skipped',
+  'unchanged',
   'unrecognised',
 ] as const satisfies readonly ImportDisposition[];
