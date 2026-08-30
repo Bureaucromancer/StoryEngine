@@ -133,13 +133,34 @@ describe('the tier table is the source', () => {
    *
    * A table whose every row said `applied` would pass both checks above while
    * telling the settings surface there is nothing to warn about — and the
-   * surface exists partly to warn. `limits.maxUploadMb` is the standing example
-   * ([P2A §2.5]): tiered `live` because the key names uploads, read once at
-   * construction because there is no upload route yet.
+   * surface exists partly to warn. ~~`limits.maxUploadMb` is the standing
+   * example ([P2A §2.5]): tiered `live` because the key names uploads, read
+   * once at construction because there is no upload route yet.~~
+   *
+   * **The standing example moved at P4.1**, because the old one stopped being
+   * one: the upload route arrived and `limits.maxUploadMb` is now read per
+   * request. `trash.retentionDays` takes its place — tiered `live` because a
+   * retention window is a thing an operator changes and expects to matter,
+   * unread because nothing prunes on it yet. That the exemplar had to move is
+   * the table working: a key stops being an example of dishonesty by becoming
+   * honest.
    */
   it('admits that some live keys are stored and not read', () => {
-    expect(applierOf('limits.maxUploadMb')).toBe('unread');
+    expect(applierOf('trash.retentionDays')).toBe('unread');
     expect(applierOf('log.level')).toBe('applied');
+  });
+
+  /**
+   * And the flip itself, pinned from this side too.
+   *
+   * [P4 §1.3] calls this a *deliberate two-file edit rather than a drive-by*:
+   * the coverage test above requires the entry to exist, and this one required
+   * it to say `unread`, so making the route real meant changing both on
+   * purpose. Asserting the new value keeps the pair symmetrical — the next
+   * person to make a `live` key honest has to come here as well.
+   */
+  it('reads the upload limit per request, since P4.1', () => {
+    expect(applierOf('limits.maxUploadMb')).toBe('applied');
   });
 
   /**

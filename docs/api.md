@@ -344,6 +344,38 @@ you were shown* — and the move is reversible through trash and version history
 ([02 §10.2](design/02-data-model.md)), which is why refusing was the more
 destructive option of the two.
 
+### `POST /api/import/file`
+
+**The first upload route this server has had**, and at P4.1 the only one.
+`multipart/form-data` with one file part → `201 { item, notes }` when it
+converted, `200 { item, notes }` when it did not.
+
+`item` is one row of the import review's vocabulary — `{ source, disposition,
+notes, objectId? }` — where `source` is the filename **as it arrived**, never a
+path ([13 §4.1.1](design/13-internal-contracts.md)). `disposition` is
+`converted`, `recorded` or `unrecognised`, and the middle one is the interesting
+answer: a PNG card today is a file this build converts at **P4.2**, so it is
+reported as *not yet* rather than refused as broken. Answering `4xx` would tell
+somebody their file is wrong when the truth is that the build is unfinished.
+
+Notes are `{ key, params, level }` and never sentences — the client composes the
+prose ([P4 §1.4](design/workplan/06-p4-implementation.md)).
+
+- `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
+  That is what moved the key from `unread` to `applied` after three phases as
+  the standing example of a live key nobody read: raise the limit in Settings and
+  the next upload takes the file, without a restart. Fastify's constructor
+  `bodyLimit` stays as the outer bound.
+- `415 {"error":"not-multipart"}` for a body that is not multipart.
+- `400 {"error":"no-file"}` for a multipart body with no file in it.
+
+CSRF applies exactly as it does to every other mutation. An upload form is
+precisely where one would be tempted to make an exception, so there is a test
+that says there is none.
+
+**A sweep is not this route.** Pointing the server at a directory is a job with a
+review report at its own address, and it arrives at P4.4.
+
 ### `GET /api/library/:kind/:id/avatar`
 
 The stored bytes of an actor's `card.png`, as `image/png` with an `ETag` of the
@@ -1152,7 +1184,9 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
-| 413 | `too-large` | The preference document would exceed its size cap |
+| 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
+| 415 | `not-multipart` | An upload that was not `multipart/form-data` |
+| 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
@@ -1164,13 +1198,17 @@ I restart it?"* is a worse answer than one that says.
 
 ## Not here yet
 
-No workbench (P3), no import (P4), and no static file serving: the client runs
+No workbench (P3), ~~no import (P4),~~ and no static file serving: the client runs
 on Vite's dev server and talks to this over `/api`.
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
 is documented under Sessions above. The provider settings surface was listed
 here and shipped at [P2B](design/workplan/14-p2b-provider-configuration.md); it
-is documented under Administration above.*
+is documented under Administration above. **Import was listed here and is half
+shipped at P4.1**: single-file upload exists and converts presets, under Library
+above. Cards and lorebooks convert at P4.2 and the directory sweep is P4.4, so
+the clause is struck rather than deleted — the half that is missing is still
+worth naming.*
 
 **One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
