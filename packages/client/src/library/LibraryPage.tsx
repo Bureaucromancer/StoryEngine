@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useLibrary } from '../queries.js';
 import { page } from '../ui/classes.js';
+import { ImportPanel } from './ImportPanel.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -33,6 +34,7 @@ export function LibraryPage(): JSX.Element {
     // container ([P3.−1] — `ui/classes.ts` has the why).
     <div className={page.tooling}>
       <h1 className="mb-4 text-title text-ink">Library</h1>
+      <ImportPanel />
       <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
         <FilterLink kind={undefined} current={search.kind} />
         {LIBRARY_KINDS.map((kind) => (
@@ -82,9 +84,16 @@ function ObjectTable(props: {
   if (props.objects.length === 0) {
     return (
       <p className="text-ink-subtle">
+        {/*
+         * **The empty state finally knows the word "import"** ([P4 §2], P4.4).
+         * It used to name the two ways in that existed — an API call and a file
+         * dropped into the data directory — which is an honest sentence to
+         * write when those are the only two, and a strange one to leave up once
+         * a person can point the app at their SillyTavern folder.
+         */}
         {props.kind === undefined
-          ? 'The library is empty. Objects created through the API, or dropped into the data directory, appear here.'
-          : 'There is nothing of this kind in the library yet.'}
+          ? 'The library is empty. Import from SillyTavern or Marinara above, or create objects through the API — anything dropped into the data directory appears here too.'
+          : 'There is nothing of this kind in the library yet. An import may bring some.'}
       </p>
     );
   }

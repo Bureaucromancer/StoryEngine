@@ -239,7 +239,12 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     return emit(
       block,
       rendered.ok ? rendered.text : rendered.source,
-      { kind: 'preset', blockId: block.id },
+      // `presetId` so the workbench can link a block back to the preset it came
+      // from ([P4 §2], P4.4). The session's pack is a copy, but a copy keeps the
+      // id it was copied from — so for an imported preset this addresses the
+      // library object, and for a mode default it addresses nothing and the
+      // panel shows a label.
+      { kind: 'preset', blockId: block.id, presetId: context.preset.id },
       undefined,
     );
   }

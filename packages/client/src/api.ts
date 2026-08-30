@@ -155,8 +155,13 @@ export function cookieValue(cookies: string, name: string): string | null {
 
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
+async function request<T>(
+  method: string,
+  url: string,
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (STATE_CHANGING.has(method)) {
     const token = cookieValue(document.cookie, CSRF_COOKIE);
@@ -189,6 +194,53 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   }
 
   return payload as T;
+}
+
+/**
+ * A multipart POST — the first non-JSON body this client sends.
+ *
+ * A sibling of `request` rather than a flag on it, for the reason
+ * `test-server`'s `stream` is a sibling of its `request`: the JSON path sets a
+ * content type and stringifies, and both are exactly wrong here. `FormData` sets
+ * its own boundary, so the header must be left alone.
+ */
+async function requestForm<T>(url: string, body: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = cookieValue(document.cookie, CSRF_COOKIE);
+  if (token !== null) headers[CSRF_HEADER] = token;
+
+  const response = await fetch(url, { method: 'POST', headers, body });
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+
+  if (!response.ok) {
+    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
+    const message =
+      typeof payload?.['message'] === 'string'
+        ? payload['message']
+        : `The server answered with status ${String(response.status)}.`;
+    throw new ApiError(response.status, code, message);
+  }
+  return payload as T;
+}
+
+/** One row of the import review — the shared vocabulary, as the client sees it. */
+export interface ImportItem {
+  source: string;
+  disposition: string;
+  objectId?: string;
+  notes: { key: string; params: Record<string, string | number>; level: string }[];
+}
+
+export interface ImportReport {
+  jobId: string;
+  source: string;
+  items: ImportItem[];
+  counts: Record<string, number>;
+}
+
+export interface ImportFileResult {
+  item: ImportItem;
+  notes: ImportItem['notes'];
 }
 
 export interface Credentials {
@@ -309,6 +361,36 @@ export const api = {
     contentHash: string,
   ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
     request('PUT', objectUrl(kind, id), { object, contentHash }),
+
+  /**
+   * **Delete, which the server has been able to do since P1 and the client
+   * could not reach** ([P4 §1.4]).
+   *
+   * The review's post-hoc posture — import commits and reports loudly rather
+   * than staging — rests on a claim that a bad import is reversible. That was
+   * only true on disk: the tombstone window and version history existed, and
+   * nothing in the app could remove an object. This is the cost of the posture,
+   * paid rather than hand-waved.
+   *
+   * Hash-checked like any write, because deleting something a second tab has
+   * edited is the same mistake as overwriting it and rather more final.
+   */
+  deleteObject: (kind: LibraryKind, id: string, contentHash: string): Promise<undefined> =>
+    request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
+
+  /** One file, converted and stored. `FormData` — the first non-JSON body here. */
+  importFile: (file: File): Promise<ImportFileResult> => {
+    const body = new FormData();
+    body.append('file', file);
+    return requestForm('/api/import/file', body);
+  },
+
+  /** Point the server at a folder ([P4 §1.3]). Needs `fileAccess`. */
+  importSweep: (
+    root: string,
+    onConflict?: 'replace' | 'keep-both' | 'skip',
+  ): Promise<{ report: ImportReport }> =>
+    request('POST', '/api/import/sweep', { root, ...(onConflict ? { onConflict } : {}) }),
 
   history: (kind: LibraryKind, id: string): Promise<{ versions: ObjectVersion[] }> =>
     request('GET', `${objectUrl(kind, id)}/history`),

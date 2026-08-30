@@ -179,7 +179,22 @@ export type BlockSource =
   /** What the player just did — the turn that is happening, not history. */
   | { kind: 'input' }
   // The two a slot can never name, because no preset positions them.
-  | { kind: 'preset'; blockId: string }
+  /**
+   * A block the preset authored, rather than a slot it positioned.
+   *
+   * `presetId` is optional and arrived at P4.4 ([P4 §2]): a session's pack is a
+   * *copy* ([02 §8]), so for a long time there was nothing on the other end of a
+   * link — but a copy keeps the id of the object it was copied from, which
+   * means an **imported** preset's blocks can point back at the file they came
+   * out of. That is what the phase's demo turns on: reading a converted preset's
+   * block list in the workbench and clicking through to the preset itself.
+   *
+   * Absent on every record written before then, and on any session whose pack
+   * came from a mode default rather than the library — so the client links when
+   * it is there and labels when it is not, exactly as `persona` already does for
+   * a session without one.
+   */
+  | { kind: 'preset'; blockId: string; presetId?: string }
   | { kind: 'step'; stepId: string };
 
 /**
