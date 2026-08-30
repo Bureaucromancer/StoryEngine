@@ -664,10 +664,17 @@ first version: drop connection fields unconditionally and report them
 rather than flattening them to the top, and name every lossy conversion in the
 review instead of implying fidelity.
 
-**Demonstrable:** point it at a real SillyTavern data directory and get a
-populated library, with a review step showing what resolved, what went to
-`compat`, and what dangled — and a converted preset whose block list, read in the
-workbench, is recognisably the preset that went in.
+**Demonstrable:** point it at a real SillyTavern data directory — **or a real
+Marinara data directory** — and get a populated library, with a review step
+showing what resolved, what went to `compat`, and what dangled — and a converted
+preset whose block list, read in the workbench, is recognisably the preset that
+went in.
+
+*The second arm was added 2026-08-29 ([P4 §1.5](06-p4-implementation.md)).*
+Marinara's library is a relational store rather than a folder of files, so a
+second folder source is not a second helping of the same work — it is what
+decides the shape of the sweep engine, which is why it was settled before P4.0
+rather than during P4.3.
 
 **Then stop — this is where PLAYABLE falls (§4.1).**
 

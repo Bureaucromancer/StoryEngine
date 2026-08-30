@@ -350,7 +350,8 @@ pixel re-encode) even while rejecting the payload schema.
 *One thing the reference implementation does not cover, noted 2026-08-29:* cards
 in the wild also arrive with their payload in a **compressed** `zTXt` chunk —
 Character Tavern writes them that way, and Marinara's importer reads both
-(`packages/server/src/services/import/st-bulk.importer.ts:32`). A reader that
+(`Marinara-Engine/packages/server/src/services/import/st-bulk.importer.ts:32`).
+A reader that
 handles `tEXt` alone does not fail on those cards; it fails to recognise them as
 cards at all.
 

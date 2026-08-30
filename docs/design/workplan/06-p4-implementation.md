@@ -8,6 +8,14 @@ and the deviations from its leans are named where they happen. Format follows
 [03](03-p1-implementation.md); the readiness audit, honest-size and
 still-to-settle sections follow [05](05-p3-implementation.md)'s.
 
+**Amended 2026-08-29, after the plan was written and before P4.0 started:**
+Marinara is imported by folder too, on the same footing as SillyTavern. That is
+not a scope tweak — it changes what the sweep engine *is* (§1.3), so it had to
+be decided before the module skeleton was written rather than after. The
+amendment touches §0, §1.2, §1.3, §1.5, §1.8, the stages, the gate and the
+honest size, and every place it overturns a decision says so rather than
+quietly reading as if it had always said this.
+
 **Citation convention, adopted because the skeleton tripped over it:** two
 documents are "10". `10 §N` means [10-schemas](../10-schemas.md); **`testing
 §N`** means [10-testing](10-testing.md) — the convention [01](01-work-plan.md)
@@ -20,17 +28,24 @@ people quote, so the convention fixes the label.
 
 **P4 delivers**, from [01 P4](01-work-plan.md): import of cards, lorebooks and
 presets from SillyTavern, Marinara and Aventuras — the largest PORT in the
-triage ([triage §4](02-triage.md): Marinara's `import/`, ~4,450 lines, "the
+triage ([triage §4](02-triage.md): Marinara's `import/`, 4,666 lines, "the
 single largest body of 'someone already found the edge cases' in any of the
 three") — turning an empty install into a realistic library.
 
 **The demo that defines done:** *point it at a real SillyTavern data directory
-and get a populated library, with a review step showing what resolved, what
-went to `compat`, and what dangled — and a converted preset whose block list,
-read in the workbench over a real turn, is recognisably the preset that went
-in.* The last clause got sharper at the revisit: "read in the workbench" means
-read over a turn the preset actually drove, which needs §1.9's one piece of
-wiring.
+~~and~~ **or a real Marinara data directory, and** get a populated library, with
+a review step showing what resolved, what went to `compat`, and what dangled —
+and a converted preset whose block list, read in the workbench over a real turn,
+is recognisably the preset that went in.* The last clause got sharper at the
+revisit: "read in the workbench" means read over a turn the preset actually
+drove, which needs §1.9's one piece of wiring.
+
+**The second arm was added at the amendment**, and it is the load-bearing change
+in it. One folder importer can be written as a file walker; two cannot, because
+Marinara's library is a relational store where an object is a join across files
+(§1.5). Discovering that after P4.0 had written "one sweep engine over an
+abstract file source" as a walker would have meant rewriting the engine in the
+stage that depends on it most.
 
 **And then stop: PLAYABLE falls here** ([01 §4.1](01-work-plan.md)). P4 is
 sequenced before retrieval precisely because synthetic fixtures will not
@@ -134,6 +149,34 @@ in six places, less ready in five, and moved outright in four.
   is not discovered blocked: the P2C sessions must run before or alongside P4,
   and PLAYABLE does not happen against a stub.
 
+*Three more, found at the 2026-08-29 amendment by reading the code this plan
+leans on rather than the design it cites:*
+
+- **The operational store is session-shaped**, so §1.3's "the sweep lands in the
+  operational store with the existing job/idempotency vocabulary" is not free.
+  `job.session_id` is `not null`, `idempotency`'s primary key includes
+  `session_id`, and `draft` and `event` both foreign-key to `job`
+  (state/migrations.ts:41–127). An import job has no session. The migration
+  chain is stepwise and may never drop a table (migrations.ts:6–28), so this is
+  an append rather than an edit — §1.3 decides which append. One thing *is*
+  free: `job.progress` is a declared progress key with no emitter anywhere
+  (state/events.ts:39, :52), and import is what the slot was left open for.
+- **The card reader reads `tEXt` only** (png.ts:100, :203). Cards in the wild
+  also carry their payload in a compressed `zTXt` chunk — Character Tavern
+  writes them that way, and Marinara's importer reads both
+  ([survey §3](../01-source-survey.md)). The failure mode is the bad one: such
+  a file is not a card that fails to convert, it is a file the sweep never
+  recognises as a card, which files it under "not recognised" and reads to the
+  person as *this tool cannot open my cards*. P4.0 widens the read, and the
+  fixture corpus gains a compressed-chunk card.
+- **The wrapper nit is wider than §1.6 says.** The substitution at
+  collect.ts:395 is first-occurrence-only, which §1.6 names — but the filled
+  text is also the *replacement string*, so the `$&` and `$1` replacement
+  patterns occurring inside imported prose silently rewrite the output.
+  Third-party prose is exactly where such sequences turn up. The P4.0 fix is
+  all-occurrences **with a function replacement rather than a string one**, and
+  the test asserts both halves.
+
 **Ground that moved:**
 
 - **The treatment slot literal never made it into code.** The Setting→Treatment
@@ -143,16 +186,30 @@ in six places, less ready in five, and moved outright in four.
   shipped code, the scene preset, the workbench fixtures and the published
   JSON Schema artifact say `'setting'`. An importer written to the marker
   table emits presets the shipped `/0` schema rejects. §1.7 settles it.
+  *Audit correction, 2026-08-29:* "never made it into code" is half right, and
+  the half it gets wrong is the dangerous half. `treatment` **does** appear in
+  shipped code — as the `samples.from` carrier value (preset.ts:128,
+  collect.ts:130, :334), which is a different axis from the slot kind
+  (preset.ts:132–135). The rename has to move the slot kind without touching
+  the carrier; a find-and-replace over the word collides two axes into one.
 - **`LoreScope` shipped with two arms, not [02 §3.4]'s three** — session
   scoping was deliberately moved to the session's own lore links
   (lorebook.ts:30–44). An ST book scoped to a chat has no representable
   target; the review names the drop (§1.4).
-- **Marinara moved twice.** Its storage went SQLite → JSON snapshots under
-  `storage/tables/` during this project's design window, and the
-  `feat/scenarios` branch — the *only* place its "scenario" format ever
-  existed — is gone from the remote ([triage §2A.3]). The skeleton's "Marinara
-  scenarios → Setup" example targets an object that does not ship. At ~712
-  commits in nine days, any survey of Marinara is a snapshot; §1.5 pins one.
+- **Marinara moved ~~twice~~ three times, and the pin it asked for now exists.**
+  Its storage went SQLite → JSON snapshots under `storage/tables/` during this
+  project's design window — and then moved again, to storage format 4, which
+  shards sixteen tables into per-chat directories. The flat
+  `storage/tables/<table>.json` shape this document described is an *older*
+  layout. That is precisely the staleness the "pin a commit" instruction was
+  written to prevent, and it arrived before anyone acted on the instruction.
+  The pin is now `34442e26d` (v2.4.3, 2026-08-18) and the layout is written
+  down in [survey §1](../01-source-survey.md) rather than left to §1.5's two
+  words. The `feat/scenarios` branch is still gone from the remote
+  ([triage §2A.3]), so the skeleton's "Marinara scenarios → Setup" example
+  still targets an object that does not ship — but a local checkout preserves
+  it, so the design is readable, and `scenarios` is a table name an install may
+  carry and the dispositions must therefore cover.
 - **A hazard on the exact path imports bulk-use:** finding 8 in the P2C log
   ([16](16-p2c-log.md)) — a broken library file becomes permanently
   unwritable *and* undeletable (three
@@ -259,6 +316,28 @@ fixtures that *can* enter the repo. A clarifying sentence goes into testing
 object missing each required field, asserting a status rather than a throw) is
 the test shape for every import parser.
 
+**Amended 2026-08-29: the private corpus does not exist, and the plan stops
+assuming it.** "A prerequisite task, not a during-P4 discovery" described a task
+nobody has done and nobody currently can — there is no used SillyTavern data
+directory and no used Marinara install on hand. So: **the in-repo synthesised
+corpus carries the whole phase, for both folder sources**, and the hand-walk of
+a real library becomes a named outstanding manual task on the P2C precedent —
+person-blocked, blocking nothing in P4, written down here so it is not
+discovered missing at PLAYABLE. Gate step 1 is restated accordingly (§3).
+
+**What synthesis means for a source whose library is a database.** For
+SillyTavern it means what it always meant: hand-authored cards, worlds and
+preset files in a fixture directory. For Marinara it means a fixture **data
+root** — a `storage/manifest.json` and hand-authored table snapshots, written
+against the pinned schema, including a sharded table so the reader's two layouts
+are both exercised. The three local source checkouts
+([survey §1](../01-source-survey.md)) are **schema oracles, cited by commit and
+never vendored**: the shapes come from reading them, the rows are ours. This
+matters beyond tidiness — a Marinara install ships with a default character, and
+copying it into our fixtures would be redistributing somebody's authored card
+under cover of a test, which is the exact thing [testing §5](10-testing.md)'s
+licensing answer exists to prevent.
+
 ### 1.3 Where import runs, what a unit of import is, and how bytes arrive
 
 **A server-side import module — and this is forced, not leaned.**
@@ -315,6 +394,16 @@ attribution — the history arm fires, and the person's own edits are what the
 snapshot preserves) or **keep both** (a fresh id, a suffixed slug, both named).
 Nothing doubles silently, which is the whole of what step 6 asks.
 
+*The second source makes the rule work harder, decided at the amendment.* A
+Marinara object has no filename — it is a row. `originalFilename` therefore
+holds the **source-relative path of the file the row came from, plus the row's
+own id within it** (`storage/tables/characters.json#<id>`), which keeps the
+field doing what it does for every other source: naming the thing on disk that
+this object came out of, in a form a person can go and look at. Marinara ids
+are stable within an install, so a re-import of the same root matches; a
+re-export from a *different* install does not, and should not. That is the
+limit §6.2 is watching, now with a second source's evidence to watch it with.
+
 **What a unit of import is** — widened from the skeleton's three examples to
 what [02 §5.2] already committed to: a bare PNG, a V2/V3 card PNG, a **CHARX**
 zip (card plus assets; the assets land in the object's `assets/` directory), a
@@ -322,6 +411,17 @@ JSON card, a `.seactor` folder-zip, a lorebook JSON — including an
 entry-subset file, which [10 §5.2] makes a lorebook like any other — and a
 preset JSON (chat-completion, text-completion, or sysprompt). Plus the
 directory sweep.
+
+*Widened again at the amendment, for the second source:* a **Marinara data
+root**, a **Marinara profile archive** (the same tree zipped), and a
+single-object **`.marinara.json`** envelope — `{ type, version, exportedAt,
+data }` over the eight `ExportType` values, of which characters, personas,
+lorebooks and the two preset types are ours to convert
+([survey §1](../01-source-survey.md)). All three were taken, rather than the
+folder alone, because the envelope and the archive are nearly free once the
+store reader exists: an archive is a root read through a different file source,
+and an envelope is a single candidate in the shape the store reader already
+emits.
 
 **Transport — both, from day one** (decided at this revisit, with the cut
 order priced in §5):
@@ -342,16 +442,109 @@ order priced in §5):
   — for the self-hosted single box the demo describes. And a **browser
   directory upload** (`webkitdirectory`, many files with relative paths
   through the same multipart route) for a client that is not on the server's
-  machine. One sweep engine over an abstract file source with two adapters —
+  machine. ~~One sweep engine over an abstract file source with two adapters —
   a local-path walker and an uploaded batch — so the converters never know
-  which transport fed them.
+  which transport fed them.~~ **That sentence described a file walker, and a
+  file walker cannot express Marinara. Replaced below.**
 
-**The sweep is a job.** A real ST directory is years of data; a request that
-walks it inline times out. The sweep lands in the operational store
-([13 §5.1]) with the existing job/idempotency vocabulary, emits progress, and
-announces completion as `system.notice` — the closed notification list
-([06 A2c](../06-open-questions.md)) is not widened for this. Its durable
-output is the review report (§1.4).
+**The engine's unit is a candidate, not a file — decided at the 2026-08-29
+amendment, and the reason the amendment could not wait for P4.3.** "An abstract
+file source with two adapters" quietly assumes that one file yields zero or one
+object. That is true of SillyTavern, where the tree *is* the library: one PNG is
+one character, one JSON is one world. It is false of Marinara, where
+`characters.json` holds every character at once and an actor is a join across
+`characters`, `character_card_versions`, `character_images` and a file under
+`avatars/` ([survey §1](../01-source-survey.md)). Written as a walker, the
+engine would have had to grow a second, unlike path for Marinara inside the
+stage that depends on it most.
+
+So the seam moves up one level. **A source reader opens a root and yields import
+candidates**; a candidate carries its kind, the payload its converter expects,
+and the source-relative name that becomes its provenance. Three readers —
+
+- a **SillyTavern tree walker**, which is the degenerate one-file-one-candidate
+  case and is the check on the abstraction: if the ST path gets *more*
+  complicated in order to accommodate Marinara, the seam is in the wrong place;
+- a **Marinara store reader**, which loads the tables an object needs, joins
+  them, and emits one candidate per row rather than per file;
+- an **uploaded batch**, which is a walker over relative paths instead of a
+  directory.
+
+— over transports that sit *below* them: a local path, a multipart upload, and
+an archive. The converters stay ignorant of every bit of it. A card converter is
+handed a card; it never learns whether the bytes came from a PNG on disk, a row
+in a JSON table, or an entry in a zip.
+
+**A root is classified by probing it, never by what someone typed.** The person
+points at a directory; the engine says what it is:
+
+| Probe | Verdict |
+|---|---|
+| `storage/tables/` exists | a Marinara data root |
+| `settings.json` beside `characters/` and `worlds/` | a SillyTavern user directory |
+| a zip containing `storage/tables/` | a Marinara profile archive |
+| JSON whose top level is `{ type: "marinara_…", version, data }` | a Marinara envelope |
+| a card, lorebook or preset file | a single-file import (§1.3's existing units) |
+
+**Two probes matching is reported and refused, never guessed** — a wrong guess
+converts somebody's library through the wrong tables, and the review would say
+it went fine. **No probe matching is not a refusal**: the directory is swept as
+loose files, which is the walker's degenerate mode and the right answer for the
+folder of cards somebody assembled by hand. The review names which verdict the
+root got, because "I pointed it at my Marinara folder and it found four cards"
+is otherwise indistinguishable from success.
+
+**A known format converts; an unknown one is refused with its number in the
+review.** Marinara's store refuses outright to open a format newer than it knows
+(`StorageFormatTooNewError`), and that is the posture to copy rather than
+improve on: a best-effort parse of a layout we have not seen produces a
+plausible, wrong library. **And the manifest states the version without
+establishing the layout** — Marinara's own comment records that a crash between
+the shard migration and its first flush leaves sharded data under a version-2
+manifest. Whether a table is a file or a directory of shards is a question for
+the filesystem, asked per table.
+
+**A live install is refused, and the message says why.** A running Marinara
+saves on a 750 ms debounce and marks itself with `.writer-lease` and
+`owner.json`; a store part-way through the monolith-to-shard migration carries
+`.migrating`. Reading either produces a torn library, and it produces one
+*quietly*. The sweep stops before it starts and the review says **close Marinara
+and try again** — which is a refusal a person can act on, not a crash they have
+to interpret.
+
+**`.bak` siblings are skipped and counted.** Every table and the manifest may
+have one, and it holds the same rows rather than more of them. A reader that
+takes both doubles the library, and does it in the way that is hardest to
+notice, because both copies are valid.
+
+**One poisoned row never aborts a table** — the row-level sibling of the rule
+below, and it earns its own sentence because Marinara's rows carry their cards
+as a JSON string inside the JSON row. That is two parses per character, and the
+inner one can fail on its own. A row that will not parse is one `warn`-class
+line in the review; the table around it converts.
+
+**An archive is a root, with the bounds an archive needs.** Entry count,
+per-entry uncompressed size, total uncompressed size, and refusal of any entry
+whose path escapes the extraction root — the failure modes are old and the
+numbers are not the interesting part (Marinara caps its own profile import at
+8,192 entries and 2 GiB uncompressed, which is the right order of magnitude).
+`layout.assertReal` is the existing symlink door and the extraction uses it.
+
+**The sweep is a job — and the vocabulary is an append, not a reuse.** A real ST
+directory is years of data; a request that walks it inline times out. The sweep
+lands in the operational store ([13 §5.1]), emits progress, and announces
+completion as `system.notice` — the closed notification list
+([06 A2c](../06-open-questions.md)) is not widened for this. Its durable output
+is the review report (§1.4). ~~with the existing job/idempotency vocabulary~~
+**The existing vocabulary cannot hold it**: `job.session_id` is `not null`,
+`idempotency`'s primary key includes `session_id`, and `draft` and `event` both
+foreign-key to `job` (§0). Decided: **sibling `import_job` and `import_event`
+tables, appended to the migration chain as a new step** — rather than making
+`session_id` nullable, which would weaken a uniqueness index and two foreign
+keys that are load-bearing for turns in order to spare import one table. The
+migration chain is append-only by its own rule (migrations.ts:6–28), so this is
+the shape it was built for. Import emits through the already-declared,
+never-emitted `job.progress` key (state/events.ts:39).
 
 **Foreign-path doctrine — new, and written back into [13 §4.1]:** F22 and the
 log rules govern *library* paths; nothing governed the source side. The rule:
@@ -423,31 +616,86 @@ The review's "needs a look" copy points at the file on disk or the detail
 page — only actors have an editor, and a flagged macro in a preset is repaired
 with a text editor, which the watcher and the as-stored fold already honour.
 
-### 1.5 Marinara and Aventuras — all three sources, survey first
+### 1.5 Marinara and Aventuras — ~~all three sources, survey first~~ one survey done, one still gated
 
 Decided at this revisit: P4 keeps all three sources, and **P4.3 opens with a
 survey stage whose questions are enumerated now** rather than discovered
 mid-stage — because the survey ground moved (§0) and the skeleton's own
-examples went stale:
+examples went stale.
 
-**Marinara** (pin a commit; ~712 commits in nine days makes an unpinned survey
-stale on arrival, and its storage layout has already changed once):
+**Amended 2026-08-29, and this is the amendment's subject.** The survey was
+performed, against the pin, and it answered its own questions: the storage
+layout is written down ([survey §1](../01-source-survey.md)), and the preset
+format turns out to be documented in type definitions rather than absent. What
+was scoped as *a survey stage, then conversion of whatever it confirms* is now
+**a conversion stage with the shape of the work known**, and Marinara stands
+beside SillyTavern in the demo (header) and off the cut list entirely (§5).
+
+**Marinara** — `Pasta-Devs/Marinara-Engine` v2.4.3, pinned at `34442e26d`
+(2026-08-18); a data root, a profile archive or an envelope (§1.3), read
+through the store reader:
 
 - Cards are literally V2 plus fifteen engine fields — they ride P4.2's ST card
-  path with the extensions going verbatim to `compat` ([00 §2.4]).
+  path with the extensions going verbatim to `compat` ([00 §2.4]). The
+  difference from ST is arrival, not shape: the card is a JSON string inside a
+  row of `characters.json` rather than a chunk inside a PNG, and its portrait is
+  a separate file under `avatars/` rather than the pixels the card is written
+  on. So an imported Marinara actor gets a **built** card ([02 §5.2]'s blank
+  pixels, or the referenced avatar composed in through §1.3's composer) rather
+  than a foreign one preserved — which also means the "legacy chunk stays in
+  the file" cost (§1.3) simply does not arise for this source.
 - Lorebooks are the interchange format ([02 §3]) and land nearly unchanged;
   Marinara's *categories* map to `tags`, because `Lorebook.category` was
-  removed deliberately ([14 §2d]).
-- **The preset format is undocumented** — the survey's first question, against
-  the pinned commit, before any conversion is budgeted.
-- **Scenarios do not exist.** The `feat/scenarios` branch is deleted and no
-  scenario type or table ships. There is nothing to record, and the skeleton's
-  "Marinara scenarios → Setup" line dies here. `GameSetupConfig` (~70 fields
-  mixing narrative and production) remains Setup-shaped later machinery —
-  recorded, not converted, with [00 §3.2] stripping the production half if it
-  ever converts.
+  removed deliberately ([14 §2d]). The book is a join: `lorebooks` for the
+  book, `lorebook_entries` for the entries, `lorebook_folders` for the
+  structure P5 will care about, and `lorebook_{character,persona}_links` for
+  the links that become ours or dangle.
+- ~~**The preset format is undocumented** — the survey's first question,
+  against the pinned commit, before any conversion is budgeted.~~ **It is
+  documented, in `Marinara-Engine/packages/shared/src/types/prompt.ts`, and it
+  is the closest thing to our block model that any source has.**
+  `PromptSection` carries `content`, `role`, `enabled`, `isMarker` with a
+  `markerConfig`, `injectionPosition` of `ordered` or `depth`, an
+  `injectionDepth` counted from the last message, and an `injectionOrder` for
+  ties. Those are our text block, our slot block, our `in-sequence` and
+  `in-history` placement, our `fromEnd` and our `tiebreak`, one for one — which
+  is unsurprising, because Marinara's prompt manager and ST's are the same
+  lineage ([triage §4]) and [10 §8.4] converted against that lineage. The
+  conversion **reuses P4.1's machinery rather than duplicating it**, and that
+  is why this stage stopped being survey-dependent. What does not map, and is
+  named rather than discovered: `MarkerType` has ten values, of which
+  `chat_summary` is P8-shaped and `id_macro_cards` and `agent_data` have no
+  home at all — recorded with the "not yet importable" and "not converted"
+  classes respectively (§1.4); `wrapFormat` and the per-section
+  `wrapInXml`/`xmlTagName` become our `wrapper` string; `forbidOverrides`,
+  `PromptGroup` nesting and the `conversationPrompt`/`gamePrompt` mode
+  templates land in `compat`; `parameters` splits across `GenerationParams` and
+  `compat` exactly as ST's samplers do (§1.1); and
+  `variableGroups`/`variableValues` and `ChoiceBlock` are the shape
+  `PresetVariable` was adopted from, so they carry across and **stay inert**,
+  which the review says rather than implies.
+- **Scenarios do not exist** in what ships. The `feat/scenarios` branch is
+  gone from the remote and no scenario type or table is in the tree, so the
+  skeleton's "Marinara scenarios → Setup" line dies here. ~~There is nothing to
+  record.~~ **There is something to record, on two counts:** a local checkout
+  preserves the branch (§0), so the design is readable rather than lost; and
+  `scenarios` is a table name an install that ran that branch still carries,
+  which §1.8 meets as its worked example of the *unrecognised* class rather
+  than as a surprise. `GameSetupConfig` (~70 fields mixing narrative and
+  production) remains Setup-shaped later machinery — recorded, not converted,
+  with [00 §3.2] stripping the production half if it ever converts.
 - Personas convert as actors — the unified card exists because two of three
-  sources regret the split ([survey §4](../01-source-survey.md)).
+  sources regret the split ([survey §4](../01-source-survey.md)). Marinara's
+  live in their own tables rather than, as in ST, in the settings file
+  ([survey §3](../01-source-survey.md)), which makes this the easier of the two
+  persona paths.
+- **What must never land, and the source's own behaviour agrees.**
+  `api_connections` and `api_connection_folders` are credentials, and the data
+  root's `.encryption-key` is a key. Marinara's own profile importer
+  *quarantines* connection credentials, custom tools, instructions, extensions
+  and themes rather than importing them — independent arrival at §1.1's
+  position from a project with no stake in ours. Ours is stricter: dropped, not
+  quarantined, and never into `compat` (§1.1).
 
 **Aventuras** (v0.7.8, single-user Tauri app, "local database"):
 
@@ -531,22 +779,64 @@ rendering because the client's source-label maps are open-keyed by rule; the
 pre-rename comment at lorebook.ts:231 ("Settings remain the primary home")
 rides along.
 
-### 1.8 What the sweep does with everything else in an ST user directory
+### 1.8 What the sweep does with everything else in ~~an ST user directory~~ a source tree
 
-A real ST user tree is ~30 directories; the sweep must have a stated
-disposition for each class or the review's "nothing silently dropped" is a
-lie. Decided dispositions: **convert** — `characters` (cards), `worlds`
-(lorebooks), `OpenAI Settings` (chat-completion presets), `TextGen Settings`
-(text-completion presets, params-only, ratio reported), sysprompt presets,
-personas (actors; where they live on disk is a P4.0 survey line — the
-source survey never documented it). **Record, not converted** — `groups`/`group chats`
+A real ST user tree is thirty directories and a Marinara store is
+eighty-one tables; the sweep must have a stated disposition for each class or
+the review's "nothing silently dropped" is a lie. **Widened at the amendment to
+cover both**, because keeping the dispositions in one section is what makes
+that claim a single checkable thing rather than two claims that drift.
+
+**The claim is made checkable the way §1.1 already decided for credentials: by
+vendored snapshot.** ST's `USER_DIRECTORY_TEMPLATE` (`src/constants.js:16`,
+thirty-one keys) and Marinara's `FILE_BACKED_TABLES`
+(`Marinara-Engine/packages/server/src/db/file-backed-store.ts:349`, eighty-one
+tables) are each committed as a snapshot with a provenance comment naming the
+source file, commit and date, and a test asserts that **every name in the
+snapshot has a disposition**. A name that appears in a real install but in
+neither the snapshot nor the map is not a hole — it is the *unrecognised*
+class, reported and counted. Marinara's `scenarios` table is the worked
+example: it is not in the pinned registry, because it only ever existed on a
+branch, and an install that ran that branch still has it (§1.5).
+
+**SillyTavern.** **Convert** — `characters` (cards), `worlds` (lorebooks),
+`OpenAI Settings` (chat-completion presets), `TextGen Settings`
+(text-completion presets, params-only, ratio reported), `sysprompt` presets,
+and personas — ~~where they live on disk is a P4.0 survey line — the source
+survey never documented it~~ **`User Avatars/` for the images, with the names
+and descriptions under `power_user.personas` and
+`power_user.persona_descriptions` in `settings.json`
+([survey §3](../01-source-survey.md)); closed 2026-08-29.** That last one is
+the tree's one irregular case, because it makes `settings.json` an import input
+rather than a skipped file. **Record, not converted** — `groups`/`group chats`
 (session/mode-shaped; member references would resolve-or-dangle if they ever
-convert), chats (see §4). **Not converted, by position** — instruct and
-context template files, `NovelAI Settings`/`KoboldAI Settings` (the
+convert), `chats` (see §4). **Not converted, by position** — `instruct` and
+`context` template files, `NovelAI Settings`/`KoboldAI Settings` (the
 raw-completion fossil). **Skipped and counted** — `backgrounds`, `themes`,
-`backups`, `vectors` (embeddings are derived data, [00 §2.8]), QuickReplies
-(absent from every survey document; the sweep counts them by name so the
-review is honest about what it saw), and anything unrecognised.
+`backups`, `vectors` (embeddings are derived data, [00 §2.8]), `QuickReplies`
+(absent from every survey document; the sweep counts them by name so the review
+is honest about what it saw), and — *added when the template was actually
+counted* — `thumbnails` and its three children, `movingUI`, `extensions`,
+`assets`, `reasoning`, and the `user/` subtree (`user/images`, `user/files`,
+`user/workflows`). Roughly a dozen of the thirty-one had never been named by
+any plan, and a disposition nobody wrote is the silent drop this section exists
+to prevent.
+
+**Marinara.** By family, because eighty-one names is a code artefact rather
+than prose:
+
+| Class | Tables |
+|---|---|
+| **Convert** | `characters`, `character_images`, `personas`, `persona_images`; `lorebooks`, `lorebook_entries`, `lorebook_folders`, `lorebook_character_links`, `lorebook_persona_links`; `prompt_presets`, `prompt_sections`, `prompt_groups`, `choice_blocks`; `library_folders`, as tags on what it organises |
+| **Credential — never lands, not even in `compat`** | `api_connections`, `api_connection_folders`, and the data root's `.encryption-key` |
+| **Record, not converted** | Session-shaped: `chats`, `messages`, `message_swipes`, `chat_folders`, `chat_presets`, `conversation_notes`, `ooc_influences`. Party- and mode-shaped, P7: `character_groups`, `persona_groups`, the six `game_*` tables, `spatial_context_snapshots`. Agent- and extension-shaped: `agent_configs`, `agent_runs`, `agent_memory`, `capability_documents`. Rule-shaped, deferred with the rule vocabulary: `regex_scripts`, `prompt_overrides`. History-shaped: `character_card_versions`, `persona_card_versions` — ours are files per version and a first import writes no version record (§1.3), so there is no writer for a foreign history and inventing one would fabricate dates. Configuration: `app_settings`, which has its own surface here ([P2A](13-p2a-configuration-surface.md)) |
+| **Skipped and counted** | The `noodle_*` and `slurp_*` families — twenty-four tables, **nearly a third of the store**, and [triage §4] discards the subsystem outright. `memory_chunks` (embeddings, [00 §2.8]), `achievement_unlocks`, the three `conversation_call_*` tables, the media libraries with no object to hang on (`assets`, `chat_images`, `gallery_folders`, `global_images`, `custom_emojis`, `custom_stickers`), and the four Marinara's own profile importer quarantines rather than trusts — `custom_tools`, `mari_instructions`, `installed_extensions`, `custom_themes` — plus `mari_workspace_context` |
+
+Beside the tables, the seventeen asset directories: `avatars`, `sprites`,
+`lorebooks/images` and `prompts/images` feed the objects that reference them and
+are converted with those objects; the rest — `game-assets`, `fonts`,
+`notification-sounds`, `long-term-memory`, `knowledge-sources` and the video
+directories — are skipped and counted.
 
 ### 1.9 A session can play an imported preset
 
@@ -632,16 +922,25 @@ the skeleton's "carried as-is" glossed, decided here:
 
 ### P4.0 — Corpus, harness, and the ground work
 
-§1.2's corpus built (synthesised structural cases, permissive real ones, the
-private corpus's location documented outside the repo); the
-parses-but-is-wrong table harness for every parser; §1.7's slot-literal rename
-completed across code, fixtures and the emitted schema artifact; §1.3's write-
-path extensions (the card-bytes composer; nothing else — `create()`'s
-no-version-record behaviour is kept and documented); the wrapper `replaceAll`
-nit; the shared report/reason-class types and the import module skeleton; the
-sweep-as-job vocabulary in the operational store; the P2C log's finding 8 verified
+§1.2's corpus built (synthesised structural cases for both folder sources —
+including a Marinara fixture data root with one sharded table — permissive real
+ones, ~~the private corpus's location documented outside the repo~~ *and the
+absent private corpus recorded as an outstanding manual task rather than
+assumed*); the parses-but-is-wrong table harness for every parser; §1.7's
+slot-literal rename completed across code, fixtures and the emitted schema
+artifact, **without collapsing the `samples.from` carrier into it** (§0);
+§1.3's write-path extensions (the card-bytes composer; nothing else —
+`create()`'s no-version-record behaviour is kept and documented); the wrapper
+fix, all-occurrences **and** function-replacement (§0); the card reader widened
+to compressed `zTXt` payloads (§0); the shared report/reason-class types and
+the import module skeleton — **including §1.3's source-reader seam and the two
+vendored registry snapshots §1.8 checks against, which are the two things this
+stage exists to get right before anything is written on top of them**; the
+sweep-as-job vocabulary in the operational store, as the `import_job` /
+`import_event` migration append §1.3 decided; the P2C log's finding 8 verified
 fixed or fixed here; the fixture-pair CI assertion wired as a **named step**,
-failing. The ST-personas-on-disk survey line closed.
+failing. ~~The ST-personas-on-disk survey line closed.~~ *Closed already, at the
+amendment — §1.8 carries the answer.*
 
 ### P4.1 — SillyTavern presets, and the renderer they need
 
@@ -666,14 +965,23 @@ Scenario→Treatment creation with sweep-level dedupe; `character_book`
 extraction and linking; personas. §1.11's lorebook converter with the decode
 tables. **The fixture-pair assertion goes green here**, in its §3 step 2 form.
 
-### P4.3 — Marinara, then Aventuras — survey first
+### P4.3 — Marinara, then Aventuras — ~~survey first~~ the store reader first
 
-§1.5, in order: the pinned-commit Marinara survey (preset format, categories,
-storage-layout detection), then conversion of what it confirms — cards and
-lorebooks are expected nearly free, presets are survey-dependent; the
-Aventuras survey gated on the extraction-path question, conversion only if an
-artefact exists, the named fallback otherwise. Everything that needs later
-machinery is recorded with the review category that says when.
+*Restructured at the amendment.* The Marinara survey it was going to open with
+has been performed (§1.5), so this stops being a stage that might discover it
+has nothing to build.
+
+§1.5, in order: the **Marinara store reader** — manifest, the two table
+layouts, the joins, the refusals of §1.3 — behind §1.3's source-reader seam;
+then the converters, which are mostly redirections into P4.1's and P4.2's,
+because a Marinara card is a V2 card and a Marinara preset is the same prompt-
+manager lineage [10 §8.4] was written against; then §1.8's disposition map with
+its registry-coverage test; then the profile archive and the `.marinara.json`
+envelope, which are the same reader over a different file source and a single
+candidate respectively. Then the Aventuras survey, still gated on the
+extraction-path question, conversion only if an artefact exists, the named
+fallback otherwise. Everything that needs later machinery is recorded with the
+review category that says when.
 
 ### P4.4 — The review surface, the sweeps, and the way out
 
@@ -701,11 +1009,17 @@ endpoint, proven, not the stub.
 
 ## 3. Verification — the P4 exit gate
 
-1. **The sweep, for real**: point the server-path sweep at a real ST data
-   directory (the private corpus, by hand) → populated library, review report
-   at an address, nothing crashed, and **every file the sweep saw is accounted
-   for** — converted, recorded, skipped-by-position, or counted as
-   unrecognised. Nothing silently dropped.
+1. **The sweep, for real — both arms**: point the server-path sweep at a
+   SillyTavern data directory **and at a Marinara data root** → populated
+   library, review report at an address, nothing crashed, and **every file or
+   table the sweep saw is accounted for** — converted, recorded,
+   skipped-by-position, or counted as unrecognised. Nothing silently dropped.
+   *Amended 2026-08-29:* ~~(the private corpus, by hand)~~ — there is no private
+   corpus (§1.2), so this step runs against the fixture roots, and **walking a
+   real library of either kind is a named outstanding manual task** rather than
+   a gate condition this phase can meet. It is written here, in the gate, so
+   that it is carried rather than quietly dropped: P4 can close without it;
+   PLAYABLE is where its absence will be felt, alongside the P2C sessions (§0).
 2. **The fixture-pair assertion, restated over the record** (replaces the
    skeleton's unimplementable "no slot resolves empty"): import the fixture ST
    directory (cards + a **chat-completion** preset — testing §5.1's qualifier,
@@ -719,20 +1033,29 @@ endpoint, proven, not the stub.
    credential gone — from the object *and* from `compat` — review names the
    removed fields. No "import as-is" affordance exists anywhere. The
    testing §1 invariant (*no portable object contains a connection or
-   credential*) runs as a property over the whole imported corpus.
+   credential*) runs as a property over the whole imported corpus. **And the
+   Marinara arm**: a fixture data root carrying `api_connections`,
+   `api_connection_folders` and `.encryption-key` imports with none of the
+   three anywhere in the result, and the review names them as dropped by class.
 4. **Depth**: a depth-4 block sits four **messages** from the end in the
    workbench block list — not at the top, and not eight messages back.
 5. **Macros, both halves**: an unrecognised macro → imported verbatim,
    flagged; a *recognised* macro → renders through Liquid in the assembled
    prompt, and no literal `{{` from the closed table's set reaches a rendered
    message.
-6. **Re-import the same directory** → §1.3's identity rule: unchanged objects
-   skip and are reported unchanged; a changed one offers replace (the
-   version-history `import` arm fires — its first writer) or keep-both.
-   Nothing doubles silently.
-7. **The in-repo corpus imports without a crash, in CI** — and the private
+6. **Re-import the same directory** — *of each kind* → §1.3's identity rule:
+   unchanged objects skip and are reported unchanged; a changed one offers
+   replace (the version-history `import` arm fires — its first writer) or
+   keep-both. Nothing doubles silently. The Marinara arm is the sharper test of
+   the rule, because `Provenance.originalFilename` for a row in a table is not
+   a filename anyone typed; what it holds, and whether that is stable across a
+   re-export, is the question §6.2 is already watching.
+7. **The in-repo corpus imports without a crash, in CI** — ~~and the private
    corpus has been walked by hand at least once, findings triaged into
-   synthesised fixtures.
+   synthesised fixtures.~~ *Amended with step 1: there is no private corpus
+   (§1.2), so the second clause is not a condition this phase can meet. It
+   stands as the outstanding task, in the same words, for whenever a real
+   library of either kind is to hand.*
 8. **One poisoned file never aborts a sweep**: a deliberately corrupt card in
    the fixture directory is a `warn`-class row in the review, and the sweep
    completes around it.
@@ -749,6 +1072,25 @@ endpoint, proven, not the stub.
     composed client-side through Intl/ICU.
 12. **Undo is real in-app**: delete a badly-imported object from the client;
     the tombstone behaviour is visible and the library reflects it.
+
+*Three steps added at the 2026-08-29 amendment, numbered after the existing
+twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
+
+13. **Every name has a disposition**: the test over §1.8's two vendored
+    registry snapshots passes — all thirty-one ST directory keys and all
+    eighty-one Marinara tables map to convert, credential, record,
+    skipped-by-position or skipped-and-counted. And a name in *neither* — a
+    fixture root carrying a `scenarios` table — imports as **unrecognised and
+    counted**, not ignored.
+14. **The three refusals, each with a message a person can act on**: a data
+    root whose `.writer-lease` is held, one carrying `.migrating`, and one
+    whose manifest declares a format we do not know. Each is refused **before
+    anything is written** — the review says which and what to do, and the
+    library is untouched. A half-import here is worse than no import, which is
+    why this is a gate step and not a nicety.
+15. **`.bak` does not double the library**: a fixture root with a `.bak`
+    beside every table imports the same object count as one without, and the
+    review reports the `.bak` files as skipped.
 
 ---
 
@@ -788,8 +1130,24 @@ detailed; the lorebook decode tables are small and mechanical. What was never
 designed, and is priced here: **the Liquid renderer and its render context**
 (the largest addition, and unskippable — cutting it poisons PLAYABLE, §1.6);
 **the two sweep transports** (the widest deliberately-chosen scope in the
-phase); **the review surface as a routed view over a job**; and **the
-Marinara/Aventuras half, whose yield is survey-dependent by construction**.
+phase); **the review surface as a routed view over a job**; and ~~the
+Marinara/Aventuras half, whose yield is survey-dependent by construction~~
+**the Aventuras half, whose yield is survey-dependent by construction — the
+Marinara half is not, and is priced below.**
+
+**The amendment made this phase bigger, and the honest thing is to say so
+rather than absorb it.** What it added: the source-reader seam and the Marinara
+store reader with its two table layouts, joins and refusals; the disposition map
+and its two registry snapshots; the archive reader and its bounds; the
+`import_job` migration append that §1.3 thought it was getting for free; and a
+second arm on the demo and on gate step 1. What it *removed* is smaller but
+real: the Marinara survey stage, which is done; the ST-personas survey line,
+which is closed; and the risk that P4.3 discovers it has nothing to build.
+
+What paid for it, in part, is that the Marinara converters are largely
+redirections rather than new code — a Marinara card is a V2 card, and a Marinara
+preset is the same prompt-manager lineage [10 §8.4] was written against (§1.5).
+The reader is the new thing; the conversions mostly are not.
 
 The cut order, decided ahead of pressure rather than under it:
 
@@ -799,17 +1157,24 @@ The cut order, decided ahead of pressure rather than under it:
 2. **Aventuras conversion goes second** — the survey still ships either way,
    and the extraction-path question may cut this one for us (§1.5 names the
    fallback as a completed stage).
-3. **Marinara presets go third** — cards and lorebooks ride the ST paths
-   nearly free and stay.
+3. ~~**Marinara presets go third** — cards and lorebooks ride the ST paths
+   nearly free and stay.~~ **Struck at the amendment. Marinara is not on this
+   list any more** (see below). If something inside it must give, it is the
+   profile archive and the `.marinara.json` envelope before the data root —
+   and those are the cheap ones (§1.3), so cutting them saves little, which is
+   the argument for taking all three now.
 
 **What must not be cut, with the downstream phase as the reason:** the
 credential drop (the stance's own showcase, [00 §3.2]); the fixture-pair
 assertion (it exists because two individually-correct importers disagreed once
 already); the single-file import path (it is what people use forever after,
 and what [17 §14](../17-write-mode.md)'s content-import posture later leans
-on); the Liquid renderer (PLAYABLE); the preset picker (PLAYABLE, again); and
-the review report itself — P5's retrieval debugging inherits a library whose
-provenance the review wrote.
+on); the Liquid renderer (PLAYABLE); the preset picker (PLAYABLE, again); the
+review report itself — P5's retrieval debugging inherits a library whose
+provenance the review wrote; and, **added at the amendment, Marinara import
+from a data root**, because the reason is the same one that put the source
+reader in P4.0: a second folder source is what proves the seam is in the right
+place, and a seam proved by one source is a seam that has not been tested.
 
 Expect the tail to be long ([01 §7]): three sources, years of edge cases, bug
 reports after the phase closes. The exit gate is the demo, not the absence of
@@ -857,6 +1222,22 @@ self-contradiction ("see [10] … 13 is current") fixed in passing. [10 §5]'s
 P4.2). And the two stale code comments this audit caught: layout.ts:74–79
 (package shape "settled at P4") and lorebook.ts:231 ("Settings remain the
 primary home").
+
+*The amendment paid four of its own write-backs on the day, because they are
+source facts rather than consequences of building something:*
+[survey §1](../01-source-survey.md) gained Marinara's on-disk layout, the pin,
+and the three export shapes; [survey §3](../01-source-survey.md) gained where ST
+personas live and the compressed-chunk card fact; [triage §2A.3] and
+[triage §4] were corrected on the deleted branch and the measured line count;
+[work plan P4](01-work-plan.md)'s demonstrable line gained the second arm; and
+[testing §5/§6](10-testing.md) took the corpus-split sentence early, because
+the private corpus's absence is true now and P4.0 would only have re-derived it.
+*Two more are owed and scheduled:* [13 §5.1](../13-internal-contracts.md) gains
+the import-job tables beside the turn-job ones (with P4.0), and
+[07 §7](../07-tech-stack.md) gains a zip reader argued in place beside
+`@fastify/multipart` and LiquidJS (with the stage that opens an archive) —
+**three new dependencies in one phase, which is worth seeing written in one
+sentence rather than discovered one at a time**.
 
 **6.5 What P4's landing changes for the panel's rules.** [P3 §7.1] (whether the
 panel may re-subject itself) stays open and P4 does not force it: the review
