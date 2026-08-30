@@ -32,7 +32,7 @@ import {
   rowsForId,
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
-import { envelope, pngCardCodec } from './storage/card/index.js';
+import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
 import {
@@ -377,6 +377,13 @@ async function encodeObject(
    * exists to close. `null` means verified-absent; omitted means "read it".
    */
   existingBytes?: Uint8Array | null,
+  /**
+   * Pixels to build a *new* card on, when the caller has some — the imported
+   * card's own image ([P4 §1.3]). Distinct from `existingBytes`, which is about
+   * a file that is already there: at create time there is no file, and this is
+   * a canvas the caller supplied rather than one that was read.
+   */
+  canvasBytes?: Uint8Array,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(owner, schemaId, slug);
 
@@ -389,8 +396,11 @@ async function encodeObject(
   let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
     const existing = existingBytes !== undefined ? existingBytes : await readFileBytes(path);
-    const canvas = existing ?? blankCardPixels();
-    const contents = existing ? pngCardCodec.read(existing) : null;
+    // Whichever real image we have: the file's own, or a canvas the caller
+    // brought. Only when there is neither does an actor get the 1×1 blank.
+    const source = existing ?? canvasBytes ?? null;
+    const canvas = source ?? blankCardPixels();
+    const contents = source ? pngCardCodec.read(source) : null;
     bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
   } else {
     bytes = new TextEncoder().encode(`${JSON.stringify(object, null, 2)}\n`);
@@ -454,11 +464,36 @@ function assertValidObject(object: unknown): PortableSchemaId {
   return schemaId;
 }
 
+/**
+ * Pixels for a new actor's card, from an import.
+ *
+ * **A parameter on `create()`, deliberately, rather than a second write path**
+ * ([P4 §1.3]). Import needs an actor whose card carries the image it came with,
+ * and `create()` had no way to say so — a new actor got the 1×1 transparent
+ * blank and nothing accepted a canvas. The alternative was an importer that
+ * wrote the file itself, which would have bypassed the kind queue, the
+ * id-conflict check, `writeAtomic` and the synchronous ingest that makes
+ * read-after-write hold ([13 §5]). Those four are not incidental to `create()`;
+ * they are what it is.
+ *
+ * The codec splices our envelope into the pixels and never re-encodes them, so
+ * an imported card keeps its image exactly — and keeps its foreign chunks,
+ * including the legacy `chara`/`ccv3` payload. That last part is a decision
+ * rather than an accident: stripping it would destroy the file's validity as a
+ * SillyTavern card, which is somebody else's data. The cost — other tools keep
+ * reading a payload that no longer moves when ours does — is accepted and named
+ * per object in the review ([P4 §1.3]).
+ */
+export interface CreateFrom {
+  cardPixels: Uint8Array;
+}
+
 export async function create(
   context: LibraryContext,
   handle: string,
   object: unknown,
   inKind?: PortableSchemaId,
+  from?: CreateFrom,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
   if (inKind !== undefined && schemaId !== inKind) {
@@ -496,12 +531,27 @@ export async function create(
         : 'untitled';
     const slug = await resolveFreeSlug(kindRoot, name);
 
+    if (from !== undefined) {
+      if (schemaId !== ACTOR_SCHEMA) {
+        throw new LibraryError('invalid', 'Only an actor is stored as a card.');
+      }
+      if (codecFor(from.cardPixels) === null) {
+        // Sniffed by magic number, so a JPEG named `.png` lands here rather
+        // than inside the codec ([storage/card]). The importer should have
+        // sniffed already; this is the door refusing rather than the parser
+        // throwing.
+        throw new LibraryError('invalid', 'The card image is not a format this build can write.');
+      }
+    }
+
     const { path, bytes, contentHash } = await encodeObject(
       context.layout,
       owner,
       schemaId,
       slug,
       object,
+      undefined,
+      from?.cardPixels,
     );
     await (context.write ?? writeAtomic)(path, bytes);
     await ingestFile(context.db, context.layout, path);
