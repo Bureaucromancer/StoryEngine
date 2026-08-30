@@ -716,8 +716,26 @@ Where it should differ:
   ([02 §5.2.3](02-data-model.md)) — singly and in bulk. On disk everything stays
   a folder; the single-file form exists for exchange only.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
-  what went to `compat`, what resolved, what dangled, and let the user fix it
-  before committing.
+  what went to `compat`, what resolved, what dangled, ~~and let the user fix it
+  before committing~~ — **and it commits first, then reports**.
+
+  *Amended at P4.4, by strike rather than quietly, because the old words were
+  load-bearing for anyone reading this section next
+  ([P4 §1.4](workplan/06-p4-implementation.md) argues it in full).* The original
+  clause predates the machinery that makes post-hoc the better answer. A staging
+  area is a second library to maintain — [01 §2.2]'s
+  nothing-built-to-be-discarded, in miniature. Dangling references are
+  survivable, visible and non-blocking *by stance* ([00 §3.3]: resolve by id,
+  fall back to name match, show missing and carry on), so there is nothing a
+  person must fix before commit for the library to be safe — and import is
+  exactly where that name-match middle step earns its keep. And a
+  three-hundred-object sweep gated per-object on a human is not a review, it is
+  a chore.
+
+  **What post-hoc costs is paid rather than assumed**: the object detail page
+  grew a delete affordance in the same stage, because *the trash and the version
+  history make it reversible* was true on disk and false in the app for three
+  phases.
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job

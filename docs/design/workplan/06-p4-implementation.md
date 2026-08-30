@@ -1216,6 +1216,55 @@ review category that says when.
 
 ### P4.4 — The review surface, the sweeps, and the way out
 
+**Landed 2026-08-30**, in four commits — with two clauses cut, named below with
+§5's cut order as the reason rather than discovered as silence.
+
+- *Re-import identity:* built, and it was the correctness gap P4.3 left open —
+  the sweep wrote through `create()` alone, so a second run over one directory
+  either collided or quietly doubled everything. Two things had to change before
+  *byte-identical* could ever be true, and **both were behaviour bugs rather
+  than test scaffolding**: a re-imported object now keeps the timestamps it had
+  here (its `createdAt` is when it entered *this* library), and converters no
+  longer mint ids for content they did not identify — openings, samples and
+  lorebook entries are derived from their own content, so conversion is
+  reproducible. Without that second one, §1.3's *skipped and reported
+  unchanged* was unreachable code and the rule would have replaced every object
+  on every sweep while looking like it worked.
+- *The `{ kind: 'import' }` version arm has its first writer*, three phases
+  after the type declared it with "no writers until their phases".
+- *The server-path sweep:* built, gated on `fileAccess` as [05 §4.2.2] widened
+  it — **and the `/data` carve-out is enforced in code**, compared on real paths
+  so a symlink into the data directory is refused like a literal one. That
+  refusal is what makes the widening safe rather than merely honest.
+- *The review surface:* rendered on the Library page, composing sentences from
+  classes and params — with tests pinning that an unknown class renders as the
+  word itself rather than as a blank cell, because a blank reads as *nothing
+  happened to this file*.
+- *The way out:* delete on the object detail page, which the server could do
+  since P1 and no surface could reach. The post-hoc posture rests on a bad
+  import being reversible, and that was true on disk and false in the app.
+- *`address.ts`'s preset arm and the empty state's new sentence:* both done.
+  A session's pack is a copy, but a copy keeps the id it was copied from, so an
+  imported preset's blocks link back to the file they came from.
+
+**Cut, in the order §5 set before the pressure arrived:**
+
+1. **The browser directory upload** — §5's first-to-cut, and the reason holds:
+   *the server-path sweep alone still pays the demo on the install the demo
+   describes; the upload variant is reach, not core.* The single-file upload
+   route ships and is the must-not-cut half.
+2. **The review report at its own address.** §1.4 argues for it and the argument
+   stands — a report somebody pastes into a bug report or reopens next week
+   wants an address. What ships is the report rendered where the sweep was run,
+   which is a review step but not an addressable one. The `import_job` /
+   `import_event` tables P4.0 appended are the storage it needs and nothing
+   writes them yet. **Named here rather than left as a gap**: this is the piece
+   of P4 that is genuinely unfinished.
+
+*Ends at:* a folder swept from the Library page, a review naming what happened to
+every file, and the same folder swept twice leaving one library.
+
+
 §1.4 rendered: the routed report view over the structured report; the two
 sweep transports over one engine (§1.3), the server-path side gated on
 `fileAccess` ~~with its grant surface in admin accounts~~ **as [05 §4.2.2]
@@ -1469,8 +1518,8 @@ P4.4 keeps them separate and links where a written object landed broken; a
 surface is a nicety recorded here and built by nobody yet.
 
 **6.4 Write-backs this plan owes and schedules** (each rides the stage that
-makes it true): [05 §5] — the review posture, post-hoc, amended by strike
-(§1.4, lands with P4.4). ~~[10 §8.4.2] — text-completion fields to `compat`;
+makes it true): ~~[05 §5] — the review posture, post-hoc, amended by strike
+(§1.4, lands with P4.4).~~ *Paid at P4.4.* ~~[10 §8.4.2] — text-completion fields to `compat`;
 [10 §8.4.3] — the heading's "Eight" becomes "Nine" (both with P4.1).~~ *Paid at
 P4.1, and two more the conversion found: §8.4.1's `dialogueExamples` row said
 `examples`, an arm renamed to `samples`, and its `wrapper` prose said eight in a

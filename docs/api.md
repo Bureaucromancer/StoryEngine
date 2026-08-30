@@ -373,8 +373,41 @@ CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
 that says there is none.
 
-**A sweep is not this route.** Pointing the server at a directory is a job with a
-review report at its own address, and it arrives at P4.4.
+### `POST /api/import/sweep`
+
+`{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
+own filesystem and imports what it finds.
+
+**Gated on `fileAccess`**, as [05 §4.2.2](design/05-ui-surfaces.md) widened it —
+`read` is enough, since the sweep never writes to the source. `403
+{"error":"no-file-access"}` without it.
+
+**And `/data` is carved out**, which is what makes that widening safe rather than
+merely honest: without it, `fileAccess: read` would be a way to reach another
+account's library, which the scope table says `never`. Compared on real paths, so
+a symlink into the data directory is refused like a literal one.
+
+- `422 {"error":"inside-data-root"}` — the folder is inside this install's own data.
+- `422 {"error":"not-absolute"}` — a relative path means whatever the cwd is.
+- `422 {"error":"unreadable-root"}` — nothing readable there.
+- `422 {"error":"live-install"}` — the source application is running, or is
+  part-way through an upgrade. Reading it produces a torn library *quietly*,
+  which is why this refuses rather than warns.
+- `422 {"error":"unknown-format"}` — written by a newer version than this build
+  reads.
+
+Every refusal happens **before anything is written**. A refusal after the first
+object is a half-import, which is worse than none.
+
+`onConflict` decides what a re-import does when a file has changed: `replace`
+(the default, and the safe one — the write goes through the version history, so
+the state it replaced becomes a version), `keep-both`, or `skip`. Unchanged
+objects are never rewritten and are reported as `unchanged`, which is a different
+answer from `skipped`.
+
+**Source files in the report are named relative to the root**, never absolutely
+([13 §4.1.1](design/13-internal-contracts.md)) — a review somebody pastes into an
+issue must not be a description of their filesystem.
 
 ### `GET /api/library/:kind/:id/avatar`
 
@@ -1186,6 +1219,9 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
 | 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
 | 415 | `not-multipart` | An upload that was not `multipart/form-data` |
+| 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
+| 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |
+| 422 | `live-install` / `unknown-format` / `ambiguous-root` | A source folder refused before anything was written |
 | 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
