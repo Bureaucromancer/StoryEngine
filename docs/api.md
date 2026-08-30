@@ -271,6 +271,7 @@ the exit gate should not need one.
 - `428 {"error":"hash-required"}` if you sent none.
 - **`412 {"error":"stale", "current": …envelope}`** if the object moved since you
   read it.
+- **`409 {"error":"diverged"}`** if the file on disk cannot be read at all.
 
 **The 412 is the interesting one.** It carries the *current* object so the UI can
 offer reload-and-reapply or save-as-a-copy rather than guessing
@@ -281,6 +282,16 @@ conflict is not two tabs but one tab and a text editor.
 **There is no rename route.** Changing `name` is an ordinary `PUT`. The folder
 keeps the slug it was born with, and the engine never moves a user's directories
 ([P1 §1.1](design/workplan/03-p1-implementation.md)).
+
+**The 409 exists because these used to be the same answer, and that answer could
+not terminate** (P2C finding 8). *The file changed* and *the file broke* are both
+"the bytes are not what the index thinks", and both were `412 stale` carrying the
+index row — whose hash is the one the caller just presented. Three tries, three
+identical 412s, and a text editor as the only exit. Now they part: a readable
+edit is still `412`, and **its envelope describes the file rather than the index
+row**, so the hash differs from the one you sent and reload-and-reapply works at
+once instead of after the watcher settles. Unreadable bytes are `409 diverged`
+with no envelope, because handing back the stale row is what invited the retry.
 
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
@@ -322,6 +333,16 @@ route's answer.
 
 Hash-checked the same way: deleting something a second tab has edited is the same
 mistake as overwriting it, and rather more final. → `204`.
+
+**A hand edit underneath refuses this too — unless the file is damaged.** A
+readable edit that landed since you read the object is worth protecting, and
+answers `412` like a `PUT`. Bytes the loader cannot read are not: that file used
+to be **undeletable as well as unwritable**, so the one object a person most
+needs to remove was the one this refused to remove (P2C finding 8). The
+`If-Match` check still carries the meaning that matters — *you are deleting what
+you were shown* — and the move is reversible through trash and version history
+([02 §10.2](design/02-data-model.md)), which is why refusing was the more
+destructive option of the two.
 
 ### `GET /api/library/:kind/:id/avatar`
 
@@ -1111,7 +1132,8 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
 | 413 | `too-large` | The preference document would exceed its size cap |
-| 412 | `stale` | Hash mismatch — `current` holds the object as it is now |
+| 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
+| 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 503 | `setup-required` | No accounts exist yet |

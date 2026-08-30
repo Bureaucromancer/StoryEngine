@@ -18,6 +18,7 @@ import {
 
 import {
   contentHashOf,
+  decodeObject,
   type FileErrorReason,
   ingestFile,
   listFileErrors,
@@ -76,7 +77,26 @@ import {
  */
 
 export class LibraryError extends Error {
-  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict' | 'refused-path';
+  readonly code:
+    | 'not-found'
+    | 'stale'
+    | 'invalid'
+    | 'read-only'
+    | 'conflict'
+    | 'refused-path'
+    /**
+     * The file on disk no longer hashes to what the index recorded, and the
+     * index has not caught up — usually because the file was hand-edited into
+     * something `ingestFile` refuses, so the row will never update.
+     *
+     * **A separate code because `stale` was a trap here** (P2C finding 8). The
+     * 412 contract is *reload and reapply*, and reloading serves the index row,
+     * whose hash is the one the caller just presented — so the documented
+     * recovery could not terminate, and neither could a delete. This answers
+     * 409 instead: not a retry instruction, so no loop can form, and the
+     * message names the repair, which is the file rather than the request.
+     */
+    | 'diverged';
   readonly current?: IndexedObject;
   /**
    * Per-field validation failures, when there are any.
@@ -570,10 +590,52 @@ export async function update(
     // the case the lexical rules cannot see.
     await context.layout.assertReal(current.path);
     const existingBytes = await readFileBytes(current.path);
-    if (existingBytes === null || contentHashOf(existingBytes) !== current.contentHash) {
-      // Vanished-underneath lands here too: stale rather than not-found, so
-      // the caller keeps the 412 recovery path instead of a dead end.
+    if (existingBytes === null) {
+      // Vanished underneath: stale rather than not-found, so the caller keeps
+      // the 412 recovery path instead of a dead end. This one terminates — the
+      // watcher drops the row and the next read is an honest 404.
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    }
+    const onDiskHash = contentHashOf(existingBytes);
+    if (onDiskHash !== current.contentHash) {
+      /**
+       * **P2C finding 8, and the two cases it used to answer identically.**
+       *
+       * Both are "the file is not what the index thinks", and both used to be
+       * `stale` carrying the index row — whose hash is the one the caller just
+       * presented. So reload-and-reapply could not terminate, and neither could
+       * a delete: three successive 412s with a byte-identical hash, and a text
+       * editor as the only exit.
+       *
+       * They are not the same situation and now do not get the same answer:
+       *
+       * - **A readable edit the index has not caught up with** — somebody
+       *   saved valid JSON in a text editor moments ago. Transient; the watcher
+       *   will settle. Still `stale`, because reload-and-reapply is exactly the
+       *   right move — but the envelope now describes **the file** rather than
+       *   the stale row, so the caller can act on it immediately instead of
+       *   waiting out the settle window. That the hash differs from the one
+       *   presented is what makes the 412 answerable at all.
+       * - **Bytes the loader refuses** — the hand edit that broke the file.
+       *   No retry fixes it, so it is not dressed as one: `409 diverged`, with
+       *   no envelope, because handing back the stale row is what invited the
+       *   loop. It is already listed by `GET /library/errors`, which is where
+       *   the repair starts.
+       */
+      const onDiskBody = decodeOnDisk(context, current.path, existingBytes);
+
+      if (onDiskBody === null) {
+        throw new LibraryError(
+          'diverged',
+          'The file on disk does not match the library index and could not be read. It was changed outside the app — repair or delete the file.',
+        );
+      }
+
+      throw new LibraryError('stale', 'The object has changed on disk since it was read.', {
+        ...current,
+        contentHash: onDiskHash,
+        body: onDiskBody,
+      });
     }
 
     const owner = userOwner(handle);
@@ -791,6 +853,25 @@ export async function readCardPixels(
  * Also hash-checked: deleting something a second tab has since edited is the
  * same mistake as overwriting it, and rather more final.
  */
+/**
+ * The object a file currently holds, or `null` when the loader will not have it.
+ *
+ * The distinction the write paths need after P2C finding 8: *the file changed*
+ * and *the file broke* are different situations, and answering both the same
+ * way is what left a broken object neither writable nor deletable. Anything
+ * that throws, decodes to nothing, or sits at a path the layout does not
+ * recognise is the second case.
+ */
+function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
+  const parsed = context.layout.parseObjectPath(path);
+  if (parsed === null) return null;
+  try {
+    return decodeObject(parsed, bytes);
+  } catch {
+    return null;
+  }
+}
+
 export async function remove(
   context: LibraryContext,
   handle: string,
@@ -807,12 +888,37 @@ export async function remove(
       throw new LibraryError('stale', 'The object has changed since it was read.', current);
     }
 
-    // Same disk verification as `update`: the index cannot vouch for a file a
-    // hand edit touched moments ago, and a delete is the last place to guess.
+    // The symlink door stays — a delete moves a tree, and moving one somebody
+    // planted a link into is the case the lexical rules cannot see.
     await context.layout.assertReal(current.path);
+
+    /**
+     * **The disk check, but only where it protects something — P2C finding 8.**
+     *
+     * Deleting an object a hand edit has since changed is the same mistake as
+     * overwriting it and rather more final, so a *readable* edit underneath
+     * still refuses. What used to happen as well was that a file edited into
+     * something the loader cannot parse became permanently **undeletable**: the
+     * one file a person most needs to remove was the one file this refused to
+     * remove, which is what "the only exit is a text editor" meant.
+     *
+     * So the refusal now depends on whether there is anything to protect. Bytes
+     * that decode are somebody's edit and are worth a 412. Bytes that do not
+     * decode are damage, and the delete is the documented repair — the If-Match
+     * check above still carries the meaning that matters, *you are deleting the
+     * object you were shown*, and the move is reversible through trash and
+     * version history ([02 §10.2]).
+     */
     const onDisk = await readFileBytes(current.path);
-    if (onDisk === null || contentHashOf(onDisk) !== current.contentHash) {
-      throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    if (onDisk !== null && contentHashOf(onDisk) !== current.contentHash) {
+      const body = decodeOnDisk(context, current.path, onDisk);
+      if (body !== null) {
+        throw new LibraryError('stale', 'The object has changed on disk since it was read.', {
+          ...current,
+          contentHash: contentHashOf(onDisk),
+          body,
+        });
+      }
     }
 
     const schemaId = current.schemaId as PortableSchemaId;

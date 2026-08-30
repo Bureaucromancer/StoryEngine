@@ -209,6 +209,34 @@ snapshot  none
 tester to do exactly this — but the loop was not reproduced end to end in this
 run.*
 
+> **Reproduced and fixed at P4.0, 2026-08-30**, before the triage below ran —
+> [P4 §2](06-p4-implementation.md) asks for it, because import walks this path in
+> bulk and a wild-corpus object that lands broken goes straight into it. The
+> mechanism was exactly as written: `update()` compared the on-disk bytes against
+> the index row and threw `stale` carrying that same row, so the 412's
+> `current.contentHash` was the hash the caller had just presented. `remove()`
+> ran the identical check, which is what made the file undeletable as well.
+>
+> The repair turned on splitting a case that had been one: *the file changed* and
+> *the file broke* were both answered `412 stale`. Now bytes that still **decode**
+> keep the 412 — and its envelope describes the file rather than the index row,
+> so the hash differs from the one presented and reload-and-reapply works
+> immediately rather than after the watcher settles, which is better than the
+> behaviour the finding was written against. Bytes that do not decode answer
+> **`409 diverged`**, because 412 *means* reload-and-reapply and no amount of
+> better prose makes a loop terminate. `remove()` takes the same split, so a
+> readable hand edit still protects the object from deletion while damage no
+> longer traps it.
+>
+> Five tests, in `routes/diverged.test.ts`, including the invariant behind the
+> whole thing: **a 412 never answers with the hash the caller sent.** That one is
+> written as a property of the status code rather than of this route, so the loop
+> cannot be reintroduced from somewhere else.
+>
+> *This row still wants its triage line.* The finding is discharged, but P2C.4
+> has not run, and the table below is filled by that session rather than by this
+> one.
+
 ### 9 — The teardown takes `config.json`, and the next start says nothing
 
 ```
