@@ -23,7 +23,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [04-p2-implementation.md](04-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
 | [05-p3-implementation.md](05-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
 | [06-p4-implementation.md](06-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
-| [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Audited against the repo; the four decisions that need PLAYABLE are marked and open |
+| [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Audited twice; §0.1 is the current readiness, and the four decisions that need PLAYABLE are marked, open, and given a window in §0.3 |
 | [08-p6-implementation.md](08-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |

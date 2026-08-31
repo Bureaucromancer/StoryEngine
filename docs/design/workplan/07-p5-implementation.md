@@ -1,8 +1,8 @@
 # 07 — P5 implementation plan
 
-**Status: plan, audited against the repo 2026-08-30 at `09ea758`** (branch `p4`,
-P4.0 through P4.4 landed). ~~Skeleton, restructured into two halves
-2026-08-28.~~
+**Status: plan, audited 2026-08-30 at `09ea758` and re-audited 2026-08-31 after
+P4's own audit closed — see §0.1, which is the current one.** ~~Skeleton,
+restructured into two halves 2026-08-28.~~
 
 **And it is deliberately half a revisit, which is the first thing to know about
 it.** This document has always said it *must* be revisited after PLAYABLE,
@@ -14,6 +14,12 @@ that genuinely needs PLAYABLE's findings is marked **[AWAITS PLAYABLE]** and lef
 open rather than guessed at. There are four. Closing them early would be
 inventing evidence, and the whole reason P5 sits behind that checkpoint is that
 the evidence is obtainable.
+
+*And it is about to be obtained.* UI work and manual testing come before this
+phase — the run-up to exactly the checkpoint those four questions wait on. §0.3
+is written for that window: four things to notice while doing something else,
+each of which closes one of them. A plan that holds questions open and then lets
+the answering session pass unremarked has held them open for nothing.
 
 The split into a document half and a retriever half is §1.6; §1.1–§1.5 stand as
 written, with §0 saying which of their leans the ground has since confirmed.
@@ -77,6 +83,10 @@ test ([10 §3.1](10-testing.md)) has to cover it, and that is the check that kee
 ---
 
 ## 0. Readiness — audited 2026-08-30, at `09ea758`
+
+*Superseded in part by §0.1, which re-checked every item below on 2026-08-31 and
+corrects one. Read both: this section carries the reasoning, that one carries
+what is currently true.*
 
 The skeleton predates P3.6 and the whole of P4. The ground is more ready than it
 knew in five places, less ready in five, and moved outright in four.
@@ -152,6 +162,108 @@ knew in five places, less ready in five, and moved outright in four.
   lorebooks *as SillyTavern files*, so the corpus the document half needs can
   come from three applications rather than two — which matters for a phase whose
   central claim is about how real authors write.
+
+### 0.1 Re-audit — 2026-08-31, after P4's own audit closed
+
+Run because P4 spent a session auditing itself and closing what it found, and a
+readiness section written the day before that is a readiness section written
+against a different repository.
+
+**Every gap in §0 was re-checked and every one of them is still open.** That is
+the short answer, and it is worth stating plainly because the intervening work
+was large:
+
+- `polish §1` has still not landed. *Corrected:* §0 said the detail page is
+  "metadata plus pretty-printed JSON"; it is metadata plus the **`AsStored`**
+  fold, which is polish **§2** and did land. The by-field view is the missing
+  one. P5.−1 stands.
+- The regex timeout has still not landed. `useRegex` is written by both
+  importers (`sillytavern/lorebook.ts`, `marinara/lorebook.ts`) and read by
+  nothing. P5.4's first commit stands, and P4 has since taught the sweep to
+  import from archives and loose folders, so the library fills faster than it
+  did when this was written.
+- `gatherAssemblyInputs` still carries no Treatment and no Lorebooks — session,
+  turns, history, window, channels, connections, bindings, mode, preset, cast.
+  P5.6 stands as the precondition for the retriever half.
+- There is still no client lorebook surface: `library/` holds the list, the
+  detail page, the as-stored fold and the revision list.
+- The five `object_fts` delete sites are still five (`ingest.ts` 325, 386, 391,
+  412, 482). §1.7's one-helper mitigation is unbuilt.
+- The fixture-pair gate still asserts `lore` reads `no-producer`
+  (`fixture-pair.test.ts:150`). P5.6 changes what that named CI step means.
+- **The corpus still does not exist**, and it is still the one item on this list
+  a person rather than a session has to clear.
+
+**What did move, and it moved in this phase's favour:**
+
+- **§1.8 lost a third of its scope**, because P4's audit built the addressable
+  report and the object-keyed query. See that section — the judgement it makes
+  is unchanged and the work under it is smaller.
+- **A bounded zip reader exists** (`storage/zip.ts`), and an archive is a
+  `FileSource`. Nothing in P5 needs it today; it is here because *a lorebook
+  arrives in an archive* is now a solved transport rather than a thing to plan.
+- **Gate step 9 ran**, which matters to P5 obliquely: the rebuild-equals-
+  incremental property is now exercised against a bulk-imported library, so the
+  index invariant P5's Mentions and entry addresses lean on has been stressed by
+  the thing that stresses it hardest.
+
+### 0.2 Three unmerged branches, and why this section names them
+
+At the time of writing, three concurrent sessions hold import work that is in
+neither `main` nor `p4`. This is normally not a plan's business; it is here
+because two of them change what P5 starts from, and a plan that assumed today's
+`main` would be wrong within a day.
+
+- **`claude/import-interface-improvements`** — near-miss root detection, import
+  moved into the workbench, and the browser directory upload **un-cut**
+  ([P4 §7.11–7.13], written against a §7 that does not have §7.14). Its
+  `near-miss.ts` was written because P5's neighbour repair had a consequence:
+  once the loose walker asks every file what it is, pointing at a SillyTavern
+  *install* root converts the shipped sample content and still misses the
+  personas. Worth reading before the document half decides what a book page says
+  about where a book came from.
+- **`claude/library-file-creation`** — object creation in the library, as a
+  **P4.5**. It has already amended §2's editor clause in this document: create
+  and delete at the *object* level are done, and creating an **entry** is
+  writing below the object, which [05 §5] puts on the editor's side of the line.
+  So the document half inherits a precedent for the shape rather than inventing
+  one.
+- **`claude/kind-driscoll`** and two docs branches — small, and not load-bearing
+  here.
+
+**The instruction that follows:** re-read §0 and §0.1 against whatever is merged
+on the day P5 starts, rather than trusting either. Two of these branches touch
+`routes/import.ts`, `detect.ts` and `local-source.ts`, which are three of the
+files this plan's §1.8 and §1.10 reason about.
+
+### 0.3 What to notice during the manual testing that comes first
+
+**Written for the run-up rather than the phase**, because the four questions
+§1.11 marks [AWAITS PLAYABLE] are about to become answerable and nothing will
+capture the answers unless somebody is watching for them.
+
+None of these needs a lorebook to exist. They are all things a person notices
+while doing something else, and each one closes a question this plan currently
+holds open:
+
+- **When a prompt comes out wrong, is the first question *what got in* or *what
+  got cut*?** That is trim-order's real test. If nothing is ever cut in ordinary
+  use, the trim order is a decision about a case that does not arise, and the
+  per-book budget tier below it is furniture.
+- **Does anything get dropped for space at all?** Watch `notFilled` and the
+  workbench block list. §1.11 asks whether the per-book tier earns its keep;
+  the answer is *no* unless the global cut fires often enough to want steering.
+- **When something is missing from a prompt, how long does it take to find out
+  why?** If the answer is already fast — because `notFilled` names a reason
+  class — then P5.8's highlighting is a nicety, and the keyword tester may be
+  answering a question nobody asks. If it is slow, both move up.
+- **Does the same wrong thing happen twice?** A diagnostic earns its place by
+  the second occurrence, not the first.
+
+Write what happens down somewhere, even roughly. [16](16-p2c-log.md) is the
+precedent and the reason it exists: a findings log appended to as things happen
+is worth more than a recollection assembled afterwards, and this plan has four
+decisions waiting on exactly that.
 
 ---
 
@@ -338,11 +450,38 @@ than from the import job.** Two consequences:
   unknown fields into. An import note becomes a metadata key rather than a new
   field, so no schema moves.
 
-**Alternative rejected:** finishing P4.4's addressable report instead. It is the
-better long-term answer and it belongs to a later phase — but it makes the fact
-reachable from the *import*, and the question is asked from the *book*. Somebody
-debugging an entry six months after the import will not think to look for the
-sweep that created it.
+~~**Alternative rejected:** finishing P4.4's addressable report instead. It is
+the better long-term answer and it belongs to a later phase — but it makes the
+fact reachable from the *import*, and the question is asked from the *book*.
+Somebody debugging an entry six months after the import will not think to look
+for the sweep that created it.~~
+
+***Overtaken 2026-08-31: the alternative was built, and it changes half of this
+section.*** [P4 §7.14](06-p4-implementation.md) closed the addressable report —
+`import_job` and a new `import_item` are written, `GET /api/import/jobs/:id`
+returns the same `ImportReport` the sweep answered with, and **`importNotesFor(db,
+objectId)` exists and is tested**, written against this section by name.
+
+What survives, and what does not:
+
+- **The decision stands.** The question is still asked from the book, and the
+  reasoning above is untouched by the report existing: somebody debugging an
+  entry six months later still will not go looking for the sweep.
+- **The first consequence is discharged.** *The converters must leave enough on
+  the object to reconstruct the note* was P5 scope because the notes lived only
+  in a report that was thrown away. They are now stored, keyed by the object they
+  produced, with an index on that column. So the book page **reads them** rather
+  than reconstructing them, and the `metadata`-on-the-entry mechanism below is no
+  longer needed for this — keep it for what [P4 §1.11] routes there, not for
+  import notes.
+- **What is left is the surface**, which was always the interesting half: which
+  of a book's notes belong on the page, where, and how an entry-level note finds
+  its entry. `importNotesFor` answers per *object*; an entry-level fact is inside
+  a note's `params`, and matching it back to a row is P5's work.
+
+That is a real reduction in this section's size and it is worth naming as one:
+the query, the storage and the index came from somewhere else. What did not
+change is the judgement — which is the part a plan is for.
 
 ### 1.9 `polish §1` is the document half's first stage, not its dependency
 
@@ -360,6 +499,13 @@ reuse later.
 
 *Cost, stated:* the phase's first visible output is not a lorebook. That is worth
 saying out loud because it reads like drift and is not.
+
+*Re-audit 2026-08-31:* **check before building it.** UI work is in flight ahead
+of this phase, `polish §1` is squarely the kind of thing it would pick up, and a
+concurrent branch has already paid half of the polish note's companion clause
+(the Edit gate's ownership half). If the by-field view has landed by the time
+P5 opens, this stage is *verify and move on*, and the document half starts where
+§1.7 originally wanted it to.
 
 ### 1.10 The regex timeout is the retriever's first task, and two other things move with it
 
@@ -416,6 +562,14 @@ mistaken for settled.
 library**, which is person-blocked work (§1.6), while these four need **play**,
 which needs the P2C sessions first. Two different blockers, and confusing them
 would let either excuse the other.
+
+*Re-audit 2026-08-31:* **all four are still open, and the window to close them
+is the one immediately ahead.** §0.3 turns each into something to notice during
+the manual testing that precedes this phase, because none of them needs a
+lorebook to exist — they are questions about what gets cut, how often, and how
+long it takes to find out why, and every one of those is visible in an ordinary
+turn today. The four stay marked; what changed is that there is now a named
+place for the evidence to arrive from.
 
 ---
 
@@ -770,6 +924,14 @@ half does not exist without it); the folder-gate correspondence test in P5.7
 is the reason acted on, and nothing but a test keeps those two honest); and the
 one-helper mitigation for the five `object_fts` delete sites, which is worth
 doing whether or not this phase happens.
+
+*Re-audit 2026-08-31, and the price moved once:* **the document half is slightly
+smaller than this says.** §1.8's storage, its object-keyed query and its index
+came from [P4 §7.14](06-p4-implementation.md), and a concurrent branch has built
+object-level create and delete, so the entry editor inherits a precedent instead
+of setting one. Everything else here stands — most importantly *starts from
+nothing*, which is still true of the surface, and the five `object_fts` delete
+sites, which are still five. The cut order is unchanged.
 
 **Expect the document half to be revised by use.** It is the first surface in
 this repository whose success condition is a reading experience rather than a
