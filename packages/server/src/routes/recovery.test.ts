@@ -261,7 +261,13 @@ describe('a turn killed mid-generation', () => {
     // Failed, because generation is never resumed — but *present*, with what it
     // managed, rather than a turn that silently never happened.
     expect(turn?.status).toBe('failed');
-    expect(turn?.request?.calls[0]?.blocks.length ?? 0).toBeGreaterThan(0);
+    // `blocks` is optional on `ModelCall` only because a record on disk may be
+    // older than [P3.0] — absence means *old*, never *empty*. This turn was
+    // written by this build, so a missing array is a writer bug and is named as
+    // one here rather than read past into a length of zero.
+    const blocks = turn?.request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
+    expect(blocks?.length).toBeGreaterThan(0);
     expect(turn?.input?.text).toBe('She waited.');
 
     // And the head advanced exactly once.
@@ -412,11 +418,14 @@ describe('a turn killed mid-generation', () => {
      * the call returned, passes the weaker form and fails this one.
      */
     const request = turn?.request;
-    const input = request?.calls[0]?.blocks.find((block) => block.id === 'se.input');
+    const blocks = request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
+
+    const input = blocks?.find((block) => block.id === 'se.input');
     expect(input?.text).toBe('She waited.');
     expect(input?.source.kind).toBe('input');
     expect(input?.included).toBe(true);
-    for (const block of request?.calls[0]?.blocks ?? []) expect(block.reason).not.toBe('');
+    for (const block of blocks ?? []) expect(block.reason).not.toBe('');
 
     const budget = request?.calls[0]?.budget ?? null;
     expect(budget).not.toBeNull();
@@ -429,7 +438,7 @@ describe('a turn killed mid-generation', () => {
     // listing only the drops cannot answer "what falls out next", which is what
     // `nextToDrop` is.
     expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
-      request?.calls[0]?.blocks.map((block) => block.id),
+      blocks?.map((block) => block.id),
     );
     expect(budget?.nextToDrop).toContain('se.instruction');
   });

@@ -242,7 +242,9 @@ describe('a turn goes all the way through', () => {
     expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([02 §8]).
-    expect(turn.request?.calls[0]?.blocks.map((block) => block.source.kind)).toContain('input');
+    const assembled = turn.request?.calls[0]?.blocks;
+    expect(assembled).toBeDefined();
+    expect(assembled?.map((block) => block.source.kind)).toContain('input');
     expect(turn.request?.calls).toHaveLength(1);
     expect(turn.request?.calls[0]?.resolved).toEqual({
       connectionId: CONNECTION_ID,
@@ -757,7 +759,8 @@ describe('cancellation', () => {
     expect(call?.wallMs).toBeGreaterThan(0);
     // And the assembly rides on the interrupted call itself since [P3.0] —
     // blocks per call is what makes this assertable at all.
-    expect(call?.blocks.length).toBeGreaterThan(0);
+    expect(call?.blocks).toBeDefined();
+    expect(call?.blocks?.length).toBeGreaterThan(0);
     // The words that had already streamed survive as the turn's output rather
     // than silently never having happened.
     expect(written[0]?.turn.output?.text.length).toBeGreaterThan(0);
@@ -799,8 +802,10 @@ describe('cancellation', () => {
     expect(calls[0]?.usage).toBeNull();
     expect(calls[0]?.finishReason).toBeNull();
     // The assembly the restamp exists to keep.
-    expect(calls[0]?.blocks.length).toBeGreaterThan(0);
-    expect(calls[0]?.budget.decisions.length).toBeGreaterThan(0);
+    expect(calls[0]?.blocks).toBeDefined();
+    expect(calls[0]?.blocks?.length).toBeGreaterThan(0);
+    expect(calls[0]?.budget).toBeDefined();
+    expect(calls[0]?.budget?.decisions.length).toBeGreaterThan(0);
   });
 
   /**
@@ -831,15 +836,22 @@ describe('the record says why a slot is empty', () => {
     const { turn } = await runTurn();
 
     const call = turn.request?.calls[0];
-    const lore = call?.notFilled.find((slot) => slot.source === 'lore');
+    // Both optional on `ModelCall` for records older than [P3.0] only; this
+    // build writes them on every call, so the absence is named rather than
+    // read past — an empty `notFilled` is a claim this test would otherwise
+    // make on the writer's behalf.
+    expect(call?.notFilled).toBeDefined();
+    expect(call?.blocks).toBeDefined();
+
+    const lore = call?.notFilled?.find((slot) => slot.source === 'lore');
     expect(lore?.reason).toBe('no-producer');
     // Nothing filled is also nothing listed twice: the filled blocks and the
     // not-filled slots partition the preset's applicable blocks.
-    const filledIds = new Set(call?.blocks.map((block) => block.id));
+    const filledIds = new Set(call?.blocks?.map((block) => block.id));
     for (const slot of call?.notFilled ?? []) {
       expect(filledIds.has(slot.blockId)).toBe(false);
     }
-    expect((call?.notFilled.length ?? 0) > 0).toBe(true);
+    expect(call?.notFilled?.length ?? 0).toBeGreaterThan(0);
   });
 
   it('empties honestly when a step supplies its own candidates', async () => {
@@ -982,15 +994,16 @@ describe('the preset is what builds the prompt', () => {
     // that matters is that the *preset* is visible in the record.
     const { turn } = await runTurn();
 
-    const reasons = turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
+    const blocks = turn.request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
+
+    const reasons = blocks?.map((block) => block.reason) ?? [];
     // The narrator instruction is a text block the preset author wrote.
     expect(reasons).toContain('instruction');
     // …and the player's action is a slot the preset positioned.
     expect(reasons).toContain('input');
 
-    const instruction = turn.request?.calls[0]?.blocks.find(
-      (block) => block.source.kind === 'preset',
-    );
+    const instruction = blocks?.find((block) => block.source.kind === 'preset');
     expect(instruction?.text).toContain('narrator');
   });
 
@@ -999,8 +1012,13 @@ describe('the preset is what builds the prompt', () => {
     // lore, and those slots are *present* in the preset — which is what makes
     // P5 an activation change rather than a preset change.
     const { turn } = await runTurn();
-    const kinds = turn.request?.calls[0]?.blocks.map((block) => block.source.kind) ?? [];
+    const blocks = turn.request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
 
+    const kinds = blocks?.map((block) => block.source.kind) ?? [];
+    // Non-empty first: both clauses below are `not.toContain`, which a missing
+    // `blocks` would satisfy for entirely the wrong reason.
+    expect(kinds.length).toBeGreaterThan(0);
     expect(kinds).not.toContain('lore');
     expect(kinds).not.toContain('setting');
   });
@@ -1032,9 +1050,10 @@ describe('the preset is what builds the prompt', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const history = written
-      .at(-1)
-      ?.turn.request?.calls[0]?.blocks.filter((b) => b.source.kind === 'history');
+    const blocks = written.at(-1)?.turn.request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
+
+    const history = blocks?.filter((b) => b.source.kind === 'history');
 
     // Two blocks for one past turn, in the order they were said, each in its own
     // voice — and the player's line is *not* the model's.
@@ -1211,7 +1230,10 @@ describe('a preset block can be scoped to a kind of call', () => {
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', scoped.id, 'turns'),
     );
-    const reasons = written[0]?.turn.request?.calls[0]?.blocks.map((block) => block.reason) ?? [];
+    const blocks = written[0]?.turn.request?.calls[0]?.blocks;
+    expect(blocks).toBeDefined();
+
+    const reasons = blocks?.map((block) => block.reason) ?? [];
 
     // The narrate step does not make a `summarise` call, so that block is out…
     expect(reasons).not.toContain('only for summaries');
@@ -1237,7 +1259,10 @@ describe("the preset's own settings reach the call", () => {
   it('budgets against the share the preset asks for', async () => {
     const { turn } = await runTurn();
 
-    const limit = turn.request?.calls[0]?.budget.limit;
+    const budget = turn.request?.calls[0]?.budget;
+    expect(budget).toBeDefined();
+
+    const limit = budget?.limit;
     // Three quarters of the config ceiling — and since [P3.0], labelled as
     // what it is: the config's number (`'user'`, the live-editable one),
     // narrowed by the preset's recorded share. The old `'preset'` stamp hid
