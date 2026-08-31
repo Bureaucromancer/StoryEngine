@@ -238,6 +238,26 @@ export interface ImportReport {
   counts: Record<string, number>;
 }
 
+/**
+ * One past import, as the list shows it ([P4 §7.4]).
+ *
+ * **Counts and not items.** A sweep of a real library is thousands of rows, and
+ * a list that inlined them would be a page nobody could load in order to find
+ * the one they wanted. `root` is the absolute path, which lives on this row and
+ * nowhere else ([13 §4.1.1]) — the person who typed it can see it, and no
+ * per-file row repeats it.
+ */
+export interface ImportJob {
+  id: string;
+  root: string;
+  /** The source kind, or — when `status` is `refused` — why it was turned away. */
+  source: string;
+  status: 'finished' | 'refused';
+  createdAt: number;
+  finishedAt: number | null;
+  counts: Record<string, number>;
+}
+
 export interface ImportFileResult {
   item: ImportItem;
   notes: ImportItem['notes'];
@@ -391,6 +411,18 @@ export const api = {
     onConflict?: 'replace' | 'keep-both' | 'skip',
   ): Promise<{ report: ImportReport }> =>
     request('POST', '/api/import/sweep', { root, ...(onConflict ? { onConflict } : {}) }),
+
+  /**
+   * Past imports, and one of them in full ([P4 §7.4]).
+   *
+   * The review used to live in a `useState` and end with the page. These are
+   * what make it a thing you can go back to — the half of §1.4's *post-hoc,
+   * addressable, structured* that P4.4 cut.
+   */
+  importJobs: (): Promise<{ jobs: ImportJob[] }> => request('GET', '/api/import/jobs'),
+
+  importJob: (id: string): Promise<{ report: ImportReport }> =>
+    request('GET', `/api/import/jobs/${id}`),
 
   history: (kind: LibraryKind, id: string): Promise<{ versions: ObjectVersion[] }> =>
     request('GET', `${objectUrl(kind, id)}/history`),

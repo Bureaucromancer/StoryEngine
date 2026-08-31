@@ -42,6 +42,19 @@ interface Probe {
 const PROBES: readonly Probe[] = [
   { kind: 'sillytavern', requires: ['settings.json', 'characters', 'worlds'] },
   { kind: 'marinara', requires: ['storage/tables'] },
+  /**
+   * CHARX — the V3 spec's container, one `card.json` beside an `assets/`
+   * directory ([P4 §7.5]). A root, not a file, because that is what it is once
+   * `ZipFileSource` has opened it: the probe cannot tell an archive from a
+   * directory and does not need to.
+   *
+   * `assets` is deliberately not required. The spec allows a card with no
+   * attachments, and an archive carrying only `card.json` is a perfectly good
+   * CHARX — requiring the directory would refuse the simplest valid case, which
+   * is the mistake the Marinara probe's own comment records not making about
+   * `storage/manifest.json`.
+   */
+  { kind: 'charx', requires: ['card.json'] },
 ];
 
 /** The sentinels a Marinara data root carries while it is not safe to read. */

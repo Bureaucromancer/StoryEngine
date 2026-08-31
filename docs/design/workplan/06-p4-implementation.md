@@ -416,10 +416,21 @@ limit §6.2 is watching, now with a second source's evidence to watch it with.
 **What a unit of import is** — widened from the skeleton's three examples to
 what [02 §5.2] already committed to: a bare PNG, a V2/V3 card PNG, a **CHARX**
 zip (card plus assets; the assets land in the object's `assets/` directory), a
-JSON card, a `.seactor` folder-zip, a lorebook JSON — including an
+JSON card, ~~a `.seactor` folder-zip,~~ a lorebook JSON — including an
 entry-subset file, which [10 §5.2] makes a lorebook like any other — and a
 preset JSON (chat-completion, text-completion, or sysprompt). Plus the
 directory sweep.
+
+*Corrected 2026-08-31, at §7.5's repair.* **`.seactor` never belonged in that
+list**, and it contradicted this document's own [§4](#4-out-of-scope-deliberately)
+two sections later: `.seactor` is *our* container, the actor-sized sibling of the
+`.sepack` that §4 puts out of scope in as many words — *"our own format, not a
+port; P11-ish"* — and `layout.ts:74–79` records P4.0 reading it exactly that way,
+*"P4 imports other people's formats and deliberately not our own."* Nothing
+writes one, either: there is no export path in this build, so an importer for it
+would have been a reader for a format with no writer, which [01 §2.2] forbids
+under the same rule that bans a control that does nothing. CHARX is the half of
+that list that was real, and it is built.
 
 *Widened again at the amendment, for the second source:* a **Marinara data
 root**, a **Marinara profile archive** (the same tree zipped), and a
@@ -1152,7 +1163,8 @@ it pass is the mechanism P4.0 wired for, working.
 
 *Ends at:* `pnpm test:fixture-pair` green, and the whole suite green with it.
 
-§1.10's card converter — V2/V3 PNG, CHARX, JSON card, `.seactor` — checked
+§1.10's card converter — V2/V3 PNG, CHARX, JSON card, ~~`.seactor`~~ (struck at
+§7.5: our own format, and [§4]'s) — checked
 **against** P4.1's slot targets, which is the whole point of
 [testing §5.1](10-testing.md): the card importer and the preset importer
 convert opposite ends of one format and must be checked against each other.
@@ -1660,14 +1672,14 @@ carve-out in `local-source.ts:86` is what keeps this from being a
 privilege-escalation route between users, and it holds — the defect is in what
 the grantor is told, not in what the grant permits.
 
-### 7.3 Gate step 9 was never run
+### 7.3 Gate step 9 was never run — *closed 2026-08-31, §7.11*
 
 *"Rebuild equals incremental, after a bulk import"* — described in the gate as
 the best stress the [13 §5] assertion will ever get. `rebuild-property.test.ts`
 exists and predates P4; no import test rebuilds. The one thing P4 could
 contribute to that invariant, it did not contribute.
 
-### 7.4 `import_job` and `import_event` are created and never written
+### 7.4 `import_job` and `import_event` are created and never written — *closed 2026-08-31, §7.11*
 
 `state/migrations.ts:141` and `:176`. The migration landed at P4.4 as §1.3
 decided; the writer was cut with the addressable report. The cut was recorded,
@@ -1675,14 +1687,14 @@ the **schema consequence** was not: the operational store now carries two tables
 no code touches, which is exactly the shape of a migration that gets
 misremembered as load-bearing later.
 
-### 7.5 CHARX and `.seactor` are unimplemented and unrecorded
+### 7.5 CHARX and `.seactor` are unimplemented and unrecorded — *closed 2026-08-31, §7.11*
 
 §1.3 (`:417`) and §1.10 (`:1155`) both list them among what the card converter
 covers. Neither exists. Both are zip containers — the same blocker as the
 deferred Marinara profile archive — but only the profile archive's deferral was
 written down, so these two read as shipped.
 
-### 7.6 Gate step 11, precisely
+### 7.6 Gate step 11, precisely — *closed 2026-08-31, §7.11*
 
 The substance holds: the report is `{key, params, level}` and the sentences are
 composed client-side. What is not true is the word **fetch** — the report exists
@@ -1909,3 +1921,75 @@ ways gives two actors, and two unrelated files sharing a name replace each other
 That is [§6.2](#62)'s open question about filename identity, reached from a new
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
+
+### 7.11 The rest of the audit, closed — 2026-08-31
+
+**Gate step 9 — rebuild equals incremental, after a bulk import.** Added to the
+named `gate` CI step rather than beside it, because it *is* the [13 §5]
+assertion. The gate called this the best stress that assertion will ever get and
+the reason is the shape of what import writes rather than its size: a sweep is
+the only thing here that creates many objects of many kinds in one burst,
+through both `create` and `update`, with derived ids, carried assets and a
+scenario deduplicated across cards — a multi-object write where the second
+object's identity depends on the first having landed. The randomised property
+generates sequences of single writes and cannot produce that. Fixed rather than
+randomised, deliberately: what is checked is not *which* sequence but that a real
+import leaves the two producers agreeing. Mutating `rebuild` to skip one kind
+fails it.
+
+**Gate step 11 and §7.4 — the report has an address.** These were one item: the
+tables were unwritten *because* the addressable report was cut, and the word
+*fetch* in step 11 was not true of anything. `import_item` is appended to the
+migration chain, the sweep records its outcome, and `GET /api/import/jobs` and
+`/jobs/:id` return the same `ImportReport` the POST answers with — the same
+shape deliberately, so the client keeps one renderer for a review.
+
+Three decisions inside that are worth having written down:
+
+- **A table rather than more `import_event` rows**, though the columns would have
+  fitted. That table is progress — key-and-params ticks, the shape `event` has
+  for turns — and a review item is a row about a *file*, with a disposition and
+  often an object it produced. Storing one as the other would make the report
+  reconstructible only by convention, and would not answer the question
+  [P5 §1.8] already needs answered: *what did the import say about this book?*
+  That is a lookup by `object_id`, which is why the column exists and is indexed,
+  and `importNotesFor` is the query P5 will call.
+- **A refused root is a job.** Both gates that can turn one away now record it —
+  the path gate and the source gate — because *why did my import not happen* is a
+  question with an answer, and it should live where every other answer lives.
+  Recording only half the refusals would be worse than none.
+- **Written after the sweep, not streamed.** `job.progress` stays unemitted.
+  Recording the outcome is what makes a report addressable; recording it live is
+  what makes a progress bar, and conflating them would leave a half-built emitter
+  nobody drives.
+
+**§7.5 — CHARX built, `.seactor` struck.** The finding was really two items and
+only one of them was work.
+
+CHARX is a foreign format and this phase owed it. It arrives as a zip, so the
+blocker was a reader — written here rather than depended on, for `card/png.ts`'s
+reason: the needed subset is small and forty years old, and the part that matters
+is the part a library would not do, which is *refusing* an archive before it
+costs anything. §1.3's four bounds are all checked from the central directory
+before a byte is inflated — entry count, per-entry size, total size, and path
+traversal — because a bomb caught after decompression has already been
+decompressed. `node:zlib` was already in use for PNG chunks, so no dependency
+moved.
+
+**And the reader paid for two things nobody asked it to.** A zip is a *root*, so
+`ZipFileSource` makes §1.3's *an archive is a root read through a different file
+source* literal — which closes P4.3's deferred **Marinara profile archive** and
+makes a zip of a loose cards folder work, both for free and both tested.
+
+`.seactor` was struck instead, because listing it was the error. It is *our*
+container, the actor-sized sibling of the `.sepack` that [§4] puts out of scope
+in as many words, `layout.ts:74–79` records P4.0 reading it exactly that way, and
+**nothing writes one** — there is no export path in this build, so an importer
+would have been a reader for a format with no writer. §1.3 and §1.10 are amended
+by strike.
+
+**What is left of §7.** Nothing from the audit. The two things named in §7.8.1
+stand as open questions rather than defects: a Marinara envelope inside a loose
+folder still reads `unrecognised` though the same file uploaded alone converts,
+and re-import identity is root-relative, which is [§6.2]'s filename-identity
+question reached from a third direction.

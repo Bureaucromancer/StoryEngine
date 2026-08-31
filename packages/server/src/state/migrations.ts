@@ -182,6 +182,43 @@ create table import_event (
   primary key (job_id, seq)
 ) strict;
 `,
+  `
+-- ── The review, at its own address ───────────────────────────────────────────
+--
+-- Appended 2026-08-31, closing [P4 §7.4] and gate step 11. The import_job and
+-- import_event tables landed at P4.4 and nothing ever wrote them: the
+-- addressable report was the stage's second cut, and the migration went in
+-- anyway. Two tables no code touches is the shape of a schema that gets
+-- misremembered as load-bearing, so this is the writer arriving rather than the
+-- tables leaving.
+--
+-- **A table rather than more import_event rows**, though the columns would have
+-- fitted. That table is progress — key-and-params ticks, the shape the event
+-- table has for turns — and a review item is not a tick: it is a row about a
+-- *file*, with a disposition, and often an object it produced. Storing one as
+-- the other would make the report reconstructible only by convention, and would
+-- not answer the question [P5 §1.8] already needs answered: *what did the import
+-- say about this book?* That is a lookup by object_id, which is why the column
+-- is here and indexed.
+create table import_item (
+  job_id      text not null references import_job(id) on delete cascade,
+  seq         integer not null,
+  -- Relative to the sweep root, never absolute ([13 §4.1.1]). The root lives
+  -- once on the job, where the person who typed it can see it.
+  source      text not null,
+  disposition text not null,
+  -- The object this row produced, when it produced one. Null for everything
+  -- skipped, recorded or unrecognised — which is most rows in a real sweep.
+  object_id   text,
+  -- An array of { key, params, level }, as JSON. Never prose ([P4 §1.4]): a
+  -- report stored as English is a bug that surfaces when somebody changes
+  -- language.
+  notes       text not null,
+  primary key (job_id, seq)
+) strict;
+
+create index import_item_by_object on import_item(object_id);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

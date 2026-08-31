@@ -16,6 +16,9 @@ import { openIndex } from './open.js';
 import { rebuild } from './rebuild.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
 import { LibraryWatcher } from './watcher.js';
+import { sillyTavernFixture } from '../import/fixtures/test-sillytavern.js';
+import { MemoryFileSource } from '../import/memory-source.js';
+import { sweep } from '../import/sweep.js';
 
 /**
  * **The gate**: a rebuild from disk equals the incrementally maintained index —
@@ -309,6 +312,59 @@ describe('rebuild equals incremental, as a property', () => {
       { numRuns: 12 },
     );
   }, 120_000);
+});
+
+describe('a rebuild agrees with the index a bulk import built', () => {
+  it('matches, after the fixture corpus is swept in', async () => {
+    /**
+     * **P4 gate step 9**, which was never run
+     * ([P4 §7.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+     *
+     * The gate calls this *the best stress the [13 §5] assertion will ever get*,
+     * and the reason is the shape of what import writes rather than its size. A
+     * sweep is the only thing in this system that creates **many objects of many
+     * kinds in one burst, through both `create` and `update`, with derived ids,
+     * carried assets and a scenario deduplicated across several cards** — a
+     * multi-object write where the second object's identity depends on the
+     * first's having landed. The property above generates sequences of single
+     * writes; it cannot produce that.
+     *
+     * Fixed rather than randomised, deliberately: the corpus is the fixture, and
+     * what is being checked is not *which* sequence but that a real import
+     * leaves the two producers agreeing. The randomised property remains the
+     * general claim; this is the one case that exercises the writer P4 added.
+     */
+    const library = await makeTestLibrary();
+    try {
+      const outcome = await sweep({
+        library: { db: library.db, layout: library.layout, keepHistoryPerObject: 10 },
+        handle: 'ned',
+        files: new MemoryFileSource(sillyTavernFixture()),
+      });
+      if (!outcome.ok) throw new Error(`the fixture root was refused: ${outcome.refusal}`);
+      expect(outcome.report.counts.converted).toBeGreaterThan(2);
+
+      const incremental = snapshot(library.db);
+      expect(incremental.length).toBeGreaterThan(2);
+
+      // A second index over the same disk, built the other way — in memory, as
+      // the property above does it, because a second `makeTestLibrary` on the
+      // same root opens the same index file and the two handles fight over it.
+      const fresh = await openIndex({ path: ':memory:' });
+      try {
+        await rebuild(fresh.db, library.layout);
+        expect(snapshot(fresh.db)).toEqual(incremental);
+      } finally {
+        fresh.close();
+      }
+
+      // And in place, which is the remedy a person actually runs.
+      await rebuild(library.db, library.layout);
+      expect(snapshot(library.db)).toEqual(incremental);
+    } finally {
+      await library.dispose();
+    }
+  }, 60_000);
 });
 
 describe('a rebuild forgets what the disk no longer has', () => {

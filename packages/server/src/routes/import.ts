@@ -16,7 +16,10 @@ import {
 } from '../import/marinara/envelope.js';
 import type { ConflictPolicy } from '../import/identity.js';
 import type { SourceRefusal } from '../import/source.js';
+import { listImports, readImport, recordImport, recordRefusal } from '../import/jobs.js';
 import { convertOne, sweep } from '../import/sweep.js';
+import { ZipFileSource } from '../import/zip-source.js';
+import { looksLikeZip } from '../storage/zip.js';
 import { openLocalSource, type RootRefusal } from '../storage/local-source.js';
 
 /**
@@ -133,6 +136,17 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const body = request.body as { root: string; onConflict?: ConflictPolicy };
     const opened = await openLocalSource(body.root, services.layout.dataRoot);
     if (!opened.ok) {
+      // Recorded here as well as below, because **there are two places a root can
+      // be turned away** and only one of them was reached at first: this one
+      // rejects the path itself — missing, relative, inside our own data
+      // directory — and never gets as far as a source to classify. A refusal
+      // ledger that quietly held half the refusals would be worse than none.
+      recordRefusal(services.state.db, {
+        account: account.handle,
+        root: body.root,
+        refusal: opened.refusal,
+        at: Date.now(),
+      });
       // The root is named back only in the message a person asked for. It never
       // reaches a log line or a per-item row ([13 §4.1.1]).
       return reply
@@ -148,11 +162,67 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     });
 
     if (!outcome.ok) {
+      // Recorded even though nothing was written, because *why did my import not
+      // happen* is a question with an answer, and it should live where every
+      // other answer lives rather than in a toast somebody dismissed ([§7.4]).
+      recordRefusal(services.state.db, {
+        account: account.handle,
+        root: body.root,
+        refusal: outcome.refusal,
+        at: Date.now(),
+      });
       return reply
         .code(422)
         .send({ error: outcome.refusal, message: sweepRefusalMessage(outcome.refusal) });
     }
-    return reply.code(200).send({ report: outcome.report });
+
+    /**
+     * **The report gets an address**, which is what §1.4 always asked for and
+     * P4.4 cut ([§7.4], gate step 11).
+     *
+     * The id is put on the report the caller already receives rather than
+     * offered as a separate call: the panel has the answer in front of it and
+     * needs the link, and a client that has to ask twice for the same thing is
+     * how the second call goes unwritten.
+     */
+    const jobId = recordImport(services.state.db, {
+      account: account.handle,
+      root: body.root,
+      source: outcome.report.source,
+      items: outcome.report.items,
+      at: Date.now(),
+    });
+
+    return reply.code(200).send({ report: { ...outcome.report, jobId } });
+  });
+
+  /**
+   * Past imports, and one of them in full ([P4 §7.4]).
+   *
+   * Two routes rather than one because they answer different questions — *what
+   * have I imported* and *what happened in that one* — and the list deliberately
+   * carries counts rather than items: a sweep of a real library is thousands of
+   * rows, and a list that inlined them would be a page nobody could load in
+   * order to find the one they wanted.
+   */
+  app.get('/import/jobs', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    return reply.code(200).send({ jobs: listImports(services.state.db, account.handle) });
+  });
+
+  app.get('/import/jobs/:id', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const { id } = request.params as { id: string };
+    const report = readImport(services.state.db, account.handle, id);
+    if (report === null) {
+      // 404 whether it is missing or somebody else's — [04 §4.4]'s posture,
+      // which is what stops an id being a probe for what other people imported.
+      return reply.code(404).send({ error: 'not-found', message: 'No such import.' });
+    }
+    return reply.code(200).send({ report });
   });
 }
 
@@ -230,6 +300,45 @@ async function importOneFile(
     notes,
   });
 
+  /**
+   * **An archive is a root, so it is swept rather than read as an item**
+   * ([P4 §1.3], [§7.5]).
+   *
+   * This is the same argument the profile envelope below makes, and it pays for
+   * three things at once rather than one: a CHARX (`card.json` and its assets),
+   * a zipped Marinara data root — the archive form P4.3 deferred for want of
+   * exactly this reader — and a zip somebody made of their cards folder, which
+   * classifies as `loose-files` and sweeps like any other. None of the readers
+   * learns that the bytes came out of an archive.
+   *
+   * Tried before JSON because a zip is never JSON, and `looksLikeZip` is a
+   * four-byte signature rather than a parse.
+   */
+  if (looksLikeZip(bytes)) {
+    const opened = ZipFileSource.open(bytes);
+    if (!opened.ok) {
+      return item('unrecognised', [
+        {
+          key: 'import.file.badArchive',
+          params: { file: filename, refusal: opened.refusal },
+          level: 'warn',
+        },
+      ]);
+    }
+
+    const outcome = await sweep({ library: services.library, handle, files: opened.source });
+    if (!outcome.ok) {
+      return item('unrecognised', [
+        {
+          key: 'import.file.refused',
+          params: { file: filename, refusal: outcome.refusal },
+          level: 'warn',
+        },
+      ]);
+    }
+    return reportAsUpload(filename, outcome.report.items);
+  }
+
   // Marinara's own export formats, which are the same reader over a different
   // file source ([P4 §1.3]) — a `.marinara.json` is one row of a table that
   // happens to have travelled alone.
@@ -272,14 +381,7 @@ async function importOneFile(
         },
       ]);
     }
-    // One envelope can carry a whole profile, so the answer is the report rather
-    // than a single row — the route reports the first item and the counts speak
-    // for the rest.
-    const converted = outcome.report.items.find((row) => row.disposition === 'converted');
-    return {
-      item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
-      notes: outcome.report.items.flatMap((row) => row.notes),
-    };
+    return reportAsUpload(filename, outcome.report.items);
   }
 
   // Everything else is one item from the upload reader, written by the sweep's
@@ -319,4 +421,27 @@ async function importOneFile(
     ]);
   }
   return { item: { ...answer, notes }, notes };
+}
+
+/**
+ * A whole sweep's report, answered as one upload result.
+ *
+ * **Shared by the two arms that turn one file into a root** — a Marinara
+ * envelope and an archive ([P4 §7.5]) — because they had the same three lines
+ * and the same reasoning, and two copies of a rule about *which row is the
+ * answer* is how the two arms start giving different ones. That is not
+ * hypothetical: [§7.9]'s review found the single-file arm answering with a
+ * treatment it had synthesised, and this is the same choice made once.
+ *
+ * `find(converted)` rather than the first row, and here it is right where it was
+ * wrong for a single file: an archive has no row that *is* the uploaded file —
+ * every row names something inside it — so there is nothing to prefer, and the
+ * thing a person wants to see is what landed. Every note travels regardless.
+ */
+function reportAsUpload(filename: string, items: readonly ImportItemReport[]): UploadResult {
+  const converted = items.find((row) => row.disposition === 'converted');
+  return {
+    item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
+    notes: items.flatMap((row) => row.notes),
+  };
 }

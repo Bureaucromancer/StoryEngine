@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ChangeEvent, type JSX } from 'react';
 
 import { api, type ImportItem, type ImportReport } from '../api.js';
@@ -96,6 +96,7 @@ const NOTE_LABELS: Record<string, string> = {
   'import.file.notJson': '{file} is not readable as JSON.',
   'import.file.unrecognised': 'Nothing here recognised {file}.',
   'import.file.unreadable': '{file} could not be read, so nothing looked inside it.',
+  'import.file.badArchive': '{file} is an archive this build will not open ({refusal}).',
   'import.file.refused': '{file} could not be read ({refusal}).',
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':
@@ -144,6 +145,7 @@ export function ImportPanel(): JSX.Element {
    */
   const refresh = async (): Promise<void> => {
     await queryClient.resetQueries({ queryKey: ['library'] });
+    await queryClient.invalidateQueries({ queryKey: ['import-jobs'] });
   };
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -227,8 +229,81 @@ export function ImportPanel(): JSX.Element {
       )}
 
       {report !== null && <Report report={report} />}
+      <PastImports onOpen={setReport} />
     </section>
   );
+}
+
+/**
+ * The reviews this account has already seen — [P4 §7.4]'s repair, at the surface.
+ *
+ * **A report you cannot re-open answered once.** §1.4 asked for the review to be
+ * *post-hoc, addressable, structured*; P4.4 shipped the first and third and cut
+ * the second, so a three-hundred-object sweep's report lived in this component's
+ * state and ended with the page. The server keeps them now, and this is the
+ * thing that makes that worth having: the question *what did that import
+ * actually do* is asked days later, not while the panel is still open.
+ *
+ * Rendered as a plain list rather than a route because the report it opens is
+ * the one already below it — the same `Report`, so there is one renderer for a
+ * review and no second surface to keep in step.
+ */
+function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Element | null {
+  const jobs = useQuery({ queryKey: ['import-jobs'], queryFn: () => api.importJobs() });
+  const rows = jobs.data?.jobs ?? [];
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-6 border-t border-line pt-4">
+      <h3 className="mb-2 text-sm font-medium text-ink">Earlier imports</h3>
+      <ul className="flex flex-col gap-1 text-sm">
+        {rows.map((job) => (
+          <li key={job.id} className="flex flex-wrap items-baseline gap-2">
+            <button
+              type="button"
+              className="text-ink underline"
+              onClick={() => {
+                void api.importJob(job.id).then((result) => {
+                  props.onOpen(result.report);
+                });
+              }}
+            >
+              {job.root}
+            </button>
+            <span className="text-ink-subtle">
+              {job.status === 'refused'
+                ? // The refusal class travels in `source` for a refused job, and
+                  // it is a class rather than prose — so it goes through the same
+                  // label map everything else does.
+                  (REFUSAL_LABELS[job.source] ?? job.source)
+                : summarise(job.counts)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Why a root was turned away, in words. Open-keyed, like every other map here. */
+const REFUSAL_LABELS: Record<string, string> = {
+  'live-install': 'That application was running.',
+  'unknown-format': 'Written by a newer version than this understands.',
+  'ambiguous-root': 'Looked like two applications at once.',
+  'unreadable-root': 'Nothing readable there.',
+  'inside-data-root': 'Inside this install’s own data directory.',
+  'not-absolute': 'Not a full path.',
+};
+
+/** “4 imported, 2 already here” — the counts that are not zero, in order. */
+function summarise(counts: Record<string, number>): string {
+  const parts = Object.entries(counts)
+    .filter(([, value]) => value > 0)
+    .map(
+      ([disposition, value]) =>
+        `${String(value)} ${DISPOSITION_LABELS[disposition] ?? disposition}`,
+    );
+  return parts.length === 0 ? 'Nothing found' : parts.join(', ');
 }
 
 function Report(props: { report: ImportReport }): JSX.Element {

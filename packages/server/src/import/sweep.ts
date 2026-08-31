@@ -25,6 +25,7 @@ import { codecFor } from '../storage/card/index.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
+import { CharxReader } from './charx/reader.js';
 import { MarinaraReader } from './marinara/reader.js';
 import { convertCard } from './sillytavern/card.js';
 import { convertLorebook } from './sillytavern/lorebook.js';
@@ -154,6 +155,9 @@ function readerFor(kind: string, files: FileSource): SourceReader | null {
   // than the folder — see the constructor ([P4 §7.8]).
   if (kind === 'loose-files') return new SillyTavernReader(files, 'loose-files');
   if (kind === 'marinara') return new MarinaraReader(files);
+  // A card in a zip rather than in a PNG chunk ([P4 §7.5]). One entry, one
+  // candidate, and the same converter on the other side of it.
+  if (kind === 'charx') return new CharxReader(files);
   return null;
 }
 
