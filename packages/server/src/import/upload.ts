@@ -63,6 +63,27 @@ const CARDISH = [
 const CARD_SPEC = /^chara_card_v\d/;
 const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as const;
 
+export type ProbeConfidence =
+  /**
+   * Everything the probe can recognise. Correct for a **single upload**: a
+   * person picked this file out of a file dialog and pressed a button, so a
+   * generous reading serves them and a wrong guess is one row they can see.
+   */
+  | 'any'
+  /**
+   * Only formats that identify themselves. Correct for a **folder sweep**: the
+   * files were not vetted one by one, and two of the probes below key on shapes
+   * — an object with a `content` string, an object with a `temperature` number —
+   * that ordinary JSON has by the dozen.
+   *
+   * Added at [P4 §7.8], after a review of that change swept a folder of build
+   * config and got `appsettings.json` imported as a preset whose system prompt
+   * was the string it happened to have under `content`. On one upload that is a
+   * forgivable guess; across a Downloads folder it is a library full of rubbish
+   * somebody now has to delete by hand.
+   */
+  | 'high';
+
 /**
  * Reads one uploaded file, yielding exactly what a directory walk yields.
  *
@@ -77,7 +98,13 @@ const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as 
  * into a `FileSource`. Splitting that here would have given a profile two ways
  * in, which is how two ways in start disagreeing.
  */
-export function readUpload(filename: string, bytes: Uint8Array): SourceItem {
+export function readUpload(
+  filename: string,
+  bytes: Uint8Array,
+  confidence: ProbeConfidence = 'any',
+): SourceItem {
+  // A container with a card payload in it is self-identifying at any
+  // confidence: the magic number and the chunk are not shapes anything else has.
   const codec = codecFor(bytes);
   if (codec !== null) return readCard(filename, bytes, codec);
 
@@ -100,7 +127,7 @@ export function readUpload(filename: string, bytes: Uint8Array): SourceItem {
     ]);
   }
 
-  const format = probe(parsed);
+  const format = probe(parsed, confidence);
   if (format === null) {
     return observed(filename, 'unrecognised', [
       { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
@@ -165,10 +192,28 @@ function readCard(
  * - The sampler panel is last because it is the least distinctive of the three
  *   preset shapes: any object with a temperature in it.
  */
-function probe(body: Record<string, unknown>): string | null {
+function probe(body: Record<string, unknown>, confidence: ProbeConfidence): string | null {
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
   if (looksLikeCard(body)) return 'sillytavern.card';
+
+  /**
+   * **The last two are guesses, and a sweep does not get to guess.**
+   *
+   * `{ content: "…" }` and `{ temperature: 0.7 }` are shapes half the JSON in
+   * the world has — a .NET `appsettings.json` matched the first one in review
+   * and was imported as a preset. The three probes above key on something only
+   * their own format carries; these two key on a field name. That is a fine
+   * trade when a person hands over one file and can see what became of it, and a
+   * bad one across a folder nobody read.
+   *
+   * The cost, named: a loose folder of exported sysprompt and sampler presets
+   * imports nothing. That is the right way round — a real SillyTavern tree still
+   * takes both, by position, which is the signal that actually means *this is a
+   * preset* — and the person who wants one anyway can upload it.
+   */
+  if (confidence === 'high') return null;
+
   if (typeof body['content'] === 'string' || typeof body['post_history'] === 'string') {
     return 'sillytavern.preset.sysprompt';
   }

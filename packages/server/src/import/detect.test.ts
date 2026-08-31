@@ -48,9 +48,14 @@ describe('classifying a root', () => {
     expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'marinara' });
   });
 
-  it('sweeps a folder of loose cards rather than refusing it', async () => {
+  it('classifies a folder of loose cards rather than refusing it', async () => {
     // No probe matching is not an error. This is the walker's plain mode, and
     // the folder of cards somebody assembled by hand is a real thing to have.
+    //
+    // ~~sweeps~~ **classifies**, renamed at the P4 audit ([P4 §7.8]). This case
+    // has only ever asserted the verdict, and for three stages its old name was
+    // the only thing claiming a loose folder converted — which it did not. The
+    // behaviour now lives in `loose-files.test.ts`, and this says what it checks.
     const root = new MemoryFileSource({ 'vera.png': 'x', 'rain-city.json': '{}' });
 
     expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'loose-files' });

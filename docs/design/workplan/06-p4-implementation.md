@@ -1722,13 +1722,82 @@ classifying a two-file memory source and iterating it returns
 `loose-files` — and never that anything in it converts, so the suite reports this
 as working.
 
-**Not fixed here, deliberately.** It looks like the same defect as 7.1 and is
-not: the walker's `default:` arm is where [§1.8]'s disposition table lives, and
-content-probing everything that lands there would change what a *real* ST root
-does with `stats.json` and its siblings — which gate step 13 asserts. The fix is
-to make the reader aware of which kind of root it is walking and probe by
-content only for `loose-files`, and that is a decision about the disposition
-table rather than a repair, so it wants its own commit and its own gate line.
+~~**Not fixed here, deliberately.**~~ *Fixed 2026-08-30 — see 7.8.1.* It looks
+like the same defect as 7.1 and is not: the walker's `default:` arm is where
+[§1.8]'s disposition table lives, and content-probing everything that lands
+there would change what a *real* ST root does with `stats.json` and its
+siblings — which gate step 13 asserts. The fix is to make the reader aware of
+which kind of root it is walking and probe by content only for `loose-files`,
+and that is a decision about the disposition table rather than a repair, so it
+wants its own commit and its own gate line.
+
+#### 7.8.1 The repair, and what reviewing it changed
+
+`SillyTavernReader` takes its root kind as a constructor argument, and the two
+roots now differ **completely** rather than partly:
+
+- `sillytavern` is unchanged. Position decides everything, the disposition table
+  is the knowledge, and gate step 13 still asserts it.
+- `loose-files` never consults the table at all. Every file is read and probed by
+  content, through `readUpload` — the same probe the single-file upload runs, so
+  a card converts identically whether it arrives alone or in a folder of forty.
+
+**The first version consulted the table first on both roots, and its own comment
+said why that was wrong** — *position carries no information on a loose root* —
+while the code checked position anyway. A review caught the contradiction: a
+folder with an `assets/`, `themes/` or `backgrounds/` subfolder had every card
+in it silently skipped, because those are thirty names SillyTavern happens to
+use and in somebody's Downloads folder they are just words.
+
+Four more things came out of that review, all of them the same shape — the loose
+arm being quietly wrong in the way §7.8 was written to stop:
+
+- **A sweep does not get to guess.** Two of the probes key on a field name rather
+  than a format: `{ content: "…" }` and `{ temperature: 0.7 }`. Sweeping a folder
+  of build config imported `appsettings.json` as a preset whose system prompt was
+  the string it happened to have under `content`. `readUpload` now takes a
+  confidence, and the sweep passes `high`: only formats that identify themselves
+  — a card container, a `chara_card_v*` spec, a prompt manager, a world file. The
+  named cost is that a loose folder of exported sysprompt and sampler presets
+  imports nothing; a real tree still takes both by position, and a person who
+  wants one can upload it.
+- **`settings.json` at a loose root was swallowed.** It is an input on a real
+  tree and an input to nothing on a loose one, so it vanished from the report —
+  the single thing §1.3 says a sweep never does.
+- **A file that could not be read came back with an empty note list**, which is
+  the exact defect this finding exists to remove, arriving by a new door — and
+  newly reachable, because of the next item.
+- **A size bound**, because this change made one necessary. A walker used only to
+  read files under directories it recognised, all of them small; a loose root has
+  none, so the probe reads whatever is there, and a folder somebody points at can
+  hold a disc image. `maxFileBytes` defaults to 64 MB, is checked with `stat`
+  before the read rather than after, and a file past it is listed but not read.
+
+**And a prototype-chain hole that predates all of this.** The disposition
+registry is an object literal, so `TABLE['constructor']` answers with a
+*function*, and so do `toString`, `valueOf` and `hasOwnProperty`. The old
+`TABLE[top] ?? 'unrecognised'` had it too: a directory named `constructor` was
+handed a function as its disposition, which travelled into the report and into
+the counts. `Object.hasOwn` is the whole fix.
+
+**Three of the guards written for this change passed against the bug they
+guarded**, which is now the session's most repeated lesson and worth stating as a
+rule: the `constructor` test used a *file* named `constructor.png` when the
+hazard needs a *directory* (`top` is the first path segment, so the file never
+reached the lookup); *accounts for everything it saw* asserted a list of source
+names, which is identical before and after the repair; and the earlier
+re-import test issued a `DELETE` that answered `428 hash-required` and deleted
+nothing. **A test written beside the fix it tests is the easiest kind to write
+green. Mutate it, or it is decoration.**
+
+Two things left open rather than fixed. A Marinara envelope sitting in a loose
+folder still reads `unrecognised`, though the same file uploaded alone converts —
+`readUpload` deliberately does not handle envelopes, because one can carry a
+whole profile and is therefore a *source* rather than an item, and giving a loose
+sweep a nested sweep is a bigger change than this finding. And re-import identity
+stays root-relative, so sweeping `~/cards` and then `~/cards/august` gives two
+copies of the same card: [§6.2](#62)'s open question about filename identity,
+reached from a third direction.
 
 ### 7.9 What the fix changed — 2026-08-30
 

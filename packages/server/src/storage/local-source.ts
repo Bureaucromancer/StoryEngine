@@ -35,9 +35,30 @@ export interface LocalSourceLimits {
   maxFiles: number;
   /** Deepest directory nesting to walk. */
   maxDepth: number;
+  /**
+   * Largest single file the sweep will pull into memory.
+   *
+   * **Added at [P4 §7.8], because that change made it reachable.** Until then a
+   * walker only ever read files under directories it recognised — cards,
+   * lorebooks, presets, all small. A loose root has no recognised directories,
+   * so the content probe reads *whatever is there*, and "whatever is there" in a
+   * folder somebody points at can be a disc image.
+   *
+   * Sixty-four megabytes is far above anything this format family produces — the
+   * largest plausible card is a few megabytes of PNG — and far below the size at
+   * which one `readFile` is a problem for the server everyone else is sharing.
+   * A file past it is not read, and reads as unrecognised: honest, since we did
+   * not look, and better than the alternative, since the alternative is the
+   * process.
+   */
+  maxFileBytes: number;
 }
 
-export const DEFAULT_LOCAL_LIMITS: LocalSourceLimits = { maxFiles: 50_000, maxDepth: 12 };
+export const DEFAULT_LOCAL_LIMITS: LocalSourceLimits = {
+  maxFiles: 50_000,
+  maxDepth: 12,
+  maxFileBytes: 64 * 1024 * 1024,
+};
 
 export interface LocalSource {
   list(): AsyncIterable<string>;
@@ -189,6 +210,10 @@ class DirectorySource implements LocalSource {
     const full = this.#resolve(path);
     if (full === null) return null;
     try {
+      // Asked before reading, not after: `readFile` on a very large file has
+      // already spent the memory by the time you could check its length.
+      const info = await stat(full);
+      if (info.size > this.#limits.maxFileBytes) return null;
       return new Uint8Array(await readFile(full));
     } catch {
       return null;

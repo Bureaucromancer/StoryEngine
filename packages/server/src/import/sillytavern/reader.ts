@@ -4,7 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { codecFor } from '../../storage/card/index.js';
-import { looksLikeCard } from '../upload.js';
+import { looksLikeCard, readUpload } from '../upload.js';
 import type {
   FileSource,
   ImportCandidate,
@@ -36,12 +36,33 @@ interface Personas {
 }
 
 export class SillyTavernReader implements SourceReader {
-  readonly kind = 'sillytavern' as const;
+  readonly kind: 'sillytavern' | 'loose-files';
 
   readonly #files: FileSource;
 
-  constructor(files: FileSource) {
+  /**
+   * **The walker serves two roots, and it now knows which one it is on**
+   * ([P4 §7.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+   *
+   * `loose-files` is what `classifyRoot` returns when no probe matches, and
+   * `sweep.ts` has always handed it here on the reasoning that *a folder of
+   * cards somebody assembled by hand is the ST tree with most of it missing*.
+   * The intent was right and the code did something else: routing is by
+   * top-level directory, so `Vera.png` sitting at the root took the `default:`
+   * arm and came back `unrecognised` — with no note at all, so the review could
+   * not even say why. A loose folder converted nothing, and the test named
+   * *"sweeps a folder of loose cards rather than refusing it"* asserted only the
+   * classification, never that anything swept.
+   *
+   * The kind is a constructor argument rather than a second class because the
+   * two roots differ in exactly one arm. A `LooseFilesReader` would have had to
+   * restate the disposition table to keep a loose folder's `backgrounds/`
+   * behaving like a real one's, and a table restated in two places is the
+   * failure [§1.8] exists to prevent.
+   */
+  constructor(files: FileSource, kind: 'sillytavern' | 'loose-files' = 'sillytavern') {
     this.#files = files;
+    this.kind = kind;
   }
 
   survey(): Promise<SourceSurvey> {
@@ -92,7 +113,14 @@ export class SillyTavernReader implements SourceReader {
 
     // Consumed above rather than reported: it is an input, and reporting it as
     // an item would invite somebody to give it a disposition it does not have.
-    if (path === 'settings.json') return null;
+    //
+    // **Only on a real tree**, corrected at [P4 §7.8]'s review. On a loose root
+    // it is not an input to anything — there are no `User Avatars/` for it to
+    // describe — so swallowing it there dropped a file from the report silently,
+    // which is the one thing §1.3 says a sweep never does.
+    if (path === 'settings.json' && this.kind === 'sillytavern') return null;
+
+    if (this.kind === 'loose-files') return this.#probe(path);
 
     switch (top) {
       case 'characters':
@@ -107,9 +135,59 @@ export class SillyTavernReader implements SourceReader {
         return await this.#json(path, 'sillytavern.preset.sysprompt');
       case 'User Avatars':
         return this.#persona(path, personas);
-      default:
-        return observed(path, SILLYTAVERN_DISPOSITIONS[top] ?? 'unrecognised');
+      default: {
+        /**
+         * **`Object.hasOwn`, not a lookup**, and the difference is not
+         * pedantry: the registry is an object literal, so `TABLE['constructor']`
+         * answers with a *function* off `Object.prototype`, and `toString`,
+         * `valueOf` and `hasOwnProperty` do the same. The old
+         * `TABLE[top] ?? 'unrecognised'` had the identical hole — a directory
+         * named `constructor` was given a function as its disposition, which
+         * then travelled into the report and the counts.
+         *
+         * It matters more now, because on a loose root that lookup is also what
+         * decides whether the file gets read at all: `constructor.png` would
+         * have skipped the probe and refused to import for no reason anybody
+         * could have found.
+         */
+        const byPosition = Object.hasOwn(SILLYTAVERN_DISPOSITIONS, top)
+          ? SILLYTAVERN_DISPOSITIONS[top]
+          : undefined;
+        return observed(path, byPosition ?? 'unrecognised');
+      }
     }
+  }
+
+  /**
+   * A loose root's only rule: **ask the file**
+   * ([P4 §7.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+   *
+   * **The disposition table is not consulted here at all**, and the first
+   * version of this repair got that wrong in a way its own comment contradicted.
+   * It said *position carries no information on a loose root* and then checked
+   * the table first anyway — so a folder with a `backgrounds/`, `themes/`,
+   * `assets/` or `user/` subfolder had every card in it silently skipped,
+   * because those are thirty names SillyTavern happens to use. In somebody's
+   * Downloads folder they are just words.
+   *
+   * A real tree keeps the table, and must: there `characters/` versus
+   * `backgrounds/` is the whole of what tells a card from a wallpaper, and
+   * [§1.8]'s *every name has a disposition* is one checkable claim precisely
+   * because position decides it. The two roots now differ completely rather than
+   * partly, which is easier to hold in the head and was the actual intent.
+   */
+  async #probe(path: string): Promise<SourceItem> {
+    const bytes = await this.#files.read(path);
+    if (bytes === null) {
+      // **With a note.** A noteless `unrecognised` is the exact defect §7.8
+      // exists to remove, and it came straight back for anything the source
+      // would not hand over — a file past `maxFileBytes`, or one that vanished
+      // between the walk and the read.
+      return observed(path, 'unrecognised', [
+        { key: 'import.file.unreadable', params: { file: path }, level: 'warn' },
+      ]);
+    }
+    return readUpload(path, bytes, 'high');
   }
 
   /**

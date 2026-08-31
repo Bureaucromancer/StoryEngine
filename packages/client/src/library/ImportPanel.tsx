@@ -95,6 +95,7 @@ const NOTE_LABELS: Record<string, string> = {
   'import.file.pictureWithoutACard': '{file} is a picture with no character in it.',
   'import.file.notJson': '{file} is not readable as JSON.',
   'import.file.unrecognised': 'Nothing here recognised {file}.',
+  'import.file.unreadable': '{file} could not be read, so nothing looked inside it.',
   'import.file.refused': '{file} could not be read ({refusal}).',
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':

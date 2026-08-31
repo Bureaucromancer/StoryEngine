@@ -149,7 +149,10 @@ function readerFor(kind: string, files: FileSource): SourceReader | null {
   // `loose-files` is swept by the same walker: a folder of cards somebody
   // assembled by hand is the ST tree with most of it missing, and the walker
   // already reports what it does not recognise.
-  if (kind === 'sillytavern' || kind === 'loose-files') return new SillyTavernReader(files);
+  if (kind === 'sillytavern') return new SillyTavernReader(files);
+  // Told which root it is on, so its `default:` arm can ask the file rather
+  // than the folder — see the constructor ([P4 §7.8]).
+  if (kind === 'loose-files') return new SillyTavernReader(files, 'loose-files');
   if (kind === 'marinara') return new MarinaraReader(files);
   return null;
 }
