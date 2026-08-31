@@ -4,8 +4,10 @@
 document exists to explain *why* they are shaped as they are.
 
 **For the consolidated, reconciled schemas, see [10](10-schemas.md).** Where the
-two differ, 13 is current — this document keeps the reasoning, 13 carries the
-definitions.
+two differ, ~~13~~ **10** is current — this document keeps the reasoning, 10
+carries the definitions. *(The sentence pointed at 10 and then named 13, which
+is a different document; corrected at P4.2, having been read wrong at least
+once while writing the importer.)*
 
 ---
 
@@ -176,16 +178,26 @@ imported card can express a preference; it can never *effect* one.
 
 A shim, not an adoption:
 
+*Restated at P4.2 in the shipped schema's own terms, and `profile.summary` was
+always shorthand for the reserved `se.summary` **section** rather than a field.*
+
 | Legacy | Destination |
 |---|---|
-| `name`, `description` | `name`, `profile.summary` |
-| `personality` | `profile.traits` + `profile.summary` (heuristic; user-editable) |
-| `scenario` | **Not the actor's.** Offered as a new Treatment draft. |
-| `first_mes`, `alternate_greetings` | `openings.written` |
+| `name`, `description` | `name`, the `se.summary` section body |
+| `personality` | `profile.traits` when list-shaped, otherwise a paragraph of `se.summary` — a heuristic, user-editable, and **the review names which happened** |
+| `scenario` | **Not the actor's.** ~~Offered as a new Treatment draft.~~ **Created as a Treatment and reported**, one per distinct scenario text within a sweep — the post-hoc posture [P4 §1.4](workplan/06-p4-implementation.md) decided leaves nothing to offer it into |
+| `first_mes`, `alternate_greetings` | `openings.written`, first as primary |
 | `mes_example` | `writingSamples`, one entry, enabled ([18](18-writing-samples.md)) |
-| `system_prompt`, `post_history_instructions`, `depth_prompt` | `compat` + surfaced in the importer as "this card wants to override prompts; review" |
-| `character_book` | extracted to a real Lorebook, linked |
+| `system_prompt`, `post_history_instructions`, `depth_prompt`, `talkativeness` | `compat` + surfaced in the importer as "this card wants to override prompts; review" |
+| `character_book` | extracted to a real Lorebook, linked and scoped to the actor it travelled with |
 | `extensions.*` | `compat` verbatim |
+
+*Two rows moved at P4.2.* `talkativeness` was in the deliberately-absent list
+with no destination at all, and now has one — `compat`, with the rest of what a
+card wants and cannot have. And **only the sections the mapping fills are
+created**: `se.appearance`, `se.voice` and `se.background` stay absent on an
+imported card, because splitting a description into them by heuristic would be
+inventing structure the source does not have.
 
 The `scenario` → Treatment move is the interesting one and directly serves the
 requirements: it is where per-card scenario text has always wanted to live.

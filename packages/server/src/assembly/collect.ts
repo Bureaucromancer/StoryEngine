@@ -4,6 +4,7 @@
 import type { Actor, Preset, PresetBlock } from '@storyengine/shared';
 
 import type { ChannelState, Turn } from '../sessions/types.js';
+import { renderTemplate, type RenderContext } from './template.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
@@ -111,7 +112,7 @@ function emptyReason(block: PresetBlock): NotFilledReason {
   if (block.kind === 'text') return 'empty-source';
   switch (block.source.of) {
     case 'lore':
-    case 'setting':
+    case 'treatment':
     case 'goal':
     case 'channel':
       // The same list `fill()` returns nothing for, each for its stated
@@ -198,17 +199,54 @@ function splice(
   return out;
 }
 
+/**
+ * The closed namespace a template may see ([P4 §1.6]).
+ *
+ * `char` is the first cast actor, which is what SillyTavern's `{{char}}` means
+ * in a one-character chat and the only reading available until party arrives at
+ * P7. `user` falls back to a neutral word rather than to an empty string,
+ * because a template reading *"You are talking to ."* is worse than one reading
+ * *"You are talking to the player."*
+ */
+function renderContextOf(context: CollectContext): RenderContext {
+  return {
+    char: context.actors[0]?.actor.name ?? 'the character',
+    user: context.persona?.actor.name ?? 'the player',
+  };
+}
+
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {
   if (block.kind === 'text') {
     /**
-     * **Liquid is not implemented, and the line is sharp.** A wrapper's
-     * `{{content}}` is one fixed placeholder the schema defines exactly; a
-     * template is a *language*, and it arrives with variable interpolation and
-     * imported presets, which is P4's review surface. So a `{{char}}` reaches
-     * the model as literal braces — visible in the turn record rather than
-     * silently wrong.
+     * **Liquid, rendered within the block — never across blocks** ([03 §5]).
+     * Built at P4.1, because the macro table converts SillyTavern's macros
+     * *into* Liquid and until then a converted preset's `{{char}}` reached the
+     * model as literal braces ([P4 §1.6]).
+     *
+     * The line stays sharp, it has just moved: a wrapper's `{{content}}` is one
+     * fixed placeholder the schema defines, and a template is a *language* over
+     * a closed namespace of **names, never bodies**. Content arrives through
+     * the slots below; a template that could reach one would be a second
+     * assembler.
+     *
+     * **A template that will not compile emits its own source**, unrendered. A
+     * preset is somebody else's authored file, and one bad block must not take
+     * the turn down — the same posture every import parser takes ([P4 §1.2]).
+     * The literal braces that result are the visible failure §8.4.2 prefers to
+     * a mangled prompt that looks fine.
      */
-    return emit(block, block.template, { kind: 'preset', blockId: block.id }, undefined);
+    const rendered = renderTemplate(block.template, renderContextOf(context));
+    return emit(
+      block,
+      rendered.ok ? rendered.text : rendered.source,
+      // `presetId` so the workbench can link a block back to the preset it came
+      // from ([P4 §2], P4.4). The session's pack is a copy, but a copy keeps the
+      // id it was copied from — so for an imported preset this addresses the
+      // library object, and for a mode default it addresses nothing and the
+      // panel shows a label.
+      { kind: 'preset', blockId: block.id, presetId: context.preset.id },
+      undefined,
+    );
   }
 
   const source = block.source;
@@ -359,7 +397,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * renderer specified — which is also why the clock's budget is null.
      */
     case 'lore':
-    case 'setting':
+    case 'treatment':
     case 'goal':
     case 'channel':
       return [];
@@ -390,9 +428,25 @@ function emit(
 ): Candidate[] {
   if (text.length === 0 && block.omitWhenEmpty) return [];
 
+  /**
+   * **All occurrences, and a function replacement rather than a string one.**
+   * Both halves are corrections, both found by the P4 readiness audit, and the
+   * second is the one that bites.
+   *
+   * `String.replace` with a string pattern fills only the *first* `{{content}}`,
+   * so a wrapper naming it twice — which a converted `scenario_format` may
+   * ([10 §8.4.2]) — left the second as literal braces in the prompt.
+   *
+   * The sharper bug is that a *string* replacement interprets `$&`, `` $` ``,
+   * `$'` and `$1` in the replacement as patterns. `text` here is the filled
+   * slot: at P4 that is somebody else's card, lorebook or preset prose, and
+   * `$&` occurring in it would splice the wrapper's own placeholder back into
+   * the output. A function replacement is returned verbatim, so the fix is not
+   * "escape the input" — it is "stop treating the input as a pattern".
+   */
   const wrapped =
     block.kind === 'slot' && block.wrapper !== undefined
-      ? block.wrapper.replace('{{content}}', text)
+      ? block.wrapper.replaceAll('{{content}}', () => text)
       : text;
 
   // The union, not the special case: an author- or import-declared advisory

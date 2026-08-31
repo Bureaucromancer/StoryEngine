@@ -18,6 +18,7 @@ import {
 
 import {
   contentHashOf,
+  decodeObject,
   type FileErrorReason,
   ingestFile,
   listFileErrors,
@@ -31,7 +32,7 @@ import {
   rowsForId,
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
-import { envelope, pngCardCodec } from './storage/card/index.js';
+import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
 import {
@@ -76,7 +77,26 @@ import {
  */
 
 export class LibraryError extends Error {
-  readonly code: 'not-found' | 'stale' | 'invalid' | 'read-only' | 'conflict' | 'refused-path';
+  readonly code:
+    | 'not-found'
+    | 'stale'
+    | 'invalid'
+    | 'read-only'
+    | 'conflict'
+    | 'refused-path'
+    /**
+     * The file on disk no longer hashes to what the index recorded, and the
+     * index has not caught up — usually because the file was hand-edited into
+     * something `ingestFile` refuses, so the row will never update.
+     *
+     * **A separate code because `stale` was a trap here** (P2C finding 8). The
+     * 412 contract is *reload and reapply*, and reloading serves the index row,
+     * whose hash is the one the caller just presented — so the documented
+     * recovery could not terminate, and neither could a delete. This answers
+     * 409 instead: not a retry instruction, so no loop can form, and the
+     * message names the repair, which is the file rather than the request.
+     */
+    | 'diverged';
   readonly current?: IndexedObject;
   /**
    * Per-field validation failures, when there are any.
@@ -357,6 +377,13 @@ async function encodeObject(
    * exists to close. `null` means verified-absent; omitted means "read it".
    */
   existingBytes?: Uint8Array | null,
+  /**
+   * Pixels to build a *new* card on, when the caller has some — the imported
+   * card's own image ([P4 §1.3]). Distinct from `existingBytes`, which is about
+   * a file that is already there: at create time there is no file, and this is
+   * a canvas the caller supplied rather than one that was read.
+   */
+  canvasBytes?: Uint8Array,
 ): Promise<{ path: string; bytes: Uint8Array; contentHash: string }> {
   const path = layout.objectFile(owner, schemaId, slug);
 
@@ -369,8 +396,11 @@ async function encodeObject(
   let bytes: Uint8Array;
   if (schemaId === ACTOR_SCHEMA) {
     const existing = existingBytes !== undefined ? existingBytes : await readFileBytes(path);
-    const canvas = existing ?? blankCardPixels();
-    const contents = existing ? pngCardCodec.read(existing) : null;
+    // Whichever real image we have: the file's own, or a canvas the caller
+    // brought. Only when there is neither does an actor get the 1×1 blank.
+    const source = existing ?? canvasBytes ?? null;
+    const canvas = source ?? blankCardPixels();
+    const contents = source ? pngCardCodec.read(source) : null;
     bytes = pngCardCodec.write(canvas, envelope(object), contents?.blobs);
   } else {
     bytes = new TextEncoder().encode(`${JSON.stringify(object, null, 2)}\n`);
@@ -434,11 +464,56 @@ function assertValidObject(object: unknown): PortableSchemaId {
   return schemaId;
 }
 
+/**
+ * Pixels for a new actor's card, from an import.
+ *
+ * **A parameter on `create()`, deliberately, rather than a second write path**
+ * ([P4 §1.3]). Import needs an actor whose card carries the image it came with,
+ * and `create()` had no way to say so — a new actor got the 1×1 transparent
+ * blank and nothing accepted a canvas. The alternative was an importer that
+ * wrote the file itself, which would have bypassed the kind queue, the
+ * id-conflict check, `writeAtomic` and the synchronous ingest that makes
+ * read-after-write hold ([13 §5]). Those four are not incidental to `create()`;
+ * they are what it is.
+ *
+ * The codec splices our envelope into the pixels and never re-encodes them, so
+ * an imported card keeps its image exactly — and keeps its foreign chunks,
+ * including the legacy `chara`/`ccv3` payload. That last part is a decision
+ * rather than an accident: stripping it would destroy the file's validity as a
+ * SillyTavern card, which is somebody else's data. The cost — other tools keep
+ * reading a payload that no longer moves when ours does — is accepted and named
+ * per object in the review ([P4 §1.3]).
+ */
+export interface CreateFrom {
+  cardPixels: Uint8Array;
+}
+
+/**
+ * The hash an object *would* have if it were stored, without storing it.
+ *
+ * Exposed for import's re-import identity rule ([P4 §1.3]), which has to answer
+ * *is this byte-identical to what is already here* before deciding whether to
+ * write at all. `encodeObject` is the only honest way to know, because it is
+ * what the write path itself would produce — a structural comparison would
+ * answer about the objects rather than about the files.
+ */
+export async function encodeForCompare(
+  context: LibraryContext,
+  owner: LibraryOwner,
+  schemaId: PortableSchemaId,
+  slug: string,
+  object: unknown,
+): Promise<string> {
+  const { contentHash } = await encodeObject(context.layout, owner, schemaId, slug, object);
+  return contentHash;
+}
+
 export async function create(
   context: LibraryContext,
   handle: string,
   object: unknown,
   inKind?: PortableSchemaId,
+  from?: CreateFrom,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
   if (inKind !== undefined && schemaId !== inKind) {
@@ -476,12 +551,27 @@ export async function create(
         : 'untitled';
     const slug = await resolveFreeSlug(kindRoot, name);
 
+    if (from !== undefined) {
+      if (schemaId !== ACTOR_SCHEMA) {
+        throw new LibraryError('invalid', 'Only an actor is stored as a card.');
+      }
+      if (codecFor(from.cardPixels) === null) {
+        // Sniffed by magic number, so a JPEG named `.png` lands here rather
+        // than inside the codec ([storage/card]). The importer should have
+        // sniffed already; this is the door refusing rather than the parser
+        // throwing.
+        throw new LibraryError('invalid', 'The card image is not a format this build can write.');
+      }
+    }
+
     const { path, bytes, contentHash } = await encodeObject(
       context.layout,
       owner,
       schemaId,
       slug,
       object,
+      undefined,
+      from?.cardPixels,
     );
     await (context.write ?? writeAtomic)(path, bytes);
     await ingestFile(context.db, context.layout, path);
@@ -570,10 +660,52 @@ export async function update(
     // the case the lexical rules cannot see.
     await context.layout.assertReal(current.path);
     const existingBytes = await readFileBytes(current.path);
-    if (existingBytes === null || contentHashOf(existingBytes) !== current.contentHash) {
-      // Vanished-underneath lands here too: stale rather than not-found, so
-      // the caller keeps the 412 recovery path instead of a dead end.
+    if (existingBytes === null) {
+      // Vanished underneath: stale rather than not-found, so the caller keeps
+      // the 412 recovery path instead of a dead end. This one terminates — the
+      // watcher drops the row and the next read is an honest 404.
       throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    }
+    const onDiskHash = contentHashOf(existingBytes);
+    if (onDiskHash !== current.contentHash) {
+      /**
+       * **P2C finding 8, and the two cases it used to answer identically.**
+       *
+       * Both are "the file is not what the index thinks", and both used to be
+       * `stale` carrying the index row — whose hash is the one the caller just
+       * presented. So reload-and-reapply could not terminate, and neither could
+       * a delete: three successive 412s with a byte-identical hash, and a text
+       * editor as the only exit.
+       *
+       * They are not the same situation and now do not get the same answer:
+       *
+       * - **A readable edit the index has not caught up with** — somebody
+       *   saved valid JSON in a text editor moments ago. Transient; the watcher
+       *   will settle. Still `stale`, because reload-and-reapply is exactly the
+       *   right move — but the envelope now describes **the file** rather than
+       *   the stale row, so the caller can act on it immediately instead of
+       *   waiting out the settle window. That the hash differs from the one
+       *   presented is what makes the 412 answerable at all.
+       * - **Bytes the loader refuses** — the hand edit that broke the file.
+       *   No retry fixes it, so it is not dressed as one: `409 diverged`, with
+       *   no envelope, because handing back the stale row is what invited the
+       *   loop. It is already listed by `GET /library/errors`, which is where
+       *   the repair starts.
+       */
+      const onDiskBody = decodeOnDisk(context, current.path, existingBytes);
+
+      if (onDiskBody === null) {
+        throw new LibraryError(
+          'diverged',
+          'The file on disk does not match the library index and could not be read. It was changed outside the app — repair or delete the file.',
+        );
+      }
+
+      throw new LibraryError('stale', 'The object has changed on disk since it was read.', {
+        ...current,
+        contentHash: onDiskHash,
+        body: onDiskBody,
+      });
     }
 
     const owner = userOwner(handle);
@@ -791,6 +923,25 @@ export async function readCardPixels(
  * Also hash-checked: deleting something a second tab has since edited is the
  * same mistake as overwriting it, and rather more final.
  */
+/**
+ * The object a file currently holds, or `null` when the loader will not have it.
+ *
+ * The distinction the write paths need after P2C finding 8: *the file changed*
+ * and *the file broke* are different situations, and answering both the same
+ * way is what left a broken object neither writable nor deletable. Anything
+ * that throws, decodes to nothing, or sits at a path the layout does not
+ * recognise is the second case.
+ */
+function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
+  const parsed = context.layout.parseObjectPath(path);
+  if (parsed === null) return null;
+  try {
+    return decodeObject(parsed, bytes);
+  } catch {
+    return null;
+  }
+}
+
 export async function remove(
   context: LibraryContext,
   handle: string,
@@ -807,12 +958,37 @@ export async function remove(
       throw new LibraryError('stale', 'The object has changed since it was read.', current);
     }
 
-    // Same disk verification as `update`: the index cannot vouch for a file a
-    // hand edit touched moments ago, and a delete is the last place to guess.
+    // The symlink door stays — a delete moves a tree, and moving one somebody
+    // planted a link into is the case the lexical rules cannot see.
     await context.layout.assertReal(current.path);
+
+    /**
+     * **The disk check, but only where it protects something — P2C finding 8.**
+     *
+     * Deleting an object a hand edit has since changed is the same mistake as
+     * overwriting it and rather more final, so a *readable* edit underneath
+     * still refuses. What used to happen as well was that a file edited into
+     * something the loader cannot parse became permanently **undeletable**: the
+     * one file a person most needs to remove was the one file this refused to
+     * remove, which is what "the only exit is a text editor" meant.
+     *
+     * So the refusal now depends on whether there is anything to protect. Bytes
+     * that decode are somebody's edit and are worth a 412. Bytes that do not
+     * decode are damage, and the delete is the documented repair — the If-Match
+     * check above still carries the meaning that matters, *you are deleting the
+     * object you were shown*, and the move is reversible through trash and
+     * version history ([02 §10.2]).
+     */
     const onDisk = await readFileBytes(current.path);
-    if (onDisk === null || contentHashOf(onDisk) !== current.contentHash) {
-      throw new LibraryError('stale', 'The object has changed on disk since it was read.', current);
+    if (onDisk !== null && contentHashOf(onDisk) !== current.contentHash) {
+      const body = decodeOnDisk(context, current.path, onDisk);
+      if (body !== null) {
+        throw new LibraryError('stale', 'The object has changed on disk since it was read.', {
+          ...current,
+          contentHash: contentHashOf(onDisk),
+          body,
+        });
+      }
     }
 
     const schemaId = current.schemaId as PortableSchemaId;

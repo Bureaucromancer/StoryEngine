@@ -129,8 +129,22 @@ export const SlotSource = Type.Union(
       ),
     }),
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
+    /**
+     * The treatment slot. Named for the kind it reads, completing the
+     * Setting→Treatment rename ([10 §6]) that the docs took and the code did
+     * not — [10 §8.2], the §8.4.1 marker table and [13 §1.1] have all spelled
+     * this `treatment` since; every line of shipped code spelled it `setting`
+     * until P4.0, which meant an importer written to the marker table emitted
+     * presets this schema rejected ([P4 §1.7]).
+     *
+     * **Two axes, not one, and they must not be collapsed.** `treatment` above
+     * is the `samples` *carrier* — which object a writing sample came off —
+     * and it has always been spelled that way. This is the *slot kind*. A
+     * find-and-replace over the word merges two vocabularies that happen to
+     * share a noun.
+     */
     Type.Object({
-      of: Type.Literal('setting'),
+      of: Type.Literal('treatment'),
       part: Type.Union([Type.Literal('framing'), Type.Literal('tone')]),
     }),
     Type.Object({ of: Type.Literal('goal') }),
@@ -206,7 +220,7 @@ export const SlotBlock = Type.Object(
     /**
      * Optional wrapper, with `{{content}}` standing for the filled value.
      * "Scenario: {{content}}" — exactly ST's `scenario_format` and `wi_format`,
-     * generalised from eight fixed fields to a property of any slot. Absent =
+     * generalised from nine fixed fields to a property of any slot. Absent =
      * emit the content bare.
      */
     wrapper: Type.Optional(Type.String()),

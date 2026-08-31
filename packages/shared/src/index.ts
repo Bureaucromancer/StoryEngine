@@ -22,6 +22,9 @@ export * from './turn.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.
 export * from './preview.js';
+// The import review's vocabulary — internal tier, beside the turn record and
+// for the same reason ([P4 §1.4]). Classes and params, never sentences.
+export * from './import.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

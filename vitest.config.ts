@@ -7,6 +7,22 @@ import { defineConfig } from 'vitest/config';
 const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
 
 /**
+ * The import gate ([testing §5.1]) — wired at P4.0 while it still failed, and
+ * green since P4.2. A gate written after the code is a gate written to pass.
+ *
+ * Its own project for the same reason `GATE` has one: a named CI step cannot be
+ * retired by a `test.skip` nobody notices.
+ *
+ * *`pnpm test` negated this project while it was red*, so that a suite expected
+ * to fail could not teach people to ignore it — as one visible word in
+ * `package.json` rather than a `skip` inside the file, precisely so that
+ * removing it was part of making the gate pass rather than a separate errand
+ * somebody had to remember. It was removed at P4.2, which is the mechanism
+ * working.
+ */
+const FIXTURE_PAIR = 'packages/server/src/import/fixture-pair.test.ts';
+
+/**
  * **Spread into every project, because `projects` do not inherit it** — F28.
  *
  * This was first written once at the top level, which reads as a default and is
@@ -74,7 +90,7 @@ export default defineConfig({
           // `*.live.test.ts` is excluded for the same mechanical reason and one
           // more: those files make real provider calls and belong only to the
           // project below that carries their timeout.
-          exclude: ['**/node_modules/**', GATE, '**/*.live.test.ts'],
+          exclude: ['**/node_modules/**', GATE, FIXTURE_PAIR, '**/*.live.test.ts'],
           environment: 'node',
         },
       },
@@ -94,6 +110,15 @@ export default defineConfig({
           ...TIMEOUTS,
           root: '.',
           include: [GATE],
+          environment: 'node',
+        },
+      },
+      {
+        test: {
+          name: 'fixture-pair',
+          ...TIMEOUTS,
+          root: '.',
+          include: [FIXTURE_PAIR],
           environment: 'node',
         },
       },

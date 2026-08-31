@@ -209,6 +209,46 @@ describe('what the preset says about a block is obeyed', () => {
     expect(candidates[0]?.text).toBe('Action: She waited.');
   });
 
+  /**
+   * Both halves of the P4.0 wrapper fix, and each is a silent-failure class the
+   * imported corpus is the first thing likely to produce.
+   *
+   * A wrapper naming `{{content}}` twice is legal — ST's `scenario_format` and
+   * `wi_format` are format strings and nothing stops one repeating the
+   * placeholder — and the first-occurrence-only substitution left the second
+   * pair of braces in the prompt.
+   */
+  it('fills every occurrence of the placeholder, not only the first', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', source: { of: 'input' }, wrapper: '{{content}} — {{content}}' }),
+        ]),
+        input: { text: 'She waited.' },
+      }),
+    );
+    expect(candidates[0]?.text).toBe('She waited. — She waited.');
+  });
+
+  /**
+   * The one that bites hardest, because the corrupted output still looks like
+   * prose. `$&` in a *string* replacement means "the matched substring", so
+   * imported text containing it used to splice `{{content}}` back into the
+   * result. The filled value is data and must be inserted literally, whatever
+   * characters an author happened to type.
+   */
+  it('inserts filled text literally, even when it contains replacement patterns', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', source: { of: 'input' }, wrapper: 'Action: {{content}}' }),
+        ]),
+        input: { text: "Cost: $& and $1 and $` and $'" },
+      }),
+    );
+    expect(candidates[0]?.text).toBe("Action: Cost: $& and $1 and $` and $'");
+  });
+
   it('carries the author-facing label through as the reason', () => {
     // [03 §5]: the reason is a product feature, not a debug string — it is what
     // the workbench shows when somebody asks why a block is in the prompt.

@@ -663,5 +663,24 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
       // same vocabulary the escape above answers in.
       void reply.code(422).send({ error: 'refused-path', message: error.message });
       return;
+    case 'diverged':
+      // 409 rather than 412, deliberately (P2C finding 8): the caller must not
+      // read this as *reload and reapply*, because reloading returns the same
+      // hash and the loop never ends. No `current` either — the envelope it
+      // would carry is the stale row, and handing it back is what invited the
+      // retry.
+      void reply.code(409).send({ error: 'diverged', message: error.message });
+      return;
   }
+
+  /**
+   * Unreachable while the switch covers the union, and it is here because it
+   * nearly was not: adding `diverged` to `LibraryError['code']` compiled
+   * cleanly with the switch left uncovered, and the route would have fallen
+   * through without sending a reply — a hung request rather than an error.
+   * TypeScript does not check a `void` switch for exhaustiveness on its own, so
+   * this assignment is what asks it to.
+   */
+  const unhandled: never = error.code;
+  throw new Error(`unhandled library error code: ${String(unhandled)}`);
 }

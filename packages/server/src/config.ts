@@ -281,9 +281,21 @@ export const LIVE_APPLIERS = {
   // `applyLiveConfig` now assigns into rather than replaces.
   'sessions.streamCoalesceMs': 'applied',
 
-  // Fastify fixes `bodyLimit` when the instance is constructed, and there is no
-  // upload route for it to bound yet. The tier stays `live` deliberately.
-  'limits.maxUploadMb': 'unread',
+  /**
+   * **Flipped at P4.1, when the upload route arrived** ([P4 §1.3]).
+   *
+   * It read `unread` from P2A until then, with the honest reason that Fastify
+   * fixes `bodyLimit` at construction and there was no upload route for it to
+   * bound. Now there is, and the enforcement is a **per-request check off the
+   * live config reference** rather than the constructor bound — so changing the
+   * value in Settings applies to the next upload rather than to the next
+   * restart, which is what `live` promised all along.
+   *
+   * The constructor `bodyLimit` stays as the outer bound. Two tiers is not
+   * redundancy: the outer one refuses a body before it is read, the inner one
+   * is the honest number a person set.
+   */
+  'limits.maxUploadMb': 'applied',
 
   // Extensions appear in no phase list. Nothing reads this.
   'limits.extensionStorageQuotaMb': 'unread',

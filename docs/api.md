@@ -271,6 +271,7 @@ the exit gate should not need one.
 - `428 {"error":"hash-required"}` if you sent none.
 - **`412 {"error":"stale", "current": …envelope}`** if the object moved since you
   read it.
+- **`409 {"error":"diverged"}`** if the file on disk cannot be read at all.
 
 **The 412 is the interesting one.** It carries the *current* object so the UI can
 offer reload-and-reapply or save-as-a-copy rather than guessing
@@ -281,6 +282,16 @@ conflict is not two tabs but one tab and a text editor.
 **There is no rename route.** Changing `name` is an ordinary `PUT`. The folder
 keeps the slug it was born with, and the engine never moves a user's directories
 ([P1 §1.1](design/workplan/03-p1-implementation.md)).
+
+**The 409 exists because these used to be the same answer, and that answer could
+not terminate** (P2C finding 8). *The file changed* and *the file broke* are both
+"the bytes are not what the index thinks", and both were `412 stale` carrying the
+index row — whose hash is the one the caller just presented. Three tries, three
+identical 412s, and a text editor as the only exit. Now they part: a readable
+edit is still `412`, and **its envelope describes the file rather than the index
+row**, so the hash differs from the one you sent and reload-and-reapply works at
+once instead of after the watcher settles. Unreadable bytes are `409 diverged`
+with no envelope, because handing back the stale row is what invited the retry.
 
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
@@ -322,6 +333,81 @@ route's answer.
 
 Hash-checked the same way: deleting something a second tab has edited is the same
 mistake as overwriting it, and rather more final. → `204`.
+
+**A hand edit underneath refuses this too — unless the file is damaged.** A
+readable edit that landed since you read the object is worth protecting, and
+answers `412` like a `PUT`. Bytes the loader cannot read are not: that file used
+to be **undeletable as well as unwritable**, so the one object a person most
+needs to remove was the one this refused to remove (P2C finding 8). The
+`If-Match` check still carries the meaning that matters — *you are deleting what
+you were shown* — and the move is reversible through trash and version history
+([02 §10.2](design/02-data-model.md)), which is why refusing was the more
+destructive option of the two.
+
+### `POST /api/import/file`
+
+**The first upload route this server has had**, and at P4.1 the only one.
+`multipart/form-data` with one file part → `201 { item, notes }` when it
+converted, `200 { item, notes }` when it did not.
+
+`item` is one row of the import review's vocabulary — `{ source, disposition,
+notes, objectId? }` — where `source` is the filename **as it arrived**, never a
+path ([13 §4.1.1](design/13-internal-contracts.md)). `disposition` is
+`converted`, `recorded` or `unrecognised`, and the middle one is the interesting
+answer: a PNG card today is a file this build converts at **P4.2**, so it is
+reported as *not yet* rather than refused as broken. Answering `4xx` would tell
+somebody their file is wrong when the truth is that the build is unfinished.
+
+Notes are `{ key, params, level }` and never sentences — the client composes the
+prose ([P4 §1.4](design/workplan/06-p4-implementation.md)).
+
+- `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
+  That is what moved the key from `unread` to `applied` after three phases as
+  the standing example of a live key nobody read: raise the limit in Settings and
+  the next upload takes the file, without a restart. Fastify's constructor
+  `bodyLimit` stays as the outer bound.
+- `415 {"error":"not-multipart"}` for a body that is not multipart.
+- `400 {"error":"no-file"}` for a multipart body with no file in it.
+
+CSRF applies exactly as it does to every other mutation. An upload form is
+precisely where one would be tempted to make an exception, so there is a test
+that says there is none.
+
+### `POST /api/import/sweep`
+
+`{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
+own filesystem and imports what it finds.
+
+**Gated on `fileAccess`**, as [05 §4.2.2](design/05-ui-surfaces.md) widened it —
+`read` is enough, since the sweep never writes to the source. `403
+{"error":"no-file-access"}` without it.
+
+**And `/data` is carved out**, which is what makes that widening safe rather than
+merely honest: without it, `fileAccess: read` would be a way to reach another
+account's library, which the scope table says `never`. Compared on real paths, so
+a symlink into the data directory is refused like a literal one.
+
+- `422 {"error":"inside-data-root"}` — the folder is inside this install's own data.
+- `422 {"error":"not-absolute"}` — a relative path means whatever the cwd is.
+- `422 {"error":"unreadable-root"}` — nothing readable there.
+- `422 {"error":"live-install"}` — the source application is running, or is
+  part-way through an upgrade. Reading it produces a torn library *quietly*,
+  which is why this refuses rather than warns.
+- `422 {"error":"unknown-format"}` — written by a newer version than this build
+  reads.
+
+Every refusal happens **before anything is written**. A refusal after the first
+object is a half-import, which is worse than none.
+
+`onConflict` decides what a re-import does when a file has changed: `replace`
+(the default, and the safe one — the write goes through the version history, so
+the state it replaced becomes a version), `keep-both`, or `skip`. Unchanged
+objects are never rewritten and are reported as `unchanged`, which is a different
+answer from `skipped`.
+
+**Source files in the report are named relative to the root**, never absolutely
+([13 §4.1.1](design/13-internal-contracts.md)) — a review somebody pastes into an
+issue must not be a description of their filesystem.
 
 ### `GET /api/library/:kind/:id/avatar`
 
@@ -416,12 +502,33 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name, mode?, cast? }` → `201 { session }`, and a list. **`archived` is the
-string `"true"`, not a boolean** — see the note under the turn routes.
+`{ name, mode?, preset?, cast? }` → `201 { session }`, and a list. **`archived`
+is the string `"true"`, not a boolean** — see the note under the turn routes.
 
 `cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
 Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
 a preset reachable from a session rather than only from a fixture.
+
+**`preset` is a library preset's id, copied instead of the mode's default**, and
+it arrived at P4.1 for one reason: a library full of imported presets that no
+session can play is a library nobody can evaluate. Omitted, a session gets the
+mode's default exactly as before. `422 unknown-preset` when there is no such
+preset — falling back would hand somebody a different prompt pack than they
+asked for and say nothing, which is what an unknown `mode` is refused for below.
+Another account's preset is `422` too, by way of a `404` inside: the path is the
+owner, and confirming an id exists elsewhere leaks the fact that separation
+exists to keep.
+
+**`preset.modes` is not checked**, deliberately. It is advisory — a preset
+written for a mode you do not have still imports, still shows, and still plays
+if you insist ([10 §8.2](design/10-schemas.md)) — and turning a hint into a gate
+would be worst in exactly the phase that fills a library with other people's
+presets.
+
+**Copied, never linked**, like the default it replaces: the session owns its
+prompt pack from creation, so editing the library's copy never rewrites a game
+in progress ([02 §8](design/02-data-model.md)). Browsing, previewing and
+switching mid-session remain P7's surface.
 
 **An unknown `mode` is refused here rather than resolved to the default.** The
 runner falls back for a session *already* playing a mode this build does not
@@ -1110,8 +1217,14 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
-| 413 | `too-large` | The preference document would exceed its size cap |
-| 412 | `stale` | Hash mismatch — `current` holds the object as it is now |
+| 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
+| 415 | `not-multipart` | An upload that was not `multipart/form-data` |
+| 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
+| 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |
+| 422 | `live-install` / `unknown-format` / `ambiguous-root` | A source folder refused before anything was written |
+| 400 | `no-file` | A multipart upload with no file part |
+| 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
+| 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 503 | `setup-required` | No accounts exist yet |
@@ -1121,13 +1234,17 @@ I restart it?"* is a worse answer than one that says.
 
 ## Not here yet
 
-No workbench (P3), no import (P4), and no static file serving: the client runs
+No workbench (P3), ~~no import (P4),~~ and no static file serving: the client runs
 on Vite's dev server and talks to this over `/api`.
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
 is documented under Sessions above. The provider settings surface was listed
 here and shipped at [P2B](design/workplan/14-p2b-provider-configuration.md); it
-is documented under Administration above.*
+is documented under Administration above. **Import was listed here and is half
+shipped at P4.1**: single-file upload exists and converts presets, under Library
+above. Cards and lorebooks convert at P4.2 and the directory sweep is P4.4, so
+the clause is struck rather than deleted — the half that is missing is still
+worth naming.*
 
 **One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own

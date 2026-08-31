@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
@@ -30,6 +31,7 @@ import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerSearchRoutes } from './routes/search.js';
@@ -573,6 +575,17 @@ export async function buildApp(
 
   await app.register(cookie);
 
+  /**
+   * Multipart, for the one upload route ([P4 §1.3]).
+   *
+   * `attachFieldsToBody` is left off: the route reads the file as a stream and
+   * decides on its size itself, which is what makes `limits.maxUploadMb` a
+   * **per-request** check off the live config rather than a number frozen when
+   * this instance was built. The plugin's own limits are passed per call for the
+   * same reason.
+   */
+  await app.register(multipart);
+
   app.decorateRequest('account', null);
 
   /**
@@ -630,6 +643,7 @@ export async function buildApp(
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
       registerLibraryRoutes(api, services);
+      registerImportRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
 

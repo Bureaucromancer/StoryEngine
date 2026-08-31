@@ -55,11 +55,24 @@ import { hashPassword, verifyPassword } from './secrets.js';
  * own provider keys* that adds nothing is not a small version of the real
  * thing, it is a false front.
  *
- * **`fileAccess` and `enableExtensions` still gate nothing**, and the settings
- * surface says so rather than rendering three switches as though they were
- * equally live: `fileAccess` gates a file browser [01 §4] moved to the
- * roadmap, and `enableExtensions` gates extensions, which appear in no phase
- * list at all.
+ * ~~**`fileAccess` and `enableExtensions` still gate nothing**~~ **`fileAccess`
+ * gates the import sweep, since P4.4** ([05 §4.2.2](../../../../docs/design/05-ui-surfaces.md)).
+ * `routes/import.ts` refuses `POST /api/import/sweep` when it reads `none`, so
+ * the capability is enforced at the route the way `privateConnections` is
+ * enforced at the loader — which is what moved it out of the settings surface's
+ * *recorded for later* group at the P4 audit, three weeks after the enforcement
+ * landed without it.
+ *
+ * The widening is deliberate and is argued in [05 §4.2.2] rather than implied
+ * here: the capability was written for a file browser over the user's **own**
+ * directory, and it now also permits naming a path **outside** `/data` for a
+ * read-only sweep. `storage/local-source.ts` carves `/data` out so the two
+ * halves cannot overlap. The file browser itself ([01 §4], roadmap) is still
+ * unbuilt, so `read` and `write` differ only in what they will mean later.
+ *
+ * **`enableExtensions` still gates nothing**, and the settings surface says so
+ * rather than rendering it as though it were live: extensions appear in no
+ * phase list at all.
  */
 export const Capabilities = Type.Object(
   {
@@ -72,7 +85,14 @@ export const Capabilities = Type.Object(
      * deliberately.
      */
     privateConnections: Type.Boolean({ default: true }),
-    /** In-UI file browser over their own directory ([05 §4.2]). */
+    /**
+     * Two grants under one name ([05 §4.2](../../../../docs/design/05-ui-surfaces.md),
+     * [§4.2.2](../../../../docs/design/05-ui-surfaces.md)): an in-UI file
+     * browser over their own directory, which is unbuilt, and — for anything
+     * above `none` — naming a host path outside `/data` for a read-only import
+     * sweep, which ships. The second is why the default is `none` and why the
+     * admin label names the sweep rather than the browser.
+     */
     fileAccess: Type.Union([Type.Literal('none'), Type.Literal('read'), Type.Literal('write')], {
       default: 'none',
     }),

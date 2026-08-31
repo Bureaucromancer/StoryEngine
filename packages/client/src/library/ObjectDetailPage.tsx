@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { getRouteApi, Link } from '@tanstack/react-router';
-import type { JSX } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
+import { useState, type JSX } from 'react';
 
 import {
+  api,
   ApiError,
   isLibraryKind,
   type LibraryKind,
@@ -112,6 +114,7 @@ function ObjectView(props: {
             Edit
           </Link>
         ) : null}
+        {object.source === 'user' ? <DeleteButton object={object} kind={kind} /> : null}
       </header>
 
       {object.shadowed ? (
@@ -157,5 +160,77 @@ function BackLink(): JSX.Element {
         Back to the library
       </Link>
     </p>
+  );
+}
+
+/**
+ * **Delete, which the server has been able to do since P1 and no surface could
+ * reach** ([P4 §1.4]).
+ *
+ * The import review's whole posture — commit immediately, report loudly, no
+ * staging area — rests on a bad import being reversible. That was true on disk
+ * and false in the app: the trash window and the version history existed, and
+ * nothing here could remove an object, so *undo* meant opening a file manager.
+ * This is the cost of the posture, paid rather than hand-waved.
+ *
+ * Two-step rather than a modal, because a modal for a reversible action is
+ * ceremony — and this one *is* reversible: the folder moves to trash and the
+ * retention window is what makes the second thought possible
+ * ([02 §10.2](../../../../docs/design/02-data-model.md)).
+ */
+function DeleteButton(props: { object: LibraryObject; kind: LibraryKind }): JSX.Element {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async (): Promise<void> => {
+    setError(null);
+    try {
+      await api.deleteObject(props.kind, props.object.id, props.object.contentHash);
+      // The list is now wrong in a way it cannot detect. `resetQueries` rather
+      // than `removeQueries`: a destroyed entry does not notify its observers
+      // ([P3.5]).
+      await queryClient.resetQueries({ queryKey: ['library'] });
+      await navigate({ to: '/library' });
+    } catch (cause) {
+      // A 412 here means somebody edited it while this page was open, which is
+      // exactly when a delete should stop and say so.
+      setError(cause instanceof Error ? cause.message : 'It could not be deleted.');
+      setConfirming(false);
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setConfirming(true);
+        }}
+        className={`ms-auto ${link.action}`}
+      >
+        Delete
+      </button>
+    );
+  }
+
+  return (
+    <span className="ms-auto flex items-center gap-3 text-sm">
+      {error !== null ? <span className="text-ink">{error}</span> : null}
+      <span className="text-ink-subtle">Move to trash?</span>
+      <button type="button" onClick={() => void remove()} className={link.action}>
+        Delete
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setConfirming(false);
+        }}
+        className={link.action}
+      >
+        Cancel
+      </button>
+    </span>
   );
 }

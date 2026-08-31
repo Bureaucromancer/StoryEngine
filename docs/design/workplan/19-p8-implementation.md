@@ -161,6 +161,36 @@ as deleted — is probably right and interacts with P11's trash retention, since
 deleted session is a moved folder rather than an erasure
 ([02 §10.2](../02-data-model.md)) until the window closes.
 
+### 1.8 What import left here, and the one thing it deliberately did not take
+
+**Added 2026-08-30**, discharging §0's collecting job for the one document that
+had sent something here without this one knowing: this skeleton and
+[P4](06-p4-implementation.md)'s amendment were written the same day on
+different branches.
+
+**Deferred here, and it is small:** Marinara's prompt sections carry a
+`chat_summary` marker among their ten marker types
+([P4 §1.5](06-p4-implementation.md)). Nine of the ten map onto our slot sources
+or are refused outright; this one has no home until the summary chain exists,
+so an imported Marinara preset carrying it lands with that block recorded under
+*not yet importable* and the review naming this phase. **What the revisit owes
+is one line rather than a stage:** when the chain exists, the marker becomes a
+slot source and the block converts — or it does not, and the review's answer
+stops being "not yet" and becomes "not converted". Either is fine; leaving it
+saying "not yet" after this phase ships is not.
+
+**Deliberately not taken, and worth knowing before this phase designs
+extraction:** every source's accumulated memory is *skipped* by P4 rather than
+deferred — Marinara's `memory_chunks` table and its `long-term-memory/`
+directory are embeddings and derived state, refused under
+[00 §2.8](../00-stance.md). That is the right call for P4 and it has a
+consequence for this phase worth stating plainly: **an imported library arrives
+with no memories, ever**, so the memory books this phase builds are always
+grown from play here rather than inherited. The alternative — importing another
+engine's extracted facts — would mean adopting its extraction judgement
+wholesale, which is the one thing §1.4's *extract facts, not summaries*
+position is unwilling to do sight-unseen.
+
 ---
 
 ## 2. Stages

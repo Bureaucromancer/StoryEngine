@@ -31,7 +31,7 @@ function candidates(): Candidate[] {
     },
     {
       id: 'framing',
-      source: { kind: 'setting', part: 'framing' },
+      source: { kind: 'treatment', part: 'framing' },
       reason: 'always',
       role: 'system',
       text: 'Neon, rain, and debts that do not forgive.',

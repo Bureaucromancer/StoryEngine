@@ -575,6 +575,38 @@ a backup and user prose is not diagnostic), and **absolute filesystem paths** �
 a path is named relative to the data root, because the log is the thing people
 paste into issues.
 
+#### 4.1.1 Foreign paths — the half the rule above did not cover
+
+*Added at P4.0, decided in [P4 §1.3](workplan/06-p4-implementation.md).* The
+paragraph above governs paths inside the data root: relative to it, because the
+log gets pasted into issues. Import introduces paths that are not inside it at
+all — a SillyTavern user directory, a Marinara data root, somewhere on the
+operator's disk — and nothing governed those.
+
+**The rule is the same rule, one root over: a source file is named relative to
+the sweep root.** In the log, in the review report, and in `VersionRecord.from`.
+Never absolutely, and never with the root prefixed back on for readability,
+because the reason has not changed — a review somebody pastes into an issue must
+not be a description of their filesystem, and *a screenshot of an import that
+went wrong* is one of the likelier things to arrive in an issue.
+
+**The root itself is recorded once**, on the import job's own record
+(`import_job.root`), where the person who typed it can see it and nobody else
+has to. That is the whole exception, and it is deliberate: the operator needs to
+know what was swept, and exactly one place should be able to tell them.
+
+Two consequences worth naming, because both are easy to get wrong under
+pressure:
+
+- **A file that could not be read is `warn`, not `error`.** §4.1's boundary
+  already decides this — `error` is what the server could not do, `warn` is what
+  it refused — and a refused foreign file is the system working. The same
+  applies to a whole root refused pre-flight ([P4 §1.3]): a live install or an
+  unknown storage format is a correct refusal, not a fault.
+- **One poisoned file never aborts a sweep**, and one poisoned row never aborts
+  a table. F22's original sin was one bad folder aborting a whole scan; that was
+  paid for once and is not repeated on the import side.
+
 ### 4.2 What a reload does, including when it cannot
 
 `log.level` is the first key re-read live ([P2 §2.2](workplan/04-p2-implementation.md)),

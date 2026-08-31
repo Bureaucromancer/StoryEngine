@@ -23,7 +23,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [04-p2-implementation.md](04-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
 | [05-p3-implementation.md](05-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
 | [06-p4-implementation.md](06-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
-| [07-p5-implementation.md](07-p5-implementation.md) | P5 skeleton — the lorebook as a document, then lore activation, budgets, trim order, skip reporting |
+| [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Audited against the repo; the four decisions that need PLAYABLE are marked and open |
 | [08-p6-implementation.md](08-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
@@ -48,9 +48,16 @@ checklist of decisions that are cheap now and expensive later, and the
 beta does, because it is where the design starts being tested by use.
 
 **The phase documents are written just ahead of the phase.** 03, 04, 13, 14 and
-15 are detailed because they are current or just finished; 05 and 06 were
-skeletons and have been revised now that P3 has landed and P4 is next; 07, 08
-and 18 through 22 are skeletons and will be filled in as each phase approaches.
+15 are detailed because they are current or just finished; 05, 06 and 07 were
+skeletons and have been revised as their phases arrived; 08 and 18 through 22
+are skeletons and will be filled in as each phase approaches.
+
+**07 is the one written *half* ahead of its phase, and says so.** P5 sits behind
+PLAYABLE, which has not run — so it carries a readiness audit against the code,
+the decisions that audit forces, and four marked **[AWAITS PLAYABLE]** questions
+left deliberately open. That is the honest shape for a plan whose evidence is
+obtainable but not yet obtained, and it is a pattern worth reusing: a revisit
+that closes what it can and names what it cannot beats one that waits.
 A phase document is not a design document: where one contradicts the design, the
 design is what to fix first — and 14 §1 is that case, three documents describing
 a fallback layer no code implements.
