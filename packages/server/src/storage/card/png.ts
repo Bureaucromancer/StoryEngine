@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { inflateSync } from 'node:zlib';
+
 import encodeChunks from 'png-chunks-encode';
 import extractChunks from 'png-chunks-extract';
 import textChunk from 'png-chunk-text';
@@ -128,8 +130,92 @@ function readEnvelope(chunks: Chunk[]): CardEnvelope | null {
   return null;
 }
 
+/** A null-terminated Latin-1 field, and the offset just past its terminator. */
+function readNullTerminated(
+  data: Uint8Array,
+  from: number,
+): { value: string; next: number } | null {
+  const end = data.indexOf(0, from);
+  if (end === -1) return null;
+  return { value: Buffer.from(data.subarray(from, end)).toString('latin1'), next: end + 1 };
+}
+
+/**
+ * A `zTXt` or `iTXt` chunk as keyword and text, or `null` if it is malformed or
+ * uses a compression method PNG does not define.
+ *
+ * **Why this exists, and why only for reading legacy payloads.** The card
+ * reader handled `tEXt` alone until P4.0, and the P4 readiness audit found the
+ * gap by reading Marinara's importer, which handles both: **Character Tavern
+ * writes its `chara` payload into a compressed `zTXt` chunk.** The failure mode
+ * is the bad one. Such a file is not a card that fails to convert — it is a
+ * file nothing recognises as a card at all, so it lands under *not recognised*
+ * and reads to the person as *this tool cannot open my cards*
+ * ([P4 §0](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ *
+ * `iTXt` is handled beside it because a card written that way fails
+ * identically, and the parse is four more fields once the shape is open.
+ *
+ * **Our own envelope stays `tEXt`-only, deliberately.** `write()` drops our
+ * chunk by looking for a `tEXt` with our keyword; a reader that also accepted a
+ * compressed envelope could read one the writer would then fail to remove,
+ * leaving two envelopes in one file — the two-sources-of-truth failure this
+ * module exists to avoid, rebuilt inside a single card. Foreign compressed
+ * chunks survive a write untouched either way, because `write()` preserves
+ * everything that is not ours.
+ */
+function decodeCompressedTextChunk(chunk: Chunk): { keyword: string; text: string } | null {
+  const keyword = readNullTerminated(chunk.data, 0);
+  if (keyword === null) return null;
+
+  const inflate = (body: Uint8Array): string | null => {
+    try {
+      return Buffer.from(inflateSync(body)).toString('utf8');
+    } catch {
+      // Truncated or not actually zlib. Someone else's damage, and skipping it
+      // keeps the rest of the card readable.
+      return null;
+    }
+  };
+
+  if (chunk.name === 'zTXt') {
+    // keyword \0 compressionMethod(1) compressedText — and 0, zlib deflate, is
+    // the only method the format defines.
+    if (chunk.data[keyword.next] !== 0) return null;
+    const text = inflate(chunk.data.subarray(keyword.next + 1));
+    return text === null ? null : { keyword: keyword.value, text };
+  }
+
+  // iTXt: keyword \0 compressionFlag(1) compressionMethod(1) language \0
+  // translatedKeyword \0 text — the text being UTF-8, compressed only when the
+  // flag is set.
+  const compressed = chunk.data[keyword.next];
+  const method = chunk.data[keyword.next + 1];
+  const language = readNullTerminated(chunk.data, keyword.next + 2);
+  if (language === null) return null;
+  const translated = readNullTerminated(chunk.data, language.next);
+  if (translated === null) return null;
+
+  const body = chunk.data.subarray(translated.next);
+  if (compressed === 0) return { keyword: keyword.value, text: Buffer.from(body).toString('utf8') };
+  if (compressed !== 1 || method !== 0) return null;
+  const text = inflate(body);
+  return text === null ? null : { keyword: keyword.value, text };
+}
+
+/** Every text chunk a foreign tool might have written a card payload into. */
+function readAnyTextChunks(chunks: Chunk[]): { keyword: string; text: string }[] {
+  const found = readTextChunks(chunks);
+  for (const chunk of chunks) {
+    if (chunk.name !== 'zTXt' && chunk.name !== 'iTXt') continue;
+    const decoded = decodeCompressedTextChunk(chunk);
+    if (decoded !== null) found.push(decoded);
+  }
+  return found;
+}
+
 function readLegacy(chunks: Chunk[]): LegacyCard | null {
-  const texts = readTextChunks(chunks);
+  const texts = readAnyTextChunks(chunks);
   // V3 first: a card carrying both is a V2 card that was upgraded, and the
   // newer chunk is the one its author last edited.
   for (const keyword of LEGACY_KEYWORDS) {

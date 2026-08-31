@@ -75,7 +75,9 @@ export const OBJECT_FILENAMES = {
   // its contents to §7, which describes the *format* rather than the on-disk
   // shape. A stored package also holds embedded copies of its contents, so this
   // filename is the manifest rather than the whole object — and the arrangement
-  // is settled at P4 with import, not guessed at here.
+  // is settled with `.sepack` import and export, which [P4 §4] puts out of
+  // scope and places around P11. This comment said "settled at P4" until P4.0
+  // read it: P4 imports other people's formats and deliberately not our own.
   [PACKAGE_SCHEMA]: 'package.json',
 } as const satisfies Record<PortableSchemaId, string>;
 

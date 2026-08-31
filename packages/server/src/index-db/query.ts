@@ -132,6 +132,43 @@ export function findById(db: DatabaseSync, id: string): IndexedObject | null {
 }
 
 /**
+ * The object a previous import of the same source file produced, if there is
+ * one — [P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)'s
+ * re-import identity rule: **same owner, same kind, same
+ * `Provenance.originalFilename`.**
+ *
+ * That triple is the whole rule, and it is deliberately not id-based. Import
+ * mints fresh ids ([P4 §1.3]), because carrying a source id through would let
+ * one user's import collide with an object of another's that they cannot see —
+ * a hole in the anti-leak posture. And [02 §7.2]'s *link or duplicate* is
+ * package posture keyed on shared StoryEngine ids, which foreign files do not
+ * carry: a SillyTavern card has no id at all, and a world file's identity *is*
+ * its name.
+ *
+ * Read out of the indexed body rather than a column. The index is derived and
+ * rebuildable, so a query is cheaper than a migration — and provenance is
+ * already in `body` because the row caches the whole object.
+ */
+export function findPriorImport(
+  db: DatabaseSync,
+  owner: string,
+  schemaId: string,
+  originalFilename: string,
+): IndexedObject | null {
+  const row = db
+    .prepare(
+      `select * from object
+        where owner = ? and schema_id = ? and tombstoned_at is null
+          and json_extract(body, '$.provenance.source') = 'import'
+          and json_extract(body, '$.provenance.originalFilename') = ?
+        order by shadowed, path limit 1`,
+    )
+    .get(owner, schemaId, originalFilename) as RawRow | undefined;
+
+  return row ? hydrate(row) : null;
+}
+
+/**
  * A specific copy of a duplicated id, addressed by where it lives.
  *
  * `findById` answers with the *winner* — the earliest path — which is right for

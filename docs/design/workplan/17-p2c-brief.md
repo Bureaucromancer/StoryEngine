@@ -202,12 +202,12 @@ unless it is *worse* than described here, which is worth a line saying so.
 ### 3.1 There is no way to make anything
 
 > **Annotated 2026-08-30, after the phase.** The first two bullets stopped
-> being true at [P4.−1](06-p4-implementation.md): the library page has a **New
+> being true at [P4.5](06-p4-implementation.md): the library page has a **New
 > actor** control, and the conflict dialog's side door is no longer the only
-> thing that posts an object. The third is half retired — `curl` and
-> `pnpm seed` are still how the other five kinds get made. Left standing
-> rather than rewritten, because this file is a record of what the phase was
-> briefed on.
+> thing that posts an object. The third is half retired — import (P4.4), `curl`
+> and `pnpm seed` are how the other five kinds get made. Left standing rather
+> than rewritten, because this file is a record of what the phase was briefed
+> on.
 
 - **No "New ⟨anything⟩" control exists anywhere in the app.** Not for actors,
   lorebooks, treatments, personas, presets or packages. The library is a list
@@ -237,9 +237,10 @@ unless it is *worse* than described here, which is worth a line saying so.
   `{ archived: boolean }` with `additionalProperties: false`, so a rename is
   refused at the door.
 - **Library objects cannot be deleted from the UI.** Route, no caller.
-  *Retired at [P4.−1](06-p4-implementation.md): the detail page deletes
-  anything you own, except a shadowed copy, which is withheld on purpose
-  because a write resolves the id to the winner.*
+  *Retired at P4.4: the detail page deletes anything you own — except a
+  shadowed copy, which [P4.5](06-p4-implementation.md) withheld on purpose,
+  because a write resolves the id to the winner and would move the other file
+  (§7.10).*
 - **Actors *can* be renamed** — the phase document says otherwise and it is
   wrong. The actor editor's Name field saves. What does not happen is the folder
   moving: a slug is fixed at creation and a rename never changes it, so a

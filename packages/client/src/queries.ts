@@ -215,38 +215,6 @@ export function useCreateObject(): UseMutationResult<
   });
 }
 
-export function useDeleteObject(): UseMutationResult<
-  undefined,
-  Error,
-  { kind: LibraryKind; id: string; contentHash: string }
-> {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { kind: LibraryKind; id: string; contentHash: string }) =>
-      api.deleteObject(input.kind, input.id, input.contentHash),
-    /**
-     * **Remove the object's own entry before invalidating the lists, and the
-     * order is the point.** {@link useLibraryObject} keys on
-     * `['library', kind, id, address]`, which sits *under* the `['library']`
-     * prefix — so a bare invalidation refetches the object that was just
-     * deleted, takes its 404, and flashes "There is no such object" onto the
-     * page the user is still standing on while the navigation lands.
-     * `removeQueries` is synchronous, so doing it first leaves nothing to
-     * refetch.
-     *
-     * The editor's base goes too. It sits outside the `['library']` prefix by
-     * design (see {@link useEditorBase}), so nothing else here would reach it,
-     * and a cached base for a deleted object is a form over a file that is no
-     * longer there.
-     */
-    onSuccess: (_result, input) => {
-      client.removeQueries({ queryKey: ['library', input.kind, input.id] });
-      client.removeQueries({ queryKey: ['editor', input.kind, input.id] });
-      void client.invalidateQueries({ queryKey: ['library'] });
-    },
-  });
-}
-
 export function useRestoreVersion(): UseMutationResult<
   { contentHash: string; object: Record<string, unknown> },
   Error,

@@ -11,6 +11,7 @@ import { useCreateObject, useLibrary } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, page } from '../ui/classes.js';
+import { ImportPanel } from './ImportPanel.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -25,13 +26,12 @@ import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
  * machinery here are what that is built out of; see
  * [polish §4](../../../../docs/design/workplan/09-polish.md) for the change.
  *
- * **Making something lives here as of [P4.−1]**, and only for actors. That is
- * not a shortcut around the other five:
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) says the first editor owes
- * create, and the inverse of it is the rule this page follows — a New control
- * for a kind with no editor lands the user on a read-only page holding an empty
- * object they cannot fill in, which is a blank-page dead end rather than a
- * create affordance. The five arrive when their editors do.
+ * **Two ways in, and they sit at different heights on purpose.** Import is the
+ * bulk path and belongs to the whole library, so `ImportPanel` is above the
+ * filter. Making one thing is kind-scoped — it needs to know *what* to make —
+ * so it sits below the filter and reads it. When the filter becomes six panels
+ * ([polish §4]), the import panel stays where it is and the form is already
+ * the Actors panel's.
  */
 
 const routeApi = getRouteApi('/library');
@@ -45,6 +45,7 @@ export function LibraryPage(): JSX.Element {
     // container ([P3.−1] — `ui/classes.ts` has the why).
     <div className={page.tooling}>
       <h1 className="mb-4 text-title text-ink">Library</h1>
+      <ImportPanel />
       <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
         <FilterLink kind={undefined} current={search.kind} />
         {LIBRARY_KINDS.map((kind) => (
@@ -70,18 +71,26 @@ export function LibraryPage(): JSX.Element {
 /**
  * The create control, or the sentence that says why there is not one.
  *
+ * **Actors only, and that is the rule rather than the shortcut.**
+ * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) says the first editor owes
+ * create; read from the library's side it says the inverse, and the inverse is
+ * the constraint here — a *New lorebook* lands somebody on a read-only page
+ * holding an empty book they cannot fill in. The other five arrive with their
+ * editors.
+ *
  * **A sentence rather than a disabled button.** A greyed *New lorebook* is the
  * placeholder [Field](../ui/Field.tsx) rejects by name and
  * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) rejects in
  * general: it promises a control that cannot work and teaches nothing about
- * why. The sentence names the path that does work instead.
+ * why. The sentence names the paths that do work, and since P4.4 one of them
+ * is the panel above.
  */
 function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
   if (props.kind === undefined || props.kind === 'actors') return <NewActorForm />;
   return (
     <p className="mb-6 text-sm text-ink-subtle">
       Actors are the only kind that can be made here: creating one lands in an editor, and the other
-      kinds have none yet. The API creates any of them.
+      kinds have none yet. Import brings them in, and the API creates any of them.
     </p>
   );
 }
@@ -99,8 +108,9 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
  * **Nothing here builds an actor by hand.** `newActor` is what the API's own
  * create path calls, so the four conventional sections
  * ([10 §4](../../../../docs/design/10-schemas.md)) exist on an actor made in the
- * browser exactly as they do on one made with `curl`. A local literal would be
- * a second definition of *what a new actor is*, and the one that drifted.
+ * browser exactly as they do on one made with `curl` or one that arrived
+ * through an import. A local literal would be a second definition of *what a
+ * new actor is*, and the one that drifted.
  */
 function NewActorForm(): JSX.Element {
   const navigate = useNavigate();
@@ -116,10 +126,7 @@ function NewActorForm(): JSX.Element {
           event.preventDefault();
           if (!ready || create.isPending) return;
           create.mutate(
-            {
-              kind: 'actors',
-              object: newActor(name.trim()),
-            },
+            { kind: 'actors', object: newActor(name.trim()) },
             {
               // The id the *server* answered with, not the one minted above.
               // They agree today — `create()` echoes what it was posted — and
@@ -190,12 +197,21 @@ function ObjectTable(props: {
   if (props.objects.length === 0) {
     return (
       <p className="text-ink-subtle">
+        {/*
+         * **The empty state finally knows the word "import"** ([P4 §2], P4.4).
+         * It used to name the two ways in that existed — an API call and a file
+         * dropped into the data directory — which is an honest sentence to
+         * write when those are the only two, and a strange one to leave up once
+         * a person can point the app at their SillyTavern folder.
+         *
+         * It knows *make one* as well now, and the ordering is the claim: an
+         * empty library is overwhelmingly a pre-import state
+         * ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)), so import leads and the
+         * blank page follows.
+         */}
         {props.kind === undefined
-          ? // This used to name the API as the only way in, which stopped being
-            // true at [P4.−1]. The word it still owes is "import", and that one
-            // belongs to P4.4 along with the surface behind it.
-            'The library is empty. Name an actor above to make one, or drop a folder into the data directory — anything the API creates appears here too.'
-          : 'There is nothing of this kind in the library yet.'}
+          ? 'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.'
+          : 'There is nothing of this kind in the library yet. An import may bring some.'}
       </p>
     );
   }

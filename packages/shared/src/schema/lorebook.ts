@@ -236,7 +236,7 @@ export const Lorebook = Type.Object(
     folders: Type.Array(LoreFolder),
     /**
      * Optional. Hooks genuinely inseparable from this lore — eligible only while
-     * this lorebook is active. Settings remain the primary home.
+     * this lorebook is active. Treatments remain the primary home.
      */
     hooks: Type.Optional(Type.Array(PlotHook)),
     entries: Type.Array(LoreEntry),

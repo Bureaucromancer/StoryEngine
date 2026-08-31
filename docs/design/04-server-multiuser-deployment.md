@@ -419,7 +419,10 @@ interface Capabilities {
   /** May add and use their own connections. When false, only system
    *  connections resolve for this user. Default true. See §4.5. */
   privateConnections: boolean
-  /** In-UI file browser over their own directory. Default "none". [05 §4.2] */
+  /** In-UI file browser over their own directory, and — since [05 §4.2.2] —
+   *  naming a path outside /data for a read-only import sweep. Default "none".
+   *  Two powers under one name, deliberately; the widening and what it costs
+   *  are argued in [05 §4.2.2] rather than here. */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
    *  remains admin-only. Default false. [12 §7] */

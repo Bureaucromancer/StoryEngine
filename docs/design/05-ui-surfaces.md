@@ -524,10 +524,55 @@ Scoped roots, resolved and enforced server-side:
 | `/data/system/connections/` | **never** | never — system connections are usable, not readable ([04 §4.5](04-server-multiuser-deployment.md)) |
 | `/data/users/<other>/` | never | never |
 | `/data/config.json`, `/data/index/`, operational state | never | never |
+| Any path **outside `/data`**, named by the user, read-only, import only | yes — §4.2.2 | n/a |
 
 **Content roots, not the whole user directory.** An earlier draft rooted this at
 `/data/users/<own handle>/` and reasoned that everything in it is theirs to
 break. That was wrong, and §4.2.1 is why.
+
+#### 4.2.2 The import sweep widens `read`, deliberately — and `/data` is carved out
+
+*Added 2026-08-30, decided for [P4 §1.3](workplan/06-p4-implementation.md).*
+P4's server-side directory sweep points the server at a SillyTavern or Marinara
+data directory somewhere on the host and reads it. Nothing in the table above
+covers that: every row is a path under `/data`, and the capability was written
+and named for **a file browser over the user's own directory**. Gating the sweep
+on `fileAccess` without saying so would have widened a scoped permission by
+implication, which is the failure §4.2.1 exists to record.
+
+**So it is widened by decision instead, and the widening is one row:**
+`fileAccess: "read"` also permits *naming a path outside `/data` for a
+read-only import sweep*. Two things make that a bounded grant rather than a
+blank one:
+
+- **`/data` is carved out.** A sweep root inside the data directory is refused,
+  whatever the table above says about the user's own content. Otherwise
+  `fileAccess: "read"` would become a route to `/data/users/<other>/library/` —
+  which the table says `never`, and which the 404-for-everything posture
+  ([04 §4.4](04-server-multiuser-deployment.md)) exists to prevent. The file
+  browser reaches the user's own content; the sweep reaches foreign apps. They
+  do not overlap, and the code enforces the gap rather than trusting the two
+  rules to stay compatible.
+- **Read-only, and the report is relative.** The sweep never writes to the
+  source, and [13 §4.1](13-internal-contracts.md)'s foreign-path doctrine names
+  files relative to the sweep root rather than absolutely, so the review does
+  not become a filesystem map.
+
+**The cost, named rather than filed under "not a security product".** Inside
+that carve-out this is still host filesystem read, through the server's own
+user, of any directory the grantee names — the review counts what it saw even
+where it converts nothing, so filenames are disclosed even when contents are
+not. The default stays `none` and the grant stays admin-only, and the honest
+statement of the bar is: **grant this to someone you would give a shell to on
+that machine.** That is a stronger requirement than the rest of the capability
+carries, which is precisely why it is written here instead of being left to be
+inferred from a phase document.
+
+**And the surface has to say so.** The account settings today label this
+capability `No file browser` / `May read their own files` / `May edit their own
+files` — three labels that describe only the browser. A widened permission
+behind unchanged labels is worse than no permission at all, so the relabel ships
+with the sweep ([P4 §2](workplan/06-p4-implementation.md), P4.4), not after it.
 
 #### 4.2.1 `account.json` is not content
 
@@ -625,10 +670,10 @@ somebody else's — rather than a place they begin, and §2.1 has play's own
 conveniences emitting ordinary objects into it. The list was written from
 where things come from, and blank-page creation genuinely is the rarest path
 in. What that missed is that it is not a path which can be *absent*: an empty
-library with no import to run is what every new install has, and for four
-phases the answer to *make me an actor* was `curl`
-([api.md](../api.md)). Both verbs are in the list now; the affordances arrive
-at [P4.−1](workplan/06-p4-implementation.md).
+library and nothing to import from is what a new install without a
+SillyTavern folder has, and for four phases the answer to *make me an actor*
+was `curl` ([api.md](../api.md)). Both verbs are in the list now — delete at
+P4.4, create at [P4.5](workplan/06-p4-implementation.md).
 
 **They are not symmetrical, and the asymmetry is a rule rather than an
 accident of what got built first.** Delete belongs to any kind a user owns,
@@ -694,8 +739,26 @@ Where it should differ:
   ([02 §5.2.3](02-data-model.md)) — singly and in bulk. On disk everything stays
   a folder; the single-file form exists for exchange only.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
-  what went to `compat`, what resolved, what dangled, and let the user fix it
-  before committing.
+  what went to `compat`, what resolved, what dangled, ~~and let the user fix it
+  before committing~~ — **and it commits first, then reports**.
+
+  *Amended at P4.4, by strike rather than quietly, because the old words were
+  load-bearing for anyone reading this section next
+  ([P4 §1.4](workplan/06-p4-implementation.md) argues it in full).* The original
+  clause predates the machinery that makes post-hoc the better answer. A staging
+  area is a second library to maintain — [01 §2.2]'s
+  nothing-built-to-be-discarded, in miniature. Dangling references are
+  survivable, visible and non-blocking *by stance* ([00 §3.3]: resolve by id,
+  fall back to name match, show missing and carry on), so there is nothing a
+  person must fix before commit for the library to be safe — and import is
+  exactly where that name-match middle step earns its keep. And a
+  three-hundred-object sweep gated per-object on a human is not a review, it is
+  a chore.
+
+  **What post-hoc costs is paid rather than assumed**: the object detail page
+  grew a delete affordance in the same stage, because *the trash and the version
+  history make it reversible* was true on disk and false in the app for three
+  phases.
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job

@@ -20,3 +20,11 @@ packages/shared/schemas/
 # Recorded provider exchanges: the bytes are the fixture, and the recorder
 # owns their formatting.
 packages/server/src/providers/fixtures/
+
+# Claude Code's local state — and its scratch worktrees, which are whole second
+# checkouts of this repository. Every entry above is anchored to the root, so
+# none of them reach inside one, and a machine that has ever made a worktree
+# fails the gate over a copy of files already ignored here. `launch.json` is the
+# one file under `.claude/` that git tracks, so it stays formatted.
+.claude/*
+!.claude/launch.json

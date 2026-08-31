@@ -664,19 +664,32 @@ first version: drop connection fields unconditionally and report them
 rather than flattening them to the top, and name every lossy conversion in the
 review instead of implying fidelity.
 
-**Demonstrable:** point it at a real SillyTavern data directory and get a
-populated library, with a review step showing what resolved, what went to
-`compat`, and what dangled — and a converted preset whose block list, read in the
-workbench, is recognisably the preset that went in.
+**Demonstrable:** point it at a real SillyTavern data directory — **or a real
+Marinara data directory** — and get a populated library, with a review step
+showing what resolved, what went to `compat`, and what dangled — and a converted
+preset whose block list, read in the workbench, is recognisably the preset that
+went in.
+
+*The second arm was added 2026-08-29 ([P4 §1.5](06-p4-implementation.md)).*
+Marinara's library is a relational store rather than a folder of files, so a
+second folder source is not a second helping of the same work — it is what
+decides the shape of the sweep engine, which is why it was settled before P4.0
+rather than during P4.3.
 
 **Then stop — this is where PLAYABLE falls (§4.1).**
 
 ### P5 — Lorebooks and retrieval
 
-**Skeleton: [07](07-p5-implementation.md)**, restructured into two halves — the
-book as a *document* first, the retriever second, because half of *why doesn't
-this entry fire* is a reading problem before it is a matching one. Must be
-revisited after PLAYABLE, whose findings are about exactly this phase's subject.
+**Expanded into a working plan: [07](07-p5-implementation.md)**, restructured
+into two halves — the book as a *document* first, the retriever second, because
+half of *why doesn't this entry fire* is a reading problem before it is a
+matching one.
+
+**Half-revisited, deliberately.** Audited against the repo at P4's close, with
+the decisions that audit forces settled and the four that genuinely need
+PLAYABLE's findings marked and left open. That checkpoint's findings are about
+exactly this phase's subject, so the remaining half of the revisit waits for
+them rather than guessing.
 
 Full activation semantics, folders, the two-tier budget, trim order, skip
 reporting. Now testable against P4's real library rather than fixtures.

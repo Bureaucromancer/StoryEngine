@@ -50,8 +50,8 @@ export const SCENE_PRESET: Preset = {
         "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
     },
     {
-      id: 'se.setting',
-      label: 'setting',
+      id: 'se.treatment',
+      label: 'treatment',
       role: 'system',
       enabled: true,
       placement: {
@@ -63,7 +63,7 @@ export const SCENE_PRESET: Preset = {
       omitWhenEmpty: true,
       kind: 'slot',
       source: {
-        of: 'setting',
+        of: 'treatment',
         part: 'framing',
       },
     },

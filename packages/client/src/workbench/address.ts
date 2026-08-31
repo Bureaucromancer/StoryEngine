@@ -23,12 +23,17 @@ import type { BlockSource } from '@storyengine/shared';
  * - **samples** names a sample inside whichever object carried it. The actor
  *   carrier links, for the reason `actor` does — it is a library object with a
  *   page. Treatment and Lorebook get a label until those pages exist.
- * - **preset / input / guidance / step / channel / setting / goal** — no
- *   library object behind them at this phase.
+ * - **preset** names a block in the session's *copied* pack. The copy keeps the
+ *   id it was copied from, so an **imported** preset links back to the file it
+ *   came out of — which is what P4.4's demo turns on. A pack copied from a mode
+ *   default, and every record written before P4.4, carries no id, and those get
+ *   a label like anything else.
+ * - **input / guidance / step / channel / treatment / goal** — no library
+ *   object behind them at this phase.
  */
 export interface SourceAddress {
   label: string;
-  link?: { kind: 'actors'; id: string };
+  link?: { kind: 'actors' | 'presets'; id: string };
 }
 
 /**
@@ -44,6 +49,16 @@ const SOURCE_LABELS: Record<string, string> = {
   history: 'History',
   samples: 'Writing sample',
   channel: 'Channel',
+  treatment: 'Treatment',
+  /**
+   * The retired spelling of the arm above, kept rather than replaced. The slot
+   * literal became `treatment` at P4.0 ([P4 §1.7]) because the docs had spelled
+   * it that way since [10 §6]'s rename and the code never followed — but a turn
+   * record is free-to-move tier, and every record committed before that day
+   * carries `kind: 'setting'` forever. The open map is exactly the mechanism
+   * that lets an old record keep rendering, so this entry is that rule being
+   * used rather than an exception to it, and it costs one line.
+   */
   setting: 'Setting',
   goal: 'Goal',
   guidance: 'Guidance',
@@ -57,6 +72,10 @@ export function blockSourceAddress(source: BlockSource): SourceAddress {
 
   if (source.kind === 'actor') {
     return { label, link: { kind: 'actors', id: source.actorId } };
+  }
+
+  if (source.kind === 'preset' && typeof source.presetId === 'string') {
+    return { label, link: { kind: 'presets', id: source.presetId } };
   }
   if (source.kind === 'persona' && source.actorId !== null) {
     return { label, link: { kind: 'actors', id: source.actorId } };

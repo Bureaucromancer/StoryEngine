@@ -179,7 +179,7 @@ catastrophic to break: first-run setup, create an actor, import a card, start a
 session, take a turn, branch, open the workbench.
 
 *"Create an actor" meant through the API when this was written, because the
-browser had no way to. Since [P4.−1](06-p4-implementation.md) it does, so the
+browser had no way to. Since [P4.5](06-p4-implementation.md) it does, so the
 journey is a journey: name it on the library page, land in the editor, save.
 The tier is still unbuilt.*
 
@@ -256,6 +256,29 @@ redistributable. Practical answer — synthesise cards that exercise the same
 structural edge cases, keep a handful of explicitly-permissive real ones, and
 maintain a larger private local corpus for manual verification that never enters
 the repository.
+
+**Which corpus CI runs, settled 2026-08-29** ([P4 §1.2](06-p4-implementation.md)
+owed this sentence and took it early): **CI runs the in-repo set** — synthesised
+plus permissive — per-PR for schema validation and nightly for the full import
+run. §6's "full wild-corpus import run" cannot mean the private corpus, because
+CI cannot run a corpus that never enters the repository. **The private corpus is
+walked by hand**, at gate time and whenever fidelity bugs arrive, with findings
+triaged into synthesised fixtures that *can* enter the repo.
+
+**And a correction to the tense: the private corpus does not exist yet.** There
+is no used SillyTavern data directory and no used Marinara install on hand, so
+the in-repo synthesised corpus carries P4 on its own and the hand-walk is a
+named outstanding task rather than a prerequisite that was quietly assumed done.
+
+**Synthesising for a source whose library is a database.** P4 imports two folder
+sources, and only one of them is a tree of files. A Marinara fixture is a
+**data root** — a `storage/manifest.json` and hand-authored table snapshots,
+including one sharded table so both on-disk layouts are exercised
+([source survey §1](../01-source-survey.md)). The source checkouts are schema
+oracles,
+cited by commit; the rows are ours. Copying an install's bundled default
+character into a fixture would be redistributing somebody's authored card under
+cover of a test, which is the thing this section exists to prevent.
 
 ### 5.1 The importers must be tested against each other
 

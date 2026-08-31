@@ -471,6 +471,25 @@ mechanical part.
   (SillyTavern uses `jimp`, presumably to stay native-dependency-free; a server
   can afford `sharp`.)
 
+*Two more arrived at P4.1, argued here rather than noticed in a lockfile:*
+
+- **`liquidjs`** for block templates — [triage §7](workplan/02-triage.md)'s BUY,
+  and the language [03 §5](03-modes-and-turn-pipeline.md),
+  [08 §8](08-infinite-worlds.md) and [10 §8.4.2](10-schemas.md) had all already
+  chosen. It could not be deferred past import: the macro table converts
+  SillyTavern's macros *into* Liquid, so without a renderer a converted preset's
+  `{{char}}` reaches the model as literal braces, and PLAYABLE would be testing
+  prompt garbage. **What makes it a safe dependency is the fence rather than the
+  library**: rendering is block-scoped over a closed namespace of two names, so
+  the surface we depend on is `parseAndRenderSync` and nothing else. Swapping it
+  would be a day's work, which is the test §6 applies to the framework.
+- **`@fastify/multipart`** for the one upload route. The first non-JSON body this
+  server accepts, and the reason `limits.maxUploadMb` stopped being a live key
+  nobody read. First-party to Fastify, so it shares the framework's own
+  maintenance and versioning rather than adding a second thing to track.
+
+Both are MIT and pinned exactly, like everything above them.
+
 ### 7.1 Turn text in the index is a feature, not a side effect
 
 The FTS5 line above says *"cards, entries and turn text"*, and the third of those

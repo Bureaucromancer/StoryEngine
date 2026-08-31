@@ -62,7 +62,7 @@ rendering and a small piece of design.
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition
 should come from the same place the fields do, rather than growing a second list
-of kinds. *Half paid at [P4.−1](06-p4-implementation.md), and by the route this
+of kinds. *Half paid at [P4.5](06-p4-implementation.md), and by the route this
 note predicted: Delete needed the same gate, so rather than a second copy of it
 the ownership half became one predicate both read. What is left is the part this
 note is actually about — the `actors` half, which still names a kind and should
@@ -223,7 +223,7 @@ panels are named for the kinds. What is left here is the client work.
   answer than today's mixed list, not a better one.
 - **Each panel also supplies whether its kind can be made here**, which is the
   fourth thing alongside columns, sort and empty state.
-  [P4.−1](06-p4-implementation.md) put a **New actor** control on the merged
+  [P4.5](06-p4-implementation.md) put a **New actor** control on the merged
   list and a sentence in place of one on the five kinds with no editor to land
   in; splitting the list into panels is what turns that sentence into a
   per-panel property. [05 §5](../05-ui-surfaces.md) carries the rule — create

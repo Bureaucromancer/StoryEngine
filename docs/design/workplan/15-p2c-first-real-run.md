@@ -1125,10 +1125,10 @@ is kept as written, with its errors, because two of them are instructive:
 exists per user and nothing writes it (P8's) — *nor reads it, so the directory is
 never created*; branching is a storage affordance with no route (P6's); sessions
 and library objects cannot be deleted or renamed from the UI; nothing creates a
-library object of any kind. *Both halves of that last clause were retired at
-[P4.−1](06-p4-implementation.md), after this phase: the library page makes an
-actor and the detail page deletes anything you own. Kept as written, like the
-rest of the list.*
+library object of any kind. *Both halves of that last clause were retired after
+this phase, one stage apart: the detail page deletes anything you own at P4.4,
+and the library page makes an actor at [P4.5](06-p4-implementation.md). Kept as
+written, like the rest of the list.*
 
 **The two errors.** *"Cannot be renamed"* is false for actors: the actor editor's
 Name field saves, and what actually cannot happen is the folder moving, because a

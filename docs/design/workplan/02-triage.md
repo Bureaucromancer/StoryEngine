@@ -333,6 +333,15 @@ The design this framing proposes to contribute is a design Marinara already had,
 written by its own people, which did not survive contact with 712 commits of other
 work. A long-running outside feature branch would fare worse, not better.
 
+*Amended 2026-08-29, and the argument is unaffected:* gone from the remote is not
+gone. A local checkout at `a5b72ef91b8867c2e3bff547ad25d1df2f0eb8c6` (2026-08-04)
+still carries `types/scenario.ts` and the four planning documents, and
+[01 §1](../01-source-survey.md) now records where. That makes the artefact
+readable — which matters for P4 and for [02 §3](../02-data-model.md)'s
+borrowings — and changes nothing about the cadence: the point was never that the
+files were unrecoverable, but that the work did not survive in the tree people
+actually run.
+
 **The honest form of the objection, kept because it is the strongest thing here:**
 this framing optimises a different objective. It asks *how do these ideas reach
 users soonest*, and the answer to that question really might be Marinara. It does
@@ -349,7 +358,7 @@ stated as one rather than dressed up as a refutation.
 unaffected and, if anything, worth more now than when they were written. §2 priced
 the lift honestly for *code* — the good parts are entangled with what is being
 discarded, and that remains true. What has changed is the cost of a PORT, which
-was implicitly priced at hand-reimplementation: re-expressing 4,450 lines of
+was implicitly priced at hand-reimplementation: re-expressing 4,666 lines of
 import edge cases, or a keyword scanner's activation semantics, against a new
 model is materially cheaper at this project's demonstrated working rate than it
 was when §2 was written. The conclusion does not flip — it sharpens. **Take the
@@ -408,7 +417,7 @@ suite absent across 518k lines does not appear.
 |---|---|---|---|
 | PNG card chunk read/write | ST `character-card-parser.js` | **ADOPT/BUY** | ~120 lines over two npm packages. Technique matters more than code: splice chunks, never re-encode pixels. |
 | Card V2/V3 + CHARX import | ST + Marinara `st-character.importer.ts` (869 ln) | **PORT** | The edge cases are the asset, not the code. |
-| ST lorebook / chat / preset import | Marinara `import/` (~4,450 ln total) | **PORT** | The single largest body of "someone already found the edge cases" in any of the three. |
+| ST lorebook / chat / preset import | Marinara `import/` (4,666 ln at `34442e26d`) | **PORT** | The single largest body of "someone already found the edge cases" in any of the three. `st-bulk.importer.ts` (841 ln) is a folder scan of an ST user tree — direct prior art for P4's sweep. |
 | ST chat-completion **prompt manager** — `prompts[]` + `prompt_order[]` | ST `public/scripts/PromptManager.js`, `openai.js` | **PORT the model, rebuild the code** | The closest prior art to our block assembler, and it independently arrived at the slot-versus-text split we need ([10 §8.1](../10-schemas.md)). Its `prompts[]` already separates `marker: true` placeholders from authored `content`. The conversion path is mostly renaming ([10 §8.4](../10-schemas.md)). |
 | ST preset `sensitiveFields` handling | ST `openai.js` | **REBUILD, harder** | ST detects proxy URLs and passwords in presets on import *and* export, and offers to strip them — with "Import as-is" among the options. Ours drops them unconditionally, because `Preset` has nowhere to put them ([10 §8.4.4](../10-schemas.md)). |
 | Instruct / context / reasoning presets | ST | **DISCARD** | Raw-completion plumbing ([00 §2.2](../00-stance.md)) and reasoning-block parsing nothing consumes at 1.0. |

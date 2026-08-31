@@ -9,7 +9,16 @@ import { newActor } from '@storyengine/shared';
 import { CardFormatError, envelope, type BlobStore } from './envelope.js';
 import { codecFor, requireCodecFor } from './index.js';
 import { CARD_MEDIA_CHUNK, CARD_TEXT_KEYWORD, pngCardCodec } from './png.js';
-import { base64TextChunk, decodeChunks, makePng, pixelBytes, withChunks } from './test-png.js';
+import {
+  base64ITextChunk,
+  base64TextChunk,
+  base64ZTextChunk,
+  decodeChunks,
+  makePng,
+  pixelBytes,
+  withChunks,
+  type Chunk,
+} from './test-png.js';
 
 /**
  * The card envelope — docs/design/workplan/03-p1-implementation.md §P1.3.
@@ -148,6 +157,69 @@ describe('a V2/V3 chara card still parses', () => {
     const card = withChunks(makePng(), [base64TextChunk('chara', v2), base64TextChunk('ccv3', v3)]);
 
     expect(codec.read(card).legacy).toEqual({ keyword: 'ccv3', data: v3 });
+  });
+
+  /**
+   * The class of card the reader could not see at all until P4.0. Character
+   * Tavern writes its payload into a **compressed** `zTXt` chunk, and a reader
+   * handling `tEXt` alone does not fail on such a file — it fails to recognise
+   * it as a card, which is the worse outcome: the sweep files it under *not
+   * recognised* and the person reads that as *this tool cannot open my cards*.
+   */
+  it('reads a chara payload from a compressed zTXt chunk', () => {
+    const card = withChunks(makePng(), [base64ZTextChunk('chara', v2)]);
+
+    expect(codec.read(card).legacy).toEqual({ keyword: 'chara', data: v2 });
+  });
+
+  it('reads a chara payload from iTXt, compressed or not', () => {
+    for (const compressed of [true, false]) {
+      const card = withChunks(makePng(), [base64ITextChunk('chara', v2, compressed)]);
+
+      expect(codec.read(card).legacy, `iTXt, compressed: ${String(compressed)}`).toEqual({
+        keyword: 'chara',
+        data: v2,
+      });
+    }
+  });
+
+  it('prefers ccv3 over chara across chunk types, not only within one', () => {
+    // The V3-first rule is about which payload the author last edited, and
+    // nothing says the two have to arrive in the same kind of chunk. Searching
+    // per chunk type would have made the answer depend on how each was stored.
+    const v3 = { ...v2, spec: 'chara_card_v3' };
+    const card = withChunks(makePng(), [
+      base64TextChunk('chara', v2),
+      base64ZTextChunk('ccv3', v3),
+    ]);
+
+    expect(codec.read(card).legacy).toEqual({ keyword: 'ccv3', data: v3 });
+  });
+
+  it('survives a compressed chunk that is damaged, and still reads the rest', () => {
+    // Someone else's damage is not a reason to refuse the file. A truncated
+    // zlib stream is skipped and the readable chunk still answers.
+    const damaged: Chunk = {
+      name: 'zTXt',
+      data: Uint8Array.from(
+        Buffer.concat([Buffer.from('ccv3', 'latin1'), Buffer.from([0, 0, 0x78])]),
+      ),
+    };
+    const card = withChunks(makePng(), [damaged, base64TextChunk('chara', v2)]);
+
+    expect(codec.read(card).legacy).toEqual({ keyword: 'chara', data: v2 });
+  });
+
+  it('preserves a foreign compressed chunk through a write of ours', () => {
+    // `write()` drops only what it owns, so a card whose payload lives in zTXt
+    // stays a valid card for the tool that wrote it ([P4 §1.3]).
+    const card = codec.write(
+      withChunks(makePng(), [base64ZTextChunk('chara', v2)]),
+      envelope(newActor('Vera Solano')),
+    );
+
+    expect(decodeChunks(card).some((chunk) => chunk.name === 'zTXt')).toBe(true);
+    expect(codec.read(card).legacy).toEqual({ keyword: 'chara', data: v2 });
   });
 
   it('reports both when a card carries a legacy chunk and one of ours', () => {

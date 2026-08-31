@@ -93,7 +93,7 @@ export function contentHashOf(bytes: Uint8Array): string {
  * rather than a mirror ([02 §5.2](../../../../docs/design/02-data-model.md)) — so this is
  * where the card codec attaches. Everything else is a file read and a parse.
  */
-function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unknown {
+export function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unknown {
   if (parsed.schemaId !== ACTOR_SCHEMA) {
     return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   }

@@ -76,7 +76,11 @@ describe('GET /api/admin/config', () => {
     const response = await server.request({ method: 'GET', url: '/api/admin/config' });
 
     expect(response.body.appliers['log.level']).toBe('applied');
-    expect(response.body.appliers['limits.maxUploadMb']).toBe('unread');
+    // The exemplar moved at P4.1: `limits.maxUploadMb` became `applied` when
+    // the upload route arrived and started reading it per request, so the
+    // still-honest example is a key nothing reads yet.
+    expect(response.body.appliers['trash.retentionDays']).toBe('unread');
+    expect(response.body.appliers['limits.maxUploadMb']).toBe('applied');
   });
 
   it('names the file it would write to', async () => {

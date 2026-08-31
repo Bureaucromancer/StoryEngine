@@ -303,7 +303,7 @@
                     ],
                     "properties": {
                       "of": {
-                        "const": "setting",
+                        "const": "treatment",
                         "type": "string"
                       },
                       "part": {

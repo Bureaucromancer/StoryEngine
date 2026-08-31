@@ -18,9 +18,9 @@ version history behind a History control: every change snapshots the state it
 replaced, hand edits included, and any version can be restored, diffed, pinned
 or renamed. Name an actor on the library page to make one, and delete anything
 you own from its detail page — the folder moves to your trash rather than being
-erased. The other five kinds stay read-only for now, so *creating* one of those
-still happens through the API ([`docs/api.md`](docs/api.md)); creation follows
-each kind's editor.
+erased. The other five kinds stay read-only for now, so one of those arrives by
+import or through the API ([`docs/api.md`](docs/api.md)) rather than from a
+blank page; creation follows each kind's editor.
 
 The storage thesis this phase exists to prove does work end to end: create an
 actor through the API, watch the folder appear, hand-edit a lorebook on disk in
@@ -64,8 +64,8 @@ that rather than a thing of its own:
 The proxy is what keeps the two same-origin, so the session cookie is sent
 normally and there is no CORS anywhere. Port 8080 serves no files — pointing a
 browser at it is not useful, but pointing `curl` at it is a first-class way to
-work ([`docs/api.md`](docs/api.md)) — and the only way to create the five kinds
-that have no editor yet.
+work ([`docs/api.md`](docs/api.md)) — and, alongside import, the way the five
+kinds that have no editor yet get made.
 
 Either half runs on its own, which is the point of keeping them separate:
 

@@ -24,7 +24,7 @@ import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from '@storyengine/shared';
  * Found by walking the P2 gate as a checklist rather than by a failure, which is
  * the only way a gap like this surfaces: there is nothing to go red.
  *
- * The second half of the file is [P4.−1]'s: the page can now make an actor.
+ * The second half of the file is [P4.5]'s: the page can now make an actor.
  */
 
 const listLibrary = vi.fn();
