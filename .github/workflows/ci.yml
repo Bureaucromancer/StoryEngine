@@ -69,6 +69,20 @@ jobs:
       # fast. `tsc -b` emits each package's dist, and the boundary rules classify
       # an import by its resolved path — which runs through those built entry
       # points. Linting an unbuilt workspace would pass for the wrong reason.
+      #
+      # The script behind this is `tsc -b --force`, and the `--force` is not for
+      # this job's benefit: a runner checks out cold, and `.tsbuildinfo` is
+      # gitignored, so nothing here was ever at risk. It is for the developer who
+      # runs `pnpm typecheck` before pushing. `tsc -b` skips a project whose
+      # inputs are all older than its build info, and then reports nothing — not
+      # a replay of the last diagnostics, but silence, because the project was
+      # never opened. Sixteen strict-null errors in two server test files lived
+      # on a green local gate that way. The `--max-warnings 0` note below states
+      # the principle this follows: the flag lives in `package.json` so that the
+      # command means the same thing here and on a developer's machine, and a
+      # check that only really runs in CI is a check nobody sees fail until it is
+      # someone else's problem. Roughly seven seconds, cold, for the whole
+      # workspace — cheaper than the class of bug it retires.
       - run: pnpm typecheck
 
       # `--max-warnings 0` lives in package.json's `lint:es`, not on this line,
