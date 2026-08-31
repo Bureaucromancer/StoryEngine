@@ -395,6 +395,9 @@ a symlink into the data directory is refused like a literal one.
   which is why this refuses rather than warns.
 - `422 {"error":"unknown-format"}` — written by a newer version than this build
   reads.
+- `422 {"error":"ambiguous-root"}` — the folder probes as two applications at
+  once. A wrong guess would convert a library through the wrong tables and the
+  review would report that it went fine, so this refuses rather than picks.
 
 Every refusal happens **before anything is written**. A refusal after the first
 object is a half-import, which is worse than none.
@@ -408,6 +411,103 @@ answer from `skipped`.
 **Source files in the report are named relative to the root**, never absolutely
 ([13 §4.1.1](design/13-internal-contracts.md)) — a review somebody pastes into an
 issue must not be a description of their filesystem.
+
+The response also carries `suggestions` — see below. A sweep of the wrong folder
+**succeeds**, because a directory matching no probe is swept as loose files, so
+nothing in the report itself says the wrong folder was named.
+
+### `POST /api/import/inspect`
+
+`{ root }` → `200 { verdict, suggestions }`. Says what a folder is without
+importing anything from it — the check behind the path box.
+
+Same permission and the same refusals as the sweep, because it reads the same
+way: `403 {"error":"no-file-access"}`, and every `422` listed above. A cheaper
+gate here would be a way to ask questions about the filesystem that the route
+which actually reads it refuses to answer.
+
+`verdict` is what the probes decided: `sillytavern`, `marinara`, or
+`loose-files` for a folder that matches nothing. Those are the only three a
+directory can produce — `marinara-archive` and `marinara-envelope` are members of
+the same vocabulary but are reached on the upload path, never by pointing at a
+folder.
+
+**It never lists a directory.** Every answer is a yes/no probe at a path this
+build already names in its own source. [05 §4.2.2](design/05-ui-surfaces.md)
+keeps the sweep's report relative so the review does not become a filesystem map;
+an endpoint that enumerated children would hand back exactly the map that clause
+refuses.
+
+`suggestions` is an array of near misses — the folder is recognisably part of a
+real SillyTavern or Marinara install, but is not the one to point at:
+
+```json
+{
+  "situation": "sillytavern-install-root",
+  "suggest": "data/default-user",
+  "root": "/home/bob/SillyTavern/data/default-user",
+  "leadsTo": "sillytavern",
+  "confidence": "verified",
+  "note": { "key": "import.root.sillytavernBelow", "params": { "path": "data/default-user" }, "level": "warn" }
+}
+```
+
+`suggest` is relative to the folder named; `root` is the absolute form a retry
+carries. `confidence` is `verified` when every mark of `leadsTo` was found at
+that path — so the classifier would agree — and `inferred` when the finding is
+read off the neighbourhood. `suggest` and `leadsTo` are both `null` for a folder
+that is recognised but whose right sibling cannot honestly be named, which is a
+real answer rather than a failure to have one: a SillyTavern data folder holding
+several people's libraries has no handle to guess, and a Marinara install from
+before 1.5.7 has no newer folder to point at.
+
+**A suggestion is advice, not a gate.** Acting on one sends a fresh absolute path
+back through this route or the sweep, which re-validate from scratch — the
+carve-out included.
+
+### `POST /api/import/directory/plan`
+
+`{ entries: [{ path, bytes }] }` → `200 { verdict, suggestions, wanted, declared, wantedBytes }`.
+The first half of a browser folder upload: what the folder is, and which of its
+files the importer will actually open.
+
+**No `fileAccess` gate, and that is the point of the transport.** The sweep reads
+the host's filesystem through the server's own user, which is why
+[05 §4.2.2](design/05-ui-surfaces.md) grants it to *somebody you would give a
+shell to*. This reads nothing — the browser opened the folder under the person's
+own credentials, and what arrives is a list of names they chose to send. An
+account that may upload one file may upload a folder of them.
+
+`entries` is every file in the picked folder, relative and `/`-separated, capped
+at 50,000. Names alone are enough to classify, because every probe is an
+existence question — so the verdict and the near-miss advice come back before a
+byte is uploaded. `suggestions` carries a `null` `root`: a browser upload has no
+path to point anywhere with, so acting on the advice means picking again.
+
+`wanted` is the paths to upload; `declared` is the rest. `422` for the same
+classification refusals as the sweep.
+
+### `POST /api/import/directory`
+
+`multipart/form-data` → `200 { report }`. The folder itself.
+
+Each file's **relative path travels as its field name** — a multipart filename
+cannot carry a directory and survive sanitising — and is rebuilt segment-wise
+with `.` and `..` dropped. A `manifest` field carries the full path list as JSON;
+an `onConflict` field is optional and means what it does on the sweep.
+
+**Named and not sent is not the same as absent.** Paths in the manifest without
+bytes are *declared*: listed, reported, and never read. That is what keeps
+*nothing is silently dropped* true across a transport that deliberately does not
+carry everything.
+
+- `400 {"error":"no-manifest"}` — a folder upload without its manifest.
+- `413 {"error":"too-large"}` — **the whole folder** past `limits.maxUploadMb`,
+  not each file in it. The limit is a running total; a thousand files each just
+  under it is still a thousand times it.
+- `415 {"error":"not-multipart"}`.
+
+No `suggestions` here — the plan step is where advice can still be acted on.
 
 ### `GET /api/library/:kind/:id/avatar`
 

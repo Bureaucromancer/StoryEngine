@@ -1909,3 +1909,302 @@ ways gives two actors, and two unrelated files sharing a name replace each other
 That is [§6.2](#62)'s open question about filename identity, reached from a new
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
+
+### 7.11 The wrong folder inside the right install — 2026-08-31
+
+**`classifyRoot` has never failed on a folder that is merely wrong**, and
+[§7.8](#78) made that worse rather than better. Every directory matching no probe
+answers `loose-files`, which was the correct call for the folder of cards
+somebody assembled by hand and is the wrong shape of answer for somebody who
+pointed at `C:\SillyTavern` instead of `C:\SillyTavern\data\default-user`. Before
+7.8 that sweep found almost nothing; after it, the loose walker asks every file
+what it is, so the same mistake now walks the whole checkout, converts whatever
+self-identifies — the sample content SillyTavern ships in `default/content/`
+included — and still cannot see the personas, because those are a join between
+`settings.json` and `User Avatars/` that only the positional reader makes.
+
+**A successful-looking import of the wrong things is worse than an empty one**,
+and it is exactly the case [§1.3](#13)'s own sentence names: *"I pointed it at my
+Marinara folder and it found four cards" is otherwise indistinguishable from
+success.* The verdict was made visible; what was missing is the advice.
+
+`import/near-miss.ts` is that advice. Given the folder somebody named, and the
+folder above it when there is one, it answers which of sixteen recognisable
+mistakes this is and what to point at instead — `data/default-user` for a
+SillyTavern install root, `public` for one older than 1.12, `packages/server/data`
+for a Marinara install root, `..` for somebody who picked `characters/`.
+
+**The invariant is what makes the false-positive question answerable.** A finding
+marked `verified` names a folder at which *the same marks `classifyRoot` uses*
+were all found, so following it produces a root the classifier agrees about. The
+marks are therefore never re-declared: `detect.ts` gained a `probeMarks(files,
+kind, prefix)` and evaluates its own table under a prefix. Two copies of a probe
+table is one copy that eventually stops matching — `marinaraPreflight`'s argument,
+applied one level out. The round-trip test is the property, and it is the only
+thing that would catch a prefix added to the table without its marks.
+
+**Four decisions worth keeping:**
+
+- **A suggestion is advice, not a gate.** Acting on one sends a fresh absolute
+  path back through `openLocalSource`, `classifyRoot` and `survey()`, which are
+  the real gates and are untouched. So the bar for speaking is *would not
+  embarrass us* rather than *safe to import*, which is why an inferred `../..` is
+  acceptable and a guessed `characters/` is not: the first costs a wrong hint,
+  the second tells somebody a lie about their own machine.
+- **No basename, ever.** The obvious implementation of *you picked `characters/`*
+  is to look at the picked folder's own name. It fails in both directions — a
+  hand-assembled folder called `characters` would be told its SillyTavern library
+  is one level up when the parent is somebody's Downloads, and a copied library
+  renamed `st-backup-2026` would be missed. The ascending rules probe the parent's
+  marks instead, which costs one `openParentSource` and is the same bar as
+  classification.
+- **The descent is not gated on install markers**, and that is deliberate rather
+  than lax. A Docker host directory holds `config/`, `data/`, `plugins/` and
+  `extensions/` and has no `server.js`, no `package.json` and no `public/`, while
+  `data/default-user` under it is perfectly valid. Requiring an install marker
+  before descending would read as prudence and silently drop that whole
+  population. The suggestion carries the full mark set, so it justifies itself.
+- **Where the evidence ran out, it says so rather than guessing.** SillyTavern
+  keeps user handles in node-persist rather than as directory names, so a
+  multi-user data folder gets a sentence and no path. A relocated `dataRoot` is
+  named as unknowable without reading `config.yaml`, which would need a YAML
+  parser this module has no business owning. Marinara's own `.env.example` tells
+  people to check both of its two possible data folders and not to delete either,
+  so when both are present both are offered and neither is chosen.
+
+**`POST /api/import/inspect` is the same reading without the import**, and it is
+behind the same `fileAccess` gate and the same `/data` carve-out, because it
+reads a foreign directory the same way. **It never lists a directory**: every
+answer is a yes/no probe at one of twenty-seven paths this build already names in
+its own source. [05 §4.2.2] keeps the sweep's report relative so the review does
+not become a filesystem map, and an endpoint that enumerated children would hand
+back precisely the map that clause refuses. What a person learns is whether the
+folder they already named is the one to use.
+
+**One clause of the plan is deliberately not discharged here.** [05 §4](../05-ui-surfaces.md)
+defers the file browser past 1.0 and this is not a down payment on it: there is
+no tree, no listing, and no way to discover a path you could not already type.
+
+**Cut and named:** a seventeenth rule, for a Marinara data root whose
+`FILE_STORAGE_DIR` was relocated so it has the asset folders and no `storage/`.
+It rested on which of those folders always exist, and several are created on
+demand by a route rather than seeded at boot — so unlike every other row it could
+not be grounded, and it would have been the one rule guessing.
+
+#### What an adversarial review of the near miss found
+
+Reviewed the way [§7.10](#710) was, by readers told to refute rather than
+confirm, across four lenses — security, rule correctness, test honesty, and
+whether the citations in the table check out. Twenty-four candidates, eleven
+upheld. One was a defect in the code; the rest divide almost evenly between
+tests that passed for the wrong reason and comments that cited the wrong line.
+
+**The defect: `verified` was a claim the code could not always keep.** Both
+sources are rooted at `realpath(root)` — `openLocalSource` resolves before
+constructing, and `openParentSource` takes `dirname` of that same resolved path
+— but the suggestion was made absolute against the *unresolved* string the
+caller sent. The two agree until a symlink is involved. Reproduced: with
+`decoy/st-characters` a link into a real library's `characters/`, the marks were
+probed in the library's user directory and the path handed back was `decoy/`, so
+a finding whose contract says *the classifier would agree* named a folder that
+classifies as `loose-files` — and following it would have swept an unrelated
+directory. The fix anchors the suggestion on the real path, and the regression
+test builds the junction rather than describing it.
+
+**Four rules could be reduced to one conjunct each with the suite green.** The
+SillyTavern program folder to `server.js` alone, the Marinara one to
+`pnpm-workspace.yaml` alone, the data folder to a lone `_storage`, the storage
+folder to a bare `tables/`. Each conjunction exists precisely because its first
+mark is a common name, so every one of those mutations turns the module into
+something that diagnoses ordinary Node projects as somebody's library. In every
+case the only fixture reaching the rule supplied all its marks at once, which is
+the *"a test written beside its fix is the easiest kind to write green"* class
+[§7.10](#710) already named, arriving through a different door.
+
+**Two suppressions and the already-a-source gate were deletable with the suite
+green**, for the same reason: no fixture was a complete install root, and both
+quiet-folder cases returned `[]` because no rule fired rather than because the
+gate stopped them. Pinning the gate needed a folder that is a valid source *and*
+matches a rule — a live Marinara data root that also carries the `data/`
+leftover.
+
+**And one test could not fail at all.** *Imports nothing — the library is
+untouched by a look* pointed at a fixture with nothing importable in it, so the
+empty library afterwards was the fixture's doing rather than the route's. It now
+carries a preset, and asserts that sweeping the same folder does produce it.
+
+**Three citations in the rule table were wrong**, which matters more here than
+usual because the table's whole claim to being checkable is that every row cites
+the source it came from. 1.11.8 keeps `public/settings.json` in
+`src/endpoints/settings.js`, not in `constants.js`. `slugify` does not strip
+characters outside `[a-z0-9]` — it replaces runs of them with a hyphen, and the
+leading-underscore guarantee comes from the *second* replace stripping leading
+hyphens, so the sentence had not been guarding the property it named. The
+installer's `marinara-engine.db` warning is at `:194`; `:196` is the `Abort`.
+A fourth, found while checking the others: the `<install>/data` case was
+attributed to a "v1.4.6 root-data era" that never existed — the earliest tag
+containing that commit is v1.5.0, the revert came six hours later rather than a
+day, and the commit produced `<install>/packages/data` anyway. The rule survives
+on evidence that is still true (the installer probes both paths; `.env.example`
+tells people to check both), and the archaeology is gone.
+
+**One sentence was false for half of what emitted it.** Two situations shared
+`import.root.sillytavernBelow`, whose words name the *program* folder — right
+for the install root, wrong for the data folder, which is the failure a shared
+class always has when the two things it names are not the same thing. Split.
+
+**A process note worth keeping.** The review agents ran their mutations in the
+working tree and left two of them in place, so a gate run between the review and
+reading its output was measured against tampered source. Nothing shipped from
+it, but the lesson generalises past this change: **a mutation is only evidence if
+it is reverted**, and a green suite proves nothing about a tree somebody else has
+been editing. Every rule was re-audited against the table afterwards, and the
+four mutations the review had used were re-run and are now caught.
+
+### 7.12 Import moves into the workbench — 2026-08-31
+
+*Asked for directly, and it cuts against [05 §3](../05-ui-surfaces.md). The
+tension is recorded here and written back into §3 rather than resolved by
+silence.*
+
+**What §3 says, and why this is not simply a violation of it.** The workbench is
+*"a panel, not a place"*, a **reader** whose *"subject follows the main view"*,
+and [05 §2] lists import under the Library surface. An import panel holds state
+and mutates, which is two of the three things §3 says the panel is not. What
+makes this admissible rather than a quiet reinterpretation:
+
+- **It is the subject over the library *list*, which had none.** [P3 §1.3] scoped
+  the panel to a single object's route because a list has no selection concept,
+  so over `/library` the dock has always rendered *nothing here has a record to
+  show*. [P3 §7.3] left open what a subjectless route should show. Import is the
+  answer for this one: the list as a whole is the thing it is about. The subject
+  still follows the main view, and the interim empty state survives everywhere
+  else — the sessions list now carries the test that used to live here.
+- **§3 already admits a mutating panel action.** *Promote a dry run* stays on the
+  condition that *"a panel that changes things has to say so more loudly than a
+  read-only one would"*, which the panel's *nothing is staged* sentence and the
+  review below it do at length.
+- **The review did not become addressable.** [P4 §1.4]'s argument — a report
+  somebody pastes into an issue wants a URL, and a panel scoped to the main view
+  can never be one — stands untouched, and so does P4's second named cut.
+
+**What moved is the mount, not the module.** `ImportPanel.tsx` stays where it is
+on disk: `note-labels.test.ts` greps it by literal path, and moving the file
+would mean editing that gate for no gain. The workbench renders it through a
+subject of its own.
+
+**The Library page keeps a way in**, because [05 §5] says the empty library
+*points at import* and a feature reachable only by knowing a keyboard chord is
+pointed at by nothing. The control patches `ui.workbench-open` rather than
+routing — [P3 §1.2] keeps that state out of the URL on the grounds that a
+URL-addressable panel is a place — and it opens rather than toggles, because a
+control that closes the panel it just opened is not what a button labelled
+*Import…* promises.
+
+**The fold, and why its default is upside down.** The controls collapse behind a
+`<details>` on `ui.import-open`, copying `AsStored`'s mount-time-toggle guard so
+that applying a stored preference does not write it back. **Open is the absence
+of the key**, which inverts what `AsStored` and the dock itself do — those fold
+detail away from a surface that is useful without it, whereas this panel *is* the
+controls, and greeting somebody with a closed fold labelled *Add to your library*
+would hide the whole surface by default. The review sits **outside** the fold, so
+collapsing the form leaves what it produced: the report outlives the controls,
+which is the reason collapsing is worth having at all.
+
+**The dock's width forced two changes that a wider column would not have.** At
+280–640px the three controls that sat side by side have nowhere to sit, so they
+stack; and the review's three-column table — file, disposition, notes — was
+mostly prose, so at the narrow end it degenerated into three columns of one word
+wrapped six times. It is a list now. Nothing numeric lined up across rows, so
+nothing was lost, and the material was one record per file rather than a grid all
+along. The counts stay a row: those genuinely are comparable across entries.
+
+**And the file chooser became a button in the same pass**, because the JSX was
+being rewritten onto the shared primitives anyway. `<input type="file">` renders
+as the user agent's own widget — grey, unlike anything else, reading as text
+rather than as a control — so the input is `sr-only` behind a real `Button` that
+clicks it, and the chosen filename is shown, since a picker whose choice leaves
+no trace is one you cannot check before committing to it. The panel had **no test
+for that path at all** before this; it has three now.
+
+### 7.13 The browser directory upload, un-cut — 2026-08-31
+
+**[§5](#5) cut this and named it first-to-cut, so reversing it needs a reason
+rather than an appetite.** The cut's argument was that *the server-path sweep
+alone still pays the demo on the install the demo describes; the upload variant
+is reach, not core*, and that was right about the demo. What it did not weigh is
+who the server path cannot serve at all:
+
+- **Somebody whose browser is not on the machine the server runs on** has no path
+  to type. StoryEngine is a self-hosted server; the household case is a box in a
+  cupboard and a laptop on the sofa, and for that person the sweep is not a
+  worse option, it is no option.
+- **`fileAccess` is admin-only and deliberately hard to grant.** [05 §4.2.2] sets
+  the bar at *somebody you would give a shell to on that machine*, which is the
+  right bar for reading arbitrary host paths and far too high for *I would like
+  to import my characters*.
+
+**So the two transports serve different people and both stay.** The browser
+upload needs **no `fileAccess` at all**, and that is the load-bearing difference
+rather than an oversight: the sweep reads the host's filesystem through the
+server's own user, while this reads nothing — the browser opened the folder under
+the person's own credentials, and what arrives is a list of names they chose to
+send. An account that may upload one file may upload a folder of them.
+
+**Two routes, because it is two questions.** *What is this folder, and what of it
+do you need* is answerable from **names alone**, since every probe in
+`detect.ts` and `near-miss.ts` is an existence question. So
+`POST /api/import/directory/plan` takes a manifest of relative paths and sizes
+and answers with the verdict, the near-miss advice, and the list of files worth
+carrying — all before a byte is uploaded. `POST /api/import/directory` then takes
+the manifest again alongside those files.
+
+**The whole folder is named; only some of it is sent.** A SillyTavern user
+directory is thirty directories and most of them are chats, backups, thumbnails
+and vectors — material the importer reports and never opens. Uploading it to
+learn that would move gigabytes to discover what a name already says. The rest
+arrive as `declared` paths on `MemoryFileSource`: `list()` yields them and
+`exists()` finds them, so **nothing is silently dropped** still holds — the
+review names them and says what they were — and `read()` answers `null`, which
+is the same answer an unreadable file gives and is handled the same way.
+
+**Which files are wanted is the registry's knowledge, not a second list.**
+`SILLYTAVERN_DISPOSITIONS` already says which directories hold convertible
+material, and it is the same table the walker routes by, so the two cannot drift
+into disagreeing about which folder holds the cards. Checked when this landed:
+the six directories the reader opens — `characters`, `worlds`, `OpenAI Settings`,
+`TextGen Settings`, `sysprompt`, `User Avatars` — are exactly the six the
+registry marks `converted`, plus `settings.json`, which is read because a persona
+is a join between it and `User Avatars/`. A loose root wants everything, honestly:
+[§7.8](#78) made it probe every file by content, so there are no positions to
+narrow by and the size budget is the only bound.
+
+**The defect found on review, which is the one worth recording.** The two halves
+disagreed about what `maxUploadMb` measures. `planUpload` spends it as a running
+*total* across every file it asks for; the upload route handed the same number to
+busboy as `fileSize`, which is **per part**. So a folder of a thousand files each
+just under the limit was a thousand times the limit, buffered into one object in
+memory — reachable from any signed-in account, precisely because this route is
+correctly *not* behind `fileAccess`. Reproduced before fixing: eight 200 KB files
+against a 1 MB limit returned `200`. The route now accumulates and refuses at the
+budget, and the test fails when that accumulation is removed.
+
+*A limit a well-behaved client respects and the server does not enforce is not a
+limit* — and this one had a client that respected it, which is exactly why
+nothing looked wrong.
+
+**A count cap rides behind the byte budget** (fifty thousand parts, the number
+`DEFAULT_LOCAL_LIMITS` and the manifest schema also use) and is **named as
+untested**: reaching it needs fifty thousand parts, so it is a backstop behind a
+bound that is checked rather than a second line anybody has watched hold.
+
+**Crafted paths are kept inside the folder.** The relative path travels as the
+multipart *field* name, because a filename cannot carry a directory and survive
+sanitising, and it is rebuilt segment-wise with `.` and `..` dropped. Nothing here
+touches a disk — these become keys in a `Map` — but a path that climbed would make
+the review describe a folder nobody picked.
+
+**No suggestions on the upload response**, unlike the sweep: a near miss names a
+*sibling folder* to point at, and a browser upload has no path to point anywhere
+with. The plan step says it instead, which is the moment a person can still act
+on it by picking again.

@@ -336,7 +336,36 @@ whose *"origin shows"*.
 below. Over an object in the Library it shows the raw truth of that object — the
 JSON as stored, the folder path, provenance, version history, the index rows —
 which is the depth [§2.1](#21-the-library-is-the-model-play-is-the-product)
-deliberately keeps out of a browse list.
+deliberately keeps out of a browse list. **Over the library *list*, it shows
+import.**
+
+*Added 2026-08-31, decided for [P4 §7.12](workplan/06-p4-implementation.md), and
+this section is where the cost is admitted rather than left to a phase document.*
+The list has no selection concept, so the panel over it was the empty state and
+[P3 §7.3] left open what it should be instead. Import is the answer for that one
+route: the list as a whole is what it is about. But import **holds state and
+writes**, which is two of the three things this section says the panel is not,
+and §2 files import under the Library surface. Three things keep that from being
+a quiet reinterpretation:
+
+- **The rule it appears to break is the one about *place*, not the one about
+  state.** The subject is still derived from the route and still changes when the
+  main view does; nothing is remembered across navigation. What the panel holds
+  is a server-side preference and the result of a request just made, which is
+  what every other subject holds too.
+- **A mutating panel action was already admitted here.** *Promote a dry run* is
+  kept below on the condition that a panel which changes things says so more
+  loudly than a reader would, and import is the loudest surface in the app about
+  what it just did.
+- **The review is still not addressable, and still should be.** [P4 §1.4]'s
+  argument stands: a report somebody pastes into an issue wants a URL, and a
+  panel scoped to the main view cannot be one. Import being reachable in the dock
+  does not discharge that, and P4's cut of it stays open.
+
+**The honest residue**: this is the first subject that is not a reader, and if a
+second one arrives the section should be rewritten around *what the main view is
+about* rather than around *the record it has*. One exception is a decision; two
+is a definition nobody updated.
 
 *The index rows*, decided at [P3 §7.4](workplan/05-p3-implementation.md): every
 row the index holds for the id — the winner first in portable-path order, the

@@ -3,6 +3,7 @@
 
 import {
   LIBRARY_DIRECTORIES,
+  type NearMissOffer,
   type Turn as TurnRecord,
   type TurnPreview,
 } from '@storyengine/shared';
@@ -385,12 +386,64 @@ export const api = {
     return requestForm('/api/import/file', body);
   },
 
-  /** Point the server at a folder ([P4 §1.3]). Needs `fileAccess`. */
+  /**
+   * Point the server at a folder ([P4 §1.3]). Needs `fileAccess`.
+   *
+   * `suggestions` is advice about the folder that was named, not part of the
+   * report — a loose-files sweep succeeds even when the wrong folder was picked,
+   * and this is what says so.
+   */
   importSweep: (
     root: string,
     onConflict?: 'replace' | 'keep-both' | 'skip',
-  ): Promise<{ report: ImportReport }> =>
+  ): Promise<{ report: ImportReport; suggestions: NearMissOffer[] }> =>
     request('POST', '/api/import/sweep', { root, ...(onConflict ? { onConflict } : {}) }),
+
+  /**
+   * What a folder is, without importing from it — the check behind the path box.
+   *
+   * Same permission and same refusals as the sweep, because it reads the same
+   * way. It never lists a directory: the answer is what the folder *is* and, if
+   * it is the wrong one, where to point instead.
+   */
+  importInspect: (root: string): Promise<{ verdict: string; suggestions: NearMissOffer[] }> =>
+    request('POST', '/api/import/inspect', { root }),
+
+  /**
+   * What a picked folder is, from its names alone — before anything is uploaded.
+   *
+   * Needs no `fileAccess`: the browser opened the folder as the person, so what
+   * travels is a list they chose to send rather than a read of the host's disk.
+   */
+  importDirectoryPlan: (
+    entries: { path: string; bytes: number }[],
+  ): Promise<{
+    verdict: string;
+    suggestions: NearMissOffer[];
+    wanted: string[];
+    declared: string[];
+    wantedBytes: number;
+  }> => request('POST', '/api/import/directory/plan', { entries }),
+
+  /**
+   * The folder itself: every name, and the bytes of the files the plan asked
+   * for.
+   *
+   * The relative path travels as each part's **field name**, because a multipart
+   * filename cannot carry a directory and survive sanitising — and the manifest
+   * goes with it, so the review can account for what was named and not sent.
+   */
+  importDirectory: (
+    manifest: string[],
+    carried: { path: string; file: File }[],
+    onConflict?: 'replace' | 'keep-both' | 'skip',
+  ): Promise<{ report: ImportReport }> => {
+    const body = new FormData();
+    body.append('manifest', JSON.stringify(manifest));
+    if (onConflict !== undefined) body.append('onConflict', onConflict);
+    for (const { path, file } of carried) body.append(path, file, file.name);
+    return requestForm('/api/import/directory', body);
+  },
 
   history: (kind: LibraryKind, id: string): Promise<{ versions: ObjectVersion[] }> =>
     request('GET', `${objectUrl(kind, id)}/history`),

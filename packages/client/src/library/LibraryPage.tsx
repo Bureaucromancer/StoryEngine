@@ -5,9 +5,10 @@ import { getRouteApi, Link } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { useLibrary } from '../queries.js';
+import { usePatchPrefs, usePrefs, useLibrary } from '../queries.js';
+import { Button } from '../ui/Button.js';
 import { page } from '../ui/classes.js';
-import { ImportPanel } from './ImportPanel.js';
+import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -33,8 +34,10 @@ export function LibraryPage(): JSX.Element {
     // The page's own column, now that the shell's `<main>` is a bare scroll
     // container ([P3.−1] — `ui/classes.ts` has the why).
     <div className={page.tooling}>
-      <h1 className="mb-4 text-title text-ink">Library</h1>
-      <ImportPanel />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-title text-ink">Library</h1>
+        <ImportButton />
+      </div>
       <nav aria-label="Filter by kind" className="mb-6 flex flex-wrap gap-2">
         <FilterLink kind={undefined} current={search.kind} />
         {LIBRARY_KINDS.map((kind) => (
@@ -52,6 +55,42 @@ export function LibraryPage(): JSX.Element {
         <ObjectTable objects={library.data.objects} kind={search.kind} />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The way to import, now that the panel lives in the dock.
+ *
+ * **An entry point has to survive the move.** [05 §5] says the empty library
+ * *"points at import"*, and a feature reachable only by knowing that Ctrl+`
+ * opens a panel which happens to show it over this route is not pointed at by
+ * anything. So the page keeps a control, and the control's whole job is to open
+ * the dock — which is why it patches the preference rather than routing
+ * anywhere: [P3 §1.2] is explicit that the panel's open state is a preference
+ * and deliberately **not** the URL, because a URL-addressable panel is a place,
+ * and §3 spent its argument on the panel not being one.
+ *
+ * Deliberately not disabled or hidden when the dock is already open: the button
+ * is where somebody looks for import, and a control that vanishes once it has
+ * worked is a control you cannot find twice.
+ */
+function ImportButton(): JSX.Element {
+  const prefs = usePrefs();
+  const patchPrefs = usePatchPrefs();
+  const open = workbenchOpenFromPrefs(prefs.data?.prefs);
+
+  return (
+    <Button
+      type="button"
+      size="compact"
+      aria-expanded={open}
+      aria-controls={open ? 'workbench' : undefined}
+      onClick={() => {
+        if (!open) patchPrefs.mutate(workbenchOpenPatch(true));
+      }}
+    >
+      Import…
+    </Button>
   );
 }
 
