@@ -275,7 +275,7 @@ Stating these so they stop being re-litigated:
 
 - **Not a security product.** Multi-user is access separation among people who
   already trust each other on a LAN.
-- **Not a tabletop RPG engine.** Adventure mode's default is single-persona
+- **Not a tabletop RPG engine.** Freeform's default is single-persona
   narrative play. RPG systems are opt-in channels.
 - **Not an ST drop-in replacement.** We import from it; we do not promise
   behavioural parity, and we do not adopt its extension API.

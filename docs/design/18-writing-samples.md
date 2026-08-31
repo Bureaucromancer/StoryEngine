@@ -20,7 +20,7 @@ A **writing sample** is the other half: a passage from the setting, or a page in
 a character's voice, pasted whole and offered as *write like this*. Not a
 paraphrase of the register — the register itself.
 
-The distinction is not new to this project. [14 §2.4](14-roadmap.md) already drew
+The distinction is not new to this project. [20 §5](20-authoring.md) already drew
 it for pictures:
 
 > **Style anchoring.** Style is a property of the *production*, not the person —

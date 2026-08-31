@@ -89,7 +89,8 @@ what exactly failed — is the turn record rendered while it is still being
 written, which means one component serves live and historical alike.
 
 Classes, closed: `turn.complete`, `turn.failed`, `turn.awaiting-input`,
-`artifact.ready`, `system.notice` at 1.0; `message.received` at 2.0. Named
+`artifact.ready`, `system.notice` at 1.0; `message.received` whenever Messages is
+built ([14 §3.4](14-roadmap.md)). Named
 `artifact.ready` rather than `rendition-ready` because the class is about async
 work attached to a turn finishing, and naming it for its first producer means
 renaming it for the second. Deliberately **not** split into blocking and
@@ -146,8 +147,10 @@ a session ([05 §11.4](05-ui-surfaces.md)).
 **Extended: whether a user may hold private connections at all is a named
 account capability**, default true, enforced at resolution rather than creation
 so the file browser is not a bypass. Revoking disables rather than deletes.
-Beyond that, a general role system is post-2.0 ([04 §4.2.1](04-server-multiuser-deployment.md),
-[14 §3](14-roadmap.md)). *[04 §4.5, 04 §4.2, 07 §5.1]*
+Beyond that, a general role system is on the feature list at High
+([04 §4.2.1](04-server-multiuser-deployment.md),
+[14 §3.1](14-roadmap.md)) rather than in any committed version.
+*[04 §4.5, 04 §4.2, 07 §5.1]*
 
 **A4. Raw-completion support. — RESOLVED: legacy, dropped, no adapter.**
 Specified in [07 §5.5](07-tech-stack.md). Not "chat-shaped by default with a
@@ -279,7 +282,7 @@ extension. Migrations must be pure and deterministic, because they sit inside th
 replay path. *[03 §4.2, 09 §4]*
 
 **B8. Translated play. — RESOLVED: not attempted, and explicitly not a blocker
-for 1.0 or 2.0.** Translating *content* — cards, lorebooks, narration — is
+for any committed version.** Translating *content* — cards, lorebooks, narration — is
 wanted in principle and cannot realistically be implemented or assessed here, so
 it is not attempted rather than half-attempted. UI localisation (A2d) is a
 separate matter and does ship.
@@ -307,13 +310,26 @@ to one `LoreScope` union. Everything else — matching, timing, recursion,
 placement, grouping, gating and the two-tier budget — is taken from Marinara
 essentially unchanged. *[02 §3, 10 §5]*
 
-**B12. Are sessions exportable? — RESOLVED in principle: yes, eventually. Not an
-early priority.** Sessions are marked internal and free-to-migrate
-([10 §1](10-schemas.md)) *because* nothing exports them, so this has a
-consequence worth carrying: **the turn record may churn freely now and should be
-expected to freeze when export ships.** Better to know that is coming than to
-discover it. Export drags along `localActors`, channel state, branch structure
-and renditions, which is why it is a larger commitment than it looks.
+**B12. Are sessions exportable? — RESOLVED: yes, and it ships at 1.0**
+([work plan §0.5](workplan/01-work-plan.md), P11).
+
+**Re-scoped from "yes, eventually. Not an early priority."** Two arguments moved
+it. *Feature complete to the 1.0 spec* is not a credible claim about a
+storytelling tool whose stories cannot leave it — the beta gate is checkable
+against the design notes ([releases §0](workplan/11-repo-and-releases.md)), and a
+gate that passes with no way out of the product is measuring the wrong thing.
+And export is the beginning of the **session interchange format** that E4's
+import question turns out to depend on, so building it late means answering that
+question twice.
+
+Sessions are marked internal and free-to-migrate ([10 §1](10-schemas.md))
+*because* nothing exports them, and the consequence now has a date: **the turn
+record freezes at P11.** [17 §4.8](17-write-mode.md)'s window has therefore shut
+rather than narrowed — Write's anchor and parent-link changes must be settled
+before the format is frozen, which is why [17](17-write-mode.md) became a
+near-term document. Export drags along `localActors`, channel state, branch
+structure and renditions, which is why it is a larger commitment than it looks,
+and that size is now inside P11's estimate rather than outside it.
 
 Distinct from the **reading view** ([05 §12](05-ui-surfaces.md)), which *does*
 ship at 1.0 and is deliberately lossy — a person reading a story rather than an
@@ -382,8 +398,19 @@ write path beside a password hash, not merely prefer a different file.*
 
 ## C. Mode and pipeline questions
 
-**C1. Names. — RESOLVED: Messages, Scene, Adventure**, with Adventure presets
-**Freeform** (1.0) and **Campaign** (2.0).
+**C1. Names. — RESOLVED: Messages, Scene, Freeform, Campaign — four modes, no
+Adventure grouping.** Freeform ships at 1.0 and Campaign at 4.0
+([work plan §0](workplan/01-work-plan.md)); Messages is specified and unscheduled
+([14 §3.4](14-roadmap.md)).
+
+**Amended once, and the amendment is the interesting half.** The original
+resolution named a mode **Adventure** carrying two presets, *Adventure ·
+Freeform* and *Adventure · Campaign*, on the reasoning that naming presets rather
+than modes kept them sharing one contract. The contract argument was right and
+is unaffected — every mode shares it — but the grouping was buying a name for a
+pair, and the release re-cut put three releases between the two halves of that
+pair. A name for a pair nobody chooses between is a name for nothing.
+[03 §1](03-modes-and-turn-pipeline.md) carries the full reasoning.
 
 *Chronicle* was the earlier name for Freeform and was replaced: it read as
 Campaign's sibling by being another grand noun, and suggested *recording*
@@ -395,10 +422,11 @@ stats, legible from both tabletop and RP culture. *Solo* was the other contender
 and overclaims, since companions are allowed.
 
 `freeform` is the **identifier**, which is the part that needed settling now:
-preset ids travel inside Setup objects ([10 §7](10-schemas.md)), so changing one
-later is a content migration rather than a rename. The **user-facing label**
-stays free until Campaign ships — there is one Adventure preset at 1.0 and the
-UI can simply say *Adventure*. *[03 §1]*
+ids travel inside Setup objects ([10 §7](10-schemas.md)), so changing one later
+is a content migration rather than a rename. The identifier is unchanged by the
+amendment; what moved is where it sits, from a preset id inside `mode.config` to
+the `mode.id` itself. **That move was free only because P7 has not built either
+mode** — there are no Setup objects carrying the old shape. *[03 §1]*
 
 **C2. Mixed voice within a turn. — CONFIRMED: yes**, as a mode-preset
 capability rather than a per-turn toggle. A narrator paragraph followed by
@@ -407,7 +435,7 @@ latency and failure modes, which is why a preset declares it rather than a user
 toggling it mid-session. *[03 §3]*
 
 **C3. Multiple player-controlled party members. — CONFIRMED: yes**, and
-permitted by default in the Adventure presets, where playing a pair is a normal
+permitted by default in Freeform and Campaign, where playing a pair is a normal
 way to run a story.
 
 **This also settles something not previously specified: impersonation.**
@@ -439,10 +467,31 @@ built: what rule conditions really need to express, and whether a template
 language stretches to them comfortably. Deferring the pick costs nothing as long
 as the single-language constraint holds. *[03 §5, 07]*
 
-**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 2.0.** The direction is
-unchanged — take Infinite Worlds' conditions and effects close to wholesale
-([08 §3](08-infinite-worlds.md)) — but the vocabulary, its evaluator and its
-authoring surface leave 1.0 entirely ([work plan §0.4](workplan/01-work-plan.md)).
+**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 5.0, the authoring
+tier** ([work plan §0.6](workplan/01-work-plan.md)).
+The direction is unchanged — take Infinite Worlds' conditions and effects close
+to wholesale ([08 §3](08-infinite-worlds.md)) — but the vocabulary, its evaluator
+and its authoring surface leave 1.0 entirely
+([work plan §0.4](workplan/01-work-plan.md)).
+
+**Re-scoped three times, and the last move is the one that changed the shape.**
+It went 1.0 → 2.0 → *with Campaign* → **a release behind Campaign**, and the
+reason for the last step is that the coupling to Campaign was real but pointed
+the other way. **Campaign does not consume authored rules; it produces the corpus
+they are designed against.** Campaign's determinism is engine-computed mode code
+([03 §4](03-modes-and-turn-pipeline.md)), not a predicate language — the three
+seams that touch are `PlotHook.requires`/`onFire`, `Goal.completion`'s mechanical
+arm, and the channel authoring surface, all additive and all about *authored*
+content rather than about the mode
+([work plan §0.4](workplan/01-work-plan.md)).
+
+So it lands with the things that share its purpose rather than with the mode that
+motivates it, in a release about authoring
+([work plan §0.6](workplan/01-work-plan.md)). **The cost of the extra release is
+named rather than assumed**: three minimal predicate dialects — lorebook
+activation, `StepCondition`, and the hook filters — run separately for a release
+longer, and unifying dialects that have each grown a convenience is harder than
+unifying ones that have not ([work plan §0.3](workplan/01-work-plan.md)).
 
 The argument that moved it: IW itself ran on triggers and tracked items for years
 before arriving at PawScript, **and arrived at it with a corpus of real authored
@@ -520,7 +569,8 @@ fire an arrival for someone the session recorded dead — the severe failure the
 check exists for, reintroduced by the feature meant to use it.
 
 Two consequences that had to be designed rather than discovered. **Firing writes
-no effect**, because `onFire` is 2.0 and `se.presence` is model-proposed, so the
+no effect**, because `onFire` waits for the rule tier at 5.0 (C7) and
+`se.presence` is model-proposed, so the
 arrival is narrated and state follows the story — which means the narrator can
 decline, so the firing is **provisional until the arrival is confirmed** or the
 hook is silently and permanently lost. And **firing must supply the subject's
@@ -621,14 +671,17 @@ in-app update **check** as **1.0 release** requirements. Tiers 1 and 2 are enoug
 to have users, and four more build chains before there are any is work that reads
 as progress. *[04 §5.4, releases §0]*
 
-**D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. All
-post-2.0.** An embedded `tsnet` node is a real component for a convenience the
+**D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. Feature
+list, High** ([14 §3.1](14-roadmap.md)). *Post-2.0* was the old phrasing and it
+stopped meaning anything when the release line grew past 2.0; what it meant was
+**not in a committed version**, which is what the feature list is for. An embedded `tsnet` node is a real component for a convenience the
 simpler levels mostly deliver. Not hard, but a side project rather than anything
 on the path. The only thing to do now is keep the auth layer shaped so Level 2 is
 a provider rather than a special case, which costs nothing. *[04 §5.2]*
 
 **D2. Auto-provisioning accounts. — RESOLVED: no. All accounts manually
-provisioned until post-2.0 at the earliest.** No self-registration, no invite
+provisioned; the feature is on the list at Low** ([14 §3.2](14-roadmap.md)),
+not in any committed version. No self-registration, no invite
 links, no identity-provider provisioning. Not philosophical — simpler, and
 matched to reality, since most installs are one user or a handful and adding
 someone is a conversation followed by typing a name. Revisit only if Tailscale
@@ -721,7 +774,8 @@ advice, accepted or ignored.
 ### E2. Embeddings and vector search — later, and aimed at memory
 
 **Opinionated: lower value than it looks for lorebooks, genuinely useful for
-memory, and post-1.0 either way.**
+memory, and not in a committed version either way — feature list, Low
+([14 §3.2](14-roadmap.md)).**
 
 Keyword activation plus the budgeter covers most real lorebook use — the whole
 SillyTavern ecosystem runs on it. Semantic activation adds a provider
@@ -769,13 +823,35 @@ Worth stating as policy because of what it buys:
 It also means an eviction policy is a later decision rather than a now one,
 because adopting one can never cost history.
 
-### E4. Session import from other platforms — speculative, not roadmapped
+### E4. Session import from other platforms — conditional on an interchange format
 
-**Nice one day, maybe. Deliberately not a commitment.**
+**Not a commitment, and no longer a flat refusal. The condition is the shape,
+not the appetite.**
 
-The lift is large and the promise is hard to keep: chat formats move under you,
-every source has years of edge cases, and a **half-working importer generates
-more support burden than no importer at all**. Better none than one that rots.
+The original objection stands and is unchanged: the lift is large and the promise
+is hard to keep, because chat formats move under you, every source has years of
+edge cases, and a **half-working importer generates more support burden than no
+importer at all**. Better none than one that rots.
+
+**What changed is that the objection is an argument against a particular
+shape.** Writing a converter per source is what rots — each one tracks somebody
+else's product, and the maintenance is unbounded because the number of sources
+is. The shape that does not rot is a **session interchange format**: one
+documented target that we own and version, with conversion into it left to
+whoever cares about a given source. That inverts the maintenance — we maintain
+one format, not N importers — and it is the same posture
+[00 §4](00-stance.md) already takes on refusing SillyTavern parity while
+accepting SillyTavern *content*.
+
+**Session export at 1.0 is where such a format would start** (B12), which is why
+this is worth writing down now rather than when somebody asks. Export is not the
+format — it is a serialisation of our own record — but a format designed with
+import in mind and a format designed without it are different documents, and
+only one of them can be written at P11.
+
+**Still not a commitment.** Nothing here schedules an importer, and if nobody
+ever writes one that is a fine outcome. What this rules out is answering the
+question twice.
 
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
@@ -824,6 +900,11 @@ restore that puts it back and rebuilds. The index being derived
 a backup, and this belongs in CI beside the upgrade test
 ([work plan §8](workplan/01-work-plan.md)): populate a data directory, back it up, restore into a
 clean install, assert the library and sessions are intact.
+
+**Scheduled: 1.0, at P11** ([work plan §0.5](workplan/01-work-plan.md)). This was
+on the roadmap and moved for the same reason session export did — shipping a
+self-hosted data product with no tested restore is a gap rather than a deferral,
+and the command is small enough that its absence was never about cost.
 
 ### E7. Error and rate-limit handling — a taxonomy, then a policy
 

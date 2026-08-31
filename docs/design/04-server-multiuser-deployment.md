@@ -80,8 +80,8 @@ away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
 The large pressure: **Messages mode does not work without it** — though Messages
-is now a 2.0 mode ([work plan §0](workplan/01-work-plan.md)), so this argument lands later than
-the others. Autonomous
+is now unscheduled ([14 §3.4](14-roadmap.md)), so this argument lands later than
+the others and has no date at all. Autonomous
 messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
 surface, is a feature that does nothing.
@@ -106,7 +106,7 @@ a client is connected, which fails the one case that motivated the feature. The
 server knows who should be told and through which channel; the client only
 renders the in-app part.
 
-**Presence is already the input this needs — from 2.0.** Messages mode specifies per-user
+**Presence is already the input this needs, whenever Messages is built.** Messages mode specifies per-user
 presence — Active, Idle, Do Not Disturb, Invisible ([03 §7.1](03-modes-and-turn-pipeline.md)).
 That is exactly the routing signal: suppress on DND, prefer in-app when Active
 and viewing the session in question, escalate to push when Idle or disconnected.
@@ -261,7 +261,7 @@ settings.
 | `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([06 C5](06-open-questions.md)); the strongest argument for push |
 | `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
 | `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([12 §7](12-extensions.md)) |
-| `message.received` | no | **2.0**, with Messages |
+| `message.received` | no | With Messages, whenever it is built ([14 §3.4](14-roadmap.md)) |
 
 **`artifact.ready` rather than `rendition-ready`.** Renditions are the only
 producer at 1.0, but the class is about *asynchronous work attached to a turn
@@ -295,8 +295,8 @@ rather than in-app-only.
    completion-sound case entirely and needs no infrastructure.
 2. **Browser Notification API** *(1.0)* — works when the tab is backgrounded but
    the browser is open. Small step, large practical gain.
-3. **Web Push** *(2.0)* — works when the browser is closed. See §3.7.
-4. **Outbound webhook, plus ntfy/Gotify shapes** *(2.0)* — the self-hoster's
+3. **Web Push** *(with Messages, unscheduled)* — works when the browser is closed. See §3.7.
+4. **Outbound webhook, plus ntfy/Gotify shapes** *(with Messages, unscheduled)* — the self-hoster's
    expectation and cheap to add, since it is an HTTP POST against a user-supplied
    endpoint. It also sidesteps mobile push entirely for people who already run
    ntfy, which is a large fraction of this audience. Treat the endpoint as user
@@ -322,7 +322,7 @@ collision:
 |---|---|
 | **The server box itself** (`localhost`) | Everything. Secure context by definition. |
 | **LAN over plain HTTP — the default** | **In-app only**: sound, toast, badge, title. No browser notifications. |
-| **HTTPS by reverse proxy, or Tailscale** ([§5.2](#52-tailscale-and-getting-to-it)) | Everything, including Web Push at 2.0. |
+| **HTTPS by reverse proxy, or Tailscale** ([§5.2](#52-tailscale-and-getting-to-it)) | Everything, including Web Push whenever it arrives. |
 
 **In-app is therefore the 1.0 notification story, and it has to be good enough
 on its own** — which it nearly is, since the feature that motivated the small
@@ -339,7 +339,7 @@ Three obligations follow:
   §5.1's position; it now has a second reason to exist, and Tailscale
   ([§5.2](#52-tailscale-and-getting-to-it)) gets HTTPS more or less for free,
   which strengthens the case for its Level 1.
-- **Messages at 2.0 has to know this.** A mode whose premise is being reached
+- **Messages has to know this whenever it is built.** A mode whose premise is being reached
   when you are not looking is substantially weaker on plain HTTP, so the
   secure-context question is a prerequisite for that mode rather than a detail
   of it.
@@ -442,7 +442,8 @@ had to decide about.
 First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
 
-**All accounts are manually provisioned, until post-2.0 at the earliest.** No
+**All accounts are manually provisioned.** Auto-provisioning is on the feature
+list at Low ([14 §3.2](14-roadmap.md)) rather than in any committed version. No
 self-registration, no invite links, no auto-provisioning from an identity
 provider. Not a philosophical position — simply simpler, and matched to reality:
 most installs are one user or a handful, and the typical act of adding a person
@@ -483,7 +484,8 @@ than scattering booleans as they arise, is that **a future role system then
 becomes a move rather than an invention** — capabilities relocate from the
 account to a role, and accounts reference roles. Additive, and only if wanted.
 
-**A real role system is post-2.0** ([14 §3](14-roadmap.md)). The signals that it
+**A real role system is on the feature list at High** ([14 §3.1](14-roadmap.md)),
+not in a committed version. The signals that it
 is needed: a capability that is not a simple boolean, wanting to apply the same
 set to several people, or wanting permissions scoped to particular objects
 rather than to the account. None of those is true yet, and building an RBAC
@@ -690,10 +692,17 @@ Three details that decide whether it works:
 
 #### Two things this makes more pressing
 
-- **Cost attribution stops being optional at 2.0.** With everyone spending one
-  key, "who used what" becomes a real question. Turns already record cost and
-  already belong to a user ([05 §3](05-ui-surfaces.md)), so the data exists —
-  the aggregate view deferred to [14 §3](14-roadmap.md) is where it surfaces.
+- **Cost attribution stops being optional the moment multi-user is real, which
+  is 1.0** (P10). With everyone spending one key, "who used what" becomes a real
+  question. Turns already record cost and already belong to a user
+  ([05 §3](05-ui-surfaces.md)), so what 1.0 owes is the *recording*, which it
+  already does. The aggregate view is on the feature list at Eventually
+  ([14 §3.3](14-roadmap.md)) and is where it surfaces.
+
+  *An earlier draft pinned this to "2.0", which was always a release later than
+  the thing that triggers it and stopped meaning anything when 2.0 became the
+  Write surface. The trigger is shared keys among several users, and that is a
+  1.0 configuration.*
 - **Rate limits become shared.** Several users against one key will hit provider
   limits that a single user would not. The answer is a **queue per connection
   with a concurrency cap** rather than hammering and failing — a turn that waits
@@ -775,7 +784,8 @@ survives the phase that makes the UI exist.
 
 ### 5.2 Tailscale
 
-**All post-2.0.** Not hard, but a side project rather than a release blocker.
+**All on the feature list at High** ([14 §3.1](14-roadmap.md)), not in a
+committed version. Not hard, but a side project rather than a release blocker.
 Worth designing the seam now because it changes the auth model
 rather than sitting beside it. Three levels, in increasing order of effort:
 
@@ -802,14 +812,14 @@ access.
 
 **Settled: Level 1 yes, Level 2 maybe, Level 3 not worth the effort** — an
 embedded `tsnet` node is a real component for a convenience the two simpler
-levels mostly deliver. **All of it lands after 2.0.** Not hard, but a side
+levels mostly deliver. **All of it is on the feature list at High** ([14 §3.1](14-roadmap.md)), not in a committed version. Not hard, but a side
 project rather than anything on the path.
 
 The only thing to do now is keep the auth layer shaped so Level 2 is a provider
 plugged into an existing identity interface rather than a special case, which
 costs nothing.
 
-**Accounts stay manually provisioned until post-2.0** (§4.2), so
+**Accounts stay manually provisioned** (§4.2), so
 auto-provisioning from tailnet identity is a question for whenever Level 2
 arrives — not one to answer now.
 
@@ -954,12 +964,17 @@ optionality** — Tier 3 is no longer "as capacity allows". Everything outside t
 six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
 build-from-source stays first-class.
 
-**Which are needed *when* has been re-cut** ([work plan §0.4](workplan/01-work-plan.md)):
+**Which are needed *when*** ([work plan §0.5](workplan/01-work-plan.md)):
 
 | Milestone | Artifacts |
 |---|---|
 | **Beta** | The OCI image and the tarball |
 | **1.0** | `.deb`, AUR, the Windows service installer, the Homebrew formula — and the in-app update *check* ([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) |
+
+**All six are owned by P11** ([22](workplan/22-p11-implementation.md)), which is
+the correction to an earlier version of this table. The 1.0 row used to be a
+*bar* with no phase behind it, and P11 — the last phase — had put those four out
+of scope, so the requirement existed and the builder did not.
 
 An earlier draft made all six a beta requirement. Tiers 1 and 2 are enough to
 *have users*, and the audience for a beta of this can run a container. Standing

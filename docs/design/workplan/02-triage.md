@@ -646,7 +646,7 @@ The triage suggests an order, because some verdicts depend on others being right
    the block/budget model.
 4. **Import.** Early, not late — it is how you get a realistic library to test
    retrieval and budgeting against, and it is the largest PORT in the document.
-5. **The modes** — Scene and Adventure–Freeform at 1.0 ([01 §0](01-work-plan.md)),
+5. **The modes** — Scene and Freeform at 1.0 ([01 §0](01-work-plan.md)),
    each as a separate package against the public contract.
 6. **Retrieval and memory.** The Aventuras PORT. Needs a real library and real
    long sessions to tune, so it wants to come after import.
@@ -666,9 +666,12 @@ be assumed to:
 
 - ~~Marinara's Noodle subsystem~~ — **now examined**, notes in
   [14 §4.6](../14-roadmap.md). An in-app fake social timeline, ~6,400 lines of
-  server services. Verdict: post-1.0, extension, probably not by us — but its
-  *carryover* mechanism generalises into something worth having, and attempting
-  it reveals two gaps in the extension model.
+  server services. Verdict: **one candidate shape for the Social cluster**
+  ([14 §3.4](../14-roadmap.md)) rather than a core feature — the earlier verdict
+  was "extension, probably not by us", which changed when Messages left the
+  release schedule and the question widened. Its *carryover* mechanism
+  generalises into something worth having either way, and attempting it reveals
+  two gaps in the extension model.
 - **ST's extension runtime and the `third-party` loading path** — relevant to
   [06 A1](../06-open-questions.md) and worth a look before deciding the extension
   execution model. The remaining item most worth closing.

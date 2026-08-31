@@ -83,11 +83,14 @@ motivated the feature. The server knows who should be told and through which
 channel; the client renders the in-app part.
 
 The wrinkle this phase inherits: the routing signal the design names — per-user
-presence, Active/Idle/DND/Invisible — **arrives with Messages at 2.0**. So 1.0
+presence, Active/Idle/DND/Invisible — **arrives with Messages, which is now
+unscheduled** ([14 §3.4](../14-roadmap.md)). So 1.0
 routes on what it has: connection state, and whether the connected client is
 viewing the session in question. Write it as a presence *input* with one
-implementation rather than as a connection check, so 2.0 substitutes rather than
-rewrites.
+implementation rather than as a connection check, so real presence substitutes
+rather than rewrites whenever it lands. **That is now an open-ended wait rather
+than a one-release one**, which makes the substitutable shape more important, not
+less — [01 §0.3](01-work-plan.md) records the cost of a seam with no date.
 
 ### 1.4 Every class either has a producer or is not shipped
 
@@ -279,16 +282,15 @@ where it is found and fixed, not P11.
 
 ## 4. Out of scope, deliberately
 
-Web Push and outbound webhooks/ntfy/Gotify (2.0, with the mode that needs them —
-[04 §3.6](../04-server-multiuser-deployment.md)); the service worker that Push
+Web Push and outbound webhooks/ntfy/Gotify (with Messages, unscheduled —
+[04 §3.6](../04-server-multiuser-deployment.md), [14 §3.4](../14-roadmap.md)); the service worker that Push
 implies ([04 §3.7](../04-server-multiuser-deployment.md)); Tailscale at every
-level (post-2.0, [06 D1](../06-open-questions.md)); the file browser
+level (feature list at High, [06 D1](../06-open-questions.md)); the file browser
 ([06 D3](../06-open-questions.md), roadmap); sharing content between users
 ([06 A2e](../06-open-questions.md), deferred deliberately, with the merge path
 kept open at [04 §4.3](../04-server-multiuser-deployment.md)); multiplayer and
 shared heads ([04 §8](../04-server-multiuser-deployment.md)); a role system
 ([04 §4.2.1](../04-server-multiuser-deployment.md) — named capabilities, and
 [P2A](13-p2a-configuration-surface.md) already built them); auto-provisioning
-accounts ([06 D2](../06-open-questions.md)); and the four packaging artifacts
-beyond the container and tarball, which [01 §0.4](01-work-plan.md) moves to the
-1.0 bar and [P11](22-p11-implementation.md) owns the first two of.
+accounts ([06 D2](../06-open-questions.md)); and packaging, all six artifacts of
+which [P11](22-p11-implementation.md) now owns ([01 §0.5](01-work-plan.md)).

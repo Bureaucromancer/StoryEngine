@@ -359,7 +359,7 @@ duplication disappears for free once persona is a flag on an actor.
 
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
-(`category: "world"` against the World concept reserved at [14](14-roadmap.md)),
+(`category: "world"` against the World concept reserved for [19](19-world.md)),
 but reopening the field is what condemned it: the values are not one axis
 (`world` and `character` are subject matter, `spellbook` is one genre's
 artefact, `uncategorized` is a null in a value's clothes), `character` and `npc`
@@ -554,7 +554,7 @@ measured along a path.
 
 **The copy keeps the source hook's `id`.** Not a detail: it is the only thing
 that makes cross-session de-duplication possible later, and a World
-([14 §2d](14-roadmap.md)) needs it — a hook fired in session one must not fire
+([19 §5.1](19-world.md)) needs it — a hook fired in session one must not fire
 again in session two of the same continuity, which is this section's own
 someone-died-four-sessions-ago failure reached by a different route. Minting a
 fresh id on copy would be invisible at 1.0 and unrecoverable afterwards, since
@@ -618,7 +618,7 @@ the degraded case.
 
 **Firing an introduction hook writes nothing by itself, and cannot.** It is
 tempting to have it add the character to the cast directly, and that is an
-`onFire` effect — the vocabulary deferred to 2.0 ([06 C7](06-open-questions.md)).
+`onFire` effect — the vocabulary deferred to the 5.0 authoring tier ([06 C7](06-open-questions.md)).
 The available path is the one [03 §5.2](03-modes-and-turn-pipeline.md) already
 blesses: the hook contributes guidance, the narrator writes the arrival, and
 presence follows the story like any other model-proposed change. Saying so
@@ -872,7 +872,7 @@ A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([14 §2](14-roadmap.md)).
+prerequisite for the Character Studio ([20 §4](20-authoring.md), 5.0).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
@@ -1117,7 +1117,7 @@ Reduced to a container, Package has almost no surface of its own:
   within the package first, then locally, then dangle visibly. The only reliable
   way to ship something working to someone whose library you know nothing about.
 - **`requires` is declared and checked at import**, producing "this wants
-  Adventure mode ≥ 2 and an image connection; you have neither" rather than a
+  Campaign ≥ 2 and an image connection; you have neither" rather than a
   broken session later. A warning with a degraded-start option where possible,
   not a hard block.
 - **No production settings, in either object.** No connection ids, no keys, no

@@ -670,9 +670,9 @@ model fetch — *"is this key still good"* is a live call with a cost, and it
 belongs with the connectivity work P10 does once P11's producer exists.
 
 Cost attribution per connection and the per-connection queue with a concurrency
-cap that [04 §4.5](../04-server-multiuser-deployment.md) raises as 2.0's
-problem, **except** the one part that section says has to be right from the
-start — that the queue is scoped to the connection rather than to the user.
+cap that [04 §4.5](../04-server-multiuser-deployment.md) raises as multi-user's
+problem — P10's, since that is when multi-user becomes real — **except** the one
+part that section says has to be right from the start — that the queue is scoped to the connection rather than to the user.
 Nothing here forecloses that; nothing here builds it either.
 
 And the system library panel, which [05 §15.3](../05-ui-surfaces.md) lists

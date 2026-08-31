@@ -13,17 +13,28 @@ piece is worth arguing about at length before writing code, it is §2 and §4.
 |---|---|---|
 | Marinara "Convo" | **Messages** | Says what it is. Nobody needs it explained. |
 | SillyTavern/Marinara RP | **Scene** | Names the unit of play, and generalises to VN-style staging. |
-| "Game Mode" | **Adventure** | Covers both presets without promising dice. |
+| "Game Mode" | **Freeform** and **Campaign** | Two modes, named for the axis that actually separates them. |
 
-Adventure ships two presets: **Adventure · Freeform** at 1.0 and
-**Adventure · Campaign** at 2.0 ([work plan §0](workplan/01-work-plan.md)). Campaign is the
-Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform is the
-Aventuras shape — do/say/think/story input, chapters, world-state
-classification, branching, light or no mechanics.
+**Freeform** is the Aventuras shape — do/say/think/story input, chapters,
+world-state classification, branching, light or no mechanics. **Campaign** is
+the Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform ships
+at 1.0 and Campaign at 4.0 ([work plan §0](workplan/01-work-plan.md)).
 
-Naming the *presets* rather than making them separate modes is the load-bearing
-part: they share a mode contract, so a Freeform game can switch on the dice
-channel without becoming a different kind of thing.
+**Modes belong to surfaces, and the grouping that used to sit above these two is
+gone.** An earlier draft named a single mode **Adventure** carrying two presets,
+*Adventure · Freeform* and *Adventure · Campaign*. Play now holds Scene,
+Freeform and Campaign as three peer modes, and Write holds its own two
+([05 §2](05-ui-surfaces.md)).
+
+**What the preset framing was protecting is not lost.** Its load-bearing claim
+was that Freeform and Campaign share a mode contract, so a Freeform game can
+switch on the dice channel without becoming a different kind of thing. That is
+still true, and it is true of *every* mode — sharing the contract is what the
+contract is for, and it was never Adventure's to provide. What the grouping
+added on top was a name for a pair, and a name for a pair earns its keep only
+while the pair is the unit people choose between. With Campaign three releases
+behind Freeform ([work plan §0](workplan/01-work-plan.md)), nobody is choosing
+between them.
 
 **Why Freeform rather than something loftier.** An earlier draft called it
 *Chronicle*, which read as Campaign's sibling by being another grand noun and
@@ -35,11 +46,12 @@ is established vocabulary for roleplay without dice or stats, legible from both
 tabletop and RP culture. *Solo* was the other contender and overclaims, since
 companions are allowed ([§8](#8-party)).
 
-`freeform` is the identifier, which is the part that had to be settled now:
-preset ids travel inside Setup objects ([10 §7](10-schemas.md)), so changing one
-later is a content migration rather than a rename. **The user-facing label is
-free to change until Campaign ships** — until then there is one Adventure preset
-and the UI can simply say *Adventure*.
+`freeform` is the identifier and this change does not touch it. What moved is
+where it sits: it was a preset id inside `mode.config`, and it is now the
+`mode.id` itself ([10 §7](10-schemas.md)). **That move is free today and would
+not have been later** — P7 has not built either mode, so no Setup object carries
+the old shape, and `mode.id` is an uninterpreted string either way. Had this
+arrived after real Setups existed it would have been a content migration.
 
 ---
 
@@ -110,7 +122,7 @@ All four combinations are coherent:
 
 | | merged | per-actor |
 |---|---|---|
-| **narrator** | Adventure default; Scene "narrated" | narrator + per-actor dialogue passes |
+| **narrator** | Freeform and Campaign default; Scene "narrated" | narrator + per-actor dialogue passes |
 | **embodied** | group chat, one call ("everyone responds") | classic ST group chat |
 
 So: two settings, exposed per-session and overridable per-turn, rather than a
@@ -131,7 +143,7 @@ character: `player`, `companion` or `auto`. Two things follow that are worth
 stating together, because they are the same axis seen from both ends.
 
 **More than one member may be `control: "player"`.** One human authoring two
-characters is allowed — in Adventure especially, where playing a pair is a
+characters is allowed — in Freeform and Campaign especially, where playing a pair is a
 normal way to run a story. Nothing structural limits it, and this is also the
 seam where genuine multiplayer would eventually attach
 ([04 §8](04-server-multiuser-deployment.md)).
@@ -218,14 +230,22 @@ variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
-**Scope: the tier is committed; the vocabulary is 2.0**
-([work plan §0.4](workplan/01-work-plan.md)). Channels and engine-computed effects ship at 1.0
-and are where the power actually is. What waits is the predicate/effect
-vocabulary, its evaluator and its authoring surface — a language design project,
-and one Infinite Worlds only got right after years of real authored worlds to
-design against. We have no such corpus, and designing an expression language
-against imagination produces one nobody can use. What follows is therefore the
-shape to preserve room for, not a 1.0 feature list.
+**Scope: the tier is committed; the vocabulary is 5.0, the authoring tier**
+([work plan §0.4](workplan/01-work-plan.md), [§0.6](workplan/01-work-plan.md)).
+Channels and engine-computed effects ship at 1.0 and are where the power actually
+is. What waits is the predicate/effect vocabulary, its evaluator and its
+authoring surface — a language design project, and one Infinite Worlds only got
+right after years of real authored worlds to design against. We have no such
+corpus, and designing an expression language against imagination produces one
+nobody can use. What follows is therefore the shape to preserve room for, not a
+1.0 feature list.
+
+**It is a release behind Campaign rather than beside it, and the reason is the
+sentence above this one.** Campaign is a *mode*, not an author: its determinism
+is `update: "engine-computed"` in mode code (§4), and nothing in §7.3 needs a
+predicate language. What a rules-less Campaign cannot do is let somebody else
+author one — which makes this an authoring feature that Campaign *produces the
+corpus for*, rather than one Campaign consumes.
 
 So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
@@ -758,19 +778,28 @@ Consequences worth stating:
 
 ## 7. The modes
 
-Four chat modes across two releases — **Scene and Adventure–Freeform at 1.0**,
-**Adventure–Campaign and Messages at 2.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
-assistant (§7.4), which is not a chat mode but is
-built out of the same parts.
+**Modes belong to surfaces** (§1, [05 §2](05-ui-surfaces.md)). The Play surface
+holds three of them across two releases — **Scene and Freeform at 1.0**,
+**Campaign at 4.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
+assistant (§7.4), which is not a chat mode but is built out of the same parts.
 
-**And a fifth mode at 3.0 that is also not a chat mode: Write**, specified in
-[17](17-write-mode.md) rather than here. It gets a pointer rather than a §7.5
-deliberately: everything above configures the pipeline over the same artefact,
-while Write changes what the result lands in — a manuscript rather than a
-transcript — so listing it as Scene's peer would invite exactly the reading
-[17 §6](17-write-mode.md) exists to prevent.
+**Messages is specified here and is not scheduled.** It was a 2.0 mode until the
+release re-cut moved it off the schedule entirely; it now sits on the feature
+list as one candidate mode of a possible Social surface
+([14 §3.4](14-roadmap.md)). §7.1 is unchanged and is most of the reason that
+cluster is worth defining rather than dropping — the design is done, and what is
+missing is the decision about what surface it belongs to.
 
-### 7.1 Messages — **2.0**
+**Write is a surface rather than a mode**, and its two modes — Outline and Prose
+— are specified in [17](17-write-mode.md) rather than here. It gets a pointer
+rather than a §7.5 deliberately: everything above configures the pipeline over
+the same artefact, while Write changes what the result lands in — a manuscript
+rather than a transcript — so listing it as Scene's peer would invite exactly
+the reading [17 §6](17-write-mode.md) exists to prevent. That was the argument
+when Write was a fifth mode; calling it a surface states the same thing more
+directly.
+
+### 7.1 Messages — **not scheduled** ([14 §3.4](14-roadmap.md))
 
 Messenger-shaped. Marinara's Conversation mode is the reference and it is the
 most complete of the three sources.
@@ -815,9 +844,10 @@ Design notes:
   feature; branching is a session-level capability from
   [02 §8](02-data-model.md) available in every mode.
 
-### 7.3 Adventure — Freeform **1.0**, Campaign **2.0**
+### 7.3 Freeform **1.0**, Campaign **4.0**
 
-Two official presets over one contract.
+Two Play modes over one contract, specified together because their design is one
+argument (§1).
 
 **Campaign** — the Marinara RPG shape. Channels: party sheets, HP/pools,
 attributes, inventory, quests, map, clock, weather, NPC reputation, session
@@ -849,7 +879,8 @@ Design notes:
 
 #### 7.3.1 Difficulty is a sycophancy dial, not a stat modifier
 
-Adventure setup carries a **difficulty** treatment, in the spirit of Marinara's.
+Freeform and Campaign setup carries a **difficulty** treatment, in the spirit of
+Marinara's.
 The thing worth being precise about is what it actually controls, because the
 obvious reading — a number added to rolls — is the smaller half.
 
@@ -861,7 +892,7 @@ resolves to two distinct outputs, and a mode declares which it consumes:
 
 | Output | Consumed by | Effect |
 |---|---|---|
-| **Prompt language** | Every Adventure preset | Ranked fragments describing how much to concede, how often attempts partially fail, whether the world volunteers help |
+| **Prompt language** | Both modes | Ranked fragments describing how much to concede, how often attempts partially fail, whether the world volunteers help |
 | **Mechanical parameters** | Campaign, and Freeform with dice or HP toggled on | Target numbers, resource pressure, enemy competence |
 
 Three things this has to get right.
@@ -922,7 +953,7 @@ one.
 #### 7.3.3 Goals: an adventure has a win condition by default
 
 Adopted from both sources, and a genuine divergence from the SillyTavern
-lineage: **an Adventure has something you are trying to do, and progress toward
+lineage: **these modes have something you are trying to do, and progress toward
 it is tracked.** Not an optional extra bolted on by an author — the default
 shape, with "no goal, just play" as the deliberate opt-out.
 
@@ -938,9 +969,11 @@ Schema in [10 §7.1](10-schemas.md). The shape in brief: a short always-injected
 `statement`, an optional fuller `detail` for steps, a `visibility` that makes
 hidden goals the GM's arc through the same mechanism as hidden channels, and a
 `completion` that is narrative or manual. Mechanical completion — computed from
-channel state — needs the authored-rule vocabulary and arrives with it at 2.0
-([work plan §0.4](workplan/01-work-plan.md)), alongside Campaign, which is where it earns its
-place.
+channel state — needs the authored-rule vocabulary and arrives with it at 5.0
+([work plan §0.6](workplan/01-work-plan.md)). Campaign at 4.0 is where mechanical
+completion *earns* its place, but it is not what supplies it: a `Goal` sits on
+Setup, which is authored content, so the condition belongs to whoever wrote the
+game rather than to the mode running it.
 
 **Progress is a channel** (§4), which settles how it is maintained without a new
 mechanism: `update: "model-proposed"` in Freeform, where there is nothing to
@@ -1140,7 +1173,7 @@ Design rules:
    the requirement that "no additional party members is not an edge case",
    expressed as an invariant so the code has one shape instead of two.
 2. **Default is one member, `control: "player"`.** Single-persona play is the
-   default everywhere, including Adventure.
+   default everywhere, including Freeform and Campaign.
 3. **`companion` is not player-controlled.** A companion is narrated by the
    narrator, with the player able to address, direct and influence but not
    author. This is the "we are not building a D&D engine" line, and it is the
@@ -1150,7 +1183,7 @@ Design rules:
 5. **Party membership is a timeline, not a set.** "Who was with me in chapter
    two" is a question worth being able to answer, and retrofitting history onto a
    set is unpleasant.
-6. **Party is session state available to every mode**, not an Adventure feature.
+6. **Party is session state available to every mode**, not a Freeform or Campaign feature.
    Scene mode has a party; it's usually the actors present. Messages mode has a
    party of one. Modes differ in what they *do* with it.
 

@@ -1,15 +1,44 @@
-# 14 — Post-1.0 roadmap, and desired extensions
+# 14 — The feature list, and desired extensions
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
-- **§1–3, the roadmap** — things *we* intend to build after 1.0. **§2b and §2e
-  are committed with a release attached; the rest is intent.** An item earns
-  a place by being *additive*: if deferring it would force a data-model change
-  later, it belongs in 1.0 instead, and the test for each entry is "what does
-  this oblige 1.0 to do?"
+- **§§1–3, the feature list** — things *we* intend to build, in three priority
+  tiers, with **no release attached to any of them**. The committed versions live
+  in [work plan §0](workplan/01-work-plan.md); this document is everything else.
 - **§4, desired extensions** — things we hope *someone else* builds, and in
-  several cases should never be in core at all. Hints for expansion authors,
-  and the standing acceptance test for the extension contract.
+  several cases should never be in core at all. Hints for expansion authors, and
+  the standing acceptance test for the extension contract.
+
+**Unscheduled is not unwanted.** Nothing here is promised, and nothing here is
+refused. An entry carries a priority rather than a release, and **any of it can
+be pulled forward by whoever wants to build it** — out of order, mid-series, or
+by someone who is not us. A tier says what we would reach for next; it is not a
+queue anything has to wait in. Several entries below are frankly likely to be
+grabbed early by whoever gets annoyed enough by their absence, and that is the
+system working rather than the plan failing.
+
+An item still earns its place by being *additive*: if deferring it would force a
+data-model change later, it belongs in a committed version instead, and the test
+for each entry is "what does this oblige 1.0 to do?"
+
+| Tier | What it means |
+|---|---|
+| **High** | Wanted soon, and the first things to reach for once a committed release lands. Several would be picked up mid-series given the chance. |
+| **Low** | Wanted, but held back by something — usually judgement, sometimes competence in an area this project has not earned yet, occasionally a dependency that does not exist. |
+| **Eventually** | Real, and not soon. Nothing here is refused; nothing here is close. |
+
+**§§1 and 2c.2 are High-tier entries that have their own designs**, because they
+were written out before the tiers existed and the reasoning is worth keeping.
+§3 is the tiered list of everything else, and §3.4 holds one cluster that is a
+direction rather than a feature.
+
+**§2, §2c.1 and §2c.3 are stubs pointing at committed releases.** Each was a
+feature-list entry until it turned out to be constitutive of a release rather
+than adjacent to one — the story bible to World ([19](19-world.md)), the
+Character Studio and lorebook extraction to the authoring tier
+([20](20-authoring.md)). The stubs stay because the section numbers are cited
+elsewhere and because *why something left this list* is the most useful thing
+this document can record about it.
 
 §4 is likely to graduate into user-facing documentation once the SDK exists.
 
@@ -17,7 +46,7 @@
 
 ## 1. Branch tree visualiser
 
-The turn tree ([09 §3](09-branching.md)) makes every swipe and branch a node in
+**Tier: High.** The turn tree ([09 §3](09-branching.md)) makes every swipe and branch a node in
 one structure. At 1.0 the reading surface shows the **selected path**, with
 siblings as an inline affordance on each node ([06 C9](06-open-questions.md)).
 That is the right default and it is deliberately not a tree browser.
@@ -25,7 +54,7 @@ That is the right default and it is deliberately not a tree browser.
 The visualiser is the escalation: a view of the whole tree for when the default
 stops being enough.
 
-### 1.1 Why post-1.0
+### 1.1 Why it is not a committed version
 
 It is pure addition. Everything it displays — topology, cost, model, channel
 effects, summary reuse — is already recorded by 1.0 for other reasons
@@ -142,137 +171,48 @@ pleasant later feature into a migration.
 
 ---
 
-## 2. Character Studio
+## 2. Character Studio — moved
 
-The actor card carries embedded media with typed roles and structured visual
-descriptors from 1.0 ([02 §5.2.2](02-data-model.md)). The Studio is the surface
-that makes that capability worth having.
+**The Character Studio ships with the authoring tier at 5.0
+([20 §4](20-authoring.md)).**
 
-### 2.1 The problem it addresses
-
-A Tavern-style card describes a character in prose and carries one picture. That
-is enough for text roleplay and nowhere near enough to hand a character to an
-image or video pipeline and get *the same person* back twice. Visual consistency
-is the unsolved problem in this space, and everything the field has converged on
-— reference images, multi-view sheets, structured descriptor tags, style
-anchors, seed pinning, per-character adapters — needs somewhere to live.
-
-The Studio's premise: **extend the card from a description of a character into a
-usable visual identity**, so a card can drive a generation pipeline and produce a
-stable likeness. That is a meaningful extension of what a character card *is*,
-and it is the reason the format work is 1.0 while the tooling is not.
-
-### 2.2 What it is
-
-An editing surface for an actor's visual identity, sitting beside the text
-editor rather than inside it:
-
-- **Reference set curation.** Choose, generate, crop and label the canonical
-  likeness images. Multi-angle where the pipeline can use it.
-- **Descriptor authoring**, structured (`VisualDescriptors`) with the prose
-  appearance derivable from it or maintained alongside — the two must not drift
-  silently, which is a real design question, not a detail.
-- **Expression and pose sets**, generated from the references and kept
-  consistent with them, feeding sprite display in Scene mode as a side effect.
-- **Style anchoring.** Style is a property of the *production*, not the person —
-  the same character rendered in ink wash and in photoreal is still that
-  character. So style exemplars are a separate media role and separately
-  selectable, and Marinara's `image-style-profile` is the nearest prior art.
-- **A test bench.** Generate a few images against the current identity and see
-  whether it holds. Without this the Studio is a form; with it, it is a tool.
-
-### 2.3 Why post-1.0
-
-The format lands at 1.0 and the tooling does not, for two reasons. It is
-genuinely large — a curation UI, a generation pipeline, and a consistency
-evaluation loop are three features. And it is the area where the underlying
-technology moves fastest, so specifying the tooling now against 2026 techniques
-would be designing for the wrong thing.
-
-The format is different: typed media roles and structured descriptors are cheap,
-stable, and unpleasant to retrofit. Hence the split.
-
-### 2.4 What it obliges 1.0 to do
-
-- **Typed media roles**, not a flat image list ([02 §5.2.2](02-data-model.md)).
-  The single most important one, because guessing which image is the canonical
-  likeness is not recoverable later.
-- **Structured `VisualDescriptors`** on the profile ([02 §2.1](02-data-model.md)).
-  Fields now, or prose parsing later.
-- **Per-media generation provenance**, reusing `GeneratedFieldProvenance`
-  ([05 §11.2](05-ui-surfaces.md)) — which model, which prompt, which seed. A
-  reference image whose seed was not recorded cannot be regenerated
-  consistently, which defeats the purpose.
-- **Crop as a stored rectangle** rather than a destructive edit
-  ([02 §5.2.1](02-data-model.md)).
-
-All four are small. None is a feature at 1.0; all four are preconditions.
-
-### 2.5 Non-goals
-
-- **Not a model training surface.** If per-character adapters become the
-  standard answer, the Studio should *reference* one, not train it.
-- **Not an image editor.** Crop and label, not paint.
-- **Not required.** A text-only actor with no media stays completely valid, and
-  nothing in the Studio may become a precondition for using a card.
+It was a High-tier entry here until the tier acquired a release. What moved it
+is the shape it shares with lorebook extraction and authored rules: each turns
+something you played into something you can author with, and the Studio is that
+move for an actor's visual identity. Its four obligations on 1.0 — typed media
+roles, structured descriptors, per-media generation provenance, and crop as a
+stored rectangle — are unchanged and now live at [20 §5](20-authoring.md).
 
 ---
 
-## 2b. The 2.0 modes — committed, not deferred
+## 2c. Continuity checking, and the play-to-authoring loop
 
-**Adventure–Campaign** and **Messages** are scheduled for a 2.0 series
-([work plan §0](workplan/01-work-plan.md)), which puts them in a different category from
-most of this document. §1–2 are things we intend to build and might
-not; §4 is things we hope someone else builds. These two are **committed work
-with a release attached** — as is §2e, which was written later and takes the
-same category rather than a new one.
+**Tier: High.** This section has been hollowed out by two promotions and is kept
+for the one entry left in it: **§2c.2, continuity checking**. §2c.1's story bible
+went to World at 3.0 and §2c.3's extraction went to the authoring tier at 5.0 —
+both because they turned out to be constitutive of a release rather than adjacent
+to one.
 
-Their designs are already written — Messages in
-[03 §7.1](03-modes-and-turn-pipeline.md), Campaign in
-[03 §7.3](03-modes-and-turn-pipeline.md) — so there is nothing to add here
-beyond the scheduling. What travels with them: presence, schedules, autonomous
-messaging and the Web Push / webhook delivery channels for Messages; the RPG
-channel library and incremental world generation for Campaign
-([work plan §0.1](workplan/01-work-plan.md)).
+What continuity checking retains from the original framing is the reason it is
+additive: it reads data 1.0 already records, and it is a direct application of
+[00 §3.6](00-stance.md) — *the engine's understanding is visible, and
+correctable*.
 
----
+### 2c.1 The story bible — moved
 
-## 2c. Continuity checking, and the story bible
+**The story bible is no longer here. It ships with World at 3.0
+([19 §4](19-world.md)).**
 
-Two roadmap features that belong together: one derives what a session has
-established, the other checks the story against it. Both are direct applications
-of [00 §3.6](00-stance.md) — *the engine's understanding is visible, and
-correctable* — and both are readers over data 1.0 already records, which is what
-keeps them additive.
+It was defined as *what a session has established*, and [19 §1](19-world.md)
+defines a World partly as that same view widened across sessions — which made it
+World's definition rather than its neighbour. A continuity container with no way
+to see what the continuity contains is half a feature, so the two went together
+into a committed release.
 
-### 2c.1 The story bible
-
-**A derived view of what a session has established**, separate from its prose.
-Who exists and what is known about them, what state the channels hold, which lore
-entries have fired and when, which goals were completed and where.
-
-Nothing here is new data. Actors and their presence come from
-[03 §8.1](03-modes-and-turn-pipeline.md); established facts come from extraction
-steps whose output already lands as channel effects; lore activation history is
-in every turn record ([02 §8](02-data-model.md)); the goal chain is in its own
-channel ([03 §7.3.4](03-modes-and-turn-pipeline.md)). **The bible is a reader**,
-in the same sense that the workbench is a reader — which is why it is cheap and
-why it was worth designing the record to be complete.
-
-Two reasons it earns a place rather than being a nicety:
-
-- **People already do this by hand.** The spreadsheet-beside-the-session is a
-  well-known habit in long-form RP, and it exists because the information is
-  genuinely scattered and genuinely needed. Software that has all of it and shows
-  none of it is leaving the obvious on the table.
-- **It is the appendix to the reading view** ([05 §12](05-ui-surfaces.md)). One
-  answers *what happened*, the other *what is true*, and a long story wants both.
-
-**Where it must not go:** the bible is derived, never authoritative. Editing it
-means editing the thing underneath — a channel, an actor, a lore entry — not
-writing to a parallel store. A bible that could drift from the session it
-describes would be [00 §2.8](00-stance.md)'s derived-data-persisted-as-truth
-failure in a new costume.
+Continuity checking did **not** go with it, and §2c.2 says why: the bible is a
+cheap reader and checking is an expensive advisory pass with a false-positive
+problem the bible does not have. They were a pair in the sense that one enables
+the other, not in the sense that they ship together.
 
 ### 2c.2 Continuity checking
 
@@ -302,7 +242,7 @@ The shape, and every piece of it exists:
   themselves on purpose**, and a checker that cannot be told *"yes, deliberately"*
   becomes noise within an hour.
 
-**Why roadmap rather than 1.0.** It wants long real sessions to tune against —
+**Why not 1.0.** It wants long real sessions to tune against —
 the false-positive rate is the entire question, and there is no way to know it
 without a corpus. Shipping a noisy version early would teach people to ignore it,
 which is the one outcome that cannot be undone. **It obliges 1.0 to** record
@@ -314,195 +254,99 @@ continuity checking is what makes the bible more than a curiosity. Neither is
 worth much alone, and together they are the strongest available answer to the
 genre's most common complaint.
 
-### 2c.3 Lorebook extraction: closing the play-to-authoring loop
+### 2c.3 Lorebook extraction — moved
 
-Two thirds of this loop already exist. A running session can emit a **Setup**
-([10 §7](10-schemas.md)), and a session-local actor can be promoted to the
-library ([02 §2.3](02-data-model.md)). The missing third is **extracting a
-lorebook from what a session established** — the places visited, the people met,
-the things decided.
-
-It is the natural output of §2c.1: once the bible exists, "make this a lorebook"
-is a selection and a write rather than a new mechanism.
-
-Both existing halves set the pattern this must follow: **offered, never
-automatic, and reviewed before it lands.** Marinara's own conclusion about
-auto-promotion applies unchanged — a session tried once and abandoned must leave
-nothing behind ([02 §2.3](02-data-model.md)) — and an extractor that silently
-wrote lore entries would be the mention-resolution failure
-([05 §13.1](05-ui-surfaces.md)) at a larger scale.
-
-*Play a session, keep the world* is the whole pitch, and it is the answer to
-something the sources handle badly: worlds currently have to be authored before
-they can be played in, when in practice they are discovered while playing.
+**Extraction ships with the authoring tier at 5.0
+([20 §3](20-authoring.md)).** *Play a session, keep the world* turned out to be
+the clearest single statement of what that release is for, which made it the
+wrong thing to leave on a list with no release attached.
 
 ---
 
-## 2d. World — the continuity container
+## 3. The tiered list
 
-**The word is reserved now and spent later.** A World is a grouping of sessions
-that share a continuity: history available as context across them, a shared
-starting set of lorebooks and a shared treatment baseline, with the stylistic
-particulars still varying per session. *"The Rain City campaign"*, holding six
-sessions that know about each other.
+Everything not given a section of its own above. Each entry was deferred in its
+own document and none is specified further than its original entry; what the
+note adds is *why it sits in this tier*, which is the only thing this document
+knows that the original does not.
 
-It belongs here rather than in [02](02-data-model.md) because it is post-1.0, and
-it is written down now rather than later because the *word* is a 1.0 decision:
-[05 §2.1](05-ui-surfaces.md) declines to spend "World" on a library label
-precisely so this can have it.
+### 3.1 High
 
-**Two existing open questions are what this answers**, which is the argument for
-it being real rather than invented:
+| Item | Deferred in | Note |
+|---|---|---|
+| **Tailscale, all levels** | [04 §5.2](04-server-multiuser-deployment.md) | Level 1 yes, Level 2 maybe, Level 3 not worth it ([06 D1](06-open-questions.md)). Keep the auth layer shaped so Level 2 is a provider rather than a special case. High because reaching your own server from outside the house is the most-asked-for thing this project does not do |
+| **A real user role system** | [04 §4.2.1](04-server-multiuser-deployment.md) | Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
+| **Prompt-overrun recovery** | [07 §5.4](07-tech-stack.md) | Detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting. Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
+| **Manual chapterisation** | [06 E1](06-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([05 §12](05-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters apply retroactively to sessions that predate the feature. Named as a likely out-of-sequence pickup somewhere in the 1.0–2.0 range |
+| **Lore-conditioned renditions** | [02 §3.6](02-data-model.md) | **Committed intent, not a maybe** — much of why lore images exist. A location's `reference` image is the same shape of input to *illustrate this scene* that an actor's already is ([03 §10.3](03-modes-and-turn-pipeline.md)). Deferred because the plumbing is not the hard part: **choosing which images** is, when six active entries and three present actors all carry references, and conditioning on all of them produces mud. Wants the location channel (P7) for an honest selector, a precedence rule against actor references, and real sessions to tune how many references help before they fight. Half-built — *attach every active entry's image* — gives worse illustrations than no feature, and gets switched off rather than reported. **Obliges 1.0 to** give `reference` the same meaning on lore as on actors, make media addressable per entry, and carry `tags` so a selector has something finer than a role to discriminate on ([10 §3](10-schemas.md)) |
 
-- [11 §8](11-cross-session-memory.md) carries *"cross-session memory for the
-  narrator rather than a character — 'the GM remembers your last campaign'.
-  Coherent, and **a different scope key**."* Memory today is keyed
-  `(user, actor, persona)` — character-centric. A World is the world-centric key
-  that question noticed was missing and did not name.
-- §2c.1's story bible is defined as *"what a **session** has established."* A
-  World is that widened across sessions, and §2c.1's discipline carries over
-  unchanged: **derived, never authoritative.** A World that accumulated its own
-  parallel truth would be [00 §2.8](00-stance.md)'s
-  derived-data-persisted-as-truth failure at a larger scale.
+### 3.2 Low
 
-**What separates it from Setup**, since they will otherwise be confused:
+| Item | Deferred in | Note |
+|---|---|---|
+| **Auto-provisioning accounts** | [06 D2](06-open-questions.md) | Self-registration, invites, an identity provider. Low rather than eventual because the shape is known and the demand is not — a household install does not need it, and everything larger wants the role system above first |
+| Truly mobile-optimised layout | [05 §1](05-ui-surfaces.md) | A mode of the same web app, never a native shell. Low because the responsive floor already works and the ceiling is a real design project |
+| Custom extension rendering (sandboxed iframe) | [05 §8](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work. Tactical combat or anything map-shaped are the likely triggers (§4.3) |
+| **Per-actor knowledge scope** (anti-omniscience) | [08 §5](08-infinite-worlds.md) | Held as an acceptance test for the channel model rather than a feature commitment. Low on competence rather than importance: this project has not yet earned an opinion about memory scoping, and guessing at one produces a feature that is wrong in a way nobody can debug |
+| Embeddings and semantic retrieval | [06 E2](06-open-questions.md) | Aimed at cross-session memory ([11](11-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss. Same competence caveat as the row above |
+| Cross-actor memory | [11 §8](11-cross-session-memory.md) | *"Vera recalling that she and Tomas both know you."* Explicitly not 1.0, and in the same memory-scoping area held back for the same reason |
+| Rendition asset eviction policy | [06 E4](06-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before |
+| Mention resolution beyond actors | [05 §13.1](05-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([17 §13](17-write-mode.md)), so widening the target set is addition rather than migration |
+| The `proposed` mention tier | [05 §13.1](05-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
+| Hook packs as a shareable kind | [02 §4.1](02-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
+| Prologue packages | [06 B12](06-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
 
-> **A Setup is a starting configuration; a World is an accumulating history.**
-
-A Setup looks forward at one game and is complete the moment play begins. A World
-looks backward across many and is worth nothing until the third session. That is
-also why it cannot be modelled as "a Setup with several sessions" — its whole
-value is in what accrues.
-
-**It is a play-side object.** Per [05 §2.1](05-ui-surfaces.md), the library
-represents the objects as they are and Play carries the conveniences; grouping
-your own sessions is a convenience over sessions, not a seventh portable kind.
-That also keeps it out of the export surface, which is right — a continuity is
-about *your* play, and the material underneath it already travels as a Package
-([10 §9.1](10-schemas.md)).
-
-### What this obliges 1.0 to do
-
-The test this document sets itself. Three of the four elements cost nothing:
-
-| Element | Obligation |
-|---|---|
-| Sessions belong to a World | **None.** Sessions are the *free to move* tier ([10 §1](10-schemas.md)) — internal, migrate at will. |
-| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. |
-| World-scoped memory | **Small.** Do not hard-code the three-tuple into how memory books are keyed and named on disk. [11 §8](11-cross-session-memory.md)'s open question about book granularity should be decided knowing a fourth key is coming. |
-| Continuity across sessions | **One real obligation** — below. |
-
-**Hook identity must survive the copy.** [02 §4.1](02-data-model.md) has session
-creation *copy* hooks from all sources, with the session tracking which have
-fired. Within a World, a hook fired in session one must not fire again in session
-two — the same *"firing a hook about someone who died four sessions ago"* failure
-that document calls severe, reached by a different route. Cross-session
-de-duplication is only possible if a session's copied hook keeps the **source
-hook's `id`** rather than getting a fresh one. `PlotHook.id` exists and
-`blockedBy` / `notBefore.afterHook` already reference ids, so the field is there;
-what needs pinning at 1.0 is that copying preserves it. One line now,
-unrecoverable later.
-
-*(The clause about the session tracking firings is superseded — that state is a
-channel as of [02 §4.1](02-data-model.md). Nothing here changes: the obligation
-was always about the **id** surviving the copy, and where the firing record lives
-is orthogonal to it.)*
-
-**An introduction hook needs a second de-duplication key, and id is not it.**
-[10 §6.1a](10-schemas.md)'s `introduces` fires on a character rather than an
-event, so the failure it must avoid is *this person arriving for the first time,
-twice*. Id-matching catches only the case where the **same hook** fired before;
-it misses the commoner one, where a different hook — or the narrator, unprompted
-— introduced them in session one. So within a World the suppression key is the
-**subject**, not the hook: a character already introduced in this continuity has
-no first arrival left to stage. Cheap to note now, and it costs 1.0 nothing,
-because the *introduced* predicate it needs already exists per-session
-([03 §8.1](03-modes-and-turn-pipeline.md)) and only its scope widens.
-
-**A known collision, recorded rather than rediscovered.** Two *stable-tier*
-schemas already spend the word: `PlotHook.magnitude` no longer does, but
-`Lorebook.category: "world" | …` still carries it, and `hook.magnitude` was
-renamed away from `scope: "world"` for exactly this reason
-([10 §5](10-schemas.md), [10 §6.1](10-schemas.md)). `category` is gone as of that
-same pass, so what remains is ordinary lowercase prose — "world facts", "the
-world as a whole" — which coexists with a capital-W kind without real ambiguity.
-Worth knowing that portable schemas cannot be cleaned up later without a version
-bump ([10 §2](10-schemas.md)), so any *new* use of the word in a portable
-structure between now and then should be refused.
-
----
-
-## 2e. Write — the 3.0 mode
-
-**Write is scheduled for a 3.0 series**, which puts it in §2b's category rather
-than §1–2's: committed work with a release attached, not intent. **There is no
-3.0 anywhere else in these documents.** The term starts here and in
-[17](17-write-mode.md), and the release line it extends is in
-[work plan §0](workplan/01-work-plan.md).
-
-Its design is [17](17-write-mode.md), so as with §2b there is nothing to add
-here beyond the scheduling. What travels with it: the **Manuscript** kind
-([17 §5](17-write-mode.md)) and the seventh library panel it costs, the Write
-surface and the `top-level` arm on the mode contract's surface declarations
-([17 §6](17-write-mode.md)), beats ([17 §§7–8](17-write-mode.md)), the three
-outline views ([17 §10](17-write-mode.md)), the codex read as a query over the
-existing library rather than a new kind ([17 §9](17-write-mode.md)), and this
-repository's first structured editor ([17 §12](17-write-mode.md)).
-
-**Why a release of its own, rather than a fifth mode inside 2.0.** Not because it
-is unopinionated — it is the most opinionated thing in this document, and
-[17 §1](17-write-mode.md) states the position it takes about what LLM prose
-writing is actually for. It is deferred because it is **downstream**: it consumes
-lorebook activation, mention resolution, the mode contract as a real interface
-rather than a shape one built-in mode happens to fit, and the summary chain. That
-is the same argument [work plan §0](workplan/01-work-plan.md) makes for building
-Campaign against a proven substrate, and it holds harder here, because Write is
-the first mode that needs the contract to *grow* rather than to be configured.
-
-**It meets this document's bar, and the check is worth naming rather than
-assuming.** §1's test is *what does this oblige 1.0 to do* — and the answer is a
-table in [17 §13](17-write-mode.md) rather than a section here, because two of
-its rows land at **1.0**, not at 2.0, and belong beside the argument that
-produces them. The two that matter: the mention-span overlay has to carry a
-tagged entity reference from the first span ever written, and session export
-([06 B12](06-open-questions.md)) must not freeze the turn record before
-[17 §4](17-write-mode.md) is settled.
-
-**Two entries above acquire a second consumer**, which is worth a line each
-rather than a rewrite. §2c.1's story bible is *what a session established*;
-Write's outline is what a manuscript *intends*, and the two want the same
-derived-never-authoritative discipline. And §3's **manual chapterisation** row
-stops being only a reading feature: a binder is chapterisation authored up front,
-which is the same information arriving from the other end.
-
----
-
-## 3. Other deferred items
-
-Already deferred in their own documents; listed here so the roadmap has shape.
-None is specified further than its original entry.
+### 3.3 Eventually
 
 | Item | Deferred in | Note |
 |---|---|---|
 | Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [04 §8](04-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
-| Truly mobile-optimised layout | [05 §1](05-ui-surfaces.md) | A mode of the same web app, never a native shell |
 | **In-UI file access, the whole feature** | [05 §4](05-ui-surfaces.md) | Deprioritised to experimental ([06 D3](06-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
-| Custom extension rendering (sandboxed iframe) | [05 §8](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work |
-| **Tailscale, all levels** | [04 §5.2](04-server-multiuser-deployment.md) | **Post-2.0** ([06 D1](06-open-questions.md)). Level 1 yes, Level 2 maybe, Level 3 not worth it. Keep the auth layer shaped so Level 2 is a provider rather than a special case |
-| A native client | [05 §1](05-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([06 D4](06-open-questions.md)) |
-| Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it |
-| Per-actor knowledge scope (anti-omniscience) | [08 §5](08-infinite-worlds.md) | Held as an acceptance test for the channel model, not a feature commitment |
-| A real user role system | [04 §4.2.1](04-server-multiuser-deployment.md) | **Post-2.0.** Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
-| Prompt-overrun recovery — detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting |  [07 §5.4](07-tech-stack.md) | Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
-| **Manual chapterisation** | [06 E1](06-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([05 §12](05-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters can be applied retroactively to sessions that predate the feature |
-| Embeddings and semantic retrieval | [06 E2](06-open-questions.md) | Aimed at cross-session memory ([11](11-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss |
-| Backup and restore command | [06 E6](06-open-questions.md) | Small: quiesce, archive the data directory excluding the index, restore and rebuild. Files on disk means `rsync` works today and should be documented. **The part that matters is a CI restore test** ([testing](workplan/10-testing.md)) — an untested restore is not a backup |
-| **Lore-conditioned renditions** | [02 §3.6](02-data-model.md) | **Committed intent, not a maybe** — much of why lore images exist. A location's `reference` image is the same shape of input to *illustrate this scene* that an actor's already is ([03 §10.3](03-modes-and-turn-pipeline.md)). Deferred because the plumbing is not the hard part: **choosing which images** is, when six active entries and three present actors all carry references, and conditioning on all of them produces mud. Wants the location channel (P7) for an honest selector, a precedence rule against actor references, and real sessions to tune how many references help before they fight. Half-built — *attach every active entry's image* — gives worse illustrations than no feature, and gets switched off rather than reported. **Obliges 1.0 to** give `reference` the same meaning on lore as on actors, make media addressable per entry, and carry `tags` so a selector has something finer than a role to discriminate on ([10 §3](10-schemas.md)) |
 | Aggregate cost and usage view | [05 §3](05-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
+| Sharing content between users on one install | [06 A3](06-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
+| Video renditions | [03 §10](03-modes-and-turn-pipeline.md) | The `kind` union and `scope.messageId` ship at P9; the implementation does not |
+| Speech and TTS renditions | [03 §10](03-modes-and-turn-pipeline.md) | As above — the shape ships, the feature does not. Voice as an *I/O surface* is a desired extension rather than this (§4.3) |
+| Rendition series and storyboarding | [03 §10](03-modes-and-turn-pipeline.md) | Beats across several images. Wants the illustration selector to be good first, and it is not built yet |
+| A native client | [05 §1](05-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([06 D4](06-open-questions.md)) |
+| Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it, and nothing in use has asked for it |
+| A simple/advanced split, or a rearrangeable layout | [06 D7](06-open-questions.md) | Explicitly not blocking. Density and disclosure carry 1.0; a second layout system is a large commitment to make on a guess |
 
-The peripheral feature surface discarded in [triage §6.3](workplan/02-triage.md) — table
-games, music, calls, haptics — deliberately does **not** appear above. It is not
-a roadmap; it is §3.
+The peripheral feature surface discarded in [triage §6.3](workplan/02-triage.md) —
+table games, music, calls, haptics — deliberately does **not** appear above. It
+is not a tier; it is §4.
+
+### 3.4 Social — a cluster, not a tier
+
+**Messages, an in-app feed, and a bulletin board**, held together by one
+proposition: that **Social is a fourth top-level surface with its own modes**,
+rather than messaging being one more mode of Play.
+
+Messages was scheduled for 2.0 until this pass
+([work plan §0](workplan/01-work-plan.md)). What moved it was not doubt about
+the feature but a better reading of its shape: a messenger, a Marinara-style
+activity feed (§4.6) and something board-shaped — threaded, persistent,
+many-to-many, closer to a forum than to a chat — are three answers to the same
+question, and that question is *what does asynchronous social contact with
+characters look like*. Building one of them as a Play mode would foreclose the
+other two.
+
+**It is deliberately untiered.** The idea is not defined well enough to rank,
+and ranking it would imply more settledness than there is. What exists is a
+direction and three candidate modes; what does not exist is a design.
+
+What travels with Messages whenever this is built: presence
+(Active/Idle/DND/Invisible), per-actor schedules, autonomous first-contact
+messaging, Discord-style profiles, reactions, the command-family gating model,
+**background scheduling** — the server-side timer that starts a turn with no
+client attached — and the Web Push, ntfy and webhook delivery channels
+([04 §3](04-server-multiuser-deployment.md)).
+
+**One cost is already being paid for this**, and
+[work plan §0.3](workplan/01-work-plan.md) records it rather than hiding it:
+background scheduling and presence were Messages' to prove, they are specified,
+and with Messages off the release schedule there is now no date at which that
+seam gets exercised. That is an argument for defining this cluster sooner rather
+than later.
 
 ---
 
@@ -525,10 +369,15 @@ Before anything else, work out which tier the idea belongs to
 - **Authored rules** — declarative conditions and effects over channels, shipped
   as data inside a package. No installation, no code review, no AGPL obligation
   ([triage §1.2](workplan/02-triage.md)), works for anyone who imports the package.
-  **Arrives at 2.0** ([work plan §0.4](workplan/01-work-plan.md)), so until then everything below
+  **Arrives at 5.0, the authoring tier**
+  ([work plan §0.6](workplan/01-work-plan.md)). That is a considerably longer
+  wait than the 2.0 this once promised, and the reason is the one that defers the
+  tier at all: the vocabulary is to be designed against a corpus of real authored
+  worlds, and Campaign at 4.0 is what produces one. Until then everything below
   that would have been rules is a code extension — which is worth knowing before
   starting, and is also the best available evidence for what the vocabulary
-  should eventually contain.
+  should eventually contain. **If you are reading this because you want to write
+  rules, that evidence is the most useful thing you can give us.**
 - **Code extension** — a real module with steps, channels and widgets. More
   power, more responsibility, must be AGPL, must be installed deliberately.
 
@@ -623,11 +472,13 @@ fork the project.
 **Per-actor knowledge scope — anti-omniscience.**
 *Seam:* a channel recording who knows what, updated when information is
 exchanged in scene, gating lore retrieval per speaking actor.
-*Why it is on this list rather than the roadmap:* it is [08 §5](08-infinite-worlds.md)'s
-acceptance test. NPCs acting on things the player never told them is one of the
+*Why it is here as well as in §3.2:* the feature-list entry is what *we* might
+build; this one is [08 §5](08-infinite-worlds.md)'s acceptance test, and the two
+are not the same claim. If a motivated author can build it against the published
+contract, the channel model has earned its keep and our own entry matters less. NPCs acting on things the player never told them is one of the
 most-complained-about failures in this genre and none of the four references
-solves it structurally. If it is buildable as an extension, the channel model
-has earned its keep. If it is not, we need to know early.
+solves it structurally. If it is not buildable as an extension, we need to know
+early.
 
 **Haptics.**
 *Seam:* device access through the capability API.
@@ -641,7 +492,7 @@ attempt at this would find out.
 **Two, with different jobs.** An earlier draft proposed one, and picked dice.
 That was wrong, and the reason is worth keeping.
 
-**Dice ships because Adventure needs it, which is exactly why it cannot be the
+**Dice ships because Freeform and Campaign need it, which is exactly why it cannot be the
 proof.** A reference extension is supposed to demonstrate that an outsider can
 build something real against the published contract. Dice will not demonstrate
 that, because we will be building a thing core modes depend on: if the contract
@@ -650,9 +501,9 @@ It will read — correctly — as a core feature that happens to use the extensi
 hooks.
 
 So dice is a **dependency**, not a demonstration. That still makes it useful:
-Adventure declaring `requires: [dice]` exercises the mode-to-extension
+A mode declaring `requires: [dice]` exercises the mode-to-extension
 dependency path in [02 §7](02-data-model.md), and uninstalling dice should
-degrade Adventure legibly rather than break it.
+degrade the mode legibly rather than break it.
 
 **Poker is the proof, precisely because nothing needs it.** Nobody can mistake
 it for core. If it works, the contract works. Beyond that it stresses seams dice
@@ -785,9 +636,16 @@ definitions carefully distinguish platform separation from access control
 ("content separation between two fictional products, NOT a privacy or security
 control"), which is exactly the comment someone writes after a near miss.
 
-**Verdict: post-1.0, extension, and probably not by us.** The reusable idea —
-ambient activity as a bidirectional context source — is worth generalising into
-core; the timeline is worth leaving to whoever wants it.
+**Verdict: one candidate shape for the Social cluster (§3.4), not a core
+feature on its own.** This section was written when the answer was "extension,
+and probably not by us"; what changed is that Messages left the release schedule
+and the question widened from *should we build a feed* to *what is the surface
+that a messenger, a feed and a board are all modes of*. The analysis above is
+unchanged and is the reason §3.4 exists — in particular the three things a feed
+would need that do not exist, which are still the honest blockers.
+
+The reusable idea — ambient activity as a bidirectional context source — remains
+worth generalising into core whether or not any feed is ever built.
 
 ### 4.7 What we owe extension authors
 

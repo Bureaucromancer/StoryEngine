@@ -1,10 +1,10 @@
 # 09 — Polish list
 
 **Status: intent, not a proposal.** A running list of things that are worth
-doing and are not roadmap items. The distinction matters, because
-[14](../14-roadmap.md) has a bar — an entry there is a *feature* deferred past 1.0,
-and it earns its place by being additive to the data model. Nothing here clears
-that bar and nothing here should have to. These are the small differences
+doing and are not feature-list items. The distinction matters, because
+[14](../14-roadmap.md) has a bar — an entry there is a *feature* held out of the
+committed versions, and it earns its place by being additive to the data model.
+Nothing here clears that bar and nothing here should have to. These are the small differences
 between a surface that works and a surface that is pleasant, and every one of
 them is the kind of thing that is obvious the moment a real person uses the app
 and invisible while reading the spec.
@@ -12,7 +12,8 @@ and invisible while reading the spec.
 **The house rule for this file:** an item belongs here if it changes what a user
 sees or does, is bounded, and needs no schema change and no new contract. If an
 item turns out to need either, it stops being polish — move it to
-[14](../14-roadmap.md) or to the phase plan it actually belongs to.
+[14](../14-roadmap.md), where it gets a priority tier, or to the phase plan it
+actually belongs to.
 
 Order is intent, not priority. Two of these are arcs and should land in order:
 items 1 and 2, and items 4 and 5 — 4 takes a landing place away, so 5 has to
