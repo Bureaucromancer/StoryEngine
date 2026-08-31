@@ -164,6 +164,20 @@ async function overLibrary(): Promise<void> {
   await screen.findByRole('heading', { name: 'Library', level: 1 });
 }
 
+/**
+ * A route with no subject at all, now that the library list has one.
+ *
+ * The sessions list is the same shape the library list used to be — a list of
+ * links with no selection concept — so it is what *honestly empty* is about
+ * after [P4 §7.12] gave `/library` the import subject.
+ */
+async function overSessions(): Promise<void> {
+  await act(async () => {
+    await router.navigate({ to: '/play' });
+  });
+  await screen.findByRole('heading', { level: 1 });
+}
+
 async function overObject(at?: { source: 'user'; slug: string }): Promise<void> {
   await act(async () => {
     await router.navigate({
@@ -312,13 +326,30 @@ describe('the panel frame', () => {
   });
 
   it('is honestly empty over a view with no subject', async () => {
+    // ~~The library list.~~ **The sessions list**, since [P4 §7.12] gave
+    // `/library` the import subject and discharged [P3 §7.3] for that one route.
+    // The interim answer itself is unchanged and still wanted: a route with
+    // nothing to be about says so rather than keeping its last subject, which is
+    // what would quietly make the reader stateful.
     renderApp();
-    await overLibrary();
+    await overSessions();
     await userEvent.keyboard(CHORD);
 
     const dock = screen.getByRole('complementary');
     expect(within(dock).getByText(/follows the main view/)).toBeTruthy();
     expect(within(dock).queryByRole('table')).toBeNull();
+  });
+
+  it('shows import over the library list', async () => {
+    renderApp();
+    await overLibrary();
+    await userEvent.keyboard(CHORD);
+
+    const dock = screen.getByRole('complementary');
+    expect(within(dock).getByRole('heading', { name: 'Import', level: 4 })).toBeTruthy();
+    expect(within(dock).getByPlaceholderText(/full path/i)).toBeTruthy();
+    // And the empty state is gone from it, rather than both being rendered.
+    expect(within(dock).queryByText(/follows the main view/)).toBeNull();
   });
 
   it('stays open across navigation while its subject follows the view', async () => {
@@ -331,8 +362,7 @@ describe('the panel frame', () => {
     // waits on P3.1a's preference keys.
     await overLibrary();
     const overTheLibrary = screen.getByRole('complementary');
-    expect(within(overTheLibrary).getByText(/follows the main view/)).toBeTruthy();
-    expect(within(overTheLibrary).queryByRole('table')).toBeNull();
+    expect(within(overTheLibrary).getByRole('heading', { name: 'Import', level: 4 })).toBeTruthy();
 
     await overPlay();
     expect(within(screen.getByRole('complementary')).getByText('Stopped')).toBeTruthy();

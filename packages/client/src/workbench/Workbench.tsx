@@ -23,6 +23,7 @@ import {
   workbenchSizeFromPrefs,
   workbenchSizePatch,
 } from './prefs.js';
+import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
 import { PreviewSubject } from './turn/PreviewSubject.js';
@@ -78,6 +79,11 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
   // concept, so over it the panel stays honestly empty — and the actor
   // editor is a sibling route, so it stays empty there too.
   const object = useMatch({ from: '/library/$kind/$id', shouldThrow: false });
+  // The list route itself, which used to fall through to the empty state.
+  // [P3 §7.3] asked what a subjectless route should show; over the library list
+  // the answer is import, because the list as a whole is what it is about
+  // ([P4 §7.12]).
+  const libraryList = useMatch({ from: '/library', shouldThrow: false });
   const asideRef = useRef<HTMLElement | null>(null);
   const prefs = usePrefs();
   const patchPrefs = usePatchPrefs();
@@ -131,6 +137,8 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
                 : { source: object.search.source ?? 'user', slug: object.search.slug }
             }
           />
+        ) : libraryList !== undefined ? (
+          <ImportSubject />
         ) : (
           <EmptySubject />
         )}

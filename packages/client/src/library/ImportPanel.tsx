@@ -2,9 +2,16 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ChangeEvent, type JSX } from 'react';
+import { useRef, useState, type ChangeEvent, type JSX, type ReactNode } from 'react';
+
+import type { NearMissOffer } from '@storyengine/shared';
 
 import { api, type ImportItem, type ImportReport } from '../api.js';
+import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
+import { Alert } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
+import { control } from '../ui/classes.js';
+import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
  * The way in — [P4 §1.4](../../../../docs/design/05-ui-surfaces.md)'s review
@@ -118,6 +125,45 @@ const NOTE_LABELS: Record<string, string> = {
   'import.preset.noBlocksInSamplerPreset': 'A sampler panel only — it carries no prompt blocks.',
   'import.preset.postHistoryIsAfterNotAtDepth':
     'Its post-history instructions go after the conversation rather than at a depth.',
+
+  /**
+   * **What the folder is, when it is not the folder to point at.** These come
+   * from `import/near-miss.ts` rather than from a converter, and they are the
+   * first notes here that are about the *request* instead of about an object —
+   * which is why they read as advice rather than as a record.
+   *
+   * They are deliberately in the same map. The alternative was a second
+   * vocabulary with its own renderer, and the note class is already the thing
+   * this review composes prose from; a near miss being a different kind of fact
+   * does not make it a different kind of sentence.
+   */
+  'import.root.sillytavernBelow':
+    'This looks like SillyTavern’s program folder rather than its library. The library is in {path} — point at that instead.',
+  'import.root.sillytavernDataFolder':
+    'This is SillyTavern’s data folder. One person’s library is in {path} — point at that instead.',
+  'import.root.sillytavernOldLayout':
+    'This SillyTavern is older than the 1.12 layout change, so its library is still in {path}.',
+  'import.root.sillytavernUserFolders':
+    'This is SillyTavern’s data folder, which holds one folder per person. Point at the one named for you.',
+  'import.root.sillytavernProgramFolder':
+    'This is SillyTavern’s program folder, not its library. Where the library lives is set by dataRoot in config.yaml; unless that was changed, it is data/default-user.',
+  'import.root.sillytavernAbove':
+    'This is one folder out of a SillyTavern library. Point at the folder above it to bring in the lorebooks, presets and personas too.',
+  'import.root.marinaraBelow': 'A Marinara data folder is in {path} — point at that instead.',
+  'import.root.marinaraTwoDataFolders':
+    'There are Marinara data folders in both {first} and {second}, which a version change used to leave behind. Marinara’s own notes say to check which is newer rather than assume.',
+  'import.root.marinaraUpdateBackup':
+    'This looks like a copy the Marinara launcher made before an update, rather than the folder it is using now.',
+  'import.root.marinaraProgramFolder':
+    'This is Marinara’s program folder rather than its data folder. Either nothing has been saved yet, or its data folder has been moved elsewhere.',
+  'import.root.marinaraStorageFolder':
+    'This is the storage folder inside a Marinara data folder. Point at the folder above it, which holds the pictures as well.',
+  'import.root.marinaraAbove':
+    'This is one folder out of a Marinara data folder. Point at the folder above it.',
+  'import.root.marinaraTablesFolder':
+    'This is inside a Marinara storage folder. Point two folders up, at the data folder itself.',
+  'import.root.marinaraTooOld':
+    'This is a Marinara data folder from before version 1.5.7, which kept everything in one database file. This build reads only the newer file storage.',
 };
 
 /** `{name}` substitution, which is all the catalogue needs until ICU arrives. */
@@ -130,12 +176,118 @@ function sentence(note: ImportItem['notes'][number]): string {
   });
 }
 
+/** What the verdict is called, for somebody who did not write the probe table. */
+const VERDICT_LABELS: Record<string, string> = {
+  sillytavern: 'A SillyTavern library. Ready to import.',
+  marinara: 'A Marinara data folder. Ready to import.',
+  'marinara-archive': 'A Marinara profile archive. Ready to import.',
+  'marinara-envelope': 'A Marinara export file. Ready to import.',
+  'loose-files':
+    'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
+};
+
+export const IMPORT_OPEN_KEY = 'ui.import-open';
+
+/**
+ * **Open is the absence of the preference here**, which inverts what `AsStored`
+ * and the dock itself do — and the inversion is the point rather than a slip.
+ * Those two fold away detail from a surface that is useful without it; this
+ * panel *is* the controls, and greeting somebody with a closed fold labelled
+ * *Add to your library* would be a surface whose whole content is hidden by
+ * default. So `false` is stored and `true` is the absence, and the never-set
+ * case still cannot drift from the default because there is still nothing to
+ * drift.
+ */
+export function importOpenFromPrefs(prefs: Record<string, unknown> | undefined): boolean {
+  return prefs?.[IMPORT_OPEN_KEY] !== false;
+}
+
+/** The patch that records a toggle. `null` deletes, which is what open is. */
+export function importOpenPatch(open: boolean): Record<string, unknown> {
+  return { [IMPORT_OPEN_KEY]: open ? null : false };
+}
+
 export function ImportPanel(): JSX.Element {
   const queryClient = useQueryClient();
+  const prefs = usePrefs();
+  const patchPrefs = usePatchPrefs();
+  const open = importOpenFromPrefs(prefs.data?.prefs);
+
+  /**
+   * Whether to offer the folder half at all.
+   *
+   * **Permissive when the answer is not in yet**, and that asymmetry is the
+   * point: the server is the real gate, so showing the controls to somebody who
+   * turns out not to hold the grant costs one clear refusal, while hiding them
+   * from somebody who does hold it costs them the feature with no way to tell
+   * why. Only a positive `none` hides anything.
+   */
+  const auth = useAuthState();
+  const mayReadFolders = auth.data?.account?.capabilities.fileAccess !== 'none';
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const folderInput = useRef<HTMLInputElement | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [root, setRoot] = useState('');
+
+  /**
+   * What the server said about the folder in the box, if it has been asked.
+   *
+   * **Asked on blur rather than on each keystroke.** A check is up to
+   * thirty-six `stat` calls on somebody else's filesystem, and a half-typed path
+   * is not a question worth answering. Cleared as soon as the text changes,
+   * because advice about a path that is no longer in the box is worse than none.
+   */
+  const [checked, setChecked] = useState<
+    | { ok: true; verdict: string; suggestions: NearMissOffer[] }
+    | { ok: false; message: string }
+    | null
+  >(null);
+  const [checking, setChecking] = useState(false);
+
+  /**
+   * Which look is still the current one.
+   *
+   * **Clicking *Import folder* blurs the path box**, so every sweep is preceded
+   * by a look at the same path, and the two are in flight together. Without this
+   * the slower one wins: a look that resolves after the sweep replaces the
+   * sweep's own advice with an answer about the folder as it was before anything
+   * was imported. Bumped by the sweep as well as by each look, so a sweep
+   * discards whatever look was in the air when it started.
+   */
+  const latest = useRef(0);
+
+  /**
+   * **A look never writes `error`.** Clicking *Import folder* blurs the path
+   * box, so a check always fires just before the sweep does — and if the two
+   * shared one error slot, a refusal from the look would land on top of whatever
+   * the import had to say, or after it. They are separate questions with
+   * separate answers, so they get separate places to put them.
+   *
+   * A refusal here is itself an answer about the folder rather than a failure of
+   * the app: *inside this install's own data* and *not an absolute path* are both
+   * worth reading before an import instead of after one.
+   */
+  const check = async (path: string): Promise<void> => {
+    if (path.length === 0) return;
+    const mine = ++latest.current;
+    setChecking(true);
+    try {
+      const answer = await api.importInspect(path);
+      if (latest.current === mine) setChecked({ ok: true, ...answer });
+    } catch (cause) {
+      if (latest.current === mine) {
+        setChecked({
+          ok: false,
+          message: cause instanceof Error ? cause.message : 'That folder could not be read.',
+        });
+      }
+    } finally {
+      if (latest.current === mine) setChecking(false);
+    }
+  };
 
   /**
    * Everything the library shows is now different, and which queries is not
@@ -151,6 +303,10 @@ export function ImportPanel(): JSX.Element {
   const onFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0];
     if (file === undefined) return;
+    // The input is out of sight, so the name it holds has to be said somewhere:
+    // a picker whose choice leaves no trace is one you cannot check before
+    // committing to it.
+    setChosen(file.name);
     setBusy(true);
     setError(null);
     try {
@@ -170,12 +326,46 @@ export function ImportPanel(): JSX.Element {
     }
   };
 
-  const onSweep = async (): Promise<void> => {
-    if (root.trim().length === 0) return;
+  /**
+   * A folder picked in the browser rather than named on the server
+   * ([P4 §7.13]).
+   *
+   * **Two round trips, and the first one carries no bytes.** The plan step
+   * classifies the folder from its names and answers with the files the reader
+   * will actually open; only those are uploaded. A SillyTavern tree is mostly
+   * chats and backups the importer never opens, so sending all of it to be told
+   * so would move gigabytes to learn what a list of names already says.
+   *
+   * `webkitRelativePath` leads with the picked folder's own name — the browser's
+   * way of saying which folder this is — and the importer's paths are relative
+   * *inside* the root, the way `settings.json` and `characters/` are. So the
+   * first segment comes off, and what is left is exactly what a server-path
+   * sweep of the same folder would have walked.
+   */
+  const onFolder = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (picked.length === 0) return;
+
+    const inside = picked.map((file) => ({
+      file,
+      path: file.webkitRelativePath.split('/').slice(1).join('/'),
+    }));
+
+    latest.current += 1;
     setBusy(true);
     setError(null);
     try {
-      const result = await api.importSweep(root.trim());
+      const plan = await api.importDirectoryPlan(
+        inside.map(({ file, path }) => ({ path, bytes: file.size })),
+      );
+      setChecked({ ok: true, verdict: plan.verdict, suggestions: plan.suggestions });
+
+      const wanted = new Set(plan.wanted);
+      const result = await api.importDirectory(
+        inside.map(({ path }) => path),
+        inside.filter(({ path }) => wanted.has(path)),
+      );
       setReport(result.report);
       await refresh();
     } catch (cause) {
@@ -185,52 +375,244 @@ export function ImportPanel(): JSX.Element {
     }
   };
 
+  const onSweep = async (): Promise<void> => {
+    if (root.trim().length === 0) return;
+    // Any look still in the air is about to be out of date.
+    latest.current += 1;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.importSweep(root.trim());
+      setReport(result.report);
+      // A sweep of the wrong folder succeeds, so the advice matters *more* after
+      // one than before: nothing in the report itself says the wrong folder was
+      // named.
+      setChecked({ ok: true, verdict: result.report.source, suggestions: result.suggestions });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The import failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <section className="mb-6 rounded border border-line p-4">
-      <h2 className="mb-1 text-body font-medium text-ink">Import</h2>
-      <p className="mb-3 text-sm text-ink-subtle">
+    // A plain column, not a landmark: the host supplies the heading and the
+    // region, and two nested `Import` regions would make the panel harder to
+    // navigate by assistive technology rather than easier.
+    <div className="flex flex-col gap-3">
+      <Note>
         Cards, lorebooks and presets from SillyTavern or Marinara. Nothing is staged: what imports
         lands in your library, and everything that did not is listed below.
-      </p>
+      </Note>
 
-      <div className="flex flex-wrap items-end gap-4">
-        <label className="text-sm text-ink-subtle">
-          <span className="mb-1 block">One file</span>
-          <input type="file" onChange={(event) => void onFile(event)} disabled={busy} />
-        </label>
+      {/*
+        **The controls fold; the review does not.** Collapsing is worth having
+        exactly because the report below outlives the form that produced it — a
+        three-hundred-row review is what you came back to read, and the path box
+        that made it is in the way by then. The report therefore sits outside the
+        fold, and closing this leaves it.
+      */}
+      <details
+        open={open}
+        onToggle={(event) => {
+          // The same guard `AsStored` needs, and for the same reason: React
+          // applying the stored preference at mount fires `toggle`, and writing
+          // that back would be the panel patching its own state on every render
+          // of the page. Only a change of heart patches.
+          if (event.currentTarget.open !== open) {
+            patchPrefs.mutate(importOpenPatch(event.currentTarget.open));
+          }
+        }}
+      >
+        <summary className="cursor-pointer text-sm text-ink-muted hover:text-ink">
+          Add to your library
+        </summary>
 
-        <label className="text-sm text-ink-subtle">
-          <span className="mb-1 block">Or a folder on this machine</span>
-          <input
-            type="text"
-            value={root}
-            onChange={(event) => {
-              setRoot(event.target.value);
-            }}
-            placeholder="The full path to a SillyTavern or Marinara data folder"
-            className="w-80 rounded border border-line px-2 py-1 text-ink"
-            disabled={busy}
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => void onSweep()}
-          disabled={busy || root.trim().length === 0}
-          className="rounded border border-line px-3 py-1 text-sm text-ink"
-        >
-          {busy ? 'Reading…' : 'Import folder'}
-        </button>
-      </div>
+        {/*
+          One column, not a row. The dock is 280–640px ([P3.1a]'s bounds), so
+          the three controls that sat side by side on the Library page have
+          nowhere to sit; `control` is `w-full` and fills whatever width the
+          panel has been dragged to.
+        */}
+        <div className="mt-3 flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <FieldLabel>One file</FieldLabel>
+            {/*
+              **A real button, and the input behind it.** `<input type="file">`
+              renders as the user agent's own widget — a grey control that
+              matches nothing else here and reads as text rather than as
+              something to press. The input stays for the file dialog and the
+              accessible name; `sr-only` hides it from sight but not from
+              assistive technology, and the label's `htmlFor` is what makes the
+              button's click reach it.
+            */}
+            <input
+              ref={fileInput}
+              id="import-file"
+              type="file"
+              accept=".png,.json,.charx,.seactor"
+              onChange={(event) => void onFile(event)}
+              disabled={busy}
+              className="sr-only"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="compact"
+                disabled={busy}
+                onClick={() => fileInput.current?.click()}
+              >
+                Choose a file…
+              </Button>
+              {chosen === null ? <Note>No file chosen.</Note> : <Note>{chosen}</Note>}
+            </div>
+          </div>
 
-      {error !== null && (
-        <p role="alert" className="mt-3 text-sm text-ink">
+          {/*
+            **A whole folder, through the browser** — the transport P4 cut and
+            [P4 §7.13] restored. It exists beside the server path rather than
+            instead of it, because the two serve different people: the sweep is
+            for somebody whose browser is on the machine the server runs on and
+            who holds an admin-only grant, and this is for everybody else.
+
+            `webkitdirectory` is not in React's attribute types — it is a
+            long-standing de-facto standard rather than a specified one — so it
+            is spread in. Chrome, Edge, Safari and Firefox all honour it.
+          */}
+          <div className="flex flex-col gap-2">
+            <FieldLabel>Or a folder from this browser</FieldLabel>
+            <input
+              ref={folderInput}
+              id="import-folder"
+              type="file"
+              multiple
+              {...{ webkitdirectory: '' }}
+              onChange={(event) => void onFolder(event)}
+              disabled={busy}
+              className="sr-only"
+            />
+            <Button
+              type="button"
+              size="compact"
+              className="self-start"
+              disabled={busy}
+              onClick={() => folderInput.current?.click()}
+            >
+              Choose a folder…
+            </Button>
+            <Note>
+              Everything in the folder is named, and only the files the importer reads are sent.
+            </Note>
+          </div>
+
+          {/*
+            **The folder half is behind a permission, so it says so rather than
+            answering 403.** [05 §4.2.2] gates the sweep on `fileAccess`, which
+            defaults to `none` — so for most accounts every control below was a
+            form that could only fail, and the failure arrived as a red string
+            after the request. [01 §2.2] forbids a control that does nothing;
+            offering one that is *guaranteed* to refuse is the same fault with an
+            extra round trip. What it cannot do is explain the grant in the
+            grantee's own words, because they cannot make it: only an
+            administrator can, which is what the sentence says.
+          */}
+          {mayReadFolders ? null : (
+            <Alert tone="neutral">
+              Importing from a folder needs a permission this account does not have. An
+              administrator can grant it in Settings.
+            </Alert>
+          )}
+
+          <div className="flex flex-col gap-2" hidden={!mayReadFolders}>
+            <FieldLabel htmlFor="import-root">Or a folder on this machine</FieldLabel>
+            <input
+              id="import-root"
+              type="text"
+              value={root}
+              onChange={(event) => {
+                setRoot(event.target.value);
+                setChecked(null);
+              }}
+              onBlur={(event) => void check(event.target.value.trim())}
+              placeholder="The full path to a SillyTavern or Marinara data folder"
+              className={control}
+              disabled={busy}
+            />
+
+            {/*
+              Where the two applications keep their libraries, described by the
+              marks the server actually probes for rather than by an install path
+              we would be guessing at. Neither project pins its data directory to
+              a fixed place on any operating system, so naming one would be
+              inventing it.
+            */}
+            <Note>
+              A SillyTavern folder is the one holding settings.json beside characters/ and worlds/ —
+              usually data/default-user inside the SillyTavern directory.
+            </Note>
+            <Note>A Marinara data folder is the one holding storage/tables/.</Note>
+
+            <Button
+              type="button"
+              size="compact"
+              className="self-start"
+              onClick={() => void onSweep()}
+              disabled={busy || root.trim().length === 0}
+            >
+              {busy ? 'Reading…' : 'Import folder'}
+            </Button>
+          </div>
+        </div>
+      </details>
+
+      {checking ? <Note role="status">Looking…</Note> : null}
+
+      {checked?.ok === false ? (
+        <Alert tone="warning" role="status">
+          {checked.message}
+        </Alert>
+      ) : null}
+
+      {checked?.ok === true ? (
+        <div className="flex flex-col gap-2">
+          <Note>{VERDICT_LABELS[checked.verdict] ?? checked.verdict}</Note>
+          {checked.suggestions.map((offer) => {
+            // Bound once rather than asserted twice: a finding with no path is
+            // an ordinary answer here, not an impossible one.
+            const target = offer.root;
+            return (
+              <Alert key={offer.situation} tone="warning">
+                <p>{sentence(offer.note)}</p>
+                {target !== null && (
+                  <Button
+                    type="button"
+                    size="tiny"
+                    className="mt-2"
+                    disabled={busy}
+                    onClick={() => {
+                      setRoot(target);
+                      void check(target);
+                    }}
+                  >
+                    Use that folder
+                  </Button>
+                )}
+              </Alert>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {error !== null ? (
+        <Alert tone="error" role="alert">
           {error}
-        </p>
-      )}
+        </Alert>
+      ) : null}
 
       {report !== null && <Report report={report} />}
       <PastImports onOpen={setReport} />
-    </section>
+    </div>
   );
 }
 
@@ -306,13 +688,42 @@ function summarise(counts: Record<string, number>): string {
   return parts.length === 0 ? 'Nothing found' : parts.join(', ');
 }
 
+/**
+ * A control's label, at the one size the dock uses.
+ *
+ * Not `ui/Field`, which owns its own `<input>` — the file control here is an
+ * input the button drives rather than one the field renders, and the path box
+ * needs a `blur` handler `Field` does not pass through. So the label is spelled
+ * once here instead of the recipe being widened for two callers.
+ */
+function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }): JSX.Element {
+  return (
+    <label htmlFor={htmlFor} className="text-sm font-medium text-ink">
+      {children}
+    </label>
+  );
+}
+
+/**
+ * The review, in a column narrow enough for the dock.
+ *
+ * **A list rather than the three-column table this was.** File, what happened
+ * and the notes do not fit side by side at 280px, and the widest of the three is
+ * prose — so at the dock's narrowest the table degenerated into three columns of
+ * one word wrapped six times each. The material was never a grid anyway: it is
+ * one record per file, which is what a list is for. Nothing numeric lines up
+ * across rows, so nothing is lost by stacking.
+ *
+ * The counts stay a row, because they *are* comparable across entries and there
+ * are at most seven of them.
+ */
 function Report(props: { report: ImportReport }): JSX.Element {
   const counts = Object.entries(props.report.counts).filter(([, value]) => value > 0);
 
   return (
-    <div className="mt-4">
-      <h3 className="mb-2 text-sm font-medium text-ink">What happened</h3>
-      <ul className="mb-3 flex flex-wrap gap-3 text-sm text-ink-subtle">
+    <section aria-label="What happened" className="flex flex-col gap-2">
+      <SubsectionTitle as="h4">What happened</SubsectionTitle>
+      <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-subtle">
         {counts.map(([disposition, count]) => (
           <li key={disposition} title={DISPOSITION_HELP[disposition] ?? ''}>
             <strong className="text-ink">{count}</strong>{' '}
@@ -321,39 +732,22 @@ function Report(props: { report: ImportReport }): JSX.Element {
         ))}
       </ul>
 
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-line-strong text-ink-subtle">
-            <th scope="col" className="py-1 pe-4 text-start font-medium">
-              File
-            </th>
-            <th scope="col" className="py-1 pe-4 text-start font-medium">
-              What happened
-            </th>
-            <th scope="col" className="py-1 text-start font-medium">
-              Notes
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.report.items.map((item) => (
-            <tr key={item.source} className="border-b border-line align-top">
-              {/* Relative to the folder that was swept, never absolute ([13 §4.1.1]). */}
-              <td className="py-1 pe-4 text-ink">{item.source}</td>
-              <td className="py-1 pe-4 text-ink-subtle">
-                {DISPOSITION_LABELS[item.disposition] ?? item.disposition}
-              </td>
-              <td className="py-1 text-ink-subtle">
-                {item.notes.map((note, index) => (
-                  <p key={index} className={note.level === 'warn' ? 'text-ink' : undefined}>
-                    {sentence(note)}
-                  </p>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <ul className="flex flex-col gap-2 text-sm">
+        {props.report.items.map((item) => (
+          <li key={item.source} className="border-t border-line pt-2">
+            {/* Relative to the folder that was swept, never absolute ([13 §4.1.1]). */}
+            <code className="block break-all text-xs text-ink">{item.source}</code>
+            <p className="text-ink-subtle">
+              {DISPOSITION_LABELS[item.disposition] ?? item.disposition}
+            </p>
+            {item.notes.map((note, index) => (
+              <p key={index} className={note.level === 'warn' ? 'text-ink' : 'text-ink-subtle'}>
+                {sentence(note)}
+              </p>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

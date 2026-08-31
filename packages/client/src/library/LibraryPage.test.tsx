@@ -34,11 +34,30 @@ const navigate = vi.fn();
 /** Mutable so a test can put the page under a kind filter. */
 let search: { kind?: string } = {};
 
+/**
+ * The dock's open state, as a store rather than a spy.
+ *
+ * The page grew an *Import…* control when the panel moved into the workbench
+ * ([P4 §7.12]), and what that control does is patch a preference — so the claim
+ * to test is a round trip through the store, not that a function was called.
+ * Same stateful shape `dock.test.tsx` and `AsStored.test.tsx` use.
+ */
+let prefsStore: Record<string, unknown> = {};
+const patchPrefs = vi.fn();
+
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
   api: {
     listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
+    readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+    patchPrefs: (patch: Record<string, unknown>) => {
+      patchPrefs(patch);
+      prefsStore = Object.fromEntries(
+        Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+      );
+      return Promise.resolve({ prefs: { ...prefsStore } });
+    },
   },
 }));
 
@@ -65,6 +84,7 @@ function object(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  prefsStore = {};
   vi.useFakeTimers();
   search = {};
   listLibrary.mockResolvedValue({ objects: [object('Rain City')] });
@@ -261,5 +281,64 @@ describe('making an actor', () => {
     expect(screen.queryByRole('button', { name: 'New actor' })).toBeNull();
     expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
     expect(screen.getByText(/only kind that can be made here/)).toBeTruthy();
+  });
+});
+
+/**
+ * The way in, after the panel moved to the dock ([P4 §7.12]).
+ *
+ * [05 §5] says the empty library *points at import*, and the panel is no longer
+ * on this page to point at — so what has to survive the move is a control here
+ * that opens the dock over this route. It patches a preference rather than
+ * routing, because [P3 §1.2] keeps the dock's open state out of the URL on the
+ * grounds that a URL-addressable panel is a place, and §3 spent its argument on
+ * the panel not being one.
+ */
+describe('the import entry point', () => {
+  it('opens the dock by patching the preference, not by navigating', async () => {
+    renderPage();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const opener = screen.getByRole('button', { name: /import/i });
+    expect(opener.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(opener);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+    expect(prefsStore['ui.workbench-open']).toBe(true);
+
+    // `waitFor` polls on real timers and would hang against the fake ones this
+    // file installs for the library poll; advancing is the same wait, told to
+    // the clock that is actually running.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole('button', { name: /import/i }).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
+  });
+
+  it('does not close the dock somebody already opened', async () => {
+    // The control is where a person looks for import; it is not a toggle. One
+    // that closed the panel it just opened would be the second click undoing the
+    // first, which is not what a button labelled *Import…* promises.
+    prefsStore = { 'ui.workbench-open': true };
+    renderPage();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /import/i }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(patchPrefs).not.toHaveBeenCalled();
+    expect(prefsStore['ui.workbench-open']).toBe(true);
   });
 });

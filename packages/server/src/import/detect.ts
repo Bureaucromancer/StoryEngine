@@ -67,9 +67,38 @@ export type RootClassification =
   | { ok: true; kind: ImportSourceKind }
   | { ok: false; refusal: SourceRefusal; matched?: readonly ImportSourceKind[] };
 
-async function matches(files: FileSource, probe: Probe): Promise<boolean> {
-  for (const path of probe.requires) {
-    if (!(await files.exists(path))) return false;
+/**
+ * Whether the marks that identify `kind` are all present under `prefix`.
+ *
+ * **The prefix is the whole of what {@link near-miss} needed from this file.**
+ * Detection asks *is this root a SillyTavern tree*; a near miss asks *is
+ * `data/default-user` one*, and those have to be the same question or a
+ * suggestion can name a folder the classifier then rejects. Exporting `PROBES`
+ * instead would have put the join — and the trailing-slash hazard below — in two
+ * files, which is the argument `marinaraPreflight` already makes one paragraph
+ * down about pre-flights.
+ *
+ * `prefix` is relative, `/`-separated, with **no leading and no trailing
+ * slash**, or `''` for the root itself. Both hazards are real rather than
+ * theoretical, and they break in opposite directions: `MemoryFileSource` finds
+ * nothing under `'storage/tables/'` where a real directory answers `true`, and a
+ * leading `/` inverts the two adapters — memory strips it and finds the file,
+ * `DirectorySource` resolves outside its root and returns `false`. A test that
+ * used the wrong one would pass.
+ *
+ * Adding an arm to `PROBES` gives near-miss a new mark set for free but no new
+ * prefixes: the places worth looking are that module's own table, extended by
+ * hand.
+ */
+export async function probeMarks(
+  files: Pick<FileSource, 'exists'>,
+  kind: ImportSourceKind,
+  prefix = '',
+): Promise<boolean> {
+  const probe = PROBES.find((candidate) => candidate.kind === kind);
+  if (probe === undefined) return false;
+  for (const mark of probe.requires) {
+    if (!(await files.exists(prefix === '' ? mark : `${prefix}/${mark}`))) return false;
   }
   return true;
 }
@@ -84,7 +113,7 @@ async function matches(files: FileSource, probe: Probe): Promise<boolean> {
 export async function classifyRoot(files: FileSource): Promise<RootClassification> {
   const matched: ImportSourceKind[] = [];
   for (const probe of PROBES) {
-    if (await matches(files, probe)) matched.push(probe.kind);
+    if (await probeMarks(files, probe.kind)) matched.push(probe.kind);
   }
 
   if (matched.length > 1) {

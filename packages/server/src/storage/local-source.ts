@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 /**
  * A real directory, read as an import source
@@ -134,6 +134,92 @@ export async function openLocalSource(
    * They may sweep their home directory; they may not thereby read our store.
    */
   return { ok: true, source: new DirectorySource(real, realData, limits) };
+}
+
+/**
+ * The folder above `root`, opened exactly the way {@link openLocalSource} opens
+ * `root`.
+ *
+ * **Why the importer cannot do this itself.** A near miss wants to ask *is the
+ * folder above this one a SillyTavern library* — the case where somebody picked
+ * `characters/`. A `FileSource` cannot answer it: the contract says an
+ * implementation refuses paths that leave the root, `DirectorySource` does
+ * refuse them, and that is the containment working rather than an obstacle to
+ * route around. So the second source is opened here, where `node:path` and the
+ * carve-out already live, and handed in.
+ *
+ * **`null` rather than a refusal**, deliberately. Every reason to decline — a
+ * relative path, a filesystem root with no parent above it, an unreadable
+ * parent, a parent at or below our own data directory — means *no ascending
+ * advice*, which is not a thing a person needs to be told. Giving it a
+ * `RootRefusal` member would also break `refusalMessage`'s exhaustive switch and
+ * demand a sentence nobody would ever read.
+ *
+ * Nothing is restated: the `realpath`, the directory check and the `/data`
+ * carve-out are all inherited by calling back through `openLocalSource`, so a
+ * parent inside the data directory is refused by the same line that refuses a
+ * root inside it. That is the point of routing it here rather than duplicating
+ * three checks that would then have to stay in step.
+ */
+export async function openParentSource(
+  root: string,
+  dataRoot: string,
+  limits: LocalSourceLimits = DEFAULT_LOCAL_LIMITS,
+): Promise<LocalSource | null> {
+  if (!isAbsolute(root)) return null;
+
+  let real: string;
+  try {
+    real = await realpath(root);
+  } catch {
+    return null;
+  }
+
+  // `dirname` of a filesystem root is itself, on both platforms. Without this
+  // the sweep of `C:\` or `/` would probe its own root a second time and could
+  // answer that the folder above it is the folder itself.
+  const above = dirname(real);
+  if (above === real) return null;
+
+  const opened = await openLocalSource(above, dataRoot, limits);
+  return opened.ok ? opened.source : null;
+}
+
+/**
+ * A suggestion made absolute against **the directory the probes actually read**.
+ *
+ * **Anchored on the real path, not on the string the caller sent**, and the
+ * difference is a defect this had before an adversarial review found it. Both
+ * sources are rooted at `realpath(root)` — {@link openLocalSource} resolves
+ * before constructing, and {@link openParentSource} takes `dirname` of the same
+ * resolved path — so every mark behind a finding was observed relative to the
+ * real path. Resolving the suggestion against the unresolved string instead made
+ * the two agree only when no symlink was involved.
+ *
+ * Reproduced before fixing: with `decoy/st-characters` a link to a real
+ * library's `characters/`, the parent probed was the library's user directory
+ * and the path handed back was `decoy/` — so a finding marked `verified`, whose
+ * contract says the classifier would agree, named a folder that classifies as
+ * `loose-files`. Following it swept an unrelated directory. Descending
+ * suggestions were unaffected, because re-opening them resolves the same link
+ * again; the ascending forms are where the two bases diverge.
+ *
+ * **No safety property rides on this**, and that was true before and stays true:
+ * the retry goes back through `openLocalSource`, which re-runs `realpath` and
+ * the carve-out on whatever it is handed. What rides on it is the *honesty* of
+ * `confidence: 'verified'`, which is a claim about a specific folder.
+ *
+ * An unresolvable root keeps the string as given — there is nothing better to
+ * say, and the retry will fail the same way the original did.
+ */
+export async function suggestedRoot(root: string, suggestion: string): Promise<string> {
+  let anchor = root;
+  try {
+    anchor = await realpath(root);
+  } catch {
+    // Nothing there to resolve. `resolve` still normalises the `..` forms.
+  }
+  return resolve(anchor, suggestion);
 }
 
 /** Is `child` at or below `parent`? Path-segment aware, so `/data2` is not inside `/data`. */

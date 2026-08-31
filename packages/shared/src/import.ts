@@ -139,3 +139,78 @@ export const IMPORT_DISPOSITIONS = [
   'unchanged',
   'unrecognised',
 ] as const satisfies readonly ImportDisposition[];
+
+/**
+ * Which shape of mistake a picked folder turned out to be.
+ *
+ * Open by intent, like every other class vocabulary here: a build that meets a
+ * situation it does not know renders the key rather than a blank, and adding an
+ * arm is a table row plus a sentence.
+ */
+export type NearMissSituation =
+  | 'sillytavern-install-root'
+  | 'sillytavern-old-layout'
+  | 'sillytavern-data-root'
+  | 'sillytavern-user-folders'
+  | 'sillytavern-program-folder'
+  | 'sillytavern-above'
+  | 'marinara-install-root'
+  | 'marinara-sibling-data'
+  | 'marinara-packages-root'
+  | 'marinara-two-data-folders'
+  | 'marinara-update-backup'
+  | 'marinara-program-folder'
+  | 'marinara-storage-folder'
+  | 'marinara-above'
+  | 'marinara-tables-folder'
+  | 'marinara-too-old';
+
+/**
+ * One thing worth saying about the folder somebody picked.
+ *
+ * **A note rather than a sentence**, on [P4 §1.4]'s rule for the whole review
+ * vocabulary: the server emits classes and parameters and the client composes
+ * the words. A near miss is the largest single body of new prose this review has
+ * grown, which makes it exactly the wrong place to start storing English.
+ */
+export interface NearMiss {
+  situation: NearMissSituation;
+  /**
+   * Where to point instead, **relative to the folder the person picked**, and
+   * `/`-separated. `'..'` and `'../..'` are the two ascending forms. `null` when
+   * the folder is recognised and the right one cannot honestly be named — which
+   * is a real answer, not a failure to have one.
+   *
+   * **Never handed to a `FileSource`.** `..` is precisely what that contract
+   * says an implementation must refuse, and `DirectorySource` does refuse it.
+   * This is display and retry data; it becomes a path only in
+   * `storage/local-source.ts`, and only for a request re-validated from scratch.
+   */
+  suggest: string | null;
+  /** What the marks say is there. `null` whenever `suggest` is. */
+  leadsTo: 'sillytavern' | 'marinara' | null;
+  /**
+   * `verified` — every mark of `leadsTo` was probed and found at `suggest`, so
+   * the classifier would agree. `inferred` — read off the neighbourhood: a
+   * grandparent nobody opened, or a diagnosis with no path at all.
+   *
+   * A field rather than a comment because one test depends on it: every
+   * `verified` finding must survive a round trip through `classifyRoot`, and
+   * `inferred` is what exempts the rest by construction.
+   */
+  confidence: 'verified' | 'inferred';
+  note: ImportNote;
+}
+
+/**
+ * What a route sends: the finding, plus the path a retry would actually use.
+ *
+ * The absolute form is computed at the edge rather than inside the detector,
+ * because the detector is not allowed to know what an absolute path is — the
+ * `node:fs` boundary keeps path resolution in `storage/`, and this type is the
+ * seam where the two meet.
+ */
+export interface NearMissOffer extends NearMiss {
+  /** Absolute, resolved against the root the person named. `null` iff `suggest` is. */
+  root: string | null;
+}

@@ -485,6 +485,211 @@ describe('pointing the server at a directory', () => {
   });
 });
 
+describe('asking what a folder is, without importing from it', () => {
+  /**
+   * A fixture root **inside a container this test made**, never directly in the
+   * machine's temp directory.
+   *
+   * The route opens the parent of whatever root it is given, so a fixture at
+   * `mkdtemp(tmpdir())` hands the real temp directory to the ascending rules. On
+   * a machine whose temp directory happened to hold a `manifest.json` beside a
+   * `tables/`, or `settings.json` beside `characters/` and `worlds/`, the
+   * suggestion assertions below would fail for reasons having nothing to do with
+   * this code. One extra level makes the parent something the test controls.
+   */
+  async function inSandbox(build: (root: string) => Promise<void>): Promise<string> {
+    const container = await mkdtemp(join(tmpdir(), 'se-inspect-'));
+    const root = join(container, 'fixture');
+    await mkdir(root, { recursive: true });
+    await build(root);
+    return root;
+  }
+
+  /** An install root: the library is one level down, where nobody pointed. */
+  function installRoot(): Promise<string> {
+    return inSandbox(async (root) => {
+      const user = join(root, 'data', 'default-user');
+      await mkdir(join(user, 'characters'), { recursive: true });
+      await mkdir(join(user, 'worlds'), { recursive: true });
+      await writeFile(join(user, 'settings.json'), '{}');
+      await writeFile(join(root, 'server.js'), '// x');
+    });
+  }
+
+  /** A folder that is already a SillyTavern library. */
+  function library(): Promise<string> {
+    return inSandbox(async (root) => {
+      await mkdir(join(root, 'characters'), { recursive: true });
+      await mkdir(join(root, 'worlds'), { recursive: true });
+      await writeFile(join(root, 'settings.json'), '{}');
+    });
+  }
+
+  it('is behind the same permission as the sweep', async () => {
+    // The default is `none`, and the admin created at setup has it. A cheaper
+    // gate here than on the route that actually reads would be a way to ask
+    // questions about the filesystem that the reader refuses to answer.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/inspect',
+      payload: { root: '/somewhere/SillyTavern' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('no-file-access');
+  });
+
+  it('refuses a folder inside our own data directory', async () => {
+    await grantFileAccess();
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/inspect',
+      payload: { root: server.dataDir },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('inside-data-root');
+  });
+
+  it('names the library one level down when somebody points at the install root', async () => {
+    await grantFileAccess();
+    const root = await installRoot();
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/inspect',
+        payload: { root },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.verdict).toBe('loose-files');
+      expect(response.body.suggestions).toHaveLength(1);
+      const [suggestion] = response.body.suggestions as {
+        situation: string;
+        suggest: string;
+        root: string;
+        note: { key: string; params: Record<string, string> };
+      }[];
+      expect(suggestion?.situation).toBe('sillytavern-install-root');
+      expect(suggestion?.suggest).toBe('data/default-user');
+      expect(suggestion?.note.params).toEqual({ path: 'data/default-user' });
+      // The absolute form is the string a retry carries, and it has to be a real
+      // path rather than the relative one echoed back.
+      expect(suggestion?.root).toBe(join(root, 'data', 'default-user'));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('has nothing to suggest about a folder that is already a library', async () => {
+    await grantFileAccess();
+    const root = await library();
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/inspect',
+        payload: { root },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.verdict).toBe('sillytavern');
+      expect(response.body.suggestions).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('imports nothing — the library is untouched by a look', async () => {
+    // The whole point of a separate route: somebody checking a path before they
+    // commit to it must not thereby commit to it.
+    //
+    // **The fixture has to contain something importable**, or this passes
+    // whatever the route does. An earlier version used a bare install root whose
+    // library held only an empty `settings.json`, so `actors` was empty because
+    // there was never an actor — the assertion held for the wrong reason. The
+    // preset below converts on the sweep path, which is what makes the empty
+    // library afterwards mean something.
+    await grantFileAccess();
+    const root = await inSandbox(async (at) => {
+      await mkdir(join(at, 'OpenAI Settings'), { recursive: true });
+      await mkdir(join(at, 'characters'), { recursive: true });
+      await mkdir(join(at, 'worlds'), { recursive: true });
+      await writeFile(join(at, 'settings.json'), '{}');
+      await writeFile(join(at, 'OpenAI Settings', 'Harbour.json'), JSON.stringify(PRESET));
+    });
+
+    try {
+      const looked = await server.request({
+        method: 'POST',
+        url: '/api/import/inspect',
+        payload: { root },
+      });
+      expect(looked.status).toBe(200);
+
+      const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
+      expect(listed.body.objects).toEqual([]);
+
+      // And the same folder, swept, does produce it — so the emptiness above is
+      // the look declining to write rather than the fixture having nothing.
+      const swept = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+      expect(swept.status).toBe(200);
+      const after = await server.request({ method: 'GET', url: '/api/library/presets' });
+      expect(after.body.objects.map((row: { name: string }) => row.name)).toContain('Harbour');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('tells a disappointing sweep what it should have been pointed at', async () => {
+    // The sweep succeeds here — a loose root converts whatever self-identifies —
+    // so nothing about the report says the wrong folder was named. That is the
+    // indistinguishability the advice exists to remove, which is why it rides on
+    // a 200 rather than on a refusal.
+    await grantFileAccess();
+    const root = await installRoot();
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.report.source).toBe('loose-files');
+      expect(
+        (response.body.suggestions as { situation: string }[]).map((s) => s.situation),
+      ).toEqual(['sillytavern-install-root']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('says nothing extra about a sweep that found the right folder', async () => {
+    await grantFileAccess();
+    const root = await library();
+
+    try {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.suggestions).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 /** Grants the admin `read`, which [05 §4.2.2] says is enough for a sweep. */
 async function grantFileAccess(): Promise<void> {
   const response = await server.request({
@@ -494,3 +699,270 @@ async function grantFileAccess(): Promise<void> {
   });
   expect(response.status, JSON.stringify(response.body)).toBe(200);
 }
+
+/**
+ * The browser directory upload — P4's first-to-cut clause, reversed ([P4 §7.13]).
+ *
+ * Two routes because it is two questions. *What is this folder, and what of it
+ * do you need* is answerable from names alone, and answering it first is what
+ * keeps a thirty-directory tree from being uploaded to discover that most of it
+ * is chats.
+ */
+describe('uploading a folder from the browser', () => {
+  const ST_MANIFEST = [
+    { path: 'settings.json', bytes: 2 },
+    { path: 'characters/Vera.png', bytes: 12 },
+    { path: 'worlds/Rain City.json', bytes: 2 },
+    { path: 'chats/Vera/2026.jsonl', bytes: 900 },
+    { path: 'backups/settings_2026.json', bytes: 400 },
+  ];
+
+  /** Many files plus the manifest, as the browser sends them. */
+  function folderBody(
+    manifest: string[],
+    carried: Record<string, string>,
+  ): { payload: Buffer; headers: Record<string, string> } {
+    const boundary = '----storyengineFolderBoundary';
+    const chunks: Buffer[] = [];
+    for (const [path, contents] of Object.entries(carried)) {
+      chunks.push(
+        Buffer.from(
+          [
+            `--${boundary}`,
+            // The relative path travels as the FIELD name: a multipart filename
+            // cannot carry a directory and survive sanitising.
+            `Content-Disposition: form-data; name="${path}"; filename="${path.split('/').pop() ?? path}"`,
+            'Content-Type: application/octet-stream',
+            '',
+            contents,
+            '',
+          ].join('\r\n'),
+          'utf8',
+        ),
+      );
+    }
+    chunks.push(
+      Buffer.from(
+        [
+          `--${boundary}`,
+          'Content-Disposition: form-data; name="manifest"',
+          '',
+          JSON.stringify(manifest),
+          `--${boundary}--`,
+          '',
+        ].join('\r\n'),
+        'utf8',
+      ),
+    );
+
+    return {
+      payload: Buffer.concat(chunks),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    };
+  }
+
+  it('classifies the folder and asks for only what it will read', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: { entries: ST_MANIFEST },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.verdict).toBe('sillytavern');
+    expect(response.body.wanted).toEqual([
+      'settings.json',
+      'characters/Vera.png',
+      'worlds/Rain City.json',
+    ]);
+    expect(response.body.declared).toEqual(['chats/Vera/2026.jsonl', 'backups/settings_2026.json']);
+  });
+
+  it('needs no file permission, unlike the server-path sweep', async () => {
+    // The admin created at setup has `fileAccess: none`, and this answers
+    // anyway. The sweep reads the host's disk through the server's own user;
+    // this reads nothing — the browser already opened the folder as the person,
+    // and what arrives is a list they chose to send.
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: { entries: ST_MANIFEST },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it('gives the same wrong-folder advice before a byte is uploaded', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: {
+        entries: [
+          { path: 'server.js', bytes: 10 },
+          { path: 'data/default-user/settings.json', bytes: 2 },
+          { path: 'data/default-user/characters/Vera.png', bytes: 12 },
+          { path: 'data/default-user/worlds/Rain City.json', bytes: 2 },
+        ],
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.verdict).toBe('loose-files');
+    expect(
+      (response.body.suggestions as { situation: string; root: string | null }[]).map(
+        (s) => s.situation,
+      ),
+    ).toEqual(['sillytavern-install-root']);
+    // No absolute path, because a browser upload has nowhere to point.
+    expect(response.body.suggestions[0].root).toBeNull();
+  });
+
+  it('imports the folder, and accounts for what it was not sent', async () => {
+    const { payload, headers } = folderBody(
+      ST_MANIFEST.map((entry) => entry.path),
+      {
+        'settings.json': '{}',
+        'worlds/Rain City.json': JSON.stringify({
+          entries: { 0: { uid: 0, key: ['rain'], content: 'It rains.', comment: 'Rain' } },
+        }),
+      },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.report.source).toBe('sillytavern');
+
+    const listed = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    expect(listed.body.objects.map((row: { name: string }) => row.name)).toContain('Rain City');
+
+    // **The whole folder is accounted for, not the part that travelled.** The
+    // chats and backups were named and never sent; they still appear, which is
+    // what keeps *nothing is silently dropped* true across a transport that
+    // deliberately does not carry everything.
+    const sources = (response.body.report.items as { source: string }[]).map((i) => i.source);
+    expect(sources).toContain('chats/Vera/2026.jsonl');
+    expect(sources).toContain('backups/settings_2026.json');
+  });
+
+  it('refuses a folder with no manifest rather than importing a fragment', async () => {
+    const { payload, headers } = folderBody([], { 'settings.json': '{}' });
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('no-manifest');
+  });
+
+  it('keeps a crafted path inside the folder', async () => {
+    // Nothing here touches a disk — these become keys in a Map — but a path that
+    // climbed would make the review describe a folder nobody picked.
+    const { payload, headers } = folderBody(['../../etc/passwd', 'settings.json'], {
+      '../../etc/passwd': 'root:x:0:0',
+    });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status).toBe(200);
+    const sources = (response.body.report.items as { source: string }[]).map((i) => i.source);
+    for (const source of sources) {
+      expect(source, `${source} climbs out of the folder`).not.toContain('..');
+    }
+    expect(sources).toContain('etc/passwd');
+  });
+});
+
+describe('the size of a folder upload', () => {
+  /** As above, but built for bulk rather than for shape. */
+  function bulkBody(files: Record<string, string>): {
+    payload: Buffer;
+    headers: Record<string, string>;
+  } {
+    const boundary = '----storyengineBulkBoundary';
+    const chunks: Buffer[] = [];
+    for (const [path, contents] of Object.entries(files)) {
+      chunks.push(
+        Buffer.from(
+          [
+            `--${boundary}`,
+            `Content-Disposition: form-data; name="${path}"; filename="${path}"`,
+            'Content-Type: application/octet-stream',
+            '',
+            contents,
+            '',
+          ].join('\r\n'),
+          'utf8',
+        ),
+      );
+    }
+    chunks.push(
+      Buffer.from(
+        [
+          `--${boundary}`,
+          'Content-Disposition: form-data; name="manifest"',
+          '',
+          JSON.stringify(Object.keys(files)),
+          `--${boundary}--`,
+          '',
+        ].join('\r\n'),
+        'utf8',
+      ),
+    );
+    return {
+      payload: Buffer.concat(chunks),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    };
+  }
+
+  it('applies the limit to the whole folder, not to each file in it', async () => {
+    /**
+     * **The two halves of this transport disagreed, and the plan step is the one
+     * that was right.** `planUpload` spends `maxUploadMb` as a *total* across
+     * every file it asks for — `wantedBytes + entry.bytes > budgetBytes`
+     * accumulates — while the upload route passed the same number to busboy as
+     * `fileSize`, which is per part. So a folder of a thousand files each just
+     * under the limit was a thousand times the limit, buffered into one object
+     * in memory, from any signed-in account: this route is deliberately not
+     * behind `fileAccess`, because the browser has already opened the folder.
+     *
+     * A limit that a well-behaved client respects and the server does not
+     * enforce is not a limit.
+     */
+    const response = await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: { limits: { maxUploadMb: 1 } } },
+    });
+    expect([200, 204]).toContain(response.status);
+
+    // Eight files of 200 KB: none of them near a megabyte, 1.6 MB together.
+    const chunk = 'x'.repeat(200 * 1024);
+    const files: Record<string, string> = {};
+    for (let n = 0; n < 8; n++) files[`characters/card-${String(n)}.json`] = chunk;
+    const { payload, headers } = bulkBody(files);
+
+    const uploaded = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(uploaded.status).toBe(413);
+    expect(uploaded.body.error).toBe('too-large');
+  });
+});
