@@ -63,6 +63,44 @@ describe('what it refuses', () => {
     expect(await open(link)).toEqual({ ok: false, refusal: 'inside-data-root' });
   });
 
+  it('walks a root that CONTAINS the data directory, without entering it', async () => {
+    /**
+     * The case nobody wrote, found by an adversarial review of the P4.7.2
+     * relabel and reproduced before it was fixed ([P4 §7.2]).
+     *
+     * Every test above refuses a root at or below the data directory. None
+     * covered a root *above* it — and `dataDir` defaults to `./data`, so on an
+     * ordinary install the directory somebody would naturally sweep is an
+     * ancestor of our own store. It opened `ok`, listed `data/accounts.json`
+     * and `data/users/<other>/library/actors/<slug>/actor.json`, and `read`
+     * returned the bytes.
+     *
+     * Refusing an ancestor root would have been the wrong repair: sweeping a
+     * home directory to find SillyTavern is the case the capability exists for.
+     * The store is pruned instead, so the sweep may walk around us but not
+     * through us.
+     */
+    const inner = join(root, 'data');
+    await mkdir(join(inner, 'users', 'alice', 'library'), { recursive: true });
+    await writeFile(join(inner, 'accounts.json'), '{}');
+    await writeFile(join(inner, 'users', 'alice', 'library', 'actor.json'), '{}');
+    await mkdir(join(root, 'characters'), { recursive: true });
+    await writeFile(join(root, 'characters', 'Vera.png'), 'x');
+
+    const opened = await openLocalSource(root, inner);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+
+    const seen: string[] = [];
+    for await (const path of opened.source.list()) seen.push(path);
+
+    expect(seen).toEqual(['characters/Vera.png']);
+    // Not merely absent from the listing: unreadable when named directly,
+    // because the readers build paths the walk never yielded.
+    expect(await opened.source.read('data/accounts.json')).toBeNull();
+    expect(await opened.source.exists('data/accounts.json')).toBe(false);
+  });
+
   it('does not refuse a sibling whose name merely starts the same way', async () => {
     // `/data2` is not inside `/data`. A string prefix test would refuse it, and
     // refusing somebody's real library over a naming coincidence is its own bug.

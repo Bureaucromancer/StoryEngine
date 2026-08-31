@@ -144,6 +144,41 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
               }}
               hint="When off, their turns use the system connections only. Their own connection files stay on disk and work again if you turn this back on."
             />
+
+            {/**
+             * **Moved out of *Recorded for later* at the P4 audit, and relabelled
+             * to name what it actually grants** ([05 §4.2.2]).
+             *
+             * It sat in the recorded group with the labels *No file browser* /
+             * *May read their own files* / *May edit their own files* for three
+             * weeks after P4.4 began gating the import sweep on it. So an
+             * administrator granting `read` was told they were enabling a
+             * browser over that person's own content, and was in fact granting a
+             * server-side read of any directory on the host outside `/data`.
+             *
+             * [01 §2.2] forbids a control that does nothing. This was its
+             * inverse and the more dangerous one — a control that did **more**
+             * than its label admitted — and 05 §4.2.2 had already committed the
+             * relabel to *ship with the sweep, not after it*.
+             *
+             * The hint carries that section's own statement of the bar rather
+             * than a softer paraphrase. An administrator deciding this needs the
+             * real comparison, and *someone you would give a shell to* is the
+             * one sentence that conveys it.
+             */}
+            <SelectField
+              label="Import from a folder on this machine"
+              value={row.capabilities.fileAccess}
+              options={[
+                ['none', 'No — cannot read this machine'],
+                ['read', 'May import from a folder'],
+                ['write', 'May import from a folder, and edit their own files'],
+              ]}
+              onChange={(value) => {
+                patch({ capabilities: { fileAccess: value } });
+              }}
+              hint="Anything above “No” lets them name any directory on this machine outside the data directory and have the server read it — the import review lists every file it found there, including ones it could not import. Grant it to someone you would give a shell to on this machine. The in-app file browser has not shipped; until it does, “May edit their own files” differs from “May import from a folder” only in what it will mean later."
+            />
           </div>
         </fieldset>
 
@@ -155,27 +190,21 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
          * *may add their own provider keys* that added nothing would be exactly
          * that. What makes these honest is the sentence below: the setting is
          * kept and will apply when the feature ships.
+         *
+         * **`fileAccess` left this group at the P4 audit** and now sits above,
+         * because it stopped being recorded-for-later the moment the import
+         * sweep began reading it. A group whose legend says *these features have
+         * not shipped* is a promise about every control inside it, and one live
+         * control in there makes the legend a lie about all of them.
          */}
         <fieldset className="border-0 p-0">
           <legend className="text-xs font-medium tracking-wide text-ink-faint uppercase">
             Recorded for later
           </legend>
           <p className="mt-1 mb-2 text-xs text-ink-faint">
-            These features have not shipped. What you set here is kept and will apply when they do.
+            Extensions have not shipped. What you set here is kept and will apply when they do.
           </p>
           <div className="flex flex-col gap-3">
-            <SelectField
-              label="Files"
-              value={row.capabilities.fileAccess}
-              options={[
-                ['none', 'No file browser'],
-                ['read', 'May read their own files'],
-                ['write', 'May edit their own files'],
-              ]}
-              onChange={(value) => {
-                patch({ capabilities: { fileAccess: value } });
-              }}
-            />
             <CheckboxField
               label="May enable extensions"
               checked={row.capabilities.enableExtensions}

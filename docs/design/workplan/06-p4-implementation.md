@@ -1599,10 +1599,22 @@ needed. What follows is what was **not** named.
 
 ### 7.1 The single-file upload never grew past P4.1
 
+**Fixed 2026-08-30**, with a correction to this section's own claim — see the
+record at the end of it.
+
 `routes/import.ts:196` converts Marinara envelopes and the three SillyTavern
-preset kinds. It does not convert a V2/V3 card PNG, a JSON card, or a
-SillyTavern lorebook — all three of which the *sweep* converts, through the same
-library, on the same build.
+preset kinds. It does not convert a V2/V3 card PNG, ~~a JSON card,~~ or a
+SillyTavern lorebook — ~~all three~~ **both** of which the *sweep* converts,
+through the same library, on the same build.
+
+*Correction.* The JSON card was wrong in both directions and the error was mine:
+the sweep did not convert one either. `reader.ts` routes **by top-level
+directory**, not by content — `characters/` goes to `#card`, which requires a
+container codec and reports `notACard` when there is none. So
+`characters/Vera.json` was refused by the sweep with the same confident wrong
+answer the upload gave. That made it a defect in the sweep as well, and it is
+fixed in the same change rather than filed, because the two arms disagreeing
+about *what counts as a card* is the exact failure this finding is about.
 
 Two different wrong answers come out of that gap:
 
@@ -1691,3 +1703,140 @@ Named because an audit that only lists faults is not a measurement:
 - Gate steps 1, 6, 8, 13, 14 and 15 all have the tests their text describes.
 - Every other `at P4.x` reference in the source is past-tense and accurate;
   `routes/import.ts:200` is the only stale forward-promise in the codebase.
+
+### 7.8 A folder of loose cards converts nothing — found while fixing 7.1
+
+`classifyRoot` returns `loose-files` for a directory that matches no probe, and
+`sweep.ts:127` hands it to the SillyTavern walker with the reasoning *"a folder
+of cards somebody assembled by hand is the ST tree with most of it missing, and
+the walker already reports what it does not recognise"*.
+
+The first half is the intent and the second half is doing something else. The
+walker routes by **top-level directory**, so `Vera.png` sitting at the root has
+`top === 'Vera.png'`, falls to `default:`, and is `unrecognised` — with an empty
+note list, so the review does not even say why. Checked rather than reasoned:
+classifying a two-file memory source and iterating it returns
+`{"kind":"loose-files"}` followed by two `unrecognised` rows and no notes.
+
+`detect.test.ts:51` asserts only the *verdict* — that such a root classifies as
+`loose-files` — and never that anything in it converts, so the suite reports this
+as working.
+
+**Not fixed here, deliberately.** It looks like the same defect as 7.1 and is
+not: the walker's `default:` arm is where [§1.8]'s disposition table lives, and
+content-probing everything that lands there would change what a *real* ST root
+does with `stats.json` and its siblings — which gate step 13 asserts. The fix is
+to make the reader aware of which kind of root it is walking and probe by
+content only for `loose-files`, and that is a decision about the disposition
+table rather than a repair, so it wants its own commit and its own gate line.
+
+### 7.9 What the fix changed — 2026-08-30
+
+**7.1.** The upload route no longer has a converter. `import/upload.ts` is the
+third reader §1.3 always described: it probes one file by content and yields the
+same `SourceItem` a directory walk yields. `sweep.ts` exports `convertOne`,
+which is the sweep's own `Writer` at the scale of one candidate, so the upload
+arm now inherits re-import identity, the version-history `import` attribution,
+scenario deduplication, the portrait rule and the whole note vocabulary — none
+of which it had. `routes/import.ts` kept only its transport: `convertPreset` and
+`presetNameFrom` are gone, thirty-one lines including a docstring claiming the
+sweep probes by shape — which it did not, and which is how the JSON-card
+correction above stayed invisible for three stages.
+
+The sweep's own JSON-card gap (the correction above) is closed in
+`sillytavern/reader.ts#card`, which now falls back to reading the bytes as a
+card when there is no container codec. Both arms share the probe —
+`looksLikeCard` is exported from `upload.ts` and imported by the walker —
+because *what counts as a card* is precisely the judgement they must not make
+differently.
+
+Six route tests cover the shapes a person actually arrives with: a card as a
+picture, a card as JSON, a lorebook, the treatment a card's scenario produces,
+a picture with no character in it, and the same card twice. Mutating the PNG arm
+and the lorebook probe fails five of the six, so they are load-bearing rather
+than decorative.
+
+**7.2.** The `fileAccess` control moved to *In force now* and its three labels
+name the sweep. The hint carries [05 §4.2.2]'s own bar — *grant it to someone
+you would give a shell to on this machine* — rather than a softer paraphrase,
+and says plainly that the browser half has not shipped, so the group's promise
+stays true for what remains in it. `accounts.ts`'s *"still gate nothing"*
+paragraph was rewritten; it had been false since P4.4. Three settings tests
+assert the arrangement and the wording, including that *No file browser* is gone.
+
+**And a third thing, which 7.1 made unavoidable.** `NOTE_LABELS` was missing
+**24 of the 41** classes the server emits, so those rendered to a person as raw
+dotted keys — including `import.card.bookExtracted`, which fires on every card
+carrying a lorebook. Five of the missing 24 land on the upload path for the
+first time in this change, so leaving them would have shipped a half-fix. All 41
+are labelled, and `note-labels.test.ts` now fails the build in both directions:
+a note with no sentence, and a sentence for a note nothing emits. That guard is
+the actual repair — the map drifted for three stages because nothing looked.
+
+Gate steps 9, 11 and findings 7.4, 7.5 and 7.8 are untouched and still open.
+
+### 7.10 What an adversarial review of the fix found — 2026-08-30
+
+The fix above was reviewed before it landed, by independent readers told to
+refute rather than confirm. Four things came back that were worth acting on, and
+the first is the one that matters.
+
+**The `/data` carve-out was root-only, and 7.2's new labels had just finished
+promising otherwise.** `openLocalSource` refused a sweep root *at or below* the
+data directory and said nothing about a root *above* it — and `dataDir` defaults
+to `./data`, so on an ordinary install the directory somebody would naturally
+sweep is an **ancestor** of our own store. Reproduced before fixing: sweeping the
+install root opened `ok`, listed `data/accounts.json`,
+`data/system/connections/*.json` and
+`data/users/<someone-else>/library/actors/<slug>/actor.json` — slugs being
+name-derived, so another person's character and lorebook names were disclosed in
+the review — and `read('data/accounts.json')` returned the file's bytes. Only the
+walker's folder routing kept contents unconverted, which is one `switch` arm away
+from not being true either.
+
+This predates P4.4 and is the kind of gap a phase can carry without noticing.
+What made it *this* change's problem is that [§7.2](#72) had just written three
+sentences — the admin hint, the block comment above it, and `accounts.ts`'s
+paragraph — telling an administrator that the carve-out is why the grant is safe.
+A widened permission behind a containment claim that is not enforced is worse
+than the unlabelled control it replaced.
+
+Fixed by pruning rather than by refusing an ancestor root, because refusing would
+break the case the capability exists for: someone whose data lives at
+`/home/bob/storyengine/data` sweeping `/home/bob` to find SillyTavern. They may
+walk around us; they may not walk through us. Enforced in both `list()` and
+`read()`, because the readers build paths the walk never yielded — a portrait, a
+table named by a manifest.
+
+**The upload could answer with a treatment it had synthesised.** The route chose
+`reports.find(converted)`, and the trigger is narrower than the review stated,
+which is why it is written out in the test: on a plain re-import the card and its
+treatment both read `unchanged`, so the fallback returns the right row anyway.
+The bug needs the card unchanged while the treatment is new — import, delete the
+treatment, import again — and then the response `source` is `Scenario: …`, a file
+the person never sent. `reports[0]` is right in every case, because `convertOne`
+puts the uploaded file's own row first by construction.
+
+**`looksLikeCard` would have imported `package.json` as a character.** The first
+list counted `description` as evidence, and `name` plus `description` is the shape
+of half the JSON on a disk. It now requires a greeting, an example exchange or a
+personality — fields nothing but a card has — or an explicit `chara_card_v*`
+spec. The cost is a hand-written minimal card with only a description, which is
+now an honest `unrecognised`.
+
+**Two of the checks I had just written did not check.** The note-label guard's
+first version searched for a bare word and matched the *local variable* in
+`params: { file: filename }`, so the mutation that should have failed passed; and
+the re-import test's `DELETE` answered `428 hash-required` and deleted nothing,
+so it passed for the wrong reason. Both are fixed and both now fail when the
+behaviour they describe is reverted. Worth recording as a class rather than as
+two slips: **a guard written alongside the fix it guards is the easiest kind to
+write green**, and mutating it is the only thing that tells you.
+
+Two findings were left alone deliberately. Re-import identity keys on
+`Provenance.originalFilename`, so a card swept from a folder is
+`characters/Vera.png` while the same card uploaded is `Vera.png` — importing both
+ways gives two actors, and two unrelated files sharing a name replace each other.
+That is [§6.2](#62)'s open question about filename identity, reached from a new
+direction rather than a new defect, and the answers it already names — a
+source-app tag, a content hash — are the answers here too.

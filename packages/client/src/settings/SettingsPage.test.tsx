@@ -229,7 +229,7 @@ describe('the dead-end warning', () => {
  * [05 §15.2] asks for, which is *when*.
  */
 describe('the capability groups', () => {
-  it('separates the one that bites from the two that do not', async () => {
+  it('separates the two that bite from the one that does not', async () => {
     renderPage('admin');
 
     const now = await screen.findByRole('group', { name: 'In force now' });
@@ -240,6 +240,36 @@ describe('the capability groups', () => {
     // And the group says why once, rather than each switch apologising for
     // itself.
     expect(later.textContent).toContain('have not shipped');
+  });
+
+  it('puts file access in force, because the import sweep reads it', async () => {
+    // The P4 audit's finding 7.2, as a test: this control sat in *Recorded for
+    // later* for three weeks after `POST /api/import/sweep` began refusing on
+    // `fileAccess: "none"`. A group whose legend promises nothing has shipped is
+    // a claim about every control inside it.
+    renderPage('admin');
+
+    const now = await screen.findByRole('group', { name: 'In force now' });
+    const later = screen.getByRole('group', { name: 'Recorded for later' });
+
+    expect(now.textContent).toContain('Import from a folder on this machine');
+    expect(later.textContent).not.toContain('Import from a folder');
+  });
+
+  it('says what the grant actually reaches, not what it used to', async () => {
+    // [05 §4.2.2] widened this capability deliberately and bound the relabel to
+    // ship with it. The old labels described a file browser over the user's own
+    // directory; the grant is a server-side read of the host. The bar is the
+    // design's own sentence rather than a softer paraphrase, so it is asserted.
+    renderPage('admin');
+
+    const now = await screen.findByRole('group', { name: 'In force now' });
+
+    expect(now.textContent).toContain('outside the data directory');
+    expect(now.textContent).toContain('would give a shell to');
+    // The three labels must not describe a browser over their own files, which
+    // is the sentence that was false.
+    expect(now.textContent).not.toContain('No file browser');
   });
 
   it('writes the consequence beside the switch that has one', async () => {

@@ -7,9 +7,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
-import { convertChatCompletionPreset } from '../import/sillytavern/preset.js';
-import { convertSyspromptPreset } from '../import/sillytavern/sysprompt.js';
-import { convertTextCompletionPreset } from '../import/sillytavern/text-completion.js';
+import { MemoryFileSource } from '../import/memory-source.js';
+import { readUpload } from '../import/upload.js';
 import {
   profileAsFileSource,
   readEnvelope,
@@ -17,9 +16,8 @@ import {
 } from '../import/marinara/envelope.js';
 import type { ConflictPolicy } from '../import/identity.js';
 import type { SourceRefusal } from '../import/source.js';
-import { sweep } from '../import/sweep.js';
+import { convertOne, sweep } from '../import/sweep.js';
 import { openLocalSource, type RootRefusal } from '../storage/local-source.js';
-import { create, LibraryError } from '../library.js';
 
 /**
  * The first upload route this server has had
@@ -196,11 +194,24 @@ function sweepRefusalMessage(refusal: SourceRefusal): string {
 /**
  * Classifies one uploaded file and converts it if this build can.
  *
- * **What it cannot convert yet is `recorded`, not an error.** At P4.1 only
- * presets convert; cards and lorebooks arrive at P4.2. Answering 4xx for a
- * perfectly good card would tell somebody their file is wrong when the truth is
- * that this build is not finished — so the file is named, its class is reported,
- * and the review vocabulary carries the difference ([P4 §1.4]).
+ * ~~**What it cannot convert yet is `recorded`, not an error.** At P4.1 only
+ * presets convert; cards and lorebooks arrive at P4.2.~~ *Rewritten at the P4
+ * completeness audit ([P4 §7.1]).* That paragraph was true when it was written
+ * and this route kept acting on it for three stages after it stopped being
+ * true: P4.2 landed cards and lorebooks in the sweep and nothing taught them to
+ * the upload, so the single most common import there is — one card — came back
+ * `recorded` with a note claiming the build was unfinished.
+ *
+ * **It now has no converter of its own.** The file is read by `readUpload`, the
+ * third reader §1.3 always described, and written by `convertOne`, which is the
+ * sweep's own engine. What is left here is transport: multipart, size, and
+ * turning a list of reports back into one answer.
+ *
+ * A file this build genuinely cannot identify is `unrecognised` and says so.
+ * `recorded` survives for the one case that still earns it — a Marinara export
+ * whose *type* we know and whose destination does not exist yet — because that
+ * is the class that means **read, named, nowhere to put it**, and a card is no
+ * longer an example of it.
  */
 async function importOneFile(
   services: AppServices,
@@ -219,22 +230,22 @@ async function importOneFile(
     notes,
   });
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    // A PNG card lands here today. It is a file this build will convert at
-    // P4.2, and saying *not recognised* would be a smaller lie than saying it
-    // is broken — so it says neither, and reports what it is waiting for.
-    return item('recorded', [
-      { key: 'import.file.notYetConvertible', params: { filename }, level: 'info' },
-    ]);
-  }
-
   // Marinara's own export formats, which are the same reader over a different
   // file source ([P4 §1.3]) — a `.marinara.json` is one row of a table that
   // happens to have travelled alone.
-  const envelope = readEnvelope(parsed);
+  //
+  // Tried first, and only if the bytes are JSON at all: an envelope can carry a
+  // whole profile, so it is a *source* rather than an item and cannot go through
+  // the single-item reader below.
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    // Not JSON. That is not a failure — it is very likely a card — and the
+    // reader below is what decides.
+  }
+
+  const envelope = parsed === null ? null : readEnvelope(parsed);
   if (envelope !== null) {
     const files =
       envelope.type === 'marinara_profile'
@@ -245,7 +256,7 @@ async function importOneFile(
       return item('recorded', [
         {
           key: 'import.file.notYetConvertible',
-          params: { filename, kind: envelope.type },
+          params: { file: filename, kind: envelope.type },
           level: 'info',
         },
       ]);
@@ -256,7 +267,7 @@ async function importOneFile(
       return item('unrecognised', [
         {
           key: 'import.file.refused',
-          params: { filename, refusal: outcome.refusal },
+          params: { file: filename, refusal: outcome.refusal },
           level: 'warn',
         },
       ]);
@@ -271,63 +282,41 @@ async function importOneFile(
     };
   }
 
-  const converted = convertPreset(parsed, presetNameFrom(filename));
-  if (converted === null) {
+  // Everything else is one item from the upload reader, written by the sweep's
+  // own engine ([P4 §7.1]). The file source holds the single file so that a
+  // card's portrait — `assets: [filename]` — resolves the same way it does in a
+  // directory walk.
+  const read = readUpload(filename, bytes);
+  if (read.outcome === 'observed') return { item: read.report, notes: read.report.notes };
+
+  const reports = await convertOne(
+    { library: services.library, handle, files: new MemoryFileSource({ [filename]: bytes }) },
+    read.candidate,
+  );
+
+  /**
+   * A card that names a scenario produces an actor *and* a treatment, so the
+   * route has to choose which row is the answer. It is always the **first**,
+   * which is the uploaded file's own — `convertOne` returns it ahead of anything
+   * `flushTreatments` synthesises.
+   *
+   * **Not `find(converted)`**, which is what this said first and which an
+   * adversarial review of the fix caught. A re-imported card's own row reads
+   * `unchanged`, not `converted`, so `find` skipped it and answered with the
+   * treatment — whose `source` is `Scenario: …` rather than a filename. Upload
+   * the same card twice and the second response names a file the person never
+   * had. The envelope arm above keeps `find`, and correctly: a profile is a
+   * whole sweep with no single file row to be first.
+   *
+   * Every note travels regardless, so nothing the treatment reported is lost by
+   * not being the row that was chosen.
+   */
+  const notes = reports.flatMap((row) => row.notes);
+  const answer = reports[0];
+  if (answer === undefined) {
     return item('unrecognised', [
-      { key: 'import.file.unrecognised', params: { filename }, level: 'warn' },
+      { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
     ]);
   }
-  if (!converted.ok) {
-    return item('unrecognised', [
-      {
-        key: 'import.file.refused',
-        params: { filename, refusal: converted.refusal },
-        level: 'warn',
-      },
-    ]);
-  }
-
-  try {
-    const stored = await create(services.library, handle, converted.value.preset);
-    return item('converted', converted.value.notes, (stored.object as { id: string }).id);
-  } catch (error) {
-    if (error instanceof LibraryError) {
-      return item('unrecognised', [
-        { key: 'import.file.notStored', params: { filename, reason: error.code }, level: 'warn' },
-      ]);
-    }
-    throw error;
-  }
-}
-
-/**
- * Which preset kind this is, by shape rather than by filename.
- *
- * The same posture root detection takes ([P4 §1.3]): a file is what it probes
- * as. A `.json` in `OpenAI Settings/` is a chat-completion preset because it has
- * `prompts`, not because of the folder it came out of — and a single upload has
- * no folder to go on at all.
- */
-function convertPreset(parsed: unknown, name: string) {
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
-  const body = parsed as Record<string, unknown>;
-
-  if (Array.isArray(body['prompts'])) return convertChatCompletionPreset(parsed, name);
-  if (typeof body['content'] === 'string' || typeof body['post_history'] === 'string') {
-    return convertSyspromptPreset(parsed, name);
-  }
-  // A sampler panel is the least distinctive shape of the three, so it is the
-  // fallback rather than a probe: anything object-shaped with a sampler field
-  // in it. A file matching none of the three is `unrecognised`.
-  const samplerish = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'];
-  if (samplerish.some((field) => typeof body[field] === 'number')) {
-    return convertTextCompletionPreset(parsed, name);
-  }
-  return null;
-}
-
-/** The filename without its extension, which is what ST names a preset by. */
-function presetNameFrom(filename: string): string {
-  const base = filename.split(/[\\/]/).pop() ?? filename;
-  return base.replace(/\.[^.]+$/, '') || 'Imported preset';
+  return { item: { ...answer, notes }, notes };
 }

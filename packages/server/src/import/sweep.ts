@@ -120,6 +120,31 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
   };
 }
 
+/**
+ * The sweep's engine, at the scale of one file
+ * ([P4 §7.1](../../../docs/design/workplan/06-p4-implementation.md)).
+ *
+ * **Exported so the upload route has no converter of its own.** It had one for
+ * three stages — three preset shapes and nothing else — and the cost was two
+ * arms of the same feature disagreeing about what a lorebook is. Everything the
+ * sweep gives an object comes with this: the note vocabulary, re-import
+ * identity, the version-history `import` attribution, scenario deduplication and
+ * the portrait.
+ *
+ * `flushTreatments` is called here rather than left to the caller, because a
+ * card that names a scenario produces **two** objects and forgetting the second
+ * is a silent loss rather than an error. One candidate is therefore a list of
+ * reports and not a single one — the shape tells the caller that.
+ */
+export async function convertOne(
+  request: SweepRequest,
+  candidate: ImportCandidate,
+): Promise<ImportItemReport[]> {
+  const writer = new Writer(request);
+  const first = await writer.write(candidate);
+  return [first, ...(await writer.flushTreatments())];
+}
+
 function readerFor(kind: string, files: FileSource): SourceReader | null {
   // `loose-files` is swept by the same walker: a folder of cards somebody
   // assembled by hand is the ST tree with most of it missing, and the walker

@@ -67,6 +67,55 @@ const NOTE_LABELS: Record<string, string> = {
   'import.object.replaced': 'Replaced what was here; the previous version is in its history.',
   'import.object.keptBoth': 'Kept alongside the existing one.',
   'import.object.differsAndKept': 'Differs from what is here, and was not written.',
+
+  /**
+   * **The twenty-four the map was missing**, found by the P4 completeness audit
+   * ([P4 §7.1]) and added with it.
+   *
+   * The first eighteen were written from the design's expected vocabulary
+   * rather than harvested from the converters, so the map drifted the moment a
+   * converter learned a new note — and the fallback at `sentence()` is silent
+   * about it by design: an unlabelled key renders as itself, which is right for
+   * a newer build's class and wrong as a permanent state.
+   *
+   * `import.card.bookExtracted` is the sharpest case. It fires on **every** card
+   * that carries a lorebook, which is most of them, so the most common note in
+   * the most common import was rendering as a dotted machine string. Five of
+   * these reach the single-file upload for the first time in this change, which
+   * is why closing the gap belongs to it rather than to a later tidy.
+   *
+   * Harvested with a grep for the emitted keys and diffed against this map, so
+   * the list is the code's rather than a guess at it.
+   */
+  'import.card.bookExtracted': 'Carried a lorebook, imported separately as “{book}”.',
+  'import.card.bookRefused': 'The lorebook inside this card could not be read ({refusal}).',
+  'import.card.treatmentCreated':
+    'Its scenario became the treatment “{treatment}”, shared by {actors}.',
+  'import.file.notACard': '{file} is not a character card.',
+  'import.file.pictureWithoutACard': '{file} is a picture with no character in it.',
+  'import.file.notJson': '{file} is not readable as JSON.',
+  'import.file.unrecognised': 'Nothing here recognised {file}.',
+  'import.file.refused': '{file} could not be read ({refusal}).',
+  'import.file.notStored': '“{object}” could not be saved ({reason}).',
+  'import.file.notYetConvertible':
+    'Read and named, but this build has nowhere to put a {kind} yet.',
+  'import.row.unreadable': 'A row in {table} could not be read and was skipped.',
+  'import.lore.stateDropped': '“{entry}” had a {field} setting that does not exist here.',
+  'import.lore.unknownPosition': '“{entry}” sat at position {code}, which has no meaning here.',
+  'import.lore.logicNarrowed':
+    '“{entry}” used {original} matching, narrowed to what this supports.',
+  'import.lore.characterLinksDangle':
+    'Was linked to {count} characters that were not imported with it.',
+  'import.macro.refused': 'The macro {macro} in “{block}” was left as written — {because}.',
+  'import.preset.paramsCarried': '{count} sampler settings carried over.',
+  'import.preset.groupOrderUsed': 'Prompt order taken from the preset’s own group.',
+  'import.preset.groupOrderDropped': 'The preset’s group ordering could not be used.',
+  'import.preset.unknownMarker': 'The “{identifier}” block is not one this understands.',
+  'import.preset.modePromptConverted': 'Its {field} became a block.',
+  'import.preset.variablesInert': '{count} variables were kept but do nothing yet.',
+  'import.preset.noBlocksInSamplerPreset': 'A sampler panel only — it carries no prompt blocks.',
+  'import.preset.postHistoryIsAfterNotAtDepth':
+    'Its post-history instructions go after the conversation rather than at a depth.',
 };
 
 /** `{name}` substitution, which is all the catalogue needs until ICU arrives. */

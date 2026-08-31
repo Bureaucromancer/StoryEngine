@@ -87,7 +87,32 @@ export async function openLocalSource(
     return { ok: false, refusal: 'inside-data-root' };
   }
 
-  return { ok: true, source: new DirectorySource(real, limits) };
+  /**
+   * **And the carve-out is enforced during the walk, not only at the root** —
+   * repaired at the P4 audit ([P4 §7.2]), where it was found by an adversarial
+   * review of the relabel that had just finished promising it.
+   *
+   * The check above refuses a root *at or below* the data directory. It said
+   * nothing about a root *above* it, and the default layout makes that the
+   * common case: `dataDir` defaults to `./data`, so the install directory is an
+   * ancestor of the data directory on every ordinary deployment. Sweeping
+   * `/opt/storyengine` was therefore accepted, and the walk enumerated
+   * `data/accounts.json`, `data/system/connections/*.json` and
+   * `data/users/<someone-else>/library/actors/<slug>/actor.json` — object slugs
+   * being name-derived, so another person's character and lorebook names were
+   * disclosed in the review. [05 §4.2] marks that reach `never`.
+   *
+   * Reproduced before fixing: an ancestor root opened `ok`, listed those paths,
+   * and `read('data/accounts.json')` returned the file's bytes. The walker's
+   * routing was the only thing that had been keeping contents unread, which is
+   * one `switch` arm away from not being true either.
+   *
+   * Pruning rather than refusing an ancestor root, because refusing would break
+   * the legitimate case that motivates the capability: a person whose data lives
+   * at `/home/bob/storyengine/data` sweeping `/home/bob` to find SillyTavern.
+   * They may sweep their home directory; they may not thereby read our store.
+   */
+  return { ok: true, source: new DirectorySource(real, realData, limits) };
 }
 
 /** Is `child` at or below `parent`? Path-segment aware, so `/data2` is not inside `/data`. */
@@ -98,11 +123,19 @@ function contains(parent: string, child: string): boolean {
 
 class DirectorySource implements LocalSource {
   readonly #root: string;
+  /** Real path of our own data directory. Never entered, never read. */
+  readonly #dataRoot: string;
   readonly #limits: LocalSourceLimits;
 
-  constructor(root: string, limits: LocalSourceLimits) {
+  constructor(root: string, dataRoot: string, limits: LocalSourceLimits) {
     this.#root = root;
+    this.#dataRoot = dataRoot;
     this.#limits = limits;
+  }
+
+  /** Is this path our own data directory, or inside it? */
+  #isOurs(full: string): boolean {
+    return full === this.#dataRoot || contains(this.#dataRoot, full);
   }
 
   async *list(): AsyncIterable<string> {
@@ -132,6 +165,13 @@ class DirectorySource implements LocalSource {
         // carve-out above exists to stop — and a link *within* it would make
         // the same file arrive twice.
         if (entry.isSymbolicLink()) continue;
+
+        // Our own store, pruned wherever it turns up beneath a foreign root.
+        // Checked for files as well as directories: `dataDir` may name a path
+        // that is not a directory on a broken install, and a rule that only
+        // holds for one kind of entry is the kind that stops holding.
+        if (this.#isOurs(full)) continue;
+
         if (entry.isDirectory()) {
           yield* walk.call(this, full, depth + 1);
           continue;
@@ -166,9 +206,18 @@ class DirectorySource implements LocalSource {
     }
   }
 
-  /** Refuses anything that would leave the root, however it is spelled. */
+  /**
+   * Refuses anything that would leave the root, however it is spelled — and
+   * anything inside our own data directory, however it got named.
+   *
+   * The second half is not redundant with pruning the walk. `read` takes a path
+   * from the caller, and the readers build paths of their own — a card's
+   * portrait, a Marinara table named by a manifest — so a source path that was
+   * never yielded by `list()` can still arrive here.
+   */
   #resolve(path: string): string | null {
     const full = resolve(this.#root, path);
-    return contains(this.#root, full) ? full : null;
+    if (!contains(this.#root, full)) return null;
+    return this.#isOurs(full) ? null : full;
   }
 }

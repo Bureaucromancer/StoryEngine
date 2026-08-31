@@ -4,6 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { codecFor } from '../../storage/card/index.js';
+import { looksLikeCard } from '../upload.js';
 import type {
   FileSource,
   ImportCandidate,
@@ -124,6 +125,25 @@ export class SillyTavernReader implements SourceReader {
 
     const codec = codecFor(bytes);
     if (codec === null) {
+      /**
+       * **A card that is not in a picture** — added at the P4 audit
+       * ([P4 §7.1]).
+       *
+       * `characters/` holds PNGs by convention and JSON cards by habit:
+       * SillyTavern exports both, and a card downloaded as JSON gets dropped in
+       * beside the pictures. Until now that file was `notACard` with a `warn`,
+       * which is a confident wrong answer about a perfectly good card — and it
+       * is the same wrong answer the upload route used to give, from the other
+       * direction.
+       *
+       * `convertCard` already takes the unwrapped object or the V2/V3 envelope,
+       * so the whole fix is to look. A file here that is neither a container nor
+       * a card keeps the note it had.
+       */
+      const asJson = readJsonCard(bytes);
+      if (asJson !== null) {
+        return candidate({ source: path, format: 'sillytavern.card', payload: asJson });
+      }
       return observed(path, 'unrecognised', [
         { key: 'import.file.notACard', params: { file: path }, level: 'warn' },
       ]);
@@ -183,6 +203,23 @@ export class SillyTavernReader implements SourceReader {
       assets: [path],
     });
   }
+}
+
+/**
+ * A JSON character card, or nothing.
+ *
+ * Shares `upload.ts`'s probe rather than repeating its rules, because *what
+ * counts as a card* is exactly the judgement the two arms must not make
+ * differently — which is the whole of what [P4 §7.1] was about.
+ */
+function readJsonCard(bytes: Uint8Array): unknown {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+  return looksLikeCard(parsed) ? parsed : null;
 }
 
 function candidate(value: ImportCandidate): SourceItem {
