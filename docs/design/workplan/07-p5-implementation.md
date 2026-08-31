@@ -222,6 +222,13 @@ full editors-are-not-dumb-forms treatment is P11's, and the P1.7 precedent (real
 write path, no assist) is the model. This absorbs the editor clause of what was
 previously P5.3.
 
+*The object-level halves of that clause landed first, at
+[P4.−1](06-p4-implementation.md) — a lorebook can be deleted and, once this
+editor exists, made. Nothing here is discharged by it: creating and deleting an
+**entry** is writing below the object, which [05 §5](../05-ui-surfaces.md) puts
+on the editor's side of the line and not the library's. What P4.−1 supplies is
+the precedent for the shape — a name, a real write path, no assist.*
+
 The closed-section invariant is the part not to cut: a collapsed group **names
 what inside it is not at its default**, or it is a hidden field.
 

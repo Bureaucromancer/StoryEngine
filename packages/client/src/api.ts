@@ -310,6 +310,20 @@ export const api = {
   ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
     request('PUT', objectUrl(kind, id), { object, contentHash }),
 
+  /**
+   * Deletion is a move to the trash, not an erasure ([02 §10.2]) — the folder
+   * goes across with its history, which is the whole reason the hash is
+   * required here as well as on a save: deleting something a second tab has
+   * since edited is the same mistake as overwriting it, and rather more final.
+   *
+   * The hash rides in the body rather than `If-Match` for the plain reason
+   * that {@link request} carries no custom headers; the server accepts both
+   * spellings (docs/api.md). `DELETE` deliberately has no body schema
+   * server-side, so sending one is not the reason a request is refused.
+   */
+  deleteObject: (kind: LibraryKind, id: string, contentHash: string): Promise<undefined> =>
+    request('DELETE', objectUrl(kind, id), { contentHash }),
+
   history: (kind: LibraryKind, id: string): Promise<{ versions: ObjectVersion[] }> =>
     request('GET', `${objectUrl(kind, id)}/history`),
 

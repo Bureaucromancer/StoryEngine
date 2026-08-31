@@ -1129,6 +1129,14 @@ is documented under Sessions above. The provider settings surface was listed
 here and shipped at [P2B](design/workplan/14-p2b-provider-configuration.md); it
 is documented under Administration above.*
 
+*Nothing below changed at P4.−1, and one thing above it did: `POST /api/library/:kind`
+and `DELETE /api/library/:kind/:id` acquired their first client callers, so the
+statuses they answer with are now sentences a user reads rather than `curl`
+output — `400 invalid` with `issues`, `409 conflict`, `412 stale` and
+`428 hash-required` all surface in the browser for the first time. The client
+sends the delete hash in the body, the second spelling; `If-Match` remains the
+first.*
+
 **One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
 connection or their own `bindings.json`.** P2B writes the system scope and only

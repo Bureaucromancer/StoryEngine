@@ -383,8 +383,14 @@ the old words rather than editing them silently.
 server can already delete (the tombstone settling window and winner promotion
 shipped with the index); the *client* has no delete affordance for library
 objects at all, so "the trash and version history make it reversible" was only
-true on disk. P4.4 adds the client affordance and the api.ts function, and the
-review's undo copy points at it.
+true on disk. ~~P4.4 adds the client affordance and the api.ts function, and
+the review's undo copy points at it.~~ **P4.−1 adds them, and the correction is
+not a scheduling detail.** The paragraph above reasons from what a *review*
+owes, and reached for the nearest stage that had a library surface open. The
+affordance turned out to be owed earlier and for a larger reason — §2's P4.−1
+has it — because the phase cannot be walked at all against a library nothing
+can make or unmake. The review's undo copy still points at it; it now points
+at something that already exists when the review is built.
 
 **The review is a routed, addressable view** — the compare view's argument
 verbatim ([P3 §7.2]): a report someone consults after the fact, pastes into a
@@ -630,6 +636,59 @@ the skeleton's "carried as-is" glossed, decided here:
 
 ## 2. Stages
 
+### P4.−1 — Making and unmaking, before anything imports
+
+Not import's work, and it belongs to import's phase anyway. §1.4 already
+concedes half of it — *delete lands in P4*, because a post-hoc review nobody
+can undo is not a review — and what that concession missed is that the same
+argument runs one level up and answers a larger question. A phase whose whole
+job is to *fill a library* is about to be walked, by hand, against a library
+with no way to make or unmake a single object. That is [01 §2.3]'s standing
+rule with the subject changed: the surface ships with the thing it serves, and
+here the thing served is the library itself.
+
+**The state this starts from is an unclaimed feature rather than a missing
+one.** `POST /api/library/:kind` and `DELETE /api/library/:kind/:id` have both
+been complete and tested since P1.5; `api.createObject` and `useCreateObject`
+have existed since P1.7 with exactly one caller — the conflict dialog's *save
+as a copy*, which [17 §3.1](17-p2c-brief.md) had to warn testers about so they
+would not file it as a bug. Delete had no client half at all: route, no
+caller. So the stage is a control, a hook and a confirmation, and no server
+change of any kind.
+
+**Create is actors-only, and that is the rule rather than the shortcut.**
+[05 §11.2d](../05-ui-surfaces.md) says the first editor owes create; read from
+the library's side it says the inverse, and the inverse is the constraint
+here. A *New lorebook* lands the user on a read-only page holding an empty
+book they cannot fill in, and a blank-page dead end teaches worse than no
+button does. The other five arrive with their editors — lorebooks at
+[P5.1](07-p5-implementation.md), the rest behind
+[polish §4](09-polish.md)'s panels. A kind that cannot be made says so in a
+sentence, because a greyed control is the placeholder [01 §2.2] rules out.
+
+**Delete is kind-general, because unmaking needs no editor.** Anything a user
+owns can be removed from the page that shows it. Two conditions gate it and
+the second is the one that is not obvious: a **shadowed** copy is not
+deletable. Every write route resolves an id to the winner, so a Delete offered
+on the losing copy of a duplicated id would move a folder other than the one
+on screen — F19's bug with the stakes raised from *shows the wrong object* to
+*removes the wrong object*, and unreachable by any server-side check, because
+from the server's side that request is perfectly well-formed. The affordance
+is withheld rather than made to lie.
+
+**What the confirmation does not claim.** [02 §10.1](../02-data-model.md)
+specifies a reference-counted delete — *referenced by 12 sessions, 3 treatments
+and 1 package* — and there is no inbound-links query to build it from.
+Dangling references are survivable, visible and non-blocking by stance
+([00 §3.3](../00-stance.md)), so shipping without the counts is defensible;
+shipping without *saying* they were never consulted would be the dialog
+implying a check it did not run. The sentence is in the dialog and the debt is
+in §6.6.
+
+*Ends at:* an actor named in the browser, edited in the browser and removed in
+the browser — its folder sitting in `trash/actors/` with its history intact —
+and no `curl` anywhere in the walk.
+
 ### P4.0 — Corpus, harness, and the ground work
 
 §1.2's corpus built (synthesised structural cases, permissive real ones, the
@@ -680,8 +739,9 @@ machinery is recorded with the review category that says when.
 §1.4 rendered: the routed report view over the structured report; the two
 sweep transports over one engine (§1.3), the server-path side gated on
 `fileAccess` with its grant surface in admin accounts; the re-import
-skip/replace/keep-both flow; the client delete affordance and its api.ts
-function; the import entry point on the Library page (whose empty-state
+skip/replace/keep-both flow; ~~the client delete affordance and its api.ts
+function;~~ (both are P4.−1's) the import entry point on the Library page
+(whose empty-state
 sentence finally learns the word "import"); `address.ts` grows the preset
 source arm its docstring currently rules out, so the demo's block list links
 back to the imported preset. 05 §5's review bullet amended per §1.4. The demo.
@@ -748,7 +808,11 @@ endpoint, proven, not the stub.
     classes, counts and parameters, no stored English prose; the sentences are
     composed client-side through Intl/ICU.
 12. **Undo is real in-app**: delete a badly-imported object from the client;
-    the tombstone behaviour is visible and the library reflects it.
+    the tombstone behaviour is visible and the library reflects it. *The
+    affordance predates the phase now (P4.−1) and this step is unchanged
+    anyway, because it asserts something the stage could not: that delete
+    works on an object the sweep wrote, which is the first time it meets a
+    file no person authored.*
 
 ---
 
@@ -857,6 +921,14 @@ self-contradiction ("see [10] … 13 is current") fixed in passing. [10 §5]'s
 P4.2). And the two stale code comments this audit caught: layout.ts:74–79
 (package shape "settled at P4") and lorebook.ts:231 ("Settings remain the
 primary home").
+
+**6.6 The reference counts [02 §10.1](../02-data-model.md) specifies, and the
+delete confirmation that ships without them.** P4.−1's dialog says outright
+that nothing was consulted, which is the honest interim rather than the
+design. The counts need an inbound-links query the index does not expose —
+the same query [05 §5.2](../05-ui-surfaces.md)'s *Used by* panel needs, which
+is why this is one debt and not two. Whichever phase builds that panel pays
+both, and the dialog's sentence is what has to change when it does.
 
 **6.5 What P4's landing changes for the panel's rules.** [P3 §7.1] (whether the
 panel may re-subject itself) stays open and P4 does not force it: the review

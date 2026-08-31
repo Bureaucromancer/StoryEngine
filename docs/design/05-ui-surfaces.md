@@ -613,9 +613,32 @@ admin actions sometimes do. Probably overkill given the threat model in
 
 ## 5. Library
 
-Browse, search, tag, folder, favourite, filter, bulk select, import, export,
-duplicate. All three sources converged on roughly this and there is no reason to
-be inventive.
+~~Browse, search, tag, folder, favourite, filter, bulk select, import, export,
+duplicate.~~ Browse, search, tag, folder, favourite, filter, bulk select,
+**create**, **delete**, import, export, duplicate. All three sources converged
+on roughly this and there is no reason to be inventive.
+
+**Create and delete went missing from that list for a reason worth naming,
+because the reason is still half right.** Every source's library is a place
+objects *arrive* — imported from a file, produced by a wizard, forked from
+somebody else's — rather than a place they begin, and §2.1 has play's own
+conveniences emitting ordinary objects into it. The list was written from
+where things come from, and blank-page creation genuinely is the rarest path
+in. What that missed is that it is not a path which can be *absent*: an empty
+library with no import to run is what every new install has, and for four
+phases the answer to *make me an actor* was `curl`
+([api.md](../api.md)). Both verbs are in the list now; the affordances arrive
+at [P4.−1](workplan/06-p4-implementation.md).
+
+**They are not symmetrical, and the asymmetry is a rule rather than an
+accident of what got built first.** Delete belongs to any kind a user owns,
+because unmaking a folder needs no editor. Create is gated on there being an
+editor to land in — §11.2d's *the first editor owes create*, read from this
+side — because a New button for a kind with no editor hands somebody an empty
+object and no way to fill it, and a blank-page dead end teaches worse than no
+button. So creation arrives per kind, with that kind's editor, and never as a
+row of six buttons. Which panel carries which is [polish §4](workplan/09-polish.md)'s
+to place.
 
 Where it should differ:
 
@@ -842,6 +865,10 @@ failure.
 
 **The empty state points at import**, because an empty lorebook shelf is
 overwhelmingly a pre-import state rather than a blank page anybody meant to have.
+It stays pointing there once §5's create verb reaches this panel: for lorebooks
+the ordering is import first and *new book* second, which is the opposite of the
+Actors panel's and is the reason the empty state is a per-panel choice rather
+than one shared sentence.
 
 #### The book as a document
 
