@@ -1246,6 +1246,13 @@ above. Cards and lorebooks convert at P4.2 and the directory sweep is P4.4, so
 the clause is struck rather than deleted — the half that is missing is still
 worth naming.*
 
+*`POST /api/library/:kind` acquired its first client caller at P4.5, three
+phases after the route shipped — `DELETE` got one at P4.4. Neither route
+changed. What changed is the audience: `400 invalid` with `issues`,
+`409 conflict` and `412 stale` are sentences a person reads on a page now
+rather than `curl` output, which is the first real test of whether they say
+anything useful.*
+
 **One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
 connection or their own `bindings.json`.** P2B writes the system scope and only

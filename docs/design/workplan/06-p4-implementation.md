@@ -1289,6 +1289,43 @@ sentence finally learns the word "import"); `address.ts` grows the preset
 source arm its docstring currently rules out, so the demo's block list links
 back to the imported preset. 05 §5's review bullet amended per §1.4. The demo.
 
+### P4.5 — The other way in
+
+Import is a way *in*, not the only one. P4.4's empty state finally learned the
+word "import" and in the same breath sent anyone wanting a single new object to
+the API; this stage is what stops that sentence being true.
+
+**Not a stage the plan called for, and it belongs here rather than in
+[polish](09-polish.md) for [01 §2.3]'s reason.** The surface ships with the
+thing it serves. P4.4 shipped the way out and the bulk way in, and left the
+single way in as `curl` — a strange place to stop, with the Library page
+already open on the bench and the machinery complete since P1.7.
+`api.createObject` and `useCreateObject` have existed since then with exactly
+one caller: the conflict dialog's *save as a copy*, the side door
+[17 §3.1](17-p2c-brief.md) had to pre-brief testers about so they would not
+file it as a bug.
+
+**Actors only, and that is the rule rather than the shortcut.**
+[05 §11.2d](../05-ui-surfaces.md) says the first editor owes create; read from
+the library's side it says the inverse, and the inverse is the constraint here
+— a *New lorebook* lands somebody on a read-only page holding an empty book
+they cannot fill in, and a blank-page dead end teaches worse than no button
+does. The other five arrive with their editors. A kind that cannot be made says
+so in a sentence, because a greyed control is the placeholder [01 §2.2] rules
+out. Import leads in the empty state and the blank page follows it, per
+[05 §5.3](../05-ui-surfaces.md).
+
+**It also covered the stage before it, and that is where §7.10 and §7.11 came
+from.** P4.4's delete shipped with no component test at all. Writing one found
+two defects in it — neither caught by §7, because that audit read the code's
+shape rather than driving it. Both are fixed here, and both now redden a test
+when reverted.
+
+*Ends at:* an actor named in the browser, edited in the browser and removed in
+the browser, with no `curl` anywhere in the walk — and P4.4's delete answering
+for itself when it refuses. **The walk is what this stage is still waiting on;**
+everything above it is in the tree and under test.
+
 ### Then: PLAYABLE
 
 Not a stage of P4 and listed so it is not forgotten: wire the crude Scene mode
@@ -1600,6 +1637,20 @@ is a full view by §1.4's addressability argument, so its rows navigate the
 main view like any other link. [P3 §7.3] (the panel over a subjectless view)
 gains one more surface — the review route — and inherits the same interim
 answer: honestly empty.
+
+---
+
+**6.6 The reference counts [02 §10.1](../02-data-model.md) specifies, and the
+delete that ships without them.** That section wants a confirmation reading
+*referenced by 12 sessions, 3 treatments and 1 package*; what P4.4 built asks
+*move to trash?* and counts nothing, because the counts need an inbound-links
+query the index does not expose. It is the same query
+[05 §5.2](../05-ui-surfaces.md)'s *Used by* panel needs, so this is one debt
+rather than two and whichever phase builds that panel pays both. The interim is
+defensible on the stance's own terms — dangling references are survivable,
+visible and non-blocking ([00 §3.3](../00-stance.md)) — and it is recorded here
+rather than left to be rediscovered, because a confirmation that has stopped
+asking about consequences is very hard to notice is missing.
 
 ---
 
@@ -2008,3 +2059,39 @@ stand as open questions rather than defects: a Marinara envelope inside a loose
 folder still reads `unrecognised` though the same file uploaded alone converts,
 and re-import identity is root-relative, which is [§6.2]'s filename-identity
 question reached from a third direction.
+
+### 7.15 Delete was offered on a shadowed copy — found by covering P4.4
+
+*Numbered 7.15 and 7.16 rather than 7.10 and 7.11, at the merge. Three sessions
+wrote into §7 on the same day and each reached for the next free number it could
+see; main already had both. The findings are untouched — only the numbers moved,
+and [17 §3](17-p2c-brief.md)'s citation moved with them.*
+
+`ObjectDetailPage.tsx`. Edit is gated on `source === 'user' && !object.shadowed`.
+P4.4's Delete, written directly beneath it, was gated on `source` alone. Two
+files can hold one id, this page opens either through `?source=&slug=`, and
+every *write* route resolves an id to the winner — so Delete on the losing copy
+moved a folder other than the one on screen.
+
+**Nothing server-side could have caught it**, which is what makes it a finding
+rather than a diff: from the server's side that request is well-formed and does
+exactly what it asks. This is F19 a third time, with the stakes raised from
+*shows the wrong object* to *removes the wrong object* — and a third occurrence
+is the argument for the condition being one predicate rather than two
+hand-written copies that drift apart. It is one predicate now, which is also
+[polish §1](09-polish.md)'s closing note half paid.
+
+### 7.16 A refused delete rendered nothing at all
+
+Same file, same control. The failure path set the message and called
+`setConfirming(false)`; the message was rendered only by the confirming row,
+which that call had just replaced. So a `412` — the case the code's own comment
+names as *exactly when a delete should stop and say so* — stopped, said
+nothing, and read as a click that had not registered. Every refusal did:
+`403`, `409`, a dropped connection.
+
+**The dead branch is the tell, and it is worth naming as a class.**
+`{error !== null ? … : null}` sat inside the one branch that could only render
+while `error` was null, and it survived review because it is indistinguishable
+from the code that would be right. The message lives outside both branches now
+and is announced; the mutation that moves it back is what reddens.

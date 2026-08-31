@@ -5,7 +5,10 @@
  * Puts a known library and a playable session into a running install — F35.
  *
  * **Every session started empty**, because the UI creates no library object of
- * any kind and a cast is API-only. So the case a manual phase actually wanted to
+ * any kind and a cast is API-only. (Half of that is retired: since P4.5 the
+ * library page makes an actor, and since P4.4 an import fills a library. A cast
+ * is still API-only, which is the half this script is really for, and the other
+ * five kinds still arrive through here or through an import.) So the case a manual phase actually wanted to
  * test — a turn with a world and people in it — needed somebody to write curl by
  * hand first, every time, differently. *Empty* is not the case worth testing and
  * *different each run* is not a case at all.

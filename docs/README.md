@@ -1,7 +1,8 @@
 # Documentation
 
-- **[api.md](api.md)** — the HTTP API, as built. Still the only way to *create*
-  an object; the client browses everything and, since P1.7, edits actors.
+- **[api.md](api.md)** — the HTTP API, as built. The client browses everything,
+  edits actors since P1.7, deletes since P4.4 and makes an actor since P4.5;
+  the API is still the only way to *create* the five kinds that have no editor.
 - **[design/](design/)** — preliminary design notes. Positions to argue with,
   most of them written before any code existed. Start at
   [design/README.md](design/README.md).

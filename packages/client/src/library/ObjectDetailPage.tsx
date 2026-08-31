@@ -90,6 +90,31 @@ function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress
   return <ObjectView object={query.data} kind={props.kind} locale={locale} />;
 }
 
+/**
+ * Whether this page may offer to *change* what it is showing — the one gate
+ * behind both Edit and Delete.
+ *
+ * One predicate rather than two spellings, which is
+ * [polish §1](../../../../docs/design/workplan/09-polish.md)'s closing note taken at its
+ * word: the Edit condition was written out inline, Delete grew a second and
+ * shorter hand-written copy of it, and the two had already drifted by the time
+ * they were put side by side.
+ *
+ * **They had drifted on `shadowed`, and that was the bug.** Delete asked only
+ * about `source`. But two files can hold one id, this page can be addressed at
+ * either through `?source=&slug=`, and every *write* route resolves an id to
+ * the winner regardless — so Delete on the losing copy moved a folder other
+ * than the one on screen. That is F19 with the stakes raised from *shows the
+ * wrong object* to *removes the wrong object*, and no server-side check can
+ * catch it, because from the server's side the request is perfectly
+ * well-formed. The affordance is withheld rather than made to lie; resolving a
+ * duplicate stays a file-system job until there is a surface for it
+ * ([02 §5.1](../../../../docs/design/02-data-model.md)).
+ */
+function mutable(object: LibraryObject): boolean {
+  return object.source === 'user' && !object.shadowed;
+}
+
 function ObjectView(props: {
   object: LibraryObject;
   kind: LibraryKind;
@@ -105,7 +130,7 @@ function ObjectView(props: {
         <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
-        {kind === 'actors' && object.source === 'user' && !object.shadowed ? (
+        {kind === 'actors' && mutable(object) ? (
           <Link
             to="/library/actors/$id/edit"
             params={{ id: object.id }}
@@ -114,7 +139,7 @@ function ObjectView(props: {
             Edit
           </Link>
         ) : null}
-        {object.source === 'user' ? <DeleteButton object={object} kind={kind} /> : null}
+        {mutable(object) ? <DeleteButton object={object} kind={kind} /> : null}
       </header>
 
       {object.shadowed ? (
@@ -201,36 +226,53 @@ function DeleteButton(props: { object: LibraryObject; kind: LibraryKind }): JSX.
     }
   };
 
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setConfirming(true);
-        }}
-        className={`ms-auto ${link.action}`}
-      >
-        Delete
-      </button>
-    );
-  }
-
   return (
     <span className="ms-auto flex items-center gap-3 text-sm">
-      {error !== null ? <span className="text-ink">{error}</span> : null}
-      <span className="text-ink-subtle">Move to trash?</span>
-      <button type="button" onClick={() => void remove()} className={link.action}>
-        Delete
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          setConfirming(false);
-        }}
-        className={link.action}
-      >
-        Cancel
-      </button>
+      {/*
+       * **The message lives outside both branches, and that is a fix.** It used
+       * to render only inside the confirming row — but the `catch` above calls
+       * `setConfirming(false)`, so the branch that would have shown it had just
+       * been replaced by the one that would not. A refused delete rendered
+       * nothing at all: the 412 the comment in `remove` calls *exactly when a
+       * delete should stop and say so* stopped, silently, and read as a click
+       * that did not register. Announced, because it appears in reaction to
+       * something the user just did.
+       */}
+      {error !== null ? (
+        <span role="alert" className="text-danger-ink">
+          {error}
+        </span>
+      ) : null}
+      {confirming ? (
+        <>
+          <span className="text-ink-subtle">Move to trash?</span>
+          <button type="button" onClick={() => void remove()} className={link.action}>
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(false);
+            }}
+            className={link.action}
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            // Clearing here rather than on the next attempt: a stale message
+            // beside a fresh question is worse than no message.
+            setError(null);
+            setConfirming(true);
+          }}
+          className={link.action}
+        >
+          Delete
+        </button>
+      )}
     </span>
   );
 }

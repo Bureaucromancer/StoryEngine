@@ -178,6 +178,11 @@ Playwright, kept deliberately thin — a handful of journeys that would be
 catastrophic to break: first-run setup, create an actor, import a card, start a
 session, take a turn, branch, open the workbench.
 
+*"Create an actor" meant through the API when this was written, because the
+browser had no way to. Since [P4.5](06-p4-implementation.md) it does, so the
+journey is a journey: name it on the library page, land in the editor, save.
+The tier is still unbuilt.*
+
 Run against the fake provider (§4) so it is deterministic and free. E2E that
 calls a real model is slow, flaky and expensive, and tests the model rather than
 the app.
