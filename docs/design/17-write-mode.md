@@ -1,12 +1,12 @@
-# 17 — Write: long-form prose as a mode
+# 17 — Write: the long-form prose surface
 
-**Status: proposal, with a release attached.** This is the design for a **3.0**
-series; [14 §2e](14-roadmap.md) is where it is scheduled, and the term starts
-there and here — nothing else in these documents looks past 2.0. It sits in its
-own file rather than as a fifth entry in [03 §7](03-modes-and-turn-pipeline.md)
-because it is not one more configuration of the pipeline over the same artefact.
-The other four modes differ in what they assemble; this one differs in **what the
-result lands in**, which means it touches the object set
+**Status: proposal, with a release attached.** This is the design for the **2.0**
+series; [work plan §0](workplan/01-work-plan.md) is where it is scheduled. It
+sits in its own file rather than as a fifth entry in
+[03 §7](03-modes-and-turn-pipeline.md) because it is not one more configuration
+of the pipeline over the same artefact. Play's modes differ in what they
+assemble; this differs in **what the result lands in**, which means it touches
+the object set
 ([02 §1](02-data-model.md)), the mode contract
 ([03 §2](03-modes-and-turn-pipeline.md)), the surface count
 ([05 §2](05-ui-surfaces.md)) and the stability tiers ([10 §1](10-schemas.md)) at
@@ -15,7 +15,19 @@ once — the same reason [11](11-cross-session-memory.md) and
 note here that asks to *change* an internal shape rather than consume one, and
 that argument (§4) wants room. It changes no portable schema. It asks for three
 optional fields on one ([10 §5](10-schemas.md)), and §13 says when they have to
-land.
+land — which is now 1.0, not with Write.
+
+**Write is a surface holding two modes, Outline and Prose** (§6.4). An earlier
+draft called it a fifth *mode*, which was the right instinct expressed with the
+wrong noun: what it actually needed was a place in the navigation, and a place
+in the navigation is what a surface is. Nothing in the design below changes
+because of the renaming — §6 already argued for the nav entry, and §§7–12 were
+already two clusters of work that this makes explicit rather than invents.
+
+**It is nearer than it was.** This document described a far release when it was
+written and now describes the next one, and §4.8's window has shut rather than
+narrowed: session export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)),
+so §4 must be settled *before* export rather than protected by export's absence.
 
 ---
 
@@ -277,11 +289,17 @@ The turn record is internal tier and free to move, and **session export is the
 event that ends that freedom** — [10 §1](10-schemas.md),
 [06 B12](06-open-questions.md), and the record's own definition all say so.
 
-Everything in this section is therefore free today. But Write *makes export more
-likely to be wanted*, because people will want to move a manuscript with its call
-history attached. So either export is scheduled after 3.0, or its format is
-designed knowing Write is coming. §13 carries this as the sharpest row in the
-table.
+This section was written while that freedom still existed, and it no longer does.
+The original disjunction was *either export is scheduled after 3.0, or its format
+is designed knowing Write is coming*; **export now ships at 1.0**
+([work plan §0.5](workplan/01-work-plan.md)), which takes the first branch off
+the table and forces the second.
+
+So the practical rule is: **§4 is settled before export's format is frozen, not
+after.** Everything here is still free *today* — nothing has shipped — but the
+window closes at P11 rather than at some point beyond three releases, and
+§15's second reopening condition has fired rather than being a hypothetical.
+§13 carries this as the sharpest row in the table.
 
 ---
 
@@ -363,7 +381,7 @@ is enough in practice; §15 carries the test.
 The cost of portable is not small ([10 §1–2](10-schemas.md)): define it now,
 change only additively, version on breakage, emit a JSON Schema, register it,
 preserve unknown fields — and pay all of that from 1.0, for a shape nobody has
-yet written a novel in, against a feature landing at 3.0.
+yet written a novel in, against a feature landing at 2.0.
 
 **The case for portable** is [10 §1](10-schemas.md)'s own asymmetry — *breaking a
 container costs a re-export; breaking an Actor costs somebody's character* — and
@@ -383,7 +401,7 @@ simply *internal, done*.
 - **The right analogy is Session, not Actor.** A manuscript is one person's
   accumulating work, not a reusable authored artefact — which is
   [10 §1](10-schemas.md)'s *free to move* tier, where Session and the turn record
-  already live. [14 §2d](14-roadmap.md) declined to make World a portable kind on
+  already live. [19 §3](19-world.md) declines to make World a portable kind on
   a related instinct.
 
 **So, concretely:** it lives in the library and uses the object-folder machinery
@@ -391,7 +409,7 @@ simply *internal, done*.
 `storyengine.manuscript/0` schema string from its first write, so a later
 promotion is a version bump rather than an invention. It is **not** in the
 portable registry, **not** validated on import, and **not** package-exportable at
-3.0. Getting a manuscript out is three things that already exist: the reading
+2.0. Getting a manuscript out is three things that already exist: the reading
 view, the `text/` folder, and a zip that is transport rather than a format
 promise.
 
@@ -430,7 +448,8 @@ manifest is not expressible and Write grows a second history mechanism.
 ## 6. A mode may declare a top-level surface; only the host can satisfy one
 
 Write needs a place in the navigation, and that is the one thing in this document
-the existing surfaces genuinely cannot absorb.
+the existing surfaces genuinely cannot absorb. §6.4 names the two modes that
+share the surface once it exists.
 
 ### 6.1 The widening
 
@@ -458,7 +477,7 @@ which is the whole reconciliation:
 |---|---|
 | **A nav entry exists because a mode asked for one** | **Contract.** The client's fixed list of surfaces becomes a list resolved from the registered modes. |
 | **The address shape** — what the route is keyed by | **Contract, and thin.** The mode declares the subject kind; the router builds the path. |
-| **What the page draws** | **Bespoke, and admitted.** Write's surface is host code, exactly as Play's is. No extension supplies a page at 3.0. |
+| **What the page draws** | **Bespoke, and admitted.** Write's surface is host code, exactly as Play's is. No extension supplies a page at 2.0. |
 
 ### 6.2 Why this is not the escape hatch arriving early
 
@@ -495,20 +514,53 @@ matters:
    elevates an activity, not an object.** The Manuscript kind gets exactly what a
    lorebook gets — a panel, the detail route, the backlink panel — and nothing
    more. Nobody navigates to *Manuscripts* to write; they navigate to Write.
-2. **Modes have surfaces by construction.** [05 §2](05-ui-surfaces.md) already
-   describes Play as *"the modes' chat, scene and adventure views"*. What is new
-   is only that this mode's view does not fit inside Play's frame.
+2. **Surfaces hold modes by construction.** [05 §2](05-ui-surfaces.md) already
+   describes Play as the surface its modes live in. What is new is only that
+   these modes' views do not fit inside Play's frame.
 3. **Why Play cannot simply contain it.** Play is session-shaped — a transcript,
    an input bar, a head, a stream. Write is document-shaped — a binder, an
    editor, a cursor. Putting a binder inside Play makes Play's *layout*
    conditional on the mode, which is the one-surface-two-personalities failure
    [05 §5.1](05-ui-surfaces.md) rejects for a merged library list.
 
-**The cost, stated.** [05 §2](05-ui-surfaces.md) is titled *"Two surfaces and an
-inspector"* and its table has two rows. At 3.0 it has three, and §16 lists the
-edit that owes it. Two was a fact about what ships, not a principle — and the
-reasoning that demotes the workbench is untouched, because a reader is still not
-a surface.
+**The cost, stated.** [05 §2](05-ui-surfaces.md) had two surface rows and a title
+that named the count. At 2.0 it has three, and a fourth is proposed
+([14 §3.4](14-roadmap.md)); §16 lists the edit that owed it. The count was always
+a fact about what ships rather than a principle — and the reasoning that demotes
+the workbench is untouched, because a reader is still not a surface.
+
+### 6.4 The two modes: Outline and Prose
+
+The surface holds two modes, and the split is not new — it is the shape §§7–12
+already have, named.
+
+| Mode | What it is for | Specified in |
+|---|---|---|
+| **Outline** | The binder: structure, synopses, threads, status, and the three layouts over them. Where a manuscript is *planned* and rearranged. | §10, and §5.1's node tree |
+| **Prose** | The text: beats, the four choices, placeholders and slots, and the editor that has to keep offsets stable. Where a manuscript is *written*. | §§7, 8, 11, 12 |
+
+**Why two rather than one mode with two views.** The distinction is the one
+§10.2 already draws — *the past is summarised; the future is outlined* — and it
+reaches further than layout. The two differ in what a call means: an Outline call
+produces structure and synopses, a Prose call produces text at a position. They
+differ in what a version is, in what the budgeter is assembling for, and in what
+an undo undoes. Modes are how this project expresses "same contract, different
+assembly" ([03 §2](03-modes-and-turn-pipeline.md)), and that is exactly what
+these are.
+
+**Why not two surfaces.** They share the artefact, the binder, the codex and the
+navigation. Splitting the nav entry would make *the manuscript you are working
+on* a thing you re-select when you switch between planning and writing, which is
+[05 §1.1](05-ui-surfaces.md)'s per-visit cost charged for nothing.
+
+**What this obliges the contract to do, and it is small.** The `top-level` arm
+(§6.1) is declared by a mode; two modes naming the same `slug` are how a surface
+with more than one mode is expressed. The host resolves them into one nav entry
+whose modes are the declarers. Play is the same shape read backwards — Scene,
+Freeform and Campaign are the modes of a surface the host happened to build
+before the contract existed. **No new mechanism**, one rule: a slug is shared
+deliberately or not at all, and a collision between unrelated modes is a
+registration error rather than a merge.
 
 ---
 
@@ -700,6 +752,17 @@ outlive the afternoon.
 
 ## 10. Grid, Matrix and Outline are three layouts over one binder
 
+**This section is Outline mode** (§6.4). What follows are its three layouts, not
+three modes — the mode/layout distinction is the same one
+[05 §5](05-ui-surfaces.md) draws for the library panels.
+
+**The name collides with itself and that is tolerable.** Outline mode's default
+layout is also called Outline, with Grid and Matrix as the alternatives. The mode
+is named for its default the way a folder is named for what is usually in it;
+renaming either to avoid the overlap would cost more legibility than the overlap
+does. Recorded here so it is a decision rather than a thing someone notices later
+and "fixes".
+
 ### 10.1 The three views
 
 Not three features — the same *shared handling, distinct surfaces* line
@@ -880,10 +943,15 @@ Two constraints to record whichever way it goes:
 
 ---
 
-## 13. What this obliges 1.0 and 2.0 to do
+## 13. What this obliges 1.0 to do
 
-The roadmap's standing test. Four rows say *nothing*, and that half is what makes
-the other half credible.
+The standing test. Four rows say *nothing*, and that half is what makes the other
+half credible.
+
+**Every remaining row now lands at 1.0.** This table used to split across 1.0 and
+2.0, on the reasoning that Write was three releases away and some of its debts
+could be paid in the release before it. With Write at 2.0 there is no release in
+between, so "before Write" and "at 1.0" are the same instruction.
 
 | Element | Obligation |
 |---|---|
@@ -893,9 +961,9 @@ the other half credible.
 | Mode config naming a library object | **None.** It is stored verbatim and never interpreted ([03 §2](03-modes-and-turn-pipeline.md)). |
 | Plot-hook identity, goals, presence | **None.** All are Play concepts Write does not use. |
 | **The span overlay must generalise past actors** | **Real, and the largest.** [05 §13.1](05-ui-surfaces.md) already says the model *"should be built so that it can"* — Write needs three consumers of one span shape: mentions, machine-written provenance, and beat positions. So *generalises* has to mean **a tagged reference from the first span ever written**, and the type must not be named for mentions. If P7 ships it with an actor reference baked in, Write must either migrate every stored turn or grow a second span type — and the second is how one overlay becomes two. |
-| **The lore entry's four-value axis must not be squeezed into the two booleans** | **Real, and it lands at 2.0 at the latest.** Optional fields are additive and free later ([10 §2](10-schemas.md)); *reinterpreting* the existing constant and enabled flags as the axis is a version bump, because a field that means something different is a new version. So add the AI-context value, the track flag and the exclusion list as **optional fields whose absence means today's behaviour.** Free now, a bump later. |
+| **The lore entry's four-value axis must not be squeezed into the two booleans** | **Real, and it lands at 1.0** ([work plan §0.5](workplan/01-work-plan.md)). Optional fields are additive and free later ([10 §2](10-schemas.md)); *reinterpreting* the existing constant and enabled flags as the axis is a version bump, because a field that means something different is a new version. So add the AI-context value, the track flag and the exclusion list as **optional fields whose absence means today's behaviour.** The old deadline was "2.0 at the latest", which stopped meaning anything when Write became 2.0 — the consumer and the deadline collided, so the deadline moves in front of it. Free now, a bump later, so now. |
 | **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [09 §5.1](09-branching.md) and [06 E1](06-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
-| **Session export must not freeze the turn record before §4 is settled** | **Real, and the sharpest.** [06 B12](06-open-questions.md) and the record's own definition both say export ends its freedom to move. Write adds an anchor and narrows what the parent link means. Either export is scheduled after 3.0, or its format is designed knowing Write is coming. |
+| **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [06 B12](06-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
 | **Version snapshot payloads stay opaque digest-addressed bytes** | **Small, and a check rather than a change.** A manuscript version is a manifest of file hashes (§5.4); if the payload is ever typed as *the object's JSON*, that is not expressible and Write grows a second history mechanism. Verify at P5, do not assume. |
 | **`surfaces` stays a declared value on the mode definition** | **None, but do not delete it.** Widening the union is internal work. What is worth writing down is that an empty `surfaces` on Scene means *this mode contributes none*, not *placeholder* — an empty array nothing reads is exactly what invites removal. |
 
@@ -945,7 +1013,8 @@ the other half credible.
 Split by when each can be run, because the useful half runs at 1.0 — long before
 any of this is built.
 
-**Runnable at 1.0 and 2.0, against real play:**
+**Runnable at 1.0, against real play, and now the only window there is** — with
+Write at 2.0 there is no intervening release to run these in:
 
 - **Watch whether people write long prose in Play.** The premise is that guided
   long-form wants a different surface. If people are already producing chapters
@@ -988,9 +1057,13 @@ any of this is built.
 - **If a lore entry ever gains a portable, cross-install identity**
   ([16 §4.1](16-lorebooks-as-a-format.md)), declared codex relations become
   possible and §9.2's refusal reopens.
-- **If session export** ([06 B12](06-open-questions.md)) **is scheduled before
-  3.0**, §4 stops being a 3.0 design and becomes a 2.0 constraint, and this
-  document has to be settled early.
+- ~~**If session export is scheduled before 3.0**, §4 stops being a far-release
+  design and becomes a near constraint, and this document has to be settled
+  early.~~ **This has fired.** Export ships at 1.0
+  ([06 B12](06-open-questions.md), [work plan §0.5](workplan/01-work-plan.md)),
+  so §4 is a 1.0-adjacent constraint and this document is settled early rather
+  than eventually. Kept struck through rather than deleted, because a reopening
+  condition that quietly disappears when it fires teaches nobody anything.
 
 ---
 
@@ -1002,21 +1075,24 @@ list nobody can act on.
 
 **Discharged in the same pass as this document:**
 
-- **[05 §2](05-ui-surfaces.md)** is titled *"Two surfaces and an inspector"* and
-  now carries a sentence saying a third arrives at 3.0 (§6.3). A stale count in
-  the surface document is exactly the sort of thing that gets cited later as a
-  rule.
-- **[03 §7](03-modes-and-turn-pipeline.md)** opens *"Four chat modes across two
-  releases"* and now carries a pointer here — deliberately a pointer rather than
-  a §7.5, which would invite reading Write as Scene's peer. Write is not a chat
-  mode, the same distinction §7.4 already draws for the assistant.
+- **[05 §2](05-ui-surfaces.md)** was titled *"Two surfaces and an inspector"*; it
+  is now *"The surfaces, and an inspector"* and names Write's arrival at 2.0
+  along with the proposed fourth (§6.3). A stale count in the surface document is
+  exactly the sort of thing that gets cited later as a rule, which is why the
+  count stopped being in the title.
+- **[03 §7](03-modes-and-turn-pipeline.md)** carries a pointer here — deliberately
+  a pointer rather than a §7.5, which would invite reading Write as Scene's peer.
+  Write is a surface rather than a chat mode, a sharper version of the same
+  distinction §7.4 already draws for the assistant.
 - **[06](06-open-questions.md)** has taken this document's open questions as E11
   (the editor, §12) and E12 (the four smaller shapes: history granularity §5.4,
   plurals §9.2, sessions per manuscript §4.5, and templating inside a text block
   §11.1).
-- **[14 §2e](14-roadmap.md)**, [work plan §0](workplan/01-work-plan.md) and
+- **[work plan §0](workplan/01-work-plan.md)** and
   [releases §0](workplan/11-repo-and-releases.md) carry the scheduling, and
-  [the design index](README.md) carries the fifth mode and the two new terms.
+  [the design index](README.md) carries the surface and the two new terms.
+  [14](14-roadmap.md) no longer carries any of it: §2e is gone, because the
+  feature list stopped holding release commitments.
 
 **Still owed, and deliberately not done here:**
 
@@ -1027,6 +1103,9 @@ list nobody can act on.
   (§5.3), so that phrasing stops being true before the count does, which is the
   easier half to miss.
 - **[10 §5](10-schemas.md)** takes the three optional lore-entry fields from
-  §9.2, on §13's schedule — which is 2.0 at the latest, and not now. Adding them
-  before there is a consumer would put three unread fields in a portable schema,
-  which is how a schema accretes.
+  §9.2, on §13's schedule — which is **now 1.0**, not "2.0 at the latest". The
+  old objection was that adding them before there is a consumer puts three unread
+  fields in a portable schema, which is how a schema accretes. That objection is
+  overruled rather than answered: the alternative is reinterpreting two existing
+  booleans after 1.0 has shipped, and a bump is worse than three documented
+  optional fields.

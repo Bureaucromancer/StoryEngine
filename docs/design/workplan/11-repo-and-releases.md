@@ -16,20 +16,30 @@ what is deferred rather than forgotten.
 | **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No release artifacts, no channels, no packages. |
 | **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
-| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — Adventure–Campaign and Messages ([01 §0](01-work-plan.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
-| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — Write ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
+| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
+| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — World ([01 §0](01-work-plan.md), [19](../19-world.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
+| **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — Campaign and the RPG channel library ([01 §0](01-work-plan.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
+| **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — the authoring tier ([01 §0.6](01-work-plan.md)). | And so on. The pattern does not change again. |
 
-**1.0 is a real release, not a staging post.** It ships two modes — Scene and
-Adventure–Freeform — chosen as the ones this project has opinions about, with
-Campaign and Messages held for a 2.0 series ([01 §0](01-work-plan.md)). The
-release model already handles the shape: `release/1.0` persists and takes
+**1.0 is a real release, not a staging post.** It ships the Play surface with two
+modes — Scene and Freeform — chosen as the ones this project has opinions about,
+with Write, World and Campaign held for later series ([01 §0](01-work-plan.md)).
+The release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.
 
 **The gate definition does not change as the series go up.** *Feature complete
-to the 3.0 spec* is checkable against [17](../17-write-mode.md) exactly as the
-first one is checkable against the 1.0 design notes, and the branch model needs
-nothing new: §2 already makes release branches per **minor line**, so 3.0 is one
-more line rather than a new pattern.
+to the 2.0 spec* is checkable against [17](../17-write-mode.md) exactly as the
+first one is checkable against the 1.0 design notes, and *to the 3.0 spec*
+against [19](../19-world.md) after it. The branch model needs nothing new either:
+§2 already makes release branches per **minor line**, so each major is one more
+line rather than a new pattern. **There is no `1.x` line and never was** — a
+point release is a patch on the release branch, not a place to park deferred
+features.
+
+**What the table does not contain is as important as what it does.** Only
+committed scopes get rows. Everything on the feature list
+([14](../14-roadmap.md)) has a priority rather than a release, so nothing there
+is late, and nothing there gates a beta.
 
 **Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0
 spec" is a usefully hard line — it is checkable against the design documents
@@ -41,10 +51,15 @@ build chains, release automation, and workflows stable enough that shipping is
 repeatable rather than an event. That belongs *in* the beta gate rather than
 after it. One piece is settled: the canonical build must deliver **the OCI image
 and the tarball** ([04 §5.4](../04-server-multiuser-deployment.md)) for beta to
-count. The other four packaging artifacts moved to the 1.0 bar
-([01 §0.4](01-work-plan.md)) — enough to have users is the beta test, and four
-more build chains is work that reads as progress while delaying the thing being
-packaged. The rest is sketched pending expansion in [01 §8](01-work-plan.md).
+count. The other four packaging artifacts are a **1.0** requirement rather than a
+beta one — enough to have users is the beta test, and four more build chains is
+work that reads as progress while delaying the thing being packaged.
+
+**They are owned by P11 rather than by a bar** ([01 §0.5](01-work-plan.md)),
+which is the correction to an earlier version of this paragraph. "At the 1.0
+bar" left four required artifacts with a requirement and no builder, because P11
+is the last phase and had put them out of scope. A bar nobody owns is a wish.
+The rest is sketched pending expansion in [01 §8](01-work-plan.md).
 
 Two consequences worth naming:
 

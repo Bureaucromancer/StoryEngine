@@ -11,12 +11,13 @@ convention is [P4](06-p4-implementation.md)'s — **`10 §N`** is
 **P7 delivers**, from [01 P7](01-work-plan.md): the mode contract as a real
 interface with built-ins as separate packages consuming the published SDK;
 channels, effects and engine-computed updates; setup objects and the declarative
-wizard; party as a timeline; the plot-hook selector and its three companions
+wizard; party as a timeline; the plot-hook selector and its three companions,
+including the two hook-identity obligations World depends on (P7.5)
 (the pacing dial, Commit, `introduces`); goals; presence and status channels
 with the cast panel over them; mention resolution as an `extract` step;
-difficulty and directedness; and two modes — Scene and Adventure–Freeform.
+difficulty and directedness; and two modes — Scene and Freeform.
 
-**The demo that defines done:** *play Adventure–Freeform, set up through a
+**The demo that defines done:** *play Freeform, set up through a
 wizard nobody wrote a form for, to a goal completion — with the cast panel, the
 hook panel and the workbench all reading state that a mode package declared and
 the engine never special-cased.* The negative half of the demo is the one that
@@ -261,6 +262,30 @@ session, and treatment changes **pulled, never pushed**
 ([00 §3.1](../00-stance.md)). The hook panel ([05 §10.1](../05-ui-surfaces.md))
 with Commit on it and force-fire deliberately in the workbench instead.
 
+**Two one-line obligations that World depends on, and that cannot be added
+later** ([19 §5](../19-world.md)). World is a committed release now rather than a
+roadmap entry, so these are requirements of this stage rather than options worth
+keeping open:
+
+1. **A copied hook keeps the source hook's `id`.** Session creation copies hooks
+   from all sources ([02 §4.1](../02-data-model.md)). Within a continuity, a hook
+   that fired in session one must not fire again in session two, and
+   cross-session de-duplication is only possible if the copy preserved the id.
+   `PlotHook.id` exists and `blockedBy` / `notBefore.afterHook` already reference
+   ids, so nothing is being added — what is being pinned is that copying does not
+   mint a fresh one. **A corpus of sessions whose hooks have unrelated ids cannot
+   be retro-fitted into a continuity**, because the linking information was never
+   written.
+2. **`introduces` suppression keys on the subject, not the hook.** The failure it
+   avoids is *this person arriving for the first time, twice*, and id-matching
+   misses the commoner case where a different hook — or the narrator, unprompted
+   — introduced them already. The `introduced` predicate already exists
+   per-session ([03 §8.1](../03-modes-and-turn-pipeline.md)); only its scope
+   widens later, and only if the key is right now.
+
+Both are free at this stage and unrecoverable after it, which is the whole
+reason they are named here rather than in [19](../19-world.md) alone.
+
 *Entrances are shown by label, never by text.* An unfired entrance is hidden
 content, and a panel that spoils the arrival defeats the feature.
 
@@ -290,7 +315,7 @@ Two settings, levels supplied by the prompt pack rather than engine code
 P7.6 shipped goals — difficulty without a goal can only say *introduce friction*,
 which reads as arbitrary within a few turns.
 
-### P7.9 — Adventure–Freeform, and Scene grown up
+### P7.9 — Freeform, and Scene grown up
 
 The second mode, built entirely through the contract; Scene grown from P2's
 deliberately embarrassing minimum to its 1.0 shape — sprites, backgrounds and
@@ -307,7 +332,7 @@ Sketch; expand on revisit.
 
 1. `packages/server/src/modes/` does not exist, and an import from a mode
    package to `server` fails the build rather than a review.
-2. Adventure–Freeform is played end to end and the engine contains no
+2. Freeform is played end to end and the engine contains no
    `switch (mode)` — the survey is a grep and it belongs in the gate.
 3. A channel declared by a mode appears in the registry, is enforced against its
    `update` policy, renders through the declared widget vocabulary, and
@@ -338,7 +363,7 @@ line is a checklist item here rather than a formality.
 
 ## 4. Out of scope, deliberately
 
-The authored-rule vocabulary and its evaluator (2.0, [01 §0.4](01-work-plan.md)
+The authored-rule vocabulary and its evaluator (5.0, the authoring tier — [01 §0.6](01-work-plan.md)
 — and the tempting move once steps exist is to let `StepCondition` take rule
 predicates, which [03 §6](../03-modes-and-turn-pipeline.md) warns against by
 name); Campaign and Messages ([01 §5](01-work-plan.md) — committed, not

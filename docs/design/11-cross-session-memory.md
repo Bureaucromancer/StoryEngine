@@ -234,7 +234,7 @@ per block.
 - **[OPEN]** Cross-session memory for the *narrator* rather than a character —
   "the GM remembers your last campaign". Coherent, and a different scope key.
   **That scope key now has a name**: it is a World
-  ([14 §2d](14-roadmap.md)), and this question is the one that found it. The
+  ([19](19-world.md)), and this question is the one that found it. The
   bearing on 1.0 is narrow but real: decide the book-granularity question
   directly above knowing that a fourth key is coming, so nothing hard-codes the
   three-tuple into how memory books are keyed and named on disk.

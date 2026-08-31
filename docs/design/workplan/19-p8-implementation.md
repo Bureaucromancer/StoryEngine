@@ -87,7 +87,7 @@ helper that survives the phase without a caller is the same defect twice.
 persona tags and filtered retrieval* — fewer objects against more query
 complexity. The section also names the thing that should decide it: **a fourth
 scope key already has a name.** Narrator-level memory is a World
-([14 §2d](../14-roadmap.md)), and the bearing on 1.0 is narrow but real —
+([19](../19-world.md)), and the bearing on 1.0 is narrow but real —
 **nothing may hard-code the three-tuple into how books are keyed and named on
 disk.**
 
@@ -265,7 +265,7 @@ customer if they are ever built, and saying so is not scheduling them);
 cross-actor memory, *Vera recalling that she and Tomas both know you*
 ([11 §3](../11-cross-session-memory.md), which multiplies the scope matrix and is
 explicitly not 1.0); narrator- or World-scoped memory
-([14 §2d](../14-roadmap.md) — but §1.2's constraint is in scope); memories writing
+([19](../19-world.md) — but §1.2's constraint is in scope); memories writing
 state (§1.6, and it is a rule rather than a deferral); session export
 ([06 B12](../06-open-questions.md)), which is where the non-shareable marking will
 eventually have to be enforced rather than merely warned about.

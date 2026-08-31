@@ -15,7 +15,14 @@ editors-are-not-dumb-forms across every editor, the reading view
 ([03 §3.1](../03-modes-and-turn-pipeline.md)), the plot-hook selector's *tuning*,
 the in-app update check, the localisation catalogue extraction sweep
 ([01 §0.4](01-work-plan.md)), trash retention and restore, the systematic
-accessibility audit, and packaging as the container and the tarball.
+accessibility audit, and **packaging as all six artifacts**.
+
+**Plus three things [01 §0.5](01-work-plan.md) moved into 1.0 after this document
+was first written**: session export ([06 B12](../06-open-questions.md)), backup
+and restore with its CI restore test ([06 E6](../06-open-questions.md),
+[testing](10-testing.md)), and the four packaging artifacts that used to sit at a
+"1.0 bar" nothing owned. §1.8 covers what that does to this phase's size, which
+is the honest question.
 
 **The demo that defines done:** *a two-hundred-turn story read end to end as
 prose and exported as Markdown with no machinery visible — from a fresh
@@ -151,16 +158,42 @@ pacing works at all* among the hypotheses nothing has tested — every claim in
 these documents is a hypothesis, and none is tested by being written down — and
 this is the phase that tests this one.
 
-### 1.8 Packaging at beta is two artifacts, and the other four are a 1.0 bar
+### 1.8 This phase grew by three, and the growth should be sized rather than absorbed
 
-[01 §0.4](01-work-plan.md) and [releases §0](11-repo-and-releases.md) agree: the
-canonical build delivers **the OCI image and the tarball** for beta to count.
-`.deb`, AUR, Homebrew and the Windows service moved to the 1.0 bar rather than
-off the list — the reasoning that put them there is right about 1.0 and premature
-for beta. The unraid template ([04 §5.3](../04-server-multiuser-deployment.md))
-is in that group, and it is worth naming because it is the one most likely to
-feel obligatory: it is a first-class artifact *for 1.0*, and a half-working
-template is worse than none.
+[01 §0.5](01-work-plan.md) moved three things into 1.0 and gave all three to this
+phase. None was a scope increase for the *product* — each was already wanted —
+but all three were previously outside any phase, which is a different thing from
+being cheap.
+
+**Packaging is now all six artifacts, not two.**
+[releases §0](11-repo-and-releases.md) still requires only the OCI image and the
+tarball *for beta to count*, and that is unchanged. What changed is that `.deb`,
+AUR, Homebrew, the Windows service and the unraid template
+([04 §5.3](../04-server-multiuser-deployment.md)) are owned here rather than by a
+"1.0 bar" — a bar this phase had itself put out of scope, which left four
+required artifacts with a requirement and no builder. The unraid template is
+worth naming because it is the one most likely to feel obligatory: a first-class
+artifact *for 1.0*, and a half-working template is worse than none.
+
+**Session export is the largest of the three and the one with a dependency.**
+It drags `localActors`, channel state, branch structure and renditions
+([06 B12](../06-open-questions.md)), and it **freezes the turn record** — which
+is why [17 §4](../17-write-mode.md) has to be settled before the format is
+fixed, not after. That is a design dependency on a document about a 2.0 feature,
+and it is the sharpest scheduling consequence of the release re-cut. If §2's
+audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
+than guessing.
+
+**Backup and restore is the smallest.** Quiesce, archive excluding the index,
+restore and rebuild ([06 E6](../06-open-questions.md)). The part that matters is
+the CI restore test, which belongs to [testing](10-testing.md) rather than here.
+
+**What this means for the phase.** P11 was already the largest and least
+well-specified phase in the plan, and this makes it larger. The response is not
+to quietly absorb it: §2's audit stage should size these three alongside
+everything else it finds, and if the answer is that P11 has to split, that is a
+finding rather than a failure. A phase that ends when someone gets tired is the
+failure mode this document exists to prevent.
 
 ---
 
@@ -291,20 +324,26 @@ gets removed.
 
 ## 4. Out of scope, deliberately
 
-The four packaging artifacts beyond container and tarball
-([01 §0.4](01-work-plan.md) — a 1.0 requirement, not a beta one, the unraid
-template included); the branch tree visualiser
-([14 §1](../14-roadmap.md)); the Character Studio ([14 §2](../14-roadmap.md));
-the file browser ([06 D3](../06-open-questions.md)) and Tailscale
-([06 D1](../06-open-questions.md)), both moved off this phase to the roadmap by
-[01 P11](01-work-plan.md) itself; session export
-([06 B12](../06-open-questions.md)) and the prologue packages that unblock with it
-([06 B10](../06-open-questions.md)); chapterisation
-([14 §3](../14-roadmap.md)); embeddings ([06 E2](../06-open-questions.md));
-quality evals of any kind ([testing §4.3](10-testing.md)); and everything in the
-2.0 series — Campaign, Messages, the authored-rule vocabulary — which is
-scheduled rather than deferred ([01 §5](01-work-plan.md)) and whose arrival is
-the answer to [01 §0.2](01-work-plan.md)'s check.
+The branch tree visualiser ([14 §1](../14-roadmap.md)); the Character Studio
+([20 §4](../20-authoring.md)); the file browser
+([06 D3](../06-open-questions.md)) and Tailscale
+([06 D1](../06-open-questions.md)), all four on the feature list; the prologue
+packages that unblock once export lands ([06 B10](../06-open-questions.md));
+chapterisation and embeddings ([14 §3](../14-roadmap.md),
+[06 E2](../06-open-questions.md)); quality evals of any kind
+([testing §4.3](10-testing.md)); and every committed release after 1.0 — the
+Write surface, World, Campaign and the authored-rule tier — which are scheduled
+rather than deferred ([01 §5](01-work-plan.md)) and whose arrival answers
+[01 §0.2](01-work-plan.md)'s checks.
+
+**No longer out of scope, and moved into §1.8:** session export, backup and
+restore, and the four packaging artifacts. All three were listed here when they
+had no release; [01 §0.5](01-work-plan.md) gave them one, and it is this one.
+
+**One item here is a design dependency rather than a deferral.**
+[17](../17-write-mode.md) is a 2.0 document, and export cannot freeze the turn
+record until its §4 is settled. That does not put Write in this phase; it puts
+*settling 17* on the critical path to a stage in it.
 
 **And the one thing a hardening phase most wants to add and must not:** polish.
 [09-polish.md](09-polish.md) is a working todo list with its own bar, and its

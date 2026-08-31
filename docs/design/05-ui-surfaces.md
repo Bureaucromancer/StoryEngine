@@ -190,24 +190,38 @@ and no panel background, so tool chrome cannot land on one by accident.
 
 ---
 
-## 2. Two surfaces and an inspector
+## 2. The surfaces, and an inspector
 
 | Surface | What it is |
 |---|---|
-| **Play** | The modes' chat, scene and adventure views, plus the affordances that make starting and managing a story quick (§2.2) |
+| **Play** | Scene, Freeform and later Campaign ([03 §7](03-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
 | **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
-| **Workbench** | Not a surface. An inspector panel that expands over whichever of the two you are in — §3 |
+| **Workbench** | Not a surface. An inspector panel that expands over whichever surface you are in — §3 |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
 stripped. The workbench and the reading view answer opposite questions over the
 same records.
 
-**A third surface arrives with Write at 3.0** ([17 §6](17-write-mode.md)) — a
-mode whose layout is document-shaped rather than session-shaped, and which
-therefore cannot live inside Play without making Play's layout conditional on
-the mode. **Two is a fact about what ships, not a principle**, and it is worth
-saying so here rather than letting a count be cited later as a rule. Nothing
-about the demotion below changes: a reader is still not a surface.
+**Surfaces own modes**, which is the relationship that decides what a surface
+*is*: Play holds Scene, Freeform and Campaign; a second surface exists when a set
+of modes wants a layout the first one cannot give them without becoming
+conditional ([03 §1](03-modes-and-turn-pipeline.md),
+[work plan §0](workplan/01-work-plan.md)).
+
+**A third surface arrives with Write at 2.0** ([17 §6](17-write-mode.md)),
+holding Outline and Prose — two modes whose layout is document-shaped rather
+than session-shaped, and which therefore cannot live inside Play without making
+Play's layout conditional on the mode.
+
+**A fourth is proposed and undefined.** Social — a messenger, a feed and a board
+as three modes of one surface — sits on the feature list rather than in a release
+([14 §3.4](14-roadmap.md)). It is named here because Messages was going to be a
+Play mode and no longer is, and because a surface count that ignored it would be
+stale on arrival.
+
+**The count is a fact about what ships, not a principle**, and it is worth saying
+so here rather than letting a number be cited later as a rule. Nothing about the
+demotion below changes: a reader is still not a surface.
 
 **The workbench used to be listed here as a third peer, and is not one.** The
 demotion is in navigation only, and the distinction matters because this section
@@ -229,7 +243,7 @@ arrive somewhere you already were.
 
 ### 2.1 The library is the model; play is the product
 
-The division of labour between the two surfaces, stated because it decides a
+The division of labour between those two surfaces, stated because it decides a
 long list of smaller questions and was being re-derived at each one.
 
 > **The library represents the objects as they are. Play is where the
@@ -244,7 +258,7 @@ editor and enjoy it."* The library is the surface that audience is for.
 
 **Play carries the player-facing ergonomics** — quick setup, resuming, managing a
 story in flight, and eventually grouping sessions that share a continuity
-([14 §2d](14-roadmap.md)). Someone who wants to *play* should never have to learn
+([19](19-world.md)). Someone who wants to *play* should never have to learn
 the object graph to do it, and someone who wants to *author* should never have to
 see through a friendly label to find out what they are editing.
 
@@ -272,7 +286,7 @@ using it rather than by reading a shelf.
 - **Play's conveniences emit ordinary objects.** A quick setup that creates a
   Treatment creates a real one, in the library, in a folder, indistinguishable
   from a hand-written one. Never a parallel play-side store — the same
-  discipline [14 §2c.1](14-roadmap.md) puts on the story bible, and the same
+  discipline [19 §4](19-world.md) puts on the story bible, and the same
   instinct already behind *"emit a Setup from this running session"*
   ([02 §7.1](02-data-model.md)).
 
@@ -601,9 +615,14 @@ Honest accounting, because the user is right that this is a pain:
   archive traversal on zip extraction (`zip-slip`), no execute bits, and content
   sniffing rather than trusting extensions.
 - **It is not a 1.0 feature.** Recommendation: define the permission field and
-  the scoped-root helper in the initial auth work so the shape exists, ship
-  read-only download-and-zip early because it is cheap and immediately useful,
-  and defer write and the text editor to 1.x.
+  the scoped-root helper in the initial auth work so the shape exists, and defer
+  the rest. An earlier draft here proposed shipping read-only download-and-zip
+  early and holding only write and the text editor back to a “1.x” point
+  release. That is superseded by the section header: the *whole* feature is on
+  the feature list ([14 §3.3](14-roadmap.md), [06 D3](06-open-questions.md)),
+  there is no 1.x line in the release model ([11 §2](workplan/11-repo-and-releases.md)),
+  and a half-shipped file browser is the version most likely to be cited as a
+  reason not to finish it.
 
 **[OPEN]** Whether `write` should require re-entering the password, the way
 admin actions sometimes do. Probably overkill given the threat model in
@@ -1016,7 +1035,7 @@ before it.
 #### What this is not
 
 - **Not a second surface.** Everything above is the Lorebooks panel and the
-  existing detail route. §2's two surfaces are unchanged.
+  existing detail route. §2's surface list is unchanged.
 - **Not an editor.** The read view holds no form state at all; the edit
   affordance is a link into the editor at the entry's address. That is §2.1's
   browse/edit line, and statelessness is what enforces it rather than

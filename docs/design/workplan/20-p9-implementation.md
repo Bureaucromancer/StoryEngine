@@ -56,11 +56,17 @@ found while planning rather than on the day. The remedy is small: one section in
 [02 §5](../02-data-model.md) about where the bytes live, and the turn record's
 link to them.
 
-**Internal rather than portable, leaning.** A rendition hangs off a turn, and
-turns are internal. The counter-argument is that the recipe is the durable half
-and someone will want it to survive an export — but export is
-[06 B12](../06-open-questions.md) and is not 1.0, so deciding it here would be
-deciding it early and blind. Record the lean and the reason.
+**Internal rather than portable, leaning — and the counter-argument now has a
+date.** A rendition hangs off a turn, and turns are internal. The
+counter-argument is that the recipe is the durable half and someone will want it
+to survive an export.
+
+When this was written, export was [06 B12](../06-open-questions.md) with no
+release attached, so deciding here would have been deciding early and blind.
+**Export now ships at 1.0** ([01 §0.5](01-work-plan.md)) at P11, which is after
+this phase — so the lean still holds, but it is no longer a decision that can be
+left indefinitely. **P9 owes P11 an answer rather than a lean**: what a rendition
+contributes to an exported session, and whether the recipe travels with it.
 
 ### 1.2 The provider layer speaks chat, and no image endpoint does
 
@@ -237,7 +243,7 @@ policy); **lore-conditioned renditions** ([14 §3](../14-roadmap.md): committed
 intent rather than a maybe, and deferred because *choosing which images* is the
 hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
-tune against); the Character Studio ([14 §2](../14-roadmap.md)); any
+tune against); the Character Studio ([20 §4](../20-authoring.md)); any
 model-quality evaluation of generated images ([testing §4.3](10-testing.md) —
 do not build quality evals, and an image eval is the most tempting version of
 the mistake).

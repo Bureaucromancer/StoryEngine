@@ -1093,8 +1093,8 @@ and are not a substitute: a recording goes stale silently.
 
 **Multi-user under load.** Two browsers, not ten. The concurrency questions
 [04 §4.5](../04-server-multiuser-deployment.md) raises — a queue per connection,
-shared rate limits, cost attribution — are 2.0's and P10's, and one person with
-two tabs cannot answer them.
+shared rate limits, cost attribution — are P10's, and one person with two tabs
+cannot answer them.
 
 **Deployment.** Container, upgrade-with-data-intact, backup and restore. Those
 are [§8](01-work-plan.md)'s beta bar and P11's, and every one of them needs a

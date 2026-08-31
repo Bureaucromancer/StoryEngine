@@ -232,7 +232,7 @@ list has grown long enough that the default matters:
 | Plot-hook selection | [03 §6.1](03-modes-and-turn-pipeline.md) |
 | Mention resolution, where it is model-assisted | [03 §8.2](03-modes-and-turn-pipeline.md) |
 | Goal completion judgement | [03 §7.3.3](03-modes-and-turn-pipeline.md) |
-| Continuity checking | [14 §2c.2](14-roadmap.md) |
+| Continuity checking | [14 §2c.2](14-roadmap.md) — feature list, High |
 | Field assists and the assistant | [05 §7](05-ui-surfaces.md), [05 §11.1](05-ui-surfaces.md) |
 
 Several of those run **every turn**. Bound to `hi` by accident, they would
@@ -329,7 +329,7 @@ dropped, exactly as it does for context blocks
 produces no turn record and therefore records it as field provenance
 ([05 §11.2](05-ui-surfaces.md)) instead.
 
-### 5.4 Overrun recovery — post-1.0
+### 5.4 Overrun recovery — feature list, High
 
 An automatic handler that recognises a length-driven refusal and retries
 smaller, bounded by a **regenerate attempts** setting. Deferred, and the
@@ -552,7 +552,7 @@ packages/
   client/
   modes/scene/     ⎫ built-in modes, each its own package,
   modes/adventure/ ⎬ consuming sdk exactly as a third party would.
-                   ⎭ Messages joins at 2.0 [work plan §0].
+                   ⎭ Messages joins whenever it is built [14 §3.4].
 ```
 
 **`sdk` is AGPL-3.0, like everything else, and that is deliberate rather than

@@ -317,6 +317,15 @@ Two project-specific automations worth having beyond the usual:
   back. **An untested restore is not a backup** ([06 E6](../06-open-questions.md)),
   and this is the whole reason the backup story can stay as small as it is — the
   index being derived means the archive excludes it and the restore rebuilds it.
+  **This is a 1.0 requirement rather than an eventual nicety**
+  ([01 §0.5](01-work-plan.md)): backup and restore moved off the feature list and
+  into P11, and this test is the half of it that actually establishes anything.
+- **Session export round-trip.** Export ships at 1.0
+  ([06 B12](../06-open-questions.md), [01 §0.5](01-work-plan.md)) and freezes the
+  turn record when it does. Export a session with branches, `localActors`,
+  channel state and renditions; re-import it; assert the tree, the effects and
+  the reading order survive. This is the test that makes "the record is frozen"
+  a checkable claim rather than a promise.
 
 Renovate or Dependabot for updates, grouped so the noise stays manageable.
 

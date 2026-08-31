@@ -55,8 +55,11 @@ A phase document is not a design document: where one contradicts the design, the
 design is what to fix first — and 14 §1 is that case, three documents describing
 a fallback layer no code implements.
 
-**Every phase through 1.0 now has a document, and the far ones are deliberately
-thin.** 18 through 22 were written in one pass so that the phases after PLAYABLE
+**Every phase through 1.0 has a document, and the far ones are deliberately
+thin.** There are no phase documents past 1.0 and that is deliberate too: the
+releases after it ([01 §0](01-work-plan.md)) have scopes rather than phase
+breakdowns, because sequencing 2.0 against a substrate that does not exist yet
+would be the guessing this folder exists to avoid. 18 through 22 were written in one pass so that the phases after PLAYABLE
 have addresses rather than paragraphs in [01](01-work-plan.md) — but a skeleton
 five phases out is not a plan, and [18 §0](18-p7-implementation.md) states in one
 place what all five are for: **collect the deferrals already made to the phase,
@@ -85,10 +88,11 @@ timestamp throughout these documents — *"added at P2.5"* names a stage, never 
 release.
 
 **[09-polish.md](09-polish.md) is the odd one out**, and deliberately here
-rather than in the roadmap. Its entries are user-facing, bounded, and need no
-schema change and no new contract — the difference between a surface that works
-and one that is pleasant. The bar for the roadmap ([14 up one level](../14-roadmap.md))
-is a deferred *feature*; anything that clears it leaves this file.
+rather than in the feature list. Its entries are user-facing, bounded, and need
+no schema change and no new contract — the difference between a surface that
+works and one that is pleasant. The bar for the feature list
+([14 up one level](../14-roadmap.md)) is a deferred *feature*; anything that
+clears it leaves this file and picks up a priority tier there.
 
 **[02-triage.md](02-triage.md) is history that still binds.** It records what
 was taken from Aventuras, Marinara Engine and SillyTavern and what was
