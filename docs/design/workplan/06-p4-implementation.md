@@ -1672,14 +1672,14 @@ carve-out in `local-source.ts:86` is what keeps this from being a
 privilege-escalation route between users, and it holds — the defect is in what
 the grantor is told, not in what the grant permits.
 
-### 7.3 Gate step 9 was never run — *closed 2026-08-31, §7.11*
+### 7.3 Gate step 9 was never run — *closed 2026-08-31, §7.14*
 
 *"Rebuild equals incremental, after a bulk import"* — described in the gate as
 the best stress the [13 §5] assertion will ever get. `rebuild-property.test.ts`
 exists and predates P4; no import test rebuilds. The one thing P4 could
 contribute to that invariant, it did not contribute.
 
-### 7.4 `import_job` and `import_event` are created and never written — *closed 2026-08-31, §7.11*
+### 7.4 `import_job` and `import_event` are created and never written — *closed 2026-08-31, §7.14*
 
 `state/migrations.ts:141` and `:176`. The migration landed at P4.4 as §1.3
 decided; the writer was cut with the addressable report. The cut was recorded,
@@ -1687,14 +1687,14 @@ the **schema consequence** was not: the operational store now carries two tables
 no code touches, which is exactly the shape of a migration that gets
 misremembered as load-bearing later.
 
-### 7.5 CHARX and `.seactor` are unimplemented and unrecorded — *closed 2026-08-31, §7.11*
+### 7.5 CHARX and `.seactor` are unimplemented and unrecorded — *closed 2026-08-31, §7.14*
 
 §1.3 (`:417`) and §1.10 (`:1155`) both list them among what the card converter
 covers. Neither exists. Both are zip containers — the same blocker as the
 deferred Marinara profile archive — but only the profile archive's deferral was
 written down, so these two read as shipped.
 
-### 7.6 Gate step 11, precisely — *closed 2026-08-31, §7.11*
+### 7.6 Gate step 11, precisely — *closed 2026-08-31, §7.14*
 
 The substance holds: the report is `{key, params, level}` and the sentences are
 composed client-side. What is not true is the word **fetch** — the report exists
@@ -1922,7 +1922,15 @@ That is [§6.2](#62)'s open question about filename identity, reached from a new
 direction rather than a new defect, and the answers it already names — a
 source-app tag, a content hash — are the answers here too.
 
-### 7.11 The rest of the audit, closed — 2026-08-31
+### 7.14 The rest of the audit, closed — 2026-08-31
+
+*Numbered 7.14 rather than 7.11, which is what it was written as. A concurrent
+session had already taken 7.11 through 7.13 — the near-miss finding, import
+moving into the workbench, and the browser directory upload un-cut — and
+`import/near-miss.ts` cites `[P4 §7.11]` in its own header. Source citing a
+section number is heavier than prose citing one, so this moved rather than that.
+The three of them are the reason to read this section last: they were written
+against the same §7 on a branch that has §7.8's repair and not this entry.*
 
 **Gate step 9 — rebuild equals incremental, after a bulk import.** Added to the
 named `gate` CI step rather than beside it, because it *is* the [13 §5]
