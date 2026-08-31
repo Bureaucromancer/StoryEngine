@@ -20,3 +20,16 @@ packages/shared/schemas/
 # Recorded provider exchanges: the bytes are the fixture, and the recorder
 # owns their formatting.
 packages/server/src/providers/fixtures/
+
+# Claude Code's local state — and its scratch worktrees, which are whole second
+# checkouts of this repository. Every entry above is anchored to the root, so
+# none of them reach inside one, and a machine that has ever made a worktree
+# fails the gate over a copy of files already ignored here.
+#
+# `launch.json` is the one file under `.claude/` that git tracks, and it is
+# tempting to exempt it with a `!` line so it stays formatted. It cannot be: the
+# tool rewrites it into every worktree it creates, and on Windows it writes CRLF,
+# so `--check` fails on a file whose committed blob is — and always was — LF.
+# `.gitattributes` does not reach it either; those bytes arrive after checkout,
+# from a writer this repository does not own.
+.claude/*
