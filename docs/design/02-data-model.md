@@ -994,6 +994,29 @@ sessions/<id>/
   assets/
 ```
 
+**`assets/` is where renditions put their pixels** — illustrations and backdrops
+alike ([03 §10](03-modes-and-turn-pipeline.md)) — and it is the one directory
+here whose contents are **deliberately disposable**. The record of a rendition
+lives in the turn log with its prompt, seed and parameters; the file under
+`assets/` is the output of running them. Deleting one leaves `asset: null` and a
+picture that can be made again, which is what lets an eviction policy be a later
+decision rather than a migration ([06 E3](06-open-questions.md),
+[03 §10.7](03-modes-and-turn-pipeline.md)).
+
+Two consequences worth stating where the layout is, because both are easy to get
+backwards:
+
+- **The backdrop is not stored anywhere else.** A backdrop shown across fifty
+  turns is one file here, pointed at by channel state
+  ([03 §10.1a](03-modes-and-turn-pipeline.md)) — not copied per turn, and not
+  promoted into the library. It is session content, and it travels and deletes
+  with the session (§10.3).
+- **Size lands here rather than in the turn log.** §5.5's *keep everything* is a
+  claim about records, which run tens to a couple of hundred megabytes for a
+  thousand turns. Generated media is a different order of magnitude and a
+  different policy: the records are kept because they are small and
+  irreplaceable, and the pixels are evictable because they are neither.
+
 #### File order is creation order. Reading order is a tree walk.
 
 This is the decision that makes branching a non-issue for storage, and it is

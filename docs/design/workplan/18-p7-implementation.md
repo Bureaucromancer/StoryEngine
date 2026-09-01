@@ -368,6 +368,18 @@ deliberately embarrassing minimum to its 1.0 shape — sprites, backgrounds and
 expression selection as steps writing channels, with **text-only remaining a
 first-class configuration**, as it is in both sources.
 
+**One obligation to P9, and it costs a type rather than a feature.** The
+background channel declared here holds *which backdrop is showing*; two phases
+later P9 generates backdrops and writes that channel
+([03 §10.1a](../03-modes-and-turn-pipeline.md),
+[20 §1.7](20-p9-implementation.md)). So **its value must be a media reference
+able to name either an authored image or a rendition's asset, from this
+declaration onward.** The narrower shape is the tempting one, because a filename
+is all P7 can actually produce — and choosing it means changing a channel's
+schema under live sessions ([03 §4.2](../03-modes-and-turn-pipeline.md)) to admit
+the generated case. Free here, a migration there. Nothing else about backdrops
+is this phase's: P7 says which one, P9 says where it comes from.
+
 *Ends at:* the demo.
 
 ---

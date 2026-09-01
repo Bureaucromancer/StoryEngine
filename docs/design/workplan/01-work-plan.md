@@ -1043,6 +1043,16 @@ phase's one real question.
 Per-turn and on-demand illustration ([03 §10](../03-modes-and-turn-pipeline.md)),
 built against the general rendition shape so video and speech are later kinds.
 
+**And backdrops**, which are the same shape under a second *purpose* rather than
+a second feature ([03 §10.1a](../03-modes-and-turn-pipeline.md),
+[20 §1.7](20-p9-implementation.md)). This closes an absence older than the phase
+documents: [03 §7.2](../03-modes-and-turn-pipeline.md) has always said Scene has
+an optional background written by a step, and no document has ever said where the
+image comes from — so without this, P7 ships a backdrop channel that nothing can
+fill. Backdrops generate when the place changes rather than per turn and reuse
+an existing image for a place already rendered, which is what keeps the one
+subsystem that spends money on its own from spending it per turn.
+
 ### P10 — Multi-user, notifications, deployment
 
 **Skeleton: [21](21-p10-implementation.md)**, which gives a remainder phase the

@@ -823,6 +823,23 @@ Worth stating as policy because of what it buys:
 It also means an eviction policy is a later decision rather than a now one,
 because adopting one can never cost history.
 
+**The backdrop is governed by all of this and appears in none of it**, which is
+why it is worth a paragraph rather than being left implied. This entry is titled
+*renditions in the transcript*, and a backdrop
+([03 §10.1a](03-modes-and-turn-pipeline.md)) is not in the transcript — it is
+behind it. The two policies above apply to it unchanged: regenerating a backdrop
+**adds** a sibling and selects it rather than overwriting the one you liked, and
+its recipe is permanent while its pixels are not.
+
+**One thing does differ, and it is not a policy exception.** Which backdrop is
+*currently showing* is channel state rather than a property of any rendition,
+because a backdrop persists across turns and only channel state describes that
+lifetime. So the accumulate-and-select rule lands in two places instead of one:
+the siblings are renditions, the selection is an effect. That is the same
+division [09 §2](09-branching.md) already relies on, and it means rewinding past
+a location change restores the earlier backdrop with nothing written to make it
+happen.
+
 ### E4. Session import from other platforms — conditional on an interchange format
 
 **Not a commitment, and no longer a flat refusal. The condition is the shape,

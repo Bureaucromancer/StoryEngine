@@ -840,6 +840,13 @@ Design notes:
 - Sprites, backgrounds and expression selection are steps writing to channels.
   Text-only must remain a fully supported first-class configuration, as it is in
   both sources.
+- **A background channel says which backdrop is showing; §10.1a says where the
+  image comes from.** The two halves were separated for years by the fact that
+  SillyTavern answers the second one with a folder. The channel's value is a
+  media reference that may name either an image somebody uploaded or a
+  rendition's asset, and it has to be that from the declaration onward: narrowing
+  it to a filename now means changing a channel's schema under live sessions
+  later (§4.2) to admit the generated case.
 - Scene branching (Marinara's "scenes" as side branches) is not a Scene-mode
   feature; branching is a session-level capability from
   [02 §8](02-data-model.md) available in every mode.
@@ -1317,7 +1324,10 @@ A **rendition** is a non-text artefact derived from a turn.
 interface Rendition {
   id: string
   turnId: string
+  /** How it is produced: provider, latency, cost. */
   kind: "image" | "video" | "speech"
+  /** What it is for: where it renders, and how long it lives. §10.1a */
+  purpose: "illustration" | "background"
   /** Which part of the turn this renders. Whole turn, or one message under
    *  per-actor dispatch — speech needs this, images usually do not. */
   scope: { messageId?: string } | null
@@ -1337,6 +1347,131 @@ them: derive from turn content, cost money, can fail, are re-runnable, and are
 worth showing in the workbench. Building images against this shape rather than
 as "the image feature" is most of what makes video and speech cheap later.
 
+**Lifecycle is what the other union is for.** `purpose` is the axis on which
+renditions genuinely do differ in lifecycle — an illustration belongs to one
+turn, a backdrop is shown across many — and keeping it out of `kind` is what
+lets that sentence above stay true. §10.1a.
+
+### 10.1a Backgrounds are a second purpose, not a fourth kind
+
+**The backdrop a scene is staged against is a rendition too**, and saying so is
+the difference between one subsystem and two.
+
+§7.2 has always described Scene as *"staged scene, optional background and
+sprites"*, and has always said backgrounds are steps writing to channels. What no
+document has ever said is **where the image comes from**. The absence was easy to
+miss because SillyTavern ships a folder of them and the answer there is *the user
+found a JPEG* — which is a fine answer for a program that does not generate
+pictures, and no answer at all for one that does.
+
+So `Rendition` carries a second closed union beside `kind`:
+
+```ts
+  /** What this rendition is for: where it renders, and how long it lives. */
+  purpose: "illustration" | "background"
+```
+
+**Two fields because there are two questions, and collapsing them is the natural
+mistake.** `kind` is *how a rendition is produced* — provider, latency, cost
+(§10.1). `purpose` is *what it is for*. A backdrop is an image, so it is
+`kind: "image"`; it renders behind the story rather than inside it, and outlives
+the turn that made it, so it is `purpose: "background"`.
+
+Putting `"background"` into `kind` instead would answer both questions with one
+union, and the first thing it would cost is an animated backdrop — expressible
+here as `{ kind: "video", purpose: "background" }` and inexpressible the other
+way, in the one place the design has gone furthest out of its way to keep video
+cheap (§10.5).
+
+**Unlike `kind`, both values of `purpose` are built.** This is not a field
+reserved against a later feature; it is a distinction 1.0 makes.
+
+#### The artefact hangs off a turn; the *selection* is channel state
+
+One structural difference between the two purposes, and it is the whole design.
+
+An illustration belongs to its turn forever. A backdrop is shown until the place
+changes — several turns, sometimes fifty — which sounds exactly like the thing
+§10.2 says a rendition must never be: a participant in state reconstruction.
+
+**Both stay true by separating the object from the pointer.** The rendition keeps
+its `turnId`, the turn whose state produced it, and a branch inherits it by
+inheriting that turn like every other rendition. **Which backdrop is currently
+showing is channel state** — a session-scoped channel holding a reference to the
+selected rendition, written as an ordinary `ChannelEffect` (§4), reversible and
+recorded like any other state change.
+
+What the split buys, all of it for free:
+
+- **Rewind and branching need no new machinery.** State at turn N is already a
+  pure function of the effect log ([09 §2](09-branching.md)), so rewinding past a
+  location change restores the earlier backdrop exactly the way it restores the
+  weather, and a branch taken before you left the tavern is still in the tavern.
+  Nothing is special-cased, because nothing new was introduced.
+- **§10.2's corollary survives and gets sharper.** *The artefact is not a channel
+  effect; the selection is.* A rendition still never participates in
+  reconstruction. A pointer to one does — and pointers to state are the entire
+  business of §4.
+- **The channel belongs to the mode, not to renditions.** §7.2's background
+  channel is Scene's declaration, and this gives it a value it can hold and a
+  producer that writes it rather than standing a second mechanism up beside it.
+  Which is also the constraint it places on that declaration: the channel's value
+  is a **media reference able to name either an authored image or a rendition's
+  asset**, because a backdrop somebody uploaded and a backdrop the engine made
+  are the same thing to everything downstream of the pointer.
+
+#### Where a background's prompt comes from, and the line it does not cross
+
+Assembled the ordinary way (§10.3), from **channel state and the treatment's
+tone — and pointedly not from the turn's output text or the present actors'
+`VisualDescriptors`.**
+
+A backdrop is a place, not a moment. Illustrating what just happened is what
+§10.6's **Illustrate** is for, and a backdrop that redraws itself around each
+turn's action is an illustration wearing the wrong clothes: it will put the fight
+in the wallpaper and then stay there for thirty turns.
+
+**Text in, images out.** Conditioning the generation on a location's `reference`
+*image* is **lore-conditioned renditions** ([14 §3](14-roadmap.md)), which is
+deferred past 1.0 for a reason that is not plumbing: *choosing which images*,
+when six active entries and three present actors all carry references, is the
+hard part, and attaching all of them produces mud ([02 §3.6](02-data-model.md)).
+Backgrounds ship on the text side of that line and do not move it — which is
+worth stating plainly, because a backdrop of a place is the most natural-looking
+excuse anyone will ever have to move it.
+
+#### It generates when the place changes, and pays once per place
+
+**Not every turn.** The step runs when the fragments that describe the place
+actually change. A turn that changes nothing about where you are generates
+nothing.
+
+**And not twice for the same place.** Before dispatching, the step looks for a
+ready background rendition in this session whose **recipe digest** already
+matches — a hash over the assembled ranked fragments as sent, excluding the
+sampling seed — and selects that one instead of paying again. Walk out of the
+tavern and back into it, and the tavern comes back for nothing.
+
+The digest is not new machinery. It is a hash of the **recipe minus the seed** —
+the assembled prompt, which §10.7 already requires be kept forever, and which
+re-creating an evicted rendition already has to reproduce byte for byte. The
+exclusion is the whole trick: with the seed in, every generation is unique and
+nothing ever matches; with it out, *the same place described the same way* is a
+comparison the durable half of the record can already answer. **If the recipe is
+permanent, the digest is free** — which is the second thing §10.7 turns out to
+buy, after eviction.
+
+**A manual regenerate bypasses reuse**, adds a sibling and selects it — additive,
+never replacing (§10.7). That is also why reuse resolves to the *currently
+selected* rendition for a digest rather than the oldest one: having chosen a
+backdrop for the tavern, the tavern is what should come back.
+
+**This is the answer to the cost question backgrounds would otherwise raise.**
+They are the rendition most tempting to run every turn and the only one that
+caches perfectly. Keyed, a backdrop costs roughly one image per *place* instead
+of one per turn, and over a two-hundred-turn session that difference is most of
+the bill.
+
 ### 10.2 Renditions never block the turn
 
 **The turn completes on text.** Renditions are dispatched as their own jobs and
@@ -1352,6 +1487,14 @@ The corollary for [09 §2](09-branching.md): a rendition is **not** a channel
 effect and does not participate in state reconstruction. It is an artefact
 hanging off a turn, so a branch inherits the turn's renditions by inheriting the
 turn.
+
+**Backgrounds sharpen that rather than qualifying it** (§10.1a). A backdrop is
+displayed across many turns, which is a lifetime only channel state can describe
+— so *the artefact is not an effect; the selection is.* The rendition still
+hangs off its turn and is still absent from reconstruction; the pointer naming
+which backdrop is showing is an ordinary `ChannelEffect` and is reconstructed
+like everything else. Reading the two halves as one is how this ends up as a
+special case in the branching code, which it is not.
 
 ### 10.3 Where the prompt comes from
 
@@ -1369,6 +1512,13 @@ Assembled as **ranked fragments under the provider's declared cap**
 ([07 §5.3](07-tech-stack.md)), so overrun drops the lowest-ranked fragment
 rather than truncating mid-sentence. That work was specified for exactly this
 case.
+
+**A background takes a different subset of the same list**, and the difference is
+the point rather than an optimisation: channel state and tone, without the turn's
+output text and without the present actors' descriptors. A place, not a moment
+(§10.1a). Same step, same assembly, same cap — a different ranking, because what
+belongs in a backdrop and what belongs in an illustration are different
+questions asked of one turn.
 
 ### 10.4 A series, and what "series" should not mean
 
@@ -1402,9 +1552,28 @@ illustration far more than Messages does. And a manual **Illustrate** action on
 any message in the history, which is the same step invoked by hand — **additive,
 never replacing** (§10.7).
 
+**Backgrounds get their own control, because they are not on the same axis.**
+Off, or on — and *on* means when the place changes, not every turn (§10.1a).
+There is no per-turn setting to offer, because a backdrop that regenerates each
+turn is the failure mode rather than the thorough setting. The manual
+counterpart is **Set the scene**, which regenerates the backdrop for where you
+are now.
+
+**Off is a first-class configuration and not a degraded one.** §7.2 already
+requires text-only Scene to be fully supported, as it is in both sources, and a
+backdrop is precisely the feature that tempts an implementation to treat its
+absence as an empty state to fill. An unset `image` role says so plainly rather
+than failing a turn ([07 §5.1](07-tech-stack.md)); an unwanted backdrop leaves
+the surface exactly as it was.
+
 **[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
 turn's recorded state or from the present. Recorded state is more correct and
 more surprising; the turn record makes either possible.
+
+**Backgrounds are evidence on that question rather than a second instance of
+it.** A backdrop's entire subject is where you were standing, so present state is
+visibly wrong for one and merely arguable for the other — and both purposes read
+the same field. Whatever is decided, it is decided once.
 
 ### 10.7 Renditions accumulate; recipes are permanent
 

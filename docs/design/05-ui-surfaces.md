@@ -103,6 +103,12 @@ what the user is doing at that moment, not by taste:
 | Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([15](15-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
+**The play surfaces have one element that tests this directly**, and it is worth
+naming here rather than only where it is specified: the **backdrop** (§2.3), an
+image the engine generates and puts behind the story. *Clean prose first* is the
+whole of the answer — the prose keeps its column and its contrast, and off is a
+first-class configuration rather than an empty frame.
+
 **The reading view is the case that proves the rule**, and it is already written
 that way: §12 strips the machinery on purpose. Nothing here softens that. A dense
 workbench and a calm reading view are not a contradiction — they are the same
@@ -323,6 +329,40 @@ the second is how an app ends up opening on a list of everything you own. This
 matters more once the library is per-kind panels (§5): there is no single list
 left to land on, and picking one kind arbitrarily would be worse than the list
 was. See [polish §5](workplan/09-polish.md) for the build-level detail.
+
+### 2.3 The backdrop, and what it is not allowed to cost
+
+Play can carry a **backdrop** — a generated or uploaded image of where the story
+is happening, behind the transcript
+([03 §10.1a](03-modes-and-turn-pipeline.md)). It is the one piece of Play's
+layout that arrives from a model rather than from the design, which is why it
+gets a paragraph here rather than being left to the mode.
+
+**§1.1 decides almost all of it in advance.** *Application style to the tooling;
+clean prose first* — and Play is on the quiet side of that table. So:
+
+- **The prose wins, always.** The reading column keeps its measure, its
+  background and its contrast, whatever is behind it. A backdrop that requires
+  the text to be set over it is not a backdrop, it is a legibility bug shipped as
+  a feature, and the version of this that goes wrong is the one where a bright
+  generated image and a body-text colour meet at a contrast ratio nobody checked.
+- **It is chrome, and it behaves like chrome.** It does not scroll with the
+  transcript, does not push the layout around when it changes, and does not
+  animate a transition the reader has to wait through. A room change is a fade,
+  not an event.
+- **Off is a real setting and a common one.** [03 §7.2](03-modes-and-turn-pipeline.md)
+  requires text-only Scene to be first-class, and with the backdrop off Play is
+  the surface it was before — not a surface with an empty frame in it. The
+  temptation this feature brings is a placeholder where the picture would go, and
+  there should not be one.
+- **It is not a status display.** *What the engine understands about where you
+  are* is §13's business and the workbench's; a backdrop is a picture. If the
+  location channel is wrong, the backdrop being wrong is a symptom, and the place
+  to correct it is the channel, not the image.
+
+**On a phone it is the first thing to go.** §1 keeps the whole client responsive
+down to a phone, and a backdrop behind a full-width reading column at that size
+is all cost and no atmosphere.
 
 ---
 
@@ -1515,7 +1555,12 @@ editor is the only thing that reads them at 1.0.
   field.
 - **No assist.** Generating a location image is a rendition
   ([03 §10](03-modes-and-turn-pipeline.md)) and wants providers, so it arrives
-  with them and not before.
+  with them and not before. When they arrive it is the **backdrop**
+  ([03 §10.1a](03-modes-and-turn-pipeline.md), §2.3) — a picture of a place,
+  generated from what the session knows about where it is rather than from this
+  entry. Which is the distinction to hold on to while reading the next
+  paragraph: a backdrop of the place an entry describes is not the same thing as
+  that entry's image being *sent*.
 
 **Nothing here suggests the images are used.** They are not sent, and an editor
 implying otherwise would be making a promise the engine does not keep — which
@@ -1753,7 +1798,10 @@ should drift toward the other.
   abandoned, or the story as it stood forty turns ago.
 - **Live, not an export step.** Openable at any time on any session, including
   one still in progress.
-- **Renditions inline**, where they exist ([03 §10](03-modes-and-turn-pipeline.md)).
+- **Renditions inline**, where they exist ([03 §10](03-modes-and-turn-pipeline.md)) —
+  the illustrations, and **not the backdrop**. This view strips chrome and a
+  backdrop is chrome (§2.3); a location change reads here as the prose saying so,
+  which is how it reads in a book.
 
 ### 12.2 Formats, and not shipping a PDF library
 
