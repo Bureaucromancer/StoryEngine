@@ -55,8 +55,19 @@ vi.mock('@tanstack/react-router', () => ({
    * assertion reads the value the component passed rather than a formatting of
    * it.
    */
-  Link: ({ children, search }: { children: React.ReactNode; search?: Record<string, unknown> }) => (
-    <a href="#" data-search={JSON.stringify(search ?? {})}>
+  // `data-to` as well as `data-search` since [P5.1]: the book page now carries
+  // two links per entry — the name, into the read address, and Edit, into the
+  // editor — and a stub that dropped the destination could not tell them apart.
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    search?: Record<string, unknown>;
+  }) => (
+    <a href="#" data-to={to ?? ''} data-search={JSON.stringify(search ?? {})}>
       {children}
     </a>
   ),
@@ -256,10 +267,10 @@ describe('reading an object without opening the editor', () => {
     expect(await screen.findByRole('link', { name: 'Edit' })).toBeTruthy();
   });
 
-  /** Five kinds have no editor to land in, and the gate is one lookup now. */
+  /** Four kinds have no editor to land in, and the gate is one lookup now. */
   it('does not offer Edit on a kind that has none', async () => {
-    params = { kind: 'lorebooks', id: ACTOR_ID };
-    readObject.mockResolvedValue(actor({ schema: 'storyengine.lorebook/1' }));
+    params = { kind: 'treatments', id: ACTOR_ID };
+    readObject.mockResolvedValue(actor({ schema: 'storyengine.treatment/1' }));
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
@@ -343,6 +354,66 @@ describe('a lorebook on the detail route', () => {
       slug: 'ardent-2',
       entry: 'e-1',
     });
+  });
+
+  /**
+   * **[05 §5.3] by name**: *"the edit affordance is a link into the editor **at
+   * the entry's address**."* The page header's Edit cannot be it — that link is
+   * one component shared by every kind and passes no search params — so without
+   * this the editor's `?entry=` would have no producer but the URL bar.
+   */
+  it('offers an Edit link into the editor at each entry’s own address', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+
+    /*
+     * **Two of them, and the difference is the whole point.** The header's Edit
+     * and the entry's Edit both go to the editor — they are the same route —
+     * and only the search tells them apart: the header opens the book with
+     * nothing selected, because that link is shared by every kind and carries
+     * no search at all.
+     */
+    const addresses = screen
+      .getAllByRole('link', { name: 'Edit' })
+      .map((found) => [found.getAttribute('data-to'), found.getAttribute('data-search')]) as [
+      string,
+      string,
+    ][];
+
+    expect(addresses).toHaveLength(2);
+    expect(addresses.every(([to]) => to === '/library/lorebooks/$id/edit')).toBe(true);
+    expect(addresses.map(([, search]) => JSON.parse(search) as unknown)).toContainEqual({
+      entry: 'e-1',
+    });
+  });
+
+  /**
+   * **Withheld rather than made to lie**, through the same `mutable` predicate
+   * the header's Edit and Delete go through: every write resolves an id to the
+   * winner, so an *Edit* on the losing copy of a duplicated id would open the
+   * editor over a different file than the one on screen. The entry's *name*
+   * link stays — reading the shadowed copy is exactly what this page is for.
+   */
+  it('withholds it on a shadowed copy, where the write would land elsewhere', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        shadowed: true,
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByRole('link', { name: 'Harbour' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
   });
 
   it('falls back to the field list when the file is not a book, rather than failing', async () => {

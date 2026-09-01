@@ -7,7 +7,6 @@ import {
   entriesGoverned,
   entriesInFolder,
   entryGate,
-  LOREBOOK_SCHEMA,
   offCount,
   resolvedFolderId,
   type GateReason,
@@ -24,7 +23,7 @@ import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import { ByFields } from './ByField.js';
-import { itemSchemaOf, schemaFor, type SchemaNode } from './fields.js';
+import { loreEntrySchema } from './fields.js';
 import type { ObjectImportNotes } from '../api.js';
 import { ImportNotes, notesForEntry } from './ImportNotes.js';
 import { sentence } from './note-labels.js';
@@ -97,12 +96,6 @@ export function lorebookShape(object: Record<string, unknown>): string | null {
   return null;
 }
 
-/** `Lorebook.entries.items` — the entry schema, for the fold. */
-function entrySchema(): SchemaNode | undefined {
-  const declared = schemaFor(LOREBOOK_SCHEMA)?.properties?.['entries'];
-  return itemSchemaOf(typeof declared === 'object' && declared !== null ? declared : undefined);
-}
-
 /**
  * Wraps an entry's name in a link to that entry's own address.
  *
@@ -117,12 +110,21 @@ export function LorebookView({
   book,
   focused,
   linkToEntry,
+  editEntry,
   importNotes,
 }: {
   book: Lorebook;
   /** The entry `?entry=` names, or null. Unknown ids simply match nothing. */
   focused?: string | null;
   linkToEntry?: EntryLink;
+  /**
+   * An *Edit* affordance for one entry, supplied by the page the way
+   * {@link EntryLink} is. [05 §5.3] asks that the read view hold no form state
+   * and that its edit affordance be a link into the editor **at the entrys
+   * address** — which the page header cannot be, since that link is one
+   * component shared by every kind and passes no search params at all.
+   */
+  editEntry?: EntryLink;
   /** What every import said about this book ([P5 §1.8]). */
   importNotes?: ObjectImportNotes[];
 }): JSX.Element {
@@ -248,6 +250,7 @@ export function LorebookView({
                     focused={entry.id === (focused ?? null)}
                     importNotes={notesForEntry(importNotes ?? [], entry.name)}
                     linkToEntry={linkToEntry}
+                    editEntry={editEntry}
                     open={expanded.has(entry.id)}
                     onToggle={() => {
                       setExpanded((current) => {
@@ -519,6 +522,7 @@ function EntryUnit(props: {
   // Required and nullable rather than optional: `exactOptionalPropertyTypes`
   // makes those different, and the caller forwards a value that may be absent.
   linkToEntry: EntryLink | undefined;
+  editEntry: EntryLink | undefined;
   open: boolean;
   onToggle: () => void;
   onKey: (key: string | null) => void;
@@ -595,6 +599,20 @@ function EntryUnit(props: {
               ? `off: the folder ${blocked.folderName} is off`
               : OFF_LABELS[blocked.kind]}
           </span>
+        )}
+        {/*
+         * **The edit affordance is a link, at this entry's address** — [05 §5.3]
+         * in its own words, and the reason it lives here rather than only in the
+         * page header is that the header's Edit is one component shared by every
+         * kind and carries no search params. Without this, the editor's
+         * `?entry=` has no producer but somebody typing it.
+         *
+         * Withheld rather than disabled where the object cannot be written —
+         * a system copy, or a shadowed one — which is the page's judgement and
+         * so the page's to make: this renders what it is handed.
+         */}
+        {props.editEntry === undefined ? null : (
+          <span className="ms-auto">{props.editEntry(entry.id, 'Edit')}</span>
         )}
       </div>
 
@@ -687,7 +705,7 @@ function EntryUnit(props: {
            * `h3` above them. Heading level is document structure and belongs
            * to the page rather than to the component that draws the words.
            */}
-          <ByFields schema={entrySchema()} value={entry} omit={SHOWN_ABOVE} headingAs="h4" />
+          <ByFields schema={loreEntrySchema()} value={entry} omit={SHOWN_ABOVE} headingAs="h4" />
         </div>
       </details>
     </Panel>

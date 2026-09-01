@@ -3,7 +3,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import type { Lorebook } from '@storyengine/shared';
 
@@ -275,6 +275,31 @@ function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): J
         </Link>
       )}
       importNotes={notes.data?.notes ?? []}
+      /**
+       * **Offered only where the object can actually be written**, through the
+       * same `mutable` predicate the header's Edit and Delete go through — a
+       * system book and a shadowed copy are both readable and neither is
+       * writable, and an *Edit* on the losing copy of a duplicated id would open
+       * the editor over the winner (F19 with the stakes raised).
+       *
+       * Spread rather than passed as `undefined`, because
+       * `exactOptionalPropertyTypes` makes *absent* and *present and undefined*
+       * two different things.
+       */
+      {...(mutable(object)
+        ? {
+            editEntry: (entryId: string, children: ReactNode) => (
+              <Link
+                to="/library/lorebooks/$id/edit"
+                params={{ id: object.id }}
+                search={{ entry: entryId }}
+                className={link.inline}
+              >
+                {children}
+              </Link>
+            ),
+          }
+        : {})}
     />
   );
 }

@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 import { isLibraryKind, type LibraryKind } from './api.js';
 import { ComparePage } from './compare/ComparePage.js';
 import { ActorEditorPage } from './editor/ActorEditorPage.js';
+import { LorebookEditorPage } from './editor/LorebookEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
@@ -201,11 +202,44 @@ const actorEditorRoute = createRoute({
   component: ActorEditorPage,
 });
 
+/**
+ * The lorebook editor's address — [P5.1], and the second entry in
+ * `EDITOR_ROUTES`.
+ *
+ * **`?entry=` and nothing else.** [05 §5.3] asks that the read view's edit
+ * affordance be *"a link into the editor at the entry's address"*, so the write
+ * surface has to be able to hold one — and the read route's `?source=` and
+ * `?slug=` deliberately do **not** come with it, because every write resolves
+ * an id to the winning copy (`packages/server/src/library.ts` says so twice)
+ * and an edit address naming a losing one would be a URL the server ignores.
+ *
+ * Every field optional, which is a typing fact as well as a posture: the detail
+ * page's Edit link is one `<Link to={editorRoute}>` shared by every kind and it
+ * passes no `search` at all, so a required field here would stop that link
+ * compiling for actors too.
+ */
+export interface EditorSearch {
+  entry?: string;
+}
+
+/** Dropped rather than rejected, exactly as [validateObjectSearch] is. */
+export function validateEditorSearch(search: Record<string, unknown>): EditorSearch {
+  return { ...(typeof search['entry'] === 'string' ? { entry: search['entry'] } : {}) };
+}
+
+const lorebookEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/lorebooks/$id/edit',
+  validateSearch: validateEditorSearch,
+  component: LorebookEditorPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
   objectRoute,
   actorEditorRoute,
+  lorebookEditorRoute,
   sessionsRoute,
   playRoute,
   compareRoute,

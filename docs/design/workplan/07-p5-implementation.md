@@ -1064,7 +1064,150 @@ that has to be undone when the split lands.
 reading rather than by scrolling — and an entry that is off saying *which* of the
 three reasons made it so.
 
-#### P5.1 — The entry editor's minimum
+#### ~~P5.1 — The entry editor's minimum~~ Landed
+
+**What shipped:** `/library/lorebooks/$id/edit`, whose subject is the book and
+whose unit of work is an entry — because an entry has no address on disk, so
+creating, renaming or deleting one is a write of the whole lorebook through the
+same route, hash and history every other object uses. §11.2d's disclosures come
+from the schema's banners with Matching and Firing open; the durable core and
+the folder gates are writable and everything else renders read-only *in place*;
+create, rename and delete are there; and the closed-section invariant is a
+tested function rather than a rendering detail.
+
+**The invariant is the piece that changed shape, and the change is a departure
+from §11.2d's illustration rather than from its rule.** The section says *name
+what is inside it that is not at its default* and glosses the standard at the
+value — *a collapse that conceals a non-default value is a hidden field* — and
+[05 §2.1] forbids a *lossy summary* by name. The illustration *Matching (3 set)*
+is a count, and a count conceals all three: an entry running `useRegex` under a
+heading saying only *3 set* has exactly the surprising behaviour the section
+exists to surface. So every off-default field is named. *Timing (sticky 4)* is
+reproduced character for character; *Matching (3 set)* comes out as the fields
+it stood for. Gate step 5's own wording settles it — it asks that a collapsed
+section **names its non-default values**, plural.
+
+**And the default is the factory, which turns out to be the only description of
+one there is.** `newLoreEntry` is what *create* calls, so the entry this editor
+makes and the entry it measures against cannot disagree about what *default*
+means. Worth recording: `10 §5`'s `LoreEntry` block declares **no** defaults at
+all — the `default` annotations there belong to `Lorebook` — so the factory's
+own docstring citing §5 for them is over-claiming, and there is no second table
+to drift from because there is no second table at all.
+
+*Two consequences of that worth knowing before somebody calls them bugs.* An
+**imported** entry annotates heavily: the SillyTavern converter faithfully
+reproduces ST's defaults, and four of them differ from ours (`selective`,
+`matchWholeWords`, `depth`, `probability`), so a real book reads *Matching (keys
+1, selective, match whole words off)* and *Placement (position after_char, depth
+4)* on every entry. That is the format difference showing, not noise, and the
+converter must not be "fixed" to hide it. And a **uuid** `folderId` exceeds the
+value cap and renders as *folder id set* — the field named without printing
+thirty-six characters nobody can read.
+
+**The writable set is [05 §11.2d]'s sentence and nothing more** — `name`,
+`content`, `description`, `keys`, `enabled`, plus `folders[].enabled` — and
+`folderId` was **considered and cut**. The argument for it was that a created
+entry lands Ungrouped forever, and the argument is real; but §11.2d requires the
+schema's grouping *verbatim*, which would bury a filing control two clicks
+inside a collapsed group named for firing behaviour, and [05 §11.2c] puts
+filing-shaped operations on the entry list at P11. **The hole is closed at the
+create verb instead**: a new entry lands in the folder the list is standing in.
+Re-filing an existing entry stays P11's. `tag` and `secondaryKeys` are the two
+other defensible widenings and are cut for the same reason — the sentence says
+*everything else visible and read-only*, and this stage is called a minimum.
+
+**Three things the stage turned out to owe that its own text does not say.**
+[05 §5.3] asks that the read view's edit affordance be *"a link into the editor
+**at the entry's address**"*, and the page header's Edit cannot be it — that
+link is one component shared by every kind and passes no search params — so the
+book page gained a per-entry Edit, withheld on a shadowed copy through the same
+`mutable` predicate, since every write resolves an id to the winner. The
+**New lorebook** control is this stage's too, by P4.5's own rule that *a lorebook
+gets its New control when this editor exists*; the sentence beside it said
+"Actors are the only kind that can be made here" and was false the moment the
+row landed. And the book's **`name`** is writable — not in §11.2d, but owed by
+the create control, which would otherwise name a book once and never again
+before P11.
+
+*Four decisions worth their sentence.* **The draft is the book, not a
+projection.** `ActorForm` exists because that editor owns nearly every field an
+actor has; this one owns six of forty, so a projection would be a forty-field
+parallel copy built to carry six, and every field it forgot would be one a save
+silently dropped. **Nothing is stamped on the way out**: the server stamps
+`updatedAt` itself and decides its no-op rule on the object *as sent, before any
+stamping*, so a client stamp reaches disk in no case and only ever disables the
+server's byte-equality second opinion. **The 412 merge is per entry and per
+field**, resolved against the draft as it read when the base was loaded — five
+three-way cases, each tested separately, because a merge that got four right and
+resurrected every deletion would pass any single round trip. And **the entry
+list marks what is unsaved**, because one save writes the whole book: an entry
+edited and then left is a pending change, and a surface that did not say so
+would be hiding a field one level above the one the invariant forbids.
+
+*A hazard met rather than assumed:* entry ids are **not** unique in practice.
+The importers derive one as `stableId('entry', name, content)`, so two entries
+agreeing on both collide — `10 §5.2`'s uniqueness is an intent, not an enforced
+invariant. Every edit here patches the **first** match, which degrades to *one
+of the two is uneditable* rather than to *both changed and both saved*. The
+editor's shape guard is stricter than the book page's for the same reason: a
+reader needs entries to be objects, a writer needs every entry's `id` to be a
+string, or an id-keyed merge silently folds two entries into one.
+
+**Then somebody opened it**, on the same 247-entry book P5.0 was walked on, and
+**four defects came out that no test had a reason to catch** — which is the
+third phase running to make that argument.
+
+- **Clicking an entry visibly did nothing.** The list stood seven thousand
+  pixels tall and the form it selects into sat underneath all of it. Bounded and
+  scrolled now, with the addressed entry brought into view inside it, so arriving
+  from the read page's Edit link lands somewhere you can see.
+- **The folder rail is not enough narrowing.** A hundred and eighty-two of that
+  book's entries are ungrouped, so *pick a folder* still left a wall. One field,
+  names only — deliberately not a second copy of the book page's search, because
+  finding an entry by what it *says* is the read page's job and the read page
+  links back into here.
+- **The disclosures crashed the page on the first click.** They were controlled,
+  `AsStored`-style, so the annotation could be dropped while a section was open —
+  and the toggle handler read `event.currentTarget` inside a state updater, which
+  runs later, in React's render phase, by which time it is null. **No test saw
+  it in either direction**: the suite renders under `act`, where the updater
+  flushes inside the dispatch and the reference is still alive. The fix was to
+  delete the state rather than repair the read — React writes a DOM prop only
+  when the *prop* changes, so a constant `open` is applied once and a section
+  opened by hand, or by a browser showing a find-in-page match, simply stays
+  open. The cost is that the annotation shows while a section is open; that is
+  the cheaper of the two mistakes.
+- **A mutation aimed at the wrong line found a real gap anyway.** Feeding the
+  *saved* entry to the gate note instead of the draft changed nothing any test
+  could see, so *this entry is off* would not have followed the switch until the
+  next save.
+
+*Thirty-eight mutations, and the last three survivors are the interesting ones.*
+A summary rule with a count arm hid `useRegex`; a membership set beside
+`EntryRow`'s switch meant removing the guard rendered every field as the last
+case's control, so *Position* became a checkbox bound to `enabled` — the set is
+gone and the switch is the whole answer; and one arm of the merge's created-entry
+test was unfalsifiable, because `JSON.stringify(undefined)` is `undefined` and
+the comparison beside it was already true.
+
+**Two design notes are stale and are named rather than edited.** The schema
+carries **seven** banners since P5.0 reworded the seventh to *The entry itself*;
+[05 §11.2d](../05-ui-surfaces.md) still lists six, and
+[10 §5](../10-schemas.md)'s pseudo-code still calls it *The one addition*.
+Nothing here depends on either — the open-set is keyed on the field a banner
+hangs on rather than on its words, precisely so a rewording cannot change which
+sections open — but the documents should catch up.
+
+*Ends at:* **met, and witnessed in a browser** — an entry of an imported
+SillyTavern book edited and saved, the file on disk changed, `updatedAt` stamped
+by the server rather than the client, the other entries byte-identical, one
+`manual` history version written, and Save disabled again with *No changes to
+save* the moment it returned.
+
+---
+
+*The stage as it was written:*
 
 [05 §11.2d](../05-ui-surfaces.md)'s disclosures, derived from the schema's own
 comment banners, with Matching and Firing open. Create, rename, delete an entry;

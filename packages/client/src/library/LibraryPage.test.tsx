@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from '@storyengine/shared';
+import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, LOREBOOK_SCHEMA } from '@storyengine/shared';
 
 /**
  * **A hand edit reaches the browser without a restart** — the client half of P1
@@ -235,6 +235,7 @@ describe('making an actor', () => {
     expect(navigate).toHaveBeenCalledWith({
       to: '/library/actors/$id/edit',
       params: { id: '01b11111-2222-7333-8444-555566667777' },
+      search: {},
     });
   });
 
@@ -278,15 +279,58 @@ describe('making an actor', () => {
    * **Not a disabled button — no button.** A kind with no editor has nowhere to
    * land, so the page says so in a sentence instead of promising a control that
    * would strand the user on a read-only page over an empty object.
+   *
+   * *Exemplar changed at P5.1*: this used to be `lorebooks`, which now has an
+   * editor. Kept as a case rather than deleted, because the sentence is the
+   * behaviour and four kinds still get it.
    */
   it('offers nothing on a kind that has no editor to land in', async () => {
-    search = { kind: 'lorebooks' };
+    search = { kind: 'treatments' };
     renderPage();
     await settled();
 
     expect(screen.queryByRole('button', { name: 'New actor' })).toBeNull();
     expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
-    expect(screen.getByText(/only kind that can be made here/)).toBeTruthy();
+    expect(screen.getByText(/no editor yet/)).toBeTruthy();
+  });
+
+  /**
+   * **P5.1's half of the same rule, from the other side.** The stage that built
+   * the lorebook editor is the stage that owes this control — [P4.5]'s
+   * actors-only rule says a lorebook gets its New control *when this editor
+   * exists* — so the control appearing and the address it navigates to are both
+   * assertions about that, not about a form.
+   *
+   * The route matters more than the button: the page used to navigate by a
+   * literal, and a second creatable kind against a hard-coded `/library/actors`
+   * would have posted a lorebook and then opened the actor editor over it.
+   */
+  it('offers a lorebook now that lorebooks have an editor, and lands in it', async () => {
+    search = { kind: 'lorebooks' };
+    renderPage();
+    await settled();
+
+    expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Name for the new lorebook'), {
+        target: { value: 'Ardent' },
+      });
+    });
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('button', { name: 'New lorebook' }).closest('form')!);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
+    expect(call[0]).toBe('lorebooks');
+    expect(call[1]['schema']).toBe(LOREBOOK_SCHEMA);
+    expect(call[1]['entries']).toEqual([]);
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/library/lorebooks/$id/edit',
+      params: { id: '01b11111-2222-7333-8444-555566667777' },
+      search: {},
+    });
   });
 });
 

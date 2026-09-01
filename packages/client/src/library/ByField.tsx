@@ -162,15 +162,69 @@ function FieldList(props: { rows: FieldRow[]; value: unknown; depth: number }): 
   return (
     <dl className="flex flex-col gap-4">
       {props.rows.map((row) => (
-        <div key={row.key}>
-          <dt className={fieldLabel}>{row.label}</dt>
-          <dd className="mt-1 text-sm text-ink">
-            <Value value={owner[row.key]} schema={row.schema} depth={props.depth} />
-          </dd>
-        </div>
+        <LabelledValue
+          key={row.key}
+          row={row}
+          value={owner[row.key]}
+          depth={props.depth}
+          as="term"
+        />
       ))}
     </dl>
   );
+}
+
+/**
+ * One field's label over its value — the row both surfaces render through.
+ *
+ * **The element pair is a content model rather than a taste**, which is why it
+ * is a prop and not a class. A page of values *is* a description list, so the
+ * read surface draws `dt`/`dd` inside its `dl`. A form's group is not one: a
+ * `dl` may hold only `dt`, `dd` and grouping `div`s, so a `Field` cannot legally
+ * sit in one — and a `dt` above `Field`'s own `<label htmlFor>` would announce
+ * every writable field twice, once as a term and once as a label. So the editor
+ * asks for the same row as a plain block and puts its controls beside it.
+ *
+ * Everything that must not drift is here either way: the label class
+ * ([classes.ts](../ui/classes.ts)'s `fieldLabel`, which `Field` also uses), the
+ * one step between label and value, and the value's own rendering with its four
+ * decisions about empties, prose, naming keys and the bytes fallback. That
+ * rendering is sixty lines of branch table, and a second copy of it is exactly
+ * the two-disagreeing-JSON-viewers receipt [fields.ts](./fields.ts) cites.
+ */
+function LabelledValue(props: {
+  row: FieldRow;
+  value: unknown;
+  depth: number;
+  as: 'term' | 'block';
+}): JSX.Element {
+  const drawn = <Value value={props.value} schema={props.row.schema} depth={props.depth} />;
+
+  return props.as === 'term' ? (
+    <div>
+      <dt className={fieldLabel}>{props.row.label}</dt>
+      <dd className="mt-1 text-sm text-ink">{drawn}</dd>
+    </div>
+  ) : (
+    <div>
+      <p className={fieldLabel}>{props.row.label}</p>
+      <div className="mt-1 text-sm text-ink">{drawn}</div>
+    </div>
+  );
+}
+
+/**
+ * One field, read-only, laid out the way `Field` lays out a control — for a
+ * write surface rendering the fields it does not own
+ * ([05 §11.2d](../../../../docs/design/05-ui-surfaces.md)'s *everything else
+ * visible and read-only*).
+ *
+ * `depth` is pinned at zero rather than forwarded: the editor renders one flat
+ * group at a time and never nests, and `exactOptionalPropertyTypes` makes an
+ * optional forwarded prop its own small argument every time it is passed.
+ */
+export function ReadOnlyField(props: { row: FieldRow; value: unknown }): JSX.Element {
+  return <LabelledValue row={props.row} value={props.value} depth={0} as="block" />;
 }
 
 /**

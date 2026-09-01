@@ -4,8 +4,6 @@
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
-import { newActor } from '@storyengine/shared';
-
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useAuthState, useCreateObject, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
@@ -13,6 +11,7 @@ import { Button } from '../ui/Button.js';
 import { control, link, page, table } from '../ui/classes.js';
 import { SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
+import { editorRouteFor, newObjectFor } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
 import { emptyMessage, panelFor, panelNameBadges, type PanelColumn } from './panels.js';
 
@@ -78,26 +77,36 @@ export function LibraryPage(): JSX.Element {
 /**
  * The create control, or the sentence that says why there is not one.
  *
- * **Actors only, and that is the rule rather than the shortcut.**
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) says the first editor owes
- * create; read from the library's side it says the inverse, and the inverse is
- * the constraint here — a *New lorebook* lands somebody on a read-only page
- * holding an empty book they cannot fill in. The other five arrive with their
- * editors.
+ * **Offered exactly where an editor exists, and that is the rule rather than a
+ * shortcut.** [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) says the
+ * first editor owes create; read from the library's side it says the inverse,
+ * and the inverse is the constraint here — a *New lorebook* before P5.1 landed
+ * somebody on a read-only page holding an empty book they could not fill in.
+ * So the question is asked of [fields.ts](./fields.ts) rather than answered by
+ * a literal, which is the same table the Edit link navigates by: a kind cannot
+ * become creatable here while its editor is somewhere else, or missing.
  *
- * **A sentence rather than a disabled button.** A greyed *New lorebook* is the
+ * **A sentence rather than a disabled button.** A greyed *New treatment* is the
  * placeholder [Field](../ui/Field.tsx) rejects by name and
  * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) rejects in
  * general: it promises a control that cannot work and teaches nothing about
  * why. The sentence names the paths that do work, and since P4.4 one of them
- * is the panel above.
+ * is the panel above. It no longer names *which* kinds can be made, because the
+ * answer changes with every editor that lands and a sentence naming them is a
+ * second list of the table above — the one that was false the day this one grew
+ * its second row.
  */
 function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
-  if (props.kind === undefined || props.kind === 'actors') return <NewActorForm />;
+  // The all-kinds view offers what it always did. Which kind an unfiltered
+  // *New* makes is [polish §4]'s question, and it disappears when the panels
+  // split: a panel is a kind, so its create control has no choice to make.
+  const kind = props.kind ?? 'actors';
+  const blank = newObjectFor(kind);
+  if (blank !== null) return <NewObjectForm kind={kind} noun={blank.noun} make={blank.make} />;
   return (
     <p className="mb-6 text-sm text-ink-subtle">
-      Actors are the only kind that can be made here: creating one lands in an editor, and the other
-      kinds have none yet. Import brings them in, and the API creates any of them.
+      This kind has no editor yet, so nothing here can make one: it would land on a page that cannot
+      fill it in. Import brings them in, and the API creates any of them.
     </p>
   );
 }
@@ -112,18 +121,28 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
  * unchanged: when *Actors* is a panel rather than a filter, this form is
  * already that panel's.
  *
- * **Nothing here builds an actor by hand.** `newActor` is what the API's own
- * create path calls, so the four conventional sections
- * ([10 §4](../../../../docs/design/10-schemas.md)) exist on an actor made in the
- * browser exactly as they do on one made with `curl` or one that arrived
- * through an import. A local literal would be a second definition of *what a
- * new actor is*, and the one that drifted.
+ * **Nothing here builds an object by hand.** The factory is the shared one the
+ * API's own create path calls, so an actor's four conventional sections
+ * ([10 §4](../../../../docs/design/10-schemas.md)) — and a lorebook's scan depth
+ * and budgets — are the same on one made in the browser as on one made with
+ * `curl` or one that arrived through an import. A local literal would be a
+ * second definition of *what a new one is*, and the one that drifted.
+ *
+ * **And the address comes from the table too.** Navigating by a literal was
+ * safe while there was one editor and is exactly the failure
+ * [fields.ts](./fields.ts) records at its other call site: a second kind and a
+ * hard-coded route send the new lorebook to the actor editor.
  */
-function NewActorForm(): JSX.Element {
+function NewObjectForm(props: {
+  kind: LibraryKind;
+  noun: string;
+  make: (name: string) => Record<string, unknown>;
+}): JSX.Element {
   const navigate = useNavigate();
   const create = useCreateObject();
   const [name, setName] = useState('');
   const ready = name.trim().length > 0;
+  const route = editorRouteFor(props.kind);
 
   return (
     <div className="mb-6">
@@ -131,9 +150,9 @@ function NewActorForm(): JSX.Element {
         className="flex gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!ready || create.isPending) return;
+          if (!ready || create.isPending || route === null) return;
           create.mutate(
-            { kind: 'actors', object: newActor(name.trim()) },
+            { kind: props.kind, object: props.make(name.trim()) },
             {
               // The id the *server* answered with, not the one minted above.
               // They agree today — `create()` echoes what it was posted — and
@@ -141,30 +160,30 @@ function NewActorForm(): JSX.Element {
               // detail rather than something this page depends on.
               onSuccess: (result) => {
                 setName('');
-                void navigate({ to: '/library/actors/$id/edit', params: { id: result.id } });
+                void navigate({ to: route, params: { id: result.id }, search: {} });
               },
             },
           );
         }}
       >
         <label className="flex-1">
-          <span className="sr-only">Name for the new actor</span>
+          <span className="sr-only">{`Name for the new ${props.noun}`}</span>
           <input
             className={control}
             value={name}
-            placeholder="A new actor"
+            placeholder={`A new ${props.noun}`}
             onChange={(event) => {
               setName(event.target.value);
             }}
           />
         </label>
         <Button type="submit" variant="primary" disabled={!ready || create.isPending}>
-          New actor
+          {`New ${props.noun}`}
         </Button>
       </form>
 
       {create.isError ? (
-        // Shown rather than swallowed. A factory-built actor should never be
+        // Shown rather than swallowed. A factory-built object should never be
         // refused as invalid, which is exactly why a refusal here has to be
         // visible: it means the schema and the factory have parted company.
         <Alert tone="error" role="alert" className="mt-2">

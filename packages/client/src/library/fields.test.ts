@@ -4,11 +4,13 @@
 import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor } from '@storyengine/shared';
 import { describe, expect, it } from 'vitest';
 
+import { LIBRARY_KINDS } from '../api.js';
 import {
   editorRouteFor,
   fieldsOf,
   kindHasEditor,
   labelFor,
+  newObjectFor,
   objectFieldsOf,
   schemaFor,
 } from './fields.js';
@@ -131,20 +133,49 @@ describe('the field list is the schema, read at runtime', () => {
 });
 
 describe('which kinds have an editor, asked in one place', () => {
-  it('answers for the one kind that has one', () => {
+  it('answers for the two kinds that have one, each at its own address', () => {
     expect(kindHasEditor('actors')).toBe(true);
     expect(editorRouteFor('actors')).toBe('/library/actors/$id/edit');
+    expect(kindHasEditor('lorebooks')).toBe(true);
+    expect(editorRouteFor('lorebooks')).toBe('/library/lorebooks/$id/edit');
   });
 
   /**
    * The condition and the address are one lookup on purpose: they used to be
    * two literals in one JSX branch, so widening the condition alone would have
-   * pointed a lorebook at the actor editor.
+   * pointed a lorebook at the actor editor. P5.1 is the widening that would
+   * have done it, which is why the second address is asserted above rather than
+   * only the second `true`.
    */
-  it('answers for the five that do not, address included', () => {
-    for (const kind of ['lorebooks', 'treatments', 'setups', 'presets', 'packages'] as const) {
+  it('answers for the four that do not, address included', () => {
+    for (const kind of ['treatments', 'setups', 'presets', 'packages'] as const) {
       expect(kindHasEditor(kind)).toBe(false);
       expect(editorRouteFor(kind)).toBeNull();
     }
+  });
+
+  /**
+   * [05 §5]'s rule — *create arrives with the kind's editor and never before
+   * it* — as an assertion over the whole key set rather than over the two rows
+   * somebody remembered. The tables are typed to make the mismatch a
+   * compile error; this is the same claim where a reader can see it.
+   */
+  it('offers a way to make one for exactly the kinds that can be edited', () => {
+    for (const kind of LIBRARY_KINDS) {
+      expect(newObjectFor(kind) !== null).toBe(kindHasEditor(kind));
+    }
+  });
+
+  /**
+   * Through the shared factory, so a lorebook made in the browser carries the
+   * same defaults as one made with `curl` — the argument `newActor`'s call site
+   * has made since P1.5, now with a second kind able to break it.
+   */
+  it('makes a new one through the factory rather than a literal', () => {
+    const made = newObjectFor('lorebooks')?.make('Ardent');
+    expect(made?.['schema']).toBe(LOREBOOK_SCHEMA);
+    expect(made?.['name']).toBe('Ardent');
+    expect(made?.['scanDepth']).toBe(2);
+    expect(made?.['entries']).toEqual([]);
   });
 });

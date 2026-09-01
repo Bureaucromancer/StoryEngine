@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { bannerOf, isKnownSchema, PORTABLE_SCHEMAS } from '@storyengine/shared';
+import {
+  bannerOf,
+  isKnownSchema,
+  LOREBOOK_SCHEMA,
+  newActor,
+  newLorebook,
+  PORTABLE_SCHEMAS,
+} from '@storyengine/shared';
 
 import type { LibraryKind } from '../api.js';
 
@@ -78,13 +85,14 @@ const SHOWN_AS_STORAGE = new Set(['schema', 'id']);
  * of that clause was paid at [P4.5] — one `mutable` predicate behind both Edit
  * and Delete — and this is the `actors` half it left.
  *
- * The library's create control is the next reader and is deliberately not one
- * yet: [05 §5](../../../../docs/design/05-ui-surfaces.md) makes create and edit
- * one question, since create arrives with the kind's editor and never before
- * it, but *which* panel offers it is
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s per-kind
- * property rather than this item's, and the form the control renders is the
- * actor editor's own. It asks this list when the panels split.
+ * ~~The library's create control is the next reader and is deliberately not one
+ * yet.~~ **It is one now, at P5.1**, and it arrived the way
+ * [05 §5](../../../../docs/design/05-ui-surfaces.md) said it would: create and
+ * edit are one question, so a kind becomes creatable in the same edit that
+ * gives it an editor and never before. What that clause did *not* anticipate is
+ * that it would arrive before the panels split — P5.0 built the Lorebooks panel
+ * as the first of [polish §4]'s six, and the create control is still the merged
+ * page's, so the reader turned up a stage early and this table answered anyway.
  *
  * The route is in the table rather than at the call site, and the table is what
  * the page navigates by — so a kind that gains an editor gains its address in
@@ -95,11 +103,43 @@ const SHOWN_AS_STORAGE = new Set(['schema', 'id']);
  */
 const EDITOR_ROUTES = {
   actors: '/library/actors/$id/edit',
+  lorebooks: '/library/lorebooks/$id/edit',
 } as const satisfies Partial<Record<LibraryKind, string>>;
+
+/**
+ * What a new one of each of those kinds *is*, and the word for it.
+ *
+ * **Typed `Record<EditorKind, …>` on purpose**, so the two tables cannot drift:
+ * a kind added above without a row here fails to typecheck, which is
+ * [05 §5](../../../../docs/design/05-ui-surfaces.md)'s rule — *create arrives
+ * with the kind's editor and never before it* — enforced by the compiler rather
+ * than remembered. It is also the reason this is a second table and not a
+ * second *list*: the key set is the one above.
+ *
+ * The factories are the shared ones, so an object made in the browser is the
+ * same object the API's create path makes and the same one an import produces.
+ * A local literal would be a second definition of *what a new lorebook is*, and
+ * the one that drifted — which is the argument `newActor`'s call site here has
+ * made since P1.5.
+ */
+const NEW_OBJECTS: Record<
+  EditorKind,
+  { noun: string; make: (name: string) => Record<string, unknown> }
+> = {
+  actors: { noun: 'actor', make: (name) => newActor(name) },
+  lorebooks: { noun: 'lorebook', make: (name) => newLorebook(name) },
+};
 
 /** Where this kind is edited, or null when it has no editor yet. */
 export function editorRouteFor(kind: LibraryKind): EditorRoute | null {
   return Object.hasOwn(EDITOR_ROUTES, kind) ? EDITOR_ROUTES[kind as EditorKind] : null;
+}
+
+/** How to make a new one of this kind, or null when nothing here can. */
+export function newObjectFor(
+  kind: LibraryKind,
+): { noun: string; make: (name: string) => Record<string, unknown> } | null {
+  return Object.hasOwn(NEW_OBJECTS, kind) ? NEW_OBJECTS[kind as EditorKind] : null;
 }
 
 /** The same question where only the answer matters — the create control asks it. */
@@ -239,4 +279,18 @@ export function groupsOf(rows: FieldRow[]): FieldGroup[] {
   }
 
   return groups;
+}
+
+/**
+ * `Lorebook.entries.items` — the entry schema, which three surfaces now want.
+ *
+ * Here rather than beside any one of them because it was written out in
+ * [LorebookView.tsx](./LorebookView.tsx) first and the editor is the second
+ * caller: the walk from the book's schema to its entry's is four steps of
+ * `properties` and `items` chasing, and two copies of it is two places to
+ * discover that the emitted artefact spells something differently.
+ */
+export function loreEntrySchema(): SchemaNode | undefined {
+  const declared = schemaFor(LOREBOOK_SCHEMA)?.properties?.['entries'];
+  return itemSchemaOf(asNode(declared));
 }
