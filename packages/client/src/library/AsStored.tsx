@@ -18,11 +18,19 @@ import { Note } from '../ui/Text.js';
  *
  * **Collapsed by default, in both places**, with the open state a *per-user*
  * preference rather than per-object component state — polish §2's own detail,
- * unblocked by the prefs store. One honest caveat, recorded where the next
+ * unblocked by the prefs store. ~~One honest caveat, recorded where the next
  * reader will meet it: polish §2 argues the collapse from the by-field view
  * existing, and it does not exist yet — what blunts that is exactly the
  * preference: one click opens the fold and it stays open, everywhere, until
- * closed.
+ * closed.~~ *Discharged at [P5.−1]: the by-field view exists
+ * ([ByField.tsx](./ByField.tsx)), so the collapse now rests on the argument
+ * polish §2 actually made for it rather than on the preference standing in.*
+ *
+ * **And this pane is not what that view replaced.** It shows fields the client
+ * has no rendering for — extension-written keys, a newer build's additions,
+ * anything a hand edit added — which the by-field view deliberately leaves
+ * here, because it renders what the schema declares and nothing else. Losing
+ * this would make those invisible rather than merely unstyled.
  *
  * The copy control copies the **whole object** — the same bytes the pane
  * shows, not a summary of them. The clipboard is reached through a feature

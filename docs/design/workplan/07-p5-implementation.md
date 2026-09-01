@@ -791,7 +791,31 @@ place for the evidence to arrive from.
 
 ### The document half
 
-#### P5.−1 — The by-field view, which is not a lorebook
+#### ~~P5.−1 — The by-field view, which is not a lorebook~~ Landed
+
+**What shipped:** a field description derived at runtime from the schema
+(`library/fields.ts`) and a read-only rendering of it (`library/ByField.tsx`) on
+the detail route, for every kind rather than for actors. The fields sit above
+the storage block, which kept its own heading; *As stored* stays and keeps the
+job §2 gave it, which is the keys the schema does not declare. `polish §1` and
+§2 are struck in [09](09-polish.md), §1 by this stage and §2 by the clause it
+could not honestly claim until §1 existed.
+
+**Three things it settled that the item left open**, each argued where it landed
+rather than only here: the single description is *the schema read at runtime*,
+since any written-out field list is the second description the item exists to
+prevent; empty fields are **shown**, in three words rather than one, because
+absent, blank and none-of are three different facts the schemas mean
+differently; and the closing clause about the Edit gate is paid in full — the
+condition and the editor's *address* moved together, because the branch named
+`actors` twice and widening one without the other would have opened a lorebook
+in the actor editor.
+
+**Not in it, deliberately:** the disclosure groups. [05 §11.2d] builds them from
+the schema's comment banners and decides which start open, and both of those are
+P5.1's — the stage that owes an editor. The description is shaped so that adding
+them is additive rather than a rewrite, and `polish §1` asks for a labelled field
+list rather than a grouped one, so nothing here is deferred that this stage owed.
 
 `polish §1`, built first and for every kind, because §1.9 decided it is a stage
 rather than a dependency. The book page's *as configured* fold and the entry
@@ -802,8 +826,12 @@ acquired two disagreeing JSON viewers already.
 Numbered `−1` on the precedent [P3](05-p3-implementation.md) set for the same
 situation: work that has to happen first and is not what the phase is about.
 
-*Ends at:* an actor's greeting readable on its detail page without opening the
-editor.
+*Ends at:* ~~an actor's greeting readable on its detail page without opening the
+editor.~~ **Met, and asserted** — `ObjectDetailPage.test.tsx` renders a greeting
+with paragraphs in it and finds them on the page. Thirteen mutations of the
+mechanisms under it were run and every one went red, including the two that
+would read as taste rather than behaviour: the fields below the storage block,
+and the three kinds of empty collapsed into one word.
 
 #### P5.0 — The Lorebooks panel, and the book as a document
 
@@ -1206,5 +1234,11 @@ this phase spends most of its effort against.
 **6.4 Write-backs this plan owes and schedules.** [05 §5.3] — the book page's
 import-notes row (§1.8, with P5.0). [16 §6] — its counts run when a corpus
 exists, and the document already records that they wait (P4.3 wrote it). The
-fixture-pair gate's `lore` assertion (§1.10, with P5.6). And `polish §1` leaves
-the polish list when it lands, per that document's own rule.
+fixture-pair gate's `lore` assertion (§1.10, with P5.6). ~~And `polish §1`
+leaves the polish list when it lands, per that document's own rule.~~ **Done at
+P5.−1, and the rule cited was not there.** [09](09-polish.md) has no removal
+rule — its house rule is about an item that turns out to need a schema change,
+which is a different thing — and its own §6 is the precedent against one: it
+landed and stayed, marked *landed rather than proposed*. So §1 and §2 are struck
+in place, which is also what keeps their arguments beside the decisions the
+build made against them.

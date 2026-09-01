@@ -18,7 +18,10 @@ import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
+import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
+import { ByField } from './ByField.js';
+import { editorRouteFor } from './fields.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -122,6 +125,7 @@ function ObjectView(props: {
 }): JSX.Element {
   const { object, kind, locale } = props;
   const stamps = timestampsOf(object.object);
+  const editorRoute = editorRouteFor(kind);
 
   return (
     <>
@@ -130,12 +134,16 @@ function ObjectView(props: {
         <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
-        {kind === 'actors' && mutable(object) ? (
-          <Link
-            to="/library/actors/$id/edit"
-            params={{ id: object.id }}
-            className={`ms-auto ${link.action}`}
-          >
+        {/*
+         * The kind gate comes from the same place the fields do
+         * ([polish §1](../../../../docs/design/workplan/09-polish.md)), and it
+         * carries the address with it: this branch used to name `actors`
+         * twice — once in the condition and once in the route — so widening
+         * one without the other would have opened a lorebook in the actor
+         * editor.
+         */}
+        {editorRoute !== null && mutable(object) ? (
+          <Link to={editorRoute} params={{ id: object.id }} className={`ms-auto ${link.action}`}>
             Edit
           </Link>
         ) : null}
@@ -149,6 +157,21 @@ function ObjectView(props: {
         </Alert>
       ) : null}
 
+      {/*
+       * **The fields first, and the storage facts under a heading below them.**
+       * Reordered here rather than left where it was, because
+       * [polish §1](../../../../docs/design/workplan/09-polish.md)'s complaint
+       * is that this page answers *where is this file* when the question was
+       * *what does it say* — and a build of that item which left seven rows of
+       * path and hash above the prose would have answered in the same order.
+       * The block is not demoted out of sight: [05 §5] wants the disk layout
+       * legible, and a heading is what turns a lead paragraph into a section.
+       */}
+      <ByField schemaId={object.schema} value={object.object} />
+
+      <SectionTitle as="h2" className="mb-2 mt-8">
+        Storage
+      </SectionTitle>
       <dl className="mb-8 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
         <MetadataRow label="Kind">{KIND_LABELS[kind]}</MetadataRow>
         <MetadataRow label="Folder">

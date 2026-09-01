@@ -176,3 +176,81 @@ describe('deleting a library object', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * [P5.−1] — [polish §1](../../../../docs/design/workplan/09-polish.md)'s stage,
+ * and its *ends at* stated as a test: an actor's greeting is readable on its
+ * detail page without opening the editor.
+ *
+ * The page's own share of that item is small — the field rendering is
+ * [ByField](./ByField.tsx)'s and is covered there — so what is asserted here is
+ * the wiring and the two decisions the page makes: that the fields come before
+ * the storage block rather than after it, and that the Edit gate now asks one
+ * question instead of naming a kind twice.
+ */
+describe('reading an object without opening the editor', () => {
+  const GREETING = 'She looks up.\n\n"You came."';
+
+  function withGreeting() {
+    return actor({
+      object: {
+        schema: 'storyengine.actor/1',
+        id: ACTOR_ID,
+        name: 'Vera Kohl',
+        openings: {
+          written: [{ id: 'op-1', label: 'At the door', text: GREETING }],
+          seeds: [],
+          primaryWrittenId: 'op-1',
+          primarySeedId: null,
+        },
+      },
+    });
+  }
+
+  it('shows the greeting on the page, with its paragraphs', async () => {
+    readObject.mockResolvedValue(withGreeting());
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Vera Kohl' });
+
+    const shown = [...document.querySelectorAll('p')].find((node) => node.textContent === GREETING);
+    expect(shown).toBeTruthy();
+  });
+
+  /**
+   * Order is the item's argument, not decoration: its complaint is that this
+   * page answers *where is this file* when the question was *what does it say*,
+   * and seven rows of path and hash above the prose would answer in the old
+   * order with a new component underneath.
+   */
+  it('puts the fields above the storage block, which keeps its own heading', async () => {
+    readObject.mockResolvedValue(withGreeting());
+    renderPage();
+
+    const storage = await screen.findByRole('heading', { name: 'Storage', level: 2 });
+    const greeting = [...document.querySelectorAll('p')].find(
+      (node) => node.textContent === GREETING,
+    );
+
+    expect(greeting).toBeTruthy();
+    expect(
+      greeting!.compareDocumentPosition(storage) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('offers Edit on a kind that has an editor', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Edit' })).toBeTruthy();
+  });
+
+  /** Five kinds have no editor to land in, and the gate is one lookup now. */
+  it('does not offer Edit on a kind that has none', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(actor({ schema: 'storyengine.lorebook/1' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+  });
+});
