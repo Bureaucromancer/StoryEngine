@@ -25,6 +25,7 @@ export * from './preview.js';
 // The import review's vocabulary — internal tier, beside the turn record and
 // for the same reason ([P4 §1.4]). Classes and params, never sentences.
 export * from './import.js';
+export * from './schema/banners.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

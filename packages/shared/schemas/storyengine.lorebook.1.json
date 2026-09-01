@@ -310,6 +310,9 @@
             "type": "string"
           },
           "keys": {
+            "se:banner": {
+              "title": "Matching"
+            },
             "type": "array",
             "items": {
               "type": "string"
@@ -364,6 +367,9 @@
             ]
           },
           "enabled": {
+            "se:banner": {
+              "title": "Firing"
+            },
             "type": "boolean"
           },
           "constant": {
@@ -382,6 +388,10 @@
             ]
           },
           "sticky": {
+            "se:banner": {
+              "title": "Timing",
+              "note": "Four distinct behaviours, not four takes on one."
+            },
             "anyOf": [
               {
                 "type": "number"
@@ -422,6 +432,9 @@
             ]
           },
           "position": {
+            "se:banner": {
+              "title": "Placement"
+            },
             "anyOf": [
               {
                 "const": "before_char",
@@ -474,6 +487,9 @@
             ]
           },
           "group": {
+            "se:banner": {
+              "title": "Grouping and gating"
+            },
             "anyOf": [
               {
                 "type": "string"
@@ -627,6 +643,10 @@
             }
           },
           "preventRecursion": {
+            "se:banner": {
+              "title": "Recursion",
+              "note": "Three flags, all earning their place."
+            },
             "type": "boolean"
           },
           "excludeRecursion": {
@@ -636,6 +656,10 @@
             "type": "boolean"
           },
           "extensionActivations": {
+            "se:banner": {
+              "title": "The entry itself",
+              "note": "Everything above is about when an entry fires. Nothing here is."
+            },
             "type": "array",
             "items": {
               "type": "object",

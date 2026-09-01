@@ -812,10 +812,20 @@ condition and the editor's *address* moved together, because the branch named
 in the actor editor.
 
 **Not in it, deliberately:** the disclosure groups. [05 §11.2d] builds them from
-the schema's comment banners and decides which start open, and both of those are
-P5.1's — the stage that owes an editor. The description is shaped so that adding
-them is additive rather than a rewrite, and `polish §1` asks for a labelled field
-list rather than a grouped one, so nothing here is deferred that this stage owed.
+the schema's comment banners and decides which start open, ~~and both of those
+are P5.1's — the stage that owes an editor.~~ The description is shaped so that
+adding them is additive rather than a rewrite, and `polish §1` asks for a
+labelled field list rather than a grouped one, so nothing here is deferred that
+this stage owed.
+
+*Corrected at P5.0, and the correction is worth reading because the sentence was
+wrong about a stage rather than about a fact.* Only **which groups start open**
+is P5.1's. The groups themselves are P5.0's, because
+[05 §5.3](../05-ui-surfaces.md) asks the book page's *as configured* fold for
+"every remaining field **in the schema's own groups**" and calls it "the same
+component §11.2d specifies for the editor, in its read-only mode" — so the read
+surface needs them a stage before the write surface does, and P5.1 inherits them
+rather than building them.
 
 `polish §1`, built first and for every kind, because §1.9 decided it is a stage
 rather than a dependency. The book page's *as configured* fold and the entry
@@ -834,6 +844,24 @@ would read as taste rather than behaviour: the fields below the storage block,
 and the three kinds of empty collapsed into one word.
 
 #### P5.0 — The Lorebooks panel, and the book as a document
+
+**In progress. The field groups landed first**, because both the *as configured*
+fold and the entry editor render through them and neither could be built without
+them: `LoreEntry`'s comment banners are annotations on the field each one opens
+(`schema/banners.ts`), the field description groups by them, and every other kind
+— none of which is written in banners — renders exactly as it did. The banners
+reach the emitted artefact too, so the grouping a stranger reads in
+`storyengine.lorebook.1.json` is the one the app renders.
+
+Two things that came out of building it, both recorded because neither is
+visible from the design. **The file carried seven banners where §11.2d names
+six**, and the seventh read *the one addition* — a remark about the schema's
+history standing where a reader needed the name of a group; it is now *The entry
+itself*, and the remark moved onto the field it was actually about. And
+**grouping has to happen before the fold's omissions, not after**: a banner
+hangs on the field that opens its group, §5.3's fold omits `keys`, and `keys` is
+the field `Matching` hangs on — so filtering first silently dropped a heading
+and spilled its fields into the group above.
 
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,

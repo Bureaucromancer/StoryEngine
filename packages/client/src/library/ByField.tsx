@@ -5,10 +5,13 @@ import type { JSX } from 'react';
 
 import { fieldLabel } from '../ui/classes.js';
 import { Panel } from '../ui/Panel.js';
+import { Fine, SubsectionTitle } from '../ui/Text.js';
 import {
   fieldsOf,
+  groupsOf,
   itemSchemaOf,
   objectFieldsOf,
+  type FieldGroup,
   type FieldRow,
   type SchemaNode,
 } from './fields.js';
@@ -60,7 +63,74 @@ const MAX_DEPTH = 3;
 const NAMING_KEYS = ['title', 'name', 'label'] as const;
 
 export function ByField({ schemaId, value }: { schemaId: string; value: unknown }): JSX.Element {
-  return <FieldList rows={objectFieldsOf(schemaId, value)} value={value} depth={0} />;
+  return <FieldGroups groups={groupsOf(objectFieldsOf(schemaId, value))} value={value} />;
+}
+
+/**
+ * The same rendering over a value whose schema is known rather than named — the
+ * book page's *as configured* fold ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)),
+ * which renders one entry.
+ *
+ * `omit` is what makes it a fold rather than a repetition: §5.3 renders an
+ * entry's name, tag, keys, description and content as the readable unit above
+ * it, and asks this for **every remaining field**. The set belongs to the
+ * caller because it is a fact about that surface rather than about the schema.
+ */
+export function ByFields(props: {
+  schema: SchemaNode | undefined;
+  value: unknown;
+  omit?: ReadonlySet<string>;
+}): JSX.Element {
+  const { omit } = props;
+  /**
+   * **Grouped first, then filtered, and the order is a fix rather than a
+   * preference.** A banner is an annotation on the field that opens its group,
+   * so filtering first can remove the field the group's name was hanging on —
+   * and the group then loses its heading and its remaining fields fall into the
+   * one above. §5.3's fold omits `keys`, which is exactly the field `Matching`
+   * hangs on, so the failure was not hypothetical: it was this surface's first
+   * caller.
+   */
+  const groups = groupsOf(fieldsOf(props.schema, props.value))
+    .map((group) => ({
+      ...group,
+      fields: group.fields.filter((row) => omit?.has(row.key) !== true),
+    }))
+    .filter((group) => group.fields.length > 0);
+  return <FieldGroups groups={groups} value={props.value} />;
+}
+
+/**
+ * The groups a schema declares, as sections.
+ *
+ * **One untitled group renders as no groups at all**, which is every kind but a
+ * lore entry, and that is the property worth having: this is not a lorebook
+ * feature the other kinds opt into. A schema written under banners gets
+ * headings; a schema written without them looks exactly as it did before
+ * banners existed.
+ */
+function FieldGroups(props: { groups: FieldGroup[]; value: unknown }): JSX.Element | null {
+  const [only] = props.groups;
+  if (only === undefined) return null;
+  if (props.groups.length === 1 && only.title === null) {
+    return <FieldList rows={only.fields} value={props.value} depth={0} />;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {props.groups.map((group, index) => (
+        <section key={group.title ?? `head:${String(index)}`}>
+          {group.title === null ? null : (
+            <SubsectionTitle as="h3" className="mb-1">
+              {group.title}
+            </SubsectionTitle>
+          )}
+          {group.note === undefined ? null : <Fine className="mb-2">{group.note}</Fine>}
+          <FieldList rows={group.fields} value={props.value} depth={0} />
+        </section>
+      ))}
+    </div>
+  );
 }
 
 function FieldList(props: { rows: FieldRow[]; value: unknown; depth: number }): JSX.Element | null {

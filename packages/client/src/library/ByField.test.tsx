@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor } from '@storyengine/shared';
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, newActor, newLoreEntry } from '@storyengine/shared';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { ByField } from './ByField.js';
+import { ByField, ByFields } from './ByField.js';
+import { itemSchemaOf, schemaFor, type SchemaNode } from './fields.js';
 
 /**
  * The rendering half of [polish §1].
@@ -195,5 +196,98 @@ describe('an object rendered field by field', () => {
     const container = renderActor({ modeData: { one: { two: { three: { four: 'deep' } } } } });
 
     expect(fieldValue(container, 'Mode data').textContent).toContain('deep');
+  });
+});
+
+/**
+ * The groups, which are the schema's comment banners at runtime
+ * ([banners.ts](../../../shared/src/schema/banners.ts)).
+ *
+ * `LoreEntry` is the only schema written under banners, so it is the only one
+ * that renders headings — and the first assertion here is that every other kind
+ * is unaffected, because a grouping mechanism other kinds have to opt out of
+ * would be a lorebook feature wearing a general name.
+ */
+describe('the schema’s own field groups', () => {
+  /** `Lorebook.entries.items` — the entry schema, reached the way a page does. */
+  function entrySchema(): SchemaNode | undefined {
+    const book = schemaFor(LOREBOOK_SCHEMA);
+    const entries = book?.properties?.['entries'];
+    return itemSchemaOf(typeof entries === 'object' && entries !== null ? entries : undefined);
+  }
+
+  it('leaves a schema written without banners exactly as it was', () => {
+    const { container } = render(<ByField schemaId={ACTOR_SCHEMA} value={newActor('Vera')} />);
+
+    expect(container.querySelectorAll('h3')).toHaveLength(0);
+    expect(container.querySelector('dl')).toBeTruthy();
+  });
+
+  it('renders a lore entry under the banners its schema declares, in field order', () => {
+    const { container } = render(
+      <ByFields schema={entrySchema()} value={newLoreEntry('Ardent')} />,
+    );
+
+    expect([...container.querySelectorAll('h3')].map((node) => node.textContent)).toEqual([
+      'Matching',
+      'Firing',
+      'Timing',
+      'Placement',
+      'Grouping and gating',
+      'Recursion',
+      'The entry itself',
+    ]);
+  });
+
+  it('carries the banner’s own subtitle, where its author wrote one', () => {
+    const { container } = render(
+      <ByFields schema={entrySchema()} value={newLoreEntry('Ardent')} />,
+    );
+
+    expect(container.textContent).toContain('Four distinct behaviours, not four takes on one.');
+    expect(container.textContent).toContain('Three flags, all earning their place.');
+  });
+
+  /**
+   * The head group is the identity fields, which [05 §11.2d] leaves deliberately
+   * un-bannered — so they render with no heading above them rather than under an
+   * invented one.
+   */
+  it('gives the fields before the first banner no heading at all', () => {
+    const { container } = render(
+      <ByFields schema={entrySchema()} value={newLoreEntry('Ardent')} />,
+    );
+
+    const head = container.querySelector('section');
+    expect(head?.querySelector('h3')).toBeNull();
+    expect([...(head?.querySelectorAll('dt') ?? [])].map((node) => node.textContent)).toEqual([
+      'Id',
+      'Name',
+      'Content',
+      'Description',
+    ]);
+  });
+
+  /**
+   * `omit` is what makes the fold a fold: §5.3 renders the readable unit above
+   * it and asks this for every *remaining* field.
+   */
+  it('drops what the surface above it has already shown', () => {
+    const { container } = render(
+      <ByFields
+        schema={entrySchema()}
+        value={newLoreEntry('Ardent')}
+        omit={new Set(['name', 'content', 'description', 'keys', 'tag'])}
+      />,
+    );
+
+    const labels = [...container.querySelectorAll('dt')].map((node) => node.textContent);
+    expect(labels).not.toContain('Content');
+    expect(labels).toContain('Secondary keys');
+    // Matching still has a heading: omitting a group's opening field must not
+    // take the group with it.
+    expect([...container.querySelectorAll('h3')].map((node) => node.textContent)).toContain(
+      'Matching',
+    );
   });
 });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { isKnownSchema, PORTABLE_SCHEMAS } from '@storyengine/shared';
+import { bannerOf, isKnownSchema, PORTABLE_SCHEMAS } from '@storyengine/shared';
 
 import type { LibraryKind } from '../api.js';
 
@@ -195,4 +195,48 @@ export function objectFieldsOf(schemaId: string, value: unknown): FieldRow[] {
 /** The element schema of an array field, where one is declared. */
 export function itemSchemaOf(schema: SchemaNode | undefined): SchemaNode | undefined {
   return asNode(schema?.items);
+}
+
+/** One of the schema's own field groups — its comment banner, at runtime. */
+export interface FieldGroup {
+  /** The banner's words, or null for the fields that precede the first one. */
+  title: string | null;
+  /** The banner's editorial subtitle, where its author wrote one. */
+  note: string | undefined;
+  fields: FieldRow[];
+}
+
+/**
+ * The rows cut into the groups their schema declares
+ * ([banners.ts](../../../shared/src/schema/banners.ts)).
+ *
+ * **A banner opens a group and nothing closes one**, which is what the comment
+ * banners in the schema file did and is why a field added under one needs no
+ * edit here. Fields before the first banner are the head group and carry no
+ * title — `LoreEntry`'s identity fields, which
+ * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) leaves deliberately
+ * un-bannered.
+ *
+ * A schema with no banners comes back as one untitled group, so every kind but
+ * `LoreEntry` renders exactly as it did before groups existed. That is the
+ * property worth having: this is not a lorebook feature that other kinds opt
+ * into, it is the general shape, and lorebooks are the only schema so far
+ * written in groups.
+ */
+export function groupsOf(rows: FieldRow[]): FieldGroup[] {
+  const groups: FieldGroup[] = [];
+
+  for (const row of rows) {
+    const opens = bannerOf(row.schema);
+    if (opens !== null || groups.length === 0) {
+      groups.push({
+        title: opens === null ? null : opens.title,
+        note: opens?.note,
+        fields: [],
+      });
+    }
+    groups[groups.length - 1]?.fields.push(row);
+  }
+
+  return groups;
 }
