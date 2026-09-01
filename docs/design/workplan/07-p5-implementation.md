@@ -1,7 +1,9 @@
 # 07 — P5 implementation plan
 
-**Status: plan, audited 2026-08-30 at `09ea758` and re-audited 2026-08-31 after
-P4's own audit closed — see §0.1, which is the current one.** ~~Skeleton,
+**Status: plan, audited 2026-08-30 at `09ea758`, re-audited 2026-08-31 after
+P4's own audit closed, and re-audited again at `12a28d9` on the day the phase
+opened — see §0.4, which is the current one and which corrects §1.3, §1.7 and
+§1.8.** ~~Skeleton,
 restructured into two halves 2026-08-28.~~
 
 **And it is deliberately half a revisit, which is the first thing to know about
@@ -209,6 +211,12 @@ was large:
 
 ### 0.2 Three unmerged branches, and why this section names them
 
+> **All three are merged, and this section is now history — §0.4.** It is kept
+> whole rather than struck because its value was always the instruction it
+> closes with, and an instruction that was followed reads differently from one
+> nobody wrote. One detail of it was wrong: only the import-interface branch
+> touches the three files named below.
+
 At the time of writing, three concurrent sessions hold import work that is in
 neither `main` nor `p4`. This is normally not a plan's business; it is here
 because two of them change what P5 starts from, and a plan that assumed today's
@@ -265,6 +273,190 @@ precedent and the reason it exists: a findings log appended to as things happen
 is worth more than a recollection assembled afterwards, and this plan has four
 decisions waiting on exactly that.
 
+### 0.4 The re-audit §0.2 asked for, run on the day the phase opened — 2026-08-31, at `12a28d9`
+
+§0.2 closes with an instruction rather than a finding: *re-read §0 and §0.1
+against whatever is merged on the day P5 starts, rather than trusting either.*
+This is that read, on branch `p5` cut from `12a28d9`, and it gets its own section
+because it did not come back with a checkmark. **Nothing in §0 has closed. Four
+things this plan asserts are now wrong, two dependencies are named nowhere in it,
+and two documents already promise behaviour the code does not have.**
+
+**Nothing has closed**, and each of these was checked against code rather than
+against §0.1, which is the whole point of running it again:
+
+- `polish §1` has still not landed. The detail page is the header, a seven-row
+  metadata list and `AsStored`; the only by-field rendering in the repository is
+  the actor editor's eleven hand-written `<Field label="…">` elements, and no
+  client file imports a TypeBox schema object at all. **P5.−1 is build, not
+  *verify and move on*** — §1.9's re-audit condition resolves against landing.
+- The regex timeout has still not landed, and `useRegex` still has no reader.
+- `gatherAssemblyInputs` still carries no Treatment and no Lorebooks.
+- There is still no client lorebook surface of any kind.
+- The five `object_fts` delete sites are still five — **at `ingest.ts` 349, 410,
+  415, 436 and 506**. The count is right; §0.1's addresses are one commit stale,
+  which is what citing line numbers in a document that outlives a commit costs.
+- The fixture-pair gate still asserts `lore` reads `no-producer`, and
+  `fixture-pair.test.ts:150` is still exact.
+- The corpus still does not exist, and it is still the one item here a person
+  rather than a session has to clear.
+
+#### §1.7's proof does not prove anything, and this is the correction that matters most
+
+§1.7 names the five delete sites as the risk, the one-helper extraction as the
+mitigation, and closes: **"The rebuild property test is what proves it."** It
+does not. `snapshot()` ([query.ts:290](../../../packages/server/src/index-db/query.ts))
+selects from `object` alone, so `object_fts` contributes nothing to the string
+the property compares, and a stale FTS row is invisible to it.
+
+**Verified by mutation rather than by reading**, because a claim about what a
+test catches is exactly the claim this project does not accept on inspection:
+with the delete at `ingest.ts:436` removed, `pnpm test:gate` passes, and so does
+the entire suite — 1821 tests, no failures. So the hazard §1.7 describes is real,
+is guarded by nothing at all today, and **would have shipped behind a green gate
+somebody would reasonably have cited as evidence that it had not.**
+
+The asymmetry is the tell, and it is also where the fix comes from: the *session*
+half of the pair this one is told to mirror does not have the hole.
+`sessionSnapshot()` ([sessions.ts:263](../../../packages/server/src/index-db/sessions.ts))
+left-joins `turn_fts` and selects its text, so a stale turn row does show up.
+**P5.2's proof obligation is therefore two pieces of work rather than one —
+extract the helper, and widen `snapshot()` to join the FTS tables so the property
+can see a stale row at all** — and the second is currently invisible in this
+plan. It comes first, or the helper ships carrying the same unfalsifiable
+guarantee it was built to remove.
+
+One more thing P5.2 is not, while this section is open: a copy. `searchTurns`
+returns locations and no snippet, and the string `snippet` occurs nowhere in
+`packages/`, so *"a query returning snippets"* is net-new SQL rather than a
+mirror of the turn pair. `rebuild.ts:52` and `migrations.ts:190` are two further
+hand-maintained lists a new table pair has to be added to by hand — which is
+§1.7's own argument arriving twice more.
+
+#### §0.2 is history now, and §1.8's discharged consequence is discharged only for some books
+
+**§0.2.** All three branches are merged; `main` and this branch carry them.
+Its one detail worth correcting is that only **one** of them — the import
+interface work — touches `routes/import.ts`, `detect.ts` and `local-source.ts`;
+the library-file-creation branch changed no server file at all. The section is
+left standing rather than deleted, because an instruction that was followed reads
+differently from one that was never written.
+
+**§1.8.** Its 2026-08-31 amendment says the first consequence is discharged —
+the notes are stored *"keyed by the object they produced"*, so the book page
+reads them. That is true for a standalone book and false for the common one. A
+card-carried `character_book` is stored inside `#card`
+([sweep.ts:223](../../../packages/server/src/import/sweep.ts)) and the single
+report row that method returns carries `objectId: actor.id`; the book gets no
+row of its own, and `card.ts:265` merges its notes into the *card's* array.
+`ImportPanel.tsx:88` says that case *"fires on **every** card that carries a
+lorebook, which is most of them"*. So `importNotesFor(bookId)` answers nothing
+for most books, and P5 either splits `#card` into two item rows — the honest fix,
+and the cheaper one — or the book page walks its actor's row.
+
+Two further gaps in the same place. `/import/file` and `/import/directory` never
+record: `recordImport` has exactly one call site, inside the sweep
+(`routes/import.ts:223`), so a book brought in by upload leaves no notes at all
+and the page owes an honest empty state. And `importNotesFor` has **zero
+production callers** — there is no per-object route — while the sentences that
+would render a note are module-private in `ImportPanel.tsx` (`NOTE_LABELS`,
+`sentence()`), with `note-labels.test.ts`'s grep invariant pointed at them.
+
+**So §5's re-audit line — *the document half is slightly smaller than this says*
+— is walked back.** The storage landed; the surface did not, and the surface now
+includes a route, a shared note-label module, and a decision about the embedded
+case. The entry-matching work §1.8 calls "P5's work" does get cheaper, and it is
+cheaper at the converter than at the renderer: the four entry-level notes carry
+the entry's *display name* (`sillytavern/lorebook.ts:152`, `:158`;
+`marinara/lorebook.ts:123`, `:129`) while the entry's id is
+`stableId('entry', name, content)` and is unreconstructible from the note.
+Putting the `stableId` in those params is a few lines each and makes the match
+exact rather than by ambiguous name.
+
+#### §1.3 overstates what is on disk
+
+*"`extensionActivations` on the entry ([02 §3.1]) is stored (P4 already preserves
+it)"* — nothing writes it. Unknown import fields are routed to `metadata`, and
+the field survives only as a key Ajv declines to strip. Harmless, and corrected
+because the sentence reads as a P4 deliverable that a later phase can rely on.
+
+#### Two dependencies this plan does not name anywhere
+
+- **P5.0 needs a panel to be a panel, and `polish §4` has not landed.**
+  [05 §5.3](../05-ui-surfaces.md) specifies the Lorebooks panel as one of the six
+  per-kind panels [polish §4](09-polish.md) creates; `LibraryPage.tsx` is still
+  one merged table with a kind filter, and §1.7's dependency reasoning covered
+  `polish §1` alone. The escape is the shape `polish §4` already describes —
+  *shared machinery, per-kind surfaces*, with Lorebooks as the first of the six
+  and the other five left to that item — so this is a decision P5.0 makes rather
+  than a blocker. It is recorded rather than settled here because it belongs to
+  the stage, and it is recorded at all because it is the same class of omission
+  §1.7 was written to catch and missed by one item.
+- **The retriever half needs a schema change, and §1.10 prices it as a gather.**
+  `gatherAssemblyInputs` growing Treatment and Lorebooks is not a read of
+  something that exists: `SessionFile` ([sessions/types.ts](../../../packages/server/src/sessions/types.ts))
+  has **no lore links and no treatment reference at all**. So P5.6 adds a field
+  to the session file — copy or live link, and `gather.ts`'s docstring constrains
+  it to something readable from `(account, sessionId, parentTurnId)` alone — and
+  P5.7's *`LoreScope` enforced by shape* enforces against links that do not exist
+  yet. That is more than "moved from P5.9 to P5.6", and §5's *the retriever half
+  is smaller* should be read with it.
+
+#### Two promises the documents have already made for the code
+
+Both are the good kind of finding — the design is written and the code is what is
+missing — and both change what landing a stage *means*.
+
+- **The regex timeout is asserted as fact in two places.**
+  `schema/lorebook.ts:105` says of `useRegex` that *"Patterns run under a hard
+  execution timeout"*, and [02 §3](../02-data-model.md) says the same in
+  parentheses. There is none, and there is no `RegExp` constructed anywhere in
+  the server — the danger §1.10 describes is created by P5.4's own matcher, which
+  is the strongest available argument for the timeout being that stage's first
+  commit. Until it lands, those two lines are false; the commit that lands it
+  closes a docs/code disagreement rather than merely adding a guard.
+- **`LoreScope`'s banner describes a field that does not exist.** It explains
+  session scoping's absence by saying *"this lorebook applies to this session" is
+  a fact about the session, so it lives on the session's own lore links.* There
+  are no session lore links. P5.6 and P5.7 are what make that sentence true.
+
+#### Four smaller findings, each with an owner
+
+- **`pnpm test:fixture-pair` is not a step in `ci.yml`.** §0 calls the `lore`
+  assertion *"in a **named CI step**"*; the vitest project and the package script
+  exist, and CI runs it only inside `pnpm test` — which is exactly the anonymity
+  the P1 gate's own step exists to prevent, in the words of the comment above it
+  (`ci.yml:105`). P5.6 either adds the step or drops the word.
+- **The `lore` assertion goes quiet rather than red.** It sits inside
+  `if (reason !== undefined)` (`fixture-pair.test.ts:148`), so the moment lore
+  fills, the row leaves `notFilled` and the check skips. §1.10's *a gate that
+  changes meaning is changed on purpose* holds unchanged, but its stated reason
+  does not: nobody will meet this as a red build. Said plainly, because "it will
+  go red" is the half people remember and it is the half that is wrong.
+- **§1.1's channel lean has two mechanical blockers**, and neither is in §6.1's
+  framing of the question. `applyEffects` (`sessions/store.ts:422`) ignores
+  `scopeKey` and rekeys by `channelId`, so two entries' timing states would
+  overwrite each other; `acceptEffect` (`turns/effects.ts:50`) throws on anything
+  but a whole-value set at `/`. An entry-scoped channel needs both widened first,
+  which is a change to the effect log and P6-adjacent rather than a retriever
+  change. §6.1 asks whether timing state *should* be a channel; this is what it
+  would cost if the answer is yes.
+- **P5.9 inherits a doc/code disagreement.** `schema/preset.ts:120` documents an
+  absent `from` as meaning every carrier, in the order treatment → lore → actor;
+  `collect.ts:371` reads actors only. Invisible while two carriers are dead, and
+  observable in the stage that turns them on.
+
+#### And §0.3's instruction has no receptacle
+
+§0.3 asks that the window immediately ahead be written down, on
+[16-p2c-log](16-p2c-log.md)'s precedent, because four decisions wait on it. **No
+such log exists**, and `16-p2c-log.md` records nothing about what gets cut, how
+often, or how long it takes to find out why — so nothing anywhere answers the
+four [AWAITS PLAYABLE] questions today, and §1.11's re-audit line stands
+unchanged. If that window has already passed, they are no closer than §1.11 left
+them and the file would now be written from recollection, which is the thing §0.3
+says is worth less. If it has not, the file is worth making before it does.
+
 ---
 
 ## 1. Decisions this plan has to make
@@ -307,8 +499,11 @@ lands in the `BudgetVerdict` with the rule that made it.
 
 **Replaceability seam, not machinery:** the built-in retriever is the default
 an extension may substitute; `extensionActivations` on the entry
-([02 §3.1](../02-data-model.md)) is stored (P4 already preserves it) but nothing
-consumes it until P7's extension host exists.
+([02 §3.1](../02-data-model.md)) is stored ~~(P4 already preserves it)~~ but
+nothing consumes it until P7's extension host exists. *Corrected at §0.4:*
+nothing **writes** it. Unknown import fields go to `metadata`, and the field
+survives only as a key Ajv declines to strip — which is enough for the seam and
+is not a P4 deliverable a later phase can lean on.
 
 ### 1.4 Channel predicates for `activationConditions` — how much at P5
 
@@ -422,7 +617,16 @@ trustworthy — a failure that is silent, survives a restart, and is precisely w
 [13 §5](../13-internal-contracts.md)'s index invariants exist to forbid.
 **Mitigation, and it is worth doing regardless of this phase: extract one helper
 that owns dropping and reinserting an object across both table pairs, so five
-delete sites become one.** The rebuild property test is what proves it.
+delete sites become one.**
+
+~~The rebuild property test is what proves it.~~ **It does not, and §0.4
+mutation-proved that it does not**: `snapshot()` reads the `object` table alone,
+so removing an `object_fts` delete leaves `pnpm test:gate` — and the whole suite
+— green. The proof has to be built before the thing it proves: **widen
+`snapshot()` to join the FTS tables, the way `sessionSnapshot()` already joins
+`turn_fts`, and only then extract the helper.** Both are P5.2's, and the order
+is not optional — a helper landed under a property that cannot see it inherits
+exactly the false confidence this paragraph was written to prevent.
 
 ### 1.8 The book page is where an import's consequences go to live
 
@@ -467,13 +671,16 @@ What survives, and what does not:
 - **The decision stands.** The question is still asked from the book, and the
   reasoning above is untouched by the report existing: somebody debugging an
   entry six months later still will not go looking for the sweep.
-- **The first consequence is discharged.** *The converters must leave enough on
-  the object to reconstruct the note* was P5 scope because the notes lived only
-  in a report that was thrown away. They are now stored, keyed by the object they
-  produced, with an index on that column. So the book page **reads them** rather
-  than reconstructing them, and the `metadata`-on-the-entry mechanism below is no
-  longer needed for this — keep it for what [P4 §1.11] routes there, not for
-  import notes.
+- **The first consequence is discharged, and only for some books.**
+  *The converters must leave enough on the object to reconstruct the note* was P5
+  scope because the notes lived only in a report that was thrown away. They are
+  now stored, with an index on the object column, and the book page **reads them**
+  rather than reconstructing them — so the `metadata`-on-the-entry mechanism below
+  is no longer needed for this; keep it for what [P4 §1.11] routes there.
+  *Corrected at §0.4:* “keyed by the object they produced” holds for a standalone
+  book and not for a card-carried one, which is the common case — that row is
+  keyed to the **actor**, and two of the three import routes record no row at
+  all. Splitting `#card` into two item rows is the honest fix and is P5’s.
 - **What is left is the surface**, which was always the interesting half: which
   of a book's notes belong on the page, where, and how an entry-level note finds
   its entry. `importNotesFor` answers per *object*; an entry-level fact is inside
@@ -506,6 +713,13 @@ concurrent branch has already paid half of the polish note's companion clause
 (the Edit gate's ownership half). If the by-field view has landed by the time
 P5 opens, this stage is *verify and move on*, and the document half starts where
 §1.7 originally wanted it to.
+
+*Checked, at the opening — §0.4:* **it has not landed, and this stage is build.**
+The detail page is the header, a seven-row metadata list and `AsStored`; the only
+by-field rendering in the repository is the actor editor’s hand-written `<Field>`
+elements, and no client file imports a schema object at all. The concurrent
+branch paid the ownership half of the companion clause and nothing else, so the
+`actors` half of the Edit gate is still this stage’s too.
 
 ### 1.10 The regex timeout is the retriever's first task, and two other things move with it
 
@@ -605,6 +819,14 @@ No server work, no schema change. Reuses `/library/$kind/$id` and its existing
 shadowed-copy discriminator; a panel that builds its own links from `{kind, id}`
 reintroduces F19 and [polish §4](09-polish.md) says so.
 
+**And “the panel” presumes a panel** — [polish §4](09-polish.md) has not landed,
+so the library is still one merged table with a kind filter (§0.4). This stage
+builds the Lorebooks panel as the **first** of that item’s six, on its own
+*shared machinery, per-kind surfaces* rule, and leaves the other five and the
+all-kinds preference to it. Decided here rather than discovered, because the
+alternative — a lorebook-shaped detour inside the merged table — is the shape
+that has to be undone when the split lands.
+
 *Ends at:* opening a three-hundred-entry imported book and finding one entry by
 reading rather than by scrolling — and an entry that is off saying *which* of the
 three reasons made it so.
@@ -644,8 +866,15 @@ appears in the ingest path — justified by the rule at
 [05 §14.5](../05-ui-surfaces.md), *a fragment is indexable when it has an
 address*, and bounded by it.
 
-§1.7's five delete sites are the risk. The helper is the mitigation and the
-rebuild property test is the proof.
+§1.7's five delete sites are the risk. The helper is the mitigation and ~~the
+rebuild property test is the proof~~ **the proof has to be built first** — the
+property compares `snapshot()`, which reads the `object` table alone, so it
+cannot see a stale FTS row at all (§0.4, mutation-proved). **Widen `snapshot()`
+to join the FTS tables, the way `sessionSnapshot()` already joins `turn_fts`,
+before extracting the helper.** Two further things this stage is not a copy of:
+`searchTurns` returns no snippet, so the snippet query is net-new SQL rather
+than a mirror; and `rebuild.ts` and `migrations.ts` each carry a hand-maintained
+list a new table pair joins by hand.
 
 *Ends at:* searching for a phrase that occurs in one entry of one book, and
 landing on **that entry**, with the matched text shown.
@@ -836,10 +1065,13 @@ P5.3 is written so they do not hold the phase closed.
     `entryLimit` was clamped, whose entry sat at a position with no equivalent
     here, or which was scoped to one chat, says so on its own page — not only in
     a review that is gone once the page is closed.
-17. **The five delete sites are one** (§1.7). The helper owns dropping and
-    reinserting an object across both table pairs, and the rebuild property test
-    passes with the entry rows in place. Adding a sixth call site by hand should
-    be impossible rather than merely discouraged.
+17. **The five delete sites are one** (§1.7), **and the property can see them.**
+    The helper owns dropping and reinserting an object across both table pairs,
+    and the rebuild property test passes with the entry rows in place. Adding a
+    sixth call site by hand should be impossible rather than merely discouraged.
+    *Amended at §0.4:* the second half of that is the load-bearing half and was
+    missing — removing any one FTS delete leaves the gate and the whole suite
+    green today, so this step is met only when deleting one **fails** it.
 18. **The fixture-pair gate is green with lore as a producer.** Its `lore`
     assertion changed meaning in P5.6's own commit, from *no producer exists* to
     *the producer ran*, and `pnpm test:fixture-pair` passes on the new reading.
