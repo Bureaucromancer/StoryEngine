@@ -191,8 +191,9 @@ was large:
   detail page, the as-stored fold and the revision list.
 - The five `object_fts` delete sites are still five (`ingest.ts` 325, 386, 391,
   412, 482). §1.7's one-helper mitigation is unbuilt.
-- The fixture-pair gate still asserts `lore` reads `no-producer`
-  (`fixture-pair.test.ts:150`). P5.6 changes what that named CI step means.
+- ~~The fixture-pair gate still asserts `lore` reads `no-producer`
+  (`fixture-pair.test.ts:150`). P5.6 changes what that named CI step means.~~
+  Changed at P5.6, in its own commit, and the gate is a named CI step now.
 - **The corpus still does not exist**, and it is still the one item on this list
   a person rather than a session has to clear.
 
@@ -392,7 +393,7 @@ because the sentence reads as a P4 deliverable that a later phase can rely on.
   than a blocker. It is recorded rather than settled here because it belongs to
   the stage, and it is recorded at all because it is the same class of omission
   §1.7 was written to catch and missed by one item.
-- **The retriever half needs a schema change, and §1.10 prices it as a gather.**
+- ~~**The retriever half needs a schema change, and §1.10 prices it as a gather.**
   `gatherAssemblyInputs` growing Treatment and Lorebooks is not a read of
   something that exists: `SessionFile` ([sessions/types.ts](../../../packages/server/src/sessions/types.ts))
   has **no lore links and no treatment reference at all**. So P5.6 adds a field
@@ -400,7 +401,11 @@ because the sentence reads as a P4 deliverable that a later phase can rely on.
   it to something readable from `(account, sessionId, parentTurnId)` alone — and
   P5.7's *`LoreScope` enforced by shape* enforces against links that do not exist
   yet. That is more than "moved from P5.9 to P5.6", and §5's *the retriever half
-  is smaller* should be read with it.
+  is smaller* should be read with it.~~ **Closed at P5.6: live links, both.** The
+  finding was right that this is more than a move, and right to price it — it
+  came with a second, larger one nobody had costed, because following a `Ref`
+  turned out to be unimplemented everywhere. P5.7 now has session lore links to
+  enforce `LoreScope` against.
 
 #### Two promises the documents have already made for the code
 
@@ -417,22 +422,32 @@ missing — and both change what landing a stage *means*.
   closes a docs/code disagreement rather than merely adding a guard.
 - **`LoreScope`'s banner describes a field that does not exist.** It explains
   session scoping's absence by saying *"this lorebook applies to this session" is
-  a fact about the session, so it lives on the session's own lore links.* There
-  are no session lore links. P5.6 and P5.7 are what make that sentence true.
+  a fact about the session, so it lives on the session's own lore links.* ~~There
+  are no session lore links.~~ **There are, as of P5.6** — `SessionFile.lore`,
+  and `SessionFile.treatment` beside it. The banner's sentence is now true about
+  the half it names; P5.7 still owns enforcing the union by shape.
 
 #### Four smaller findings, each with an owner
 
-- **`pnpm test:fixture-pair` is not a step in `ci.yml`.** §0 calls the `lore`
+- ~~**`pnpm test:fixture-pair` is not a step in `ci.yml`.** §0 calls the `lore`
   assertion *"in a **named CI step**"*; the vitest project and the package script
   exist, and CI runs it only inside `pnpm test` — which is exactly the anonymity
   the P1 gate's own step exists to prevent, in the words of the comment above it
-  (`ci.yml:105`). P5.6 either adds the step or drops the word.
-- **The `lore` assertion goes quiet rather than red.** It sits inside
+  (`ci.yml:105`). P5.6 either adds the step or drops the word.~~ **Closed at
+  P5.6: it adds the step.**
+- ~~**The `lore` assertion goes quiet rather than red.** It sits inside
   `if (reason !== undefined)` (`fixture-pair.test.ts:148`), so the moment lore
   fills, the row leaves `notFilled` and the check skips. §1.10's *a gate that
   changes meaning is changed on purpose* holds unchanged, but its stated reason
   does not: nobody will meet this as a red build. Said plainly, because "it will
-  go red" is the half people remember and it is the half that is wrong.
+  go red" is the half people remember and it is the half that is wrong.~~
+  **Closed at P5.6, and the finding was worth more than it looked.** The check
+  is now unconditional and its polarity is inverted — the session links the
+  imported book, the input names one of its keys, and *filling* is what passes,
+  so a row of any kind fails. Which means the gate went red on the change, as
+  §1.10 expected, for a reason §1.10 had not identified: not because lore
+  stopped reading `no-producer`, but because the assertion was rewritten to be
+  capable of failing at all.
 - **§1.1's channel lean has two mechanical blockers**, and neither is in §6.1's
   framing of the question. `applyEffects` (`sessions/store.ts:422`) ignores
   `scopeKey` and rekeys by `channelId`, so two entries' timing states would
@@ -1658,21 +1673,85 @@ The four timing behaviours over §1.1's state home; the three recursion flags
 and book-level recursion limits. Unit tests on the interactions, which are the
 part people actually get wrong.
 
-#### P5.6 — The retrieval step and the budget
+#### ~~P5.6 — The retrieval step and the budget~~ Landed
 
-**Opens with `gatherAssemblyInputs` growing the session's Treatment and its
-linked Lorebooks** (§1.10) — the precondition for the whole half, since a
-retriever with no books to scan has nothing to do — and **closes by editing the
-fixture-pair gate's `lore` assertion in this stage's own commit**, because
-turning lore into a producer changes what that named CI step means.
+Five commits, and the stage did everything it said. What is worth recording is
+the four places where writing it changed something that had been assumed.
 
-§1.3 wired into the assembler: activation → candidate blocks with reasons →
-per-book verdicts → the arbiter, with the documented trim order (constants,
-latest-message matches, injection order; scan continues past a skipped entry)
-and skip reasons surfaced. Grouping (`group`/`groupWeight`), gating filters,
-placement including outlets — an outlet is an activated block a preset slot
-positions, which is block addressing arriving from the other direction
-([02 §3.1](../02-data-model.md)).
+**§0's open question — *copy or live link* — is answered: links.** [02 §8] gives
+the session `lore: Ref<Lorebook>[]` outright, and the asymmetry with `preset` is
+the design rather than an oversight: improving a character card should reach an
+ongoing game while editing a preset must not, and a lorebook is a character
+card. The **treatment** half needed two notes read together and the reading is
+written into `turns/lore.ts` rather than assumed — [02 §8] gives the session no
+treatment field and says *editing the source treatment later must not affect
+this session*, while [18 §7] schedules the treatment arm of writing samples for
+P5 because *a session references neither object today*. They reconcile if that
+sentence is about the `origin` provenance chain, which is a Setup somebody can
+re-aim, rather than about a treatment the session names itself. Defensible, and
+still a reading, so it is flagged where anybody changing it would look.
+
+**A `Ref` had never been followed by anything on the server, and it showed.**
+Three documents state the same resolution order — exact id, then
+case-insensitive name, then show as missing and continue — and nothing
+implemented it. `library.resolveRef` does now. The name arm is not a nicety: an
+imported treatment's links carry ids minted by whatever produced the file and
+the books it names came in with ids of ours, so *every* id misses and without it
+an imported treatment resolves to zero books in silence.
+
+**A lint rule about `Math.random` corrected a design decision.** Grouping was
+going to be deterministic highest-weight-wins, reasoning that a swipe changing
+which of three weather entries is in the prompt reads as instability. That is a
+real problem [07 §14.5] had already solved — draws go on the turn's tape and a
+rewrite replays it — so `groupWeight` is a weighted draw, which is what a weight
+is. Sorting by it would have made `groupWeight: 99` mean *always* rather than
+*usually* and quietly deleted the field.
+
+**The gate changed meaning in this stage's commit, and got wider.** §1.10 asked
+for the `lore` assertion to move from *no producer exists* to *the producer ran
+and matched nothing*; §0 separately found it sat inside `if (reason !==
+undefined)` and would have gone **quiet** rather than red the moment lore
+filled. Both are fixed, and the polarity is inverted: the session now links the
+imported book, the input names one of its keys, and *filling* is what passes.
+That widens the gate to the pair's third member — an entry's `key` array, its
+`position` and the preset slot that holds it are three separate conversion
+tables, and a mismatch in any of them produces a world that silently never
+appears. §0's *`pnpm test:fixture-pair` is not a step in `ci.yml`* is closed the
+same way: it is a step now, rather than the word being dropped.
+
+Two smaller things the stage found. `at_depth` needed the collector to route one
+slot's output into the history splice it had already decided that block was not
+part of — lore is the only source kind whose placement is the *entry's*, so
+nothing else needs it. And the per-book refusals had to be carried all the way
+to the `BudgetVerdict` as decisions rather than candidates, or §1.3's *every skip
+lands in the verdict with the rule that made it* would have been false in the
+one place it is checkable.
+
+**Mutation-proved at every commit: 21, 35 of 36, 25, 30 and 12.** The single
+survivor was an equivalent mutation, documented where it lives. Two rounds of
+survivors were more useful than that: the first found that the collector's whole
+lore arm — phase filter, both directions of the outlet filter, the depth split,
+the entry's own role — had no direct tests, and the second found that nothing
+proved the refusals reach a call record at all. A third, in `activate`, found
+that `seededSource` gives seeds 1, 2, 3 near-identical *first* draws, so a loop
+over small seeds produces one outcome forty times and reads exactly like proof
+of determinism.
+
+*The stage as it was written:*
+
+> **Opens with `gatherAssemblyInputs` growing the session's Treatment and its
+> linked Lorebooks** (§1.10) — the precondition for the whole half, since a
+> retriever with no books to scan has nothing to do — and **closes by editing the
+> fixture-pair gate's `lore` assertion in this stage's own commit**, because
+> turning lore into a producer changes what that named CI step means.
+>
+> §1.3 wired into the assembler: activation → candidate blocks with reasons →
+> per-book verdicts → the arbiter, with the documented trim order (constants,
+> latest-message matches, injection order; scan continues past a skipped entry)
+> and skip reasons surfaced. Grouping (`group`/`groupWeight`), gating filters,
+> placement including outlets — an outlet is an activated block a preset slot
+> positions, which is block addressing arriving from the other direction
+> ([02 §3.1](../02-data-model.md)).
 
 #### P5.7 — Scoping, and the folder gate enforced
 
