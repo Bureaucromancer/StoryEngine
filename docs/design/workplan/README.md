@@ -24,7 +24,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [05-p3-implementation.md](05-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
 | [06-p4-implementation.md](06-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
 | [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Audited twice; §0.1 is the current readiness, and the four decisions that need PLAYABLE are marked, open, and given a window in §0.3 |
-| [08-p6-implementation.md](08-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation |
+| [08-p6-implementation.md](08-p6-implementation.md) | P6 skeleton — branching UI, reconstruction, rewrite/reroll, sibling navigation. Readiness audited: P2 bought more than this document claimed, and three phases have handed it decisions |
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
 | [11-repo-and-releases.md](11-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
@@ -34,11 +34,11 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [15-p2c-first-real-run.md](15-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
 | [16-p2c-log.md](16-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
 | [17-p2c-brief.md](17-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
-| [18-p7-implementation.md](18-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes |
-| [19-p8-implementation.md](19-p8-implementation.md) | P8 skeleton — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook |
-| [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration |
-| [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery |
-| [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering |
+| [18-p7-implementation.md](18-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase |
+| [19-p8-implementation.md](19-p8-implementation.md) | P8 skeleton — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. Waits on three phases rather than on time |
+| [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration. The phase most dependent on other phases having gone well |
+| [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
+| [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
 
 ## How to read them
 
@@ -66,15 +66,29 @@ a fallback layer no code implements.
 thin.** There are no phase documents past 1.0 and that is deliberate too: the
 releases after it ([01 §0](01-work-plan.md)) have scopes rather than phase
 breakdowns, because sequencing 2.0 against a substrate that does not exist yet
-would be the guessing this folder exists to avoid. 18 through 22 were written in one pass so that the phases after PLAYABLE
-have addresses rather than paragraphs in [01](01-work-plan.md) — but a skeleton
-five phases out is not a plan, and [18 §0](18-p7-implementation.md) states in one
-place what all five are for: **collect the deferrals already made to the phase,
-name the decisions the revisit has to make, and hold the shape of the exit
-gate.** The first of those is the load-bearing one. More than a dozen documents
-have sent something to P7 alone, and a deferral nobody collects is a deferral
-that gets lost — which is the failure [01 §2.3](01-work-plan.md) exists to
-prevent, read from the far end.
+would be the guessing this folder exists to avoid. 18 through 22 were written in
+one pass so that the phases after PLAYABLE have addresses rather than paragraphs
+in [01](01-work-plan.md) — but a skeleton five phases out is not a plan, and
+[18 §0](18-p7-implementation.md) states in one place what all five are for:
+**collect the deferrals already made to the phase, name the decisions the
+revisit has to make, and hold the shape of the exit gate.** The first of those
+is the load-bearing one. More than a dozen documents have sent something to P7
+alone, and a deferral nobody collects is a deferral that gets lost — which is
+the failure [01 §2.3](01-work-plan.md) exists to prevent, read from the far end.
+
+**08 and 18 through 22 each gained a §0 and a §5 on 2026-08-31** — a readiness
+note saying what is auditable *today* rather than on the day, and an honest-size
+section naming what only the revisit can settle. The deferral collections were
+checked first, against a sweep of every reference to each phase across both
+folders, and came back complete: the load-bearing job was already done, so the
+addition is the other two.
+
+**The readiness note is the part that goes stale, and re-running it is cheap** —
+which is the pattern to keep as each revisit comes round.
+[P6 §0](08-p6-implementation.md) is the worked example: it found that P2 had
+bought more than P6's own text claimed, that a config key ships `unread` with
+this phase's name on it, and that three other phases had quietly handed P6
+decisions. None of that was visible from P6 alone.
 
 **A revisit is worth more than a first draft, and 05 is the evidence.** Its
 skeleton instructed itself to be re-read *against what the P2 turn record

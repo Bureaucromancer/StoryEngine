@@ -1,10 +1,17 @@
 # 08 — P6 implementation plan
 
-**Status: skeleton.** Drafted during P1; to be revisited before the phase
-starts. Unusually for these plans, most of P6 is *already decided* — the tree
-model, swipes-as-branches, snapshots-as-cache and the tape are settled in
+**Status: skeleton, expanded 2026-08-31 with a readiness audit and the deferrals
+collected.** ~~Drafted during P1; to be revisited before the phase starts.~~
+Drafted during P1 and expanded once P5 was planned, which is the point at which
+this phase is next-but-one and its preconditions are checkable rather than
+assumed. **It is still a skeleton and the revisit still owes it a plan** — see
+§5 for what only PLAYABLE and P5 can settle.
+
+Unusually for these plans, most of P6 is *already decided* — the tree model,
+swipes-as-branches, snapshots-as-cache and the tape are settled in
 [09](../09-branching.md) and [07 §14.5](../07-tech-stack.md) — so this document is
-mostly sequencing plus the two open questions those documents left (C8, C9).
+mostly sequencing plus the two open questions those documents left (C8, C9)
+**and the four decisions other phases have since handed here** (§1.7–§1.9).
 Format follows [03](03-p1-implementation.md).
 
 **P6 delivers**, from [01 P6](01-work-plan.md): branching, rewrite/reroll, the
@@ -32,6 +39,69 @@ its contract.
 zero or from the nearest snapshot* ([10 §3.3](10-testing.md),
 [09 §4](../09-branching.md)). One property protecting branching, regeneration and
 undo simultaneously.
+
+---
+
+## 0. Readiness — audited 2026-08-31
+
+**P2's claim was that P6 builds no storage, and it holds.** Checked against the
+code rather than against the promise, because *"if P6 finds itself migrating the
+turn store, P2 broke its contract"* is only worth writing down if somebody
+eventually looks.
+
+**Already there, and more of it than this document assumed:**
+
+- **`parentTurnId` is on every turn** (`shared/src/turn.ts:528`), with the
+  comment naming P2's reasoning. The store is tree-shaped on disk today.
+- **`Tape` is on the turn record** (`turn.ts:538`), and every draw carries a
+  flag for whether it came off a tape or from the source (`turn.ts:108`). The
+  rewrite/reroll distinction has somewhere to be recorded before anything
+  rerolls.
+- **`ChannelEffect.scope` exists** (`turn.ts:487`) — and §1.5 undersells what
+  landed. It says *P6 gets a field, not a migration*; in fact `applyEffects`
+  (`sessions/store.ts:429`) already **skips escaped effects when replaying**, so
+  the rule is applied and not merely storable. Its neighbouring comment reasons
+  explicitly about branches: a `delete` rebuilds the map without the key rather
+  than mutating, *"so a channel that was removed on one branch must not
+  disappear from a map another branch is still replaying against."* That is P6's
+  invariant, written at P2, under test.
+- **The head snapshot is derived and says so** (`sessions/channels.ts:173`),
+  with the failure mode [02 §8.1](../02-data-model.md) warns about — *"a bug that
+  only surfaces at P6 and is expensive by then"* — argued against in the code
+  itself rather than left to this document.
+
+**Not there, and this is the phase's actual size:**
+
+- **No snapshot machinery of any kind.** `sessions/` mentions the *head*
+  snapshot and nothing else; there is no depth-indexed cache, no eviction, and
+  no walk-up-replay-forward. P6.0 starts from nothing.
+- **No `BranchRef` and no `lastSelectedChildId`.** Neither name appears in the
+  tree. §1.2's *back-and-forward resumes rather than guesses* is a field this
+  phase adds.
+- **`sessions.snapshotEveryNTurns` is declared `unread`** (`config.ts:278`),
+  with the comment *"Snapshots are P6's. Nothing reads this."* So the
+  provisional answer to C8 already ships as a settable number that changes
+  nothing — which makes flipping it to `applied` a **named gate line** for this
+  phase rather than a detail, under the standing rule from
+  [01 §2.3](01-work-plan.md).
+
+**Ground that moved under this document:**
+
+- **P3 resolved an inherited contradiction by handing it here** (§1.8). The old
+  P3 §1.2 said *"the UI simply shows the newest"* and P3 §3 preserved Marinara's
+  *"editing does not change the reply already on screen"*. P3 §1.8 explicitly
+  stops deciding: *"Whichever P6 picks, P3 no longer has to."*
+- **P5's timing-state lean is contingent on this phase** in a way that runs both
+  directions (§1.9), and P5's own §6 says so.
+- **P5's gate step 14 changes meaning when P6 lands** — timing counters
+  reconstructing at an old node is a replay-from-zero test before P6 and a
+  branch test after. Like the fixture-pair gate at P5.6, it wants editing in the
+  stage that changes it, not repairing when it goes red.
+- **P9 depends on reconstruction-at-a-node** ([P9 §1](20-p9-implementation.md)
+  reasons from *"P6 shipped reconstruction at a node — so that turn's state is a
+  thing that can be asked for"*). P6 is not the last phase to care about this
+  machinery, which is an argument for the property test being the real
+  deliverable.
 
 ---
 
@@ -92,6 +162,81 @@ their branch, never hidden and never passed off as current
 ([07 §7.1](../07-tech-stack.md), [05 §14.2](../05-ui-surfaces.md)). Path
 materialisation for the head is one more derived thing the index holds.
 
+### 1.7 The deferrals other phases have sent here
+
+Collected 2026-08-31, because a deferral nobody collects is one that gets lost
+and this document had four sitting outside it. Each is a decision or a piece of
+work, not a mention.
+
+- **The stale-head sibling** ([P2 §2.10](04-p2-implementation.md)). Submitting a
+  turn refuses any parent that is not the head, and idempotency retains a key so
+  a retry cannot charge twice. P2's note reads: *"P6 may turn the stale-head
+  case into an explicit sibling; P2 must not manufacture one by race."* That is
+  a decision with a real UI consequence — two people, or one person in two tabs,
+  submitting against the same head — and it is where branching stops being a
+  gesture and becomes a concurrency answer. **Decide it, or say it stays a
+  refusal.**
+- **The tape's first real use** ([P2 §2.13](04-p2-implementation.md)). The tape
+  is recorded from P2 *"though nothing rerolls until P6"*, and P3 §1.8 records
+  the consequence: every committed tape is empty because there is no production
+  draw site. P5 introduces the first — activation draws — so the tape is
+  non-empty for the first time one phase before this one. §1.3's rewrite/reroll
+  split is untestable until then and fully testable after.
+- **Branching has no route** ([P2C §5](15-p2c-first-real-run.md)): *"branching
+  is a storage affordance with no route."* Named in the first-real-run brief as
+  something a tester will not find, so it is not a bug report to expect. P6 is
+  where it acquires one.
+- **Reconstruction-at-a-node is P9's input too**
+  ([P9 §1](20-p9-implementation.md)). Worth knowing while building it: the
+  consumer is not only this phase's UI.
+
+### 1.8 Which reply an edit changes — the contradiction P3 handed here
+
+**P3 §1.8 stopped deciding this and said so.** Two rules were inherited from
+different places and disagree:
+
+- *"The UI simply shows the newest"* — the old P3 §1.2.
+- *"Editing does not change the reply already on screen"* — Marinara's rule,
+  preserved in P3 §3.
+
+They are the same question asked of the same gesture: you edit a message that
+already has a reply, and re-run. Does the existing reply stay on screen with the
+new one beside it as a sibling, or does the view move to the new one?
+
+**This is §1.3's two gestures seen from the other end**, which is the argument
+for deciding it here rather than anywhere else: *redo* and *continue
+differently* are already two explicit buttons because guessing is wrong half the
+time, and *which reply am I now looking at* is the same guess. A plan that
+offers both gestures and then silently moves the view has un-decided §1.3.
+
+*The lean, for the revisit to confirm or overturn:* **the view follows the new
+sibling and the old one stays reachable through §1.2's inline affordance.**
+Marinara's rule protects against losing work you were reading; the sibling
+affordance is that protection, made visible, which Marinara did not have. But
+this is a use question and PLAYABLE is where the answer is.
+
+### 1.9 P5's timing state, and which phase pays for it
+
+[P5 §1.1](07-p5-implementation.md) leans toward timing state living in channels
+rather than on entries, and its §6 flags the lean as contingent on this phase in
+a way worth restating precisely, because the dependency runs **both ways**:
+
+> *Does a branch inherit stickiness correctly if timing lives anywhere else? If
+> P6's design work lands before this phase, the answer is free; if not, the lean
+> ships and P6 [inherits it].*
+
+So: **if P6's reconstruction design is done first, P5 gets its answer for
+nothing.** If P5 ships first — which the phase order says it will — then P6
+inherits a decision it did not make, and this phase's job is to verify rather
+than choose. Either way the check is the same and belongs in this gate: a sticky
+entry activated on one line must not be sticky on a sibling line that never
+activated it.
+
+**The cheap thing to do about it now**, and the reason this section exists
+before either phase runs: P5's revisit should read §1.1 of this document, and
+this document's revisit should read P5 §6. Both are one paragraph, and the
+alternative is discovering the disagreement from a failing test.
+
 ---
 
 ## 2. Stages
@@ -129,7 +274,9 @@ tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
 
 ## 3. Verification — the P6 exit gate
 
-Sketch; expand on revisit.
+~~Sketch; expand on revisit.~~ *Steps 1–8 were the sketch and stand. Steps 9–13
+were added 2026-08-31 from §0 and §1.7–§1.9, which is the part of a gate worth
+writing early: a gate written after the code is a gate written to pass.*
 
 1. Branch from a message 200 turns back → new line in one action, no
    precondition, state at the fork correct per the property test.
@@ -150,9 +297,30 @@ Sketch; expand on revisit.
 8. Kill the server, delete `index.sqlite`, restart → the tree, refs and head
    all survive; only derived things were lost.
 
+9. **`sessions.snapshotEveryNTurns` reads `applied`**, and its test passes. It
+   ships today as a settable number that changes nothing, declared `unread` with
+   the comment *"Snapshots are P6's"* — so this phase is the one that either
+   makes it true or removes it. This is the standing line below, with a name
+   already attached to it.
+10. **A sticky lore entry does not leak across a branch** (§1.9): activate one on
+    a line, branch from a node before the activation, and the sibling line does
+    not have it. Whether that holds by construction or by repair depends on
+    which phase shipped first, and the gate does not care which.
+11. **Edit-and-re-run does what §1.8 decided**, and the decision is written down
+    somewhere a person can find — not left as whatever the implementation does.
+12. **The stale-head case behaves as §1.7 decided**: two submissions against one
+    head either produce an explicit sibling or a refusal that offers one, and
+    never a race that manufactures a branch nobody asked for.
+13. **P5's gate step 14 is re-read and edited in this phase's own commit.**
+    Timing counters reconstructing at an old node is a replay-from-zero test
+    before P6 and a branch test after; it changes meaning here, and the
+    fixture-pair precedent from P5.6 is that such a step is edited deliberately
+    rather than repaired when it reddens.
+
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
+Step 9 is that line with one key already named; it is not the whole of it.
 
 ---
 
@@ -167,3 +335,42 @@ deliberately not precluded); summarisation (P8 — but P8's rolling summary
 section as the handoff); retention/compaction policy (keep everything,
 [02 §5.5](../02-data-model.md)); multiplayer arbitration over shared heads
 ([04 §8](../04-server-multiuser-deployment.md)).
+
+---
+
+## 5. The honest size, and what only the revisit can settle
+
+*Added 2026-08-31, with §0's audit behind it.*
+
+**The engine half is bigger than the UI half, and the reverse reads as true.**
+The gestures are two buttons and the sibling affordance is a count with arrows;
+what sits under them is a snapshot cache with an eviction story, a
+walk-up-replay-forward that has to be correct at every index, and a property
+test that is the real deliverable because P9 will lean on the same machinery.
+P6.0 ships no UI at all, deliberately, and that is the stage most likely to be
+under-priced.
+
+**What P2 bought is real and worth restating as a subtraction:** the tree edge,
+the tape, the effect scope and the escaped-effect skip are all in the code
+already (§0), so this phase genuinely builds navigation and reconstruction
+rather than storage. The estimate should reflect that; the risk is spending the
+saving on the visualiser, which §4 puts out of scope.
+
+**Three things this document cannot settle before its revisit**, and they are
+the reason it is still called a skeleton:
+
+- **N, finally** (§1.1). Ten is a guess that ships today as an unread key.
+  Real session sizes come from PLAYABLE, and the honest answer may be that the
+  interval should be depth-and-cost aware rather than a count.
+- **Which reply an edit changes** (§1.8). Leaned, not decided, and it is a use
+  question.
+- **Whether the sibling affordance is enough** (§1.2). [09 §6](../09-branching.md)
+  says history shows the selected path only; whether a person can find a line
+  they abandoned twenty turns ago through a count and two arrows is exactly what
+  the visualiser exists for, and exactly what §4 defers. If PLAYABLE says they
+  cannot, that deferral is the one to revisit first.
+
+**What would make this a plan rather than a skeleton:** P5 landed, so the tape
+is non-empty and §1.3 is testable; PLAYABLE run, so §1.1 and §1.8 have evidence;
+and a re-read of [09 §5.1](../09-branching.md) against P8's chain, which §4
+already names as the handoff to check.

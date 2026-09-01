@@ -425,3 +425,56 @@ done by playing.
 **And one thing that is not out of scope but reads like it:** the assistant's
 mode definition, §1.8. It is listed here so that leaving it in P11 is a decision
 rather than an omission.
+
+---
+
+## 5. The honest size, and what only the revisit can settle
+
+*Added 2026-08-31. §0 says this document is not a plan; this section says what a
+plan would have to price, so the revisit starts from an estimate rather than
+from a blank page.*
+
+**P7.0 is the phase, and the other nine stages are its consumers.** That reads
+backwards — nine stages of features against one of plumbing — and it is the
+single most useful thing to hold onto here. The boundary either holds or is
+revealed as wrong ([01 P7](01-work-plan.md)), and every stage after P7.0 is a
+test of it disguised as a feature. Pricing this phase as *ten stages* invites
+building the features and discovering the contract at the end, which is the
+failure [03 §2](../03-modes-and-turn-pipeline.md)'s standing rule — *if a
+built-in mode needs a back door, stop and fix the contract* — exists to catch.
+
+**The negative half of the demo is the deliverable.** `packages/server/src/modes/`
+being empty, with the build failing if anything puts it back, is worth more than
+any of the panels: it is the only check that cannot be satisfied by a mode that
+works. A plan that cuts under pressure should cut a panel and never that.
+
+**What is genuinely large, in order:**
+
+1. **Hooks** (P7.5) — the pool, the selector, and three companions, plus the two
+   identity obligations [19 §5](../19-world.md) makes unrecoverable if missed.
+   Four property rows are already written against it in
+   [testing §1](10-testing.md), which is the strongest signal in this document
+   that somebody thought the obvious implementation would be wrong.
+2. **Setup objects and the declarative wizard** (P7.4) — a form nobody wrote,
+   generated from a declaration, is the contract's hardest single claim.
+3. **Channels as a general mechanism** (P7.1) — the narrowest, because P2 and P5
+   already use them and `readClock` is a worked example.
+
+**What is smaller than it looks:** party, presence and status (P7.2) are
+channels once P7.1 exists, and §1.6 has already done the design work of turning
+`cast` from a field into one. Mention resolution (P7.7) is an `extract` step
+whose span type is already named against the trap in §1.7.
+
+**Three things only the revisit can settle**, and they are why §0 calls this a
+skeleton:
+
+- **Whether the worker hop lands here** (§1.3). A performance question with no
+  measurements yet, and PLAYABLE plus P5's retriever are what produce them.
+- **Whether two modes is enough of a test** (§1.8). The document already
+  suspects not and names the assistant as the available third — but the
+  assistant is P11's, so the honest options are *accept a weaker test at P7* or
+  *move something*. Deciding that late is how a contract ships untested.
+- **What PLAYABLE and P2C did to the record.** P7 follows PLAYABLE by three
+  phases, and whatever the record turns out to have got wrong lands in the
+  middle of this phase's channel and effect work. The revisit's first job is to
+  re-read [16](16-p2c-log.md) rather than this document.

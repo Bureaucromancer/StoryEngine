@@ -46,6 +46,31 @@ appears in an effect-producing call* (§1.6).
 
 ---
 
+## 0. What this document is, five phases out
+
+[P7 §0](18-p7-implementation.md) states the shared answer and it is not
+restated here: collect the deferrals, name the decisions, hold the gate shape.
+Two things are specific to this one.
+
+**One claim in it is auditable today, and it audits clean.**
+`Layout.memoriesRoot(handle)` exists (`storage/layout.ts:321`) and **nothing
+calls it** — the directory is never created, which is what
+[P2C §5](15-p2c-first-real-run.md) and [17](17-p2c-brief.md) both record so a
+tester does not report it as a bug. §1.1 is written knowing that: the path
+helper is a lean, not a commitment, and §1.1 ends with *whichever wins,
+`memoriesRoot()` is either the answer or is deleted.* That is the right shape
+for a five-phases-out document — a resolvable fork rather than a decision made
+early and defended late.
+
+**Everything else here waits on three phases rather than on time.** The rolling
+summary must arrive as [09 §5.1](../09-branching.md)'s content-addressed chain,
+which is P6's handoff and [P6 §4](08-p6-implementation.md) names as the thing
+to re-read; memory books are lorebooks, so P5 owns the machinery this phase
+*consumes* rather than builds; and §1.5's spoiler defence is explicitly a P7
+dependency. A revisit that runs before those three have landed will re-derive
+them rather than plan.
+
+---
 ## 1. Decisions this plan has to make
 
 ### 1.1 Where memory books live — the phase's one storage decision
@@ -299,3 +324,49 @@ explicitly not 1.0); narrator- or World-scoped memory
 state (§1.6, and it is a rule rather than a deferral); session export
 ([06 B12](../06-open-questions.md)), which is where the non-shareable marking will
 eventually have to be enforced rather than merely warned about.
+
+---
+
+## 5. The honest size, and what only the revisit can settle
+
+*Added 2026-08-31.*
+
+**This phase builds one new thing and configures two existing ones.** The
+immutable summary chain (P8.0) is genuinely new and genuinely load-bearing;
+memory books are lorebooks, so P8.2 and P8.4 are a scope key, a toggle and an
+association list over machinery P5 shipped; and extraction (P8.3) is a step in a
+pipeline P7 will have made extensible. Priced as *six stages of memory*, this
+looks like a large phase. Priced as *a chain, plus configuration*, it is a
+medium one with one hard part.
+
+**The hard part is not summarisation.** It is that the summary chain has to be
+correct under branching — [09 §5.1](../09-branching.md)'s content-addressed
+chain is the form, and the reason it is content-addressed is that two lines of
+story must be able to share a prefix of summary without one of them being able
+to change what the other reads. That is a P6 property arriving one phase late,
+which is why [P6 §4](08-p6-implementation.md) names this as its handoff and why
+this phase's revisit should read that section before its own §1.
+
+**What is smaller than it looks:** §1.6's advisory rule (*memories never
+contradict the record*) is an invariant that already exists rather than one to
+build, and §1.4's *extract facts, not summaries* is a prompt decision with a
+test rather than an architecture.
+
+**What is riskier than it looks:** §1.5's spoiler bleed. It is the one failure
+in this phase a person will notice immediately and never forgive — a memory
+from a later session leaking into an earlier one's context — and its defence is
+a P7 dependency, so it cannot be built or tested until then. A phase that ships
+memory with the defence half-built has shipped the failure.
+
+**Three things only the revisit can settle:**
+
+- **Storage** (§1.1), which is a real fork with a helper already leaning one
+  way. Resolve it or delete `memoriesRoot()`; do not leave it leaning.
+- **Cadence** (§1.3) — one pass or two — which is a cost question and needs
+  PLAYABLE's turn volumes plus P5's retriever budget to answer honestly.
+- **Whether extraction earns a model call at all.** Not currently framed as a
+  question, and it should be: [01 P8](01-work-plan.md) argues a simple version
+  is safe because the record is the truth and the summary is convenience. If
+  PLAYABLE shows the summary rarely reaching the prompt under budget pressure,
+  the cheapest correct version of this phase is smaller than any stage list here
+  suggests.

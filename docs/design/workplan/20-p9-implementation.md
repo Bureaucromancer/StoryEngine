@@ -36,6 +36,34 @@ produces a request byte-identical to the original's.*
 
 ---
 
+## 0. What this document is, six phases out
+
+[P7 §0](18-p7-implementation.md) states the shared answer. Two things are
+specific to this one, and both are about a phase whose subject does not exist
+yet in any form.
+
+**§1.1's claim was re-checked on 2026-08-31 and still holds:** `Rendition` is
+specified in [03 §10](../03-modes-and-turn-pipeline.md) and appears in **no
+schema** — the name is absent from `packages/shared/src` entirely. So this
+phase is not extending a type, it is introducing one, and §1.1 is the decision
+that matters most in the document. Everything after it is a consumer.
+
+**It is the phase most dependent on other phases having gone well**, which is
+unusual for something this late and worth naming:
+
+- **P6 owes it reconstruction-at-a-node.** §1.3 — old turns rendered against
+  *recorded* state rather than present state — is only answerable because P6
+  makes *that turn's state* a thing you can ask for.
+  [P6 §0](08-p6-implementation.md) now records the dependency from its end.
+- **P10 owes it a router.** §1.5 is explicit that `artifact.ready` has a
+  producer here and a consumer two phases later, which means this phase ships a
+  signal nobody listens to and has to say so rather than quietly not emitting
+  it.
+- **P7 owes it a step that can be added without a back door.** A rendition step
+  is the mode contract's fourth witness, after Scene, Freeform and the
+  assistant, and the first one added by a phase that is not about modes.
+
+---
 ## 1. Decisions this plan has to make
 
 ### 1.1 `Rendition` is specified in one document and appears in no schema
@@ -247,3 +275,49 @@ tune against); the Character Studio ([20 §4](../20-authoring.md)); any
 model-quality evaluation of generated images ([testing §4.3](10-testing.md) —
 do not build quality evals, and an image eval is the most tempting version of
 the mistake).
+
+---
+
+## 5. The honest size, and what only the revisit can settle
+
+*Added 2026-08-31.*
+
+**The contract is the phase; the pictures are the easy part.** P9.0 defines
+`Rendition` — a type six phases of design have referred to and none has written
+— and once it exists, generating an image is a provider call and a job. The
+risk is entirely in getting the type right, because it is the one thing here
+that later phases and later *releases* will be stuck with: video and speech are
+named in [14](../14-roadmap.md) as things the `kind` union and
+`scope.messageId` should keep cheap, and §1.6 is the two fields that do it.
+
+**The provider layer is the second real cost, and it is structural.** §1.2 says
+plainly that our provider layer speaks chat and no image endpoint does. That is
+not an adapter, it is a second shape of provider — and the honest question the
+revisit has to answer is whether image providers go behind the same
+`Connection` vocabulary or beside it. Deciding that during P9.1, under pressure
+to show a picture, is how the answer gets made by accident.
+
+**What is smaller than it looks:** jobs that never block (P9.2) reuse the
+operational store's job vocabulary, which has existed since P2 and by then will
+have carried imports as well as turns. Accumulation and selection (P9.3) is a
+list on an object.
+
+**What is at risk of being cut and should not be:** the workbench over
+renditions (P9.5). It is the only surface that answers *why does this picture
+look like this*, and this project's whole posture is that a generated thing
+explains itself. Cutting it leaves renditions as the one subsystem with no
+account of itself.
+
+**Three things only the revisit can settle:**
+
+- **Whether renditions are worth 1.0 at all.** Not currently asked, and it
+  should be. This is the phase most easily deferred to a later release without
+  the core loop noticing, and [01 §0.4](01-work-plan.md)'s further-cuts
+  discipline is where that argument belongs if PLAYABLE says the loop is thin
+  elsewhere.
+- **Eviction** (§1.4), which the document already makes contingent on the hook
+  shipping.
+- **What a rendition costs a person.** Every other subsystem here is free to
+  run; this one spends money per image on most providers, and none of the
+  budget, quota or consent vocabulary that implies exists anywhere in the
+  design. That is the gap most likely to be discovered late.

@@ -47,6 +47,43 @@ that is broken on the day it matters.
 
 ---
 
+## 0. What this document is, and why it is the odd one
+
+[P7 §0](18-p7-implementation.md) states the shared answer for a skeleton written
+far ahead of its phase. This one differs in a way worth naming, because it
+changes what "fleshing it out" can even mean here:
+
+**P11 is a plan for producing a plan.** Its first stage is an audit
+(§1.2, P11.0) whose output *is* the phase's list. Every other document here can
+be filled in by deciding things; this one cannot, because the largest input —
+what four phases of building and one release bar actually left undone — will not
+exist until the day. §1.8 says the same thing from the other end when it warns
+against absorbing the growth quietly and calls a split *a finding rather than a
+failure*.
+
+So the useful work here, now, is **narrowing what the audit will have to
+discover** — every item pinned in advance is one the audit does not have to
+find, and one that cannot be quietly dropped for being unwritten.
+
+*Audited 2026-08-31, and two items narrowed:*
+
+- **The i18n sweep is measurably still mechanical** (§1.3, re-measured there).
+  Both lint rules are green across P3's workbench and P4's import review, and
+  the catalogue that grew is open-keyed label maps rather than assembled
+  sentences. P4's `note-labels.test.ts` is a working model of what the sweep
+  should leave behind.
+- **The trash half of §2's P11.7 has a producer already.** P4.4 shipped delete
+  from the client, and the folder moves to trash rather than being erased
+  ([02 §10.2](../02-data-model.md)). So *retention and restore* is a smaller
+  item than it reads: the write path exists and the retention window exists;
+  what is missing is the surface that shows somebody what is in there.
+- **"Editors are not dumb forms, across every editor" is currently one editor.**
+  `ActorEditorPage` is the only one in the tree. Whether that clause is large or
+  trivial depends entirely on how many editors P5 through P9 add, which is
+  unknowable here and is precisely what P11.0's audit is for.
+
+---
+
 ## 1. Decisions this plan has to make
 
 ### 1.1 A hardening phase is a list, and a list without owners never ends
@@ -97,6 +134,35 @@ Two things the sweep must do beyond extraction, both already latent:
 workbench's collector as P11 sweep debt — *a block's `reason` is free English
 prose in a durable record* — with one line pointing here so P3 is not the phase
 that quietly ratifies it.
+
+*Re-measured 2026-08-31, which is the early warning this section asked for.*
+**The discipline held.** Both lint rules are green across a codebase that has
+since gained P3's workbench, P4's import review and P4's account settings — the
+three largest additions of user-facing prose in the project so far — so the
+count is still the narrow rule's zero rather than having crept back toward
+ninety.
+
+**What grew instead is the catalogue, and that is the good outcome.** The client
+now holds roughly ten open-keyed label maps — `ImportPanel` alone carries **41
+note classes and 7 dispositions** — and every one is a class-to-word lookup,
+with the English on the client and `{ key, params }` on the wire. That is the
+shape extraction wants: the sweep's job becomes moving ten maps into a
+catalogue, not finding sentences hidden in server code.
+
+**P4 is the worked example, and it was deliberate.**
+[P4 §7.14](06-p4-implementation.md) records that the import review emits classes
+rather than sentences *specifically* to keep this phase's debt from growing —
+and P4 also shipped `note-labels.test.ts`, which fails the build when the server
+emits a class the client has no sentence for, **and** when the client holds a
+sentence for a class nothing emits. **That test is the model for what this sweep
+should leave behind**, and the strongest available argument that the extraction
+is mechanical: a build-time check that the class set and the word set agree is
+most of what a catalogue is for.
+
+*One correction to the debt list above:* P3's free-prose `reason` field is still
+here and still owed. P4 did not add a second instance of it — the review's
+`{ key, params, level }` was chosen against exactly that — so the debt is one
+item rather than two.
 
 ### 1.4 The reading view is cheap, which is why it is at risk
 
@@ -350,3 +416,43 @@ record until its §4 is settled. That does not put Write in this phase; it puts
 items are user-facing, bounded, and need no schema change and no new contract.
 Items graduate *out* of it when they clear the roadmap bar; they do not graduate
 into a release gate because the gate happened to be open.
+
+---
+
+## 5. What only the revisit can settle
+
+*Added 2026-08-31. §1.8 already sizes the three items 1.0 moved here and that
+argument is not repeated; this is the rest of what the revisit owes.*
+
+**The one structural question, and it should be asked first rather than
+discovered:** does P11 split? §1.8 says a split is a finding rather than a
+failure, and §0 says the audit is what produces the list — so the honest reading
+is that **P11.0's output may be two phases**, and the revisit should decide in
+advance what it would split *along*. The natural seam is already visible in the
+stage list: P11.1 through P11.5 are product completion, and P11.6 through P11.9
+are release engineering plus sweeps. Those have different audiences, different
+kinds of done, and only one of them is what [releases §0](11-repo-and-releases.md)
+requires for beta to count.
+
+**Three things the revisit cannot settle from this document and must go and
+read:**
+
+- **[17](../17-write-mode.md), before session export is specified.** §1.8 makes
+  this a hard dependency — the export format freezes the turn record, and 17 is
+  a 2.0 document that has to be settled first. If it is not settled when the
+  stage arrives, the stage blocks. Worth checking early rather than at the
+  stage, because the fix is a design session and not a day.
+- **[16](16-p2c-log.md) and whatever PLAYABLE produced.** A hardening phase's
+  real list is *what people hit*, and by then there will be two sources of that
+  — the P2C sessions and everything since. An audit that reads only the code
+  will find the defects nobody minded and miss the ones everybody did.
+- **The other ten plans' §5 sections.** Every phase document now ends by naming
+  what its revisit could not settle. Those are, collectively, a substantial part
+  of what a hardening phase inherits, and reading them is cheaper than
+  rediscovering their consequences.
+
+**And one thing to resist.** A hardening phase attracts work that has no other
+home, which is how it becomes the phase that ends when somebody gets tired.
+§1.1's rule — *a list without owners never ends* — is the defence, and the
+revisit should apply it to items this document has itself accumulated, not only
+to ones the audit finds.

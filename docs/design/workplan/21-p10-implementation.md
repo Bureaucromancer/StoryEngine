@@ -43,6 +43,40 @@ household server, *user A's turn never produces an event addressed to user B*.
 
 ---
 
+## 0. What this document is, seven phases out
+
+[P7 §0](18-p7-implementation.md) states the shared answer. What is specific here
+is that **more of this phase is auditable today than of any other late one**,
+because its subject is capabilities and configuration rather than a feature —
+and both of those already exist and already have surfaces.
+
+*Audited 2026-08-31:*
+
+- **§1.5 holds and has a companion.** `enableExtensions` still gates nothing, and
+  `auth/accounts.ts` says so in as many words. So the extensions panel's problem
+  — a switch with no installer behind it — is unchanged.
+- **But `fileAccess` stopped being its twin, and that is the useful half.** P4
+  gated the import sweep on it and then had to move the control out of the
+  settings surface's *Recorded for later* group and rewrite its three labels,
+  because the capability had quietly widened to *may direct the server to read
+  paths outside their own directory* ([05 §4.2.2](../05-ui-surfaces.md),
+  [P4 §7.2](06-p4-implementation.md)). **That is this phase's §1.4 rehearsed on
+  a smaller subject**: a capability either has an enforcer or it is not shipped,
+  and the moment it acquires one, the words in front of the administrator have
+  to change in the same commit. P10 inherits a worked example rather than a
+  principle.
+- **The notification vocabulary does not exist yet** — no router, no classes, no
+  producers. `04 §3.4`'s `{ key, params }` summaries are a design, and §1.4's
+  rule (every class has a producer or is not shipped) is therefore still cheap
+  to keep. It stops being cheap the moment the first class ships.
+
+**What this phase cannot yet know** is how many notification-worthy things there
+will be, because the classes come from P7's hooks and goals, P8's memory and
+P9's `artifact.ready` — three phases whose surfaces do not exist. §1.4 is
+written to survive that, which is why it is a rule rather than a list.
+
+---
+
 ## 1. Decisions this plan has to make
 
 ### 1.1 The setup token: the check, not the print
@@ -294,3 +328,52 @@ shared heads ([04 §8](../04-server-multiuser-deployment.md)); a role system
 [P2A](13-p2a-configuration-surface.md) already built them); auto-provisioning
 accounts ([06 D2](../06-open-questions.md)); and packaging, all six artifacts of
 which [P11](22-p11-implementation.md) now owns ([01 §0.5](01-work-plan.md)).
+
+---
+
+## 5. The honest size, and what only the revisit can settle
+
+*Added 2026-08-31.*
+
+**Two phases are wearing one number.** P10.0 — bind, container, token, mDNS — is
+deployment work with a security posture and a container story; P10.1 through
+P10.4 are a notification router, two delivery channels, the remainder of
+[05 §15](../05-ui-surfaces.md) and a gallery. They share no code and almost no
+reasoning, and the only thing joining them is *what has to be true before
+somebody who is not the developer can use this*. That is a real organising
+principle, but the revisit should price them separately, because the risk lives
+almost entirely in the first.
+
+**P10.0 is where a mistake is unrecoverable.** Everything else here can ship
+wrong and be fixed in a patch; a default bind address, a setup token and a
+container that inverts the default are decisions that get copied into people's
+compose files and stay there. §1.1 and §1.2 already treat them that way — *the
+check, not the print*, and *not a hidden build flag* — and the revisit should
+resist any pressure to soften either for convenience.
+
+**What is smaller than it looks:** the gallery (P10.4). §1.9 says its
+obligations are enumerated in [15](../15-account-gallery.md) and to take them as
+written, which is the cheapest kind of stage — a specification that already did
+the deciding.
+
+**What is larger than it looks:** the notification router (P10.1). Not the
+routing, which is a table; the *classes*, which have to be agreed with three
+phases that will already have shipped. §1.4's rule protects the phase from
+shipping empty classes but does nothing about the reverse problem — P7, P8 and
+P9 each producing something notification-worthy and no class existing for it.
+**The revisit's cheapest move is to re-read those three plans' gates for things
+a person should be told about**, and to do it before writing the router rather
+than after.
+
+**Three things only the revisit can settle:**
+
+- **Whether 1.0 ships push at all** (§1.3's *no presence signal*). The router
+  can be real while the delivery channels are one; deciding that early is what
+  keeps §1.7's *ships with its producer or ships dark* from becoming a late
+  argument.
+- **What the container image actually is.** §1.2 decides the bind default
+  inverts inside it; nothing yet says what *it* is, and that is a
+  [07](../07-tech-stack.md) question this phase inherits.
+- **Whether §1.8's system-library bullet found an owner.** It is recorded here
+  as a defect to close, which is the right place for it — but a defect with no
+  owner at the revisit is one that ships.
