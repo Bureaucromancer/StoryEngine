@@ -420,12 +420,15 @@ missing — and both change what landing a stage *means*.
   is the strongest available argument for the timeout being that stage's first
   commit. Until it lands, those two lines are false; the commit that lands it
   closes a docs/code disagreement rather than merely adding a guard.
-- **`LoreScope`'s banner describes a field that does not exist.** It explains
+- ~~**`LoreScope`'s banner describes a field that does not exist.** It explains
   session scoping's absence by saying *"this lorebook applies to this session" is
-  a fact about the session, so it lives on the session's own lore links.* ~~There
-  are no session lore links.~~ **There are, as of P5.6** — `SessionFile.lore`,
-  and `SessionFile.treatment` beside it. The banner's sentence is now true about
-  the half it names; P5.7 still owns enforcing the union by shape.
+  a fact about the session, so it lives on the session's own lore links.* There
+  are no session lore links. P5.6 and P5.7 are what make that sentence true.~~
+  **Closed across both, as predicted.** P5.6 added `SessionFile.lore`; P5.7 made
+  the other two variants decide something, which the finding did not ask for and
+  which turned out to be the larger half: the union was *enforced by shape*
+  already and read by nothing, so `scope` was a stored field with no
+  consequence.
 
 #### Four smaller findings, each with an owner
 
@@ -1753,12 +1756,76 @@ of determinism.
 > positions, which is block addressing arriving from the other direction
 > ([02 §3.1](../02-data-model.md)).
 
-#### P5.7 — Scoping, and the folder gate enforced
+#### ~~P5.7 — Scoping, and the folder gate enforced~~ Landed
 
-The `LoreScope` union enforced by shape ([02 §3.4](../02-data-model.md)); the
-folder gate honoured in activation, so that the reason P5.0 *renders* is the
-reason the engine *acts on*. That correspondence is the whole value of having
-built the rendering first, and it is worth a test that fails if the two diverge.
+Two commits, and the second half went further than the stage asked.
+
+**The union was already enforced by shape; what it lacked was behaviour.**
+[02 §3.4]'s collapse landed with the schema, so `characterId` and its six
+siblings have been gone since P4 — but nothing on the server ever *read* `scope`,
+which made it a stored field with no consequence: the same shape of omission
+§1.10 caught for `useRegex`, and it had been sitting in plain view for a phase
+and a half. A book now reaches a session by one of four routes, and which one is
+reported, because [P5.8] has to answer *why is this book being scanned at all*
+and that has a different repair from *why did this entry fire*.
+
+Four routes to three variants is not a mismatch: the third — *scoped to
+sessions* — lives on `session.lore`, exactly as `LoreScope`'s own banner says it
+should, and a treatment's links are that same route arriving by a different
+hand. Links resolve first and scope second, so a book reached both ways keeps
+the link's account of itself, which is also what keeps a treatment's `required`
+on a book that would have arrived globally anyway.
+
+**`global` is the factory default and the importer's fallback, so this is a
+consequential change rather than a quiet one.** Every book a person creates, and
+every book they import, applies to every session until they say otherwise. That
+is faithful to §3.4 and to the source tools — it is what *global* means there
+too — but it is worth knowing, because until this stage the field was inert and
+nothing depended on getting it right.
+
+**The folder gate is not honoured by a second implementation; it is honoured by
+the same one.** §5 asks for a test that fails if the rendered reason and the
+acted-on reason diverge, and the stronger move was available: `activate` calls
+the `entryGate` the fold and the editor already call. `shared/lore.ts` had
+written the argument down before the retriever existed — *a test can compare two
+implementations; only one implementation cannot disagree with itself* — and the
+naive check would have been wrong three ways, because folders nest, their chains
+are not guaranteed acyclic, and a `folderId` can name a folder the book does not
+contain.
+
+The correspondence test is therefore about making a structural fact
+**observable**: a future edit re-inlining `!entry.enabled` would compile and
+pass every example test. It is a property rather than examples because all three
+failure shapes are shape problems, and the generator builds cycles, orphans and
+deep chains — with three of them pinned as examples beside it, so a generator
+that stops producing them goes red rather than quiet.
+
+`folder-disabled` is its own skip reason and not `entry-disabled`. They send
+somebody to two different switches, and the folder gate *preserves* the entry's
+own `enabled` rather than mutating it — so an entry inside a shut folder still
+reads as enabled on every surface that shows it, and collapsing the two would
+mean telling that person their entry is off while the page says it is on.
+
+**A surface came with it, unasked but owed.** `scope` was nowhere on the
+detail page, which cost nothing while it was inert; the moment it decides
+whether a book is scanned, its absence is [05 §5.3]'s *a field that renders as
+nothing hides things* with a whole world behind it. Book-level *editing* remains
+out of this phase, which makes showing it matter more rather than less.
+
+18 mutations, no survivors. Two of the three that survived the first run were
+the gather handing the cast to the resolver — without it, every global book
+would have been admitted exactly as before and a `linked` one never, silently.
+The scope row's first draft also crashed the detail page on a book with no
+`scope` at all, which is not hypothetical: `lorebookShape` guards `entries` and
+`folders` and nothing else, deliberately, so that a hand-edited file still
+reads.
+
+*The stage as it was written:*
+
+> The `LoreScope` union enforced by shape ([02 §3.4](../02-data-model.md)); the
+> folder gate honoured in activation, so that the reason P5.0 *renders* is the
+> reason the engine *acts on*. That correspondence is the whole value of having
+> built the rendering first, and it is worth a test that fails if the two diverge.
 
 #### P5.8 — The keyword test, generalised
 
@@ -1968,9 +2035,12 @@ Priced honestly, in the order the phase would cut under pressure:
 should not be able to hang the server); `gatherAssemblyInputs` growing books (the
 half does not exist without it); the folder-gate correspondence test in P5.7
 (the whole argument for building the rendering first is that the reason rendered
-is the reason acted on, and nothing but a test keeps those two honest); and the
-one-helper mitigation for the five `object_fts` delete sites, which is worth
-doing whether or not this phase happens.
+is the reason acted on, and ~~nothing but a test keeps those two honest~~ — *at
+P5.7 the two halves became one function, so the test pins a structural fact
+rather than an agreement between two implementations, and what it now guards
+against is somebody re-inlining the check*); and the one-helper mitigation for
+the five `object_fts` delete sites, which is worth doing whether or not this
+phase happens.
 
 *Re-audit 2026-08-31, and the price moved once:* **the document half is slightly
 smaller than this says.** §1.8's storage, its object-keyed query and its index
