@@ -9,7 +9,7 @@ import {
   validate,
 } from '@storyengine/shared';
 
-import { resolveRef } from '../library.js';
+import { list, resolveRef } from '../library.js';
 import type { LibraryContext } from '../library.js';
 
 /**
@@ -81,6 +81,30 @@ import type { LibraryContext } from '../library.js';
  * somebody renames it.
  */
 
+/**
+ * How a book came to be in play — [P5.7], [02 §3.4].
+ *
+ * **Four routes and the union has three variants, which is not a mismatch.**
+ * `LoreScope` collapsed seven fields into *global*, *linked to actors*, and —
+ * relocated to the session, because session ids are install-local and a shared
+ * book carrying them exports nonsense — *scoped to this session*. That third
+ * variant is `session.lore`, and a treatment's own links are the same route
+ * arriving by a different hand, so they are told apart here rather than merged.
+ *
+ * Reported because [P5.8]'s tester has to answer *why is this book being
+ * scanned at all*, which is a different question from why an entry fired and
+ * has a different repair: unlinking a book, versus narrowing its scope.
+ */
+export type LoreRoute =
+  /** The treatment links it. */
+  | 'treatment'
+  /** The session's own list names it. */
+  | 'session'
+  /** `scope: global` — it applies everywhere. */
+  | 'global'
+  /** `scope: linked` and one of its actors is in the cast. */
+  | 'linked';
+
 /** A resolved object with the address of the bytes that were read — [P3.0]. */
 export interface LoreSource {
   book: Lorebook;
@@ -93,6 +117,8 @@ export interface LoreSource {
    * a schema decision made by a resolver.
    */
   required: boolean;
+  /** The first route that admitted it. See {@link LoreRoute}. */
+  by: LoreRoute;
 }
 
 export interface TreatmentSource {
@@ -136,6 +162,16 @@ export function resolveLore(
   library: LibraryContext,
   handle: string,
   session: { treatment?: unknown; lore?: unknown } | null | undefined,
+  /**
+   * Who is in the scene, for `scope: linked` — [P5.7].
+   *
+   * Passed in rather than read here for `resolveCast`'s reason and one more:
+   * `gather.ts` resolves the cast two lines above this call, and a retriever
+   * that went looking for it again would be a second place deciding who is in
+   * the scene. Absent means *no cast known*, under which no `linked` book
+   * qualifies — the honest answer for a caller that did not say.
+   */
+  cast: { actorIds: readonly string[] } = { actorIds: [] },
 ): ResolvedLore {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -167,7 +203,7 @@ export function resolveLore(
     ...(found === null ? [] : loreLinksOf(found.body as Treatment)),
     ...own
       .filter((id): id is string => typeof id === 'string' && id !== '')
-      .map((id) => ({ ref: { id, name: '' }, required: false })),
+      .map((id) => ({ ref: { id, name: '' }, required: false, by: 'session' as const })),
   ];
 
   const books: LoreSource[] = [];
@@ -188,6 +224,38 @@ export function resolveLore(
       id: row.id,
       contentHash: row.contentHash,
       required: link.required,
+      by: link.by,
+    });
+  }
+
+  /**
+   * **Then whatever the library's own scopes admit** — [P5.7], [02 §3.4].
+   *
+   * Links come first and scope second, so a book reached both ways keeps the
+   * link's account of itself: *the treatment asked for this* is a more specific
+   * answer than *it is global*, and the dedup above already prefers the first
+   * mention. It also means a treatment's `required: true` survives a book that
+   * would have arrived globally anyway.
+   *
+   * The library is listed rather than queried, which is a real cost per turn
+   * and a bounded one — it is the same read the library page makes, and there
+   * is no index on `scope` to query instead. Worth revisiting if a library ever
+   * gets big enough to notice; not worth an index today.
+   */
+  for (const row of listBooks(library, handle)) {
+    if (seen.has(row.path)) continue;
+    const admits = scopeAdmits(row.body as Lorebook, cast.actorIds);
+    if (admits === null) continue;
+    seen.add(row.path);
+    books.push({
+      book: row.body as Lorebook,
+      id: row.id,
+      contentHash: row.contentHash,
+      // Nothing scope-admitted is required: `required` is a *link's* strength,
+      // and a scope is the book's own claim about where it belongs. A book that
+      // wants to be loud has to be linked by something that can say so.
+      required: false,
+      by: admits,
     });
   }
 
@@ -204,6 +272,7 @@ export function resolveLore(
 interface LoreWant {
   ref: { id: string; name: string };
   required: boolean;
+  by: LoreRoute;
 }
 
 /**
@@ -228,6 +297,7 @@ function loreLinksOf(treatment: Treatment): LoreWant[] {
   return treatment.lore.map((link) => ({
     ref: { id: link.ref.id, name: link.ref.name },
     required: link.required,
+    by: 'treatment' as const,
   }));
 }
 
@@ -267,4 +337,44 @@ function oneObject(
     path: row.path,
     contentHash: row.contentHash,
   };
+}
+
+/**
+ * Whether a book's own scope puts it in this session, and by which route.
+ *
+ * Null means it does not. The two live variants are [02 §3.4]'s first two;
+ * the third — *scoped to sessions* — is deliberately not a variant here at all,
+ * because session ids are install-local and a shared book carrying them would
+ * export identifiers that mean nothing elsewhere and could falsely resolve
+ * against an unrelated local session. It lives on `session.lore` instead, which
+ * is why this function has nothing to say about it.
+ *
+ * **An empty `actorIds` on a `linked` book matches nobody, and that is not an
+ * error.** It is a book scoped to a cast the author has not chosen yet. It is
+ * inert rather than global, because the alternative — reading *linked to
+ * nobody* as *linked to everybody* — would turn a half-finished setting into
+ * one that appears in every story on the install.
+ */
+function scopeAdmits(book: Lorebook, actorIds: readonly string[]): LoreRoute | null {
+  const scope = book.scope;
+  if (scope.kind === 'global') return 'global';
+  return scope.actorIds.some((id) => actorIds.includes(id)) ? 'linked' : null;
+}
+
+/**
+ * Every lorebook this account can read, tolerating a library that cannot be.
+ *
+ * A read failure here must not make a turn unplayable ([00 §3.3]) — the books
+ * a session *named* have already resolved by this point, and losing the
+ * scope-admitted ones costs a smaller prompt rather than a broken one.
+ */
+function listBooks(
+  library: LibraryContext,
+  handle: string,
+): { body: unknown; id: string; path: string; contentHash: string }[] {
+  try {
+    return list(library, handle, LOREBOOK_SCHEMA).filter((row) => validate(row.body).valid);
+  } catch {
+    return [];
+  }
 }

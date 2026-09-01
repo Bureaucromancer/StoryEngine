@@ -22,7 +22,7 @@ import type { EntryTiming } from './timing.js';
 
 function bookOf(name: string, entries: LoreEntry[], edits: Partial<Lorebook> = {}): LoreSource {
   const book = { ...newLorebook(name), entries, ...edits };
-  return { book, id: `book-${name}`, contentHash: 'sha256:0', required: false };
+  return { book, id: `book-${name}`, contentHash: 'sha256:0', required: false, by: 'session' };
 }
 
 function entryOf(name: string, edits: Partial<LoreEntry> = {}): LoreEntry {

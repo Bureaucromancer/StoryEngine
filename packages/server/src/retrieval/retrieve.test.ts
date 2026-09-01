@@ -33,7 +33,7 @@ import { retrieve, type RetrieveContext } from './retrieve.js';
 
 function bookOf(entries: LoreEntry[], edits: Partial<Lorebook> = {}): LoreSource {
   const book = { ...newLorebook('Rain City'), entries, ...edits };
-  return { book, id: 'book-1', contentHash: 'sha256:0', required: false };
+  return { book, id: 'book-1', contentHash: 'sha256:0', required: false, by: 'session' };
 }
 
 function entryOf(name: string, edits: Partial<LoreEntry> = {}): LoreEntry {

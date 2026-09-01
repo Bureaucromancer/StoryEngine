@@ -15,6 +15,8 @@ import { appendTurnToSession, createSession, type SessionContext } from '../sess
 import type { ChannelEffect, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { create, type LibraryContext } from '../library.js';
+import { newActor, newLorebook } from '@storyengine/shared';
 
 /**
  * The gather a turn and a preview share — [P3.4].
@@ -181,5 +183,77 @@ describe('what the gather resolves without a job', () => {
     );
 
     expect(inputs.usable).toEqual([]);
+  });
+});
+
+/**
+ * The cast reaching the lore resolver — [P5.7].
+ *
+ * `scope: linked` means *this book belongs wherever these actors are*, and
+ * whether an actor is there is a fact only the gather knows. It resolves the
+ * cast two lines above the lore, and nothing but this test says the two are
+ * connected: a resolver called without the cast would compile, admit every
+ * global book exactly as before, and silently never admit a linked one.
+ */
+describe('what the gather tells the lore resolver about the cast', () => {
+  async function withCast(cast: { persona: string | null; actors: string[] }): Promise<string> {
+    const created = await createSession(sessions, ACCOUNT, { name: 'Scoped', cast });
+    return created.id;
+  }
+
+  function libraryOf(): LibraryContext {
+    return { db: sessions.index, layout: sessions.layout, keepHistoryPerObject: 0 };
+  }
+
+  async function linkedTo(actorIds: string[]): Promise<void> {
+    const made = { ...newLorebook('Theirs'), scope: { kind: 'linked' as const, actorIds } };
+    await create(libraryOf(), ACCOUNT, made);
+  }
+
+  it('admits a book linked to an actor in the cast', async () => {
+    const vera = newActor('Vera');
+    await create(libraryOf(), ACCOUNT, vera);
+    await linkedTo([vera.id]);
+    const sessionId = await withCast({ persona: null, actors: [vera.id] });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: null },
+    );
+
+    expect(inputs.lore.books.map((one) => one.by)).toEqual(['linked']);
+  });
+
+  /**
+   * A persona *is* an actor ([02 §2.2]), and a book scoped to the player's own
+   * character is the first thing anybody would scope one to. Left out of the
+   * list, that book would never appear and the reason would be invisible.
+   */
+  it('counts the persona as part of the cast', async () => {
+    const inspector = newActor('The Inspector');
+    await create(libraryOf(), ACCOUNT, inspector);
+    await linkedTo([inspector.id]);
+    const sessionId = await withCast({ persona: inspector.id, actors: [] });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: null },
+    );
+
+    expect(inputs.lore.books.map((one) => one.by)).toEqual(['linked']);
+  });
+
+  it('leaves out a book linked to an actor who is not in the scene', async () => {
+    const vera = newActor('Vera');
+    await create(libraryOf(), ACCOUNT, vera);
+    await linkedTo([vera.id]);
+    const sessionId = await withCast({ persona: null, actors: [] });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: null },
+    );
+
+    expect(inputs.lore.books).toEqual([]);
   });
 });

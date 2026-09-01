@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Lorebook, LoreEntry } from '@storyengine/shared';
+import { entryGate, type GateReason, type Lorebook, type LoreEntry } from '@storyengine/shared';
 
 import type { Rng } from '../rng/rng.js';
 import type { LoreSource } from '../turns/lore.js';
@@ -32,10 +32,12 @@ import { advanceTiming, timingVerdict, type EntryTiming, NO_TIMING } from './tim
  *
  * ## The order of the refusals is the order of the questions
  *
- * Cheap and absolute first, expensive and conditional last: the book's own
- * switch, then the entry's, then the filters, then recursion eligibility, then
- * timing, then — last, because it is the only step that runs a regex — the
- * keys. An entry disabled by its author never costs a pattern execution.
+ * Cheap and absolute first, expensive and conditional last: the **gate** —
+ * book, then folders, then the entry, which is one question answered by
+ * `entryGate` rather than three answered here ([P5.7]) — then the filters, then
+ * recursion eligibility, then timing, then, last because it is the only step
+ * that runs a regex, the keys. An entry switched off by its author never costs
+ * a pattern execution.
  *
  * Timing sits ahead of matching for a reason beyond cost. A `constant` entry
  * has no keys to try, and a `sticky` one is contributing *without* matching
@@ -66,6 +68,16 @@ export type ActivationSource = 'keyword' | 'constant' | 'sticky' | 'recursive';
  */
 export type SkipReason =
   | 'book-disabled'
+  /**
+   * A folder above it is shut — [P5.7], [10 §5].
+   *
+   * Its own reason and not `entry-disabled`, because they send somebody to two
+   * different switches, and the folder gate *preserves* the entry's own
+   * `enabled` rather than mutating it — so an entry inside a shut folder still
+   * reads as enabled everywhere it is displayed. Collapsing the two would mean
+   * telling that person their entry is off while every surface shows it on.
+   */
+  | 'folder-disabled'
   | 'entry-disabled'
   | 'filtered-out'
   | 'never-fires'
@@ -98,6 +110,16 @@ export interface Skipped {
   bookId: string;
   entry: LoreEntry;
   reason: SkipReason;
+  /**
+   * The folder that is shut, when `reason` is `folder-disabled`.
+   *
+   * **The outermost shut one**, which is `entryGate`'s own choice and the only
+   * useful one: it is the gate that has to be opened before any below it can
+   * matter, so naming a nearer one would send somebody to flip a switch that
+   * changes nothing. Carried by name as well as id because a person reading
+   * [P5.8]'s tester has the name in front of them and not the id.
+   */
+  folder?: { id: string; name: string };
 }
 
 export interface ScanContext {
@@ -194,9 +216,9 @@ export function activate(context: ScanContext): ScanResult {
 
     /** Entries still in play, re-scanned at each depth until nothing new fires. */
     let pending = inScanOrder(book.entries).filter((entry) => {
-      const held = heldBack(entry, context);
+      const held = heldBack(book, entry, context);
       if (held === null) return true;
-      skipped.push({ bookId: source.id, entry, reason: held });
+      skipped.push({ bookId: source.id, entry, ...held });
       return false;
     });
 
@@ -337,12 +359,49 @@ export function activate(context: ScanContext): ScanResult {
  * The refusals that do not depend on the text or on the depth, so they are
  * asked once per entry rather than once per pass.
  *
+ * **The gate is `entryGate`'s, not a second copy of it** — [P5.7]. That is the
+ * whole point of the stage: [P5.0] built the reading surface first so that *the
+ * reason rendered is the reason the engine acts on*, and a scan that read
+ * `entry.enabled` on its own would already have been a second answer to the
+ * same question. Folders nest and their chains are neither guaranteed acyclic
+ * nor guaranteed to resolve, so `folders.find(f => f.id === entry.folderId)`
+ * would be wrong in three ways the shared function is already right about. A
+ * test can compare two implementations; only one implementation cannot disagree
+ * with itself, and `shared/lore.ts` says so in as many words.
+ *
+ * The **outermost** closed gate is the one reported, which is `entryGate`'s
+ * ordering: it is the one that has to be opened before anything below it can
+ * matter.
+ *
  * Null means *still in play*.
  */
-function heldBack(entry: LoreEntry, context: ScanContext): SkipReason | null {
-  if (!entry.enabled) return 'entry-disabled';
-  if (!passesFilters(entry, context.filters)) return 'filtered-out';
+function heldBack(
+  book: Lorebook,
+  entry: LoreEntry,
+  context: ScanContext,
+): { reason: SkipReason; folder?: { id: string; name: string } } | null {
+  const gate = entryGate(book, entry);
+  const closed = gate.blockedBy[0];
+  if (closed !== undefined) return reasonForGate(closed);
+  if (!passesFilters(entry, context.filters)) return { reason: 'filtered-out' };
   return null;
+}
+
+function reasonForGate(closed: GateReason): {
+  reason: SkipReason;
+  folder?: { id: string; name: string };
+} {
+  switch (closed.kind) {
+    case 'book-off':
+      return { reason: 'book-disabled' };
+    case 'folder-off':
+      return {
+        reason: 'folder-disabled',
+        folder: { id: closed.folderId, name: closed.folderName },
+      };
+    default:
+      return { reason: 'entry-disabled' };
+  }
 }
 
 interface Carried {
