@@ -4,7 +4,7 @@
 import { newLoreEntry, newLorebook, type LoreEntry, type LoreFolder } from '@storyengine/shared';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { LorebookView, lorebookShape } from './LorebookView.js';
 
@@ -399,5 +399,82 @@ describe('narrowing a book', () => {
     render(<LorebookView book={shelf()} />);
 
     expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
+  });
+});
+
+/**
+ * The entry address — [05 §5.3]'s *an entry's address is a validated search
+ * param on that route*, and gate step 1's second half: a named entry is
+ * reachable by its own address, and the link survives a reload and lands on
+ * that entry.
+ *
+ * The routing half is `router.tsx`'s and is tested there. What this covers is
+ * what the page does with the value: mark the entry the address names, bring it
+ * into view, offer the address on every entry, and degrade to the whole book
+ * for a value that names nothing.
+ */
+describe('an entry addressed by the route', () => {
+  const shelf = () =>
+    book({
+      entries: [entry('Harbour', { id: 'e-harbour' }), entry('Vera', { id: 'e-vera' })],
+    });
+
+  it('marks the one the address names, and only that one', () => {
+    render(<LorebookView book={shelf()} focused="e-vera" />);
+
+    expect(unitFor('Vera').getAttribute('aria-current')).toBe('true');
+    expect(unitFor('Harbour').getAttribute('aria-current')).toBeNull();
+  });
+
+  /**
+   * In a book of a few hundred, an address that does not bring the entry into
+   * view has delivered the reader to the right page and the wrong screen.
+   */
+  it('brings it into view', () => {
+    // Spied here rather than read off the prototype: `vi.mocked` on an unbound
+    // method is the shape the `this`-scoping rule exists to catch, and the spy
+    // is also what makes this test say what it depends on.
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+    render(<LorebookView book={shelf()} focused="e-vera" />);
+
+    expect(scrolled).toHaveBeenCalled();
+    scrolled.mockRestore();
+  });
+
+  /**
+   * §5.3's posture, unchanged from `kind` and `slug`: **dropped rather than
+   * rejected**. An entry id "is unique within one book and carries no meaning
+   * beyond it" and an importer may renumber freely, so a saved link outliving
+   * its entry is the expected end of one — and the whole book is a real page
+   * where an error card is not.
+   */
+  it('degrades to the whole book when the address names nothing', () => {
+    render(<LorebookView book={shelf()} focused="an-entry-that-left" />);
+
+    expect(screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent)).toEqual([
+      'Harbour',
+      'Vera',
+    ]);
+    expect(document.querySelector('[aria-current]')).toBeNull();
+  });
+
+  it('offers each entry its own address, so one can be got at all', () => {
+    render(
+      <LorebookView
+        book={shelf()}
+        focused={null}
+        linkToEntry={(entryId, children) => <a href={`?entry=${entryId}`}>{children}</a>}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Vera' }).getAttribute('href')).toBe('?entry=e-vera');
+  });
+
+  it('reads the same without a link builder, since the mark is the route’s', () => {
+    render(<LorebookView book={shelf()} focused="e-vera" />);
+
+    expect(screen.queryByRole('link', { name: 'Vera' })).toBeNull();
+    expect(unitFor('Vera').getAttribute('aria-current')).toBe('true');
   });
 });

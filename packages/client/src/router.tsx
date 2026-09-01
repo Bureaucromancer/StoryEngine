@@ -45,10 +45,49 @@ export interface CompareSearch {
   after?: string;
 }
 
-/** Which copy of a duplicated id the detail page is showing (F19). */
+/**
+ * Which copy of a duplicated id the detail page is showing (F19), and — for a
+ * lorebook — which entry inside it is in focus
+ * ([05 §5.3](../../../docs/design/05-ui-surfaces.md)).
+ *
+ * **The bag now carries two different jobs, and §5.3 asks for this sentence
+ * where it is read**: `slug` and `source` say *which copy of the object*, and
+ * `entry` says *which part of that object*. They are not three
+ * disambiguators — a reader who parses `entry` as a third way of choosing
+ * between duplicate files will be wrong, and wrong quietly.
+ */
 export interface ObjectSearch {
   slug?: string;
   source?: 'user' | 'system';
+  entry?: string;
+}
+
+/**
+ * **Dropped rather than rejected**, which is this router's posture everywhere
+ * and is a decision rather than leniency: a half-copied link still means
+ * something — *this object, no particular copy, no particular entry* — and the
+ * page it lands on is real. Rejecting would route a truncated paste to
+ * `RouteErrorCard`, which is the wrong answer to a link somebody was trying to
+ * follow.
+ *
+ * `entry` is validated only as *a string*. Whether the book still contains it
+ * is the page's question, not the router's, and the answer there is the same
+ * shrug: an entry id "is unique within one book and carries no meaning beyond
+ * it" ([10 §5.2]) and an importer may renumber freely, so a saved link
+ * outliving its entry is the expected end of one.
+ *
+ * Named and exported so it can be tested as the contract it is. Inline in the
+ * route it was reachable only by driving the router, and `router.test.tsx` had
+ * never asserted a search param at all.
+ */
+export function validateObjectSearch(search: Record<string, unknown>): ObjectSearch {
+  return {
+    ...(typeof search['slug'] === 'string' ? { slug: search['slug'] } : {}),
+    ...(search['source'] === 'user' || search['source'] === 'system'
+      ? { source: search['source'] }
+      : {}),
+    ...(typeof search['entry'] === 'string' ? { entry: search['entry'] } : {}),
+  };
 }
 
 const rootRoute = createRootRoute({ component: Shell });
@@ -130,12 +169,7 @@ const objectRoute = createRoute({
    * `kind` is: without it the address still means something — the winning copy
    * — and a broken link should land somewhere real rather than on an error.
    */
-  validateSearch: (search: Record<string, unknown>): ObjectSearch => ({
-    ...(typeof search['slug'] === 'string' ? { slug: search['slug'] } : {}),
-    ...(search['source'] === 'user' || search['source'] === 'system'
-      ? { source: search['source'] }
-      : {}),
-  }),
+  validateSearch: validateObjectSearch,
   component: ObjectDetailPage,
 });
 

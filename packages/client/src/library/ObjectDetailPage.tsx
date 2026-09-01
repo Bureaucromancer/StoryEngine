@@ -18,6 +18,7 @@ import {
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
+import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
@@ -59,6 +60,7 @@ export function ObjectDetailPage(): JSX.Element {
       <ObjectDetail
         kind={params.kind}
         id={params.id}
+        search={search}
         {...(search.slug === undefined
           ? {}
           : { at: { source: search.source ?? 'user', slug: search.slug } })}
@@ -67,7 +69,12 @@ export function ObjectDetailPage(): JSX.Element {
   );
 }
 
-function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress }): JSX.Element {
+function ObjectDetail(props: {
+  kind: LibraryKind;
+  id: string;
+  search: ObjectSearch;
+  at?: ObjectAddress;
+}): JSX.Element {
   const query = useLibraryObject(props.kind, props.id, props.at);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -93,7 +100,7 @@ function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress
     );
   }
 
-  return <ObjectView object={query.data} kind={props.kind} locale={locale} />;
+  return <ObjectView object={query.data} kind={props.kind} locale={locale} search={props.search} />;
 }
 
 /**
@@ -125,6 +132,7 @@ function ObjectView(props: {
   object: LibraryObject;
   kind: LibraryKind;
   locale: string | undefined;
+  search: ObjectSearch;
 }): JSX.Element {
   const { object, kind, locale } = props;
   const stamps = timestampsOf(object.object);
@@ -170,7 +178,7 @@ function ObjectView(props: {
        * The block is not demoted out of sight: [05 §5] wants the disk layout
        * legible, and a heading is what turns a lead paragraph into a section.
        */}
-      <ObjectBody object={object} kind={kind} />
+      <ObjectBody object={object} kind={kind} search={props.search} />
 
       <SectionTitle as="h2" className="mb-2 mt-8">
         Storage
@@ -220,11 +228,40 @@ function ObjectView(props: {
  * the by-field view renders whatever is actually on disk — which is more useful
  * than a book page insisting the file is a book.
  */
-function ObjectBody(props: { object: LibraryObject; kind: LibraryKind }): JSX.Element {
-  if (props.kind === 'lorebooks' && lorebookShape(props.object.object) === null) {
-    return <LorebookView book={props.object.object as unknown as Lorebook} />;
+function ObjectBody(props: {
+  object: LibraryObject;
+  kind: LibraryKind;
+  search: ObjectSearch;
+}): JSX.Element {
+  const { object, search } = props;
+
+  if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
+    return (
+      <LorebookView
+        book={object.object as unknown as Lorebook}
+        focused={search.entry ?? null}
+        linkToEntry={(entryId, children) => (
+          /**
+           * **Every link on this page is built here**, which is the same
+           * discipline that keeps the panel from reintroducing F19 one level
+           * up: the address of a copy is `?source=&slug=`, and an entry link
+           * that dropped them would send somebody from the shadowed copy they
+           * are reading to the winner. So the current search is spread and only
+           * `entry` is added.
+           */
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'lorebooks', id: object.id }}
+            search={{ ...search, entry: entryId }}
+            className={link.object}
+          >
+            {children}
+          </Link>
+        )}
+      />
+    );
   }
-  return <ByField schemaId={props.object.schema} value={props.object.object} />;
+  return <ByField schemaId={object.schema} value={object.object} />;
 }
 
 function BackLink(): JSX.Element {

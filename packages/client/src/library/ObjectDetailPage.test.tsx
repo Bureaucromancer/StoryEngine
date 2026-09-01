@@ -47,7 +47,19 @@ vi.mock('../api.js', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useParams: () => params, useSearch: () => search }),
   useNavigate: () => navigate,
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  /**
+   * **The stub carries the search prop**, because an entry link that dropped
+   * the copy discriminator is F19 one level down — a reader of the shadowed
+   * copy sent to the winner — and a stub that renders only children cannot
+   * see that happen. Serialised rather than rendered as a query string so the
+   * assertion reads the value the component passed rather than a formatting of
+   * it.
+   */
+  Link: ({ children, search }: { children: React.ReactNode; search?: Record<string, unknown> }) => (
+    <a href="#" data-search={JSON.stringify(search ?? {})}>
+      {children}
+    </a>
+  ),
 }));
 
 const { ApiError } = await import('../api.js');
@@ -267,9 +279,11 @@ describe('reading an object without opening the editor', () => {
  */
 describe('a lorebook on the detail route', () => {
   function lorebook(over: Record<string, unknown>) {
+    const { shadowed, ...body } = over;
     return actor({
       schema: 'storyengine.lorebook/1',
       name: 'Ardent',
+      ...(shadowed === undefined ? {} : { shadowed }),
       object: {
         schema: 'storyengine.lorebook/1',
         id: ACTOR_ID,
@@ -284,7 +298,7 @@ describe('a lorebook on the detail route', () => {
         tags: [],
         folders: [],
         entries: [],
-        ...over,
+        ...body,
       },
     });
   }
@@ -301,6 +315,34 @@ describe('a lorebook on the detail route', () => {
     await screen.findByRole('heading', { name: 'Ardent' });
     expect(screen.getByRole('heading', { name: 'Harbour', level: 3 })).toBeTruthy();
     expect(screen.getByText('Cranes.')).toBeTruthy();
+  });
+
+  /**
+   * **F19, one level down.** Two files can hold one id, this page can be
+   * addressed at either through `?source=` and `?slug=`, and an entry link that
+   * dropped them would send a reader of the shadowed copy to the winner — the
+   * same bug the row link was fixed for, wearing an entry id. The current
+   * search is spread into every entry address for exactly this reason.
+   */
+  it('carries the copy discriminator into every entry address', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    search = { source: 'user', slug: 'ardent-2' };
+    readObject.mockResolvedValue(
+      lorebook({
+        shadowed: true,
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    const entryLink = screen.getByRole('link', { name: 'Harbour' });
+
+    expect(JSON.parse(entryLink.getAttribute('data-search') ?? '{}')).toEqual({
+      source: 'user',
+      slug: 'ardent-2',
+      entry: 'e-1',
+    });
   });
 
   it('falls back to the field list when the file is not a book, rather than failing', async () => {

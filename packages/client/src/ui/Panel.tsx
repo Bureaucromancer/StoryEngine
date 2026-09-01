@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX, ReactNode } from 'react';
+import type { JSX, ReactNode, Ref } from 'react';
 
 /**
  * A bordered region grouping controls that belong together.
@@ -34,11 +34,37 @@ export interface PanelProps {
   children: ReactNode;
   /** Position and layout — a margin, a `max-w-md`, a `flex flex-col gap-4`. */
   className?: string;
+  /**
+   * The element, for a caller that has to reach it — scrolling one into view is
+   * the case this arrived for ([05 §5.3]'s entry address, which lands a link on
+   * one entry of a few hundred).
+   */
+  ref?: Ref<HTMLDivElement>;
+  /**
+   * *This is the one the address meant.*
+   *
+   * Typed rather than spread through, and present because the alternative was
+   * an outline and nothing else — a focus mark that exists only as a colour is
+   * a focus mark half the people using the page cannot perceive.
+   */
+  'aria-current'?: 'true';
 }
 
-export function Panel({ variant = 'card', children, className }: PanelProps): JSX.Element {
+export function Panel({
+  variant = 'card',
+  children,
+  className,
+  ref,
+  'aria-current': current,
+}: PanelProps): JSX.Element {
   const classes = VARIANT[variant];
   return (
-    <div className={className === undefined ? classes : `${className} ${classes}`}>{children}</div>
+    <div
+      ref={ref}
+      aria-current={current}
+      className={className === undefined ? classes : `${className} ${classes}`}
+    >
+      {children}
+    </div>
   );
 }

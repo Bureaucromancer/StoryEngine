@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 /**
  * Unmounts what a test rendered, between tests.
@@ -17,3 +17,16 @@ import { afterEach } from 'vitest';
  * because the first component test is not the interesting one to get right.
  */
 afterEach(cleanup);
+
+/**
+ * `scrollIntoView`, which jsdom does not implement at all.
+ *
+ * Not a convenience: jsdom computes no layout, so scrolling is a no-op there by
+ * nature rather than by omission, and the alternative to a stub is a component
+ * guarding every call with a feature check it would never need in a browser.
+ * A spy rather than an empty function, so a surface that has to bring something
+ * into view — the book page landing on an entry by its address
+ * ([05 §5.3](../../../docs/design/05-ui-surfaces.md)) — can be asserted to have
+ * asked, which is the only half of it that exists outside a real viewport.
+ */
+Element.prototype.scrollIntoView = vi.fn();

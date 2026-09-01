@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import {
   entriesGoverned,
@@ -100,7 +100,26 @@ function entrySchema(): SchemaNode | undefined {
   return itemSchemaOf(typeof declared === 'object' && declared !== null ? declared : undefined);
 }
 
-export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
+/**
+ * Wraps an entry's name in a link to that entry's own address.
+ *
+ * Supplied by the page rather than built here, because the address of a *copy*
+ * is `?source=&slug=` and an entry link that dropped those would send a reader
+ * of the shadowed copy to the winner. One place builds links; this renders what
+ * it is given.
+ */
+export type EntryLink = (entryId: string, children: ReactNode) => JSX.Element;
+
+export function LorebookView({
+  book,
+  focused,
+  linkToEntry,
+}: {
+  book: Lorebook;
+  /** The entry `?entry=` names, or null. Unknown ids simply match nothing. */
+  focused?: string | null;
+  linkToEntry?: EntryLink;
+}): JSX.Element {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState('');
   const [key, setKey] = useState<string | null>(null);
@@ -219,6 +238,8 @@ export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
                     entry={entry}
                     query={query}
                     activeKey={key}
+                    focused={entry.id === (focused ?? null)}
+                    linkToEntry={linkToEntry}
                     open={expanded.has(entry.id)}
                     onToggle={() => {
                       setExpanded((current) => {
@@ -485,14 +506,32 @@ function EntryUnit(props: {
   entry: LoreEntry;
   query: string;
   activeKey: string | null;
+  focused: boolean;
+  // Required and nullable rather than optional: `exactOptionalPropertyTypes`
+  // makes those different, and the caller forwards a value that may be absent.
+  linkToEntry: EntryLink | undefined;
   open: boolean;
   onToggle: () => void;
   onKey: (key: string | null) => void;
   onTag: (tag: string | null) => void;
 }): JSX.Element {
-  const { book, entry, query } = props;
+  const { book, entry, query, focused } = props;
   const gate = entryGate(book, entry);
   const blocked = gate.blockedBy[0];
+  const card = useRef<HTMLDivElement>(null);
+
+  /**
+   * **Landing on an entry is the whole point of it having an address**, and in
+   * a book of a few hundred an address that does not bring the entry into view
+   * has delivered the reader to the right page and the wrong screen. Runs when
+   * the focused entry changes rather than on every render, so narrowing the
+   * list does not keep yanking the page around.
+   */
+  useEffect(() => {
+    if (focused) card.current?.scrollIntoView({ block: 'center' });
+  }, [focused, entry.id]);
+
+  const name = entry.name === '' ? 'Untitled entry' : entry.name;
 
   /**
    * **A search opens the entries whose prose answered it.** The body is clamped
@@ -504,10 +543,25 @@ function EntryUnit(props: {
   const open = props.open || (query !== '' && matches(entry.content, query));
 
   return (
-    <Panel variant="card" className="flex flex-col gap-2">
+    <Panel
+      variant="card"
+      ref={card}
+      /*
+       * Marked rather than merely scrolled to. Arriving at a page that has
+       * quietly moved is disorienting on its own; the outline says *this is the
+       * one the link meant*, and it uses the focus token because "which entry
+       * is in focus" is §5.3's own phrase for what the address carries.
+       */
+      className={focused ? 'flex flex-col gap-2 outline-2 outline-focus' : 'flex flex-col gap-2'}
+      {...(focused ? { 'aria-current': 'true' as const } : {})}
+    >
       <div className="flex flex-wrap items-baseline gap-2">
         <SubsectionTitle as="h3">
-          <Marked text={entry.name === '' ? 'Untitled entry' : entry.name} query={query} />
+          {props.linkToEntry === undefined ? (
+            <Marked text={name} query={query} />
+          ) : (
+            props.linkToEntry(entry.id, <Marked text={name} query={query} />)
+          )}
         </SubsectionTitle>
         {entry.tag === null || entry.tag === '' ? null : (
           <Chip

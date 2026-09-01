@@ -979,8 +979,30 @@ judgement rather than logic is the argument for gate step 6 being a step at all.
   surface arguing with the author. Muted now; the words carry it, and they are
   §5.3's words.
 
-*Still to come in this stage:* the entry address as a validated search param,
-and §1.8's import-notes row.
+**And the entry address**, which §5.3 asks for by name and which gate step 1's
+second half is about: a named entry reachable by its own address, the link
+surviving a reload and landing on that entry. `?entry=` on the existing detail
+route — not a fragment, which cannot hand the view a focused state, and not a
+child route, which would put the shadowed-copy discriminator in two places.
+
+*Dropped rather than rejected*, like every other param on this router: an id
+this build has never seen degrades to the whole book, because [10 §5.2] says an
+entry id "is unique within one book and carries no meaning beyond it" and an
+importer may renumber freely — so a saved link outliving its entry is the
+expected end of one, and a whole book is a real page where an error card is not.
+The validator is a named export now, tested as the contract it is: it was
+reachable only by driving the router before, and `router.test.tsx` had never
+asserted a search param at all.
+
+*The entry is marked as well as scrolled to*, with `aria-current` and not only
+an outline — a focus mark that exists only as a colour is one half the readers
+of a page cannot perceive. And **every entry link carries the copy
+discriminator**, which is F19 one level down: an entry link that dropped
+`?source=` and `?slug=` would send a reader of the shadowed copy to the winner.
+The page test's `Link` stub had to grow a `search` prop before that could be
+asserted at all — without it, dropping the discriminator left every test green.
+
+*Still to come in this stage:* §1.8's import-notes row.
 
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,
