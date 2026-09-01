@@ -380,6 +380,11 @@ describe('the Lorebooks panel', () => {
     };
   }
 
+  /** Badge text inside the rows, which is not the same as anywhere on screen. */
+  function badgesInRows(text: string): Element[] {
+    return [...document.querySelectorAll('tbody span')].filter((node) => node.textContent === text);
+  }
+
   function headers(): string[] {
     return [...document.querySelectorAll('th')].map((node) => node.textContent);
   }
@@ -426,9 +431,11 @@ describe('the Lorebooks panel', () => {
     renderPage();
     await settled();
 
+    // Scoped to the rows: the Enabled *filter* offers On and Off as options,
+    // so a document-wide search would count the control as a badge.
     // One badge, not two: an enabled book needs no badge, and one on every book
     // would make the one that matters harder to see rather than easier.
-    expect(screen.getAllByText('Off')).toHaveLength(1);
+    expect(badgesInRows('Off')).toHaveLength(1);
   });
 
   it('says when a book is scoped to the actors it links, and stays quiet when it is not', async () => {
@@ -442,7 +449,7 @@ describe('the Lorebooks panel', () => {
     renderPage();
     await settled();
 
-    expect(screen.getAllByText('Linked')).toHaveLength(1);
+    expect(badgesInRows('Linked')).toHaveLength(1);
   });
 
   it('reads the tags nothing has ever read', async () => {
@@ -467,7 +474,7 @@ describe('the Lorebooks panel', () => {
 
     const names = (): (string | null)[] =>
       [...document.querySelectorAll('tbody tr')].map(
-        (row) => row.querySelector('td')?.textContent ?? null,
+        (row) => row.querySelector('td a')?.textContent ?? null,
       );
 
     // Name is the default, so Ardent leads.
@@ -498,6 +505,109 @@ describe('the Lorebooks panel', () => {
    * would break is everything *else* reading that cache entry — the array
    * belongs to the query client, and `sort` reorders in place.
    */
+  /**
+   * §5.3's four: tags, scope, enabled, source. The first is the one [10 §5]
+   * documented a consumer for and never got.
+   */
+  describe('the four filters', () => {
+    function shelf() {
+      return [
+        book('Ardent', { tags: ['noir'], scope: { kind: 'linked', actorIds: ['a'] } }),
+        book('Rain City', { tags: ['city'], enabled: false }, 'rain-city'),
+      ];
+    }
+
+    function names(): (string | null)[] {
+      // The link, not the whole cell: the name cell also carries the badges,
+      // so a cell's text is 'ArdentLinked' rather than the name.
+      return [...document.querySelectorAll('tbody tr')].map(
+        (row) => row.querySelector('td a')?.textContent ?? null,
+      );
+    }
+
+    async function shelved(): Promise<void> {
+      search = { kind: 'lorebooks' };
+      listLibrary.mockResolvedValue({ objects: shelf() });
+      renderPage();
+      await settled();
+    }
+
+    function choose(label: string, value: string): void {
+      act(() => {
+        fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      });
+    }
+
+    it('narrows by a tag, and offers only tags the shelf actually uses', async () => {
+      await shelved();
+
+      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+        (node) => node.textContent,
+      );
+      expect(options).toEqual(['Any', 'city', 'noir']);
+
+      choose('Tag', 'noir');
+      expect(names()).toEqual(['Ardent']);
+    });
+
+    it('narrows by scope', async () => {
+      await shelved();
+      choose('Scope', 'linked');
+      expect(names()).toEqual(['Ardent']);
+    });
+
+    it('narrows by whether the book is switched on', async () => {
+      await shelved();
+      choose('Enabled', 'off');
+      expect(names()).toEqual(['Rain City']);
+    });
+
+    it('narrows by source', async () => {
+      await shelved();
+      choose('Source', 'system');
+      expect(names()).toEqual([]);
+    });
+
+    /**
+     * Deriving each filter's options from what the *others* have already left
+     * would make the controls disagree: pick a tag, and the scope list loses
+     * values, so unpicking becomes the only way back to a shelf you could see a
+     * moment ago.
+     */
+    it('keeps every filter offering the whole shelf’s values', async () => {
+      await shelved();
+      choose('Tag', 'noir');
+
+      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+        (node) => node.textContent,
+      );
+      expect(options).toEqual(['Any', 'city', 'noir']);
+    });
+
+    /**
+     * A shelf narrowed to nothing is a different state from an empty library,
+     * and what a person does next is the difference: widen a filter, or go and
+     * import. Saying the wrong one is the surface misreading itself.
+     */
+    it('says the filters are the reason, rather than telling you to import', async () => {
+      await shelved();
+      choose('Tag', 'noir');
+      choose('Enabled', 'off');
+
+      expect(names()).toEqual([]);
+      expect(screen.getByText('Nothing on this shelf matches these filters.')).toBeTruthy();
+      expect(screen.queryByText(/^No lorebooks yet/)).toBeNull();
+    });
+
+    it('is absent from a kind that has chosen none', async () => {
+      search = {};
+      renderPage();
+      await settled();
+
+      expect(screen.queryByLabelText('Tag')).toBeNull();
+    });
+  });
+
   it('does not reorder the array the query cache owns', async () => {
     search = { kind: 'lorebooks' };
     listLibrary.mockResolvedValue({

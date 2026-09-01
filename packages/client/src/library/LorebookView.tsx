@@ -8,6 +8,7 @@ import {
   entryGate,
   LOREBOOK_SCHEMA,
   offCount,
+  resolvedFolderId,
   type GateReason,
   type Lorebook,
   type LoreEntry,
@@ -18,10 +19,22 @@ import { formatCount } from '../format.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { table } from '../ui/classes.js';
+import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import { ByFields } from './ByField.js';
 import { itemSchemaOf, schemaFor, type SchemaNode } from './fields.js';
+import { entryMatches, highlight, matches } from './search.js';
+
+/**
+ * Which folder the list is narrowed to, where the outer `null` is *any folder*
+ * and an inner `id` of `null` is the **Ungrouped** node.
+ *
+ * Two levels rather than a sentinel string, because *ungrouped* is a real node
+ * a person can pick and `''` or `'any'` are both values a `folderId` could
+ * legally hold. A collision here would silently filter to the wrong set.
+ */
+type FolderChoice = { id: string | null } | null;
 
 /**
  * The book as a document — [05 §5.3](../../../../docs/design/05-ui-surfaces.md).
@@ -88,15 +101,42 @@ function entrySchema(): SchemaNode | undefined {
 
 export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const allOpen = expanded.size === book.entries.length && book.entries.length > 0;
+  const [query, setQuery] = useState('');
+  const [key, setKey] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
+  const [folder, setFolder] = useState<FolderChoice>(null);
+  const narrowed = query !== '' || key !== null || tag !== null || folder !== null;
+
+  /**
+   * **Within a book, search is free, and §5.3 calls that the strongest fact in
+   * the section**: the detail route already holds the whole object, so nothing
+   * here asks the server anything. The four narrowings compose — a key chip and
+   * a folder and a search term are all *and* — because each answers a different
+   * question and a person who has picked two has narrowed twice on purpose.
+   */
+  const visible = book.entries.filter(
+    (entry) =>
+      entryMatches(entry, query) &&
+      (key === null || entry.keys.includes(key) || entry.secondaryKeys.includes(key)) &&
+      (tag === null || entry.tag === tag) &&
+      (folder === null || resolvedFolderId(book, entry) === folder.id),
+  );
+
+  const allOpen = visible.length > 0 && visible.every((entry) => expanded.has(entry.id));
+  const clear = (): void => {
+    setQuery('');
+    setKey(null);
+    setTag(null);
+    setFolder(null);
+  };
 
   return (
     <div className="flex flex-col gap-8">
       <BookHeader book={book} />
-      <FolderGates book={book} />
+      <FolderGates book={book} chosen={folder} onChoose={setFolder} />
 
       <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <SectionTitle as="h2">Entries</SectionTitle>
           {book.entries.length === 0 ? null : (
             <Button
@@ -104,7 +144,7 @@ export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
               variant="quiet"
               size="compact"
               onClick={() => {
-                setExpanded(allOpen ? new Set() : new Set(book.entries.map((entry) => entry.id)));
+                setExpanded(allOpen ? new Set() : new Set(visible.map((entry) => entry.id)));
               }}
             >
               {allOpen ? 'Collapse all' : 'Expand all'}
@@ -115,26 +155,127 @@ export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
         {book.entries.length === 0 ? (
           <Note>This book has no entries.</Note>
         ) : (
-          <div className="flex flex-col gap-4">
-            {book.entries.map((entry) => (
-              <EntryUnit
-                key={entry.id}
-                book={book}
-                entry={entry}
-                open={expanded.has(entry.id)}
-                onToggle={() => {
-                  setExpanded((current) => {
-                    const next = new Set(current);
-                    if (!next.delete(entry.id)) next.add(entry.id);
-                    return next;
-                  });
-                }}
+          <>
+            <div className="mb-3 flex flex-col gap-2">
+              {/*
+               * `Field`, rather than a search box of its own. §5.3 asks that the
+               * input mounted here be "the same component the eventual
+               * cross-library box will use", and the way to be that is to be the
+               * one text control this client already has — a second component
+               * whose only job was to be shared later would be machinery built
+               * ahead of its second caller.
+               */}
+              <Field
+                label="Search this book"
+                value={query}
+                onChange={setQuery}
+                placeholder="Name, keys, description or content"
+                hint="Everything here is local — nothing is sent anywhere."
               />
-            ))}
-          </div>
+
+              {narrowed ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-ink-subtle">
+                  <span>{`Showing ${formatCount(visible.length)} of ${formatCount(book.entries.length)}`}</span>
+                  {key === null ? null : (
+                    <Chip
+                      label={`key: ${key}`}
+                      onClick={() => {
+                        setKey(null);
+                      }}
+                    />
+                  )}
+                  {tag === null ? null : (
+                    <Chip
+                      label={`tag: ${tag}`}
+                      onClick={() => {
+                        setTag(null);
+                      }}
+                    />
+                  )}
+                  {folder === null ? null : (
+                    <Chip
+                      label={`folder: ${folderName(book, folder.id)}`}
+                      onClick={() => {
+                        setFolder(null);
+                      }}
+                    />
+                  )}
+                  <Button type="button" variant="quiet" size="tiny" onClick={clear}>
+                    Clear
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {visible.length === 0 ? (
+              <Note>No entry in this book matches.</Note>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {visible.map((entry) => (
+                  <EntryUnit
+                    key={entry.id}
+                    book={book}
+                    entry={entry}
+                    query={query}
+                    activeKey={key}
+                    open={expanded.has(entry.id)}
+                    onToggle={() => {
+                      setExpanded((current) => {
+                        const next = new Set(current);
+                        if (!next.delete(entry.id)) next.add(entry.id);
+                        return next;
+                      });
+                    }}
+                    onKey={setKey}
+                    onTag={setTag}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>
+  );
+}
+
+/** A folder's name for a chip, or the word the Ungrouped node goes by. */
+function folderName(book: Lorebook, id: string | null): string {
+  if (id === null) return 'Ungrouped';
+  const found = book.folders.find((candidate) => candidate.id === id);
+  return found === undefined || found.name === '' ? 'Untitled folder' : found.name;
+}
+
+/** An active narrowing, and the control that removes it. */
+function Chip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-control bg-badge-surface px-2 py-0.5 text-xs font-medium text-badge-ink hover:bg-surface-muted"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** The matched stretches of a string, marked. Renders plainly when nothing is. */
+function Marked({ text, query }: { text: string; query: string }): JSX.Element {
+  return (
+    <>
+      {highlight(text, query).map((run, index) =>
+        run.hit ? (
+          <mark
+            key={`${String(index)}:${run.text}`}
+            className="rounded-control bg-highlight-surface text-highlight-ink"
+          >
+            {run.text}
+          </mark>
+        ) : (
+          <span key={`${String(index)}:${run.text}`}>{run.text}</span>
+        ),
+      )}
+    </>
   );
 }
 
@@ -205,11 +346,22 @@ function Setting({ label, children }: { label: string; children: string }): JSX.
  * entries — and so does a `folderId` naming a folder the book does not contain,
  * which lands in the same row for the same reason.
  */
-function FolderGates({ book }: { book: Lorebook }): JSX.Element | null {
+function FolderGates(props: {
+  book: Lorebook;
+  chosen: FolderChoice;
+  onChoose: (choice: FolderChoice) => void;
+}): JSX.Element | null {
+  const { book } = props;
   const ungrouped = entriesInFolder(book, null);
   if (book.folders.length === 0 && ungrouped.length === book.entries.length) return null;
 
   const ordered = [...book.folders].sort((a, b) => a.order - b.order);
+
+  /** Picking the folder already picked unpicks it, so the row is the way back. */
+  const choose = (id: string | null) => () => {
+    props.onChoose(props.chosen !== null && props.chosen.id === id ? null : { id });
+  };
+  const picked = (id: string | null): boolean => props.chosen !== null && props.chosen.id === id;
 
   return (
     <section>
@@ -237,7 +389,22 @@ function FolderGates({ book }: { book: Lorebook }): JSX.Element | null {
                 className={table.cellCompact}
                 style={{ paddingInlineStart: indent(book, folder) }}
               >
-                {folder.name === '' ? 'Untitled folder' : folder.name}
+                {/*
+                 * The name is the control. §5.3 wants a key chip to filter the
+                 * book to the entries carrying it; a folder row is the same
+                 * gesture one level up, and giving it to the row rather than to
+                 * a separate control keeps the panel a rendering of
+                 * `folders[].enabled` with one affordance rather than two lists
+                 * of the same folders.
+                 */}
+                <button
+                  type="button"
+                  aria-pressed={picked(folder.id)}
+                  onClick={choose(folder.id)}
+                  className="underline decoration-line-strong hover:decoration-ink-subtle"
+                >
+                  {folder.name === '' ? 'Untitled folder' : folder.name}
+                </button>
               </td>
               <td className={table.cellCompact}>
                 {folder.enabled ? <Fine>On</Fine> : <Badge>Off</Badge>}
@@ -250,7 +417,14 @@ function FolderGates({ book }: { book: Lorebook }): JSX.Element | null {
           {ungrouped.length === 0 ? null : (
             <tr className={table.row}>
               <td className={table.cellCompact}>
-                <span className="text-ink-subtle">Ungrouped</span>
+                <button
+                  type="button"
+                  aria-pressed={picked(null)}
+                  onClick={choose(null)}
+                  className="text-ink-subtle underline decoration-line-strong hover:decoration-ink-subtle"
+                >
+                  Ungrouped
+                </button>
               </td>
               <td className={table.cellCompact}>
                 <Fine>On</Fine>
@@ -300,20 +474,40 @@ function indent(book: Lorebook, folder: LoreFolder): string {
 function EntryUnit(props: {
   book: Lorebook;
   entry: LoreEntry;
+  query: string;
+  activeKey: string | null;
   open: boolean;
   onToggle: () => void;
+  onKey: (key: string | null) => void;
+  onTag: (tag: string | null) => void;
 }): JSX.Element {
-  const { book, entry } = props;
+  const { book, entry, query } = props;
   const gate = entryGate(book, entry);
   const blocked = gate.blockedBy[0];
+
+  /**
+   * **A search opens the entries whose prose answered it.** The body is clamped
+   * by default because these are documents, but a clamp that hides the very
+   * words somebody just searched for is a search that found something and then
+   * put it out of sight. Only for a match in `content` — a hit on the name or a
+   * key is already visible above the clamp.
+   */
+  const open = props.open || (query !== '' && matches(entry.content, query));
 
   return (
     <Panel variant="card" className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-2">
         <SubsectionTitle as="h3">
-          {entry.name === '' ? 'Untitled entry' : entry.name}
+          <Marked text={entry.name === '' ? 'Untitled entry' : entry.name} query={query} />
         </SubsectionTitle>
-        {entry.tag === null || entry.tag === '' ? null : <Badge>{entry.tag}</Badge>}
+        {entry.tag === null || entry.tag === '' ? null : (
+          <Chip
+            label={entry.tag}
+            onClick={() => {
+              props.onTag(entry.tag);
+            }}
+          />
+        )}
         {blocked === undefined ? null : (
           <span className="text-xs font-medium text-danger-ink">
             {blocked.kind === 'folder-off'
@@ -323,35 +517,51 @@ function EntryUnit(props: {
         )}
       </div>
 
+      {/*
+       * **Clicking a key filters the book to the entries carrying it**, which is
+       * the one behaviour §5.3 says turns [16 §2]'s soft indexing from an
+       * observation into a working index: keywords stop being trigger
+       * configuration the moment they are clickable. Clicking the one already
+       * chosen unpicks it, so the chip is also the way back.
+       */}
       {entry.keys.length === 0 ? null : (
         <ul className="flex flex-wrap gap-1">
           {entry.keys.map((key) => (
             <li key={key}>
-              <Badge>{key}</Badge>
+              <Chip
+                label={key}
+                onClick={() => {
+                  props.onKey(props.activeKey === key ? null : key);
+                }}
+              />
             </li>
           ))}
         </ul>
       )}
 
-      {entry.description === '' ? null : <Fine>{entry.description}</Fine>}
+      {entry.description === '' ? null : (
+        <Fine>
+          <Marked text={entry.description} query={query} />
+        </Fine>
+      )}
 
       {entry.content === '' ? (
         <Note>This entry has no content.</Note>
       ) : (
         <p
           className={
-            props.open
+            open
               ? 'whitespace-pre-wrap text-sm text-ink'
               : 'line-clamp-6 whitespace-pre-wrap text-sm text-ink'
           }
         >
-          {entry.content}
+          <Marked text={entry.content} query={query} />
         </p>
       )}
 
       <div>
         <Button type="button" variant="quiet" size="tiny" onClick={props.onToggle}>
-          {props.open ? 'Show less' : 'Show all'}
+          {open ? 'Show less' : 'Show all'}
         </Button>
       </div>
 

@@ -144,6 +144,9 @@ const PAIRS: [ink: string, on: string[]][] = [
   ['ink-muted', ['surface', 'canvas', 'surface-muted']],
   ['ink-subtle', ['surface', 'canvas']],
   ['ink-faint', ['surface', 'canvas']],
+  // A search hit has to be readable, and it is the one pair where the ink and
+  // the surface arrived together rather than one landing on the other.
+  ['highlight-ink', ['highlight-surface']],
 ];
 
 describe('the palette is legible', () => {

@@ -255,3 +255,126 @@ describe('the load the page exists for', () => {
     expect(screen.getByText('300 entries')).toBeTruthy();
   });
 });
+
+/**
+ * Narrowing a book — [05 §5.3]'s *search, which is two features at very
+ * different prices*, and the cheap one.
+ *
+ * Within a book it is free: the detail route already holds the whole object, so
+ * every one of these runs against what is on screen and asks the server
+ * nothing. Gate step 3 is the first three tests — a key chip, a tag and a
+ * folder each narrow the list.
+ */
+describe('narrowing a book', () => {
+  const shelf = () =>
+    book({
+      folders: [folder('timeline', { name: 'Timeline B' })],
+      entries: [
+        entry('Harbour', {
+          keys: ['docks'],
+          tag: 'location',
+          content: 'Cranes stand over the water.',
+          folderId: 'timeline',
+        }),
+        entry('Vera', { keys: ['vera'], tag: 'person', content: 'She never looks up.' }),
+      ],
+    });
+
+  const shown = (): string[] =>
+    screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent);
+
+  it('narrows to the entries carrying a key, and the same chip is the way back', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.click(screen.getByRole('button', { name: 'docks' }));
+    expect(shown()).toEqual(['Harbour']);
+
+    await user.click(screen.getByRole('button', { name: 'docks' }));
+    expect(shown()).toEqual(['Harbour', 'Vera']);
+  });
+
+  it('narrows by a tag', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.click(screen.getByRole('button', { name: 'person' }));
+
+    expect(shown()).toEqual(['Vera']);
+  });
+
+  it('narrows by a folder, and by the ungrouped node', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Timeline B' }));
+    expect(shown()).toEqual(['Harbour']);
+
+    await user.click(screen.getByRole('button', { name: 'Ungrouped' }));
+    expect(shown()).toEqual(['Vera']);
+  });
+
+  it('searches the fields §5.3 lists, including the prose', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.type(screen.getByLabelText('Search this book'), 'cranes');
+
+    expect(shown()).toEqual(['Harbour']);
+  });
+
+  it('marks what it found, rather than only hiding what it did not', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.type(screen.getByLabelText('Search this book'), 'cranes');
+
+    const marks = [...document.querySelectorAll('mark')].map((node) => node.textContent);
+    expect(marks).toContain('Cranes');
+  });
+
+  /**
+   * A clamp that hides the words somebody just searched for is a search that
+   * found something and then put it out of sight.
+   */
+  it('opens the entry whose prose answered the search', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    const body = (): Element | null => unitFor('Harbour').querySelector('p.whitespace-pre-wrap');
+    expect(body()?.className).toContain('line-clamp-6');
+
+    await user.type(screen.getByLabelText('Search this book'), 'cranes');
+
+    expect(body()?.className).not.toContain('line-clamp-6');
+  });
+
+  it('says how much it is hiding, and clears back to the whole book', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.click(screen.getByRole('button', { name: 'docks' }));
+    expect(screen.getByText('Showing 1 of 2')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+
+    expect(shown()).toEqual(['Harbour', 'Vera']);
+    expect(screen.queryByText('Showing 1 of 2')).toBeNull();
+  });
+
+  it('says so when nothing matches, rather than showing an empty page', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={shelf()} />);
+
+    await user.type(screen.getByLabelText('Search this book'), 'zeppelin');
+
+    expect(screen.queryAllByRole('heading', { level: 3 })).toEqual([]);
+    expect(screen.getByText('No entry in this book matches.')).toBeTruthy();
+  });
+
+  it('is quiet until something is narrowed', () => {
+    render(<LorebookView book={shelf()} />);
+
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
+  });
+});

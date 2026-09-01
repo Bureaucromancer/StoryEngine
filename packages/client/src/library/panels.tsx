@@ -46,6 +46,26 @@ export interface PanelSort {
   compare: (a: LibraryObject, b: LibraryObject) => number;
 }
 
+/**
+ * One way to narrow the shelf.
+ *
+ * **The options come from the shelf rather than from a constant**, where the
+ * values do — a tag filter offering tags nobody has used is a list of dead ends,
+ * and one that misses a tag somebody added yesterday is worse. Where the values
+ * are a closed set the schema already fixed (`scope`, `enabled`, `source`) the
+ * options are fixed too, because those are worth offering even when every book
+ * on the shelf happens to be on one side of them.
+ *
+ * The empty string is *any*, and it is a value rather than an absence so that
+ * the control has something to be set to.
+ */
+export interface PanelFilter {
+  id: string;
+  label: string;
+  optionsFor: (objects: LibraryObject[]) => readonly (readonly [string, string])[];
+  matches: (object: LibraryObject, value: string) => boolean;
+}
+
 export interface KindPanel {
   /**
    * The columns **after** the name, which the table owns.
@@ -59,6 +79,8 @@ export interface KindPanel {
   columns: PanelColumn[];
   /** Empty where a kind has expressed no opinion — the list keeps disk order. */
   sorts: PanelSort[];
+  /** Empty where a kind has not chosen any — the shelf is then unnarrowed. */
+  filters: PanelFilter[];
   /** What an empty shelf says. Per kind, because the way in differs by kind. */
   empty: string;
 }
@@ -78,6 +100,14 @@ function tagsOf(object: LibraryObject): string[] {
   return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
 }
 
+/** `global`, `linked`, or whatever a newer build wrote there. */
+function scopeKindOf(object: LibraryObject): string | null {
+  const scope = field(object, 'scope');
+  if (typeof scope !== 'object' || scope === null) return null;
+  const kind: unknown = (scope as { kind?: unknown }).kind;
+  return typeof kind === 'string' ? kind : null;
+}
+
 function updatedAt(object: LibraryObject): string | null {
   return timestampsOf(object.object).updatedAt;
 }
@@ -91,9 +121,7 @@ function updatedAt(object: LibraryObject): string | null {
  */
 function nameBadges(object: LibraryObject): JSX.Element {
   const enabled = field(object, 'enabled');
-  const scope = field(object, 'scope');
-  const linked =
-    typeof scope === 'object' && scope !== null && (scope as { kind?: unknown }).kind === 'linked';
+  const linked = scopeKindOf(object) === 'linked';
 
   return (
     <>
@@ -135,6 +163,7 @@ const GENERIC: KindPanel = {
     { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
   ],
   sorts: [],
+  filters: [],
   empty:
     'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.',
 };
@@ -177,6 +206,44 @@ const LOREBOOKS: KindPanel = {
       compare: (a, b) => (updatedAt(b) ?? '').localeCompare(updatedAt(a) ?? ''),
     },
     { id: 'entries', label: 'Entry count', compare: (a, b) => entryCount(b) - entryCount(a) },
+  ],
+  filters: [
+    {
+      id: 'tag',
+      label: 'Tag',
+      // From the shelf, sorted, deduplicated — a tag filter offering tags
+      // nobody has used is a list of dead ends.
+      optionsFor: (objects) =>
+        [...new Set(objects.flatMap(tagsOf))].sort().map((tag) => [tag, tag] as const),
+      matches: (object, value) => tagsOf(object).includes(value),
+    },
+    {
+      id: 'scope',
+      label: 'Scope',
+      optionsFor: () => [
+        ['global', 'Global'],
+        ['linked', 'Linked'],
+      ],
+      matches: (object, value) => scopeKindOf(object) === value,
+    },
+    {
+      id: 'enabled',
+      label: 'Enabled',
+      optionsFor: () => [
+        ['on', 'On'],
+        ['off', 'Off'],
+      ],
+      matches: (object, value) => (field(object, 'enabled') === false ? 'off' : 'on') === value,
+    },
+    {
+      id: 'source',
+      label: 'Source',
+      optionsFor: () => [
+        ['user', 'Yours'],
+        ['system', 'System'],
+      ],
+      matches: (object, value) => object.source === value,
+    },
   ],
   empty:
     'No lorebooks yet. Import brings them in — from a SillyTavern or Marinara folder, an archive, or a single world-info file.',

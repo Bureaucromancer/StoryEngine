@@ -253,6 +253,7 @@ function ObjectTable(props: {
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
   const [sortId, setSortId] = useState<string>(panel.sorts[0]?.id ?? '');
+  const [chosen, setChosen] = useState<Record<string, string>>({});
   const sort = panel.sorts.find((candidate) => candidate.id === sortId);
 
   if (props.objects.length === 0) {
@@ -272,51 +273,94 @@ function ObjectTable(props: {
     );
   }
 
+  /**
+   * **Narrowed before sorted, and the options come from the whole shelf.**
+   * Deriving a filter's options from what the *other* filters have already left
+   * would make the controls disagree with each other — pick a tag, and the
+   * scope list quietly loses the values it no longer offers, so unpicking is
+   * the only way back to a shelf you could see a moment ago.
+   */
+  const matching = props.objects.filter((object) =>
+    panel.filters.every((filter) => {
+      const value = chosen[filter.id] ?? '';
+      return value === '' || filter.matches(object, value);
+    }),
+  );
+
   // A copy: the array belongs to the query cache, and sorting in place would
   // reorder what every other reader of that cache entry sees.
-  const shown = sort === undefined ? props.objects : [...props.objects].sort(sort.compare);
+  const shown = sort === undefined ? matching : [...matching].sort(sort.compare);
 
   return (
     <>
-      {panel.sorts.length === 0 ? null : (
-        <div className="mb-4 max-w-xs">
-          <SelectField
-            label="Sort by"
-            value={sortId}
-            options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
-            onChange={setSortId}
-          />
+      {panel.sorts.length === 0 && panel.filters.length === 0 ? null : (
+        <div className="mb-4 flex flex-wrap gap-4">
+          {panel.sorts.length === 0 ? null : (
+            <div className="min-w-40">
+              <SelectField
+                label="Sort by"
+                value={sortId}
+                options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
+                onChange={setSortId}
+              />
+            </div>
+          )}
+          {panel.filters.map((filter) => (
+            <div key={filter.id} className="min-w-40">
+              <SelectField
+                label={filter.label}
+                value={chosen[filter.id] ?? ''}
+                options={[['', 'Any'], ...filter.optionsFor(props.objects)]}
+                onChange={(value) => {
+                  setChosen((current) => ({ ...current, [filter.id]: value }));
+                }}
+              />
+            </div>
+          ))}
         </div>
       )}
-      <table className={table.root}>
-        <thead>
-          <tr className={table.head}>
-            <th scope="col" className={table.th}>
-              Name
-            </th>
-            {panel.columns.map((column) => (
-              <th
-                key={column.id}
-                scope="col"
-                className={column.numeric === true ? table.thNumeric : table.th}
-              >
-                {column.header}
+
+      {/*
+       * **Distinct from the empty shelf, and the difference is what a person
+       * does next.** An empty library is answered by importing; a shelf
+       * narrowed to nothing is answered by widening a filter. Telling somebody
+       * to go and import when they have books they simply cannot see would be
+       * the surface misreading its own state — and the controls stay on screen
+       * above this, because they are the way out of it.
+       */}
+      {shown.length === 0 ? (
+        <p className="text-ink-subtle">Nothing on this shelf matches these filters.</p>
+      ) : (
+        <table className={table.root}>
+          <thead>
+            <tr className={table.head}>
+              <th scope="col" className={table.th}>
+                Name
               </th>
+              {panel.columns.map((column) => (
+                <th
+                  key={column.id}
+                  scope="col"
+                  className={column.numeric === true ? table.thNumeric : table.th}
+                >
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((object) => (
+              <ObjectRow
+                key={`${object.source}:${object.id}:${object.slug}`}
+                object={object}
+                kind={props.kind}
+                columns={panel.columns}
+                locale={locale}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((object) => (
-            <ObjectRow
-              key={`${object.source}:${object.id}:${object.slug}`}
-              object={object}
-              kind={props.kind}
-              columns={panel.columns}
-              locale={locale}
-            />
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      )}
     </>
   );
 }

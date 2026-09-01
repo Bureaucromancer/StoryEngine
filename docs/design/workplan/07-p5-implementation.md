@@ -922,8 +922,38 @@ silently skipped the copy the assertion was about. Fixed and measured
 (`5b7fbc6`); it was blocking any honest claim that this stage's own gate was
 green.
 
-*Still to come in this stage:* the panel's four filters and the within-book
-search that shares their shape, the entry address as a validated search param,
+**Then the narrowing, both halves of it.** The panel's four — tags, scope,
+enabled, source — as a fourth thing a panel supplies, alongside its columns, its
+sort and its empty state. And within a book: a search across the five fields
+§5.3 lists, key chips that filter to the entries carrying them, the entry `tag`,
+and the folder rows, all composing.
+
+*Free, exactly as §5.3 says.* The detail route already holds the whole object,
+so nothing here asks the server anything — and the search is substring and
+case-insensitive with **no regular expression anywhere**, which is not a
+simplification: a pattern compiled from something a person is still typing is
+the hazard §1.10 puts a hard timeout in front of at P5.4, and this would be it
+in a keystroke handler with nothing to time out.
+
+*Four decisions worth the ink.* **A search opens the entries whose prose
+answered it** — a clamp that hides the words somebody just searched for is a
+search that found something and put it out of sight. **Each filter offers the
+whole shelf's values**, not what the others have left, or picking a tag quietly
+empties the scope list and unpicking becomes the only way back. **A shelf
+narrowed to nothing says the filters are the reason** rather than repeating the
+empty-library sentence, because what a person does next differs: widen, or go
+and import. And **a marked hit needed a token**, so the palette gained
+`highlight` — amber is spoken for twice over by `warn` and `provenance`, and a
+highlight is neither; the contrast test covers the new pair in both themes.
+
+*One thing deliberately not addressable.* The kind filter is a search param
+because it selects *which panel*, and a panel is a place. A within-panel filter
+and a within-book search are views of one place, and §5.3 makes the book's
+search local by construction — so these are component state. The one narrowing
+that stays a link is the entry address, which is what §5.3 asks for by name and
+is still to come.
+
+*Still to come in this stage:* the entry address as a validated search param,
 and §1.8's import-notes row.
 
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
