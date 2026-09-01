@@ -478,3 +478,71 @@ describe('where a writing sample sits in the order of sacrifice', () => {
     expect(verdict.nextToDrop).toEqual(['sample']);
   });
 });
+
+/**
+ * The two-tier budget meeting at one arbiter — [P5.6], [P5 §1.3].
+ *
+ * A producer's own refusals have to appear in the verdict, or *four lore
+ * entries matched and their book had no room* is a fact the record does not
+ * contain — and it has a different repair from *the turn was too long*.
+ */
+describe('what a producer refused before the cut', () => {
+  const refused = [{ blockId: 'lore.a.1', tokens: 40, rule: "over the book's token budget" }];
+
+  it('lands in the verdict as a decision that was not included', () => {
+    const { verdict } = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      refused,
+    });
+
+    const row = verdict.decisions.find((one) => one.blockId === 'lore.a.1');
+    expect(row).toEqual({
+      blockId: 'lore.a.1',
+      tokens: 40,
+      included: false,
+      rule: "over the book's token budget",
+    });
+  });
+
+  /**
+   * Before the blocks, because it was decided before them. Putting the inner
+   * tier after the outer one would show the two budgets in the wrong order in
+   * the one list somebody reads to reconstruct what happened.
+   */
+  it('comes before the blocks that reached the chat-wide cut', () => {
+    const { verdict } = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      refused,
+    });
+
+    expect(verdict.decisions[0]?.blockId).toBe('lore.a.1');
+  });
+
+  /** It never reached the prompt, so it never cost anything. */
+  it('does not count against what the turn spent', () => {
+    const without = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+    });
+    const with_ = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      refused,
+    });
+
+    expect(with_.verdict.spent).toBe(without.verdict.spent);
+    expect(with_.blocks).toEqual(without.blocks);
+  });
+
+  it('leaves the verdict alone when a producer refused nothing', () => {
+    const { verdict } = assemble({
+      candidates: candidates(),
+      policy: GENEROUS,
+      refused: [],
+    });
+
+    expect(verdict.decisions.every((one) => one.blockId !== 'lore.a.1')).toBe(true);
+  });
+});

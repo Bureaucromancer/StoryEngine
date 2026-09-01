@@ -10,7 +10,7 @@ import type { EffectProposal } from '../turns/effects.js';
 import type { CastMember } from '../turns/cast.js';
 import type { ResolvedLore } from '../turns/lore.js';
 import { activate, type ScanResult } from './activate.js';
-import { loreBlocks, type LoreBlock, type Unplaced } from './blocks.js';
+import { loreBlocks, refusalsFor, type LoreBlock, type Unplaced } from './blocks.js';
 import type { EntryTiming } from './timing.js';
 import { timingOf } from './timing.js';
 import { shelve, type ShelfResult } from './shelf.js';
@@ -58,6 +58,12 @@ export interface Retrieved {
   shelf: ShelfResult;
   /** Activated, budgeted, and then addressed to an outlet nobody positions. */
   unplaced: Unplaced[];
+  /**
+   * What the inner budget and the outlets refused, in the arbiter's vocabulary
+   * — [P5 §1.3]'s *every skip lands in the `BudgetVerdict` with the rule that
+   * made it*, which is only true if these travel that far.
+   */
+  refused: { blockId: string; tokens: number; rule: string }[];
   /** The counter updates, as proposals for the step to make. */
   effects: EffectProposal[];
 }
@@ -93,7 +99,14 @@ export function retrieve(context: RetrieveContext): Retrieved {
     basePriority: lorePriorityOf(context.preset),
   });
 
-  return { blocks, scan, shelf, unplaced, effects: timingEffects(scan, context.channels) };
+  return {
+    blocks,
+    scan,
+    shelf,
+    unplaced,
+    refused: refusalsFor(shelf.refused, unplaced),
+    effects: timingEffects(scan, context.channels),
+  };
 }
 
 /**

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { newLorebook, newLoreEntry, type LoreEntry } from '@storyengine/shared';
 
 import type { Activation } from './activate.js';
-import { loreBlocks, placementOf, priorityFor, reasonFor } from './blocks.js';
+import { loreBlocks, placementOf, priorityFor, reasonFor, refusalsFor } from './blocks.js';
 import type { Shelved } from './shelf.js';
 
 /**
@@ -241,5 +241,80 @@ describe('loreBlocks', () => {
 
       expect(unplaced).toHaveLength(1);
     });
+  });
+});
+
+/**
+ * The inner budget's refusals in the arbiter's vocabulary — [P5 §1.3]'s *every
+ * skip lands in the `BudgetVerdict` with the rule that made it*.
+ *
+ * These are product strings: they name the **setting to change**, because *over
+ * budget* is a shrug and *over the book's token budget of 2048* is a field
+ * somebody can go and find.
+ */
+describe('refusalsFor', () => {
+  const refusedBy = (rule: 'token-budget' | 'entry-limit'): Shelved => ({
+    activation: firing(entryOf('Refused')),
+    tokens: 40,
+    refusedBy: rule,
+  });
+
+  it("names the book's token budget, with its number", () => {
+    const shelvedOne = refusedBy('token-budget');
+    shelvedOne.activation.book = { ...shelvedOne.activation.book, tokenBudget: 2048 };
+
+    const [row] = refusalsFor([shelvedOne], []);
+
+    expect(row?.rule).toContain('token budget');
+    expect(row?.rule).toContain('2048');
+    expect(row?.tokens).toBe(40);
+  });
+
+  it("names the book's entry limit, with its number", () => {
+    const shelvedOne = refusedBy('entry-limit');
+    shelvedOne.activation.book = { ...shelvedOne.activation.book, entryLimit: 7 };
+
+    expect(refusalsFor([shelvedOne], [])[0]?.rule).toContain('7');
+  });
+
+  it('tells the two rules apart', () => {
+    const budget = refusedBy('token-budget');
+    const limit = refusedBy('entry-limit');
+
+    expect(refusalsFor([budget], [])[0]?.rule).not.toBe(refusalsFor([limit], [])[0]?.rule);
+  });
+
+  /**
+   * An unpositioned outlet is not a budget decision, so it carries no size:
+   * nothing measured it, because nothing was ever going to send it. Reporting
+   * an estimate would read as *this cost you tokens*, which is the opposite of
+   * what happened.
+   */
+  it('reports an unpositioned outlet as costing nothing', () => {
+    const [row] = refusalsFor([], [{ activation: firing(entryOf('Rules')), outletName: 'rules' }]);
+
+    expect(row?.tokens).toBe(0);
+    expect(row?.rule).toContain('rules');
+    expect(row?.rule).toContain('outlet');
+  });
+
+  /**
+   * The ids match the ones {@link loreBlocks} mints, or the verdict names
+   * blocks nothing else in the record has heard of.
+   */
+  it('uses the same block ids the included blocks carry', () => {
+    const entry = entryOf('One');
+    const { blocks } = loreBlocks({
+      kept: [shelved(firing(entry))],
+      latestMessage: '',
+      outlets: new Set(),
+      basePriority: 25,
+    });
+    const [row] = refusalsFor(
+      [{ activation: firing(entry), tokens: 1, refusedBy: 'token-budget' }],
+      [],
+    );
+
+    expect(row?.blockId).toBe(blocks[0]?.candidate.id);
   });
 });

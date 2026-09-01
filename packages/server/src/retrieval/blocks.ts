@@ -208,3 +208,39 @@ export function priorityFor(
 function spreadPriority(priority: number | undefined): { priority?: number } {
   return priority === undefined ? {} : { priority };
 }
+
+/**
+ * The inner budget's refusals, in the arbiter's own vocabulary — [P5.6].
+ *
+ * **Written here rather than in `shelf.ts`**, because a rule an author reads is
+ * a product string and the shelf's job is the arithmetic. It is also where the
+ * outlet mismatch joins them: three different things decided against these
+ * blocks and a reader needs one list, not three.
+ *
+ * The sentences name the setting to change, which is the whole reason they are
+ * sentences: *the book's token budget* is a field somebody can find, and *over
+ * budget* is a shrug.
+ */
+export function refusalsFor(
+  refused: readonly Shelved[],
+  unplaced: readonly Unplaced[],
+): { blockId: string; tokens: number; rule: string }[] {
+  return [
+    ...refused.map((one) => ({
+      blockId: `lore.${one.activation.bookId}.${one.activation.entry.id}`,
+      tokens: one.tokens,
+      rule:
+        one.refusedBy === 'entry-limit'
+          ? `past the book's entry limit of ${String(one.activation.book.entryLimit)}`
+          : `over the book's token budget of ${String(one.activation.book.tokenBudget)}`,
+    })),
+    ...unplaced.map((one) => ({
+      blockId: `lore.${one.activation.bookId}.${one.activation.entry.id}`,
+      // Not a budget decision at all, so it has no size: nothing measured it,
+      // because nothing was going to send it. Reporting an estimate here would
+      // read as *this cost you tokens*, which is the opposite of what happened.
+      tokens: 0,
+      rule: `no preset slot positions the outlet “${one.outletName}”`,
+    })),
+  ];
+}

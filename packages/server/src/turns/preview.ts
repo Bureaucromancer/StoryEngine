@@ -155,6 +155,7 @@ export async function previewAssembly(
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
         notFilled: collected.notFilled,
+        refused: lore.refused,
       },
       {},
       collected.candidates,

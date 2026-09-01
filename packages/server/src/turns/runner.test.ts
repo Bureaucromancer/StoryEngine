@@ -1343,6 +1343,64 @@ describe('a preset block can be scoped to a kind of call', () => {
     expect(timing[0]?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
   });
 
+  /**
+   * **The two budgets meeting in one verdict**, on a real record — [P5 §1.3]'s
+   * *every skip lands in the `BudgetVerdict` with the rule that made it*.
+   *
+   * The per-book tier runs long before the chat-wide cut and its refusals are
+   * not candidates, so nothing carries them to the record unless something is
+   * made to. Without this, *four lore entries matched and their book had no
+   * room* is a fact the record does not contain — and it has a different repair
+   * from *the turn was too long*, which is the whole reason the tiers are
+   * distinguished at all.
+   */
+  it("lands a book's own budget refusal in the turn's verdict, with its rule", async () => {
+    const book = newLorebook('Rain City');
+    book.tokenBudget = 1;
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing and remembers every face that ever crossed it.',
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withLore = await createSession(sessions, ACCOUNT, {
+      name: 'A full book',
+      preset: SCENE_PRESET,
+      lore: [book.id],
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withLore.id,
+      idempotencyKey: 'lore-3',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'She asked the ferryman.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withLore.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const call = callOnRecord(turn);
+    const entryId = book.entries[0]?.id ?? '';
+    const decisions = onRecord(call.budget, 'the budget verdict on the call').decisions;
+    const row = decisions.find((one) => one.blockId.includes(entryId));
+
+    expect(row?.included).toBe(false);
+    // The rule names the setting to change, which is the point of it being a
+    // sentence rather than an enum.
+    expect(row?.rule).toContain('token budget');
+    // And it is not in the prompt, nor counted against what the turn spent.
+    expect(
+      onRecord(call.blocks, 'the assembled blocks').filter((block) => block.source.kind === 'lore'),
+    ).toEqual([]);
+  });
+
   it('drops a block whose appliesTo does not name this step kind', async () => {
     // Driven through the runner with a session whose preset scopes one block to
     // a call kind the step does not make.

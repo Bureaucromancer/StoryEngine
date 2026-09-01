@@ -517,6 +517,7 @@ export class TurnRunner {
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
                   notFilled: fromPreset.notFilled,
+                  refused: lore.refused,
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
