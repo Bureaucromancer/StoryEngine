@@ -314,6 +314,64 @@ describe('rebuild equals incremental, as a property', () => {
   }, 120_000);
 });
 
+describe('a row that changes its id releases the one it had', () => {
+  it('unshadows the copy left holding the old id', async () => {
+    /**
+     * **The property found this and could not say what it was**, which is the
+     * case for writing it down as an example beside it: it appeared as roughly
+     * one full-suite run in five, on a randomised sequence, and a
+     * seed-dependent gate is one nobody can act on.
+     *
+     * The mechanism. Two files may hold one id — a copy is how a person makes
+     * that happen — and `resolveDuplicates` picks the winner by portable path,
+     * lexicographically first. `ingestFile` calls it with the id it just
+     * indexed, and **only** that one. So when a file's id *changes*, the set it
+     * left behind is never re-resolved: the survivor keeps the `shadowed` flag
+     * it was given when it had company, and there is no longer anybody to be
+     * shadowed by.
+     *
+     * A rebuild cannot reproduce that, because it starts empty and never sees
+     * the intermediate state — which is exactly why the two producers disagreed
+     * and exactly what the gate exists to catch.
+     */
+    await apply({ kind: 'write', slug: 'alpha', name: 'Rain City' });
+    await quiesce();
+
+    // `delta` now holds `alpha`'s id. `alpha` sorts first, so `delta` shadows.
+    await apply({ kind: 'copy', from: 'alpha', to: 'delta' });
+    await quiesce();
+    expect(shadowedFlags()).toEqual({ alpha: 0, delta: 1 });
+
+    // `alpha` is rewritten with a *fresh* id, so nothing shares `delta`'s any
+    // more. `delta` is the only holder and must stop being shadowed.
+    await apply({ kind: 'write', slug: 'alpha', name: 'Rain City, revised' });
+    await quiesce();
+
+    expect(shadowedFlags(), 'delta holds its id alone and is still shadowed').toEqual({
+      alpha: 0,
+      delta: 0,
+    });
+
+    // And the gate's own claim, stated directly rather than left to the
+    // property to stumble on.
+    const fresh = await openIndex({ path: ':memory:' });
+    try {
+      await rebuild(fresh.db, library.layout);
+      expect(snapshot(fresh.db)).toEqual(snapshot(library.db));
+    } finally {
+      fresh.close();
+    }
+  });
+});
+
+/** `{ slug: shadowed }` for the live rows, which is what this is all about. */
+function shadowedFlags(): Record<string, number> {
+  const rows = library.db
+    .prepare('select slug, shadowed from object where tombstoned_at is null order by slug')
+    .all() as { slug: string; shadowed: number }[];
+  return Object.fromEntries(rows.map((row) => [row.slug, row.shadowed]));
+}
+
 describe('a rebuild agrees with the index a bulk import built', () => {
   it('matches, after the fixture corpus is swept in', async () => {
     /**

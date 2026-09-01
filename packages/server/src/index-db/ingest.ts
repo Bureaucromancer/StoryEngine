@@ -192,6 +192,24 @@ export async function ingestFile(
   const vanished = await findVanishedDuplicates(db, id, path);
 
   const movedFromTombstone = inTransaction(db, () => {
+    /**
+     * **The id this path used to hold, read before the upsert overwrites it.**
+     *
+     * A file's id can change — editing one in place is all it takes, and the
+     * rebuild property generates exactly that. When it does, the id it *left*
+     * has one fewer holder, and if that leaves a single file holding it then
+     * that file is no longer shadowed by anything. `resolveDuplicates` below is
+     * called with the **new** id and knows nothing about the old one, so the
+     * survivor kept a `shadowed` flag it had been given when it had company.
+     *
+     * A rebuild starts empty and never sees the intermediate state, so it
+     * disagreed — which is how this surfaced: as roughly one full-suite run in
+     * five of the gate that exists to hold the two producers to one answer.
+     */
+    const previousId = (
+      db.prepare('select id from object where path = ?').get(path) as { id: string } | undefined
+    )?.id;
+
     // The file parses, so whatever was wrong with it before is not wrong now.
     clearFileError(db, path);
     // Unlink-first ordering: the tombstone is already waiting for us.
@@ -201,6 +219,12 @@ export async function ingestFile(
     // is already gone.
     dropRows(db, vanished);
     resolveDuplicates(db, layout, id);
+    // Both sets, and in this order: the new id's winner is decided first, so a
+    // file that moved *between* two duplicate sets cannot be briefly unshadowed
+    // in one while still counted in the other.
+    if (previousId !== undefined && previousId !== id) {
+      resolveDuplicates(db, layout, previousId);
+    }
     return claimed;
   });
 

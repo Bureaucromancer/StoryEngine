@@ -117,7 +117,21 @@ Two things this deliberately is not:
   use: editing the real object makes it *newer* than the stale copy, so an
   oldest-wins rule silently promotes the copy. Path order is deterministic,
   immune to editing, and makes **rebuild-from-disk equals incremental** — this
-  phase's CI gate — trivially true rather than something to hope holds.
+  phase's CI gate — ~~trivially true rather than something to hope holds~~
+  *deterministic given the set of files claiming an id, which is a weaker claim
+  than it reads as.*
+
+  *Corrected 2026-08-31, by the gate catching it.* The rule really is
+  order-independent, so both producers agree **on a set they have both
+  computed**. What is not trivial is keeping the incremental producer's idea of
+  that set current: a file's id can change, and when it does, the id it *left*
+  has one fewer holder. `ingestFile` re-resolved only the id it had just
+  indexed, so a survivor kept a `shadowed` flag from a time when it had company
+  — a state a rebuild never passes through, and therefore a disagreement.
+  Fixed in `ingest.ts` by re-resolving the previous id as well. **The lesson is
+  the wording**: *trivially true* is what a determinism argument buys for the
+  comparison and not for the bookkeeping around it, and believing the stronger
+  version is why the gate ran for four phases before it found this.
 - **Not a resolution UI.** A dialog showing both folders and timestamps and
   asking which keeps the id is a *remedy*, and remedies need what P1 has not
   built: a confirmation model, an undo story, and a write that rewrites identity
