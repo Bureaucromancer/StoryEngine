@@ -1371,6 +1371,78 @@ list a new table pair joins by hand.
 *Ends at:* searching for a phrase that occurs in one entry of one book, and
 landing on **that entry**, with the matched text shown.
 
+#### ~~P5.3 — Mentions~~ Landed
+
+**What shipped:** *Mentions* and *Mentioned by* as derived, labelled sections on
+each entry, every row naming what matched; the rule in `shared/mentions.ts`
+because [16 §6](../16-lorebooks-as-a-format.md)'s falsification script counts the
+same pairs the page draws; and `tools/lore-mentions.ts`, run, with its reading
+below.
+
+**The rule is whole-word, case-insensitive, over name, keys and secondaryKeys,
+with no stop-list and no length floor** — and the last clause is the decision.
+[05 §5.3](../05-ui-surfaces.md) raises four objections to *drawing* links and
+three of them are survivable in a list: this does not pretend to be the matcher,
+it uses one stated rule rather than approximating thirty per-entry ones, and it
+picks no winner where two entries share a key. The fourth needed a choice —
+short and common keys force a stop-list, *"which is invented policy and
+invisible invented policy at that"*. The word doing the work is **invisible**,
+so there is no stop-list: a book whose keys are common words gets a long list,
+and that is the file being what it is. Suppressing it would also break the
+instrument, since a long list is exactly the signal §6 is watching for.
+
+**Whole-word rather than substring is the one place the matcher could have
+manufactured §6's own failure.** Substring matching pairs *art* with *harbour*
+and *the docks* with *the dockside*; a count built on it would report absurd
+lists produced by the matcher and read as a verdict about the books.
+
+*Ends at, and the reading, which is the stage's actual deliverable.* Run over
+this worktree's `data/` — **four books, 252 entries, 9,362 mention pairs, median
+39 per entry, max 39**. That is the shape §6 calls absurd, and the script says
+why in the same breath: **eight distinct terms matched, and the top eight carry
+100% of the pairs**, six of them at 1,560 each — `quay`, `ropewalk`,
+`saltmarket`, `old yard`, `lamp row`, `cutwater`. Those are the filler entries
+P5.0 generated to load-test the book page, forty to a name, each carrying one
+shared key. The *authored* entries in the same book behave as §2 predicts: *The
+Ferryman* mentions exactly one thing, *The Rain*, matched on `weather`.
+
+**So the control reading is: the instrument separates the two, and the corpus
+cannot answer the question.** Which is §6's amendment restated from the other
+side — a corpus we wrote confirms what it was built to contain. Folders in the
+same run: 5 across 4 books, one book carrying all of them, 25.8% of entries
+filed. The verdict on both waits for books real authors wrote.
+
+*Two things measured rather than asserted.* §5.3 says the computation
+*"recomputes in milliseconds over an object already in hand"* — **37ms for 247
+entries**, memoised per book, so it is paid once per render of the page rather
+than once per entry. And the *rendering* is where the cost actually was:
+uncapped, that book put **9,362 rows across 120,202 DOM nodes** on one page.
+Capped at five with the remainder stated — *and 34 more* — the same page is
+**55,882**. The cap is a visible one and that is the whole difference from the
+stop-list §5.3 rejects: a truncated list that states its own remainder is a list
+plus the fact that it is long. **The script is not capped**, because the
+instrument has to count what the page declines to draw.
+
+*A defect the existing tests caught, and it is one this module could not have
+seen alone.* `lorebookShape` checks that `entries` is a list of objects and
+deliberately no more — a hand-edited file is the storage thesis working — so
+`mentionIndex` is reachable with entries that are not `LoreEntry`s whatever the
+type says. Spreading an absent `secondaryKeys` threw inside the component, and
+the first thing that met it was the detail page's own minimally-book-shaped
+fixture. Shared code reachable from that guard may not assume more than the
+guard checks; the reads go through the file now, and three cases cover it.
+
+*And one carve-out widened rather than worked around.* `eslint.config.js`
+allowed direct filesystem access in `tools/*.mjs` only. The count is a `.ts`
+file because `tsconfig.tools.json` already typechecks `tools/**/*.ts` and a
+script whose **output is evidence** is the last one that should be unchecked —
+so the carve-out now names both extensions, on the argument it always had, which
+was never about the extension.
+
+---
+
+*The stage as it was written:*
+
 #### P5.3 — Mentions
 
 The derived *Mentions* and *Mentioned by* sections

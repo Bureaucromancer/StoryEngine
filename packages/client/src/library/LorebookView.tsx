@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import {
   entriesGoverned,
   entriesInFolder,
   entryGate,
+  mentionIndex,
   offCount,
   resolvedFolderId,
   type GateReason,
   type Lorebook,
   type LoreEntry,
   type LoreFolder,
+  type MentionRow,
 } from '@storyengine/shared';
 
 import { formatCount } from '../format.js';
@@ -136,6 +138,15 @@ export function LorebookView({
   const narrowed = query !== '' || key !== null || tag !== null || folder !== null;
 
   /**
+   * **Derived at render and memoised per book** — [05 §5.3], which declines an
+   * index for this on the grounds that it would buy nothing and inherit an
+   * invalidation problem. Once per book rather than once per entry: the whole
+   * pairing is one pass, and computing it inside {@link EntryUnit} would be the
+   * same pass three hundred times.
+   */
+  const mentions = useMemo(() => mentionIndex(book), [book]);
+
+  /**
    * **Within a book, search is free, and §5.3 calls that the strongest fact in
    * the section**: the detail route already holds the whole object, so nothing
    * here asks the server anything. The four narrowings compose — a key chip and
@@ -251,6 +262,8 @@ export function LorebookView({
                     importNotes={notesForEntry(importNotes ?? [], entry.name)}
                     linkToEntry={linkToEntry}
                     editEntry={editEntry}
+                    mentions={mentions.mentions.get(entry) ?? []}
+                    mentionedBy={mentions.mentionedBy.get(entry) ?? []}
                     open={expanded.has(entry.id)}
                     onToggle={() => {
                       setExpanded((current) => {
@@ -271,6 +284,91 @@ export function LorebookView({
     </div>
   );
 }
+
+/**
+ * One direction of an entry's mentions — [05 §5.3]'s derived, labelled section.
+ *
+ * **Nothing is rendered when there is nothing**, which is the opposite of the
+ * by-field view's rule and right for the opposite reason: an unset *field* is a
+ * field somebody could fill, and [16 §4.1] wants it visible so that it gets
+ * filled; an empty mention list is not a thing anybody can act on, and a heading
+ * over *None* on all three hundred entries of a book whose author did not write
+ * that way would be noise in place of a finding.
+ *
+ * **Every row names what matched**, in §5.3's own words — which is what makes
+ * the ambiguity the section accepts survivable. Two entries sharing a key both
+ * appear, and each says which of its surface forms did it.
+ */
+function MentionList(props: {
+  heading: string;
+  rows: MentionRow[];
+  note: string;
+  linkToEntry: EntryLink | undefined;
+}): JSX.Element | null {
+  if (props.rows.length === 0) return null;
+  const shown = props.rows.slice(0, MENTION_ROWS);
+  const rest = props.rows.length - shown.length;
+
+  return (
+    <section>
+      <SubsectionTitle as="h4" className="mb-1">
+        {props.heading}
+      </SubsectionTitle>
+      <Fine className="mb-1">{props.note}</Fine>
+      <ul className="flex flex-col gap-1 text-sm">
+        {shown.map((row) => (
+          <li key={row.entry.id} className="flex flex-wrap items-baseline gap-2">
+            <span>
+              {props.linkToEntry === undefined
+                ? row.entry.name === ''
+                  ? 'Untitled entry'
+                  : row.entry.name
+                : props.linkToEntry(
+                    row.entry.id,
+                    row.entry.name === '' ? 'Untitled entry' : row.entry.name,
+                  )}
+            </span>
+            {/*
+             * One string rather than a label and a list rendered beside each
+             * other: the separator is punctuation between data, and the whole
+             * phrase stays somewhere a catalogue could pick it up.
+             */}
+            <Fine>{`matched: ${row.terms.join(', ')}`}</Fine>
+          </li>
+        ))}
+        {rest === 0 ? null : (
+          <li>
+            <Fine>{`and ${formatCount(rest)} more`}</Fine>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * How many rows a mention list shows before it says how many more there are.
+ *
+ * **A visible cap, which is a different thing from the stop-list §5.3 rejects.**
+ * That rejection turns on the word *invisible*: a suppressed key is policy
+ * nobody can see, where a truncated list that states its own remainder is a
+ * list somebody can read plus the fact that it is long.
+ *
+ * It exists because a real book made it necessary. The 247-entry book this
+ * surface is walked against carries forty entries sharing the key *quay*, forty
+ * sharing *ropewalk*, and four more sets like it — so every one of them mentions
+ * thirty-nine others, and uncapped the page rendered nine thousand three hundred
+ * and sixty-two rows across a hundred and twenty thousand DOM nodes. Five is
+ * enough to be a list and short enough to take in beside the entry it belongs
+ * to.
+ *
+ * **The instrument is not capped**, and that division is the point:
+ * `tools/lore-mentions.ts` counts every pair, because
+ * [16 §6](../../../../docs/design/16-lorebooks-as-a-format.md)'s test is exactly
+ * whether real books produce absurd lists and a truncated count could not say.
+ * The page is for reading; the script is for measuring.
+ */
+const MENTION_ROWS = 5;
 
 /** The clamp, in lines, and what it takes for text to reach it. */
 const CLAMP_LINES = 6;
@@ -523,6 +621,8 @@ function EntryUnit(props: {
   // makes those different, and the caller forwards a value that may be absent.
   linkToEntry: EntryLink | undefined;
   editEntry: EntryLink | undefined;
+  mentions: MentionRow[];
+  mentionedBy: MentionRow[];
   open: boolean;
   onToggle: () => void;
   onKey: (key: string | null) => void;
@@ -694,6 +794,30 @@ function EntryUnit(props: {
           ))}
         </ul>
       )}
+
+      {/*
+       * **Mentions, as a labelled list and never as an underline in the prose**
+       * — [05 §5.3](../../../../docs/design/05-ui-surfaces.md), which spends its
+       * argument on that difference: a name underlined inside a body reads as an
+       * activation preview and is not one, because the scanner runs over chat
+       * text rather than entry content unless `recursiveScanning` is on, and it
+       * defaults to false. A list under a heading makes no claim about firing.
+       *
+       * Both directions, because §5.2's shape holds one level down — *outbound
+       * is a thing you arrange, inbound is a thing you discover*.
+       */}
+      <MentionList
+        heading="Mentions"
+        rows={props.mentions}
+        note="Entries this one names, by their name or a key. Not a claim about what fires."
+        linkToEntry={props.linkToEntry}
+      />
+      <MentionList
+        heading="Mentioned by"
+        rows={props.mentionedBy}
+        note="Entries whose text names this one."
+        linkToEntry={props.linkToEntry}
+      />
 
       <details>
         <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink">

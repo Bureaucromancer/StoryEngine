@@ -191,10 +191,19 @@ export default tseslint.config(
   // that through the storage helpers would mean growing the server's surface
   // with an `rm` that nothing in the server needs.
   //
-  // A category rather than a hole, on the same terms: it is `tools/*.mjs` only,
-  // and everything under `tools/lint-fixtures` keeps the ordinary rules.
+  // A category rather than a hole, on the same terms: it is the top level of
+  // `tools/` only, and everything under `tools/lint-fixtures` keeps the
+  // ordinary rules.
+  //
+  // **`.ts` as well as `.mjs` since P5.3**, because the argument above was never
+  // about the extension and the file that widened it is one whose output is
+  // *evidence*: `lore-mentions.ts` produces the count
+  // [16 §6](docs/design/16-lorebooks-as-a-format.md) uses to decide whether that
+  // document's warrant holds, so it is the last script that should be the
+  // unchecked kind. `tsconfig.tools.json` already includes `tools/**/*.ts`, so
+  // the typecheck was there and only the lint rule was not.
   {
-    files: ['tools/*.mjs'],
+    files: ['tools/*.mjs', 'tools/*.ts'],
     languageOptions: {
       // `fetch` because `seed.mjs` drives the API the way a browser does —
       // deliberately, so a seed that works proves the routes work.

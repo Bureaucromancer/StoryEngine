@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { newLoreEntry, newLorebook, type LoreEntry, type LoreFolder } from '@storyengine/shared';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -547,5 +547,91 @@ describe('what the import said about this book', () => {
     );
 
     expect(screen.queryByRole('heading', { name: 'What the import did' })).toBeNull();
+  });
+});
+
+/**
+ * [P5.3] — *Mentions* and *Mentioned by*, which [05 §5.3] specifies as derived,
+ * labelled sections precisely so that the prose is left alone.
+ *
+ * **What is asserted here is the rendering, not the rule.** The rule lives in
+ * `shared/mentions.ts` because [16 §6]'s falsification script counts the same
+ * pairs this page draws, and it is tested there. What this file owes is the
+ * three things §5.3 says about the *surface*: both directions appear, every row
+ * names what matched, and an entry with no mentions gets no heading.
+ */
+describe('an entry’s mentions', () => {
+  const linked = [
+    entry('Harbour District', { keys: ['the docks'], content: 'Cranes over the water.' }),
+    entry('The Ferryman', { content: 'He works the docks and crosses at dawn.' }),
+  ];
+
+  it('lists both directions, each row naming what matched', () => {
+    render(<LorebookView book={book({ entries: linked })} />);
+
+    const ferryman = unitFor('The Ferryman');
+    expect(within(ferryman).getByRole('heading', { name: 'Mentions', level: 4 })).toBeTruthy();
+    expect(ferryman.textContent).toContain('Harbour District');
+    // §5.3: every row names what matched — which is what makes the ambiguity a
+    // list can carry and an underline could not.
+    expect(ferryman.textContent).toContain('matched: the docks');
+
+    const harbour = unitFor('Harbour District');
+    expect(within(harbour).getByRole('heading', { name: 'Mentioned by', level: 4 })).toBeTruthy();
+    expect(harbour.textContent).toContain('The Ferryman');
+  });
+
+  /**
+   * An empty mention list is not a thing anybody can act on, so it gets no
+   * heading — the opposite of the by-field view's *show the empty field* rule,
+   * and right for the opposite reason: an unset field is one somebody could
+   * fill, where a heading over *None* on every entry of a book whose author did
+   * not write that way is noise standing where a finding would be.
+   */
+  it('renders no heading for an entry nothing mentions', () => {
+    render(<LorebookView book={book({ entries: [entry('Alone', { content: 'Nothing.' })] })} />);
+
+    expect(screen.queryByRole('heading', { name: 'Mentions' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Mentioned by' })).toBeNull();
+  });
+
+  /**
+   * **The list is capped and says by how much**, which is a different thing
+   * from the stop-list [05 §5.3] rejects: that rejection turns on the word
+   * *invisible*, and a truncated list stating its own remainder is a list plus
+   * the fact that it is long. Found by walking a real book — forty entries
+   * there share the key *quay*, so uncapped every one of them listed thirty-nine
+   * others and the page rendered nine thousand rows.
+   */
+  it('shows a few and says how many more', () => {
+    const shared = Array.from({ length: 9 }, (_, at) =>
+      entry(`Quay ${String(at)}`, { keys: ['quay'], content: 'Terraces, mostly.' }),
+    );
+    render(
+      <LorebookView
+        book={book({ entries: [...shared, entry('Ferryman', { content: 'Along the quay.' })] })}
+      />,
+    );
+
+    const unit = unitFor('Ferryman');
+    expect(within(unit).getAllByText('matched: quay')).toHaveLength(5);
+    expect(unit.textContent).toContain('and 4 more');
+  });
+
+  /**
+   * The row is a link into the entry it names, built by the page so it carries
+   * the shadowed-copy discriminator — F19 one level down, the same reason the
+   * entry's own heading is a link rather than text.
+   */
+  it('links a mentioned entry at its own address', () => {
+    render(
+      <LorebookView
+        book={book({ entries: linked })}
+        linkToEntry={(entryId, children) => <a href={`?entry=${entryId}`}>{children}</a>}
+      />,
+    );
+
+    const row = within(unitFor('The Ferryman')).getByRole('link', { name: 'Harbour District' });
+    expect(row.getAttribute('href')).toBe(`?entry=${linked[0]!.id}`);
   });
 });

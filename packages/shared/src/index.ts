@@ -30,6 +30,11 @@ export * from './schema/banners.js';
 // governs. Beside the factories rather than in `schema/`: it reads the schema
 // and adds no field to it, and both halves of P5 must compute it the same way.
 export * from './lore.js';
+// Where an entry's surface forms turn up in another entry's prose. Here for the
+// same reason `lore.ts` is, doubled: the book page renders it and [16 §6]'s
+// falsification script counts it, and an instrument that measured a different
+// rule from the one on screen would be measuring nothing anybody sees.
+export * from './mentions.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';
