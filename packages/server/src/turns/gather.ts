@@ -13,6 +13,7 @@ import { readSession, readTurns, replayChannels } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
 import { resolveCast, type CastMember } from './cast.js';
+import { resolveLore, type ResolvedLore } from './lore.js';
 
 /**
  * Everything an assembly needs, read once — [P3.4].
@@ -57,6 +58,18 @@ export interface AssemblyInputs {
   declaredMode: string;
   preset: Mode['definition']['assembly']['defaultPreset'];
   cast: { persona: CastMember | null; actors: CastMember[] };
+  /**
+   * The treatment, and the books the retriever scans — [P5 §1.10].
+   *
+   * Gathered here rather than read by the retrieval step itself, because that
+   * is this module's whole reason for existing: a preview and a real turn must
+   * not be able to disagree about which books were in play. A step that read
+   * the library on its own would compile, pass its own tests, and then drift on
+   * exactly the kind of value whose drift is invisible — a book that resolves
+   * during the preview and not during the turn makes the prompt shorter and
+   * raises nothing anywhere.
+   */
+  lore: ResolvedLore;
 }
 
 export interface GatherContext {
@@ -119,15 +132,16 @@ export async function gatherAssemblyInputs(
   if (mode === null) throw new Error('No default mode is registered.');
 
   const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
-  const cast = resolveCast(
-    {
-      db: context.sessions.index,
-      layout: context.sessions.layout,
-      keepHistoryPerObject: 0,
-    },
-    request.account,
-    session?.cast,
-  );
+  // One library handle for both resolvers. They read the same store as the same
+  // account, and building it twice would be two chances to disagree about the
+  // history depth.
+  const library = {
+    db: context.sessions.index,
+    layout: context.sessions.layout,
+    keepHistoryPerObject: 0,
+  };
+  const cast = resolveCast(library, request.account, session?.cast);
+  const lore = resolveLore(library, request.account, session);
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {
@@ -144,5 +158,6 @@ export async function gatherAssemblyInputs(
     declaredMode,
     preset,
     cast,
+    lore,
   };
 }

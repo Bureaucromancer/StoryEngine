@@ -83,6 +83,21 @@ const CreateBody = Type.Object(
      */
     preset: Type.Optional(Type.String({ maxLength: 200 })),
     cast: Type.Optional(CastBody),
+    /**
+     * The world — [P5.6], [02 §8].
+     *
+     * **Links, unlike `preset` two fields up**, and validated no harder than
+     * `cast` is: an id that resolves to nothing is a session with no books, not
+     * a rejected request. Refusing here would be the one place in the codebase
+     * where a dangling link blocks, and [00 §3.3] says the opposite — the
+     * retriever reports what it could not read, every turn, where somebody
+     * playing can actually see it.
+     *
+     * `lore` is extras *beyond* whatever the treatment already links ([02 §7]),
+     * so both may be given, and giving neither is the pre-P5.6 session.
+     */
+    treatment: Type.Optional(Type.String({ maxLength: 200 })),
+    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
   },
   { additionalProperties: false },
 );
@@ -152,6 +167,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       mode?: string;
       preset?: string;
       cast?: { persona: string | null; actors: string[] };
+      treatment?: string;
+      lore?: string[];
     };
 
     /**
@@ -217,6 +234,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         mode: { id: mode.definition.id, config: null },
         preset,
         ...(body.cast === undefined ? {} : { cast: body.cast }),
+        ...(body.treatment === undefined ? {} : { treatment: body.treatment }),
+        ...(body.lore === undefined ? {} : { lore: body.lore }),
       });
       return await reply.code(201).send({ session });
     } catch (error) {

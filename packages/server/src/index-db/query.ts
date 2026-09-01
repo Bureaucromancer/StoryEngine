@@ -182,6 +182,45 @@ export function findPriorImport(
  * it is why the shadow winner itself is platform-divergent (F23). The slug is
  * the folder name, which is the portable half and the same string on both.
  */
+/**
+ * The name half of `Ref` resolution — [02 §11.4], [10 §8].
+ *
+ * **Case-insensitive in JavaScript rather than in SQL**, which is why this
+ * makes two queries instead of one `where lower(name) = lower(?)`. SQLite's
+ * `lower()` folds ASCII only, so a book called *Régine's Notes* would fail to
+ * match `régine's notes` and the fallback would silently not fall back for
+ * exactly the imported, accented, non-English data it exists to rescue.
+ * `toLowerCase` is Unicode and locale-independent, which is what an identity
+ * comparison wants — `toLocaleLowerCase` would make the answer depend on the
+ * server's locale, and a Turkish install would resolve a different book.
+ *
+ * The names are fetched without their bodies and the winner is read back by
+ * path, so scanning a kind costs a column rather than every object's full JSON.
+ *
+ * Ordered by `shadowed` then `path`, the same tie-break `findById` uses: two
+ * files claiming one name is the [P1 §1.2] duplicate case, and the unshadowed
+ * one is the one being used.
+ */
+export function findByName(
+  db: DatabaseSync,
+  name: string,
+  at: { owners: string[]; schemaId: string },
+): IndexedObject | null {
+  if (at.owners.length === 0) return null;
+  const rows = db
+    .prepare(
+      `select path, name from object
+        where owner in (${at.owners.map(() => '?').join(', ')})
+          and schema_id = ? and tombstoned_at is null
+        order by shadowed, path`,
+    )
+    .all(...at.owners, at.schemaId) as { path: string; name: string }[];
+
+  const wanted = name.toLowerCase();
+  const hit = rows.find((row) => row.name.toLowerCase() === wanted);
+  return hit ? findByPath(db, hit.path) : null;
+}
+
 export function findByIdAt(
   db: DatabaseSync,
   id: string,

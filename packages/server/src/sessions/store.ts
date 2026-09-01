@@ -107,6 +107,9 @@ export interface NewSession {
   /** Copied in whole. [02 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
   cast?: { persona: string | null; actors: string[] };
+  /** Links, not copies — [P5.6], and see `SessionFile` for why. */
+  treatment?: string | null;
+  lore?: string[];
 }
 
 export async function createSession(
@@ -129,6 +132,8 @@ export async function createSession(
     ...(spec.mode === undefined ? {} : { mode: spec.mode }),
     ...(spec.preset === undefined ? {} : { preset: spec.preset }),
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
+    ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
+    ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);
