@@ -63,7 +63,13 @@ const MAX_DEPTH = 3;
 const NAMING_KEYS = ['title', 'name', 'label'] as const;
 
 export function ByField({ schemaId, value }: { schemaId: string; value: unknown }): JSX.Element {
-  return <FieldGroups groups={groupsOf(objectFieldsOf(schemaId, value))} value={value} />;
+  return (
+    <FieldGroups
+      groups={groupsOf(objectFieldsOf(schemaId, value))}
+      value={value}
+      headingAs={undefined}
+    />
+  );
 }
 
 /**
@@ -80,6 +86,15 @@ export function ByFields(props: {
   schema: SchemaNode | undefined;
   value: unknown;
   omit?: ReadonlySet<string>;
+  /**
+   * The heading level the group titles take, which belongs to the host and not
+   * to this component — [ui/Text.tsx](../ui/Text.tsx) draws that line, and the
+   * book page is what made it matter: an entry's name is an `h3`, so the groups
+   * folded *inside* that entry are `h4`. Rendered at `h3` there, one book put
+   * two thousand four hundred `h3`s on a page and every one of them claimed to
+   * be a sibling of the entry it was inside.
+   */
+  headingAs?: 'h2' | 'h3' | 'h4';
 }): JSX.Element {
   const { omit } = props;
   /**
@@ -97,7 +112,7 @@ export function ByFields(props: {
       fields: group.fields.filter((row) => omit?.has(row.key) !== true),
     }))
     .filter((group) => group.fields.length > 0);
-  return <FieldGroups groups={groups} value={props.value} />;
+  return <FieldGroups groups={groups} value={props.value} headingAs={props.headingAs} />;
 }
 
 /**
@@ -109,7 +124,14 @@ export function ByFields(props: {
  * headings; a schema written without them looks exactly as it did before
  * banners existed.
  */
-function FieldGroups(props: { groups: FieldGroup[]; value: unknown }): JSX.Element | null {
+function FieldGroups(props: {
+  groups: FieldGroup[];
+  value: unknown;
+  // Required and nullable rather than optional: `exactOptionalPropertyTypes`
+  // makes those two different things, and the caller forwards a value that may
+  // be absent.
+  headingAs: 'h2' | 'h3' | 'h4' | undefined;
+}): JSX.Element | null {
   const [only] = props.groups;
   if (only === undefined) return null;
   if (props.groups.length === 1 && only.title === null) {
@@ -121,7 +143,7 @@ function FieldGroups(props: { groups: FieldGroup[]; value: unknown }): JSX.Eleme
       {props.groups.map((group, index) => (
         <section key={group.title ?? `head:${String(index)}`}>
           {group.title === null ? null : (
-            <SubsectionTitle as="h3" className="mb-1">
+            <SubsectionTitle as={props.headingAs ?? 'h3'} className="mb-1">
               {group.title}
             </SubsectionTitle>
           )}

@@ -254,3 +254,64 @@ describe('reading an object without opening the editor', () => {
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
   });
 });
+
+/**
+ * [P5.0] — the detail route renders a lorebook as a book, and renders a file
+ * that is not one as whatever it actually is.
+ *
+ * **The second is the one worth the test.** A hand-edited card is the storage
+ * thesis working ([00 §3.4]), so a book page that threw on a file whose
+ * `entries` is a string would be answering the invited input with a white
+ * screen. Found by mutation: dropping the shape guard left every other
+ * assertion green, because no test reached the page with a broken book.
+ */
+describe('a lorebook on the detail route', () => {
+  function lorebook(over: Record<string, unknown>) {
+    return actor({
+      schema: 'storyengine.lorebook/1',
+      name: 'Ardent',
+      object: {
+        schema: 'storyengine.lorebook/1',
+        id: ACTOR_ID,
+        name: 'Ardent',
+        description: '',
+        enabled: true,
+        scanDepth: 2,
+        tokenBudget: 2048,
+        entryLimit: 100,
+        recursiveScanning: false,
+        maxRecursionDepth: 3,
+        tags: [],
+        folders: [],
+        entries: [],
+        ...over,
+      },
+    });
+  }
+
+  it('reads as a book rather than as a field list', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        entries: [{ id: 'e1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByRole('heading', { name: 'Harbour', level: 3 })).toBeTruthy();
+    expect(screen.getByText('Cranes.')).toBeTruthy();
+  });
+
+  it('falls back to the field list when the file is not a book, rather than failing', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(lorebook({ entries: 'someone hand-edited this' }));
+    renderPage();
+
+    // The page renders, and it renders what is on disk: the by-field view shows
+    // the field as the string it now is, and no book page claims otherwise.
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByText('someone hand-edited this')).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: 'Gate' })).toBeNull();
+  });
+});

@@ -885,9 +885,46 @@ same reason — global is the default and nearly every imported book is one.
 because the page renders the same order either way and what an in-place sort
 breaks is every *other* reader of the query cache.
 
+**Then the book page**, which is what the detail route renders when the kind is
+`lorebooks` — not a new page, so the header, the storage block and *As stored*
+stay the page's. The book's own fields and the counts §5.3 asks for (*214
+entries, 31 off*, invisible at every surface before this); the activation
+settings as one quiet strip, which is where [02 §3.1]'s *each flag is a direct
+UI control* gets read as **reachable** rather than as prominent; the folders
+panel with its **Gate** column and a real *Ungrouped* row; and each entry as a
+readable unit — keys as an index row, description set apart, content clamped
+with an expand, and *as configured* folded beneath in the schema's own groups.
+
+**The gate's three reasons are one function in `shared`, not client logic.**
+§3's step 13 asks that the tester agree with what the document half showed and
+P5.7 is told to honour the same gate in activation; a test can compare two
+implementations, but only one implementation cannot disagree with itself. So
+`shared/lore.ts` answers *what is shut in this entry's way*, the page renders it,
+and P5.7 will act on it. Three things that a check written from §5.3's summary
+gets wrong, all of them now tested: **folders nest** through `parentFolderId`, so
+a one-hop lookup is not the check; **the chain need not be acyclic**, because
+these files are hand-edited; and a `folderId` naming a folder the book does not
+contain has to degrade to *Ungrouped* rather than vanish, for the same reason
+§5.3 insists `folderId: null` gets a real node. More than one gate can be shut at
+once, so the answer is an ordered list rather than a winner — outermost first,
+because that is the order they have to be cleared in.
+
+*A structural bug the tests found:* the fold's group headings were `h3`, the same
+level as the entry name they sit **inside** — one three-hundred-entry book put
+two thousand four hundred of them on a page, every one claiming to be a sibling
+of its own parent. Heading level is document structure and belongs to the host,
+which [ui/Text.tsx] already said; it is a prop now.
+
+*And a detour worth naming:* the suite's named CI gate turned out to be failing
+about one run in eight, on a fixed example, for a reason that had nothing to do
+with this phase — the harness's slug bookkeeping leaked between tests and
+silently skipped the copy the assertion was about. Fixed and measured
+(`5b7fbc6`); it was blocking any honest claim that this stage's own gate was
+green.
+
 *Still to come in this stage:* the panel's four filters and the within-book
-search that shares their shape, the book page itself, the entry address, and
-§1.8's import-notes row.
+search that shares their shape, the entry address as a validated search param,
+and §1.8's import-notes row.
 
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,

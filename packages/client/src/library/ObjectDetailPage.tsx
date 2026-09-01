@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
+import type { Lorebook } from '@storyengine/shared';
+
 import {
   api,
   ApiError,
@@ -22,6 +24,7 @@ import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
 import { ByField } from './ByField.js';
 import { editorRouteFor } from './fields.js';
+import { LorebookView, lorebookShape } from './LorebookView.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -167,7 +170,7 @@ function ObjectView(props: {
        * The block is not demoted out of sight: [05 §5] wants the disk layout
        * legible, and a heading is what turns a lead paragraph into a section.
        */}
-      <ByField schemaId={object.schema} value={object.object} />
+      <ObjectBody object={object} kind={kind} />
 
       <SectionTitle as="h2" className="mb-2 mt-8">
         Storage
@@ -199,6 +202,29 @@ function ObjectView(props: {
       <AsStored value={object.object} />
     </>
   );
+}
+
+/**
+ * What the detail route renders for the object itself.
+ *
+ * **One route, two bodies, and the second is not a promotion.** A lorebook is
+ * the only library kind whose object is a collection
+ * ([16 §1.1](../../../../docs/design/16-lorebooks-as-a-format.md)), so a
+ * by-field rendering of it is off by one level — a three-hundred-element array
+ * under a label is not a reading surface. Every other kind is unchanged, and
+ * lorebooks keep this route, its header, its storage block and its *As stored*
+ * fold ([05 §5.3](../../../../docs/design/05-ui-surfaces.md): *not a new page*).
+ *
+ * **A book this build cannot read falls back rather than failing.** A
+ * hand-edited file is the storage thesis working, so the guard runs first and
+ * the by-field view renders whatever is actually on disk — which is more useful
+ * than a book page insisting the file is a book.
+ */
+function ObjectBody(props: { object: LibraryObject; kind: LibraryKind }): JSX.Element {
+  if (props.kind === 'lorebooks' && lorebookShape(props.object.object) === null) {
+    return <LorebookView book={props.object.object as unknown as Lorebook} />;
+  }
+  return <ByField schemaId={props.object.schema} value={props.object.object} />;
 }
 
 function BackLink(): JSX.Element {

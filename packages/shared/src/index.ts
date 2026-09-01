@@ -26,6 +26,10 @@ export * from './preview.js';
 // for the same reason ([P4 §1.4]). Classes and params, never sentences.
 export * from './import.js';
 export * from './schema/banners.js';
+// Derived logic over a lorebook — whose gates are shut, and what a folder
+// governs. Beside the factories rather than in `schema/`: it reads the schema
+// and adds no field to it, and both halves of P5 must compute it the same way.
+export * from './lore.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';
