@@ -1470,6 +1470,90 @@ compared against.
 
 ### The retriever half
 
+#### ~~P5.4 — The matching engine, pure~~ Landed
+
+**Two commits, in §1.10's order.** The regex timeout alone and first, then the
+matcher on top of it.
+
+**The timeout is [triage §5.1](02-triage.md)'s ADOPT, with its two named details
+carried and one of them checked rather than inherited.** §5.1 says the pattern
+must be recompiled *inside* the vm because passing a compiled `RegExp` in "would
+not work, and that is not obvious". On this runtime it does work — a compiled
+pattern passed through the context aborts too — so the stated reason no longer
+holds. The recompile stays for the reasons that survive, and the note says it
+was measured. The other detail needs no amendment: **on timeout it does not fall
+back to substring matching**, because the pattern may match perfectly well on
+simpler input and substituting different semantics turns a refusal into a
+different answer nobody asked for.
+
+*Three more things measured rather than repeated.* The isolate is reused —
+0.125ms a call against 0.4ms fresh, which is nothing for a normal book and about
+120ms a turn for one that is all regex — and **a context survives having a
+script torn out of it by the interrupt**, so there is no discard-and-rebuild
+step and its absence is a finding. And the isolate holds **three strings and
+nothing else**: `process` and `require` are `undefined` inside it and an
+assignment to its `globalThis` does not reach ours. That last one corrected this
+stage's own first draft, which described interpolating the pattern into the
+script as arbitrary code execution *on the server*. It would not be. It would be
+code execution inside an empty sandbox under the same timeout — plus the quieter
+and likelier cost, **a wrong answer**, and the ordinary breakage that a pattern
+containing a slash stops working. That last is the assertion that covers it now,
+and it needed no payload.
+
+**A bug the tests caught that the code would have hidden.** An error raised
+across a vm boundary is not necessarily an `Error` *of this realm*, and under
+the runner it is not — so a version guarding on `instanceof Error` reported
+**every timeout as an invalid pattern**. That is the worst of the four outcomes
+to get wrong, because it tells an author their regex is malformed when it is
+merely ruinous and sends them to fix the wrong thing. Caught only because the
+test asserted the whole outcome rather than *not a match*; three neighbouring
+assertions passed straight over it.
+
+**Then the matcher, pure**: keys, secondary keys with selective logic,
+whole-word, case, regex, scan depth and scan sources, as functions over values.
+Everything deciding whether a matched entry actually *fires* — `enabled`, the
+folder gate, `constant`, `probability`, timing, recursion, budgets — stays out,
+and keeping it out is what made this the cheapest place in the phase to be
+exhaustive. It answers with **why** rather than with a boolean, because
+[02 §3.1](../02-data-model.md)'s `LorebookActivationSource` is the per-block
+*why was this included* value and §1.3 wires it into block reasons at P5.6.
+
+*Four outcomes rather than two.* `no-keys` is separated from `no-match` because
+it is a property of the entry rather than of the text — and it is the commonest
+reason a newly created entry never fires, since `newLoreEntry` makes one with no
+keys at all. `held-by-secondary` is separated from `no-match` because *matched
+then held* is the answer somebody debugging selective logic needs, and the key
+that hit travels with it.
+
+**And the corpus earned its place in the stage text.** The rule the imported
+entries forced: **an empty `secondaryKeys` list is no condition at all**,
+whatever `selectiveLogic` says. Both SillyTavern fixture entries carry
+`selective: true` with an empty `keysecondary`; read literally, `and_any` — *at
+least one secondary matched* — is vacuously false over an empty list, so a
+matcher built from the schema alone makes every one of those entries **dead**,
+and every ST-imported book with them. No hand-written entry would have said so.
+The sharpest assertion in the file is the pair: the same book stored two ways,
+through two converters that decode `selectiveLogic` from an integer and from a
+string, reaching the same verdict on the same sentence.
+
+*Two smaller decisions, both stated where they are made.* `matchWholeWords` is
+**ignored under `useRegex`** — a pattern already says where its own boundaries
+are, and an implicit `\b…\b` would change what the author wrote; it is also what
+SillyTavern does, which matters because the library is full of patterns written
+against it. And `scanDepth` counts **messages only**: an additional source is a
+place rather than a point in the conversation, so a depth of one does not mean
+*and none of the sources* — the opposite reading is the natural one and would
+make a shallow book silently ignore every extra source an author configured.
+
+*Twenty-four mutations across the two commits, all caught.* Removing the timeout
+is recorded as **red-by-hang**, which is the honest verdict: without the guard
+the file does not fail, it stops — so the harness carries its own kill so that a
+hang is a result rather than something the person running it inherits.
+
+---
+
+*The stage as it was written:*
+
 #### P5.4 — The matching engine, pure
 
 **The regex timeout first, and on its own** (§1.10): `useRegex` is stored and
