@@ -72,6 +72,19 @@ export default tseslint.config(
       // Files that exist to violate the rules below. They are linted
       // deliberately, by the fixture tests, and never by `pnpm lint`.
       'tools/lint-fixtures/fixtures/',
+      // Claude Code's local state — and its scratch worktrees, which are whole
+      // second checkouts of this repository. `.prettierignore` has excluded
+      // them since the format gate first met one; this list never did, and
+      // eslint does traverse the path: a file planted under
+      // `.claude/worktrees/` is reported by a sweep run from the root.
+      //
+      // Linting everything twice is the small half of that. The real cost is
+      // that the root's result becomes a property of whichever branch somebody
+      // has checked out beside it — red over work that is not in this tree,
+      // and green again when a directory is deleted, which is how it was
+      // 'fixed' the last time. Every entry above is anchored to the root, so
+      // none of them reach inside a worktree; `data/` conspicuously does not.
+      '.claude/',
     ],
   },
 
