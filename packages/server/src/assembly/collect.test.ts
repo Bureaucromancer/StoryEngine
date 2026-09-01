@@ -14,6 +14,7 @@ import {
 import { SCENE_PRESET } from '../modes/scene/preset.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
+import type { LoreBlock } from '../retrieval/blocks.js';
 import { collectCandidates, type CollectContext } from './collect.js';
 
 /**
@@ -809,5 +810,181 @@ describe('writing samples, which are shown rather than described', () => {
 
     expect(candidates).toHaveLength(0);
     expect(notFilled[0]?.reason).toBe('empty-source');
+  });
+});
+
+/**
+ * The lore arm — [P5.6].
+ *
+ * **The one slot whose blocks are not all in one place.** `position` lives on
+ * the entry, so a single lore slot emits blocks belonging in four places, and
+ * every test below is about the collector routing them rather than about the
+ * retriever choosing them: which slot takes which, and where `at_depth` lands.
+ */
+describe('the lore slot', () => {
+  function loreBlock(over: Partial<LoreBlock['candidate']> & { text: string }): LoreBlock {
+    return {
+      placement: { at: 'before' },
+      candidate: {
+        id: `lore.${over.text}`,
+        source: { kind: 'lore', entryId: 'e', phase: 'before' },
+        reason: 'keyword match',
+        role: 'system',
+        priority: 25,
+        ...over,
+      },
+    };
+  }
+
+  const loreSlot = (over: Partial<PresetBlock> = {}, phase: 'before' | 'after' = 'before') =>
+    block({ kind: 'slot', id: `se.lore.${phase}`, source: { of: 'lore', phase }, ...over });
+
+  it('fills a lore slot from the retriever', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([loreSlot()]),
+        lore: [loreBlock({ text: 'The docks run on paperwork.' })],
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['The docks run on paperwork.']);
+  });
+
+  it("keeps the entry's own role and reason rather than the slot's", () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([loreSlot({ role: 'system' })]),
+        lore: [loreBlock({ text: 'Spoken.', role: 'assistant', reason: 'keyword match: “docks”' })],
+      }),
+    );
+
+    expect(candidates[0]?.role).toBe('assistant');
+    expect(candidates[0]?.reason).toBe('keyword match: “docks”');
+  });
+
+  /**
+   * The phase is what separates the two ordinary slots. A collector that
+   * ignored it would put every entry in both, which doubles the world in the
+   * prompt and is invisible until somebody counts.
+   */
+  it('sends an entry to the slot for its phase and not the other', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([loreSlot({}, 'before'), loreSlot({}, 'after')]),
+        lore: [
+          { ...loreBlock({ text: 'Early.' }), placement: { at: 'before' } },
+          { ...loreBlock({ text: 'Late.' }), placement: { at: 'after' } },
+        ],
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['Early.', 'Late.']);
+  });
+
+  describe('outlets', () => {
+    const outletSlot = block({
+      kind: 'slot',
+      id: 'se.lore.rules',
+      source: { of: 'lore', phase: 'before', outlet: 'rules' },
+    });
+
+    it('gives an outlet slot only the entries addressed to it', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([outletSlot]),
+          lore: [
+            { ...loreBlock({ text: 'Rules.' }), placement: { at: 'outlet', name: 'rules' } },
+            { ...loreBlock({ text: 'Ordinary.' }), placement: { at: 'before' } },
+          ],
+        }),
+      );
+
+      expect(candidates.map((one) => one.text)).toEqual(['Rules.']);
+    });
+
+    /**
+     * And the ordinary slot does **not** sweep up outlet entries as a
+     * courtesy. An entry saying `outlet: rules` is asking not to land in the
+     * before-run; letting it land there anyway undoes both halves of what an
+     * outlet decouples, and does it silently.
+     */
+    it('does not let an unnamed slot take an outlet entry', () => {
+      const { candidates, notFilled } = collectCandidates(
+        context({
+          preset: preset([loreSlot()]),
+          lore: [{ ...loreBlock({ text: 'Rules.' }), placement: { at: 'outlet', name: 'rules' } }],
+        }),
+      );
+
+      expect(candidates).toEqual([]);
+      expect(notFilled[0]?.reason).toBe('empty-source');
+    });
+  });
+
+  /**
+   * `at_depth` is the placement that cannot be a plain sequence push: it
+   * belongs in the history splice, which the loop has already decided this
+   * block is not part of.
+   */
+  describe('at_depth', () => {
+    const historySlot = block({ kind: 'slot', id: 'se.history', source: { of: 'history' } });
+
+    function twoTurns(): Turn[] {
+      return [
+        { id: 'a', input: { text: 'one' }, output: { text: 'two' } },
+        { id: 'b', input: { text: 'three' }, output: { text: 'four' } },
+      ] as unknown as Turn[];
+    }
+
+    it('splices a depth entry into the history rather than appending it', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([historySlot, loreSlot()]),
+          history: twoTurns(),
+          lore: [
+            { ...loreBlock({ text: 'Injected.' }), placement: { at: 'in-history', fromEnd: 1 } },
+          ],
+        }),
+      );
+
+      const at = candidates.findIndex((one) => one.text === 'Injected.');
+      expect(at).toBeGreaterThan(0);
+      expect(at).toBeLessThan(candidates.length - 1);
+    });
+
+    it('leaves the entries that are not at a depth where the slot is', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([historySlot, loreSlot()]),
+          history: twoTurns(),
+          lore: [
+            { ...loreBlock({ text: 'Injected.' }), placement: { at: 'in-history', fromEnd: 1 } },
+            { ...loreBlock({ text: 'Ordinary.' }), placement: { at: 'before' } },
+          ],
+        }),
+      );
+
+      expect(candidates.at(-1)?.text).toBe('Ordinary.');
+    });
+  });
+
+  /**
+   * The distinction [P5 §1.10] asked to change **in P5.6's own commit**: lore
+   * has a producer now, so an empty lore slot means the retriever came up
+   * empty. `no-producer` survives only for a caller that ran no retriever at
+   * all.
+   */
+  describe('why a lore slot is empty', () => {
+    it('reads empty-source when the retriever ran and found nothing', () => {
+      const { notFilled } = collectCandidates(context({ preset: preset([loreSlot()]), lore: [] }));
+
+      expect(notFilled[0]?.reason).toBe('empty-source');
+    });
+
+    it('reads no-producer when no retriever ran at all', () => {
+      const { notFilled } = collectCandidates(context({ preset: preset([loreSlot()]) }));
+
+      expect(notFilled[0]?.reason).toBe('no-producer');
+    });
   });
 });

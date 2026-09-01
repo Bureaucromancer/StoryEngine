@@ -108,3 +108,12 @@ jobs:
       # — this step is about the name in the checks list, and it is cheap.
       - name: Rebuild from disk equals the incremental index
         run: pnpm test:gate
+
+      # Named for the same reason, and overdue: [work plan P4 §3] and [P5 §0]
+      # both describe the `lore` assertion as living "in a **named CI step**",
+      # and it did not — the vitest project and the package script existed, and
+      # CI ran them only anonymously inside `pnpm test`. That is precisely the
+      # invisibility the step above exists to prevent, so [P5 §0] gave P5.6 the
+      # choice of adding the step or dropping the word. This is the step.
+      - name: A converted card, preset and lorebook agree
+        run: pnpm test:fixture-pair

@@ -236,6 +236,9 @@
                             "type": "string"
                           }
                         ]
+                      },
+                      "outlet": {
+                        "type": "string"
                       }
                     }
                   },

@@ -106,6 +106,27 @@ export const SlotSource = Type.Union(
     Type.Object({
       of: Type.Literal('lore'),
       phase: Type.Union([Type.Literal('before'), Type.Literal('after')]),
+      /**
+       * An outlet this slot positions — [P5.6], [02 §3.1].
+       *
+       * **Block addressing arriving from the other direction.** Every other
+       * field here names what the preset wants and lets the engine supply it;
+       * an outlet lets a lore *entry* name a place and asks the preset whether
+       * that place exists. It is what decouples "this activated" from "this
+       * gets pasted here", so a book can say *put my combat rules wherever the
+       * preset keeps rules* without knowing anything about the preset.
+       *
+       * Matched exactly and case-sensitively, as `LoreEntry.outletName` says.
+       * A near miss is not silently forgiven, because the two strings were
+       * probably written by two different people and a fuzzy match would put
+       * text somewhere neither of them chose — the mismatch is reported
+       * instead, which is the only way it is ever visible.
+       *
+       * Absent means the slot takes the ordinary entries for its `phase` and no
+       * outlet at all. Added rather than substituted, so every preset written
+       * before P5.6 keeps meaning what it meant.
+       */
+      outlet: Type.Optional(Type.String()),
     }),
     Type.Object({ of: Type.Literal('history') }),
     /**

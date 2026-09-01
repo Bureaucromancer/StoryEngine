@@ -10,6 +10,8 @@ import type { Mode } from '../modes/types.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { StepDefinition } from './steps.js';
+import { Rng } from '../rng/rng.js';
+import { retrieve } from '../retrieval/retrieve.js';
 import { planCall, RoleUnresolved } from './calls.js';
 import { gatherAssemblyInputs } from './gather.js';
 
@@ -103,6 +105,33 @@ export async function previewAssembly(
     };
   }
 
+  /**
+   * The retriever runs for a preview too, and **its effects are discarded** —
+   * [P5.6].
+   *
+   * That is the whole reason `retrieve` returns proposals rather than writing
+   * them: the preview needs the same blocks the turn will send, and must not
+   * move a single cooldown to get them. A preview that advanced timing would
+   * change the turn it was previewing, and it fires every time somebody pauses
+   * typing.
+   *
+   * The RNG is a fresh one for the same reason, and its tape is thrown away
+   * with it. A preview showing a 50% entry that the turn then rolls differently
+   * is honest — the number says so — and the alternative, reserving the turn's
+   * draws from a preview, would let a person reroll by retyping.
+   */
+  const lore = retrieve({
+    lore: inputs.lore,
+    preset: inputs.preset,
+    history: inputs.history,
+    channels: inputs.channels,
+    persona: inputs.cast.persona,
+    actors: inputs.cast.actors,
+    callKind: step.callKind,
+    rng: new Rng(),
+    ...(request.input === undefined ? {} : { input: request.input }),
+  });
+
   const collected = collectCandidates({
     preset: inputs.preset,
     callKind: step.callKind,
@@ -110,6 +139,7 @@ export async function previewAssembly(
     persona: inputs.cast.persona,
     actors: inputs.cast.actors,
     channels: inputs.channels,
+    lore: lore.blocks,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });

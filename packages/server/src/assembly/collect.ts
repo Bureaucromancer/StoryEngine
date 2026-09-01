@@ -5,6 +5,7 @@ import type { Actor, Preset, PresetBlock } from '@storyengine/shared';
 
 import type { ChannelState, Turn } from '../sessions/types.js';
 import { renderTemplate, type RenderContext } from './template.js';
+import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
@@ -34,6 +35,19 @@ export interface CollectContext {
   channels: Readonly<Record<string, ChannelState>>;
   input?: { text: string };
   guidance?: string;
+  /**
+   * What the retriever activated and the per-book budget kept — [P5.6].
+   *
+   * **Handed in, not computed here**, which is the same rule the cast follows
+   * and for a stronger reason: the scan advances timing counters and draws from
+   * the turn's RNG, and a collector that ran it would do both again for every
+   * preview. It runs once, in the step, and this is its result.
+   *
+   * Absent means no retriever ran — which is not the same as *it ran and found
+   * nothing*, and the two produce different `notFilled` reasons. See
+   * {@link emptyReason}.
+   */
+  lore?: readonly LoreBlock[];
 }
 
 export interface Collected {
@@ -74,7 +88,7 @@ export function collectCandidates(context: CollectContext): Collected {
 
     const filled = fill(block, context);
     if (filled.length === 0) {
-      skipped(block, emptyReason(block));
+      skipped(block, emptyReason(block, context));
       continue;
     }
 
@@ -85,6 +99,32 @@ export function collectCandidates(context: CollectContext): Collected {
         order,
         candidates: filled,
       });
+      continue;
+    }
+
+    /**
+     * **Lore is the one slot whose blocks are not all in one place.**
+     *
+     * `position` lives on the *entry* ([02 §3.1]), so a single lore slot can
+     * emit blocks belonging in four places — and `at_depth` is one of them,
+     * which means some of this slot's output belongs in the history splice
+     * that the loop has already decided this block is not part of. Every other
+     * source kind is positioned by its preset block, so nothing else needs
+     * this and giving it to everything would be a general mechanism built for
+     * one case.
+     *
+     * The depth blocks are grouped by `fromEnd` and injected as if each depth
+     * were its own preset block, which is exactly what they are asking to be.
+     */
+    if (block.kind === 'slot' && block.source.of === 'lore') {
+      const { positioned, byDepth } = splitByDepth(filled, context.lore ?? []);
+      for (const [fromEnd, candidates] of byDepth) {
+        // Tiebreak zero: the entry's own `order` has already decided the run,
+        // and a lore slot positioned outside the history has no tiebreak field
+        // to borrow.
+        injected.push({ fromEnd, tiebreak: 0, order, candidates });
+      }
+      sequence.push(...positioned);
       continue;
     }
 
@@ -108,10 +148,28 @@ function sourceKindOf(block: PresetBlock): string {
  * through it — the reasons are structural per source kind, and keeping
  * `fill()`'s signature simple keeps its eleven arms readable.
  */
-function emptyReason(block: PresetBlock): NotFilledReason {
+function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReason {
   if (block.kind === 'text') return 'empty-source';
   switch (block.source.of) {
+    /**
+     * **Lore acquired a producer at P5.6, and this is where that shows.**
+     *
+     * It read `no-producer` from P3.0 until then, and correctly: a session
+     * referenced no lorebook, so the slot was waiting on the engine. Now it is
+     * waiting on the books — so an empty lore slot means *the retriever ran and
+     * this slot got nothing*, which is `empty-source`, the same thing an actor
+     * slot with no traits means.
+     *
+     * The distinction survives for the case that still deserves it. A caller
+     * that never ran a retriever at all — a mode with no lore step, a preview
+     * built before the scan — passes no `lore`, and that really is *no producer
+     * exists*. [P5 §1.10] asks for this assertion to change meaning **in this
+     * stage's own commit** rather than be repaired later by whoever finds CI
+     * red, and this line is the change.
+     */
     case 'lore':
+      return context.lore === undefined ? 'no-producer' : 'empty-source';
+
     case 'treatment':
     case 'goal':
     case 'channel':
@@ -389,14 +447,52 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       );
     }
 
+    case 'lore': {
+      /**
+       * The retriever's output, filtered to the slots this block positions —
+       * [P5.6]. The scan ran once in the step; this decides where its blocks go.
+       *
+       * **A slot naming an outlet takes only that outlet**, and a slot naming
+       * none takes only the entries that named none either. That is the whole
+       * of what an outlet decouples: an entry saying `outlet: rules` is asking
+       * not to land in the ordinary before-run, and a preset that positions
+       * `rules` is agreeing to hold it. Letting an unnamed slot sweep up
+       * outlet entries as a courtesy would silently undo both halves.
+       *
+       * `at_depth` entries come through here too and are separated by the
+       * caller — see {@link collectCandidates}, which is the only place that
+       * can put them in the history splice.
+       */
+      const outlet = source.outlet;
+      return (context.lore ?? [])
+        .filter((one) =>
+          outlet === undefined
+            ? one.placement.at !== 'outlet' &&
+              (one.placement.at === 'after' ? source.phase === 'after' : source.phase === 'before')
+            : one.placement.at === 'outlet' && one.placement.name === outlet,
+        )
+        .flatMap((one) =>
+          emit(
+            { ...block, priority: one.candidate.priority ?? block.priority },
+            one.candidate.text,
+            one.candidate.source,
+            one.candidate.id,
+          ).map((candidate) => ({
+            ...candidate,
+            // The entry's own role and reason, which `emit` has no way to know
+            // and which are the two fields a lore block exists to carry.
+            role: one.candidate.role,
+            reason: one.candidate.reason,
+          })),
+        );
+    }
+
     /**
-     * Nothing, each for its own stated reason. Lore is P5, and the slot
-     * *rendering empty* is what makes that an activation change rather than a
-     * preset change; a P2.6 session carries no Treatment; goals are
-     * Setup-borne; and a channel value is an object with no channel-to-text
-     * renderer specified — which is also why the clock's budget is null.
+     * Nothing, each for its own stated reason. A P2.6 session carries no
+     * Treatment; goals are Setup-borne; and a channel value is an object with
+     * no channel-to-text renderer specified — which is also why the clock's
+     * budget is null.
      */
-    case 'lore':
     case 'treatment':
     case 'goal':
     case 'channel':
@@ -502,4 +598,37 @@ function actorSource(
     contentHash,
     field: source.field === 'visual' ? 'visual' : 'traits',
   };
+}
+
+/**
+ * Separates the lore blocks that belong in the history splice from the ones
+ * that sit where the slot does.
+ *
+ * Matched back to the retriever's output by candidate id rather than carried on
+ * the `Candidate` itself, because `Candidate` is the shared assembly shape and
+ * a `fromEnd` on it would be a lore concern every other source kind had to
+ * ignore. The id is already unique per book and entry, and already the thing
+ * the record uses to point at a block.
+ */
+function splitByDepth(
+  filled: readonly Candidate[],
+  lore: readonly LoreBlock[],
+): { positioned: Candidate[]; byDepth: Map<number, Candidate[]> } {
+  const depths = new Map<string, number>();
+  for (const one of lore) {
+    if (one.placement.at === 'in-history') depths.set(one.candidate.id, one.placement.fromEnd);
+  }
+  if (depths.size === 0) return { positioned: [...filled], byDepth: new Map() };
+
+  const positioned: Candidate[] = [];
+  const byDepth = new Map<number, Candidate[]>();
+  for (const candidate of filled) {
+    const fromEnd = depths.get(candidate.id);
+    if (fromEnd === undefined) {
+      positioned.push(candidate);
+      continue;
+    }
+    byDepth.set(fromEnd, [...(byDepth.get(fromEnd) ?? []), candidate]);
+  }
+  return { positioned, byDepth };
 }

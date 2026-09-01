@@ -32,6 +32,9 @@ import { callOnRecord, onRecord } from '../test-record.js';
 import type { StepDefinition, TurnPlan } from './steps.js';
 import { NARRATE } from '../modes/scene/mode.js';
 import { SCENE_PRESET } from '../modes/scene/preset.js';
+import { create, type LibraryContext } from '../library.js';
+import { newLorebook, newLoreEntry } from '@storyengine/shared';
+import { SE_LORE_TIMING } from '../sessions/channels.js';
 import { TurnRunner } from './runner.js';
 
 /**
@@ -53,6 +56,7 @@ let commit: CommitContext;
 let provider: FakeProvider;
 let runner: TurnRunner;
 let sessionId: string;
+let library: LibraryContext;
 /**
  * A real account store over the same layout — [P2A §2.1].
  *
@@ -161,6 +165,7 @@ beforeEach(async () => {
   index = await openIndex({ path: ':memory:' });
   state = await openState({ path: ':memory:' });
   sessions = { layout: new Layout(dataDir), index: index.db };
+  library = { db: index.db, layout: sessions.layout, keepHistoryPerObject: 0 };
   bus = new TurnStream();
   commit = { db: state.db, sessions, events: bus };
   accounts = new Accounts(sessions.layout);
@@ -849,7 +854,16 @@ describe('the record says why a slot is empty', () => {
     const call = callOnRecord(turn);
     const notFilled = onRecord(call.notFilled, 'the not-filled slots on the call');
     const lore = notFilled.find((slot) => slot.source === 'lore');
-    expect(lore?.reason).toBe('no-producer');
+    /**
+     * ~~`no-producer`~~ **`empty-source` since [P5.6]**, and the change is the
+     * point rather than a repair: lore acquired a producer, so an empty lore
+     * slot no longer means *nothing can fill this*. This session links no book,
+     * so the retriever ran over nothing and said so — which is exactly what
+     * `empty-source` means everywhere else, and what an author reading the
+     * record needs, because the fix is *link a lorebook* rather than *wait for
+     * a later phase*.
+     */
+    expect(lore?.reason).toBe('empty-source');
     // Nothing filled is also nothing listed twice: the filled blocks and the
     // not-filled slots partition the preset's applicable blocks — which is a
     // claim about two *populated* lists. `new Set(undefined)` is an empty set
@@ -1218,6 +1232,115 @@ describe('a preset block can be scoped to a kind of call', () => {
     // per-call collection false. Scene's own step declares `'narrate'`, so the
     // hardcode was invisible until a step declared something else.
     expect(NARRATE.callKind).toBe('narrate');
+  });
+
+  /**
+   * **The retriever, through the runner, end to end** — [P5.6].
+   *
+   * The unit tests under `retrieval/` prove the scan, the budget and the
+   * blocks separately; this proves the wiring between them and a real turn,
+   * which is the join none of them can see: the session's link resolving, the
+   * gather carrying it, the step running the scan against this turn's messages,
+   * and the entry's own text arriving in the prompt with the reason that put it
+   * there. Every one of those is a place where a correct piece can be attached
+   * to the wrong thing and produce silence.
+   */
+  it('puts a matching lore entry in the prompt, with the reason that fired it', async () => {
+    const book = newLorebook('Rain City');
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing and remembers every face.',
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withLore = await createSession(sessions, ACCOUNT, {
+      name: 'With a world',
+      preset: SCENE_PRESET,
+      lore: [book.id],
+    });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withLore.id,
+      idempotencyKey: 'lore-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'She asked the ferryman about the bridge.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withLore.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+    const lore = blocks.filter((block) => block.source.kind === 'lore');
+
+    expect(lore.map((block) => block.text)).toEqual([
+      'He works the crossing and remembers every face.',
+    ]);
+    // The words the workbench shows, on the record — a product feature rather
+    // than a debug string, which is only true if something asserts on it.
+    expect(lore[0]?.reason).toContain('ferryman');
+
+    /**
+     * And the slot is not *also* reported empty. The two lists partition the
+     * preset's applicable blocks, so a lore block on the record beside a lore
+     * row in `notFilled` would mean the collector counted it twice.
+     */
+    const notFilled = callOnRecord(turn).notFilled ?? [];
+    expect(notFilled.find((slot) => slot.source === 'lore')).toBeUndefined();
+  });
+
+  /**
+   * The counters are a channel ([P5.5]), so a turn that fires an entry has to
+   * leave an effect behind — otherwise nothing reconstructs at a node and a
+   * branch inherits the wrong stickiness. Asserted on the effect log rather
+   * than on the session's snapshot, because the log is what [09 §4] replays.
+   */
+  it('records the timing of an entry that fired as an entry-scoped effect', async () => {
+    const book = newLorebook('Rain City');
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing.',
+        cooldown: 3,
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withLore = await createSession(sessions, ACCOUNT, {
+      name: 'Cooling',
+      preset: SCENE_PRESET,
+      lore: [book.id],
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withLore.id,
+      idempotencyKey: 'lore-2',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'The ferryman again.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withLore.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const timing = turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING);
+
+    expect(timing).toHaveLength(1);
+    // Scoped to the entry, which is the widening P5.5 landed for exactly this:
+    // keyed on the channel id alone, two entries would overwrite each other.
+    expect(timing[0]?.scopeKey).toBe(book.entries[0]?.id);
+    expect(timing[0]?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
   });
 
   it('drops a block whose appliesTo does not name this step kind', async () => {
