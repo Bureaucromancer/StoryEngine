@@ -7,12 +7,14 @@ import { useState, type JSX } from 'react';
 import { newActor } from '@storyengine/shared';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { usePatchPrefs, usePrefs, useCreateObject, useLibrary } from '../queries.js';
+import { useAuthState, useCreateObject, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { control, page } from '../ui/classes.js';
+import { control, link, page, table } from '../ui/classes.js';
+import { SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
-import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
+import { KIND_LABELS, ShadowedBadge } from './labels.js';
+import { emptyMessage, panelFor, panelNameBadges, type PanelColumn } from './panels.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -231,62 +233,105 @@ function FilterLink(props: {
   );
 }
 
+/**
+ * The one list component, driven by whichever panel the kind supplies —
+ * [polish §4](../../../../docs/design/workplan/09-polish.md)'s *shared
+ * machinery, per-kind surfaces*, delivered for the first of its six.
+ *
+ * **The name cell stays here rather than moving into the panel**, and that is
+ * the load-bearing part of the split: the name carries the link, and the link
+ * carries the shadowed-copy discriminator that decides which of two files with
+ * one id gets opened. A panel supplying its own name cell would be a panel
+ * building its own links from `{kind, id}`, which is F19 and which
+ * [polish §4] names in advance as the way to bring it back.
+ */
 function ObjectTable(props: {
   objects: LibraryObject[];
   kind: LibraryKind | undefined;
 }): JSX.Element {
+  const panel = panelFor(props.kind);
+  const auth = useAuthState();
+  const locale = auth.data?.account?.locale ?? undefined;
+  const [sortId, setSortId] = useState<string>(panel.sorts[0]?.id ?? '');
+  const sort = panel.sorts.find((candidate) => candidate.id === sortId);
+
   if (props.objects.length === 0) {
     return (
       <p className="text-ink-subtle">
         {/*
-         * **The empty state finally knows the word "import"** ([P4 §2], P4.4).
-         * It used to name the two ways in that existed — an API call and a file
-         * dropped into the data directory — which is an honest sentence to
-         * write when those are the only two, and a strange one to leave up once
-         * a person can point the app at their SillyTavern folder.
-         *
-         * It knows *make one* as well now, and the ordering is the claim: an
-         * empty library is overwhelmingly a pre-import state
-         * ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)), so import leads and the
-         * blank page follows.
+         * **The empty state finally knows the word "import"** ([P4 §2], P4.4),
+         * and since P5.0 it is the panel's rather than the page's — because
+         * the way *in* differs by kind, which is what makes it one of the four
+         * things [polish §4] says a panel supplies. For lorebooks the order is
+         * import first and *new book* second, the opposite of the Actors
+         * panel's ([05 §5.3]), and that is why one shared sentence could not
+         * have covered it.
          */}
-        {props.kind === undefined
-          ? 'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.'
-          : 'There is nothing of this kind in the library yet. An import may bring some.'}
+        {emptyMessage(props.kind)}
       </p>
     );
   }
 
+  // A copy: the array belongs to the query cache, and sorting in place would
+  // reorder what every other reader of that cache entry sees.
+  const shown = sort === undefined ? props.objects : [...props.objects].sort(sort.compare);
+
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b border-line-strong text-sm text-ink-subtle">
-          <th scope="col" className="py-2 pe-4 text-start font-medium">
-            Name
-          </th>
-          <th scope="col" className="py-2 pe-4 text-start font-medium">
-            Kind
-          </th>
-          <th scope="col" className="py-2 text-start font-medium">
-            Source
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {props.objects.map((object) => (
-          <ObjectRow key={`${object.source}:${object.id}:${object.slug}`} object={object} />
-        ))}
-      </tbody>
-    </table>
+    <>
+      {panel.sorts.length === 0 ? null : (
+        <div className="mb-4 max-w-xs">
+          <SelectField
+            label="Sort by"
+            value={sortId}
+            options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
+            onChange={setSortId}
+          />
+        </div>
+      )}
+      <table className={table.root}>
+        <thead>
+          <tr className={table.head}>
+            <th scope="col" className={table.th}>
+              Name
+            </th>
+            {panel.columns.map((column) => (
+              <th
+                key={column.id}
+                scope="col"
+                className={column.numeric === true ? table.thNumeric : table.th}
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((object) => (
+            <ObjectRow
+              key={`${object.source}:${object.id}:${object.slug}`}
+              object={object}
+              kind={props.kind}
+              columns={panel.columns}
+              locale={locale}
+            />
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
-function ObjectRow(props: { object: LibraryObject }): JSX.Element {
+function ObjectRow(props: {
+  object: LibraryObject;
+  kind: LibraryKind | undefined;
+  columns: PanelColumn[];
+  locale: string | undefined;
+}): JSX.Element {
   const kind = kindOfSchema(props.object.schema);
   return (
-    <tr className="border-b border-line">
-      <td className="py-2 pe-4">
-        <span className="flex items-center gap-2">
+    <tr className={table.row}>
+      <td className={table.cell}>
+        <span className="flex flex-wrap items-center gap-2">
           {kind === null ? (
             <span>{props.object.name}</span>
           ) : (
@@ -302,20 +347,25 @@ function ObjectRow(props: { object: LibraryObject }): JSX.Element {
                   ? { source: props.object.source, slug: props.object.slug }
                   : {}
               }
-              className="font-medium text-ink underline decoration-line-strong hover:decoration-ink-subtle"
+              className={link.object}
             >
               {props.object.name}
             </Link>
           )}
           {props.object.shadowed ? <ShadowedBadge /> : null}
+          {panelNameBadges(props.kind, props.object)}
         </span>
       </td>
-      <td className="py-2 pe-4 text-sm text-ink-subtle">
-        {kind === null ? props.object.schema : KIND_LABELS[kind]}
-      </td>
-      <td className="py-2">
-        <SourceBadge source={props.object.source} />
-      </td>
+      {props.columns.map((column) => (
+        <td
+          key={column.id}
+          className={
+            column.numeric === true ? table.cellNumeric : `${table.cell} text-sm text-ink-subtle`
+          }
+        >
+          {column.cell(props.object, props.locale)}
+        </td>
+      ))}
     </tr>
   );
 }

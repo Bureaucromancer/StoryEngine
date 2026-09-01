@@ -863,6 +863,32 @@ hangs on the field that opens its group, §5.3's fold omits `keys`, and `keys` i
 the field `Matching` hangs on — so filtering first silently dropped a heading
 and spilled its fields into the group above.
 
+**Then the panel**, as the first of [polish §4](09-polish.md)'s six and on that
+item's own rule — one list component, and what a panel supplies is its columns,
+its sort and its empty state (`library/panels.tsx`). §5.3's table, verbatim:
+name with badges, entry count, tags, source, updated; sorts by name, recency and
+entry count; an empty shelf that points at import rather than at the API. `tags`
+has its documented consumer at last. The other five kinds share the columns the
+merged list already had, and adding one is a table entry rather than a branch.
+
+*The name cell stayed with the table rather than moving into the panel*, and
+that is the load-bearing half of the split: the name carries the link and the
+link carries the shadowed-copy discriminator, so a panel supplying its own name
+cell is a panel building its own links from `{kind, id}` — which is the F19
+regression this stage was told about in advance.
+
+*Two decisions worth their sentence.* **Off is badged and on is not**: §5.3
+wants the state that costs somebody an afternoon visible, and a badge on every
+enabled book would bury it. Scope is badged only when it is `linked`, for the
+same reason — global is the default and nearly every imported book is one.
+**And the sort copies the array.** Nothing was checking that; mutation found it,
+because the page renders the same order either way and what an in-place sort
+breaks is every *other* reader of the query cache.
+
+*Still to come in this stage:* the panel's four filters and the within-book
+search that shares their shape, the book page itself, the entry address, and
+§1.8's import-notes row.
+
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,
 entry list as readable units, and the *as configured* fold; the entry address as

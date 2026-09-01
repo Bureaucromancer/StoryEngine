@@ -50,6 +50,12 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: {
     listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
+    // Added at P5.0: the table formats an *Updated* column, so it reads the
+    // account's locale like every other surface that formats a timestamp. The
+    // mock replaces the whole `api` object, so an absent method is not a
+    // fallback — it is a query that throws and a locale that is silently
+    // undefined in every test.
+    authState: () => Promise.resolve({ account: { handle: 'ned', locale: null } }),
     readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
     patchPrefs: (patch: Record<string, unknown>) => {
       patchPrefs(patch);
@@ -340,5 +346,174 @@ describe('the import entry point', () => {
 
     expect(patchPrefs).not.toHaveBeenCalled();
     expect(prefsStore['ui.workbench-open']).toBe(true);
+  });
+});
+
+/**
+ * [P5.0] — the Lorebooks panel, which is
+ * [polish §4](../../../../docs/design/workplan/09-polish.md)'s first of six and
+ * is specified in the design rather than left to this page
+ * ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)), because a lorebook is
+ * the only library kind whose object is a collection.
+ *
+ * **The assertion that matters is the badge**, and §5.3 says why: a disabled
+ * book that renders identically to an enabled one is the *my lorebook never
+ * fires* diagnosis arriving one surface too late. Everything else here is the
+ * columns and the sort, which are the other two things a panel supplies.
+ */
+describe('the Lorebooks panel', () => {
+  function book(name: string, over: Record<string, unknown> = {}, slug = name.toLowerCase()) {
+    return {
+      ...object(name),
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.lorebook/1',
+        name,
+        enabled: true,
+        scope: { kind: 'global' },
+        tags: [],
+        entries: [],
+        provenance: { updatedAt: '2026-08-30T10:00:00Z' },
+        ...over,
+      },
+    };
+  }
+
+  function headers(): string[] {
+    return [...document.querySelectorAll('th')].map((node) => node.textContent);
+  }
+
+  it('carries the columns §5.3 chose, and the merged list keeps the ones it had', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [book('Ardent')] });
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Entries', 'Tags', 'Source', 'Updated']);
+  });
+
+  it('leaves a kind with no panel of its own exactly as it was', async () => {
+    search = {};
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Kind', 'Source']);
+  });
+
+  /**
+   * The generic table cannot tell a three-entry book from a three-hundred-entry
+   * one, and almost everything a person decides about a book depends on which
+   * of those it is.
+   */
+  it('counts the entries, which is the column that cannot be got any other way', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [book('Ardent', { entries: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] })],
+    });
+    renderPage();
+    await settled();
+
+    const cells = [...document.querySelectorAll('td')].map((node) => node.textContent);
+    expect(cells).toContain('3');
+  });
+
+  it('says on the shelf that a book is switched off', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [book('Ardent', { enabled: false }), book('Rain City', {}, 'rain-city')],
+    });
+    renderPage();
+    await settled();
+
+    // One badge, not two: an enabled book needs no badge, and one on every book
+    // would make the one that matters harder to see rather than easier.
+    expect(screen.getAllByText('Off')).toHaveLength(1);
+  });
+
+  it('says when a book is scoped to the actors it links, and stays quiet when it is not', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'linked', actorIds: ['a1'] } }),
+        book('Rain City', {}, 'rain-city'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(screen.getAllByText('Linked')).toHaveLength(1);
+  });
+
+  it('reads the tags nothing has ever read', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [book('Ardent', { tags: ['noir', 'city'] })] });
+    renderPage();
+    await settled();
+
+    expect(screen.getByText('noir, city')).toBeTruthy();
+  });
+
+  it('sorts by whichever of its three sorts is chosen', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { entries: [{ id: 'a' }] }),
+        book('Rain City', { entries: [{ id: 'a' }, { id: 'b' }] }, 'rain-city'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const names = (): (string | null)[] =>
+      [...document.querySelectorAll('tbody tr')].map(
+        (row) => row.querySelector('td')?.textContent ?? null,
+      );
+
+    // Name is the default, so Ardent leads.
+    expect(names()).toEqual(['Ardent', 'Rain City']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'entries' } });
+    });
+
+    // By entry count, most first — which is the other order.
+    expect(names()).toEqual(['Rain City', 'Ardent']);
+  });
+
+  it('points an empty shelf at import rather than at the API', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [] });
+    renderPage();
+    await settled();
+
+    const shown = screen.getByText(/^No lorebooks yet/);
+    expect(shown.textContent).toContain('Import');
+  });
+
+  /**
+   * **The sort copies, and nothing else was checking that.** Found by mutation:
+   * changing `[...objects].sort()` to `objects.sort()` left every assertion
+   * above green, because the page renders the same order either way. What it
+   * would break is everything *else* reading that cache entry — the array
+   * belongs to the query client, and `sort` reorders in place.
+   */
+  it('does not reorder the array the query cache owns', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { entries: [{ id: 'a' }] }),
+        book('Rain City', { entries: [{ id: 'a' }, { id: 'b' }] }, 'rain-city'),
+      ],
+    });
+    const client = renderPage();
+    await settled();
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'entries' } });
+    });
+
+    const cached = client.getQueryData<{ objects: { name: string }[] }>(['library', 'lorebooks']);
+    expect(cached?.objects.map((entry) => entry.name)).toEqual(['Ardent', 'Rain City']);
   });
 });
