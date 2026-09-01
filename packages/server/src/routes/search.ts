@@ -5,7 +5,7 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, requireAccount } from '../app.js';
-import { search } from '../index-db/query.js';
+import { search, searchLoreEntries } from '../index-db/query.js';
 import { searchTurns } from '../index-db/sessions.js';
 import { readableOwners } from '../library.js';
 
@@ -67,14 +67,53 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
 
     let objects;
     let turns;
+    let entries;
     try {
       objects = search(services.index.db, q, limit);
       turns = searchTurns(services.index.db, owners, q, limit);
-    } catch {
-      // FTS5 has a query syntax, and a person typing into a search box does not
-      // know it — an unbalanced quote or a bare `*` is a syntax error from
-      // SQLite, not a server fault. Answering 400 rather than 500 says whose
-      // problem it is.
+      /**
+       * The third kind of hit — [05 §14.5]'s *one query, three kinds*.
+       *
+       * **Scoped in its own SQL, where `objects` is scoped below.** The comment
+       * on that filter argues against giving `search` owners, and it still
+       * holds for `search`: that query has no owner in it at all, so scoping it
+       * would *add* a second site for the containment rule. This one already
+       * joins `object` — it needs the book's id, name and slug, and the
+       * tombstone filter — so the owner is in its `from` clause either way, and
+       * declining to use it would mean reaching the fact and then re-deriving
+       * it. `searchTurns` makes the same call for the same reason.
+       *
+       * The other half is the limit. SQL applies it before this route sees a
+       * row, so a filter applied afterwards returns fewer than it should — and
+       * an entry hit is worse than an object hit to get wrong in that
+       * direction, because what an unscoped one would carry is the prose
+       * itself, in the snippet.
+       */
+      entries = searchLoreEntries(services.index.db, owners, q, limit);
+    } catch (error) {
+      /**
+       * FTS5 has a query syntax, and a person typing into a search box does not
+       * know it — an unbalanced quote or a bare `*` is a syntax error from
+       * SQLite, not a server fault. Answering 400 rather than 500 says whose
+       * problem it is.
+       *
+       * **But not every throw from here is theirs**, and this catch used to say
+       * it was. A **missing table** is the case that matters and it is not
+       * hypothetical: running the P5.2 code against an index still at schema 5
+       * makes every search answer *"that search query could not be parsed"* —
+       * the server blaming the reader for a table the server has not built.
+       * That state is unreachable in production, because `migrate` runs when
+       * the index is opened and a version mismatch rebuilds; it is entirely
+       * reachable in development, where it cost half a minute of looking in the
+       * wrong place.
+       *
+       * The message is the only thing that separates them — every one of these
+       * arrives as `ERR_SQLITE_ERROR` with errcode 1 — and `no such table` is
+       * the one a caller's query text cannot produce, because the table names
+       * are ours. So it is re-thrown and becomes a 500 with a real message in
+       * the log, which is what a fault of ours should look like.
+       */
+      if (error instanceof Error && error.message.startsWith('no such table')) throw error;
       return reply
         .code(400)
         .send({ error: 'invalid', message: 'That search query could not be parsed.' });
@@ -94,6 +133,31 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
           source: row.owner === 'system' ? 'system' : 'user',
         })),
       turns,
+      /**
+       * The owner key is mapped the way `objects` maps it above, because it is
+       * the internal `user:ned` spelling and no client should learn it.
+       *
+       * `objectId` and `entryId` together are the address the read route
+       * already takes, and `entryName` earns its place beside the snippet: the
+       * excerpt comes from whichever field matched, so a hit on `keys` arrives
+       * as a bare fragment with nothing to label it.
+       *
+       * *One thing a reader of this response has to know*, and it belongs in
+       * the API docs rather than only here: a phrase that occurs in one entry
+       * matches the **book** too, because `object_fts` indexes the whole
+       * serialised object. Two keys, one match. That is [05 §14.5]'s *one
+       * query, three kinds of hit* working rather than a duplicate — the ranks
+       * are per table and not comparable across them either.
+       */
+      entries: entries.map((row) => ({
+        entryId: row.entryId,
+        entryName: row.entryName,
+        objectId: row.objectId,
+        objectName: row.objectName,
+        slug: row.slug,
+        source: row.owner === 'system' ? 'system' : 'user',
+        snippet: row.snippet,
+      })),
     });
   });
 }

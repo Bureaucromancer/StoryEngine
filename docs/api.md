@@ -579,10 +579,33 @@ object, oldest unpinned first.
 
 ### `GET /api/search?q=&limit=`
 
-`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ] }`
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
 
-Full-text across both, because a person looking for *the cathedral* does not know
-or care whether they wrote it in a lorebook or said it in a turn.
+Full-text across all three, because a person looking for *the cathedral* does not
+know or care whether they wrote it in a lorebook, in one entry of one, or said it
+in a turn — [05 §14.5](design/05-ui-surfaces.md)'s *one query, three kinds of
+hit*.
+
+**`entries` is why the third kind exists.** A match inside a three-hundred-entry
+book used to return *the book*, which §14.5 calls close to useless at that scale.
+`objectId` and `entryId` together are an address — `/library/lorebooks/{objectId}
+?entry={entryId}` — and that is the whole rule for what the index carries:
+**a fragment is indexable when it has an address.** An actor's greetings and a
+preset's block text have none, so they get no rows.
+
+`snippet` is the excerpt around the match, from whichever of the entry's five
+searched fields matched (`name`, `keys`, `secondaryKeys`, `description`,
+`content`), elided with `…` at either end where it does not reach the field's
+edge. **It is not marked up.** A marker inserted into the text is
+indistinguishable from the same characters occurring in it, and the client
+already highlights matches itself; what it costs is that a prefix or boolean
+query will not be highlighted by a plain substring matcher.
+
+**One match can appear under two keys.** A phrase in an entry matches that entry
+*and* the book, because the object index holds the whole serialised object.
+That is the design rather than a duplicate. Ranks are per table and are not
+comparable across the three arrays, so a client cannot interleave them by
+relevance.
 
 `q` is FTS5 syntax and a query it cannot parse — an unbalanced quote, a bare `*`
 — is `400 invalid` rather than a 500: it is the caller's to fix.

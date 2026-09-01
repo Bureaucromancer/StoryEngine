@@ -41,8 +41,19 @@ import type { DatabaseSync } from 'node:sqlite';
  * lorebook applies* in the portable schemas, and one word for two axes was a
  * trap worth spending a rescan on. The index is derived, so the rename needs no
  * migration — only this bump.
+ *
+ * **6 adds the lore-entry pair** ([05 §14.5](../../../../docs/design/05-ui-surfaces.md)).
+ * A genuine addition rather than a correction — nothing indexed before is
+ * indexed differently — but *"it would just be missing some rows"* is the wrong
+ * reading of what skipping the bump would cost, and the right one is sharper.
+ * `migrate` returns early when the version already matches and never reaches
+ * the schema, so an index left at 5 does not have an empty `lore_entry_fts`: it
+ * has **no such table**. The first search would raise that from SQLite into the
+ * route's blanket catch, which answers *"that search query could not be
+ * parsed"* — a missing table reported to the user as a mistake in their own
+ * typing, on every search, forever.
  */
-export const INDEX_SCHEMA_VERSION = 5;
+export const INDEX_SCHEMA_VERSION = 6;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -106,6 +117,61 @@ create virtual table object_fts using fts5(
   path unindexed,
   name,
   body,
+  tokenize = 'unicode61'
+);
+
+-- ── Lore entries ─────────────────────────────────────────────────────────────
+--
+-- [05 §14.5](../../../../docs/design/05-ui-surfaces.md) states the rule that
+-- allows this table and bounds it: **a fragment is indexable when it has an
+-- address.** LoreEntry.id is that address — it is what turns a hit inside a
+-- three-hundred-entry book into a link rather than a place to start hunting —
+-- and its absence is why an actor's greetings and a preset's block text get no
+-- table of their own. The tidier-sounding alternative, indexing text-bearing
+-- leaves wherever they occur, produces anonymous fragments that cannot be
+-- labelled, navigated to, or told apart from their neighbours.
+--
+-- **Keyed by (path, position), and entry_id is deliberately not in the
+-- key.** An entry id is unique within a book as a *format* rule
+-- ([10 §5.2](../../../../docs/design/10-schemas.md)) and nothing enforces it:
+-- Id carries no uniqueness constraint, validate does not walk the array
+-- looking for collisions, and both importers derive one as
+-- stableId('entry', name, content) — so two byte-identical entries in one
+-- hand-maintained world file produce one id twice. Under a (path, entry_id)
+-- key that book raises a constraint violation *inside* ingestFile's
+-- transaction, which rolls the whole upsert back: a file that is on disk, valid
+-- against its schema, and invisible to the library, with no file_error row to
+-- explain it. The array index cannot collide, is read identically by both
+-- producers because both producers are the same function, and degrades the
+-- duplicate to *two rows whose links land on the same entry* — which is the
+-- direction this codebase takes everywhere else.
+--
+-- Standalone rather than content=, for the reason object_fts gives above.
+-- No foreign key onto object(path) either: a cascade would take the locator
+-- rows and could not take the FTS rows, and half a pair cascading is exactly
+-- the divergence the one-helper rule in ingest.ts exists to prevent.
+create table lore_entry (
+  path      text not null,
+  position  integer not null,
+  entry_id  text not null,
+  name      text not null,
+
+  primary key (path, position)
+) strict;
+
+-- The five fields [05 §5.3](../../../../docs/design/05-ui-surfaces.md) names,
+-- in the order it names them — which is also the list the book page's own
+-- within-book box already searches. Two surfaces disagreeing about which
+-- entries answer one query is the failure [P3 §5] recorded for JSON viewers,
+-- and this is the cheapest place to not repeat it.
+create virtual table lore_entry_fts using fts5(
+  path unindexed,
+  position unindexed,
+  name,
+  keys,
+  secondary_keys,
+  description,
+  content,
   tokenize = 'unicode61'
 );
 
@@ -189,6 +255,8 @@ function dropAll(db: DatabaseSync): void {
   for (const statement of [
     'drop table if exists object_fts',
     'drop table if exists object',
+    'drop table if exists lore_entry_fts',
+    'drop table if exists lore_entry',
     'drop table if exists turn_fts',
     'drop table if exists turn',
     'drop table if exists session',

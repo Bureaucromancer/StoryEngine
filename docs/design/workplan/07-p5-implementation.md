@@ -1231,6 +1231,122 @@ what inside it is not at its default**, or it is a hidden field.
 *Ends at:* an imported entry edited and saved through the real write path,
 through the same concurrency and history machinery every other object uses.
 
+#### ~~P5.2 — Per-entry index rows, and the search they exist for~~ Landed
+
+**What shipped, in the order §1.7 insists on and for the reason it gives.**
+`snapshot()` was widened first, the helper extracted second, and the table pair
+built on top of both — because a helper landed under a property that cannot see
+it inherits exactly the false confidence §0.4 found.
+
+**The widening is two queries, not one, and the second is the one that matters.**
+A left join from `object` catches a search row that is missing or duplicated for
+an object that exists — which is `upsert`'s failure and only `upsert`'s. It
+cannot catch a row that *outlived its object*, because there is no object left
+to join from, and that is what the other four delete sites are for. So the
+second query asks from the other end: which search rows name a path the `object`
+table has never heard of. A **tombstoned** object is deliberately not an orphan
+— the row survives so a rename can still be recognised as one, and
+`matureTombstones` takes both halves away together.
+
+**Measured, before and after.** Before: removing any one of the five
+`object_fts` deletes left the named gate and the whole suite green — §0.4's
+finding, reproduced. After: **twelve mutations across the helper, the five call
+sites, the entry writer and the rebuild's own list, and all twelve go red; eight
+of them at the named gate.** That is what gate step 17 asked to be able to say.
+
+*Three of those twelve only went red after something else was fixed, and each
+was a real gap rather than a stubborn mutation.*
+
+- **The property generated books with no entries.** `newLorebook` sets
+  `entries: []` and every fixture used it unchanged, so widening the snapshot
+  over the new pair would have compared two permanently empty tables and agreed
+  forever about nothing — §0.4's finding one table deeper. The generator now
+  writes two entries per book and a `copy` carries the original's verbatim,
+  which is also what makes the shadowed-duplicate case real: two copies of one
+  book carry the *same* entry ids, and that is what rows keyed by path rather
+  than by entry id exist to survive.
+- **`emptyTheLibrary` was a third hand-maintained list of tables**, beside
+  `dropAll` and `rebuild`'s. Missing a table in either of those turns a test
+  red; missing one *there* leaks rows between the property's own iterations, so
+  the gate goes red for a reason that is entirely the harness's — which is the
+  shape of both flakes this file has already had to write up.
+- **A keyword test passed through the wrong column.** The entry was called *The
+  Ferryman* and had `keys: ['ferryman']`, so unindexing `keys` altogether
+  changed nothing. A field is only proved searchable by a term that occurs in
+  **that field and nowhere else**; the fixture now carries one invented word per
+  indexed field.
+
+**The locator's key is `(path, position)` and `entry_id` is deliberately not in
+it**, which is the design decision this stage most nearly got wrong. [10 §5.2]
+makes entry-id uniqueness a *format* rule and nothing enforces it: `Id` carries
+no uniqueness constraint, `validate` does not walk the array, and both importers
+derive one as `stableId('entry', name, content)` — so two byte-identical entries
+in one hand-maintained world file produce one id twice. Under `(path, entry_id)`
+that book raises a constraint violation *inside* `ingestFile`'s transaction,
+which rolls the whole upsert back: a file on disk, valid against its schema, and
+invisible to the library, with no `file_error` row to explain it. The array
+index cannot collide. It is the same argument `object` makes for keying on path
+rather than id, one level down.
+
+**Entry rows follow `object_fts` in every other respect**: they stay on a
+tombstone and are filtered at query time, and **both copies of a shadowed
+duplicate are indexed** — winner-only indexing would need a sixth write site
+inside `resolveDuplicates`, and would make the shadowed copy's prose
+unfindable while [P5.0] requires every entry link to carry `?source=` and
+`?slug=` precisely so it can be read.
+
+**The query is not `search` with a different table under it.** The snippet is
+the point — §14.5: *"a result that names the book without showing the matched
+text … is close to useless at book scale"* — and two things about it were
+measured rather than read. FTS5's column argument is `**-1**`, which means
+*whichever column matched*; pinning a real index returns the head of that field
+with none of the match in it, which reproduces §14.5's complaint one level down,
+and no assertion about the snippet's type or length can see it. And the excerpt
+comes back **unmarked**: FTS5's markers are inserted literally and are
+indistinguishable from the same characters occurring in the text, while the book
+page already marks matches itself — the cost, stated rather than hidden, is that
+a prefix or boolean query will not be highlighted by a substring matcher.
+
+**Scoped in SQL, where `search` scopes in the route**, and the asymmetry is
+deliberate. That comment's argument holds for `search`, which has no owner in
+its query at all; this one already joins `object` for the book's id, name, slug
+and the tombstone filter, so the owner is in its `from` clause either way.
+*And the route's own scoping has a defect this need not inherit*: SQL applies
+`limit` before the route filters, so on a household server one account's matches
+can consume the whole budget before another's are considered. Recorded rather
+than fixed — it is `search`'s, not this stage's — and it matters more here,
+because what an unscoped entry hit would carry is the prose itself.
+
+**No client surface, and that is settled rather than deferred.**
+[05 §5.3](../05-ui-surfaces.md) says across-the-library search *"belongs to the
+one search surface rather than to this panel"* and names *"building a
+lorebook-only global search"* as the failure it exists to prevent. The route
+already returns objects and turns that no client calls; this is a third array
+beside them, and the surface for all three is §14.5's.
+
+*One defect met in the browser rather than in a test, and it is the one the
+migration docstring now describes.* Bumping `INDEX_SCHEMA_VERSION` in one edit
+and adding the DDL in a later one let a dev-server restart land in between: the
+index migrated 5 → 6 against a schema that had no lore tables yet, stamped
+itself 6, and `migrate` returns early forever after. The symptom was every
+search answering *"that search query could not be parsed"* — **the server
+blaming the reader for a table the server had not built**, because the route
+caught every throw and called it the caller's. `no such table` is the one
+message a query string cannot produce, so it is re-thrown now and becomes a 500
+with the real fault in the log. The remedy for the index itself is the one
+[13 §5](../13-internal-contracts.md) already prescribes: delete it, and the next
+start rescans.
+
+*Ends at:* **met, and walked** — searching `eat` across a library of four books
+returns exactly one entry, in one book, with *"He has worked the crossing for
+thirty years and has never once been seen to eat.…"* as the snippet, and the
+`objectId`/`entryId` it carries opens the book page on that entry with
+`aria-current` on it.
+
+---
+
+*The stage as it was written:*
+
 #### P5.2 — Per-entry index rows, and the search they exist for
 
 [05 §14.5](../05-ui-surfaces.md): a locator table and an FTS table for lore
