@@ -953,6 +953,32 @@ search local by construction — so these are component state. The one narrowing
 that stays a link is the entry address, which is what §5.3 asks for by name and
 is still to come.
 
+**And then somebody opened it.** A 247-entry book was written straight onto disk
+— through the factories, no API, the watcher indexing what appeared, which is
+the storage thesis working — and walked in a browser. **Three defects, none of
+which any test had a reason to catch**, and the fact that all three are
+judgement rather than logic is the argument for gate step 6 being a step at all.
+
+- **The folder count was direct-only, and a gate is transitive.** `Places`
+  reported the sixty entries filed in it while governing sixty-one, in a column
+  headed *Entries* sitting beside one headed *Gate*. §5.3 says "the number of
+  entries it governs", and shutting a folder shuts everything beneath it, so the
+  number that changes when somebody flips that switch is the one to print.
+  `entriesGoverned` is transitive, cycle-safe, and does not require the file to
+  list a parent before its child.
+- **The expand control appeared on entries with nothing to expand.** Most
+  entries in a real book are two lines; a *Show all* on one of those is a button
+  that visibly does nothing when pressed, which is `Field`'s complaint about a
+  greyed control arriving from the other direction. It is offered only where the
+  clamp could bite — an estimate, erring toward offering it, because being wrong
+  high costs a dead button and being wrong low would hide text.
+- **The off-reason was rendered in danger red**, which contradicted this same
+  stage's own argument for the shelf badge being neutral. Switching an entry off
+  is deliberate, and a shut folder gate is not a fault at all — it is the
+  mechanism a book carries a timeline with. Colouring either as an error is the
+  surface arguing with the author. Muted now; the words carry it, and they are
+  §5.3's words.
+
 *Still to come in this stage:* the entry address as a validated search param,
 and §1.8's import-notes row.
 

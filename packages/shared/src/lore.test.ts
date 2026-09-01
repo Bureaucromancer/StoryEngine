@@ -4,7 +4,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { newLoreEntry, newLorebook } from './factories.js';
-import { entriesInFolder, entryGate, folderChain, offCount, resolvedFolderId } from './lore.js';
+import {
+  entriesGoverned,
+  entriesInFolder,
+  entryGate,
+  folderChain,
+  offCount,
+  resolvedFolderId,
+} from './lore.js';
 import type { LoreEntry, LoreFolder, Lorebook } from './schema/lorebook.js';
 
 /**
@@ -195,5 +202,76 @@ describe('the count beside the book', () => {
     });
 
     expect(offCount(shelf)).toBe(2);
+  });
+});
+
+/**
+ * What a gate reaches, which is not what a folder directly holds — found by
+ * opening a real book rather than by reading the schema. A parent with sixty
+ * entries of its own and one child folder read as governing sixty, beside a
+ * column headed *Gate*, when flipping that gate changes sixty-one.
+ */
+describe('the number a gate governs', () => {
+  const nested = (): Lorebook =>
+    book({
+      folders: [
+        folder('places', { name: 'Places' }),
+        folder('docks', { name: 'The Docks', parentFolderId: 'places' }),
+        folder('deep', { name: 'Deeper still', parentFolderId: 'docks' }),
+        folder('people', { name: 'People' }),
+      ],
+      entries: [
+        entry('A', { folderId: 'places' }),
+        entry('B', { folderId: 'docks' }),
+        entry('C', { folderId: 'deep' }),
+        entry('D', { folderId: 'people' }),
+        entry('E'),
+      ],
+    });
+
+  it('reaches every entry below it, not only the ones filed in it', () => {
+    const shelf = nested();
+
+    expect(entriesInFolder(shelf, 'places').map((found) => found.name)).toEqual(['A']);
+    expect(entriesGoverned(shelf, 'places').map((found) => found.name)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('reaches through a chain, not just one level', () => {
+    expect(entriesGoverned(nested(), 'docks').map((found) => found.name)).toEqual(['B', 'C']);
+  });
+
+  it('does not reach a sibling', () => {
+    expect(entriesGoverned(nested(), 'people').map((found) => found.name)).toEqual(['D']);
+  });
+
+  /** Ungrouped has nothing beneath it, so governing and holding are one number. */
+  it('is the direct count for the ungrouped node', () => {
+    expect(entriesGoverned(nested(), null).map((found) => found.name)).toEqual(['E']);
+  });
+
+  /**
+   * A folder listed before its parent must still be reached — a file this build
+   * did not write is under no obligation to order them.
+   */
+  it('does not depend on the folders being listed parent-first', () => {
+    const shelf = book({
+      folders: [
+        folder('child', { parentFolderId: 'parent' }),
+        folder('grandchild', { parentFolderId: 'child' }),
+        folder('parent'),
+      ],
+      entries: [entry('A', { folderId: 'grandchild' })],
+    });
+
+    expect(entriesGoverned(shelf, 'parent').map((found) => found.name)).toEqual(['A']);
+  });
+
+  it('does not hang on a cycle', () => {
+    const shelf = book({
+      folders: [folder('a', { parentFolderId: 'b' }), folder('b', { parentFolderId: 'a' })],
+      entries: [entry('A', { folderId: 'a' })],
+    });
+
+    expect(entriesGoverned(shelf, 'a').map((found) => found.name)).toEqual(['A']);
   });
 });

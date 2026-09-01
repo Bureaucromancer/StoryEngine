@@ -28,6 +28,18 @@ import { LorebookView, lorebookShape } from './LorebookView.js';
  * a label read out of the DOM is displayed text even in a test. */
 const ENABLED = 'Enabled';
 
+/**
+ * Long enough that the six-line clamp bites.
+ *
+ * Written out rather than a short string, because the control that reveals the
+ * rest is only offered where there *is* a rest — a *Show all* on a two-line
+ * entry is a button that visibly does nothing, which is most entries in a real
+ * book.
+ */
+const LONG = Array.from({ length: 9 }, (_, line) => `Line ${String(line)} of the prose.`).join(
+  '\n',
+);
+
 function folder(id: string, over: Partial<LoreFolder> = {}): LoreFolder {
   return { id, name: id, parentFolderId: null, enabled: true, order: 0, ...over };
 }
@@ -82,9 +94,7 @@ describe('an entry as a readable unit', () => {
    */
   it('opens clamped, and expands', async () => {
     const user = userEvent.setup();
-    render(
-      <LorebookView book={book({ entries: [entry('Harbour', { content: 'Long prose.' })] })} />,
-    );
+    render(<LorebookView book={book({ entries: [entry('Harbour', { content: LONG })] })} />);
 
     const body = (): Element | null => unitFor('Harbour').querySelector('p.whitespace-pre-wrap');
     expect(body()?.className).toContain('line-clamp-6');
@@ -92,6 +102,19 @@ describe('an entry as a readable unit', () => {
     await user.click(screen.getByRole('button', { name: 'Show all' }));
 
     expect(body()?.className).not.toContain('line-clamp-6');
+  });
+
+  /**
+   * The other half of the same decision: where there is no rest to show, there
+   * is no control offering to show it.
+   */
+  it('offers no expand on an entry short enough to be whole already', () => {
+    render(
+      <LorebookView book={book({ entries: [entry('Harbour', { content: 'Two words.' })] })} />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull();
+    expect(unitFor('Harbour').textContent).toContain('Two words.');
   });
 
   it('folds every remaining field beneath, in the schema’s own groups', () => {

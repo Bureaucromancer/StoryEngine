@@ -136,7 +136,51 @@ export function resolvedFolderId(book: Lorebook, entry: LoreEntry): string | nul
   return book.folders.some((folder) => folder.id === entry.folderId) ? entry.folderId : null;
 }
 
-/** The entries one folder governs directly — not counting its descendants. */
+/** The entries filed directly in one folder, not counting its descendants. */
 export function entriesInFolder(book: Lorebook, folderId: string | null): LoreEntry[] {
   return book.entries.filter((entry) => resolvedFolderId(book, entry) === folderId);
+}
+
+/**
+ * The entries a folder's gate reaches — itself and everything beneath it.
+ *
+ * **Which is what *governs* means, and the direct count is the wrong number for
+ * the panel that word appears in.** [05 §5.3](../../../docs/design/05-ui-surfaces.md)
+ * asks for "each folder with its gate and the number of entries it governs",
+ * beside a Gate column — and shutting a folder shuts every entry below it, not
+ * only the ones filed in it directly. A parent holding sixty entries and one
+ * child folder read as governing sixty when it governs sixty-one, which is the
+ * number that changes when somebody flips the switch on that row.
+ *
+ * The counts therefore do not sum to the book's total, and should not: a nested
+ * entry is governed by every gate above it. `Ungrouped` is the exception that
+ * proves it, having nothing beneath it to reach.
+ *
+ * Cycle-safe, like every other walk over this tree.
+ */
+export function entriesGoverned(book: Lorebook, folderId: string | null): LoreEntry[] {
+  if (folderId === null) return entriesInFolder(book, null);
+
+  const reached = new Set<string>([folderId]);
+  // Repeated passes rather than recursion: the parent links may be in any
+  // order, and a file this build did not write is under no obligation to list a
+  // folder after its parent. Each pass either reaches at least one more folder
+  // or is the last, so this terminates in at most one pass per folder — and a
+  // cycle cannot extend it, because `reached` is a set.
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const folder of book.folders) {
+      if (folder.parentFolderId === null || reached.has(folder.id)) continue;
+      if (reached.has(folder.parentFolderId)) {
+        reached.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+
+  return book.entries.filter((entry) => {
+    const id = resolvedFolderId(book, entry);
+    return id !== null && reached.has(id);
+  });
 }

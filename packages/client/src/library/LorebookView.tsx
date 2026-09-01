@@ -4,6 +4,7 @@
 import { useState, type JSX } from 'react';
 
 import {
+  entriesGoverned,
   entriesInFolder,
   entryGate,
   LOREBOOK_SCHEMA,
@@ -239,6 +240,14 @@ export function LorebookView({ book }: { book: Lorebook }): JSX.Element {
   );
 }
 
+/** The clamp, in lines, and what it takes for text to reach it. */
+const CLAMP_LINES = 6;
+const CLAMP_CHARS = 400;
+
+/** Whether this text is long enough that a clamp would actually clamp it. */
+function clampable(content: string): boolean {
+  return content.split(/\r?\n/).length > CLAMP_LINES || content.length > CLAMP_CHARS;
+}
 /** A folder's name for a chip, or the word the Ungrouped node goes by. */
 function folderName(book: Lorebook, id: string | null): string {
   if (id === null) return 'Ungrouped';
@@ -410,7 +419,7 @@ function FolderGates(props: {
                 {folder.enabled ? <Fine>On</Fine> : <Badge>Off</Badge>}
               </td>
               <td className={table.cellNumeric}>
-                {formatCount(entriesInFolder(book, folder.id).length)}
+                {formatCount(entriesGoverned(book, folder.id).length)}
               </td>
             </tr>
           ))}
@@ -508,8 +517,17 @@ function EntryUnit(props: {
             }}
           />
         )}
+        {/*
+         * **Muted rather than danger, and that is the same argument the shelf
+         * badge makes.** Switching an entry off is something an author does on
+         * purpose, and a shut folder gate is not a fault at all — it is the
+         * mechanism a book carries a timeline with. Colouring either as an
+         * error is the surface arguing with the person who wrote the file.
+         * §5.3 asks for text first and colour second; the words are doing the
+         * work, and they are the design's own words.
+         */}
         {blocked === undefined ? null : (
-          <span className="text-xs font-medium text-danger-ink">
+          <span className="text-xs font-medium text-ink-muted">
             {blocked.kind === 'folder-off'
               ? `off: the folder ${blocked.folderName} is off`
               : OFF_LABELS[blocked.kind]}
@@ -559,11 +577,28 @@ function EntryUnit(props: {
         </p>
       )}
 
-      <div>
-        <Button type="button" variant="quiet" size="tiny" onClick={props.onToggle}>
-          {open ? 'Show less' : 'Show all'}
-        </Button>
-      </div>
+      {/*
+       * **The control appears only where it does something**, which is a fix
+       * rather than a nicety: most entries in a real book are two lines long,
+       * and a *Show all* on one of those is a button that visibly changes
+       * nothing when pressed — the same complaint `Field` makes about a greyed
+       * control that cannot work, arriving from the other direction.
+       *
+       * An estimate, and it errs toward offering it. The clamp is six lines at
+       * whatever width the column happens to be, which is a fact about layout
+       * that this component cannot know without measuring; six newlines or four
+       * hundred characters is the shape of text that reaches it. Being wrong
+       * high costs a button that does nothing — where the page was before —
+       * and being wrong low would hide text, so the thresholds sit where they
+       * do on purpose.
+       */}
+      {clampable(entry.content) ? (
+        <div>
+          <Button type="button" variant="quiet" size="tiny" onClick={props.onToggle}>
+            {open ? 'Show less' : 'Show all'}
+          </Button>
+        </div>
+      ) : null}
 
       <details>
         <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink">
