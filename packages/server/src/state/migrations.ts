@@ -219,6 +219,50 @@ create table import_item (
 
 create index import_item_by_object on import_item(object_id);
 `,
+
+  /**
+   * **A review row can name more than one object, so `seq` stops being unique.**
+   *
+   * The table above was written on the assumption that one file makes one
+   * object, and `primary key (job_id, seq)` says exactly that. It is not true:
+   * a character card carrying a `character_book` makes an actor **and** a
+   * lorebook, which `ImportPanel`'s own label calls "most of them". The book
+   * therefore had no row of its own, and [P5 §1.8]'s question — *what did the
+   * import say about this book* — came back empty for the commonest kind of
+   * book there is.
+   *
+   * So the writer records one row per object produced, sharing the item's
+   * `seq`, and `readImport` collapses them back into one item per file. The
+   * review is unchanged; the notes become findable from either object. What
+   * has to go is the constraint that was stating the old assumption — and it
+   * goes rather than being widened, because "one row per (job, seq)" is now
+   * deliberately false and a key that no longer means anything is worse than no
+   * key.
+   *
+   * The rebuild dance rather than `alter table`: SQLite cannot drop a primary
+   * key in place.
+   */
+  `
+create table import_item_new (
+  job_id      text not null references import_job(id) on delete cascade,
+  seq         integer not null,
+  source      text not null,
+  disposition text not null,
+  object_id   text,
+  notes       text not null
+) strict;
+
+insert into import_item_new (job_id, seq, source, disposition, object_id, notes)
+  select job_id, seq, source, disposition, object_id, notes from import_item;
+
+drop table import_item;
+alter table import_item_new rename to import_item;
+
+create index import_item_by_object on import_item(object_id);
+-- Ordering is a read every report does, and it is no longer served by a primary
+-- key that happened to be on the same columns.
+create index import_item_by_job on import_item(job_id, seq);
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

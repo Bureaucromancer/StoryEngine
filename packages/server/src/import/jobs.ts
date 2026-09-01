@@ -98,14 +98,19 @@ export function recordImport(
     );
     let seq = 0;
     for (const row of input.items) {
-      item.run(
-        id,
-        seq,
-        row.source,
-        row.disposition,
-        row.objectId ?? null,
-        JSON.stringify(row.notes),
-      );
+      /**
+       * **One row per object the file produced, all sharing the item's `seq`.**
+       *
+       * A file that made two objects — a card carrying a `character_book` —
+       * needs its notes findable from either, and the only key `import_item`
+       * has is `object_id`. Sharing `seq` is what keeps that from changing the
+       * review: `readImport` collapses rows by it, so the report still has one
+       * item per file seen, which is what a review is a row of.
+       */
+      const produced = [row.objectId ?? null, ...(row.alsoProduced ?? [])];
+      for (const objectId of produced) {
+        item.run(id, seq, row.source, row.disposition, objectId, JSON.stringify(row.notes));
+      }
       seq += 1;
     }
     db.exec('commit');
@@ -185,22 +190,48 @@ export function readImport(db: DatabaseSync, account: string, id: string): Impor
 
   const rows = db
     .prepare(
-      `select source, disposition, object_id, notes from import_item
-         where job_id = ? order by seq`,
+      `select seq, source, disposition, object_id, notes from import_item
+         where job_id = ? order by seq, rowid`,
     )
     .all(id) as {
+    seq: number;
     source: string;
     disposition: string;
     object_id: string | null;
     notes: string;
   }[];
 
-  const items: ImportItemReport[] = rows.map((row) => ({
-    source: row.source,
-    disposition: row.disposition as ImportItemReport['disposition'],
-    notes: parseNotes(row.notes),
-    ...(row.object_id === null ? {} : { objectId: row.object_id }),
-  }));
+  /**
+   * **Collapsed by `seq`, because a file that made two objects has two rows.**
+   *
+   * The extra rows exist so the notes are findable from either object
+   * (`recordImport` says why); the *review* is a row per file seen, so the
+   * first row of each `seq` is the item and the rest are addressing. Ordered by
+   * `rowid` within a `seq` so "first" means the object the item was primarily
+   * about — the actor, for a card that carried a book.
+   */
+  const firstOfEach = rows.filter((row, index) => rows[index - 1]?.seq !== row.seq);
+
+  const items: ImportItemReport[] = firstOfEach.map((row) => {
+    /**
+     * The extra rows come back as `alsoProduced`, so a report fetched by id is
+     * the same object the sweep answered with. That equality is asserted, and
+     * it is what lets one client renderer be correct for both paths — a
+     * round-trip that quietly dropped a field would make the two reports
+     * *nearly* the same, which is the harder kind of difference to notice.
+     */
+    const alsoProduced = rows
+      .filter((other) => other.seq === row.seq && other !== row)
+      .flatMap((other) => (other.object_id === null ? [] : [other.object_id]));
+
+    return {
+      source: row.source,
+      disposition: row.disposition as ImportItemReport['disposition'],
+      notes: parseNotes(row.notes),
+      ...(row.object_id === null ? {} : { objectId: row.object_id }),
+      ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
+    };
+  });
 
   return {
     jobId: job.id,
@@ -210,14 +241,30 @@ export function readImport(db: DatabaseSync, account: string, id: string): Impor
   };
 }
 
-/** Every review row that named this object, oldest first ([P5 §1.8]). */
+/**
+ * Every review row that named this object, oldest first ([P5 §1.8]).
+ *
+ * **Scoped by account**, which it was not when it was written and nobody had
+ * noticed because it had no callers. An object id is a uuid and hard to guess,
+ * but *hard to guess* is not an access rule — and this is the one query in the
+ * module that reaches rows by something other than a job id, so it is the one
+ * where forgetting the join is possible. Joined rather than checked after, the
+ * way `readImport` does it, so somebody else's row is indistinguishable from a
+ * row that is not there ([04 §4.4]).
+ */
 export function importNotesFor(
   db: DatabaseSync,
+  account: string,
   objectId: string,
 ): { jobId: string; source: string; notes: ImportNote[] }[] {
   const rows = db
-    .prepare(`select job_id, source, notes from import_item where object_id = ? order by rowid`)
-    .all(objectId) as { job_id: string; source: string; notes: string }[];
+    .prepare(
+      `select item.job_id, item.source, item.notes from import_item as item
+         join import_job as job on job.id = item.job_id
+        where item.object_id = ? and job.account = ?
+        order by item.rowid`,
+    )
+    .all(objectId, account) as { job_id: string; source: string; notes: string }[];
 
   return rows.map((row) => ({
     jobId: row.job_id,
@@ -253,7 +300,12 @@ function parseNotes(raw: string): ImportNote[] {
  */
 function countsFor(db: DatabaseSync, jobId: string): Record<string, number> {
   const rows = db
-    .prepare(`select disposition, count(*) as n from import_item where job_id = ? group by 1`)
+    .prepare(
+      // `distinct seq` and not `count(*)`: a file that produced two objects has
+      // two rows, and a review counts *files seen*. Counting rows would report
+      // a sweep of a hundred cards carrying books as two hundred conversions.
+      `select disposition, count(distinct seq) as n from import_item where job_id = ? group by 1`,
+    )
     .all(jobId) as { disposition: string; n: number }[];
 
   const counts: Record<string, number> = Object.fromEntries(

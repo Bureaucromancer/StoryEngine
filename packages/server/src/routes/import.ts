@@ -19,7 +19,13 @@ import {
 } from '../import/marinara/envelope.js';
 import type { ConflictPolicy } from '../import/identity.js';
 import type { SourceRefusal } from '../import/source.js';
-import { listImports, readImport, recordImport, recordRefusal } from '../import/jobs.js';
+import {
+  importNotesFor,
+  listImports,
+  readImport,
+  recordImport,
+  recordRefusal,
+} from '../import/jobs.js';
 import { convertOne, sweep } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { looksLikeZip } from '../storage/zip.js';
@@ -460,6 +466,31 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       return reply.code(404).send({ error: 'not-found', message: 'No such import.' });
     }
     return reply.code(200).send({ report });
+  });
+
+  /**
+   * What every import said about one object — [P5 §1.8].
+   *
+   * **The question is asked from the object, so the answer is addressed by
+   * it.** §1.8 chose that over finishing the sweep's own report on the grounds
+   * that somebody debugging an entry six months after an import will not think
+   * to go looking for the sweep that created it. The facts they want — this
+   * entry sat at a position with no equivalent here, the entry limit was
+   * reduced, this book was scoped to one chat — are per *object*, and this is
+   * the only route that answers per object.
+   *
+   * **An empty list rather than a 404 for an object with no notes**, which is
+   * the common case and not an error: an object created by hand, or imported
+   * through a route that does not record, simply has nothing to say. A 404
+   * would make "nothing was recorded" and "no such thing" the same answer, and
+   * the page has to tell them apart to say something honest.
+   */
+  app.get('/import/objects/:id/notes', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const { id } = request.params as { id: string };
+    return reply.code(200).send({ notes: importNotesFor(services.state.db, account.handle, id) });
   });
 }
 

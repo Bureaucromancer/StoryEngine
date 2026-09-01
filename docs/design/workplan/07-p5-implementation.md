@@ -1002,7 +1002,43 @@ discriminator**, which is F19 one level down: an entry link that dropped
 The page test's `Link` stub had to grow a `search` prop before that could be
 asserted at all — without it, dropping the discriminator left every test green.
 
-*Still to come in this stage:* §1.8's import-notes row.
+**And §1.8's import-notes row, which closes the stage.** Gate step 16: a book
+whose `entryLimit` was clamped, or whose entry sat at a position with no
+equivalent here, says so on its own page — not only in a review that is gone
+once the page is closed. The sentences are the review's own, moved out of
+`ImportPanel` into `note-labels.ts` so that two renderers read one catalogue;
+`note-labels.test.ts`'s grep is repointed, which is the coupling that keeps that
+honest.
+
+**Three things had to be true before the surface could exist, and none of them
+was.** `importNotesFor` had no account scoping — an object id is a uuid and hard
+to guess, but that is not an access rule, and its first caller would have
+inherited the hole. There was no route. And the query answered nothing for the
+commonest kind of book there is: a card-carried `character_book` makes a second
+object from one file, the review is a row per *file*, so the book had no row to
+be found by. `recordImport` now writes a row per object produced, sharing the
+item's `seq`; `readImport` collapses them back. That needed a migration, because
+`primary key (job_id, seq)` was the old assumption written down.
+
+*Two things that fell out of it.* The review's counts were counting **rows**, so
+a sweep of a hundred cards carrying books would have reported two hundred
+conversions — found by mutation, since the fixture card carried no book. And
+adding a book to that fixture broke an unrelated assertion, which is its own
+finding: **re-importing a card that carries a book re-converts it** rather than
+reporting it unchanged, because the embedded book's identity is not stable
+across imports. That is [P4 §7.14]'s re-import-identity question from a fourth
+direction, and it is left as one.
+
+*A trade worth naming rather than settling:* an entry-level note appears both in
+the book's list and on the entry it names. Complete and scannable at the top,
+met where you are reading at the bottom — but a book with two hundred collapsed
+positions would have a long list at the top, and if that turns out to read badly
+the top list is the half to trim.
+
+**Written up after walking it**: a SillyTavern world file with `entryLimit: 5000`
+and two entries at author's-note positions, imported through the real sweep,
+produces exactly those three notes on the book's own page, with the clamped 1,000
+visible in the strip above them.
 
 [05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,

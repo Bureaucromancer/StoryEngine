@@ -25,6 +25,9 @@ import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import { ByFields } from './ByField.js';
 import { itemSchemaOf, schemaFor, type SchemaNode } from './fields.js';
+import type { ObjectImportNotes } from '../api.js';
+import { ImportNotes, notesForEntry } from './ImportNotes.js';
+import { sentence } from './note-labels.js';
 import { entryMatches, highlight, matches } from './search.js';
 
 /**
@@ -114,11 +117,14 @@ export function LorebookView({
   book,
   focused,
   linkToEntry,
+  importNotes,
 }: {
   book: Lorebook;
   /** The entry `?entry=` names, or null. Unknown ids simply match nothing. */
   focused?: string | null;
   linkToEntry?: EntryLink;
+  /** What every import said about this book ([P5 §1.8]). */
+  importNotes?: ObjectImportNotes[];
 }): JSX.Element {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -153,6 +159,7 @@ export function LorebookView({
   return (
     <div className="flex flex-col gap-8">
       <BookHeader book={book} />
+      <ImportNotes rows={importNotes ?? []} />
       <FolderGates book={book} chosen={folder} onChoose={setFolder} />
 
       <section>
@@ -239,6 +246,7 @@ export function LorebookView({
                     query={query}
                     activeKey={key}
                     focused={entry.id === (focused ?? null)}
+                    importNotes={notesForEntry(importNotes ?? [], entry.name)}
                     linkToEntry={linkToEntry}
                     open={expanded.has(entry.id)}
                     onToggle={() => {
@@ -507,6 +515,7 @@ function EntryUnit(props: {
   query: string;
   activeKey: string | null;
   focused: boolean;
+  importNotes: ObjectImportNotes['notes'];
   // Required and nullable rather than optional: `exactOptionalPropertyTypes`
   // makes those different, and the caller forwards a value that may be absent.
   linkToEntry: EntryLink | undefined;
@@ -653,6 +662,20 @@ function EntryUnit(props: {
           </Button>
         </div>
       ) : null}
+
+      {/*
+       * **The import's own words about this entry, where the entry is.** §1.8
+       * puts an import's consequences on the book; an entry-level note — *this
+       * sat at a position with no equivalent here* — belongs on the entry it is
+       * about, which is the half that section calls the interesting one.
+       */}
+      {props.importNotes.length === 0 ? null : (
+        <ul className="flex flex-col gap-1 text-xs text-ink-muted">
+          {props.importNotes.map((note, index) => (
+            <li key={`${note.key}:${String(index)}`}>{sentence(note)}</li>
+          ))}
+        </ul>
+      )}
 
       <details>
         <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink">

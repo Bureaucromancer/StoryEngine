@@ -232,6 +232,21 @@ export interface ImportItem {
   notes: { key: string; params: Record<string, string | number>; level: string }[];
 }
 
+/**
+ * What every import said about one object — [P5 §1.8].
+ *
+ * Per *object* rather than per job, because that is the question a person has
+ * six months after an import: not *what did that sweep do* but *why is this
+ * book like this*. One row per review item that named the object, so a book
+ * imported twice carries both.
+ */
+export interface ObjectImportNotes {
+  jobId: string;
+  /** The file it came from, relative to the sweep root that produced it. */
+  source: string;
+  notes: ImportItem['notes'];
+}
+
 export interface ImportReport {
   jobId: string;
   source: string;
@@ -430,6 +445,10 @@ export const api = {
 
   importJob: (id: string): Promise<{ report: ImportReport }> =>
     request('GET', `/api/import/jobs/${id}`),
+
+  /** What the imports said about one object, for its own page ([P5 §1.8]). */
+  objectImportNotes: (objectId: string): Promise<{ notes: ObjectImportNotes[] }> =>
+    request('GET', `/api/import/objects/${objectId}/notes`),
 
   /**
    * What a folder is, without importing from it — the check behind the path box.

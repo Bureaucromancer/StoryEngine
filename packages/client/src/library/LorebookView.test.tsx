@@ -478,3 +478,74 @@ describe('an entry addressed by the route', () => {
     expect(unitFor('Vera').getAttribute('aria-current')).toBe('true');
   });
 });
+
+/**
+ * What the import did to this book — [P5 §1.8], and gate step 16.
+ *
+ * §1.8's decision was that these facts belong on the *book* rather than only in
+ * the review that recorded them: somebody debugging an entry six months after
+ * an import will not think to look for the sweep. So the page carries them, in
+ * the same words the review panel uses — one catalogue, two renderers.
+ */
+describe('what the import said about this book', () => {
+  const notes = (over: Record<string, unknown> = {}) => [
+    {
+      jobId: 'j-1',
+      source: 'cards/Vera.png',
+      notes: [
+        { key: 'import.lore.entryLimitClamped', params: { from: 5000, to: 1000 }, level: 'warn' },
+        {
+          key: 'import.lore.positionCollapsed',
+          params: { entry: 'Harbour', original: 'before_an' },
+          level: 'info',
+        },
+      ],
+      ...over,
+    },
+  ];
+
+  it('says what happened to the book, in the review’s own words', () => {
+    render(<LorebookView book={book({ entries: [entry('Harbour')] })} importNotes={notes()} />);
+
+    expect(screen.getByText('Entry limit reduced from 5000 to 1000.')).toBeTruthy();
+    expect(screen.getByText('cards/Vera.png')).toBeTruthy();
+  });
+
+  /**
+   * The half §1.8 calls the interesting one: an entry-level fact belongs on the
+   * entry it is about, not in a list at the top of the page.
+   */
+  it('puts an entry-level note on the entry it names', () => {
+    render(
+      <LorebookView
+        book={book({ entries: [entry('Harbour'), entry('Vera')] })}
+        importNotes={notes()}
+      />,
+    );
+
+    expect(unitFor('Harbour').textContent).toContain('“Harbour” sat at before_an');
+    expect(unitFor('Vera').textContent).not.toContain('sat at');
+  });
+
+  /**
+   * Nothing recorded is not the same as nothing happened, and an empty box
+   * saying "what the import did" above a book made by hand would imply the
+   * second. A book imported through the file upload has no job at all.
+   */
+  it('says nothing at all when there is nothing recorded', () => {
+    render(<LorebookView book={book({ entries: [entry('Harbour')] })} importNotes={[]} />);
+
+    expect(screen.queryByRole('heading', { name: 'What the import did' })).toBeNull();
+  });
+
+  it('says nothing when a job recorded no notes about this object', () => {
+    render(
+      <LorebookView
+        book={book({ entries: [entry('Harbour')] })}
+        importNotes={[{ jobId: 'j-1', source: 'cards/Vera.png', notes: [] }]}
+      />,
+    );
+
+    expect(screen.queryByRole('heading', { name: 'What the import did' })).toBeNull();
+  });
+});

@@ -16,7 +16,7 @@ import {
   type ObjectAddress,
 } from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
-import { useAuthState, useLibraryObject } from '../queries.js';
+import { useAuthState, useLibraryObject, useObjectImportNotes } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
@@ -236,32 +236,47 @@ function ObjectBody(props: {
   const { object, search } = props;
 
   if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
-    return (
-      <LorebookView
-        book={object.object as unknown as Lorebook}
-        focused={search.entry ?? null}
-        linkToEntry={(entryId, children) => (
-          /**
-           * **Every link on this page is built here**, which is the same
-           * discipline that keeps the panel from reintroducing F19 one level
-           * up: the address of a copy is `?source=&slug=`, and an entry link
-           * that dropped them would send somebody from the shadowed copy they
-           * are reading to the winner. So the current search is spread and only
-           * `entry` is added.
-           */
-          <Link
-            to="/library/$kind/$id"
-            params={{ kind: 'lorebooks', id: object.id }}
-            search={{ ...search, entry: entryId }}
-            className={link.object}
-          >
-            {children}
-          </Link>
-        )}
-      />
-    );
+    return <LorebookBody object={object} search={search} />;
   }
   return <ByField schemaId={object.schema} value={object.object} />;
+}
+
+/**
+ * The book, and what the imports said about it.
+ *
+ * Its own component so the notes query mounts only for a lorebook: a request
+ * per object view for a kind that has no book page to put the answer on would
+ * be traffic for a question nobody asked.
+ */
+function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): JSX.Element {
+  const { object, search } = props;
+  const notes = useObjectImportNotes(object.id);
+
+  return (
+    <LorebookView
+      book={object.object as unknown as Lorebook}
+      focused={search.entry ?? null}
+      linkToEntry={(entryId, children) => (
+        /**
+         * **Every link on this page is built here**, which is the same
+         * discipline that keeps the panel from reintroducing F19 one level
+         * up: the address of a copy is `?source=&slug=`, and an entry link
+         * that dropped them would send somebody from the shadowed copy they
+         * are reading to the winner. So the current search is spread and only
+         * `entry` is added.
+         */
+        <Link
+          to="/library/$kind/$id"
+          params={{ kind: 'lorebooks', id: object.id }}
+          search={{ ...search, entry: entryId }}
+          className={link.object}
+        >
+          {children}
+        </Link>
+      )}
+      importNotes={notes.data?.notes ?? []}
+    />
+  );
 }
 
 function BackLink(): JSX.Element {

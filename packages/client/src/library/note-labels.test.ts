@@ -34,7 +34,15 @@ import { describe, expect, it } from 'vitest';
 
 const HERE = import.meta.dirname;
 const SERVER_IMPORT = join(HERE, '..', '..', '..', 'server', 'src', 'import');
-const PANEL = join(HERE, 'ImportPanel.tsx');
+/**
+ * The catalogue, which moved out of `ImportPanel.tsx` at [P5.0] when the book
+ * page became its second renderer. This constant is the coupling that move has
+ * to keep honest: the grep below is a fact about a path, so a table that moves
+ * again without repointing it would report every key as missing — loudly, which
+ * is the good failure — while the orphan check below would quietly pass over an
+ * empty file.
+ */
+const LABELS = join(HERE, 'note-labels.ts');
 
 /** Every `.ts` under the server's import module, tests excluded. */
 function sourceFiles(directory: string): string[] {
@@ -76,7 +84,7 @@ describe('the review vocabulary', () => {
     );
     for (const key of keysIn(routes, /'(import\.[a-zA-Z0-9.]+)'/g)) emitted.add(key);
 
-    const labelled = keysIn(readFileSync(PANEL, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
+    const labelled = keysIn(readFileSync(LABELS, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
 
     expect(emitted.size).toBeGreaterThan(30);
     const missing = [...emitted].filter((key) => !labelled.has(key)).sort();
@@ -99,7 +107,7 @@ describe('the review vocabulary', () => {
      * cleverer: the params are built inline at dozens of call sites and only a
      * type would do better, which is the trade the file header already argues.
      */
-    const panel = readFileSync(PANEL, 'utf8');
+    const panel = readFileSync(LABELS, 'utf8');
     const sources = [
       ...sourceFiles(SERVER_IMPORT),
       join(HERE, '..', '..', '..', 'server', 'src', 'routes', 'import.ts'),
@@ -153,7 +161,7 @@ describe('the review vocabulary', () => {
       }
     }
 
-    const labelled = keysIn(readFileSync(PANEL, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
+    const labelled = keysIn(readFileSync(LABELS, 'utf8'), /'(import\.[a-zA-Z0-9.]+)':/g);
     const orphaned = [...labelled].filter((key) => !emitted.has(key)).sort();
     expect(orphaned, 'these labels name a note no converter emits any more').toEqual([]);
   });
