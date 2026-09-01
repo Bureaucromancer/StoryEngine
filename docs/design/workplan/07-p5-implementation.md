@@ -1572,6 +1572,86 @@ integer encodings and positions collapsed from two different tables; a matcher
 tested only against entries this repository wrote is a matcher tested against
 its own assumptions.
 
+#### ~~P5.5 — Timing and recursion~~ Landed
+
+**§1.1's lean is now a decision**, and taking it literally cost a widening that
+this stage paid rather than deferred.
+
+Timing lives in an engine-owned channel, `se.lore.timing`, `scope: 'entry'`, one
+value per entry — because those counters change as a result of turns, which is
+the definition of a channel, and anywhere else they do not reconstruct at a node
+and a branch inherits the wrong stickiness. **But `ChannelDefinition.scope` had
+offered `'entry'` since the first channel was written while `applyEffects` keyed
+on the channel id alone**, so two entries' timing states would have overwritten
+each other, silently, and P6's reconstruction would have inherited whichever
+landed last. §0.4 found it; [P6 §1.9](08-p6-implementation.md) asked which phase
+pays; the phase order answers this one, because P5.5 is the first stage that
+needs a per-entry value and the alternative was shipping a feature that clobbers
+itself.
+
+**The widening is one function and the stored type does not change**, which is
+what keeps it out of P6's *builds no storage* claim: `SessionFile.channels` is
+still `Record<string, ChannelState>`, and only the *form* of a key widens, only
+for a channel that asked to be scoped. `se.clock` is `se.clock` exactly as
+before. Four call sites: `applyEffects` writes and deletes under it,
+`acceptEffect` reads the inverse from it, and `filterReads` matches a step's
+declared read against a channel *and its scoped values* — that last one is the
+quiet member, because a step declaring `reads: ['se.lore.timing']` under the old
+lookup got an empty map and would have behaved as though nothing had ever fired.
+
+**The check order in `timingVerdict` is the design, and one line of it was
+wrong until a test said so.** `spent` was first, on the reasoning that nothing
+revives an exhausted entry — which cut a running sticky window off one turn
+after it began, making `ephemeral` and `sticky` silently incompatible for
+anybody who set both. A running window now outranks even `spent`, because a
+window is one firing that has not finished. The case that caught it is the one
+the stage predicted: *the interactions, which are the part people actually get
+wrong*.
+
+**And [triage §5.2](02-triage.md)'s carried reasoning is the load-bearing rule:**
+the sticky timer is *not* refreshed while an entry is sticky, so an entry named
+every single turn still drops out when its window expires and is re-matched the
+turn after — a hard ceiling on continuous presence rather than a sliding window,
+which is what stops a once-relevant entry pinning itself in the prompt forever.
+It falls out of the verdict rather than needing a rule: while a window is
+running the verdict is `sticky` and never `fires`, so there is no arm that could
+reset it. `fired` counts firings and not turns for the same reason, which is why
+an `ephemeral: 1` entry with `sticky: 3` gets its three turns.
+
+**`delay` has no counter**, deliberately: *do not fire until N messages in* is a
+fact about the conversation's length, already on the path, and a stored copy is
+the thing that reconstructs wrong at a node.
+
+**The recursion flags are three different kinds of rule** wearing similar names
+— one outbound (`preventRecursion`: my text triggers nothing further) and two
+inbound and *opposite* (`excludeRecursion`: not at depth; `delayUntilRecursion`:
+only at depth). An entry carrying both inbound flags **can never fire at any
+depth**, which is not a state to repair — repairing it means choosing which of
+the author's two instructions to ignore — but is one to be able to report, so it
+has its own verdict and is checked before the depth. Reporting it as *awaiting
+recursion* at depth zero would send somebody looking for a recursion that never
+comes.
+
+*Twenty-three mutations, all caught, after four survivors each said something.*
+Two were missing tests — nothing asserted that a scoped effect takes its inverse
+from **its own** scope (which is the undo P6 replays, so the mistake would have
+surfaced as a restore putting one entry's timing onto another), and nothing
+asserted that a step reading a scoped channel gets its values. One was **dead
+code**: the `fires` arm scheduled its cooldown conditionally on there being no
+sticky window, and the window's own arm re-decides it every turn, so the
+condition could never be observed. The fourth was an equivalent mutant and is
+recorded as one.
+
+*And one expectation of mine was simply wrong.* The twelve-turn combined
+sequence ends `spent, spent` rather than `cooling, cooling`: the window ends and
+starts a cooldown exactly as it did the first time, but the allowance is used
+up, so what the entry *is* from there is finished rather than waiting. Reporting
+the cooldown would be true about the counter and misleading about the entry.
+
+---
+
+*The stage as it was written:*
+
 #### P5.5 — Timing and recursion
 
 The four timing behaviours over §1.1's state home; the three recursion flags

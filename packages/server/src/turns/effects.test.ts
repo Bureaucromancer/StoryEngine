@@ -3,7 +3,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { advance, CLOCK_START, readClock, SE_CLOCK } from '../sessions/channels.js';
+import {
+  advance,
+  channelKey,
+  CLOCK_START,
+  readClock,
+  SE_CLOCK,
+  SE_LORE_TIMING,
+} from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type { ChannelState } from '../sessions/types.js';
 import { acceptEffect, type EffectProposal } from './effects.js';
@@ -106,5 +113,49 @@ describe('a proposal is judged against the channel that owns it', () => {
     expect(() =>
       acceptEffect('t1', proposal({ op: { type: 'increment', path: '/minute', by: 5 } }), RUNNING),
     ).toThrow(/whole-value set/);
+  });
+});
+
+/**
+ * **A scoped effect's `before` is that scope's previous value**, which is the
+ * half of P5.5's key widening that only shows up later.
+ *
+ * `before` is the inverse an undo replays ([P6 §1.4]), so reading it from the
+ * unscoped key would not be a wrong number on a screen — it would be a restore
+ * that put one entry's timing back onto another. The mistake is invisible until
+ * somebody rewinds, which is exactly why it is asserted here rather than left
+ * to the stage that will rely on it.
+ */
+describe('a proposal on a scoped channel', () => {
+  const RUNNING_SCOPED: Record<string, ChannelState> = {
+    [channelKey(SE_LORE_TIMING, 'entry-a')]: { version: 1, value: { sticky: 2 } },
+    [channelKey(SE_LORE_TIMING, 'entry-b')]: { version: 1, value: { sticky: 9 } },
+  };
+
+  function timingProposal(scopeKey: string): EffectProposal {
+    return {
+      channelId: SE_LORE_TIMING,
+      scopeKey,
+      op: { type: 'set', path: '/' },
+      after: { sticky: 1 },
+      proposedBy: { kind: 'engine' },
+    };
+  }
+
+  it('takes its inverse from its own scope, not from the channel', () => {
+    expect(acceptEffect('t-1', timingProposal('entry-a'), RUNNING_SCOPED).before).toEqual({
+      sticky: 2,
+    });
+    expect(acceptEffect('t-1', timingProposal('entry-b'), RUNNING_SCOPED).before).toEqual({
+      sticky: 9,
+    });
+  });
+
+  it('has no inverse for a scope nothing has written yet', () => {
+    expect(acceptEffect('t-1', timingProposal('entry-new'), RUNNING_SCOPED).before).toBeNull();
+  });
+
+  it('carries the scope key onto the effect, so replay can key on it', () => {
+    expect(acceptEffect('t-1', timingProposal('entry-a'), RUNNING_SCOPED).scopeKey).toBe('entry-a');
   });
 });

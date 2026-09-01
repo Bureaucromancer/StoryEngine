@@ -17,7 +17,7 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { divergenceEffects, divergenceTurn } from './channels.js';
+import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
 import {
   appendTurn,
   readAllTurns,
@@ -428,17 +428,28 @@ export function applyEffects(
   for (const effect of effects) {
     if (!effect.applied || effect.scope === 'escaped') continue;
 
+    /**
+     * **Through `channelKey`, so a scoped channel has one value per key rather
+     * than one value.** This read `effect.channelId` alone, which made
+     * `ChannelDefinition.scope`'s `'actor'` and `'entry'` arms vocabulary
+     * nothing implemented: two entries' timing states written to one channel
+     * overwrote each other, silently, and the branch reconstruction on top
+     * inherited whichever landed last. [P5 §0.4] found it and P5.5 is the first
+     * stage that needs the answer.
+     */
+    const key = channelKey(effect.channelId, effect.scopeKey);
+
     if (effect.op.type === 'delete') {
       // Rebuilt without the key rather than deleted from: the map is a value
       // here, and a channel that was removed on one branch must not disappear
       // from a map another branch is still replaying against.
-      const { [effect.channelId]: removed, ...rest } = next;
+      const { [key]: removed, ...rest } = next;
       void removed;
       next = rest;
       continue;
     }
 
-    next[effect.channelId] = {
+    next[key] = {
       version: effect.channelVersion,
       value: effect.after,
     };

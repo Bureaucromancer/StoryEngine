@@ -77,6 +77,45 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
   budget: null,
 };
 
+export const SE_LORE_TIMING = 'se.lore.timing';
+
+/**
+ * Where a lore entry's `sticky`, `cooldown` and `ephemeral` counters live —
+ * [P5 §1.1](../../../../docs/design/workplan/07-p5-implementation.md)'s *one
+ * real design question in the phase*, answered.
+ *
+ * Those counters change as a result of turns, which is the definition of a
+ * channel ([03 §4]) — so anywhere else and they do not reconstruct at a node,
+ * and a branch inherits the wrong stickiness. The same argument that moved
+ * party membership into channels, unchanged.
+ *
+ * **Defined here rather than beside its logic, and the reason is the warning
+ * `owner` already carries a few lines up.** `retrieval/timing.ts` holds the
+ * transitions and needs `ChannelDefinition` from this module; if this module
+ * imported the definition back, the two would be a `const` cycle and a TDZ
+ * `ReferenceError` at load. `CLOCK_CHANNEL` sits here for exactly that reason
+ * while `modes/scene` consumes it, and this follows the precedent rather than
+ * discovering it again.
+ *
+ * **The first channel to use `scope: 'entry'` at all**, which is what made the
+ * arm mean something: `applyEffects` keyed on the channel id alone until P5.5,
+ * so two entries' timing would have overwritten each other. See `channelKey`.
+ */
+export const LORE_TIMING_CHANNEL: ChannelDefinition = {
+  id: SE_LORE_TIMING,
+  owner: 'storyengine.lore',
+  version: 1,
+  scope: 'entry',
+  // The model does not get a vote on whether an entry is still sticky. Like the
+  // clock, a fact the engine computes and records — which is what makes it
+  // reconstructible rather than negotiated.
+  update: 'engine-computed',
+  // Bookkeeping rather than story state. A player asking why an entry fired
+  // gets a reason from the workbench (P5.8), not a counter.
+  visibility: 'hidden',
+  budget: null,
+};
+
 /**
  * Every channel this build knows — the thing `update` is enforced against.
  *
@@ -90,10 +129,68 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
  */
 export const CHANNELS: Readonly<Record<string, ChannelDefinition>> = {
   [SE_CLOCK]: CLOCK_CHANNEL,
+  [SE_LORE_TIMING]: LORE_TIMING_CHANNEL,
 };
 
 export function channelDefinition(id: string): ChannelDefinition | null {
   return CHANNELS[id] ?? null;
+}
+
+/**
+ * The separator between a channel's id and the thing it is scoped to.
+ *
+ * `#` because no channel id contains one — they are dotted reverse-domain names
+ * ([03 §4.1](../../../../docs/design/03-modes-and-turn-pipeline.md)) — and no
+ * scope key does either: an actor id and an entry id are both uuids or import
+ * ids, and neither dialect uses it. Named rather than inlined so that the day
+ * one does, there is a single line to argue with.
+ */
+const SCOPE_SEPARATOR = '#';
+
+/**
+ * Where a channel's value lives in the map — **the one place the composite key
+ * is spelled.**
+ *
+ * `ChannelDefinition.scope` has said `'session' | 'actor' | 'entry'` since the
+ * first channel was written, and `ChannelEffect.scopeKey` carries the docstring
+ * *"Which value, when the channel is scoped per actor or per entry"* — but
+ * `applyEffects` keyed on `channelId` alone, so two scoped values overwrote each
+ * other and the vocabulary was a promise nothing kept.
+ * [P5 §0.4](../../../../docs/design/workplan/07-p5-implementation.md) found it;
+ * [P6 §1.9](../../../../docs/design/workplan/08-p6-implementation.md) asked
+ * which phase pays; the phase order answers that it is this one, because P5.5
+ * is the first stage that needs a per-entry value and shipping the lean without
+ * this would be shipping a feature that silently clobbers itself.
+ *
+ * **The stored type does not change**, which is what keeps this out of P6's
+ * "builds no storage" claim: `SessionFile.channels` is still
+ * `Record<string, ChannelState>`. Only the *form* of a key widens, and only for
+ * a channel that asked to be scoped — `se.clock` is `se.clock` exactly as
+ * before, so every existing reader and every stored session are untouched.
+ */
+export function channelKey(channelId: string, scopeKey: string | null | undefined): string {
+  return scopeKey === null || scopeKey === undefined
+    ? channelId
+    : `${channelId}${SCOPE_SEPARATOR}${scopeKey}`;
+}
+
+/**
+ * Whether a key in the map belongs to this channel — its own value, or any of
+ * its scoped ones.
+ *
+ * A step that declares `reads: ['se.lore.timing']` wants **every** entry's
+ * timing, not the one value that happens to sit under the bare id; without this
+ * an entry-scoped channel would read as empty at every step that asked for it.
+ */
+export function keyBelongsTo(key: string, channelId: string): boolean {
+  return key === channelId || key.startsWith(`${channelId}${SCOPE_SEPARATOR}`);
+}
+
+/** The scope key a map key carries, or null when it carries none. */
+export function scopeKeyOf(key: string, channelId: string): string | null {
+  return key.startsWith(`${channelId}${SCOPE_SEPARATOR}`)
+    ? key.slice(channelId.length + SCOPE_SEPARATOR.length)
+    : null;
 }
 
 /** Where a session's clock starts. Morning, because a story usually does. */

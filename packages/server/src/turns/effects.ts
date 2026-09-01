@@ -3,7 +3,7 @@
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { channelDefinition } from '../sessions/channels.js';
+import { channelDefinition, channelKey } from '../sessions/channels.js';
 import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js';
 
 /**
@@ -54,7 +54,11 @@ export function acceptEffect(
   }
 
   const definition = channelDefinition(proposal.channelId);
-  const before = running[proposal.channelId]?.value ?? null;
+  // The same composite key `applyEffects` writes under. Keyed on the channel id
+  // alone, a scoped effect's `before` would be some *other* entry's value — and
+  // `before` is the inverse an undo replays, so the mistake would surface as a
+  // restore that put the wrong entry's timing back.
+  const before = running[channelKey(proposal.channelId, proposal.scopeKey)]?.value ?? null;
 
   const refusal = refuse(definition, proposal);
   return {
