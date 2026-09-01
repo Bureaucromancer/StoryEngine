@@ -45,6 +45,23 @@ let watcher: LibraryWatcher;
 beforeEach(async () => {
   registry = new SelfWriteRegistry();
   library = await makeTestLibrary({ registry });
+  /**
+   * **The bookkeeping is per-test, and it was module-scope.**
+   *
+   * `emptyTheLibrary` clears `ids` between the property's own iterations and
+   * nothing cleared it between *tests*, so each fixed example below started
+   * holding slugs the randomised run had left behind — against a fresh library
+   * that had none of them on disk.
+   *
+   * That is not cosmetic, because `ids` is what `apply` guards on: `copy`
+   * returns early when `ids.has(operation.to)`. So whenever the property's
+   * last sequence happened to leave `delta` behind, the fixed example's
+   * `copy alpha → delta` **silently did not happen**, and the assertion failed
+   * with `delta` missing — which reads exactly like the watcher being late and
+   * is nothing of the kind. About one run in eight, and seed-dependent through
+   * the property that ran before it.
+   */
+  ids.clear();
   await mkdir(library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA), { recursive: true });
 
   watcher = new LibraryWatcher({
@@ -194,6 +211,17 @@ async function renameWithRetry(from: string, to: string): Promise<boolean> {
  *
  * So: quiet for two consecutive rounds, where a round is longer than the
  * window. Bounded, and it fails loudly rather than hanging.
+ *
+ * **This function was accused of a later flake and acquitted**, which is worth
+ * a line because the accusation is the obvious one and it was wrong. The gate
+ * went red about one run in eight, at the fixed example asserting a copy is
+ * shadowed, and *the copy has not been indexed yet* is exactly what the
+ * paragraph above is about — so waiting on the row count as well as on quiet
+ * looked like the fix. It was not: with the real cause removed, quiet alone
+ * passes twenty runs out of twenty, and the count condition on its own made
+ * things worse. See `beforeEach`. Reaching for the timing explanation first is
+ * what cost the detour, and the shape of it is worth remembering — the flake
+ * was in the harness's *bookkeeping*, not in its waiting.
  */
 async function quiesce(): Promise<void> {
   let previous = '';
