@@ -1,12 +1,16 @@
 # 08 — P6 implementation plan
 
 **Status: skeleton, expanded 2026-08-31 with a readiness audit and the deferrals
-collected, and re-audited 2026-09-01 at P5's close — see §0.1, which is the
-current one and which corrects §0, §1.3, §1.6 and §5.** ~~Drafted during P1; to be revisited before the phase starts.~~
+collected, re-audited 2026-09-01 at P5's document half (§0.1), and re-audited
+again 2026-09-02 once all eleven P5 stages had landed — see §0.1a, which is the
+current one and which closes two of §0.1's findings.** ~~Drafted during P1; to be revisited before the phase starts.~~
 Drafted during P1 and expanded once P5 was planned, which is the point at which
 this phase is next-but-one and its preconditions are checkable rather than
-assumed. **It is still a skeleton and the revisit still owes it a plan** — see
-§5 for what only PLAYABLE and P5 can settle.
+assumed. **It is still a skeleton and the revisit still owes it a plan** — but
+the upstream half of §5's list is now spent: P5 landed, the tape can be
+non-empty, and §1.3 is testable. **What remains before this phase opens is
+PLAYABLE**, for §1.8 and §1.2, plus the [09 §5.1](../09-branching.md) re-read.
+§0.3 is the live list.
 
 Unusually for these plans, most of P6 is *already decided* — the tree model,
 swipes-as-branches, snapshots-as-cache and the tape are settled in
@@ -60,13 +64,13 @@ eventually looks.
   rerolls.
 - **`ChannelEffect.scope` exists** (`turn.ts:487`) — and §1.5 undersells what
   landed. It says *P6 gets a field, not a migration*; in fact `applyEffects`
-  (`sessions/store.ts:429`) already **skips escaped effects when replaying**, so
+  (`sessions/store.ts:434`) already **skips escaped effects when replaying**, so
   the rule is applied and not merely storable. Its neighbouring comment reasons
   explicitly about branches: a `delete` rebuilds the map without the key rather
   than mutating, *"so a channel that was removed on one branch must not
   disappear from a map another branch is still replaying against."* That is P6's
   invariant, written at P2, under test.
-- **The head snapshot is derived and says so** (`sessions/channels.ts:173`),
+- **The head snapshot is derived and says so** (`sessions/channels.ts:270`),
   with the failure mode [02 §8.1](../02-data-model.md) warns about — *"a bug that
   only surfaces at P6 and is expensive by then"* — argued against in the code
   itself rather than left to this document.
@@ -77,9 +81,9 @@ eventually looks.
   `sessions.snapshotEveryNTurns` reads nothing. ~~and no walk-up-replay-forward.
   P6.0 starts from nothing.~~ **Corrected at §0.1:** the walk and the fold both
   exist and compose —
-  `replayChannels(walkPath(turns, id))`, in production at `store.ts:400` — so
+  `replayChannels(walkPath(turns, id))`, in production at `store.ts:405` — so
   P6.0 starts from a tested O(depth) reconstruction and adds a cache in front of
-  it. `store.ts:453` says the narrower true thing already.
+  it. `store.ts:470` says the narrower true thing already.
 - **No `BranchRef` and no `lastSelectedChildId`.** Neither name appears in the
   tree. §1.2's *back-and-forward resumes rather than guesses* is a field this
   phase adds.
@@ -121,6 +125,22 @@ landed nowhere near this phase. `git diff --stat 12a28d9..HEAD -- packages/serve
 is empty, so every code fact §0 records is still true at the line it names.
 There is one drift — the per-draw flag is `turn.ts:109`; `108` is its docstring.
 
+> **No longer true, and the line numbers throughout this document have been
+> refreshed rather than left.** That diff ran when only P5's document half had
+> landed. Against the finished phase it is 17 files and ~1,800 lines, and eight
+> citations moved: `applyEffects` 429→434, `reconcileHandEdits`' composition
+> 400→405, the narrower-true-thing comment 453→470, `replayChannels` 459→475,
+> the derived head snapshot in `channels.ts` 173→270, `advanceHead`'s incremental
+> apply 367→372, and `gatherAssemblyInputs`' walk and channel read 73→86 and
+> 77→91.
+>
+> **Every claim they anchor survived the move.** This was drift, not
+> contradiction — which is the useful finding, because a re-audit that only
+> checked whether the numbers still resolved would have reported eight failures
+> and no substance. `walkPath` (`segments.ts:188`), `config.ts:278`,
+> `state/jobs.ts:162`, `store.test.ts:224`, `state/commit.ts:346` and the
+> `shared/src/turn.ts` citations never moved at all.
+
 What follows is what §0 got wrong about the *size*, the precondition that did
 not happen, and five things missing from its own list.
 
@@ -132,13 +152,13 @@ not happen, and five things missing from its own list.
 The first half is right and the last two clauses are not. **Walk-up-replay-forward
 exists, in production, today**: `walkPath` (`sessions/segments.ts:188`) climbs
 `parentTurnId` with a cycle guard and reverses so the path reads root-first, and
-`replayChannels` (`sessions/store.ts:459`) folds `applyEffects` along it. Composed
+`replayChannels` (`sessions/store.ts:475`) folds `applyEffects` along it. Composed
 — `replayChannels(walkPath(turns, id))` — they answer *state at a node*, and
-`reconcileHandEdits` calls exactly that composition at `store.ts:400`.
+`reconcileHandEdits` calls exactly that composition at `store.ts:405`.
 
 The function §0 is describing already contains the correct, narrower sentence:
 *"P2 has no snapshot **cache** — that is P6's, and it is an optimisation rather
-than a mechanism"* (`store.ts:453`). So the code says the true thing and this
+than a mechanism"* (`store.ts:470`). So the code says the true thing and this
 document said a bigger one.
 
 **What P6.0 actually starts from is a tested O(depth) reconstruction, and what it
@@ -148,17 +168,22 @@ most likely to be under-priced — and it is not licence to relax, because §5's
 other claim survives intact: the property test is still the deliverable, and the
 next section is why.
 
-#### The precondition §5 names has not happened
+#### ~~The precondition §5 names has not happened~~ — it has, see §0.1a
+
+**Superseded.** All of P5 landed on 2026-09-02, and there are two production draw
+sites. The paragraph below was true of P5's document half and is kept because the
+*shape* of the problem it found survives: the tape is non-empty only on a turn
+that actually rolled, which is not most turns. §0.1a carries the live reading.
 
 > *"What would make this a plan rather than a skeleton: P5 landed, so the tape is
 > non-empty and §1.3 is testable."*
 
 **P5's *document half* landed. The retriever half did not**, and the retriever
 half is the one that was going to draw. There is still no production draw site:
-the runner constructs an `Rng` (`turns/runner.ts:302`) and copies its tape onto
+the runner constructs an `Rng` (`turns/runner.ts:304`) and copies its tape onto
 the draft at every checkpoint, but nothing calls `rng.at()` anywhere outside
 `rng/rng.test.ts` — the only other mention in the tree is a comment in
-`turns/calls.ts:141` explaining why backoff deliberately does *not* draw. Every
+`turns/calls.ts:148` explaining why backoff deliberately does *not* draw. Every
 committed tape is `[]`, and the P2 gate asserts it.
 
 So §1.3's rewrite/reroll split is **still untestable when this phase opens**, and
@@ -191,7 +216,7 @@ storage-ready* and *branching works*.
   stale-head bullet is about *this line*. It should be P6's first and cheapest
   change, named as a step.
 - **`advanceHead` is child-of-head-only.** It computes the new channel map as
-  `applyEffects(session.channels, turn.effects)` (`sessions/store.ts:367`) —
+  `applyEffects(session.channels, turn.effects)` (`sessions/store.ts:372`) —
   incrementally, from whatever the head's map happened to be. That is correct for
   the only case P2 produces and wrong for every gesture this phase adds: select a
   sibling, promote a ref, resume back-and-forward, and the state is the *abandoned*
@@ -199,9 +224,9 @@ storage-ready* and *branching works*.
   [02 §8.1](../02-data-model.md) says *"only surfaces at P6 and is expensive by
   then"*, sitting in the open, held back by the head gate above it.
 - **And `gatherAssemblyInputs` has the same shape.** It walks `history` to
-  `request.parentTurnId` (`turns/gather.ts:73`) and then takes channels from
+  `request.parentTurnId` (`turns/gather.ts:86`) and then takes channels from
   `session.channels` — the *head* snapshot — whenever the file exists
-  (`gather.ts:77`). Assembling at a non-head node would pair one branch's history
+  (`gather.ts:91`). Assembling at a non-head node would pair one branch's history
   with another's channel state. Also unreachable today, also only because of the
   head gate, and also live the moment it is relaxed. **Two independent places key
   on the head snapshot; relaxing the gate without fixing both is the phase's
@@ -212,13 +237,21 @@ storage-ready* and *branching works*.
   and set by all three constructors — but there is no invert or undo function in
   the codebase, and the `(channelId, scopeKey, path)` index §1.4 names has no
   table behind it. §1.4 is the most under-priced line in this document.
-- **`scope: 'escaped'` has no producer.** `effects.ts`, `channels.ts:164` and
-  `channels.ts:242` all hard-code `'session'`; the only `'escaped'` in the tree is
+- **`scope: 'escaped'` has no producer.** `effects.ts:79`, `channels.ts:261` and
+  `channels.ts:339` all hard-code `'session'`; the only `'escaped'` in the tree is
   a test. §1.5's *"P6 gets a field, not a migration"* is still true and now needs
   its second clause: the field exists, its only writer is a test, so the work is a
-  producer plus the abandonment banner.
+  producer plus the abandonment banner. **Still true after P5** — the lore timing
+  effects are a fourth producer and they go through `acceptEffect` like the rest,
+  so they inherit `'session'` too. Nothing has escaped yet.
 
-#### What P5 left under §1.9, and why it touches the headline
+#### ~~What P5 left under §1.9~~ — P5 paid it, see §0.1a
+
+**Superseded.** P5.5 widened the key space, shipped `se.lore.timing`, and taught
+`filterReads` about scoped values. This phase inherits the wider key rather than
+building it, and §1.9's headline consequence — *"somebody widens the effect log's
+key space"* — was answered by the other phase. The finding is kept because it is
+the argument that decided which one paid.
 
 P5's own re-audit ([P5 §0.4](07-p5-implementation.md)) found two mechanical
 blockers to its §1.1 lean and labelled them P6-adjacent. Both verified here.
@@ -309,6 +342,128 @@ is the suite's designated exemplar and stays put.
   finds a node with two children. The recovery path met branching before the
   navigation did.
 
+### 0.1a Re-audit at P5's *actual* close — 2026-09-02, at `347815e`
+
+§0.1 was run on branch `p5` when only the **document half** had landed, and said
+so. All eleven stages are Landed now — P5.−1 through P5.9, thirty-five commits — so
+the findings that turned on the retriever half are re-checked here rather than
+left to be discovered as false. **Two of §0.1's findings are closed outright
+(§1.9, and its own claim that nothing had drifted), one is closed with a caveat
+that is sharper than the finding was, and P5 left three things §0.1 could not
+have anticipated.** Nothing here contradicts §0.1's reasoning; what changed is
+the world it was reasoning about.
+
+#### The precondition §5 names has now happened, and §1.3's dependency is met
+
+§0.1's central finding was that *"there is still no production draw site … every
+committed tape is `[]`"*, and that §1.3's rewrite/reroll split would therefore be
+**untestable when this phase opens**. It amended §1.3 to declare a hard dependency
+on P5.4–P5.6.
+
+**That dependency is satisfied.** There are two production draw sites, both in
+the retriever: `rng.at('lore.probability', entry.id).chance(…)`
+(`retrieval/activate.ts:535`) and `rng.at('lore.group', key).weightedPick(…)`
+(`:611`). Both are keyed by entry or by book-and-group rather than positionally,
+which is [07 §14]'s *keyed by site, never by position* being honoured by its first
+real consumer — so a rewrite that takes a slightly different path replays the
+draws it can and draws fresh for the rest, which is the behaviour §1.3 needs to be
+able to test at all.
+
+**But the tape is non-empty only for a turn that actually rolled**, and that is
+the half of the finding that survives. `probability` is null by default and a
+group contest needs two entries in one group both firing, so an ordinary turn
+against an ordinary book still commits `[]`. [07 §14.6]'s rule — the reroll
+affordance must not appear when a turn consumed no draws — therefore still hides
+it most of the time, which is **correct behaviour and a poor test bed**. §1.3 is
+now testable; gate step 3 needs a fixture that deliberately rolls, and should say
+so rather than assuming any turn will do.
+
+#### §1.9 is closed, and P5 paid
+
+§0.1 recorded two mechanical blockers and said *"whether that is P5 or P6 is
+exactly what §1.9 is about"*. **P5.5 paid**, and the phase order is the reason it
+gave: the alternative was shipping a feature that clobbers itself and leaving
+this phase to repair it.
+
+- `applyEffects` keys on the pair now — `channelKey(effect.channelId,
+  effect.scopeKey)` (`sessions/store.ts:445`) — and `acceptEffect` reads its
+  `before` from the same composite key, with a comment naming precisely why
+  §1.4's undo depends on it: *"`before` is the inverse an undo replays, so the
+  mistake would surface as a restore that put the wrong entry's timing back."*
+- `se.lore.timing` exists (`sessions/channels.ts:80`), `scope: 'entry'`,
+  engine-computed, hidden. It is the first channel to use the `'entry'` arm, and
+  the arm had been declared since the first channel was written.
+- `filterReads` matches a step's declared read against a channel **and its scoped
+  values** — `keyBelongsTo(key, id)` at `turns/steps.ts:246`, defined at
+  `sessions/channels.ts:185` — which was the quiet member: a step declaring
+  `reads: ['se.lore.timing']` would otherwise have received an empty map and
+  behaved as though nothing had ever fired. `channelKey`
+  (`sessions/channels.ts:171`) and `scopeKeyOf` (`:190`) are the pair this phase
+  will reach for when it needs to ask *whose* timing a replayed effect carried.
+
+**What this phase inherits is therefore a widened key space it did not have to
+build, and a live consumer of it.** §1.9's "window is still open" paragraph is
+spent; the note stays for the argument, not the instruction.
+
+**`acceptEffect` still refuses anything but a whole-value set at `/`**
+(`turns/effects.ts:49`), unchanged and still correct — P5's timing writes a whole
+`EntryTiming` each turn. §1.4's undo is the next thing likely to want a narrower
+op, and that refusal is still where it would be met.
+
+#### What P5 left that changes this phase's *stakes* rather than its plan
+
+**The effect log is no longer nearly empty.** Before P5, a turn wrote `se.clock`
+and little else. Now every turn that touches a lorebook writes one
+`se.lore.timing` effect per entry whose counters moved — a firing, a cooldown
+ticking down, a sticky window closing. `retrieve` filters to entries that
+actually changed, deliberately, because *"a library of four hundred entries would
+otherwise write four hundred no-op effects every single turn, and the effect log
+is what [09 §4] replays"*. That filter is what keeps reconstruction affordable, and
+it is now load-bearing for P6.0 rather than a courtesy.
+
+This raises the stakes on §0.1's head-gate triple without changing the work.
+`advanceHead` still computes `applyEffects(session.channels, turn.effects)`
+(`sessions/store.ts:372`) and `gatherAssemblyInputs` still takes channels from
+`session.channels` (`turns/gather.ts:91`) — both correct only because the head
+gate makes a non-head parent unreachable. What has changed is the *symptom*: a
+branch that inherited the wrong channel map used to show a wrong clock. It will
+now also show the wrong lore — entries sticky that never fired on this path,
+cooldowns that belong to an abandoned line, an `ephemeral` entry spent by a turn
+that is not in this history. That is silent, it is content rather than metadata,
+and it is exactly [02 §8.1]'s *"expensive by then"*.
+
+**The shape this phase replays, stated once so P6.0 does not have to derive it.**
+The value under `se.lore.timing#<entryId>` — `SCOPE_SEPARATOR` is `#`
+(`sessions/channels.ts:148`) — is an `EntryTiming` of exactly three
+numbers (`retrieval/timing.ts:48`): `sticky` turns remaining, `cooldown` turns
+remaining, and `fired` — the count an `ephemeral` limit is checked against. All
+three are plain integers with no clock and no absolute turn index in them, which
+is what makes them replayable at all: reconstruct the path, fold the effects, and
+the counters land where that path put them. **`delay` is the deliberate
+exception** and reads better for it — it counts `messagesSoFar` from the walked
+history rather than from a counter, *"so a branch that rewinds four turns is four
+messages shallower without anything having to be un-incremented"*
+(`timing.ts:62`). That comment was written for this phase.
+
+`same()` (`retrieve.ts:237`) compares all three fields, so the no-op filter has
+no gap — an entry whose `fired` moved writes an effect even when `sticky` and
+`cooldown` did not, which is what makes gate step 10's ephemeral case
+reconstructible.
+
+**A session's lore links are session-wide, not per-node, and that is a relief
+worth recording.** `SessionFile` gained `treatment` and `lore` at P5.6, and
+`resolveLore` reads them from the session file rather than from any turn — so
+switching branches does not change *which books are in play*, only which entries
+their timing says have fired. Nothing in this phase has to reconstruct a book
+list. The same is true of `cast`.
+
+#### Two smaller corrections to §0.1's own text
+
+- **`turn.branch_id`'s NULL columns are unchanged**, and §1.6's choice is still
+  open. P5 added `lore_entry` and `lore_entry_fts` to the index and did not touch
+  it.
+- **§0.1's drift note stands**: the per-draw flag is `turn.ts:109`.
+
 ### 0.2 The design re-read §5 defers, done — and it returns edits rather than a tick
 
 §5 lists *"a re-read of [09 §5.1](../09-branching.md) against P8's chain"* as the
@@ -361,13 +516,19 @@ now because getting it wrong is the expensive kind.*
 
 #### Genuinely blocking, and only these
 
-- **P5.4–P5.6, for §1.3's rewrite/reroll split and gate step 3 — and for
-  nothing else.** This is the whole of P6's upstream dependency and it is
-  narrower than it reads. The *two gestures* — redo, continue differently — need
-  no draws and can ship. What needs a non-empty tape is the **split inside
-  redo**, and with no production draw site the reroll affordance would by
-  [07 §14.6](../07-tech-stack.md)'s own rule never appear. So P6.0, P6.1 and
-  most of P6.2 are unblocked today; one sub-feature and one gate step are not.
+- ~~**P5.4–P5.6, for §1.3's rewrite/reroll split and gate step 3 — and for
+  nothing else.**~~ **Satisfied 2026-09-02** — all eleven P5 stages landed and
+  `retrieval/activate.ts` draws at two sites (§0.1a). The paragraph below is kept
+  because its *narrowness* was the useful part and still is, with one clause now
+  reading differently: it is no longer that a draw site does not exist, but that
+  a turn only draws when a `probability` or a group contest is in play. **Gate
+  step 3 therefore needs a fixture that deliberately rolls**; it cannot be
+  written against an arbitrary turn. This is the whole of P6's upstream
+  dependency and it is narrower than it reads. The *two gestures* — redo,
+  continue differently — need no draws and can ship. What needs a non-empty tape
+  is the **split inside redo**, and on a turn that consumed no draws the reroll
+  affordance must by [07 §14.6](../07-tech-stack.md)'s own rule not appear. So
+  P6.0, P6.1 and most of P6.2 were unblocked even before P5 finished.
 - **PLAYABLE, for §1.8 and §1.2.** *Which reply an edit changes* is a use
   question with a lean and no evidence, and *whether a count and two arrows are
   enough to find a line abandoned twenty turns ago* is the question the deferred
@@ -393,21 +554,31 @@ question waiting on session sizes.
 **The head-gate triple comes before any gesture**, and §0.1 is why: relaxing
 `submitTurn`'s head-equality refusal (`state/jobs.ts:162`) makes two latent bugs
 live in the same moment — `advanceHead` computing channels incrementally from
-the head's map (`sessions/store.ts:367`), and `gatherAssemblyInputs` pairing a
-walked history with `session.channels` (`turns/gather.ts:77`). Both are correct
+the head's map (`sessions/store.ts:372`), and `gatherAssemblyInputs` pairing a
+walked history with `session.channels` (`turns/gather.ts:91`). Both are correct
 today *only* because the gate makes them unreachable. Relax it first and fix
 them after, and the phase spends its first week debugging state that belongs to
 a branch nobody is on — which is [02 §8.1](../02-data-model.md)'s *"expensive by
 then"*, arriving on schedule.
 
+**P5 made this ordering matter more, not less** (§0.1a). The wrong-map symptom
+used to be a wrong clock, which is one visibly bogus number. It is now also
+wrong *lore* — an entry sticky on a line that never fired it — which changes the
+prose the model is given rather than a field on the screen, and is therefore the
+kind of bug a person notices as *the writing got strange* three sessions later.
+Fix the triple first.
+
 Two smaller orderings, each cheap to get right and annoying to retrofit:
 
-- **The effect log's key space, if §1.9 is to hold by construction.**
+- ~~**The effect log's key space, if §1.9 is to hold by construction.**
   `applyEffects` ignores `scopeKey` and `acceptEffect` refuses anything but a
   whole-value set; widening them is the precondition for an entry-scoped timing
   channel. Whether P5 or P6 pays is §1.9's question — but it is *work on a
   persisted shape*, so it wants deciding before either phase writes the first
-  effect that needs it.
+  effect that needs it.~~ **Done by P5.5, so it is not an ordering here at all**
+  (§0.1a). Worth keeping visible as the one item on this list that got settled by
+  being written down early enough for the *other* phase to read it — which is
+  what §1.9's closing paragraph asks both documents to keep doing.
 - **§1.6's column, before the index work rather than during it.** Populate the
   `branch_id` that ships NULL, or add the materialised path the design asked for
   and drop it. Either is fine; discovering the choice halfway through is not.
@@ -418,7 +589,9 @@ None of these blocks anything; all four are small, and each is the kind of thing
 that costs more attention when met mid-stage than when cleared cold.
 
 1. **`SessionFile`'s docstring advertises branch refs the interface does not
-   have** (`sessions/types.ts:41`). A reader will believe the field exists.
+   have** (`sessions/types.ts:42`). A reader will believe the field exists.
+   *Now doubly out of date:* it also omits `treatment` and `lore`, which P5.6
+   added and which are the session's lore links. One edit fixes both.
 2. **Gate step 9 owes a test that does not exist** (§0.1). Writing it is
    independent of the snapshot work and pins what "applied" has to mean.
 3. **C8's stale framing** in §1.1 here and in [09 §9](../09-branching.md) — both
@@ -460,12 +633,22 @@ resumes rather than guesses ([09 §3](../09-branching.md)).
 
 ### 1.3 The two gestures are two buttons
 
-> **Depends on P5.4–P5.6, and §0.1 makes that a stated dependency rather than an
+> ~~**Depends on P5.4–P5.6, and §0.1 makes that a stated dependency rather than an
 > assumption.** The rewrite/reroll half needs a non-empty tape, and there is
 > still no production draw site — so on today's code the reroll affordance
 > would be correct, unexercised, and by [07 §14.6]'s own rule never visible,
-> since it must not appear for a turn that consumed no draws. The two *buttons*
-> do not depend on it; the *split* does.
+> since it must not appear for a turn that consumed no draws.~~ **Dependency met
+> 2026-09-02** (§0.1a). The draw sites are `rng.at('lore.probability', entry.id)`
+> and `rng.at('lore.group', key)`, both in `retrieval/activate.ts`, both keyed by
+> entry or group rather than by position — which is what makes a rewrite able to
+> replay the draws that still apply and draw fresh for the rest.
+>
+> **What survives is a testing constraint, not a blocker.** A turn only rolls
+> when an entry carries a `probability` or two entries contest a group; against
+> an ordinary book the tape is still `[]` and [07 §14.6]'s rule correctly hides
+> the affordance. So the split is exercisable but not incidentally — **a fixture
+> has to be built to roll**, and gate step 3 should name it. The two *buttons* do
+> not depend on any of this; the *split* does.
 
 *Redo* (sibling of this node) and *continue differently* (child of this node)
 are both offered explicitly from any message — guessing is wrong half the time
@@ -529,10 +712,13 @@ work, not a mention.
   the consequence: every committed tape is empty because there is no production
   draw site. P5 introduces the first — activation draws — so the tape is
   non-empty for the first time one phase before this one. §1.3's rewrite/reroll
-  split is untestable until then and fully testable after. ***Overtaken
+  split is untestable until then and fully testable after. ~~***Overtaken
   2026-09-01 (§0.1): P5's document half landed and its retriever half did not,
   so the tape is still empty and the split is still untestable at this phase's
-  start.*** The dependency is on P5.4–P5.6 rather than on "P5", and §1.3 says so.
+  start.***~~ ***Resolved 2026-09-02 (§0.1a): the retriever half landed too, and
+  P2 §2.13's prediction came true almost exactly — activation draws are the
+  tape's first real use.*** The one word P2 could not have known is *sometimes*:
+  the tape is non-empty on a turn that rolled, not on every turn.
 - **Branching has no route** ([P2C §5](15-p2c-first-real-run.md)): *"branching
   is a storage affordance with no route."* Named in the first-real-run brief as
   something a tester will not find, so it is not a bug report to expect. P6 is
@@ -588,6 +774,24 @@ before either phase runs: P5's revisit should read §1.1 of this document, and
 this document's revisit should read P5 §6. Both are one paragraph, and the
 alternative is discovering the disagreement from a failing test.
 
+**Settled 2026-09-02: P5 shipped first, so this phase verifies rather than
+chooses — and P5 paid the mechanical cost of the choice** (§0.1a). Timing lives
+in channels, as `se.lore.timing`, `scope: 'entry'`, engine-computed and hidden.
+P5.5 widened `applyEffects` to key on `channelKey(channelId, scopeKey)` and
+taught `filterReads` about scoped values, so the widening §0.1 costed as *"work
+on a persisted shape"* is not this phase's work. **What this phase owes is the
+check, unchanged and now writable against real state:** a sticky entry activated
+on one line must not be sticky on a sibling line that never activated it.
+
+That check is [P5 §3]'s gate step 14 arriving here as promised — *"Timing
+counters reconstruct correctly at an old node (with P6 landed, this becomes the
+branch test; before P6, replay-from-zero covers it)."* **It is now the branch
+test**, and §3 below carries it rather than leaving it in P5's gate to go red.
+
+*The paragraph pair still stands as a habit even though this instance resolved
+well:* it resolved well because both documents were read, not because the
+ordering was lucky.
+
 ---
 
 ## 2. Stages
@@ -602,8 +806,8 @@ head-snapshot readers below — not the mechanism.*
 what stands between storage that tolerates branching and a session that can
 branch: relax `submitTurn`'s head-equality refusal (`state/jobs.ts:162`), and
 fix the two places that key on the head snapshot rather than on the node —
-`advanceHead` (`sessions/store.ts:367`), which applies effects incrementally to
-the current head's map, and `gatherAssemblyInputs` (`turns/gather.ts:77`), which
+`advanceHead` (`sessions/store.ts:372`), which applies effects incrementally to
+the current head's map, and `gatherAssemblyInputs` (`turns/gather.ts:91`), which
 pairs a walked history with `session.channels`. Both are correct today only
 because the gate makes them unreachable, and both are wrong the moment it moves.
 
@@ -611,6 +815,16 @@ State-at-node as walk-up-replay-forward over §1.1's snapshot cache;
 `session.json`'s head snapshot rewritten on head move (staying derived —
 [02 §8.1](../02-data-model.md)); the replay property test green. This stage is
 pure engine and ships no UI.
+
+*Two notes from §0.1a, one making this stage heavier and one lighter.*
+**Heavier:** the map being replayed is no longer mostly `se.clock`. Every turn
+touching a lorebook writes a `se.lore.timing` effect per entry whose counters
+moved, so the cache earns its place on effect volume as well as on walk depth,
+and the property test finally has state that can disagree. **Lighter:** a
+session's lore links live on `SessionFile` (`treatment` and `lore`, added at
+P5.6) rather than on any turn, so *which books are in play* does not vary by
+node — same as `cast`. Nothing here reconstructs a book list; only the timing
+of entries within those books replays.
 
 ### P6.1 — Navigation and the head
 
@@ -644,7 +858,9 @@ tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
 
 ~~Sketch; expand on revisit.~~ *Steps 1–8 were the sketch and stand. Steps 9–13
 were added 2026-08-31 from §0 and §1.7–§1.9, which is the part of a gate worth
-writing early: a gate written after the code is a gate written to pass.*
+writing early: a gate written after the code is a gate written to pass. Step 14
+and the amendments to 3 and 10 were added 2026-09-02 from §0.1a, once P5 had
+actually landed and the gate could name real state instead of hypothetical.*
 
 1. Branch from a message 200 turns back → new line in one action, no
    precondition, state at the fork correct per the property test.
@@ -655,6 +871,13 @@ writing early: a gate written after the code is a gate written to pass.*
    new outcome; the record marks replayed vs fresh draws. At temperature 0 a
    rewrite returns ~the same text, and that is correct
    ([07 §14.6](../07-tech-stack.md)).
+   **The fixture has to be built to roll** (§0.1a): the production draw sites are
+   `lore.probability` and `lore.group`, so the session needs a lore entry with a
+   `probability` below 100 or two entries contesting one group. A turn against an
+   ordinary book commits an empty tape, and this step would then pass by
+   asserting nothing. **Assert the tape is non-empty before asserting anything
+   about it** — that is the assertion that fails if a future change quietly stops
+   drawing.
 4. Undo the newest turn → channel state reverts locally; attempt to invert a
    deeper effect → refused, branch offered (§1.4).
 5. A character dead on one line is alive on the other; timing counters
@@ -677,8 +900,15 @@ writing early: a gate written after the code is a gate written to pass.*
    already attached to it.
 10. **A sticky lore entry does not leak across a branch** (§1.9): activate one on
     a line, branch from a node before the activation, and the sibling line does
-    not have it. Whether that holds by construction or by repair depends on
-    which phase shipped first, and the gate does not care which.
+    not have it. ~~Whether that holds by construction or by repair depends on
+    which phase shipped first, and the gate does not care which.~~ **P5 shipped
+    first and paid**, so this should hold *by construction* — `se.lore.timing`
+    effects are keyed `se.lore.timing#<entryId>` and replay along the walked path
+    like any other. **If it does not, the bug is in this phase's
+    reconstruction and not in P5's key**, which is a useful thing to know before
+    debugging. Extend it past sticky: **`cooldown` and `ephemeral` too** —
+    ephemeral especially, since an entry spent on one line being spent on a
+    sibling that never fired it is the same bug with a less visible symptom.
 11. **Edit-and-re-run does what §1.8 decided**, and the decision is written down
     somewhere a person can find — not left as whatever the implementation does.
 12. **The stale-head case behaves as §1.7 decided**: two submissions against one
@@ -689,6 +919,18 @@ writing early: a gate written after the code is a gate written to pass.*
     before P6 and a branch test after; it changes meaning here, and the
     fixture-pair precedent from P5.6 is that such a step is edited deliberately
     rather than repaired when it reddens.
+
+14. **Reconstruction stays affordable against a real lorebook** *(added
+    2026-09-02 from §0.1a)*. P5 made the effect log an order of magnitude
+    busier: every turn touching a book writes one `se.lore.timing` effect per
+    entry whose counters moved. `retrieve` already filters to entries that
+    actually changed — *"a library of four hundred entries would otherwise write
+    four hundred no-op effects every single turn"* — and **that filter is now
+    load-bearing for replay rather than a courtesy**. Reconstruct at depth 200
+    against a session using a book of a few hundred entries and show the
+    property test still passes in a time a person would accept. If it does not,
+    the answer is the snapshot cache doing its job, which is P6.0 — not
+    loosening the filter, which would trade a replay cost for a storage one.
 
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
@@ -757,8 +999,26 @@ the reason it is still called a skeleton:
   cannot, that deferral is the one to revisit first.
 
 **What would make this a plan rather than a skeleton:** ~~P5 landed, so the tape
-is non-empty and §1.3 is testable~~ **P5.4–P5.6 landed** — §0.1 checked, and it
+is non-empty and §1.3 is testable~~ ~~**P5.4–P5.6 landed** — §0.1 checked, and it
 is the *retriever* half that draws, so P5's document half landing changed
-nothing here; PLAYABLE run, so §1.1 and §1.8 have evidence; and a re-read of
+nothing here~~ **done 2026-09-02** (§0.1a: two production draw sites in
+`retrieval/activate.ts`, with the caveat that only a rolling turn has a
+non-empty tape); PLAYABLE run, so §1.1 and §1.8 have evidence; and a re-read of
 [09 §5.1](../09-branching.md) against P8's chain, which §4 already names as the
 handoff to check and which is the one of the three nobody is blocked on.
+
+**So one of the three is spent and two remain, and only one of those blocks.**
+PLAYABLE is the real gate on §1.1, §1.8 and §1.2; the [09 §5.1](../09-branching.md)
+re-read is a desk task nobody is waiting on and could be done now.
+
+*Re-priced again at §0.1a, downward on the largest line.* **§1.9's widening —
+named above as the place the "P6 builds no storage" headline was conditional —
+was paid by P5.5.** `SessionFile.channels` is keyed by `channelKey(channelId,
+scopeKey)` already, so this phase inherits the persisted shape rather than
+migrating it, and the headline is settled rather than conditional. What replaces
+it is smaller but not nothing: **the effect log this phase replays is an order of
+magnitude busier than the one §0 audited**, because every turn touching a
+lorebook now writes a `se.lore.timing` effect per entry whose counters moved.
+P6.0's snapshot cache is therefore load-bearing for a reason §0 could not see —
+not just walk depth, but per-turn effect volume — and the property test has real
+state to disagree about for the first time.
