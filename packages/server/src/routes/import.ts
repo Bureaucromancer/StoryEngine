@@ -2,16 +2,23 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Type } from '@sinclair/typebox';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import type { ImportItemReport, ImportNote, NearMissOffer } from '@storyengine/shared';
+import type {
+  ImportItemReport,
+  ImportNote,
+  ImportPreview,
+  NearMissOffer,
+} from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { classifyRoot } from '../import/detect.js';
 import { planUpload, type ManifestEntry } from '../import/directory-upload.js';
 import { MemoryFileSource } from '../import/memory-source.js';
 import { nearMiss } from '../import/near-miss.js';
+import { previewOne } from '../import/preview.js';
 import { readUpload } from '../import/upload.js';
+import { FORWARDED_SAMPLER_PARAMS } from '../providers/forwarded-params.js';
 import {
   profileAsFileSource,
   readEnvelope,
@@ -91,6 +98,72 @@ function isTooLarge(error: unknown): boolean {
   );
 }
 
+/**
+ * One file part, the limit, and the three refusals both upload doors share.
+ *
+ * **Extracted when the preview arrived, before the second copy existed rather
+ * than after.** The 413 below is not a check but a catch, the 415 is a `catch`
+ * arm rather than a content-type test, and the truncation flag is read after the
+ * buffer — three pieces of arranged-just-so control flow that would have been
+ * copied verbatim and then drifted. `limits.maxUploadMb` is read here, per
+ * request, off the live config reference, so both doors answer with whatever
+ * number is set now.
+ *
+ * Returns `null` having already answered, the way `requireAccount` does.
+ */
+async function readOnePart(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  services: AppServices,
+): Promise<{ filename: string; bytes: Buffer } | null> {
+  const limitBytes = services.config.limits.maxUploadMb * MEGABYTE;
+
+  /**
+   * Over the limit is a **413 with the number in it**, and getting that takes
+   * a catch rather than a check.
+   *
+   * The plugin signals the overrun by throwing `FST_REQ_FILE_TOO_LARGE` out of
+   * the read, so `file.truncated` is never reached — and left to the app's
+   * error handler the caller would get `400 invalid`, which says *your request
+   * was malformed* about a request that was fine and merely large. The message
+   * names the limit because *too large* without a number is something a person
+   * cannot act on.
+   */
+  const tooLarge = (): null => {
+    void reply.code(413).send({
+      error: 'too-large',
+      message: `That file is larger than the ${String(services.config.limits.maxUploadMb)} MB upload limit.`,
+    });
+    return null;
+  };
+
+  let file;
+  try {
+    file = await request.file({ limits: { fileSize: limitBytes, files: 1 } });
+  } catch (error) {
+    if (isTooLarge(error)) return tooLarge();
+    void reply
+      .code(415)
+      .send({ error: 'not-multipart', message: 'Send one file as multipart/form-data.' });
+    return null;
+  }
+  if (!file) {
+    void reply.code(400).send({ error: 'no-file', message: 'No file in the request.' });
+    return null;
+  }
+
+  let bytes: Buffer;
+  try {
+    bytes = await file.toBuffer();
+  } catch (error) {
+    if (isTooLarge(error)) return tooLarge();
+    throw error;
+  }
+  if (file.file.truncated) return tooLarge();
+
+  return { filename: file.filename, bytes };
+}
+
 export function registerImportRoutes(app: FastifyInstance, services: AppServices): void {
   app.post('/import/file', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -99,49 +172,54 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     // CSRF is the app-wide hook's business and applies here like any mutation —
     // named because an upload route is exactly where somebody would be tempted
     // to make an exception for a form post.
-    const limitBytes = services.config.limits.maxUploadMb * MEGABYTE;
+    const part = await readOnePart(request, reply, services);
+    if (part === null) return;
 
-    /**
-     * Over the limit is a **413 with the number in it**, and getting that takes
-     * a catch rather than a check.
-     *
-     * The plugin signals the overrun by throwing `FST_REQ_FILE_TOO_LARGE` out of
-     * the read, so `file.truncated` is never reached — and left to the app's
-     * error handler the caller would get `400 invalid`, which says *your request
-     * was malformed* about a request that was fine and merely large. The message
-     * names the limit because *too large* without a number is something a person
-     * cannot act on.
-     */
-    const tooLarge = (): unknown =>
-      reply.code(413).send({
-        error: 'too-large',
-        message: `That file is larger than the ${String(services.config.limits.maxUploadMb)} MB upload limit.`,
-      });
-
-    let file;
-    try {
-      file = await request.file({ limits: { fileSize: limitBytes, files: 1 } });
-    } catch (error) {
-      if (isTooLarge(error)) return tooLarge();
-      return reply
-        .code(415)
-        .send({ error: 'not-multipart', message: 'Send one file as multipart/form-data.' });
-    }
-    if (!file) {
-      return reply.code(400).send({ error: 'no-file', message: 'No file in the request.' });
-    }
-
-    let bytes: Buffer;
-    try {
-      bytes = await file.toBuffer();
-    } catch (error) {
-      if (isTooLarge(error)) return tooLarge();
-      throw error;
-    }
-    if (file.file.truncated) return tooLarge();
-
-    const result = await importOneFile(services, account.handle, file.filename, bytes);
+    const result = await importOneFile(services, account.handle, part.filename, part.bytes);
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
+  });
+
+  /**
+   * What that upload *would* do, with nothing written
+   * ([05 §5](../../../../docs/design/05-ui-surfaces.md), as amended).
+   *
+   * **A POST that writes nothing**, and the two halves of that are separate
+   * claims. POST because the body carries a file and because the CSRF header
+   * rides along with it — a look that a cross-site form could take is a look
+   * worth refusing. Writes nothing because that is the entire point of the
+   * route: the person is being shown a converted preset in order to decide
+   * whether to have it.
+   *
+   * **The commit is a second upload of the same bytes to `/import/file`**, not a
+   * POST of the object this returns, and that is the decision this route's shape
+   * rests on. Sending the converted object to `/api/library/presets` would have
+   * been less work and would have cost four things at once: `stampImported`
+   * never runs, so re-import identity is dead for that object forever;
+   * `identify` never runs, so every later re-import doubles; nothing reaches the
+   * job ledger, so `importNotesFor` can never find the object's own review; and
+   * the credential rule moves from the converter to the client, which is where
+   * it least belongs. One write path, and this is a way of looking at it rather
+   * than a second one.
+   *
+   * So the bytes travel twice. A preset is kilobytes, and the cost buys the
+   * property that **what lands is always what the converter says about the bytes
+   * that arrived** — if the file changed in between, the commit's report is the
+   * truth and the preview was a prediction that expired.
+   *
+   * **`200` for everything the reader can answer about**, including files it
+   * does not recognise. A file is a fact about the world rather than a malformed
+   * request, which is the shape `/import/file` already takes.
+   */
+  app.post('/import/file/preview', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const part = await readOnePart(request, reply, services);
+    if (part === null) return;
+
+    return reply
+      .code(200)
+      .send({ preview: await previewUpload(services, account.handle, part.filename, part.bytes) });
   });
 
   /**
@@ -595,6 +673,106 @@ function sweepRefusalMessage(refusal: SourceRefusal): string {
  * is the class that means **read, named, nowhere to put it**, and a card is no
  * longer an example of it.
  */
+/**
+ * The same three arms as {@link importOneFile}, answering *what would happen*.
+ *
+ * **Only the third arm can say much, and the seam is principled rather than
+ * convenient.** A zip and a Marinara envelope are *roots*: previewing one means
+ * a dry-run of a whole sweep, which would need `Writer` split into pure and
+ * impure halves — and sweeps keep committing first and reporting, deliberately.
+ * So those two arms answer honestly with *this is a folder in a file* and leave
+ * the summary empty.
+ *
+ * The **flow** is still the same for every hand-picked file: a look, then a
+ * word. Only the richness of the look varies. A preview that appeared for preset
+ * JSON and not for the card PNG most people upload first would be §7.1's defect
+ * committed a second time, on purpose.
+ */
+async function previewUpload(
+  services: AppServices,
+  handle: string,
+  filename: string,
+  bytes: Uint8Array,
+): Promise<ImportPreview> {
+  const blank = (
+    disposition: ImportPreview['disposition'],
+    notes: ImportNote[],
+    object: ImportPreview['object'],
+  ): ImportPreview => ({
+    source: filename,
+    disposition,
+    notes,
+    advisories: [],
+    object,
+    reimport: 'unknown',
+  });
+
+  // Tried first and by signature rather than by parse, exactly as the import
+  // path does: a zip is never JSON.
+  if (looksLikeZip(bytes)) {
+    const opened = ZipFileSource.open(bytes);
+    if (!opened.ok) {
+      return blank(
+        'unrecognised',
+        [
+          {
+            key: 'import.file.badArchive',
+            params: { file: filename, refusal: opened.refusal },
+            level: 'warn',
+          },
+        ],
+        null,
+      );
+    }
+    // Opened and discarded. The archive is validated so a broken one is refused
+    // here rather than at commit; what is inside it is the sweep's business.
+    return blank(
+      'converted',
+      [{ key: 'import.file.importsAsFolder', params: { file: filename }, level: 'info' }],
+      { kind: 'sweep' },
+    );
+  }
+
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    // Not JSON, which is very likely a card. The reader below decides.
+  }
+
+  if (parsed !== null && readEnvelope(parsed) !== null) {
+    return blank(
+      'converted',
+      [{ key: 'import.file.importsAsFolder', params: { file: filename }, level: 'info' }],
+      { kind: 'sweep' },
+    );
+  }
+
+  const read = readUpload(filename, bytes);
+  if (read.outcome === 'observed') {
+    // Unrecognised, or one of the three templates that are named and never
+    // converted. Either way the reader has already said it in the right words.
+    return blank(read.report.disposition, read.report.notes, null);
+  }
+
+  return previewOne({
+    library: services.library,
+    handle,
+    filename,
+    candidate: read.candidate,
+    forwarded: FORWARDED,
+  });
+}
+
+/**
+ * The sampler parameters this build puts on the wire, as a set.
+ *
+ * Built once here rather than inside `previewOne`, which takes it as an
+ * argument so that `import/` stays ignorant of what a provider is — the same
+ * fence `source.ts` puts around the converters.
+ */
+const FORWARDED: ReadonlySet<string> = new Set<string>(FORWARDED_SAMPLER_PARAMS);
+
 async function importOneFile(
   services: AppServices,
   handle: string,

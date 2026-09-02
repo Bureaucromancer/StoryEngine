@@ -66,11 +66,18 @@ export interface ImportPreview {
 /**
  * Whether this file has been imported here before, and whether it has changed.
  *
- * The same three answers `identify()` gives the sweep, asked without writing —
- * so *replace or keep both* is a question the person can be asked before the
+ * The first three are `identify()`'s own answers, asked without writing — so
+ * *replace or keep both* becomes a question the person can be asked before the
  * write rather than told about after it.
+ *
+ * **`unknown` is the fourth, and it is an answer rather than a failure.**
+ * Working the question out means converting the file and comparing the result,
+ * and the kinds this build has no preview summary for are exactly the kinds it
+ * has not converted by this point. Guessing `new` there would put a *this is
+ * fresh* claim on a screen next to a button, which is the one place a guess
+ * costs something. A caller that sees `unknown` offers no conflict choice.
  */
-export type ImportPreviewReimport = 'new' | 'unchanged' | 'changed';
+export type ImportPreviewReimport = 'new' | 'unchanged' | 'changed' | 'unknown';
 
 export type ImportPreviewObject =
   | ImportPreviewPreset

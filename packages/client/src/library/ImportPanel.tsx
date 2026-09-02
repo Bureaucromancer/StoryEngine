@@ -125,6 +125,21 @@ const NOTE_LABELS: Record<string, string> = {
     'A SillyTavern context template. It lays out a raw-completion prompt; this build assembles from blocks instead.',
   'import.template.reasoning':
     'A SillyTavern reasoning template. It splits reasoning out of a model’s reply, which nothing here reads.',
+
+  /**
+   * **The two the preview adds**, and only the preview: neither is ever stored.
+   *
+   * `samplerNotForwarded` is an *advisory* rather than a note — a fact about
+   * this build rather than about the file — which is why it arrives in a
+   * separate array. It sits directly beside “{count} sampler settings carried
+   * over”, which is the sentence it exists to qualify: that one was true and
+   * misleading for three phases, because some of what carried never reaches a
+   * model.
+   */
+  'import.preset.samplerNotForwarded':
+    '{count} of them are stored but do not reach the model in this build: {fields}.',
+  'import.file.importsAsFolder':
+    '{file} is a folder in a file. Importing it brings in everything inside, and reports afterwards rather than first.',
   'import.row.unreadable': 'A row in {table} could not be read and was skipped.',
   'import.lore.stateDropped': '“{entry}” had a {field} setting that does not exist here.',
   'import.lore.unknownPosition': '“{entry}” sat at position {code}, which has no meaning here.',
