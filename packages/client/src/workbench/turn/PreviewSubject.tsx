@@ -8,6 +8,7 @@ import { MetadataRow } from '../../ui/MetadataRow.js';
 import { Fine, Note } from '../../ui/Text.js';
 import { BlockTable } from './BlockTable.js';
 import { BudgetVerdictView } from './BudgetVerdictView.js';
+import { LoreReportView } from './LoreReportView.js';
 import { NotFilledList } from './NotFilledList.js';
 import { rulesOf } from './rules.js';
 
@@ -59,6 +60,11 @@ export function PreviewSubject({
             would be a second assembly shape for a state that already has an
             honest answer. */}
         <NotFilledList notFilled={preview.notFilled} />
+        {/* The scan ran before the role was resolved, so its answer survives
+            the failure that made the numbers unmeasurable 2014 and an
+            unconfigured install is exactly where somebody is asking why their
+            world is not appearing. */}
+        <LoreReportView lore={preview.lore} />
       </div>
     );
   }
@@ -70,6 +76,14 @@ export function PreviewSubject({
       <BlockTable blocks={preview.blocks} rules={rulesOf(preview.budget)} locale={locale} />
       <BudgetVerdictView verdict={preview.budget} locale={locale} />
       <NotFilledList notFilled={preview.notFilled} />
+      {/*
+       * **The keyword test, generalised** — [P5.8], [05 §3]. Below the block
+       * table on purpose: what *fired* is up there with the key that did it,
+       * and this is the half nothing could show. Reading downward is therefore
+       * *what is in the prompt*, then *what is not and why*, which is the order
+       * somebody arrives at the question in.
+       */}
+      <LoreReportView lore={preview.lore} />
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
         <MetadataRow label="Step">
