@@ -230,13 +230,32 @@ would have a home** ([P4 §1.8](06-p4-implementation.md)'s disposition tables):
 **The decision the revisit owes, and it is one decision rather than four:**
 *does P7 convert any of it, or does "recorded" turn out to be where it stays?*
 The honest default is the second. Every item above is a foreign engine's
-runtime state, and [06 E4](../06-open-questions.md) already closed chat and
-session import on the grounds that *"a half-working importer generates more
-support burden than no importer at all"* — an argument that does not weaken
-when the state gets more mode-specific. What would change it is a *format*
-argument rather than a completeness one: if this phase's channel and setup
-shapes turn out to be close enough to a source's that conversion is a table
-rather than a rewrite, the case reopens for that one shape only.
+runtime state, and [06 E4](../06-open-questions.md) ~~already closed~~ declines
+to commit to chat and session import on the grounds that *"a half-working
+importer generates more support burden than no importer at all"* — an argument
+that does not weaken when the state gets more mode-specific. What would change
+it is a *format* argument rather than a completeness one: if this phase's
+channel and setup shapes turn out to be close enough to a source's that
+conversion is a table rather than a rewrite, the case reopens for that one
+shape only.
+
+*Corrected 2026-09-01.* **E4 no longer says closed, and the sentence above was
+written two days before it stopped.** It was rewritten on 2026-08-31 to
+*"conditional on an interchange format… no longer a flat refusal. The condition
+is the shape, not the appetite"*. The honest default is **unchanged** — every
+reason this section gives for `recorded` survives the revision intact, because
+E4's objection to a half-working importer is quoted here in the half that did
+not move.
+
+What does change is that **this paragraph's reopening condition has been met in
+one direction and not the other.** *"A format argument rather than a completeness
+one"* is precisely the argument E4 now makes, so the revisit cannot treat the
+question as answered elsewhere and skip it. It still has to decide, per shape,
+whether conversion is a table or a rewrite — and it now has
+[21](../21-session-import.md) to decide against, whose §2.2 is the relevant
+finding for the Marinara rows above: `game_*` state hangs off chats whose
+branches are *copied chats* rather than tree edges, so any of it that converts
+converts against a history model that is not ours.
 
 **And one thing P4 took from this phase rather than leaving to it**, recorded
 so the revisit does not find it as a contradiction: session creation grows an

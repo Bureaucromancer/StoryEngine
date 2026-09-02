@@ -870,6 +870,26 @@ only one of them can be written at P11.
 ever writes one that is a fine outcome. What this rules out is answering the
 question twice.
 
+*Surveyed 2026-09-01, in [21](21-session-import.md).* **The condition above is
+now checkable**, which it was not while it named a shape nobody had costed.
+Three things from that survey are worth having here rather than only there.
+**Aventuras already ships this document's proposed shape** — `.avt`, one
+versioned single-file export at v1.8.0, grown by addition alone — so the
+argument that the interchange form is the one that does not rot has a working
+instance rather than only a rationale. **The lift is where this section says and
+not where it reads**: Aventuras' own SillyTavern chat importer is 116 lines,
+because it keeps the prose and drops the swipes, the timestamps and every link
+to a card. That is the half-working importer named above, and its smallness is
+the argument, not a counter to it. And **the ordering is forced rather than
+preferred**: until session export writes the format, an importer for it is a
+reader for a format with no writer, which
+[P4 §1.3](workplan/06-p4-implementation.md) struck `.seactor` for being and
+[01 §2.2](workplan/01-work-plan.md) forbids.
+
+[21 §3](21-session-import.md) is the part addressed to P11 — four things the
+export format has to do if it is to be the target E4 describes, rather than a
+serialisation of our own records that happens to be written down.
+
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.

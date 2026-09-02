@@ -148,7 +148,20 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   api_connection_folders: 'credential',
 
   // ── Recorded, not converted ───────────────────────────────────────────────
-  // Session-shaped. Chat import is closed rather than deferred ([06 E4]).
+  // Session-shaped. ~~Chat import is closed rather than deferred ([06 E4]).~~
+  //
+  // *Corrected 2026-09-01.* **Conditional, not closed.** [06 E4] was rewritten
+  // on 2026-08-31 — *"the condition is the shape, not the appetite"* — and the
+  // condition is a session interchange format beginning at P11's export
+  // ([06 B12]). The dispositions below are unchanged and `recorded` is now the
+  // right arm rather than an approximate one; see the longer note on the same
+  // row in `sillytavern.ts`, and [21] for the survey.
+  //
+  // Worth knowing before anyone reads these five rows as equivalent to ST's:
+  // Marinara messages and swipes carry real ids, so re-import identity here is
+  // tractable where ST's is not — and a Marinara *branch* is a copied chat with
+  // a back-pointer, not a tree edge, so a family of them imports as duplicated
+  // prefixes unless it is reassembled whole ([21 §2.2]).
   chats: 'recorded',
   messages: 'recorded',
   message_swipes: 'recorded',
