@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
 /* eslint-disable @typescript-eslint/require-await -- the stub transports below
    are `fetch` implementations: async is their signature, not a choice. */
 
+import type { GenerationParams } from '@storyengine/shared';
+
 import type { Connection } from './connections.js';
+import { FORWARDED_SAMPLER_PARAMS, FORWARDED_WIRE_NAMES, inertParams } from './forwarded-params.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
 import { ProviderError, type GenerationResult, type RenderedMessage } from './types.js';
 
@@ -693,5 +696,91 @@ describe('which model answered', () => {
     // Naming the request is better than naming nothing — and it is the case the
     // local-runtime story runs into, since many echo no model at all.
     expect(result?.modelId).toBe('llama-local');
+  });
+});
+
+describe('which sampler settings reach the model', () => {
+  /**
+   * **The list is read off the wire, not off `toSdkParams`.**
+   *
+   * `FORWARDED_SAMPLER_PARAMS` exists so the import review can say which of a
+   * converted preset's settings are inert ([polish §8]). A list maintained by
+   * reading the adapter would have been wrong on the day it was written: an
+   * earlier draft included `topK`, because `toSdkParams` passes it — and
+   * `@ai-sdk/openai-compatible` drops it before the body, since `top_k` is not
+   * in the OpenAI chat schema. Only the request body knows.
+   *
+   * So this drives the adapter with **every** `GenerationParams` field set and
+   * asserts the body against the constant in both directions. It goes red if the
+   * SDK starts or stops carrying one, which is the point: that is the day the
+   * sentence the review shows a person stops being true.
+   */
+  const everyParam = {
+    temperature: 0.7,
+    topP: 0.9,
+    topK: 40,
+    topA: 0.1,
+    minP: 0.05,
+    frequencyPenalty: 0.1,
+    presencePenalty: 0.2,
+    repetitionPenalty: 1.1,
+    seed: 42,
+    n: 2,
+    maxTokens: 256,
+    stop: ['END'],
+  } satisfies GenerationParams;
+
+  async function bodyWithEveryParam(): Promise<Record<string, unknown>> {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('ok');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { ...everyParam } });
+    return sent as Record<string, unknown>;
+  }
+
+  it('sends exactly the ones the constant names', async () => {
+    const body = await bodyWithEveryParam();
+
+    for (const name of FORWARDED_SAMPLER_PARAMS) {
+      expect(body[FORWARDED_WIRE_NAMES[name]], `${name} should be on the wire`).toBeDefined();
+    }
+  });
+
+  it('sends nothing else — the five inert settings appear nowhere', async () => {
+    const body = await bodyWithEveryParam();
+
+    // By wire name and by ours, because a future SDK carrying `topK` under some
+    // third spelling must fail this rather than slip through it.
+    for (const absent of ['top_k', 'topK', 'top_a', 'topA', 'min_p', 'minP']) {
+      expect(JSON.stringify(body), `${absent} must not travel`).not.toContain(absent);
+    }
+    for (const absent of ['repetition_penalty', 'repetitionPenalty']) {
+      expect(JSON.stringify(body), `${absent} must not travel`).not.toContain(absent);
+    }
+    // `n` is too short to search for as a substring, so it is asked as a key.
+    expect(Object.keys(body)).not.toContain('n');
+  });
+
+  it('agrees with what `inertParams` tells the import review', async () => {
+    const body = await bodyWithEveryParam();
+    const inert = inertParams(everyParam);
+
+    expect(inert.sort()).toEqual(['minP', 'n', 'repetitionPenalty', 'topA', 'topK']);
+
+    // The claim the review makes, checked against the body rather than against
+    // the constant the review was built from: the sampler keys that travelled
+    // are exactly the forwarded ones, so every name `inertParams` returned is
+    // absent by construction rather than by five separate searches.
+    const structural = new Set(['model', 'messages', 'stream', 'stream_options']);
+    const samplerKeys = Object.keys(body).filter((key) => !structural.has(key));
+    expect(samplerKeys.sort()).toEqual(
+      FORWARDED_SAMPLER_PARAMS.map((name) => FORWARDED_WIRE_NAMES[name]).sort(),
+    );
   });
 });
