@@ -1,6 +1,10 @@
 # 08 — P6 implementation plan
 
-**Status: ~~skeleton~~ startable.** Expanded 2026-08-31 with a readiness audit
+**Status: ~~skeleton~~ ~~startable~~ in progress.** Opened 2026-09-02 on branch
+`p6` at `cb19ab5`, main's tip after the P5 merge, with §0.1a as the opening
+audit: nothing it cites has moved — the engine diff since `347815e` is one
+comment in `turns/preview.ts` — so a fourth audit would have re-read a day-old
+one. P6.0a first, per §2's ordering. Expanded 2026-08-31 with a readiness audit
 and the deferrals collected; re-audited 2026-09-01 at P5's document half (§0.1);
 re-audited 2026-09-02 once all eleven P5 stages had landed (§0.1a); and **§2
 expanded the same day from a four-line sketch into a staged plan with orderings
