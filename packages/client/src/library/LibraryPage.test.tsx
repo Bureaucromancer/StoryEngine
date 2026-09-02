@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from '@storyengine/shared';
+import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, LOREBOOK_SCHEMA } from '@storyengine/shared';
 
 /**
  * **A hand edit reaches the browser without a restart** — the client half of P1
@@ -50,6 +50,12 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: {
     listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
+    // Added at P5.0: the table formats an *Updated* column, so it reads the
+    // account's locale like every other surface that formats a timestamp. The
+    // mock replaces the whole `api` object, so an absent method is not a
+    // fallback — it is a query that throws and a locale that is silently
+    // undefined in every test.
+    authState: () => Promise.resolve({ account: { handle: 'ned', locale: null } }),
     readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
     patchPrefs: (patch: Record<string, unknown>) => {
       patchPrefs(patch);
@@ -229,6 +235,7 @@ describe('making an actor', () => {
     expect(navigate).toHaveBeenCalledWith({
       to: '/library/actors/$id/edit',
       params: { id: '01b11111-2222-7333-8444-555566667777' },
+      search: {},
     });
   });
 
@@ -272,15 +279,58 @@ describe('making an actor', () => {
    * **Not a disabled button — no button.** A kind with no editor has nowhere to
    * land, so the page says so in a sentence instead of promising a control that
    * would strand the user on a read-only page over an empty object.
+   *
+   * *Exemplar changed at P5.1*: this used to be `lorebooks`, which now has an
+   * editor. Kept as a case rather than deleted, because the sentence is the
+   * behaviour and four kinds still get it.
    */
   it('offers nothing on a kind that has no editor to land in', async () => {
-    search = { kind: 'lorebooks' };
+    search = { kind: 'treatments' };
     renderPage();
     await settled();
 
     expect(screen.queryByRole('button', { name: 'New actor' })).toBeNull();
     expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
-    expect(screen.getByText(/only kind that can be made here/)).toBeTruthy();
+    expect(screen.getByText(/no editor yet/)).toBeTruthy();
+  });
+
+  /**
+   * **P5.1's half of the same rule, from the other side.** The stage that built
+   * the lorebook editor is the stage that owes this control — [P4.5]'s
+   * actors-only rule says a lorebook gets its New control *when this editor
+   * exists* — so the control appearing and the address it navigates to are both
+   * assertions about that, not about a form.
+   *
+   * The route matters more than the button: the page used to navigate by a
+   * literal, and a second creatable kind against a hard-coded `/library/actors`
+   * would have posted a lorebook and then opened the actor editor over it.
+   */
+  it('offers a lorebook now that lorebooks have an editor, and lands in it', async () => {
+    search = { kind: 'lorebooks' };
+    renderPage();
+    await settled();
+
+    expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Name for the new lorebook'), {
+        target: { value: 'Ardent' },
+      });
+    });
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('button', { name: 'New lorebook' }).closest('form')!);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
+    expect(call[0]).toBe('lorebooks');
+    expect(call[1]['schema']).toBe(LOREBOOK_SCHEMA);
+    expect(call[1]['entries']).toEqual([]);
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/library/lorebooks/$id/edit',
+      params: { id: '01b11111-2222-7333-8444-555566667777' },
+      search: {},
+    });
   });
 });
 
@@ -340,5 +390,284 @@ describe('the import entry point', () => {
 
     expect(patchPrefs).not.toHaveBeenCalled();
     expect(prefsStore['ui.workbench-open']).toBe(true);
+  });
+});
+
+/**
+ * [P5.0] — the Lorebooks panel, which is
+ * [polish §4](../../../../docs/design/workplan/09-polish.md)'s first of six and
+ * is specified in the design rather than left to this page
+ * ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)), because a lorebook is
+ * the only library kind whose object is a collection.
+ *
+ * **The assertion that matters is the badge**, and §5.3 says why: a disabled
+ * book that renders identically to an enabled one is the *my lorebook never
+ * fires* diagnosis arriving one surface too late. Everything else here is the
+ * columns and the sort, which are the other two things a panel supplies.
+ */
+describe('the Lorebooks panel', () => {
+  function book(name: string, over: Record<string, unknown> = {}, slug = name.toLowerCase()) {
+    return {
+      ...object(name),
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.lorebook/1',
+        name,
+        enabled: true,
+        scope: { kind: 'global' },
+        tags: [],
+        entries: [],
+        provenance: { updatedAt: '2026-08-30T10:00:00Z' },
+        ...over,
+      },
+    };
+  }
+
+  /** Badge text inside the rows, which is not the same as anywhere on screen. */
+  function badgesInRows(text: string): Element[] {
+    return [...document.querySelectorAll('tbody span')].filter((node) => node.textContent === text);
+  }
+
+  function headers(): string[] {
+    return [...document.querySelectorAll('th')].map((node) => node.textContent);
+  }
+
+  it('carries the columns §5.3 chose, and the merged list keeps the ones it had', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [book('Ardent')] });
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Entries', 'Tags', 'Source', 'Updated']);
+  });
+
+  it('leaves a kind with no panel of its own exactly as it was', async () => {
+    search = {};
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Kind', 'Source']);
+  });
+
+  /**
+   * The generic table cannot tell a three-entry book from a three-hundred-entry
+   * one, and almost everything a person decides about a book depends on which
+   * of those it is.
+   */
+  it('counts the entries, which is the column that cannot be got any other way', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [book('Ardent', { entries: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] })],
+    });
+    renderPage();
+    await settled();
+
+    const cells = [...document.querySelectorAll('td')].map((node) => node.textContent);
+    expect(cells).toContain('3');
+  });
+
+  it('says on the shelf that a book is switched off', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [book('Ardent', { enabled: false }), book('Rain City', {}, 'rain-city')],
+    });
+    renderPage();
+    await settled();
+
+    // Scoped to the rows: the Enabled *filter* offers On and Off as options,
+    // so a document-wide search would count the control as a badge.
+    // One badge, not two: an enabled book needs no badge, and one on every book
+    // would make the one that matters harder to see rather than easier.
+    expect(badgesInRows('Off')).toHaveLength(1);
+  });
+
+  it('says when a book is scoped to the actors it links, and stays quiet when it is not', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'linked', actorIds: ['a1'] } }),
+        book('Rain City', {}, 'rain-city'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(badgesInRows('Linked')).toHaveLength(1);
+  });
+
+  it('reads the tags nothing has ever read', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [book('Ardent', { tags: ['noir', 'city'] })] });
+    renderPage();
+    await settled();
+
+    expect(screen.getByText('noir, city')).toBeTruthy();
+  });
+
+  it('sorts by whichever of its three sorts is chosen', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { entries: [{ id: 'a' }] }),
+        book('Rain City', { entries: [{ id: 'a' }, { id: 'b' }] }, 'rain-city'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const names = (): (string | null)[] =>
+      [...document.querySelectorAll('tbody tr')].map(
+        (row) => row.querySelector('td a')?.textContent ?? null,
+      );
+
+    // Name is the default, so Ardent leads.
+    expect(names()).toEqual(['Ardent', 'Rain City']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'entries' } });
+    });
+
+    // By entry count, most first — which is the other order.
+    expect(names()).toEqual(['Rain City', 'Ardent']);
+  });
+
+  it('points an empty shelf at import rather than at the API', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: [] });
+    renderPage();
+    await settled();
+
+    const shown = screen.getByText(/^No lorebooks yet/);
+    expect(shown.textContent).toContain('Import');
+  });
+
+  /**
+   * **The sort copies, and nothing else was checking that.** Found by mutation:
+   * changing `[...objects].sort()` to `objects.sort()` left every assertion
+   * above green, because the page renders the same order either way. What it
+   * would break is everything *else* reading that cache entry — the array
+   * belongs to the query client, and `sort` reorders in place.
+   */
+  /**
+   * §5.3's four: tags, scope, enabled, source. The first is the one [10 §5]
+   * documented a consumer for and never got.
+   */
+  describe('the four filters', () => {
+    function shelf() {
+      return [
+        book('Ardent', { tags: ['noir'], scope: { kind: 'linked', actorIds: ['a'] } }),
+        book('Rain City', { tags: ['city'], enabled: false }, 'rain-city'),
+      ];
+    }
+
+    function names(): (string | null)[] {
+      // The link, not the whole cell: the name cell also carries the badges,
+      // so a cell's text is 'ArdentLinked' rather than the name.
+      return [...document.querySelectorAll('tbody tr')].map(
+        (row) => row.querySelector('td a')?.textContent ?? null,
+      );
+    }
+
+    async function shelved(): Promise<void> {
+      search = { kind: 'lorebooks' };
+      listLibrary.mockResolvedValue({ objects: shelf() });
+      renderPage();
+      await settled();
+    }
+
+    function choose(label: string, value: string): void {
+      act(() => {
+        fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      });
+    }
+
+    it('narrows by a tag, and offers only tags the shelf actually uses', async () => {
+      await shelved();
+
+      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+        (node) => node.textContent,
+      );
+      expect(options).toEqual(['Any', 'city', 'noir']);
+
+      choose('Tag', 'noir');
+      expect(names()).toEqual(['Ardent']);
+    });
+
+    it('narrows by scope', async () => {
+      await shelved();
+      choose('Scope', 'linked');
+      expect(names()).toEqual(['Ardent']);
+    });
+
+    it('narrows by whether the book is switched on', async () => {
+      await shelved();
+      choose('Enabled', 'off');
+      expect(names()).toEqual(['Rain City']);
+    });
+
+    it('narrows by source', async () => {
+      await shelved();
+      choose('Source', 'system');
+      expect(names()).toEqual([]);
+    });
+
+    /**
+     * Deriving each filter's options from what the *others* have already left
+     * would make the controls disagree: pick a tag, and the scope list loses
+     * values, so unpicking becomes the only way back to a shelf you could see a
+     * moment ago.
+     */
+    it('keeps every filter offering the whole shelf’s values', async () => {
+      await shelved();
+      choose('Tag', 'noir');
+
+      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+        (node) => node.textContent,
+      );
+      expect(options).toEqual(['Any', 'city', 'noir']);
+    });
+
+    /**
+     * A shelf narrowed to nothing is a different state from an empty library,
+     * and what a person does next is the difference: widen a filter, or go and
+     * import. Saying the wrong one is the surface misreading itself.
+     */
+    it('says the filters are the reason, rather than telling you to import', async () => {
+      await shelved();
+      choose('Tag', 'noir');
+      choose('Enabled', 'off');
+
+      expect(names()).toEqual([]);
+      expect(screen.getByText('Nothing on this shelf matches these filters.')).toBeTruthy();
+      expect(screen.queryByText(/^No lorebooks yet/)).toBeNull();
+    });
+
+    it('is absent from a kind that has chosen none', async () => {
+      search = {};
+      renderPage();
+      await settled();
+
+      expect(screen.queryByLabelText('Tag')).toBeNull();
+    });
+  });
+
+  it('does not reorder the array the query cache owns', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { entries: [{ id: 'a' }] }),
+        book('Rain City', { entries: [{ id: 'a' }, { id: 'b' }] }, 'rain-city'),
+      ],
+    });
+    const client = renderPage();
+    await settled();
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'entries' } });
+    });
+
+    const cached = client.getQueryData<{ objects: { name: string }[] }>(['library', 'lorebooks']);
+    expect(cached?.objects.map((entry) => entry.name)).toEqual(['Ardent', 'Rain City']);
   });
 });

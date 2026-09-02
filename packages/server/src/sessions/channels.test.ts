@@ -10,7 +10,16 @@ import { uuidv7 } from '@storyengine/shared';
 
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
-import { advance, clockEffect, readClock, SE_CLOCK } from './channels.js';
+import {
+  advance,
+  channelKey,
+  clockEffect,
+  keyBelongsTo,
+  readClock,
+  scopeKeyOf,
+  SE_CLOCK,
+  SE_LORE_TIMING,
+} from './channels.js';
 import { walkPath } from './segments.js';
 import {
   appendTurnToSession,
@@ -22,7 +31,7 @@ import {
   replayChannels,
   type SessionContext,
 } from './store.js';
-import type { SessionFile, Turn } from './types.js';
+import type { ChannelEffect, SessionFile, Turn } from './types.js';
 
 /**
  * `se.clock` and the hand-edit rule — [P2 §2.7], [02 §8.1].
@@ -228,5 +237,104 @@ describe('a hand edit lands as a user-attributed effect', () => {
     const head = turns.get((await onDisk()).headTurnId ?? '');
     // Visible in the turn record, which is where the workbench will show it.
     expect(head?.effects[0]?.after).toEqual({ day: 400, hour: 3, minute: 0 });
+  });
+});
+
+/**
+ * **A channel scoped per entry keeps one value per entry** — the widening
+ * [P5.5] made, and the reason it had to.
+ *
+ * `ChannelDefinition.scope` has offered `'actor'` and `'entry'` since the first
+ * channel was written, and `ChannelEffect.scopeKey` carries the docstring
+ * *"Which value, when the channel is scoped per actor or per entry"* — but
+ * `applyEffects` keyed on the channel id alone, so the vocabulary was a promise
+ * nothing kept. [P5 §0.4] found it, [P6 §1.9] asked which phase pays, and the
+ * phase order answers this one: P5.5 is the first stage that needs a per-entry
+ * value, and shipping it under the old key would have been shipping a feature
+ * that silently overwrites itself.
+ *
+ * These are about the **map**, not about lore. Timing is simply the first
+ * caller, and an actor-scoped channel arriving at P7 gets the same behaviour
+ * without a second argument.
+ */
+describe('a channel scoped to something', () => {
+  function scopedEffect(scopeKey: string | null, value: unknown): ChannelEffect {
+    return {
+      id: uuidv7(),
+      turnId: 't-1',
+      channelId: SE_LORE_TIMING,
+      scopeKey,
+      op: { type: 'set', path: '/' },
+      before: null,
+      after: value,
+      proposedBy: { kind: 'engine' },
+      applied: true,
+      rejectedReason: null,
+      supersedes: null,
+      channelVersion: 1,
+      scope: 'session',
+    };
+  }
+
+  /** The assertion the widening exists for. Keyed by id alone, one wins. */
+  it('does not let two scope keys overwrite each other', () => {
+    const applied = applyEffects({}, [
+      scopedEffect('entry-a', { sticky: 2 }),
+      scopedEffect('entry-b', { sticky: 5 }),
+    ]);
+
+    expect(applied[channelKey(SE_LORE_TIMING, 'entry-a')]?.value).toEqual({ sticky: 2 });
+    expect(applied[channelKey(SE_LORE_TIMING, 'entry-b')]?.value).toEqual({ sticky: 5 });
+  });
+
+  it('still replaces the value under one key', () => {
+    const applied = applyEffects({}, [
+      scopedEffect('entry-a', { sticky: 2 }),
+      scopedEffect('entry-a', { sticky: 1 }),
+    ]);
+
+    expect(Object.keys(applied)).toHaveLength(1);
+    expect(applied[channelKey(SE_LORE_TIMING, 'entry-a')]?.value).toEqual({ sticky: 1 });
+  });
+
+  it('deletes only the scoped value it names', () => {
+    const both = applyEffects({}, [
+      scopedEffect('entry-a', { sticky: 2 }),
+      scopedEffect('entry-b', { sticky: 5 }),
+    ]);
+    const after = applyEffects(both, [
+      { ...scopedEffect('entry-a', null), op: { type: 'delete', path: '/' } },
+    ]);
+
+    expect(after[channelKey(SE_LORE_TIMING, 'entry-a')]).toBeUndefined();
+    expect(after[channelKey(SE_LORE_TIMING, 'entry-b')]?.value).toEqual({ sticky: 5 });
+  });
+
+  /**
+   * **An unscoped channel is untouched**, which is what keeps every stored
+   * session and every existing reader working: `se.clock` is `se.clock`, not
+   * `se.clock#null`, so the shape on disk did not change and neither did the
+   * lookups against it.
+   */
+  it('leaves an unscoped channel under its plain id', () => {
+    expect(channelKey(SE_CLOCK, null)).toBe(SE_CLOCK);
+
+    const applied = applyEffects({}, [{ ...scopedEffect(null, { day: 2 }), channelId: SE_CLOCK }]);
+
+    expect(applied[SE_CLOCK]?.value).toEqual({ day: 2 });
+  });
+
+  it('tells a channel’s own keys from another channel’s', () => {
+    expect(keyBelongsTo(SE_LORE_TIMING, SE_LORE_TIMING)).toBe(true);
+    expect(keyBelongsTo(channelKey(SE_LORE_TIMING, 'e-1'), SE_LORE_TIMING)).toBe(true);
+    expect(keyBelongsTo(SE_CLOCK, SE_LORE_TIMING)).toBe(false);
+    // The prefix test is on the separator, so a longer channel id that happens
+    // to start with a shorter one is not swept up with it.
+    expect(keyBelongsTo('se.lore.timings', SE_LORE_TIMING)).toBe(false);
+  });
+
+  it('gives the scope key back', () => {
+    expect(scopeKeyOf(channelKey(SE_LORE_TIMING, 'e-1'), SE_LORE_TIMING)).toBe('e-1');
+    expect(scopeKeyOf(SE_LORE_TIMING, SE_LORE_TIMING)).toBeNull();
   });
 });

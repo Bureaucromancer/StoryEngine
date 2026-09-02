@@ -47,7 +47,30 @@ vi.mock('../api.js', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useParams: () => params, useSearch: () => search }),
   useNavigate: () => navigate,
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  /**
+   * **The stub carries the search prop**, because an entry link that dropped
+   * the copy discriminator is F19 one level down — a reader of the shadowed
+   * copy sent to the winner — and a stub that renders only children cannot
+   * see that happen. Serialised rather than rendered as a query string so the
+   * assertion reads the value the component passed rather than a formatting of
+   * it.
+   */
+  // `data-to` as well as `data-search` since [P5.1]: the book page now carries
+  // two links per entry — the name, into the read address, and Edit, into the
+  // editor — and a stub that dropped the destination could not tell them apart.
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    search?: Record<string, unknown>;
+  }) => (
+    <a href="#" data-to={to ?? ''} data-search={JSON.stringify(search ?? {})}>
+      {children}
+    </a>
+  ),
 }));
 
 const { ApiError } = await import('../api.js');
@@ -174,5 +197,234 @@ describe('deleting a library object', () => {
       'The object has changed since it was read.',
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * [P5.−1] — [polish §1](../../../../docs/design/workplan/09-polish.md)'s stage,
+ * and its *ends at* stated as a test: an actor's greeting is readable on its
+ * detail page without opening the editor.
+ *
+ * The page's own share of that item is small — the field rendering is
+ * [ByField](./ByField.tsx)'s and is covered there — so what is asserted here is
+ * the wiring and the two decisions the page makes: that the fields come before
+ * the storage block rather than after it, and that the Edit gate now asks one
+ * question instead of naming a kind twice.
+ */
+describe('reading an object without opening the editor', () => {
+  const GREETING = 'She looks up.\n\n"You came."';
+
+  function withGreeting() {
+    return actor({
+      object: {
+        schema: 'storyengine.actor/1',
+        id: ACTOR_ID,
+        name: 'Vera Kohl',
+        openings: {
+          written: [{ id: 'op-1', label: 'At the door', text: GREETING }],
+          seeds: [],
+          primaryWrittenId: 'op-1',
+          primarySeedId: null,
+        },
+      },
+    });
+  }
+
+  it('shows the greeting on the page, with its paragraphs', async () => {
+    readObject.mockResolvedValue(withGreeting());
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Vera Kohl' });
+
+    const shown = [...document.querySelectorAll('p')].find((node) => node.textContent === GREETING);
+    expect(shown).toBeTruthy();
+  });
+
+  /**
+   * Order is the item's argument, not decoration: its complaint is that this
+   * page answers *where is this file* when the question was *what does it say*,
+   * and seven rows of path and hash above the prose would answer in the old
+   * order with a new component underneath.
+   */
+  it('puts the fields above the storage block, which keeps its own heading', async () => {
+    readObject.mockResolvedValue(withGreeting());
+    renderPage();
+
+    const storage = await screen.findByRole('heading', { name: 'Storage', level: 2 });
+    const greeting = [...document.querySelectorAll('p')].find(
+      (node) => node.textContent === GREETING,
+    );
+
+    expect(greeting).toBeTruthy();
+    expect(
+      greeting!.compareDocumentPosition(storage) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('offers Edit on a kind that has an editor', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Edit' })).toBeTruthy();
+  });
+
+  /** Four kinds have no editor to land in, and the gate is one lookup now. */
+  it('does not offer Edit on a kind that has none', async () => {
+    params = { kind: 'treatments', id: ACTOR_ID };
+    readObject.mockResolvedValue(actor({ schema: 'storyengine.treatment/1' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+  });
+});
+
+/**
+ * [P5.0] — the detail route renders a lorebook as a book, and renders a file
+ * that is not one as whatever it actually is.
+ *
+ * **The second is the one worth the test.** A hand-edited card is the storage
+ * thesis working ([00 §3.4]), so a book page that threw on a file whose
+ * `entries` is a string would be answering the invited input with a white
+ * screen. Found by mutation: dropping the shape guard left every other
+ * assertion green, because no test reached the page with a broken book.
+ */
+describe('a lorebook on the detail route', () => {
+  function lorebook(over: Record<string, unknown>) {
+    const { shadowed, ...body } = over;
+    return actor({
+      schema: 'storyengine.lorebook/1',
+      name: 'Ardent',
+      ...(shadowed === undefined ? {} : { shadowed }),
+      object: {
+        schema: 'storyengine.lorebook/1',
+        id: ACTOR_ID,
+        name: 'Ardent',
+        description: '',
+        enabled: true,
+        scanDepth: 2,
+        tokenBudget: 2048,
+        entryLimit: 100,
+        recursiveScanning: false,
+        maxRecursionDepth: 3,
+        tags: [],
+        folders: [],
+        entries: [],
+        ...body,
+      },
+    });
+  }
+
+  it('reads as a book rather than as a field list', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        entries: [{ id: 'e1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByRole('heading', { name: 'Harbour', level: 3 })).toBeTruthy();
+    expect(screen.getByText('Cranes.')).toBeTruthy();
+  });
+
+  /**
+   * **F19, one level down.** Two files can hold one id, this page can be
+   * addressed at either through `?source=` and `?slug=`, and an entry link that
+   * dropped them would send a reader of the shadowed copy to the winner — the
+   * same bug the row link was fixed for, wearing an entry id. The current
+   * search is spread into every entry address for exactly this reason.
+   */
+  it('carries the copy discriminator into every entry address', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    search = { source: 'user', slug: 'ardent-2' };
+    readObject.mockResolvedValue(
+      lorebook({
+        shadowed: true,
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    const entryLink = screen.getByRole('link', { name: 'Harbour' });
+
+    expect(JSON.parse(entryLink.getAttribute('data-search') ?? '{}')).toEqual({
+      source: 'user',
+      slug: 'ardent-2',
+      entry: 'e-1',
+    });
+  });
+
+  /**
+   * **[05 §5.3] by name**: *"the edit affordance is a link into the editor **at
+   * the entry's address**."* The page header's Edit cannot be it — that link is
+   * one component shared by every kind and passes no search params — so without
+   * this the editor's `?entry=` would have no producer but the URL bar.
+   */
+  it('offers an Edit link into the editor at each entry’s own address', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+
+    /*
+     * **Two of them, and the difference is the whole point.** The header's Edit
+     * and the entry's Edit both go to the editor — they are the same route —
+     * and only the search tells them apart: the header opens the book with
+     * nothing selected, because that link is shared by every kind and carries
+     * no search at all.
+     */
+    const addresses = screen
+      .getAllByRole('link', { name: 'Edit' })
+      .map((found) => [found.getAttribute('data-to'), found.getAttribute('data-search')]) as [
+      string,
+      string,
+    ][];
+
+    expect(addresses).toHaveLength(2);
+    expect(addresses.every(([to]) => to === '/library/lorebooks/$id/edit')).toBe(true);
+    expect(addresses.map(([, search]) => JSON.parse(search) as unknown)).toContainEqual({
+      entry: 'e-1',
+    });
+  });
+
+  /**
+   * **Withheld rather than made to lie**, through the same `mutable` predicate
+   * the header's Edit and Delete go through: every write resolves an id to the
+   * winner, so an *Edit* on the losing copy of a duplicated id would open the
+   * editor over a different file than the one on screen. The entry's *name*
+   * link stays — reading the shadowed copy is exactly what this page is for.
+   */
+  it('withholds it on a shadowed copy, where the write would land elsewhere', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      lorebook({
+        shadowed: true,
+        entries: [{ id: 'e-1', name: 'Harbour', content: 'Cranes.', keys: [], enabled: true }],
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByRole('link', { name: 'Harbour' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+  });
+
+  it('falls back to the field list when the file is not a book, rather than failing', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(lorebook({ entries: 'someone hand-edited this' }));
+    renderPage();
+
+    // The page renders, and it renders what is on disk: the by-field view shows
+    // the field as the string it now is, and no book page claims otherwise.
+    await screen.findByRole('heading', { name: 'Ardent' });
+    expect(screen.getByText('someone hand-edited this')).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: 'Gate' })).toBeNull();
   });
 });

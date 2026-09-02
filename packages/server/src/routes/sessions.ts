@@ -16,6 +16,7 @@ import {
   readSession,
   reconcileHandEdits,
   setCast,
+  setLore,
   readTurns,
   readTurnById,
   setArchived,
@@ -83,6 +84,21 @@ const CreateBody = Type.Object(
      */
     preset: Type.Optional(Type.String({ maxLength: 200 })),
     cast: Type.Optional(CastBody),
+    /**
+     * The world — [P5.6], [02 §8].
+     *
+     * **Links, unlike `preset` two fields up**, and validated no harder than
+     * `cast` is: an id that resolves to nothing is a session with no books, not
+     * a rejected request. Refusing here would be the one place in the codebase
+     * where a dangling link blocks, and [00 §3.3] says the opposite — the
+     * retriever reports what it could not read, every turn, where somebody
+     * playing can actually see it.
+     *
+     * `lore` is extras *beyond* whatever the treatment already links ([02 §7]),
+     * so both may be given, and giving neither is the pre-P5.6 session.
+     */
+    treatment: Type.Optional(Type.String({ maxLength: 200 })),
+    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
   },
   { additionalProperties: false },
 );
@@ -92,6 +108,15 @@ const TurnsQuery = Type.Object({ limit: Type.Optional(Type.String({ pattern: '^[
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
 
 const ArchiveBody = Type.Object({ archived: Type.Boolean() }, { additionalProperties: false });
+
+/** What a session plays with — the same two links `CreateBody` takes. */
+const LoreBody = Type.Object(
+  {
+    treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+    lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 }),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * What a preview is asked about — [P3.4].
@@ -152,6 +177,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       mode?: string;
       preset?: string;
       cast?: { persona: string | null; actors: string[] };
+      treatment?: string;
+      lore?: string[];
     };
 
     /**
@@ -217,6 +244,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         mode: { id: mode.definition.id, config: null },
         preset,
         ...(body.cast === undefined ? {} : { cast: body.cast }),
+        ...(body.treatment === undefined ? {} : { treatment: body.treatment }),
+        ...(body.lore === undefined ? {} : { lore: body.lore }),
       });
       return await reply.code(201).send({ session });
     } catch (error) {
@@ -276,6 +305,34 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // so improving a character card reaches an ongoing game — the asymmetry
       // with the copied preset is the design ([02 §8]).
       const updated = await setCast(services.sessions, account.handle, sessionId, body);
+      return reply.send({ session: updated });
+    },
+  );
+
+  /**
+   * Which treatment and which lorebooks this session plays with.
+   *
+   * **The sibling of the cast route, and it exists because selection is the
+   * only way a book reaches a session.** A lorebook does not volunteer,
+   * whatever its own `scope` says — so without this, a session started without
+   * naming books could never gain a world, and every session written before the
+   * field existed would be stuck without one permanently.
+   *
+   * Validated no harder than `cast` is: an id that resolves to nothing is a
+   * session with a dangling link, not a rejected request. The retriever reports
+   * what it could not read, every turn, where somebody playing can see it.
+   */
+  app.put(
+    '/sessions/:sessionId/lore',
+    { schema: { params: SessionParams, body: LoreBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const body = request.body as { treatment: string | null; lore: string[] };
+      const { sessionId } = request.params as { sessionId: string };
+      const updated = await setLore(services.sessions, account.handle, sessionId, body);
       return reply.send({ session: updated });
     },
   );

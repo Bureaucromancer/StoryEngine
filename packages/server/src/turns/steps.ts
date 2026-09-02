@@ -7,6 +7,8 @@ import type { CallPurpose } from '../assembly/types.js';
 import type { Candidate } from '../assembly/types.js';
 import type { ModelRole, TokenUsage } from '../providers/types.js';
 import type { Rng } from '../rng/rng.js';
+import { keyBelongsTo } from '../sessions/channels.js';
+
 import type { ChannelState, StepSkipReason, StepStage, Turn } from '../sessions/types.js';
 import type { EffectProposal } from './effects.js';
 
@@ -228,10 +230,20 @@ export function filterReads(
     output?: { text: string };
   },
 ): StepInput {
+  /**
+   * **A declared read takes the channel's scoped values too**, which a lookup
+   * by bare id would miss entirely.
+   *
+   * A step asking for `se.lore.timing` wants every entry's timing, not the one
+   * value that happens to sit under the unscoped key — and for an entry-scoped
+   * channel there is no such value at all, so the step would read an empty map
+   * and quietly behave as though nothing had ever fired. The declaration stays
+   * the channel id, because that is what a step author knows; the widening is
+   * here, where the map's key form is already a local concern.
+   */
   const channels: Record<string, ChannelState> = {};
-  for (const id of definition.reads) {
-    const state = everything.channels[id];
-    if (state !== undefined) channels[id] = state;
+  for (const [key, state] of Object.entries(everything.channels)) {
+    if (definition.reads.some((id) => keyBelongsTo(key, id))) channels[key] = state;
   }
 
   return {

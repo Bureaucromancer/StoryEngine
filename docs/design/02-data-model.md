@@ -357,6 +357,32 @@ sessions ([10 §5](10-schemas.md)). Same three behaviours the docs describe,
 mutual exclusion by construction rather than by a save-time rule, and the persona
 duplication disappears for free once persona is a flag on an actor.
 
+> **Corrected after [P5.7] acted on it.** This section describes the *shape*
+> correctly and the resulting **behaviour** does not follow from it. P5.7 read
+> "where it applies" as a discovery mechanism — a `global` book scanned by every
+> session, a `linked` one by every session casting its actors — and the
+> consequence was immediate: `global` is the factory default *and* the
+> SillyTavern importer's fallback, so a person's entire library was in every
+> session's prompt with no way out but hand-editing JSON. A library is not a
+> world.
+>
+> The rule is: **no lorebook is active that has not been selected for the
+> session** — by `session.lore`, or by the treatment the session names. The
+> union stays, because it is what the format carries and what an import must
+> preserve, but nothing reads it. Giving it a consumer again means designing
+> **inheritance** — something above the session that contributes books, which is
+> a Worlds-shaped concept ([19 §5.3](19-world.md)) — rather than letting a field
+> on a library object opt itself into somebody's story.
+>
+> **Two questions were left open rather than settled by the reversal**, both
+> recorded so the next person meets them instead of re-deriving them:
+> [06 §B14](06-open-questions.md) — whether `scope` should *narrow* a book the
+> session has already chosen, which is coherent and was not taken because it
+> introduces a new way for a deliberate choice to go quiet; and
+> [06 §B15](06-open-questions.md) — what a new book's `scope` should default to,
+> given that `global` is the widest value in the union and is what both the
+> factory and the importer currently produce.
+
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
 (`category: "world"` against the World concept reserved for [19](19-world.md)),

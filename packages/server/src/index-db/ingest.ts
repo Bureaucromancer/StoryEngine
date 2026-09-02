@@ -4,7 +4,13 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
-import { ACTOR_SCHEMA, schemaIdOf, validate } from '@storyengine/shared';
+import {
+  ACTOR_SCHEMA,
+  LOREBOOK_SCHEMA,
+  schemaIdOf,
+  validate,
+  type LoreEntry,
+} from '@storyengine/shared';
 
 import { requireCodecFor } from '../storage/card/index.js';
 import { fileExists, readFileBytes, statFile } from '../storage/files.js';
@@ -214,7 +220,7 @@ export async function ingestFile(
     clearFileError(db, path);
     // Unlink-first ordering: the tombstone is already waiting for us.
     const claimed = claimTombstone(db, id, path, now);
-    upsert(db, row);
+    upsert(db, row, payload);
     // Add-first ordering: the row we are replacing is still live, and its file
     // is already gone.
     dropRows(db, vanished);
@@ -343,11 +349,145 @@ async function findVanishedDuplicates(
   return vanished;
 }
 
-function dropRows(db: DatabaseSync, paths: readonly string[]): void {
-  for (const path of paths) {
-    db.prepare('delete from object where path = ?').run(path);
-    db.prepare('delete from object_fts where path = ?').run(path);
+/**
+ * **Every derived row an object's path owns, in one place** —
+ * [P5 §1.7](../../../../docs/design/workplan/07-p5-implementation.md)'s
+ * mitigation, and the only reason it is worth a two-line function.
+ *
+ * `object_fts` was deleted by path in five separate places before this. That is
+ * survivable while there is one search table and stops being survivable the
+ * moment there are two: every site needs a sibling, missing one leaves a stale
+ * row in a store whose entire claim is that it is derived and trustworthy, and
+ * the failure is silent and survives a restart —
+ * [13 §5](../../../../docs/design/13-internal-contracts.md)'s invariants exist
+ * to forbid exactly that. So the knowledge of *which tables an object writes
+ * into* lives here, and a table added later is one line rather than a search
+ * for call sites somebody has to get complete.
+ *
+ * Measured rather than asserted: with `snapshot` widened to see search rows
+ * ([query.ts](./query.ts)), removing the delete below turns the suite red at
+ * every one of the five callers. Before that widening it turned nothing red
+ * anywhere, which is the finding this function exists because of.
+ */
+function dropSearchRows(db: DatabaseSync, path: string): void {
+  db.prepare('delete from object_fts where path = ?').run(path);
+  db.prepare('delete from lore_entry where path = ?').run(path);
+  db.prepare('delete from lore_entry_fts where path = ?').run(path);
+}
+
+/** The object at this path and everything derived from it. */
+function dropObjectRows(db: DatabaseSync, path: string): void {
+  db.prepare('delete from object where path = ?').run(path);
+  dropSearchRows(db, path);
+}
+
+/**
+ * The search rows an object implies, replacing whatever was there.
+ *
+ * Drop-then-insert rather than an upsert, because FTS5 has no unique key to
+ * conflict on — and because the rows an object owns are not a fixed set: this
+ * is the other half of {@link dropSearchRows}, and the place a second table
+ * pair attaches when one arrives.
+ */
+function writeSearchRows(db: DatabaseSync, row: ObjectRow, payload: unknown): void {
+  dropSearchRows(db, row.path);
+  db.prepare('insert into object_fts (path, name, body) values (?, ?, ?)').run(
+    row.path,
+    row.name,
+    row.body,
+  );
+
+  const entries = loreEntriesOf(row.schemaId, payload);
+  if (entries.length === 0) return;
+
+  // Prepared once and run per entry: a three-hundred-entry book is three
+  // hundred iterations inside the one synchronous transaction the watcher and
+  // every API write share, and re-preparing the same statement each time is the
+  // avoidable half of that cost.
+  const locator = db.prepare(
+    'insert into lore_entry (path, position, entry_id, name) values (?, ?, ?, ?)',
+  );
+  const text = db.prepare(
+    `insert into lore_entry_fts (path, position, name, keys, secondary_keys, description, content)
+     values (?, ?, ?, ?, ?, ?, ?)`,
+  );
+
+  for (const { position, entry } of entries) {
+    locator.run(row.path, position, entry.id, entry.name);
+    text.run(
+      row.path,
+      position,
+      entry.name,
+      // Joined with a newline rather than indexed as an array, because FTS5
+      // columns hold text: what matters is that each key is its own token run,
+      // and a separator the tokenizer breaks on is the whole requirement. It
+      // shows up in a snippet drawn from this column as a line break, which is
+      // the closest a plain excerpt gets to §5.3's index-term row.
+      entry.keys.join('\n'),
+      entry.secondaryKeys.join('\n'),
+      entry.description,
+      entry.content,
+    );
   }
+}
+
+/**
+ * The entries this object contributes to the index, which is none unless it is
+ * a lorebook.
+ *
+ * **The only place a schema id appears in the ingest path**, and
+ * [05 §14.5](../../../../docs/design/05-ui-surfaces.md)'s rule is what both
+ * justifies and bounds it: *a fragment is indexable when it has an address*. A
+ * lore entry has `id`; an actor's greetings and a preset's block text do not,
+ * so they get no branch here and the special case cannot spread by analogy.
+ * `PlotHook` and `Openings` are the next two structures that qualify, and they
+ * will qualify for the stated reason rather than because this exists.
+ *
+ * Read through `unknown` even though `validate` has already passed on this
+ * payload. That is not distrust of the validator: `upsert` is one call away
+ * from being reachable with something else, and the cost of the guard is a few
+ * lines against a bad row inside a transaction that would take the whole book
+ * out of the index with it.
+ *
+ * **The position travels with the entry, and that is the part to keep.**
+ * `position` claims to be the index into the file's own `entries` array — which
+ * is what [05 §5.3](../../../../docs/design/05-ui-surfaces.md) makes the read
+ * view's default order, and what the locator's key rests on. Returning a
+ * *filtered* array and numbering it at the call site would quietly renumber
+ * every entry after a skipped one, so the pairs are built here where the
+ * original index is still in hand. The guard has never fired, which is exactly
+ * why the failure would have been invisible.
+ */
+function loreEntriesOf(
+  schemaId: string,
+  payload: unknown,
+): { position: number; entry: LoreEntry }[] {
+  if (schemaId !== LOREBOOK_SCHEMA) return [];
+  if (typeof payload !== 'object' || payload === null) return [];
+  const entries: unknown = (payload as { entries?: unknown }).entries;
+  if (!Array.isArray(entries)) return [];
+
+  return entries.flatMap((entry: unknown, position) =>
+    isIndexableEntry(entry) ? [{ position, entry }] : [],
+  );
+}
+
+/** Everything the two tables read, present and of the right shape. */
+function isIndexableEntry(entry: unknown): entry is LoreEntry {
+  if (typeof entry !== 'object' || entry === null) return false;
+  const found = entry as LoreEntry;
+  return (
+    typeof found.id === 'string' &&
+    typeof found.name === 'string' &&
+    typeof found.description === 'string' &&
+    typeof found.content === 'string' &&
+    Array.isArray(found.keys) &&
+    Array.isArray(found.secondaryKeys)
+  );
+}
+
+function dropRows(db: DatabaseSync, paths: readonly string[]): void {
+  for (const path of paths) dropObjectRows(db, path);
 }
 
 /**
@@ -406,13 +546,16 @@ function claimTombstone(db: DatabaseSync, id: string, newPath: string, now: numb
   }
 
   // The row survives with its id and a new path. `upsert` writes the rest.
-  db.prepare('delete from object where path = ?').run(newPath);
-  db.prepare('delete from object_fts where path = ?').run(newPath);
+  dropObjectRows(db, newPath);
   db.prepare('update object set path = ?, tombstoned_at = null where path = ?').run(
     newPath,
     candidate.path,
   );
-  db.prepare('delete from object_fts where path = ?').run(candidate.path);
+  // Search rows only, and this is the one caller where that is the right
+  // amount: the object row at the old path was *moved* by the statement above
+  // rather than deleted, so there is nothing left there to drop — only the
+  // derived rows it left behind under its old key.
+  dropSearchRows(db, candidate.path);
   return true;
 }
 
@@ -431,10 +574,7 @@ export function matureTombstones(
     .prepare('select path, id from object where tombstoned_at is not null and tombstoned_at < ?')
     .all(cutoff) as { path: string; id: string }[];
 
-  for (const { path } of doomed) {
-    db.prepare('delete from object where path = ?').run(path);
-    db.prepare('delete from object_fts where path = ?').run(path);
-  }
+  for (const { path } of doomed) dropObjectRows(db, path);
   for (const id of new Set(doomed.map((row) => row.id))) {
     resolveDuplicates(db, layout, id);
   }
@@ -474,7 +614,7 @@ function resolveDuplicates(db: DatabaseSync, layout: Layout, id: string): void {
   });
 }
 
-function upsert(db: DatabaseSync, row: ObjectRow): void {
+function upsert(db: DatabaseSync, row: ObjectRow, payload: unknown): void {
   db.prepare(
     `insert into object
        (path, id, owner, schema_id, slug, name, content_hash, mtime_ms, size, body, shadowed, tombstoned_at)
@@ -503,12 +643,7 @@ function upsert(db: DatabaseSync, row: ObjectRow): void {
     row.body,
   );
 
-  db.prepare('delete from object_fts where path = ?').run(row.path);
-  db.prepare('insert into object_fts (path, name, body) values (?, ?, ?)').run(
-    row.path,
-    row.name,
-    row.body,
-  );
+  writeSearchRows(db, row, payload);
 }
 
 function readId(payload: unknown): string | null {

@@ -159,13 +159,152 @@ describe('what the import said about one object', () => {
     );
     expect(converted?.objectId).toBeDefined();
 
-    const rows = importNotesFor(server.services.state.db, converted!.objectId!);
+    const rows = importNotesFor(server.services.state.db, 'ned', converted!.objectId!);
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.source).toBe('cards/Vera.png');
   });
 
   it('says nothing about an object no import produced', () => {
-    expect(importNotesFor(server.services.state.db, 'not-an-id')).toEqual([]);
+    expect(importNotesFor(server.services.state.db, 'ned', 'not-an-id')).toEqual([]);
+  });
+});
+
+/**
+ * The two things [P5 §1.8]'s first caller had to fix before it could be one.
+ *
+ * Both were invisible while `importNotesFor` had no callers, which is the
+ * general shape worth remembering: a query nobody calls is a query nobody has
+ * checked, and its first caller inherits whatever it got wrong.
+ */
+describe('the notes a book can actually find', () => {
+  /**
+   * **A card carrying a `character_book` makes two objects from one file**, and
+   * the review is a row per file — so the book had no row of its own and
+   * `importNotesFor(bookId)` answered nothing for what `ImportPanel` itself
+   * calls "most of them". `recordImport` writes a row per produced object now,
+   * sharing the item's `seq`.
+   */
+  /**
+   * The card with the book is written *here* rather than into the shared
+   * fixture, and that is a finding rather than tidiness: adding a
+   * `character_book` to the fixture card made the "a second sweep converts
+   * nothing" test fail, because **re-importing a card that carries a book
+   * re-converts it** instead of reporting it unchanged. That is P4's
+   * re-import-identity question ([P4 §7.14]) reached from a fourth direction —
+   * the embedded book's identity is not stable across imports, so the actor's
+   * link to it changes and the actor reads as changed. Not this stage's to fix,
+   * and not a reason to weaken an assertion that is right.
+   */
+  async function cardCarryingABook(): Promise<void> {
+    await writeFile(
+      join(root, 'cards', 'Mira.png'),
+      Buffer.from(
+        withChunks(makePng(), [
+          base64TextChunk('chara', {
+            name: 'Mira Vance',
+            description: 'A dock clerk.',
+            first_mes: 'Sign here.',
+            character_book: {
+              name: 'Mira’s notes',
+              entries: [
+                { keys: ['harbour'], content: 'The cranes never stop.', comment: 'Harbour' },
+              ],
+            },
+          }),
+        ]),
+      ),
+    );
+  }
+
+  it('answers for a book that arrived inside a card', async () => {
+    await cardCarryingABook();
+    const swept = await sweepRoot();
+    const card = (swept.body.report.items as { source: string; objectId?: string }[]).find(
+      (item) => item.source === 'cards/Mira.png',
+    );
+
+    const books = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    const book = (books.body.objects as { id: string }[])[0];
+    expect(book, 'the card carries a character_book').toBeDefined();
+    expect(book!.id).not.toBe(card!.objectId);
+
+    const rows = importNotesFor(server.services.state.db, 'ned', book!.id);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.source).toBe('cards/Mira.png');
+  });
+
+  /** And the review is unchanged by it: one item per file seen, not per object. */
+  it('leaves the review a row per file rather than per object', async () => {
+    await cardCarryingABook();
+    const swept = await sweepRoot();
+    const jobId = swept.body.report.jobId as string;
+
+    const fetched = await server.request({ method: 'GET', url: `/api/import/jobs/${jobId}` });
+
+    const sources = (fetched.body.report.items as { source: string }[]).map((item) => item.source);
+    expect(sources).toEqual([...new Set(sources)]);
+    expect(fetched.body.report.items).toEqual(swept.body.report.items);
+
+    /**
+     * **And the counts are files too.** Found by mutation: counting rows
+     * instead of distinct `seq` left every other assertion green, because the
+     * shared fixture card carries no book and so no `seq` has two rows. A
+     * sweep of a hundred cards carrying books would have reported two hundred
+     * conversions — the kind of wrong that reads as plausible.
+     */
+    const listed = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    const counts = (listed.body.jobs as { counts: Record<string, number> }[])[0]?.counts;
+    expect(counts?.['converted']).toBe(
+      (swept.body.report.items as { disposition: string }[]).filter(
+        (item) => item.disposition === 'converted',
+      ).length,
+    );
+  });
+
+  /**
+   * **Scoped by account**, which it was not when it was written. An object id is
+   * a uuid and hard to guess, but *hard to guess* is not an access rule.
+   */
+  it('does not answer about another account’s import', async () => {
+    const swept = await sweepRoot();
+    const converted = (swept.body.report.items as { objectId?: string }[]).find(
+      (item) => item.objectId !== undefined,
+    );
+
+    expect(importNotesFor(server.services.state.db, 'somebody-else', converted!.objectId!)).toEqual(
+      [],
+    );
+  });
+
+  it('serves them over a route, which is what the book page reads', async () => {
+    const swept = await sweepRoot();
+    const converted = (swept.body.report.items as { objectId?: string }[]).find(
+      (item) => item.objectId !== undefined,
+    );
+
+    const fetched = await server.request({
+      method: 'GET',
+      url: `/api/import/objects/${converted!.objectId!}/notes`,
+    });
+
+    expect(fetched.status).toBe(200);
+    expect((fetched.body.notes as { source: string }[])[0]?.source).toBe('cards/Vera.png');
+  });
+
+  /**
+   * An object with nothing recorded gets an empty list rather than a 404: made
+   * by hand, or brought in through a route that records no job, is not an
+   * error, and the page has to tell "nothing recorded" from "no such thing".
+   */
+  it('answers an object with no import at all with nothing, not with a 404', async () => {
+    const fetched = await server.request({
+      method: 'GET',
+      url: '/api/import/objects/01a008de-7e08-70d0-899c-f6869d6b9aeb/notes',
+    });
+
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.notes).toEqual([]);
   });
 });

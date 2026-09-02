@@ -140,7 +140,7 @@ unrecoverable if missed.
 | Element | Obligation | Lands |
 |---|---|---|
 | Sessions belong to a World | **None.** Sessions are the *free to move* tier ([10 §1](10-schemas.md)) — internal, migrate at will. | — |
-| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. | — |
+| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. **But see §5.3** — a question was left open here at [P5.7] that this element is the natural owner of. | — |
 | World-scoped memory | **Small, and now decided rather than noted.** Memory books must not hard-code the `(user, actor, persona)` three-tuple into how they are keyed and named on disk. [11 §8](11-cross-session-memory.md)'s open question about book granularity is to be settled knowing a fourth key is coming. | P8 |
 | Hook identity survives the copy | **Real, and unrecoverable if missed.** §5.1 | P7 |
 | Introduction hooks key on the subject | **Real, and cheap.** §5.2 | P7 |
@@ -177,6 +177,42 @@ character already introduced in this continuity has no first arrival left to
 stage. This costs 1.0 nothing, because the *introduced* predicate it needs
 already exists per-session ([03 §8.1](03-modes-and-turn-pipeline.md)) and only
 its scope widens.
+
+### 5.3 Inheritance is what would give `LoreScope` a consumer again
+
+*Recorded at [P5.7]'s reversal, because this is where somebody will be standing
+when the question next matters.*
+
+**A lorebook reaches a session by being selected, and by nothing else**
+([02 §3.4](02-data-model.md)): `session.lore`, or the treatment the session
+names. P5.7 briefly let a book's own `LoreScope` admit it — `global` everywhere,
+`linked` wherever one of its actors was cast — and that was reversed within the
+day. `global` is the factory default *and* the SillyTavern importer's fallback,
+so the effect was a person's entire library appearing in every session's prompt
+with no way out but hand-editing JSON. A library is not a world; that sentence is
+this document's own premise, arriving from the other direction.
+
+So `scope` is stored, exported, preserved across import — and read by nothing.
+**Worlds is the shape that could change that**, and it is the only one on the
+table: something *above* the session contributing books is exactly what a `scope`
+of `global` was reaching for and had no legitimate way to express. If that
+arrives, three things have to be decided together rather than one at a time:
+
+- **What inherits.** A World contributing lorebooks is a prefill source like any
+  other under the row above, which means it *copies into* `session.lore` at
+  creation and stays selected — not a live query that re-decides every turn. That
+  keeps the rule intact rather than carving an exception into it.
+- **Whether `scope` then narrows** a book the session has chosen —
+  [06 §B14](06-open-questions.md), left open on purpose, with the argument for
+  both answers written down.
+- **What a new book's `scope` should default to** — [06 §B15]. `global` is the
+  widest value in the union and the current default, which is precisely why P5.7
+  went wrong so fast.
+
+The trap to avoid is the one already sprung once: inferring a *behaviour* from
+the union's wording because "where it applies" sounds like a rule. It describes a
+shape. What consumes it is a separate decision, and this section is where it gets
+made.
 
 ## 6. A known collision, recorded rather than rediscovered
 

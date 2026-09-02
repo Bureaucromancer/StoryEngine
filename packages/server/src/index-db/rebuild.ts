@@ -50,6 +50,8 @@ export async function rebuild(
 ): Promise<RebuildResult> {
   db.exec('delete from object');
   db.exec('delete from object_fts');
+  db.exec('delete from lore_entry_fts');
+  db.exec('delete from lore_entry');
   db.exec('delete from turn_fts');
   db.exec('delete from turn');
   db.exec('delete from session');

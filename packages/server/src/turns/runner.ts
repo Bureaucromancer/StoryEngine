@@ -36,6 +36,8 @@ import type { TurnStream } from '../stream/bus.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved } from './calls.js';
 import { acceptEffect } from './effects.js';
 import { gatherAssemblyInputs } from './gather.js';
+import { retrieve } from '../retrieval/retrieve.js';
+import type { EffectProposal } from './effects.js';
 import { collectCandidates } from '../assembly/collect.js';
 import { planFor } from '../modes/registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
@@ -444,6 +446,9 @@ export class TurnRunner {
 
       let contributedBlocks = 0;
       let contributedEffects = 0;
+      // The retriever's timing proposals, gathered across every call this step
+      // makes and committed with the step's own — see below.
+      const loreEffects: EffectProposal[] = [];
 
       try {
         let sinceCheckpoint = Date.now();
@@ -463,6 +468,32 @@ export class TurnRunner {
             rng,
             signal,
             call: async (request) => {
+              /**
+               * The retriever, once per call — [P5.6].
+               *
+               * **Per call rather than per turn**, because `callKind` is one of
+               * its inputs: `generationTriggerFilter` lets an entry say *only
+               * during a summary*, and a scan hoisted out of this closure could
+               * not honour it. It reads `running`, so a call later in the turn
+               * sees the counters the earlier calls moved.
+               *
+               * The effects it proposes are collected into `loreEffects` and
+               * committed with the step's own, because only a step may propose
+               * one and this is inside a step's `call`.
+               */
+              const lore = retrieve({
+                lore: inputs.lore,
+                preset,
+                history,
+                channels: running,
+                persona: cast.persona,
+                actors: cast.actors,
+                callKind: definition.callKind,
+                rng,
+                ...(payload.input === undefined ? {} : { input: payload.input }),
+              });
+              loreEffects.push(...lore.effects);
+
               const fromPreset = collectCandidates({
                 preset,
                 callKind: definition.callKind,
@@ -470,6 +501,8 @@ export class TurnRunner {
                 persona: cast.persona,
                 actors: cast.actors,
                 channels: running,
+                lore: lore.blocks,
+                carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
                 ...(payload.input === undefined ? {} : { input: payload.input }),
                 ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
               });
@@ -485,6 +518,7 @@ export class TurnRunner {
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
                   notFilled: fromPreset.notFilled,
+                  refused: lore.refused,
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -575,7 +609,19 @@ export class TurnRunner {
 
         for (const candidate of result.candidates ?? []) contributed.push(candidate);
         const written: EventDraft[] = [];
-        for (const proposal of result.effects ?? []) {
+        /**
+         * **The retriever's counter updates ride out with the step's own** —
+         * [P5.6], and ahead of them.
+         *
+         * Ahead because the step's effects are the story's and these are the
+         * bookkeeping the story ran on: an entry that fired has already been
+         * read by everything downstream by the time the step proposes anything,
+         * so its cooldown starting is the earlier fact. Through the same
+         * `acceptEffect` path as everything else, because a channel written by
+         * a second route is a channel whose inverse nobody computed — and the
+         * inverse is what [09 §4] replays.
+         */
+        for (const proposal of [...loreEffects, ...(result.effects ?? [])]) {
           const effect = acceptEffect(job.turnId, proposal, running);
           effects.push(effect);
           running = applyEffects(running, [effect]);

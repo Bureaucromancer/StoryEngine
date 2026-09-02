@@ -3,7 +3,7 @@
 
 import { type GenerationParams, uuidv7 } from '@storyengine/shared';
 
-import { assemble } from '../assembly/assemble.js';
+import { assemble, type RefusedBlock } from '../assembly/assemble.js';
 import { render } from '../assembly/render.js';
 import type {
   AssembledBlock,
@@ -121,6 +121,13 @@ export interface CallContext {
   signal: AbortSignal;
   /** What the preset's collection left unfilled, for the record ([P3.0] §7.5). */
   notFilled: readonly NotFilledSlot[];
+  /**
+   * What a producer refused before the chat-wide cut — [P5.6].
+   *
+   * Threaded rather than recomputed, for `notFilled`'s reason: the collection
+   * happened outside this function and only the caller knows what it decided.
+   */
+  refused?: readonly RefusedBlock[];
   /** The call as assembled and rendered, before dispatch — see {@link ProvisionalCall}. */
   onCallAssembled(provisional: ProvisionalCall): void;
   /** A durable, coalesced checkpoint. The runner decides how often. */
@@ -296,6 +303,12 @@ export function planCall(
     candidates: request.candidates ?? candidates,
     policy,
     purpose,
+    // A step that supplied its own candidates never ran the preset's producers,
+    // so their refusals are not this call's to report — the same rule, and the
+    // same line of reasoning, as `notFilled` immediately below.
+    ...(request.candidates === undefined && context.refused !== undefined
+      ? { refused: context.refused }
+      : {}),
   });
   // A step that supplied its own candidates never consulted the preset, so
   // the not-filled list honestly empties rather than describing a collection

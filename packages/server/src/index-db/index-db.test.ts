@@ -93,7 +93,17 @@ describe('rebuild-from-disk equals the incremental index', () => {
     await library.saveObject(actorWithId('Vera Solano', shared), 'vera2');
 
     const live = snapshot(library.db).filter((line) => line.includes(shared));
-    const winner = live.find((line) => line.split(' | ').at(-2) === '0');
+    /**
+     * **Counted from the front, which is a fix rather than a preference.** This
+     * read `.at(-2)` — `shadowed` was the second-to-last field because `body`
+     * was the last one. P5.2 widened `snapshot` to carry each object's search
+     * rows as well, so the line grew a leading tag and two trailing columns and
+     * `.at(-2)` silently became the FTS name. Silently is the word: the query
+     * returned `undefined` and the assertion failed with a message about
+     * argument types rather than about shadowing.
+     */
+    const SHADOWED_FIELD = 8;
+    const winner = live.find((line) => line.split(' | ')[SHADOWED_FIELD] === '0');
 
     // `vera`, on both platforms, because the portable path is what is ordered.
     expect(winner).toContain(`${sep}vera${sep}`);

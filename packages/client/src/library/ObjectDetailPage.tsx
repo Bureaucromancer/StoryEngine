@@ -3,7 +3,9 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
+
+import type { Lorebook } from '@storyengine/shared';
 
 import {
   api,
@@ -14,11 +16,16 @@ import {
   type ObjectAddress,
 } from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
-import { useAuthState, useLibraryObject } from '../queries.js';
+import { useAuthState, useLibraryObject, useObjectImportNotes } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
+import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
+import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
+import { ByField } from './ByField.js';
+import { editorRouteFor } from './fields.js';
+import { LorebookView, lorebookShape } from './LorebookView.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 
 /**
@@ -53,6 +60,7 @@ export function ObjectDetailPage(): JSX.Element {
       <ObjectDetail
         kind={params.kind}
         id={params.id}
+        search={search}
         {...(search.slug === undefined
           ? {}
           : { at: { source: search.source ?? 'user', slug: search.slug } })}
@@ -61,7 +69,12 @@ export function ObjectDetailPage(): JSX.Element {
   );
 }
 
-function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress }): JSX.Element {
+function ObjectDetail(props: {
+  kind: LibraryKind;
+  id: string;
+  search: ObjectSearch;
+  at?: ObjectAddress;
+}): JSX.Element {
   const query = useLibraryObject(props.kind, props.id, props.at);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -87,7 +100,7 @@ function ObjectDetail(props: { kind: LibraryKind; id: string; at?: ObjectAddress
     );
   }
 
-  return <ObjectView object={query.data} kind={props.kind} locale={locale} />;
+  return <ObjectView object={query.data} kind={props.kind} locale={locale} search={props.search} />;
 }
 
 /**
@@ -119,9 +132,11 @@ function ObjectView(props: {
   object: LibraryObject;
   kind: LibraryKind;
   locale: string | undefined;
+  search: ObjectSearch;
 }): JSX.Element {
   const { object, kind, locale } = props;
   const stamps = timestampsOf(object.object);
+  const editorRoute = editorRouteFor(kind);
 
   return (
     <>
@@ -130,12 +145,16 @@ function ObjectView(props: {
         <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
-        {kind === 'actors' && mutable(object) ? (
-          <Link
-            to="/library/actors/$id/edit"
-            params={{ id: object.id }}
-            className={`ms-auto ${link.action}`}
-          >
+        {/*
+         * The kind gate comes from the same place the fields do
+         * ([polish §1](../../../../docs/design/workplan/09-polish.md)), and it
+         * carries the address with it: this branch used to name `actors`
+         * twice — once in the condition and once in the route — so widening
+         * one without the other would have opened a lorebook in the actor
+         * editor.
+         */}
+        {editorRoute !== null && mutable(object) ? (
+          <Link to={editorRoute} params={{ id: object.id }} className={`ms-auto ${link.action}`}>
             Edit
           </Link>
         ) : null}
@@ -149,6 +168,21 @@ function ObjectView(props: {
         </Alert>
       ) : null}
 
+      {/*
+       * **The fields first, and the storage facts under a heading below them.**
+       * Reordered here rather than left where it was, because
+       * [polish §1](../../../../docs/design/workplan/09-polish.md)'s complaint
+       * is that this page answers *where is this file* when the question was
+       * *what does it say* — and a build of that item which left seven rows of
+       * path and hash above the prose would have answered in the same order.
+       * The block is not demoted out of sight: [05 §5] wants the disk layout
+       * legible, and a heading is what turns a lead paragraph into a section.
+       */}
+      <ObjectBody object={object} kind={kind} search={props.search} />
+
+      <SectionTitle as="h2" className="mb-2 mt-8">
+        Storage
+      </SectionTitle>
       <dl className="mb-8 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
         <MetadataRow label="Kind">{KIND_LABELS[kind]}</MetadataRow>
         <MetadataRow label="Folder">
@@ -175,6 +209,98 @@ function ObjectView(props: {
 
       <AsStored value={object.object} />
     </>
+  );
+}
+
+/**
+ * What the detail route renders for the object itself.
+ *
+ * **One route, two bodies, and the second is not a promotion.** A lorebook is
+ * the only library kind whose object is a collection
+ * ([16 §1.1](../../../../docs/design/16-lorebooks-as-a-format.md)), so a
+ * by-field rendering of it is off by one level — a three-hundred-element array
+ * under a label is not a reading surface. Every other kind is unchanged, and
+ * lorebooks keep this route, its header, its storage block and its *As stored*
+ * fold ([05 §5.3](../../../../docs/design/05-ui-surfaces.md): *not a new page*).
+ *
+ * **A book this build cannot read falls back rather than failing.** A
+ * hand-edited file is the storage thesis working, so the guard runs first and
+ * the by-field view renders whatever is actually on disk — which is more useful
+ * than a book page insisting the file is a book.
+ */
+function ObjectBody(props: {
+  object: LibraryObject;
+  kind: LibraryKind;
+  search: ObjectSearch;
+}): JSX.Element {
+  const { object, search } = props;
+
+  if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
+    return <LorebookBody object={object} search={search} />;
+  }
+  return <ByField schemaId={object.schema} value={object.object} />;
+}
+
+/**
+ * The book, and what the imports said about it.
+ *
+ * Its own component so the notes query mounts only for a lorebook: a request
+ * per object view for a kind that has no book page to put the answer on would
+ * be traffic for a question nobody asked.
+ */
+function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): JSX.Element {
+  const { object, search } = props;
+  const notes = useObjectImportNotes(object.id);
+
+  return (
+    <LorebookView
+      book={object.object as unknown as Lorebook}
+      focused={search.entry ?? null}
+      linkToEntry={(entryId, children) => (
+        /**
+         * **Every link on this page is built here**, which is the same
+         * discipline that keeps the panel from reintroducing F19 one level
+         * up: the address of a copy is `?source=&slug=`, and an entry link
+         * that dropped them would send somebody from the shadowed copy they
+         * are reading to the winner. So the current search is spread and only
+         * `entry` is added.
+         */
+        <Link
+          to="/library/$kind/$id"
+          params={{ kind: 'lorebooks', id: object.id }}
+          search={{ ...search, entry: entryId }}
+          className={link.object}
+        >
+          {children}
+        </Link>
+      )}
+      importNotes={notes.data?.notes ?? []}
+      /**
+       * **Offered only where the object can actually be written**, through the
+       * same `mutable` predicate the header's Edit and Delete go through — a
+       * system book and a shadowed copy are both readable and neither is
+       * writable, and an *Edit* on the losing copy of a duplicated id would open
+       * the editor over the winner (F19 with the stakes raised).
+       *
+       * Spread rather than passed as `undefined`, because
+       * `exactOptionalPropertyTypes` makes *absent* and *present and undefined*
+       * two different things.
+       */
+      {...(mutable(object)
+        ? {
+            editEntry: (entryId: string, children: ReactNode) => (
+              <Link
+                to="/library/lorebooks/$id/edit"
+                params={{ id: object.id }}
+                search={{ entry: entryId }}
+                className={link.inline}
+              >
+                {children}
+              </Link>
+            ),
+          }
+        : {})}
+    />
   );
 }
 

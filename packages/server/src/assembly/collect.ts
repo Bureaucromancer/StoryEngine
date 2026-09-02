@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Actor, Preset, PresetBlock } from '@storyengine/shared';
+import type {
+  Actor,
+  Lorebook,
+  Preset,
+  PresetBlock,
+  Treatment,
+  WritingSample,
+} from '@storyengine/shared';
 
 import type { ChannelState, Turn } from '../sessions/types.js';
 import { renderTemplate, type RenderContext } from './template.js';
+import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
@@ -34,6 +42,39 @@ export interface CollectContext {
   channels: Readonly<Record<string, ChannelState>>;
   input?: { text: string };
   guidance?: string;
+  /**
+   * What the retriever activated and the per-book budget kept — [P5.6].
+   *
+   * **Handed in, not computed here**, which is the same rule the cast follows
+   * and for a stronger reason: the scan advances timing counters and draws from
+   * the turn's RNG, and a collector that ran it would do both again for every
+   * preview. It runs once, in the step, and this is its result.
+   *
+   * Absent means no retriever ran — which is not the same as *it ran and found
+   * nothing*, and the two produce different `notFilled` reasons. See
+   * {@link emptyReason}.
+   */
+  lore?: readonly LoreBlock[];
+  /**
+   * The objects that carry writing samples — [P5.9], [10 §3.1].
+   *
+   * **Separate from `lore` above, and the separation is the stage's point.** A
+   * sample rides with its carrier the way `media` does: a book's samples are
+   * offered because the book is *in play*, not because one of its entries
+   * matched. They are two different questions about the same objects, and
+   * threading the books through the activated blocks would have quietly made
+   * a setting's prose conditional on a keyword.
+   *
+   * The actors are not here because they are already above: the cast has been
+   * gathered since P2.6 and this stage added nothing to it, which is exactly
+   * why [18 §7] could ship the actor arm two phases early.
+   */
+  carriers?: SampleCarriers;
+}
+
+export interface SampleCarriers {
+  treatment: { treatment: Treatment; id: string; contentHash: string } | null;
+  books: readonly { book: Lorebook; id: string; contentHash: string }[];
 }
 
 export interface Collected {
@@ -74,7 +115,7 @@ export function collectCandidates(context: CollectContext): Collected {
 
     const filled = fill(block, context);
     if (filled.length === 0) {
-      skipped(block, emptyReason(block));
+      skipped(block, emptyReason(block, context));
       continue;
     }
 
@@ -85,6 +126,32 @@ export function collectCandidates(context: CollectContext): Collected {
         order,
         candidates: filled,
       });
+      continue;
+    }
+
+    /**
+     * **Lore is the one slot whose blocks are not all in one place.**
+     *
+     * `position` lives on the *entry* ([02 §3.1]), so a single lore slot can
+     * emit blocks belonging in four places — and `at_depth` is one of them,
+     * which means some of this slot's output belongs in the history splice
+     * that the loop has already decided this block is not part of. Every other
+     * source kind is positioned by its preset block, so nothing else needs
+     * this and giving it to everything would be a general mechanism built for
+     * one case.
+     *
+     * The depth blocks are grouped by `fromEnd` and injected as if each depth
+     * were its own preset block, which is exactly what they are asking to be.
+     */
+    if (block.kind === 'slot' && block.source.of === 'lore') {
+      const { positioned, byDepth } = splitByDepth(filled, context.lore ?? []);
+      for (const [fromEnd, candidates] of byDepth) {
+        // Tiebreak zero: the entry's own `order` has already decided the run,
+        // and a lore slot positioned outside the history has no tiebreak field
+        // to borrow.
+        injected.push({ fromEnd, tiebreak: 0, order, candidates });
+      }
+      sequence.push(...positioned);
       continue;
     }
 
@@ -108,10 +175,28 @@ function sourceKindOf(block: PresetBlock): string {
  * through it — the reasons are structural per source kind, and keeping
  * `fill()`'s signature simple keeps its eleven arms readable.
  */
-function emptyReason(block: PresetBlock): NotFilledReason {
+function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReason {
   if (block.kind === 'text') return 'empty-source';
   switch (block.source.of) {
+    /**
+     * **Lore acquired a producer at P5.6, and this is where that shows.**
+     *
+     * It read `no-producer` from P3.0 until then, and correctly: a session
+     * referenced no lorebook, so the slot was waiting on the engine. Now it is
+     * waiting on the books — so an empty lore slot means *the retriever ran and
+     * this slot got nothing*, which is `empty-source`, the same thing an actor
+     * slot with no traits means.
+     *
+     * The distinction survives for the case that still deserves it. A caller
+     * that never ran a retriever at all — a mode with no lore step, a preview
+     * built before the scan — passes no `lore`, and that really is *no producer
+     * exists*. [P5 §1.10] asks for this assertion to change meaning **in this
+     * stage's own commit** rather than be repaired later by whoever finds CI
+     * red, and this line is the change.
+     */
     case 'lore':
+      return context.lore === undefined ? 'no-producer' : 'empty-source';
+
     case 'treatment':
     case 'goal':
     case 'channel':
@@ -119,18 +204,27 @@ function emptyReason(block: PresetBlock): NotFilledReason {
       // reason — no producer at this phase.
       return 'no-producer';
 
+    /**
+     * ~~**The one source kind whose reason depends on which carrier it names**,
+     * because the carriers landed at different times. A slot naming the
+     * Treatment or the Lorebook has no producer at all — a session references
+     * neither — while the actor arm is live, so its emptiness means the cast
+     * simply has no samples. Collapsing both to `no-producer` would tell an
+     * author their preset is waiting on the engine when it is waiting on them.~~
+     *
+     * **The split closes at [P5.9], and closing it is the point.** It existed
+     * because the three carriers landed at different times, and it said
+     * something true while they did: *waiting on the engine* and *waiting on
+     * you* are different sentences with different repairs. All three are live
+     * now, so an empty samples slot means the same thing whichever carrier it
+     * names — **write a sample, or link an object that has one** — and keeping
+     * the discrimination would leave `no-producer` claiming a phase is
+     * outstanding when none is.
+     *
+     * [P5.9] asks for exactly this and asks for it deliberately: *the test that
+     * currently pins the split is the one that has to change*.
+     */
     case 'samples':
-      /**
-       * **The one source kind whose reason depends on which carrier it names**,
-       * because the carriers landed at different times. A slot naming the
-       * Treatment or the Lorebook has no producer at all — a session references
-       * neither — while the actor arm is live, so its emptiness means the cast
-       * simply has no samples. Collapsing both to `no-producer` would tell an
-       * author their preset is waiting on the engine when it is waiting on them.
-       */
-      return block.source.from === 'treatment' || block.source.from === 'lore'
-        ? 'no-producer'
-        : 'empty-source';
     case 'persona':
     case 'actor':
     case 'history':
@@ -351,11 +445,24 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * Writing samples — [10 §3.1]. Prose offered as an exemplar of tone
        * rather than a description of it.
        *
-       * **Only the actor carrier can produce anything yet, and the other two
+       * ~~**Only the actor carrier can produce anything yet, and the other two
        * return nothing for the reason `lore` does.** A session references
        * neither a Treatment nor a Lorebook, so those arms have no object to
-       * read; the slot *rendering empty* is what keeps that a wiring change
-       * rather than a preset change when P5 gives a session both.
+       * read.~~ **All three are live at [P5.9]**, because [P5.6] gave a session
+       * both objects — which is the whole reason [18 §7] scheduled these two
+       * arms for this phase rather than shipping them dark.
+       *
+       * **The order is the preset's, and `from` absent means all three** in the
+       * fixed order treatment → lore → actor: [10 §3.1]'s *the stance on the
+       * material, then the world, then the person*, which is the order they
+       * narrow in. A preset that wants one carrier elsewhere names it.
+       *
+       * **A sample rides with its carrier and never with activation** — [P5.9].
+       * A book's samples are offered because the book is *in play*, not because
+       * an entry matched: a sample is not an entry, has no keys, and would have
+       * nothing to match with. That is what keeps this a slot rather than a
+       * feature of the retriever, and it is why the books come from
+       * `context.carriers` rather than from the activated blocks beside them.
        *
        * **One candidate per sample, not one per carrier**, which is the same
        * choice the `actor` arm makes and for the same reason: the budgeter's
@@ -368,35 +475,74 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * disabled sample costs nothing and appears nowhere — `enabled: false` is
        * a draft the author is still deciding about, not a budget casualty.
        */
-      const from = source.from;
-      if (from === 'treatment' || from === 'lore') return [];
+      const wanted = source.from === undefined ? SAMPLE_ORDER : [source.from];
 
-      return context.actors.flatMap(({ actor, contentHash }) =>
-        (actor.writingSamples ?? [])
-          .filter((sample) => sample.enabled)
-          .flatMap((sample) =>
-            emit(
-              { ...block, priority: sample.priority ?? block.priority },
-              sample.body,
-              {
-                kind: 'samples',
-                owner: { kind: 'actor', id: actor.id, contentHash },
-                sampleId: sample.id,
-              },
-              `${block.id}.${actor.id}.${sample.id}`,
+      return wanted.flatMap((carrier) =>
+        carriersOf(carrier, context).flatMap((owner) =>
+          owner.samples
+            .filter((sample) => sample.enabled)
+            .flatMap((sample) =>
+              emit(
+                { ...block, priority: sample.priority ?? block.priority },
+                sample.body,
+                {
+                  kind: 'samples',
+                  owner: { kind: carrier, id: owner.id, contentHash: owner.contentHash },
+                  sampleId: sample.id,
+                },
+                `${block.id}.${owner.id}.${sample.id}`,
+              ),
             ),
-          ),
+        ),
       );
     }
 
+    case 'lore': {
+      /**
+       * The retriever's output, filtered to the slots this block positions —
+       * [P5.6]. The scan ran once in the step; this decides where its blocks go.
+       *
+       * **A slot naming an outlet takes only that outlet**, and a slot naming
+       * none takes only the entries that named none either. That is the whole
+       * of what an outlet decouples: an entry saying `outlet: rules` is asking
+       * not to land in the ordinary before-run, and a preset that positions
+       * `rules` is agreeing to hold it. Letting an unnamed slot sweep up
+       * outlet entries as a courtesy would silently undo both halves.
+       *
+       * `at_depth` entries come through here too and are separated by the
+       * caller — see {@link collectCandidates}, which is the only place that
+       * can put them in the history splice.
+       */
+      const outlet = source.outlet;
+      return (context.lore ?? [])
+        .filter((one) =>
+          outlet === undefined
+            ? one.placement.at !== 'outlet' &&
+              (one.placement.at === 'after' ? source.phase === 'after' : source.phase === 'before')
+            : one.placement.at === 'outlet' && one.placement.name === outlet,
+        )
+        .flatMap((one) =>
+          emit(
+            { ...block, priority: one.candidate.priority ?? block.priority },
+            one.candidate.text,
+            one.candidate.source,
+            one.candidate.id,
+          ).map((candidate) => ({
+            ...candidate,
+            // The entry's own role and reason, which `emit` has no way to know
+            // and which are the two fields a lore block exists to carry.
+            role: one.candidate.role,
+            reason: one.candidate.reason,
+          })),
+        );
+    }
+
     /**
-     * Nothing, each for its own stated reason. Lore is P5, and the slot
-     * *rendering empty* is what makes that an activation change rather than a
-     * preset change; a P2.6 session carries no Treatment; goals are
-     * Setup-borne; and a channel value is an object with no channel-to-text
-     * renderer specified — which is also why the clock's budget is null.
+     * Nothing, each for its own stated reason. A P2.6 session carries no
+     * Treatment; goals are Setup-borne; and a channel value is an object with
+     * no channel-to-text renderer specified — which is also why the clock's
+     * budget is null.
      */
-    case 'lore':
     case 'treatment':
     case 'goal':
     case 'channel':
@@ -502,4 +648,95 @@ function actorSource(
     contentHash,
     field: source.field === 'visual' ? 'visual' : 'traits',
   };
+}
+
+/**
+ * Separates the lore blocks that belong in the history splice from the ones
+ * that sit where the slot does.
+ *
+ * Matched back to the retriever's output by candidate id rather than carried on
+ * the `Candidate` itself, because `Candidate` is the shared assembly shape and
+ * a `fromEnd` on it would be a lore concern every other source kind had to
+ * ignore. The id is already unique per book and entry, and already the thing
+ * the record uses to point at a block.
+ */
+function splitByDepth(
+  filled: readonly Candidate[],
+  lore: readonly LoreBlock[],
+): { positioned: Candidate[]; byDepth: Map<number, Candidate[]> } {
+  const depths = new Map<string, number>();
+  for (const one of lore) {
+    if (one.placement.at === 'in-history') depths.set(one.candidate.id, one.placement.fromEnd);
+  }
+  if (depths.size === 0) return { positioned: [...filled], byDepth: new Map() };
+
+  const positioned: Candidate[] = [];
+  const byDepth = new Map<number, Candidate[]>();
+  for (const candidate of filled) {
+    const fromEnd = depths.get(candidate.id);
+    if (fromEnd === undefined) {
+      positioned.push(candidate);
+      continue;
+    }
+    byDepth.set(fromEnd, [...(byDepth.get(fromEnd) ?? []), candidate]);
+  }
+  return { positioned, byDepth };
+}
+
+/**
+ * The carriers a bare `samples` slot reads, in the order [10 §3.1] fixes:
+ * **the stance on the material, then the world, then the person**, which is the
+ * order they narrow in.
+ *
+ * A constant rather than three arms, because the order is a *contract* a preset
+ * relies on when it declines to name a `from` — and a list somebody can read is
+ * harder to permute by accident than a sequence of concatenations.
+ */
+const SAMPLE_ORDER = ['treatment', 'lore', 'actor'] as const;
+
+/** One object that carries samples, flattened to what the slot needs. */
+interface SampleCarrier {
+  id: string;
+  contentHash: string;
+  samples: readonly WritingSample[];
+}
+
+/**
+ * The objects of one kind that are carrying samples this turn.
+ *
+ * Empty is the honest answer for a session with no treatment or no books, and
+ * it is *not* distinguishable here from a carrier that has none — which is
+ * correct as of [P5.9], because the two now mean the same thing to a reader:
+ * write a sample, or link an object that has one. See {@link emptyReason}.
+ */
+function carriersOf(kind: (typeof SAMPLE_ORDER)[number], context: CollectContext): SampleCarrier[] {
+  if (kind === 'actor') {
+    return context.actors.map(({ actor, contentHash }) => ({
+      id: actor.id,
+      contentHash,
+      samples: actor.writingSamples ?? [],
+    }));
+  }
+
+  const carriers = context.carriers;
+  if (carriers === undefined) return [];
+
+  if (kind === 'treatment') {
+    const held = carriers.treatment;
+    return held === null
+      ? []
+      : [
+          {
+            id: held.id,
+            contentHash: held.contentHash,
+            samples: held.treatment.writingSamples ?? [],
+          },
+        ];
+  }
+
+  return carriers.books.map((one: SampleCarriers['books'][number]) => ({
+    id: one.id,
+    contentHash: one.contentHash,
+    samples: one.book.writingSamples ?? [],
+  }));
 }

@@ -627,10 +627,33 @@ object, oldest unpinned first.
 
 ### `GET /api/search?q=&limit=`
 
-`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ] }`
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
 
-Full-text across both, because a person looking for *the cathedral* does not know
-or care whether they wrote it in a lorebook or said it in a turn.
+Full-text across all three, because a person looking for *the cathedral* does not
+know or care whether they wrote it in a lorebook, in one entry of one, or said it
+in a turn — [05 §14.5](design/05-ui-surfaces.md)'s *one query, three kinds of
+hit*.
+
+**`entries` is why the third kind exists.** A match inside a three-hundred-entry
+book used to return *the book*, which §14.5 calls close to useless at that scale.
+`objectId` and `entryId` together are an address — `/library/lorebooks/{objectId}
+?entry={entryId}` — and that is the whole rule for what the index carries:
+**a fragment is indexable when it has an address.** An actor's greetings and a
+preset's block text have none, so they get no rows.
+
+`snippet` is the excerpt around the match, from whichever of the entry's five
+searched fields matched (`name`, `keys`, `secondaryKeys`, `description`,
+`content`), elided with `…` at either end where it does not reach the field's
+edge. **It is not marked up.** A marker inserted into the text is
+indistinguishable from the same characters occurring in it, and the client
+already highlights matches itself; what it costs is that a prefix or boolean
+query will not be highlighted by a plain substring matcher.
+
+**One match can appear under two keys.** A phrase in an entry matches that entry
+*and* the book, because the object index holds the whole serialised object.
+That is the design rather than a duplicate. Ranks are per table and are not
+comparable across the three arrays, so a client cannot interleave them by
+relevance.
 
 `q` is FTS5 syntax and a query it cannot parse — an unbalanced quote, a bare `*`
 — is `400 invalid` rather than a 500: it is the caller's to fix.
@@ -693,6 +716,24 @@ mode seats fewer than the list names.
 **Ids, not objects.** A cast entry is a link resolved fresh every turn, so
 improving a character card reaches an ongoing game — the asymmetry with the
 copied preset is deliberate ([02 §8](design/02-data-model.md)).
+
+### `PUT /api/sessions/:sessionId/lore`
+
+`{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`
+is a list of lorebook ids, and `[]` clears it. Both replace what was there
+rather than adding to it.
+
+**Selection is the only way a lorebook reaches a session.** A book does not
+volunteer — its own `scope` selects nothing — so this route is what makes a
+world reachable at all: without it a session started without naming books could
+never gain one, and every session written before the field existed would be
+stuck without one permanently. The cast route's sibling, for the same reason:
+both are links a story legitimately changes partway through.
+
+Ids that resolve to nothing are accepted, exactly as a cast's are. A dangling
+link is a session missing a book, not a rejected request, and the retriever
+reports what it could not read on every turn where somebody playing can see it
+([00 §3.3](design/00-stance.md)).
 
 ### `GET /api/sessions/:sessionId`
 
@@ -775,7 +816,23 @@ preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { previe
     "resolved": { "connectionId": "0199…", "modelId": "…" },
     "blocks": [],
     "budget": {},
-    "notFilled": []
+    "notFilled": [],
+    "lore": {
+      "books": [
+        {
+          "bookId": "0199…",
+          "bookName": "Rain City",
+          "by": "session",
+          "tokenBudget": 2048,
+          "tokensSpent": 41,
+          "entryLimit": 100,
+          "entriesKept": 1
+        }
+      ],
+      "skipped": [{ "entryName": "The Council", "reason": "no-match", "entryId": "0199…" }],
+      "refused": [],
+      "unknownSources": []
+    }
   }
 }
 ```
@@ -803,6 +860,34 @@ context*, not a refused request:
 `reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
 or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
 this prompt* is answerable without a model.
+
+`lore` rides on both arms for the same reason, and it is what the keyword tester
+([05 §3](design/05-ui-surfaces.md)) is a surface over — *paste sample text, see
+which entries would fire*, which needs no endpoint of its own because sample
+text **is** an input.
+
+- `books` — every book in play, which selection put it there (`treatment` or
+  `session`), and what it spent of its own two limits. Reported even for a book
+  that contributed nothing, because *being scanned and matching nothing* and
+  *not being scanned* have different repairs.
+
+  **Selection is the only route.** A lorebook's own `scope` selects nothing: a
+  book is in a prompt because this session named it, or because the treatment
+  this session names links it.
+- `skipped` — **every** entry that did not fire, each with the rule that stopped
+  it. This is the half nothing else records: a fired entry is already a block
+  with a reason beside it. `reason` is a class the surface phrases, and the list
+  is open — it will grow — so a client that meets an unfamiliar one shows the
+  class itself rather than nothing. `folder` accompanies the folder gate, naming
+  the outermost shut folder.
+- `refused` — patterns that could not be run, deduplicated by key. One bad
+  pattern in an entry scanned across eight messages is one problem, not eight.
+- `unknownSources` — sources entries asked to scan that nothing supplied. An
+  entry looking somewhere that does not exist never fires and looks exactly like
+  an entry whose keys are wrong.
+
+Nothing here is truncated. A surface may cap what it shows; a report that
+arrived pre-trimmed could not offer *and 40 more* honestly.
 
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 

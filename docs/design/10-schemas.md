@@ -473,6 +473,20 @@ type LoreScope =
 // ([02 §8](02-data-model.md)), pointing outward at the lorebook rather than the
 // lorebook pointing inward at the session.
 
+// And as of [P5.7]'s reversal, that outward-pointing link is the ONLY way a
+// lorebook reaches a session: `session.lore`, or the treatment the session
+// names. NOTHING READS THIS FIELD. It is carried, exported and preserved on
+// import because it is part of the format; it selects nothing, because a field
+// on a library object opting itself into somebody's story put every book a
+// person owned into every prompt — `global` being both this schema's factory
+// default and the SillyTavern importer's fallback ([02 §3.4]).
+//
+// Two questions left open rather than settled, in [06](06-open-questions.md):
+// §B14, may `scope` narrow a book the session already chose; and §B15, what a
+// new book's scope should default to. [19 §5.3](19-world.md) is where a
+// consumer would come from — inheritance, designed, not inferred from the
+// union's wording.
+
 interface LoreFolder {
   id: string
   name: string

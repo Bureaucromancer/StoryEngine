@@ -149,6 +149,30 @@ describe('planning a call', () => {
     expect(fromPreset.call.notFilled).toHaveLength(1);
   });
 
+  /**
+   * The same rule, one field over — [P5.6]. A producer's refusals belong in the
+   * verdict ([P5 §1.3]), and belong there for the same reason and under the same
+   * condition as `notFilled` above: a step that brought its own candidates never
+   * ran the preset's producers, so reporting what they refused would be a record
+   * of a collection this call did not use.
+   */
+  it("carries a producer's refusals into the verdict, and only for a preset call", () => {
+    const refused = [{ blockId: 'lore.a.1', tokens: 40, rule: "over the book's token budget" }];
+
+    const fromPreset = planCall(context({ refused }), {}, CANDIDATES);
+    expect(fromPreset.call.budget.decisions.find((one) => one.blockId === 'lore.a.1')).toEqual({
+      blockId: 'lore.a.1',
+      tokens: 40,
+      included: false,
+      rule: "over the book's token budget",
+    });
+
+    const supplied = planCall(context({ refused }), { candidates: CANDIDATES }, []);
+    expect(
+      supplied.call.budget.decisions.find((one) => one.blockId === 'lore.a.1'),
+    ).toBeUndefined();
+  });
+
   it('never dispatches', () => {
     // Belt and braces on the seam: the provider this context hands back throws
     // from both of its call paths, so a plan that dispatched would fail here

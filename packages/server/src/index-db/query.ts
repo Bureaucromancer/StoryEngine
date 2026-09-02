@@ -59,8 +59,8 @@ interface RawRow {
  * overlap a named shape closely enough for a direct assertion. One helper, so
  * the widening is written once and is visible rather than sprinkled.
  */
-function asRows(result: unknown): RawRow[] {
-  return result as RawRow[];
+function asRows<Row = RawRow>(result: unknown): Row[] {
+  return result as Row[];
 }
 
 function hydrate(row: RawRow): IndexedObject {
@@ -182,6 +182,45 @@ export function findPriorImport(
  * it is why the shadow winner itself is platform-divergent (F23). The slug is
  * the folder name, which is the portable half and the same string on both.
  */
+/**
+ * The name half of `Ref` resolution — [02 §11.4], [10 §8].
+ *
+ * **Case-insensitive in JavaScript rather than in SQL**, which is why this
+ * makes two queries instead of one `where lower(name) = lower(?)`. SQLite's
+ * `lower()` folds ASCII only, so a book called *Régine's Notes* would fail to
+ * match `régine's notes` and the fallback would silently not fall back for
+ * exactly the imported, accented, non-English data it exists to rescue.
+ * `toLowerCase` is Unicode and locale-independent, which is what an identity
+ * comparison wants — `toLocaleLowerCase` would make the answer depend on the
+ * server's locale, and a Turkish install would resolve a different book.
+ *
+ * The names are fetched without their bodies and the winner is read back by
+ * path, so scanning a kind costs a column rather than every object's full JSON.
+ *
+ * Ordered by `shadowed` then `path`, the same tie-break `findById` uses: two
+ * files claiming one name is the [P1 §1.2] duplicate case, and the unshadowed
+ * one is the one being used.
+ */
+export function findByName(
+  db: DatabaseSync,
+  name: string,
+  at: { owners: string[]; schemaId: string },
+): IndexedObject | null {
+  if (at.owners.length === 0) return null;
+  const rows = db
+    .prepare(
+      `select path, name from object
+        where owner in (${at.owners.map(() => '?').join(', ')})
+          and schema_id = ? and tombstoned_at is null
+        order by shadowed, path`,
+    )
+    .all(...at.owners, at.schemaId) as { path: string; name: string }[];
+
+  const wanted = name.toLowerCase();
+  const hit = rows.find((row) => row.name.toLowerCase() === wanted);
+  return hit ? findByPath(db, hit.path) : null;
+}
+
 export function findByIdAt(
   db: DatabaseSync,
   id: string,
@@ -278,6 +317,106 @@ export function search(db: DatabaseSync, term: string, limit = 50): IndexedObjec
   return asRows(rows).map(hydrate);
 }
 
+/** One lore entry that matched, with enough to link to it and label it. */
+export interface LoreEntryHit {
+  /** The book. Half the address, and what the library row is keyed by. */
+  objectId: string;
+  objectName: string;
+  slug: string;
+  owner: string;
+  /** The other half — `?entry=` on the book's own page ([05 §5.3]). */
+  entryId: string;
+  entryName: string;
+  /** The excerpt around the match, from whichever field matched. */
+  snippet: string;
+}
+
+/**
+ * Lore entries that match, with the excerpt that makes a hit worth returning —
+ * [05 §14.5](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * *"A result that names the book without showing the matched text is what the
+ * index gives today and it is close to useless at book scale."* So this is not
+ * `search` with a different table under it: the snippet is the point, and the
+ * pair `(objectId, entryId)` is the address §14.5's rule — *a fragment is
+ * indexable when it has an address* — exists to produce.
+ *
+ * **`-1` as the snippet's column, and it is not a shortcut.** FTS5 takes a
+ * 0-based index over the declared columns and `-1` means *whichever column
+ * matched*. Pinning a real index is wrong in a way nothing would report: a hit
+ * on `keys` under an index pinned to `content` comes back as the head of the
+ * content field with nothing marked in it, which is the exact failure §14.5
+ * describes one level down — and a test asserting only that a snippet is a
+ * non-empty string passes over it. Pinning past the end throws, and the route
+ * turns any throw here into *"that search query could not be parsed"*, so an
+ * off-by-one in the server's own SQL would be reported as the user's mistake.
+ *
+ * **The excerpt comes back unmarked**, with the ellipsis and nothing else.
+ * FTS5's markers are inserted literally and are indistinguishable from the same
+ * characters occurring in the text, so a marked snippet is a string a renderer
+ * has to parse and can be fooled by. The client already marks matches itself —
+ * `library/search.ts`'s `highlight` returns runs, and the book page renders
+ * them — so returning marked text would hand it a second, incompatible
+ * mechanism for the job it already does.
+ *
+ * **Scoped in SQL, where `search` scopes in the route.** `searchTurns` sets
+ * this precedent and the reason to follow it rather than `search` is the
+ * `limit`: SQL applies it before the route ever sees a row, so an owner filter
+ * applied afterwards silently returns fewer than it should — on a household
+ * server with two users, one person's matches can eat the whole limit before
+ * the other's are considered. That is a defect `search` has and this need not
+ * inherit.
+ */
+export function searchLoreEntries(
+  db: DatabaseSync,
+  owners: readonly string[],
+  term: string,
+  limit = 50,
+): LoreEntryHit[] {
+  if (owners.length === 0 || term.trim() === '') return [];
+  const placeholders = owners.map(() => '?').join(', ');
+
+  const rows = asRows<{
+    entry_id: string;
+    entry_name: string;
+    object_id: string;
+    object_name: string;
+    slug: string;
+    owner: string;
+    snippet: string;
+  }>(
+    db
+      .prepare(
+        // The FTS table is named rather than aliased on purpose: `match` does
+        // not resolve through an alias, and neither does `snippet`'s first
+        // argument.
+        `select lore_entry.entry_id, lore_entry.name as entry_name,
+                object.id as object_id, object.name as object_name,
+                object.slug, object.owner,
+                snippet(lore_entry_fts, -1, '', '', '…', 20) as snippet
+           from lore_entry_fts
+           join lore_entry on lore_entry.path = lore_entry_fts.path
+                          and lore_entry.position = lore_entry_fts.position
+           join object on object.path = lore_entry.path
+          where lore_entry_fts match ?
+            and object.tombstoned_at is null
+            and object.owner in (${placeholders})
+          order by rank limit ?`,
+      )
+      .all(term, ...owners, limit),
+  );
+
+  return rows.map((row) => ({
+    objectId: row.object_id,
+    objectName: row.object_name,
+    slug: row.slug,
+    owner: row.owner,
+    entryId: row.entry_id,
+    entryName: row.entry_name,
+    snippet: row.snippet,
+  }));
+}
+
 /**
  * A deterministic dump of every live row, for the CI gate.
  *
@@ -286,26 +425,163 @@ export function search(db: DatabaseSync, term: string, limit = 50): IndexedObjec
  * them would make *rebuild equals incremental* fail for a reason that is not a
  * defect. What must agree is the content: which objects exist, where, under
  * what id, and which of a duplicated pair is shadowed.
+ *
+ * **And what `object_fts` holds, which this did not cover and had to.**
+ * [P5 §1.7](../../../../docs/design/workplan/07-p5-implementation.md) planned to
+ * rest a helper on this property — five separate places delete an object's
+ * search row by path, every one needs a sibling when a second table pair
+ * arrives, and a missed one leaves a stale row in a store whose whole claim is
+ * that it is derived and trustworthy. The plan then checked, and §0.4
+ * mutation-proved the check: reading the `object` table alone, this could not
+ * see a stale search row **at all**, so deleting any one of those five left the
+ * named gate and the entire suite green. A helper landed under a property that
+ * cannot see it inherits exactly that false confidence.
+ *
+ * **Two queries, because a search row can go wrong in two directions and a
+ * single join sees only one of them.** A left join from `object` catches a row
+ * that is *missing* or *duplicated* for an object that exists — which is
+ * `upsert`'s failure. It cannot catch a row that *outlived its object*, because
+ * there is no object left to join from, and that is what the other four sites
+ * are for. So the second query asks the question from the other end: which
+ * search rows name a path the `object` table has never heard of.
+ *
+ * *Note what is deliberately not an orphan.* A **tombstoned** object keeps its
+ * search row, and that is the design rather than a leak: the row survives so an
+ * add arriving moments later with the same uuid can be recognised as the second
+ * half of a rename, `search` joins `object` and filters tombstones out, and
+ * `matureTombstones` takes both away together. So the test is *no object row at
+ * all*, live or tombstoned — which is also why this function still filters
+ * tombstones out of the first query and they simply contribute nothing.
+ *
+ * `sessionSnapshot` has the first half of this and not the second. Left as it
+ * is: turn rows are written once and never moved, so the orphan case has no
+ * producer there — but if one ever gains a delete site, that asymmetry is the
+ * thing to fix rather than to copy.
  */
 export function snapshot(db: DatabaseSync): string[] {
-  const rows = db
-    .prepare(
-      `select path, id, owner, schema_id, slug, name, content_hash, shadowed, body
-         from object where tombstoned_at is null order by path`,
-    )
-    .all();
-
-  return asRows(rows).map((row) =>
-    [
-      row.path,
-      row.id,
-      row.owner,
-      row.schema_id,
-      row.slug,
-      row.name,
-      row.content_hash,
-      String(row.shadowed),
-      row.body,
-    ].join(' | '),
+  const rows = asRows<RawRow & { fts_name: string; fts_body: string }>(
+    db
+      .prepare(
+        `select object.path, object.id, object.owner, object.schema_id, object.slug, object.name,
+                object.content_hash, object.shadowed, object.body,
+                coalesce(object_fts.name, '<none>') as fts_name,
+                coalesce(object_fts.body, '<none>') as fts_body
+           from object
+           left join object_fts on object_fts.path = object.path
+          where object.tombstoned_at is null
+          order by object.path, fts_name, fts_body`,
+      )
+      .all(),
   );
+
+  /**
+   * A search row whose object is not in the table at all — the shape every
+   * delete site but `upsert`'s leaves behind when its sibling is missed.
+   *
+   * Ordered by every column because FTS5 rows have no inherent order and two of
+   * them can share a path; without the extra keys an equality assertion could
+   * fail on a permutation of the same content.
+   */
+  const orphans = asRows<{ path: string; name: string; body: string }>(
+    db
+      .prepare(
+        `select object_fts.path, object_fts.name, object_fts.body
+           from object_fts
+          where not exists (select 1 from object where object.path = object_fts.path)
+          order by object_fts.path, object_fts.name, object_fts.body`,
+      )
+      .all(),
+  );
+
+  return [
+    ...rows.map((row) =>
+      [
+        'object',
+        row.path,
+        row.id,
+        row.owner,
+        row.schema_id,
+        row.slug,
+        row.name,
+        row.content_hash,
+        String(row.shadowed),
+        row.body,
+        row.fts_name,
+        row.fts_body,
+      ].join(' | '),
+    ),
+    ...orphans.map((row) => ['orphan-fts', row.path, row.name, row.body].join(' | ')),
+    ...loreLines(db),
+  ];
+}
+
+/**
+ * The lore-entry pair, as two independent lists rather than a join.
+ *
+ * **Deliberately not joined**, and the reason is a real trap rather than
+ * taste: FTS5 columns carry no type affinity and hand back text, so
+ * `lore_entry_fts.position = lore_entry.position` compares a string against an
+ * integer and quietly matches nothing. A snapshot built on that join would show
+ * every entry as missing its text, every time, and would therefore be equally
+ * wrong for both producers — agreeing, and saying nothing.
+ *
+ * Two lists say more anyway. A locator row whose object has gone is a leak in
+ * one direction; an FTS row whose locator has gone is a leak in the other; and
+ * plain equality between producers catches both without either query having to
+ * know what the other found.
+ */
+function loreLines(db: DatabaseSync): string[] {
+  const located = asRows<{
+    path: string;
+    position: number;
+    entry_id: string;
+    name: string;
+    object_row: string;
+  }>(
+    db
+      .prepare(
+        `select lore_entry.path, lore_entry.position, lore_entry.entry_id, lore_entry.name,
+                case when exists (select 1 from object where object.path = lore_entry.path)
+                     then 'kept' else 'orphan' end as object_row
+           from lore_entry
+          order by lore_entry.path, lore_entry.position`,
+      )
+      .all(),
+  );
+
+  const text = asRows<{
+    path: string;
+    position: string;
+    name: string;
+    keys: string;
+    secondary_keys: string;
+    description: string;
+    content: string;
+  }>(
+    db
+      .prepare(
+        `select path, position, name, keys, secondary_keys, description, content
+           from lore_entry_fts
+          order by path, position, name, content`,
+      )
+      .all(),
+  );
+
+  return [
+    ...located.map((row) =>
+      ['lore', row.path, String(row.position), row.entry_id, row.name, row.object_row].join(' | '),
+    ),
+    ...text.map((row) =>
+      [
+        'lore-fts',
+        row.path,
+        row.position,
+        row.name,
+        row.keys,
+        row.secondary_keys,
+        row.description,
+        row.content,
+      ].join(' | '),
+    ),
+  ];
 }

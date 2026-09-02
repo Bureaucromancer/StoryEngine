@@ -17,7 +17,7 @@ import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '..
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
-import { divergenceEffects, divergenceTurn } from './channels.js';
+import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
 import {
   appendTurn,
   readAllTurns,
@@ -107,6 +107,9 @@ export interface NewSession {
   /** Copied in whole. [02 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
   cast?: { persona: string | null; actors: string[] };
+  /** Links, not copies — [P5.6], and see `SessionFile` for why. */
+  treatment?: string | null;
+  lore?: string[];
 }
 
 export async function createSession(
@@ -129,6 +132,8 @@ export async function createSession(
     ...(spec.mode === undefined ? {} : { mode: spec.mode }),
     ...(spec.preset === undefined ? {} : { preset: spec.preset }),
     ...(spec.cast === undefined ? {} : { cast: spec.cast }),
+    ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
+    ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);
@@ -428,17 +433,28 @@ export function applyEffects(
   for (const effect of effects) {
     if (!effect.applied || effect.scope === 'escaped') continue;
 
+    /**
+     * **Through `channelKey`, so a scoped channel has one value per key rather
+     * than one value.** This read `effect.channelId` alone, which made
+     * `ChannelDefinition.scope`'s `'actor'` and `'entry'` arms vocabulary
+     * nothing implemented: two entries' timing states written to one channel
+     * overwrote each other, silently, and the branch reconstruction on top
+     * inherited whichever landed last. [P5 §0.4] found it and P5.5 is the first
+     * stage that needs the answer.
+     */
+    const key = channelKey(effect.channelId, effect.scopeKey);
+
     if (effect.op.type === 'delete') {
       // Rebuilt without the key rather than deleted from: the map is a value
       // here, and a channel that was removed on one branch must not disappear
       // from a map another branch is still replaying against.
-      const { [effect.channelId]: removed, ...rest } = next;
+      const { [key]: removed, ...rest } = next;
       void removed;
       next = rest;
       continue;
     }
 
-    next[effect.channelId] = {
+    next[key] = {
       version: effect.channelVersion,
       value: effect.after,
     };
@@ -523,4 +539,39 @@ export async function readTurnById(
 
   const turn = (await readTurns(context, handle, sessionId)).get(turnId) ?? null;
   return turn?.removed === true ? null : turn;
+}
+
+/**
+ * Sets which treatment and which lorebooks a session plays with.
+ *
+ * **The sibling of {@link setCast}, and it exists for the reason that rule
+ * created.** Selection is the only way a lorebook reaches a session — a book
+ * does not volunteer, whatever its own `scope` says — so without a way to
+ * change the selection after creation, a session started without naming books
+ * could never gain a world, and every session that predates the field would be
+ * stuck without one for good.
+ *
+ * Links rather than copies, exactly as the cast is ([02 §8]): fixing a typo in
+ * a lorebook should reach the story being told in it.
+ */
+export async function setLore(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  lore: { treatment: string | null; lore: string[] },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      treatment: lore.treatment,
+      lore: lore.lore,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
 }

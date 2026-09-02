@@ -3,6 +3,8 @@
 
 import { type Static, Type } from '@sinclair/typebox';
 
+import { banner } from './banners.js';
+
 import {
   AssetRef,
   EmbeddedMedia,
@@ -22,6 +24,14 @@ import { PlotHook } from './hook.js';
  * five, all scoped: the collapsed scope union, folders, the extension
  * activation hook, `stateSchema`, and images (§5.1).
  *
+ * **The comment banners over `LoreEntry`'s field groups are annotations now**,
+ * not comments — see [banners.ts](./banners.ts). [05 §11.2d] builds the entry
+ * editor's disclosures from them and [05 §5.3] renders the same groups in the
+ * book page's read-only fold, and a comment cannot be read at runtime, so the
+ * grouping would otherwise have had to be written down a second time. The
+ * banner sits on the field that opens each group, which is where the comment
+ * sat, so a field added under one joins it with no second edit.
+ *
  * Images are the one addition that is new territory rather than a port —
  * Marinara carries a single `imagePath` per book and SillyTavern's World Info
  * has none — which is why the rule that they *do not activate* is stated on the
@@ -40,6 +50,38 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * everywhere else — noise on import at best, and a false resolution against an
  * unrelated local session at worst. "This lorebook applies to this session" is a
  * fact about the *session*, so it lives on the session's own lore links.
+ *
+ * **Nothing reads this field, and that is the current decision rather than an
+ * omission.** [P5.7] made it decide which books a session scanned; the
+ * behaviour was reversed immediately after, because `global` is this factory's
+ * default *and* the SillyTavern importer's fallback, so every book a person had
+ * ever created or imported was in every session's prompt. The rule now is that
+ * **no lorebook is active that has not been selected for the session** —
+ * `session.lore`, or the treatment the session names. A field cannot volunteer.
+ *
+ * The union stays because it is what the format carries and what an import has
+ * to preserve; a book that says *global* keeps saying it, and a person who
+ * exports one gets back what they put in. What it does not do is select. If
+ * something above the session ever contributes books — a Worlds concept, with
+ * inheritance — that is the shape that would give this field a consumer again,
+ * and it should be designed rather than inferred from the union's wording.
+ * [19 §5.3](../../../../docs/design/19-world.md) is where that gets decided.
+ *
+ * **Two questions are open and written down rather than left to be
+ * re-derived**, both in [06](../../../../docs/design/06-open-questions.md):
+ *
+ * - **§B14** — may this field *narrow* a book the session has already chosen?
+ *   A `linked` book that a session selected could reasonably go quiet when none
+ *   of its actors are cast. Coherent, and not taken: it is a new way for a
+ *   deliberate choice to be silently inactive, which is the same surprise the
+ *   reversal removed, pointing the other way. If it ever ships it needs a skip
+ *   reason in the retrieval report, or it reintroduces the silence [P5.8]'s
+ *   tester exists to end.
+ * - **§B15** — what should a new book's scope *be*? `newLorebook` produces
+ *   `global` and the SillyTavern importer falls back to it, which is harmless
+ *   while nothing reads the field and is exactly the default that made P5.7's
+ *   behaviour so sharp. A field nobody sets should not default to the widest
+ *   value in its own union.
  */
 export const LoreScope = Type.Union(
   [
@@ -90,8 +132,7 @@ export const LoreEntry = Type.Object(
      */
     description: Type.String(),
 
-    // ── Matching ──
-    keys: Type.Array(Type.String()),
+    keys: Type.Array(Type.String(), banner('Matching')),
     secondaryKeys: Type.Array(Type.String()),
     selectiveLogic: Type.Union([
       Type.Literal('and_any'),
@@ -107,16 +148,23 @@ export const LoreEntry = Type.Object(
     /** null = inherit from the book. */
     scanDepth: NullableNumber,
 
-    // ── Firing ──
-    enabled: Type.Boolean(),
+    enabled: Type.Boolean(banner('Firing')),
     /** Fires whenever the book is active. */
     constant: Type.Boolean(),
     /** 0..100; null = always. */
     probability: Type.Union([Type.Number({ minimum: 0, maximum: 100 }), Type.Null()]),
 
-    // ── Timing. Four distinct behaviours, not four takes on one. ──
-    /** Stay active N messages after firing. */
-    sticky: NullableNumber,
+    /**
+     * Stay active N messages after firing.
+     *
+     * Spelled out where its three siblings share `NullableNumber`, because the
+     * banner hangs on the field that opens the group and a shared constant
+     * would carry it onto every field that borrowed it.
+     */
+    sticky: Type.Union(
+      [Type.Number(), Type.Null()],
+      banner('Timing', 'Four distinct behaviours, not four takes on one.'),
+    ),
     /** Wait N messages between firings. */
     cooldown: NullableNumber,
     /** Do not fire until N messages in. */
@@ -124,13 +172,15 @@ export const LoreEntry = Type.Object(
     /** Auto-disable after N firings. */
     ephemeral: NullableNumber,
 
-    // ── Placement ──
-    position: Type.Union([
-      Type.Literal('before_char'),
-      Type.Literal('after_char'),
-      Type.Literal('at_depth'),
-      Type.Literal('outlet'),
-    ]),
+    position: Type.Union(
+      [
+        Type.Literal('before_char'),
+        Type.Literal('after_char'),
+        Type.Literal('at_depth'),
+        Type.Literal('outlet'),
+      ],
+      banner('Placement'),
+    ),
     /**
      * Exact, case-sensitive, for `{{outlet::name}}`. Decouples "this activated"
      * from "this gets pasted here".
@@ -141,9 +191,8 @@ export const LoreEntry = Type.Object(
     order: Type.Number(),
     role: Type.Union([Type.Literal('system'), Type.Literal('user'), Type.Literal('assistant')]),
 
-    // ── Grouping and gating ──
     /** Only one of a group fires. */
-    group: Type.Union([Type.String(), Type.Null()]),
+    group: Type.Union([Type.String(), Type.Null()], banner('Grouping and gating')),
     groupWeight: NullableNumber,
     folderId: Type.Union([Type.String(), Type.Null()]),
     actorFilter: NullableFilter,
@@ -155,21 +204,31 @@ export const LoreEntry = Type.Object(
      */
     additionalMatchingSources: Type.Array(Type.String()),
 
-    // ── Recursion. Three flags, all earning their place. ──
     /** My content triggers nothing further. */
-    preventRecursion: Type.Boolean(),
+    preventRecursion: Type.Boolean(banner('Recursion', 'Three flags, all earning their place.')),
     /** I cannot be triggered recursively. */
     excludeRecursion: Type.Boolean(),
     /** I fire only during recursion. */
     delayUntilRecursion: Type.Boolean(),
 
-    // ── The one addition ──
     /**
      * Where a retriever contributed by an extension attaches. Everything built
      * in stays a flat field above.
+     *
+     * **The one addition** to a schema that is otherwise a port. That used to be
+     * a banner standing over this field and its neighbour, and it is a fact
+     * about *this field* rather than a name a reader could be shown as a
+     * heading — so it is said here, and the group it stood over is named for
+     * what the group is.
      */
     extensionActivations: Type.Optional(
-      Type.Array(Type.Object({ by: Type.String(), config: Type.Unknown() })),
+      Type.Array(
+        Type.Object({ by: Type.String(), config: Type.Unknown() }),
+        banner(
+          'The entry itself',
+          'Everything above is about when an entry fires. Nothing here is.',
+        ),
+      ),
     ),
 
     /**

@@ -35,6 +35,7 @@ import {
   type LibraryKind,
   type LibraryObject,
   type ObjectAddress,
+  type ObjectImportNotes,
   type ObjectVersion,
   type PendingInput,
   type SessionSummary,
@@ -326,6 +327,22 @@ export function useChangePassword(): UseMutationResult<
   // so a password change cannot end one held elsewhere, and the surface has to
   // say so rather than implying otherwise by logging you out here.
   return useMutation({ mutationFn: api.changePassword });
+}
+
+/**
+ * What the imports said about one object ([P5 §1.8]).
+ *
+ * Unpolled, unlike the object beside it: a review row is written once when a
+ * sweep finishes and never changes, so re-asking every two seconds would be
+ * traffic for an answer that cannot move.
+ */
+export function useObjectImportNotes(objectId: string): UseQueryResult<{
+  notes: ObjectImportNotes[];
+}> {
+  return useQuery({
+    queryKey: ['import-notes', objectId],
+    queryFn: () => api.objectImportNotes(objectId),
+  });
 }
 
 export function usePrefs(): UseQueryResult<{ prefs: Record<string, unknown> }> {

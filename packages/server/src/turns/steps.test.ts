@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { SE_CLOCK } from '../sessions/channels.js';
+import { channelKey, SE_LORE_TIMING, SE_CLOCK } from '../sessions/channels.js';
 import type { StepDefinition } from './steps.js';
 import { callPurposeFor, evaluateCondition, filterReads } from './steps.js';
 
@@ -115,6 +115,33 @@ describe('a step is handed only what it declared', () => {
   it('withholds a channel it did not name', () => {
     expect(filterReads(step(), everything).channels).toEqual({});
     expect(filterReads(step({ reads: [SE_CLOCK] }), everything).channels).toHaveProperty(SE_CLOCK);
+  });
+
+  /**
+   * **A declared read takes the channel's scoped values too**, which is P5.5's
+   * widening seen from the step side. A step asking for `se.lore.timing` wants
+   * every entry's timing — and for an entry-scoped channel there is no value
+   * under the bare id at all, so a lookup by exact key hands the step an empty
+   * map and it behaves as though nothing had ever fired.
+   */
+  it('hands over every scoped value of a channel it did name', () => {
+    const scoped = {
+      ...everything,
+      channels: {
+        ...everything.channels,
+        [channelKey(SE_LORE_TIMING, 'entry-a')]: { version: 1, value: { sticky: 2 } },
+        [channelKey(SE_LORE_TIMING, 'entry-b')]: { version: 1, value: { sticky: 5 } },
+      },
+    };
+
+    const read = filterReads(step({ reads: [SE_LORE_TIMING] }), scoped).channels;
+
+    expect(Object.keys(read).toSorted()).toEqual([
+      channelKey(SE_LORE_TIMING, 'entry-a'),
+      channelKey(SE_LORE_TIMING, 'entry-b'),
+    ]);
+    // And not the clock, which it did not ask for.
+    expect(read).not.toHaveProperty(SE_CLOCK);
   });
 
   it('never hands over guidance, whatever a step declares', () => {

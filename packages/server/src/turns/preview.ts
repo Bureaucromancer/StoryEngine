@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { TurnPreview, UnmeasurableReason } from '@storyengine/shared';
+import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
 
 import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
@@ -10,6 +10,9 @@ import type { Mode } from '../modes/types.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { StepDefinition } from './steps.js';
+import { Rng } from '../rng/rng.js';
+import { retrieve } from '../retrieval/retrieve.js';
+import { loreReport } from '../retrieval/blocks.js';
 import { planCall, RoleUnresolved } from './calls.js';
 import { gatherAssemblyInputs } from './gather.js';
 
@@ -100,8 +103,45 @@ export async function previewAssembly(
       pendingInput,
       reason: 'no-prose-step',
       notFilled: [],
+      // No call kind means no scan: `generationTriggerFilter` reads one, so a
+      // scan here would have to invent the fact it filters on.
+      lore: NO_LORE_REPORT,
     };
   }
+
+  /**
+   * The retriever runs for a preview too, and **its effects are discarded** —
+   * [P5.6].
+   *
+   * That is the whole reason `retrieve` returns proposals rather than writing
+   * them: the preview needs the same blocks the turn will send, and must not
+   * move a single cooldown to get them. A preview that advanced timing would
+   * change the turn it was previewing, and it fires every time somebody pauses
+   * typing.
+   *
+   * The RNG is a fresh one for the same reason, and its tape is thrown away
+   * with it. A preview showing a 50% entry that the turn then rolls differently
+   * is honest — the number says so — and the alternative, reserving the turn's
+   * draws from a preview, would let a person reroll by retyping.
+   */
+  const lore = retrieve({
+    lore: inputs.lore,
+    preset: inputs.preset,
+    history: inputs.history,
+    channels: inputs.channels,
+    persona: inputs.cast.persona,
+    actors: inputs.cast.actors,
+    callKind: step.callKind,
+    rng: new Rng(),
+    ...(request.input === undefined ? {} : { input: request.input }),
+  });
+
+  const report = loreReport({
+    books: inputs.lore.books,
+    scan: lore.scan,
+    shelf: lore.shelf,
+    unplaced: lore.unplaced,
+  });
 
   const collected = collectCandidates({
     preset: inputs.preset,
@@ -110,6 +150,11 @@ export async function previewAssembly(
     persona: inputs.cast.persona,
     actors: inputs.cast.actors,
     channels: inputs.channels,
+    lore: lore.blocks,
+    // The books and the treatment, for the samples slot 2014 [P5.9]. Separate from
+    // `lore` above because a sample rides with its carrier rather than with an
+    // activation: a book's prose is offered because the book is in play.
+    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });
@@ -125,6 +170,7 @@ export async function previewAssembly(
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
         notFilled: collected.notFilled,
+        refused: lore.refused,
       },
       {},
       collected.candidates,
@@ -141,6 +187,7 @@ export async function previewAssembly(
       blocks: call.blocks,
       budget: call.budget,
       notFilled: call.notFilled,
+      lore: report,
     };
   } catch (error) {
     // **The one caught throw, and it is an answer rather than a failure.**
@@ -158,6 +205,10 @@ export async function previewAssembly(
         pendingInput,
         reason,
         notFilled: collected.notFilled,
+        // The scan ran before the role was resolved, so its answer survives the
+        // failure that made the numbers unmeasurable — which is the state an
+        // unconfigured install is in while somebody asks why nothing fires.
+        lore: report,
       };
     }
     throw error;

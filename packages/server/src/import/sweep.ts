@@ -238,6 +238,11 @@ class Writer {
       source: candidate.source,
       disposition: Writer.dispositionOf(outcome),
       objectId: actor.id,
+      // The book the card carried is a second object from one file, and its
+      // notes are in this same array — so it has to be findable by its own id
+      // or [P5 §1.8]'s question comes back empty for the commonest kind of
+      // book there is.
+      ...(lorebook === null ? {} : { alsoProduced: [lorebook.id] }),
       notes,
     };
   }

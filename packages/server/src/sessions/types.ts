@@ -81,6 +81,25 @@ export interface SessionFile {
    */
   cast?: { persona: string | null; actors: string[] };
   /**
+   * The treatment this session is played under, and the lorebooks the retriever
+   * scans — [02 §8], added at [P5.6] because before it a session referenced
+   * **neither object at all** and a retriever with no books has nothing to do.
+   *
+   * **Links, like `cast`, and for `cast`'s reason.** Fixing a typo in the world
+   * should reach the story being told in it. The full argument — including how
+   * a session naming its own treatment squares with [02 §8]'s *editing the
+   * source treatment later must not affect this session*, which is about the
+   * `origin` provenance chain rather than about this field — is in
+   * `turns/lore.ts`, next to the code that acts on it.
+   *
+   * Optional for the same reason `mode` is: every session written before P5.6
+   * predates them, and healing a file on read would need the session lock.
+   * Absent reads as *no treatment, no books*, which is what those sessions had.
+   */
+  treatment?: string | null;
+  /** Extras beyond whatever the treatment already links — [02 §7]. */
+  lore?: string[];
+  /**
    * Set when the session is archived — [02 §10.3].
    *
    * **Archive is not deletion**, and it is here because most sessions people

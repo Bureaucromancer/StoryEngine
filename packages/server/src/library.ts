@@ -27,6 +27,7 @@ import {
 import {
   findById,
   findByIdAt,
+  findByName,
   type IndexedObject,
   listObjects,
   rowsForId,
@@ -327,6 +328,52 @@ export function read(
     throw new LibraryError('not-found', `No object with id ${id} in that kind.`);
   }
   return row;
+}
+
+/**
+ * A `Ref` resolved the way every document says refs resolve: **exact id, then
+ * case-insensitive name, then missing — and never blocking.**
+ *
+ * That sentence is written in three places — `schema/common.ts`'s own
+ * description of `Ref`, [02 §11.4](../../../docs/design/02-data-model.md), and
+ * [10 §8](../../../docs/design/10-schemas.md) — and until [P5.6] it was
+ * implemented in none, because nothing on the server had ever followed a `Ref`.
+ * The session's lorebook links are the first, so the promise comes due here.
+ *
+ * **The fallback is not a nicety; it is the whole reason imports work.** An
+ * imported treatment arrives carrying refs minted by whatever produced it, and
+ * the books it names were imported as separate objects with ids of ours. Every
+ * one of those ids is a miss. Without the name arm, an imported treatment
+ * resolves to zero books, the prompt is quietly smaller, and nothing anywhere
+ * says why — which is [00 §3.3]'s failure mode stated exactly.
+ *
+ * Returns null rather than throwing, because *show as missing and continue* is
+ * the documented third step and a caller that wanted an exception would be
+ * asking this function to break the contract it exists to keep.
+ */
+export function resolveRef(
+  context: LibraryContext,
+  handle: string,
+  ref: { id?: unknown; name?: unknown },
+  inKind: PortableSchemaId,
+): IndexedObject | null {
+  const id = typeof ref.id === 'string' ? ref.id : null;
+  if (id !== null && id !== '') {
+    try {
+      return read(context, handle, id, inKind);
+    } catch (error) {
+      // A `not-found` falls through to the name arm; anything else is a real
+      // failure and belongs to the caller, not to a swallow.
+      if (!(error instanceof LibraryError) || error.code !== 'not-found') throw error;
+    }
+  }
+
+  const name = typeof ref.name === 'string' ? ref.name : null;
+  if (name === null || name === '') return null;
+  return findByName(context.db, name, {
+    owners: readableOwners(handle).map((owner) => ownerKeyOf(owner)),
+    schemaId: inKind,
+  });
 }
 
 function readAt(

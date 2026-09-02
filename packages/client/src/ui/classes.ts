@@ -102,6 +102,18 @@ export const table = {
  * fix for this becomes the previous bug. Named tokens instead, so
  * {@link ../ui/contrast.test.ts} can measure them.
  */
+/**
+ * The label above a control, and above a **value** — which is the second
+ * consumer that moved it here.
+ *
+ * `Field` had spelled it out for six call sites and named it `LABEL_CLASS`
+ * privately; the read-only by-field view ([polish §1]) renders the same label
+ * over a rendered value rather than over an input, and *recognisably the same
+ * view* is that item's entire design constraint. A private constant copied
+ * into a second file would have made the two look alike on the day and drift
+ * afterwards.
+ */
+export const fieldLabel = 'block text-sm font-medium text-ink-muted';
 export const control =
   'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-muted disabled:text-ink-muted';
 

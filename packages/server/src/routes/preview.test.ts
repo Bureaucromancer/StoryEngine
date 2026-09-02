@@ -7,6 +7,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
+import {
+  newLorebook,
+  newLoreEntry,
+  newTreatment,
+  type AssembledPreview,
+  type Lorebook,
+  type LoreEntry,
+  type TurnPreview,
+} from '@storyengine/shared';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -248,5 +257,163 @@ describe('what a preview refuses to touch', () => {
     // honour, and silence would let it think the preview was pinned.
     const response = await preview({ input: { text: 'Look.' }, headTurnId: 'nope' });
     expect(response.status).toBe(400);
+  });
+});
+
+/**
+ * **The keyword tester's round trip** — [P5.8], [05 §3].
+ *
+ * *Paste sample text, see which entries would fire.* The tester needs no
+ * endpoint of its own, and this test is what makes that claim checkable: the
+ * pasted text goes in as the input, and the answer carries both halves — what
+ * fired, as blocks, and what did not, with the rule that stopped each one.
+ *
+ * The half worth the test is the second one. A fired entry was already legible
+ * as a block with a reason beside it; nothing anywhere could say why an entry
+ * did *not* fire, and per PLAYABLE that is the question this stage exists to
+ * answer.
+ */
+describe('what the retriever did, on the preview', () => {
+  async function aBookOf(entries: LoreEntry[], edits: Partial<Lorebook> = {}): Promise<Lorebook> {
+    const made = { ...newLorebook('Rain City'), entries, ...edits };
+    const posted = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: made,
+    });
+    if (posted.status !== 201) throw new Error(`the book did not save: ${String(posted.status)}`);
+    return made;
+  }
+
+  function entryOf(name: string, edits: Partial<LoreEntry> = {}): LoreEntry {
+    return { ...newLoreEntry(name), ...edits };
+  }
+
+  /**
+   * **The session has to select the book.** Saving one to the library puts it
+   * nowhere: a lorebook does not volunteer, whatever its own `scope` says, and
+   * these tests used to rely on `global` admitting it — which is precisely the
+   * behaviour that was reversed.
+   */
+  async function selectBook(book: Lorebook): Promise<void> {
+    const put = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/lore`,
+      payload: { treatment: null, lore: [book.id] },
+    });
+    if (put.status !== 200) throw new Error(`the link did not save: ${String(put.status)}`);
+  }
+
+  it('reports what the pasted text fired, and what it did not', async () => {
+    await selectBook(
+      await aBookOf([
+        entryOf('The Ferryman', { keys: ['ferryman'], content: 'He works the crossing.' }),
+        entryOf('The Council', { keys: ['council'], content: 'They settle nothing.' }),
+      ]),
+    );
+    await bindProse();
+
+    const response = await preview({ input: { text: 'She asked the ferryman.' } });
+
+    expect(response.status).toBe(200);
+    const body = response.body.preview as TurnPreview;
+    // Fired: a block, with the key that did it in the reason.
+    const lore = (body as AssembledPreview).blocks.filter((one) => one.source.kind === 'lore');
+    expect(lore.map((one) => one.text)).toEqual(['He works the crossing.']);
+    expect(lore[0]?.reason).toContain('ferryman');
+    // Did not: named, with the rule.
+    expect(body.lore.skipped.map((one) => [one.entryName, one.reason])).toEqual([
+      ['The Council', 'no-match'],
+    ]);
+  });
+
+  /**
+   * The books row is the one that answers *is my lorebook even being looked
+   * at*, which is a different question from *did anything match* and has a
+   * different repair. It is reported for a book that contributed nothing,
+   * because that is exactly when somebody is asking.
+   */
+  it('names every book in play and how it got there', async () => {
+    const book = await aBookOf([entryOf('Quiet', { keys: ['nowhere'] })]);
+    await selectBook(book);
+    await bindProse();
+
+    const body = (await preview({ input: { text: 'nothing relevant' } })).body
+      .preview as TurnPreview;
+
+    expect(body.lore.books).toEqual([
+      expect.objectContaining({ bookId: book.id, bookName: 'Rain City', by: 'session' }),
+    ]);
+  });
+
+  /**
+   * **Carried on the unmeasurable arm too**, which is `notFilled`'s reason: the
+   * scan runs before the role is resolved, so an install with nothing bound
+   * still has a complete answer to *why is my world not appearing* — and that
+   * install is precisely where somebody is asking.
+   */
+  it('answers about the lore even with no model bound', async () => {
+    await selectBook(await aBookOf([entryOf('The Ferryman', { keys: ['ferryman'] })]));
+
+    const body = (await preview({ input: { text: 'a quiet evening' } })).body
+      .preview as TurnPreview;
+
+    expect(body.state).toBe('unmeasurable');
+    expect(body.lore.skipped.map((one) => one.reason)).toEqual(['no-match']);
+  });
+});
+
+/**
+ * **The preview's carriers** — [P5.9].
+ *
+ * The runner and the preview must not disagree about what would be sent, which
+ * is `gather.ts`'s whole reason for existing; a preview that fetched the books
+ * and forgot the treatment's prose would show somebody a prompt they are not
+ * about to send, and the difference would be invisible in both. This is the
+ * assertion that keeps the two wired the same way.
+ */
+describe('writing samples on the preview', () => {
+  it('offers a treatment’s sample and a book’s, from the session’s own links', async () => {
+    const noir = newTreatment('Rain City Noir');
+    noir.writingSamples = [
+      { id: 't-s1', title: 'Tone', body: 'The rain never lets up.', enabled: true, note: '' },
+    ];
+    const book = newLorebook('Rain City');
+    book.writingSamples = [
+      { id: 'b-s1', title: 'Register', body: 'Nobody hurries here.', enabled: true, note: '' },
+    ];
+    for (const object of [noir, book]) {
+      const kind = object === noir ? 'treatments' : 'lorebooks';
+      const posted = await server.request({
+        method: 'POST',
+        url: `/api/library/${kind}`,
+        payload: object,
+      });
+      if (posted.status !== 201) throw new Error(`did not save: ${String(posted.status)}`);
+    }
+    await bindProse();
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Samples', treatment: noir.id, lore: [book.id] },
+    });
+    const withLinks = created.body.session.id as string;
+
+    const response = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${withLinks}/preview`,
+      payload: { input: { text: 'She waited.' } },
+    });
+
+    expect(response.status).toBe(200);
+    const preview = response.body.preview as AssembledPreview;
+    const samples = preview.blocks.filter((one) => one.source.kind === 'samples');
+
+    // Both carriers, and in [10 §3.1]'s order — the stance, then the world.
+    expect(samples.map((one) => one.text)).toEqual([
+      'The rain never lets up.',
+      'Nobody hurries here.',
+    ]);
   });
 });

@@ -86,6 +86,14 @@
   --color-badge-surface: var(--color-slate-200);
   --color-badge-ink: var(--color-slate-700);
 
+  /* A search hit. Its own name rather than a borrowed one: amber is spoken for
+     twice over — `warn` and `provenance` — and a highlight is neither a warning
+     nor a note about where something came from. Blue, so that a marked word is
+     obviously the thing you typed rather than a badge that grew inside a
+     sentence. */
+  --color-highlight-surface: var(--color-sky-100);
+  --color-highlight-ink: var(--color-sky-900);
+
   /* One radius, named twice, so a control and a panel can diverge later without
      every call site being revisited to work out which was meant. */
   --radius-control: var(--radius-md);
@@ -207,6 +215,8 @@ body {
     --color-provenance-ink: var(--color-amber-100);
     --color-badge-surface: var(--color-slate-800);
     --color-badge-ink: var(--color-slate-300);
+    --color-highlight-surface: var(--color-sky-900);
+    --color-highlight-ink: var(--color-sky-100);
   }
 }
 
@@ -267,4 +277,6 @@ body {
   --color-provenance-ink: var(--color-amber-100);
   --color-badge-surface: var(--color-slate-800);
   --color-badge-ink: var(--color-slate-300);
+  --color-highlight-surface: var(--color-sky-900);
+  --color-highlight-ink: var(--color-sky-100);
 }

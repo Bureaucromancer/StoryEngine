@@ -28,6 +28,21 @@ export * from './import.js';
 // What an import *would* do — beside the review rather than in it, because a
 // report is written to disk and a prediction never is.
 export * from './import-preview.js';
+export * from './schema/banners.js';
+// Derived logic over a lorebook — whose gates are shut, and what a folder
+// governs. Beside the factories rather than in `schema/`: it reads the schema
+// and adds no field to it, and both halves of P5 must compute it the same way.
+export * from './lore.js';
+// Where an entry's surface forms turn up in another entry's prose. Here for the
+// same reason `lore.ts` is, doubled: the book page renders it and [16 §6]'s
+// falsification script counts it, and an instrument that measured a different
+// rule from the one on screen would be measuring nothing anybody sees.
+export * from './mentions.js';
+// The pure half of key matching, shared so the retriever and the book page's
+// inline highlighting cannot answer differently — [P5.8]. The regex arm stays
+// server-side: a browser cannot bound a catastrophic pattern, so it declines to
+// run one rather than hanging the tab.
+export * from './matching.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

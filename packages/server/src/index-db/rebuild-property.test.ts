@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
+import { LOREBOOK_SCHEMA, newLorebook, newLoreEntry, type Lorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { contentHashOf, matureTombstones, TOMBSTONE_TTL_MS } from './ingest.js';
@@ -45,6 +45,23 @@ let watcher: LibraryWatcher;
 beforeEach(async () => {
   registry = new SelfWriteRegistry();
   library = await makeTestLibrary({ registry });
+  /**
+   * **The bookkeeping is per-test, and it was module-scope.**
+   *
+   * `emptyTheLibrary` clears `ids` between the property's own iterations and
+   * nothing cleared it between *tests*, so each fixed example below started
+   * holding slugs the randomised run had left behind — against a fresh library
+   * that had none of them on disk.
+   *
+   * That is not cosmetic, because `ids` is what `apply` guards on: `copy`
+   * returns early when `ids.has(operation.to)`. So whenever the property's
+   * last sequence happened to leave `delta` behind, the fixed example's
+   * `copy alpha → delta` **silently did not happen**, and the assertion failed
+   * with `delta` missing — which reads exactly like the watcher being late and
+   * is nothing of the kind. About one run in eight, and seed-dependent through
+   * the property that ran before it.
+   */
+  ids.clear();
   await mkdir(library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA), { recursive: true });
 
   /**
@@ -128,10 +145,37 @@ function fileFor(slugName: string): string {
 /** The id a slug's object carries, so an edit keeps it and a copy duplicates it. */
 const ids = new Map<string, string>();
 
+/**
+ * **A book with entries in it, because an empty one proves nothing about the
+ * tables P5.2 added.**
+ *
+ * `newLorebook` sets `entries: []`, and every fixture in this file used it
+ * unchanged — so widening `snapshot` to cover `lore_entry` and `lore_entry_fts`
+ * would have compared two permanently empty tables and agreed, forever, about
+ * nothing. That is §0.4's finding one table deeper: the property was extended
+ * over a shape it could not generate.
+ *
+ * Two entries rather than one, so a `position` that renumbered or collapsed is
+ * visible; short, because {@link quiesce} joins the whole snapshot up to sixty
+ * times per operation and every character is paid for on each. Derived from the
+ * name so an `edit` changes the entry text as well as the book's.
+ */
+function bookWith(name: string, id?: string): Lorebook {
+  const book = newLorebook(name);
+  if (id !== undefined) book.id = id;
+  return {
+    ...book,
+    entries: [
+      { ...newLoreEntry(`${name} harbour`), id: `${book.id}:0`, content: `${name} cranes` },
+      { ...newLoreEntry(`${name} bridge`), id: `${book.id}:1`, keys: [name.toLowerCase()] },
+    ],
+  };
+}
+
 async function apply(operation: Operation): Promise<void> {
   switch (operation.kind) {
     case 'write': {
-      const book = newLorebook(operation.name);
+      const book = bookWith(operation.name);
       ids.set(operation.slug, book.id);
       const path = fileFor(operation.slug);
       await mkdir(dirname(path), { recursive: true });
@@ -142,7 +186,7 @@ async function apply(operation: Operation): Promise<void> {
       const path = fileFor(operation.slug);
       const id = ids.get(operation.slug);
       if (id === undefined) return;
-      await writeFile(path, JSON.stringify({ ...newLorebook(operation.name), id }, null, 2));
+      await writeFile(path, JSON.stringify(bookWith(operation.name, id), null, 2));
       return;
     }
     case 'rename': {
@@ -161,11 +205,15 @@ async function apply(operation: Operation): Promise<void> {
       const id = ids.get(operation.from);
       if (id === undefined || ids.has(operation.to)) return;
       // Copied *contents*, so the id travels — which is exactly how a person
-      // makes a duplicate id, and what the shadowing rule is for.
+      // makes a duplicate id, and what the shadowing rule is for. The entries
+      // travel too, and that is the half worth stating: a copy that minted
+      // fresh entries would be a different book sharing an id, where what a
+      // person actually does is duplicate the folder — so the two copies carry
+      // the *same* entry ids, which is the case entry rows keyed by path and
+      // not by entry id exist to survive.
       const to = fileFor(operation.to);
       await mkdir(dirname(to), { recursive: true });
-      const book = { ...newLorebook('Copied'), id };
-      await writeFile(to, JSON.stringify(book, null, 2));
+      await writeFile(to, JSON.stringify(bookWith('Copied', id), null, 2));
       ids.set(operation.to, id);
       return;
     }
@@ -242,6 +290,25 @@ async function renameWithRetry(from: string, to: string): Promise<boolean> {
  *
  * It returns as soon as the condition holds, so the common case is one round
  * rather than the three the old floor always paid.
+ *
+ * **And this function was separately accused of a second flake and acquitted**,
+ * which the merge of two sessions' fixes is the right place to record, because
+ * each session found one cause and neither saw the other. *One symptom, two
+ * causes.* The gate also went red about one run in eight at the fixed example
+ * asserting a copy is shadowed — and *the copy has not been indexed yet* is
+ * exactly what the paragraphs above are about, so waiting harder looked like the
+ * fix. It was not. The real cause was module-scope bookkeeping leaking between
+ * tests; see `beforeEach` and its `ids.clear()`. With that removed, the old
+ * quiet-based wait passed twenty runs out of twenty, and adding a row-count
+ * condition to it made things worse.
+ *
+ * **Both fixes are in, and both were needed**, which is the part neither session
+ * could see alone: the condition-based wait above is strictly the better wait,
+ * and it would still have flaked one run in eight against the leaked `ids`.
+ * The lesson worth keeping is the measurement discipline rather than either
+ * fix — a rate that was never re-measured between the two changes let a 20%
+ * failure read as success twice.
+
  */
 async function quiesce(): Promise<void> {
   for (let round = 0; round < 300; round += 1) {
@@ -358,8 +425,19 @@ async function emptyTheLibrary(): Promise<void> {
   await rm(kindRoot, { recursive: true, force: true });
   await mkdir(kindRoot, { recursive: true });
   ids.clear();
+  /**
+   * **The third hand-maintained list of tables, and the one nothing gates.**
+   * `migrations.ts` has `dropAll` and `rebuild.ts` has its own `delete`s;
+   * missing a table in either turns a test red. Missing one *here* does
+   * something worse: entry rows left behind by the previous iteration become
+   * orphans the next one reports, so the gate goes red for a reason that is
+   * entirely the harness's — which is the shape of both flakes this file has
+   * already had to write up.
+   */
   library.db.exec('delete from object');
   library.db.exec('delete from object_fts');
+  library.db.exec('delete from lore_entry_fts');
+  library.db.exec('delete from lore_entry');
 
   await watcher.start();
 }
@@ -551,9 +629,9 @@ describe('a rebuild forgets what the disk no longer has', () => {
     // and what somebody reaches for a rebuild to fix in the first place.
     const library = await makeTestLibrary();
     try {
-      await library.saveObject(newLorebook('Rain City'), 'rain-city');
-      await library.saveObject(newLorebook('Elsewhere'), 'elsewhere');
-      expect(snapshot(library.db)).toHaveLength(2);
+      await library.saveObject(bookWith('Rain City'), 'rain-city');
+      await library.saveObject(bookWith('Elsewhere'), 'elsewhere');
+      expect(objectLines(library.db)).toHaveLength(2);
 
       // The file goes; nothing tells the index. This is the state a rebuild is
       // the documented remedy for ([02 §5.1]).
@@ -563,11 +641,29 @@ describe('a rebuild forgets what the disk no longer has', () => {
 
       await rebuild(library.db, library.layout);
 
-      const after = snapshot(library.db);
+      const after = objectLines(library.db);
       expect(after).toHaveLength(1);
       expect(after[0]).toContain('rain-city');
+
+      /**
+       * **And its entries go with it**, which is the half a rebuild's own
+       * `DELETE`s are the only thing that can do. Nothing else covers this: the
+       * property's two comparisons hold two producers to one answer and a
+       * rebuild that kept stale entry rows would simply be *wrong in the same
+       * way twice* — the in-place one inherits them and the from-scratch one
+       * never had them, so only the case where the disk no longer justifies a
+       * row can tell them apart.
+       */
+      const lore = snapshot(library.db).filter((line) => line.startsWith('lore'));
+      expect(lore).not.toHaveLength(0);
+      expect(lore.filter((line) => line.includes('elsewhere'))).toEqual([]);
     } finally {
       await library.dispose();
     }
   });
 });
+
+/** The object half of a snapshot, for a count that entry rows must not change. */
+function objectLines(db: Parameters<typeof snapshot>[0]): string[] {
+  return snapshot(db).filter((line) => line.startsWith('object'));
+}

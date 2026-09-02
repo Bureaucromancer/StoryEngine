@@ -23,11 +23,54 @@ provide one.
 
 ## 1. A by-field view in the library, without opening the editor
 
-**Today.** The library detail page
+**Landed at [P5.−1](07-p5-implementation.md)**, which is where this item stopped
+being a dependency of a phase and became the first stage of one:
+[ByField.tsx](../../../packages/client/src/library/ByField.tsx) renders it, over
+a field description derived at runtime from the schema
+([fields.ts](../../../packages/client/src/library/fields.ts)). Everything below
+is kept rather than deleted, because four of the decisions the argument leaves
+open were closed in the build and a reason is worth least where the argument it
+answers has gone missing.
+
+- **The single description is the schema itself, read at runtime**, which is the
+  only arrangement in which [05 §11.2d](../05-ui-surfaces.md)'s *a field added
+  to the schema lands in the editor and in §5.3's read-only fold without a
+  second edit* is true. Any hand-written list of a kind's fields is the second
+  description this item exists to prevent, and the labels come from the field
+  names by a rule rather than a table for the same reason. The cost, stated:
+  those labels are English because they are what the JSON says, and a table of
+  translated ones would be the second description again.
+- **Empty is shown rather than omitted**, which is the branch this item leaves
+  open. Shown, because a field nobody can see is a field nobody fills —
+  [16 §4.1](../16-lorebooks-as-a-format.md) makes exactly that argument about
+  `description` — and shown in three words rather than one, since an absent
+  value, a blank string and an empty list are three different facts and the
+  schemas draw meaning from the difference.
+- **The fields moved above the storage block, which kept its own heading.** Not
+  decoration: the complaint in this item is that the page answers *where is this
+  file* when the question was *what does it say*, and a build that left seven
+  rows of path and hash above the prose would have answered in the old order
+  with a new component underneath.
+- **Keys the schema does not declare stay with *As stored*** (§2), which is the
+  view whose stated job they are. A kind this build has never heard of is the
+  one exception, and barely one: with no declaration to be the authority on what
+  belongs, the file's own keys are the only description there is.
+
+**And the closing clause below is now paid in full.** The `actors` half moved
+into the same module the fields come from — and took the *route* with it,
+because the Edit link named the kind twice, once in the condition and once in
+the address, so widening one without the other would have opened a lorebook in
+the actor editor.
+
+~~**Today.**~~ **As it was**, and the tense is the whole of the change. The
+library detail page
 ([ObjectDetailPage.tsx](../../../packages/client/src/library/ObjectDetailPage.tsx))
-shows a metadata block — kind, folder, identifier, schema, timestamps, content
+showed a metadata block — kind, folder, identifier, schema, timestamps, content
 hash — and then the whole object as pretty-printed JSON. To read an actor's
-personality or its greeting the way it was *written*, you open the editor.
+personality or its greeting the way it was *written*, you opened the editor.
+*One detail of that had gone stale before this item landed: the JSON moved
+behind §2's fold at P3.3, so what the page actually showed by then was the
+metadata block and a closed pane.*
 
 **What that costs.** Opening the editor to read is the wrong gesture in three
 different ways. It is a write surface, so it invites accidental edits and it
@@ -70,6 +113,14 @@ note is actually about — the `actors` half, which still names a kind and shoul
 come from wherever the fields come from.*
 
 ## 2. *As stored*, kept in the library and added to the editor as a pane
+
+**Landed at [P3.3](05-p3-implementation.md)**, as one component on all three
+surfaces — the detail page, the workbench's library subject and the editor's
+saved-state pane — collapsed by default, with the open state in the per-user
+`prefs.json` and a copy control over the whole object. This item was struck late,
+at [P5.−1](07-p5-implementation.md), and the lateness is worth a sentence: the
+one clause it could not honestly claim was *collapsed by default is correct once
+the by-field view exists*, and §1 is what made that true.
 
 **Keep it.** The `As stored` block on the detail page stays after item 1 lands.
 It is not a placeholder for the by-field view and it is not developer debris —

@@ -283,6 +283,17 @@ function applyBookFields(
  * representable target — and P4 imports no chats for it to bind to anyway.
  * Character and persona scoping collapse to `linked` with refs that resolve or
  * dangle like any other ([00 §3.3]).
+ *
+ * **This unconditional `global` is one of the two producers of the default that
+ * made [P5.7] go wrong**, and it is worth knowing about here rather than only
+ * at the factory. While `scope` selected books, an import turned every book in
+ * a SillyTavern folder into one that applied to every session — the exact
+ * outcome the reversal removed. It is safe now because nothing reads the field
+ * ([02 §3.4]): a lorebook reaches a session by being selected and by nothing
+ * else. Anything that gives `scope` a consumer again has to revisit this line
+ * and [06 §B15](../../../../../docs/design/06-open-questions.md) together —
+ * writing the most permissive value into every imported book is a decision, and
+ * currently an unexamined one.
  */
 function applyScope(
   input: Readonly<Record<string, unknown>>,

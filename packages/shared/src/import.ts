@@ -116,6 +116,22 @@ export interface ImportItemReport {
   disposition: ImportDisposition;
   /** The library object this became, when it became one. */
   objectId?: string;
+  /**
+   * Other objects the same file produced.
+   *
+   * One file can make more than one object — a character card carrying a
+   * `character_book` makes an actor **and** a lorebook — and the review is a
+   * row per *file seen*, so those extra objects have no row of their own to be
+   * found by. That is fine for the report and not fine for [P5 §1.8]: the book
+   * page asks *what did the import say about this book*, and for the commonest
+   * kind of book the answer was nothing at all, because the only row naming
+   * those notes was keyed to the actor.
+   *
+   * So the ids travel, and `recordImport` writes a row per object while
+   * `readImport` collapses them back into one item. The review is unchanged;
+   * the notes become findable from either object.
+   */
+  alsoProduced?: string[];
   notes: ImportNote[];
 }
 

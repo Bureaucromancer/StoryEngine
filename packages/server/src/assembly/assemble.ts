@@ -51,6 +51,30 @@ export interface AssembleOptions {
   policy: BudgetPolicy;
   /** What the call this context is for produces. Defaults to prose. */
   purpose?: CallPurpose;
+  /**
+   * Blocks a producer refused **before** they reached here — [P5.6], [02 §3.2].
+   *
+   * **The two-tier budget arriving at the one arbiter.** [P5 §1.3] asks for
+   * per-book `tokenBudget` and `entryLimit` verdicts to feed this one *so that
+   * every skip lands in the `BudgetVerdict` with the rule that made it*, and
+   * that is only true if the inner tier's refusals appear here. They cannot be
+   * candidates — a candidate is something that might still be sent, and these
+   * are already decided — so they arrive as decisions rather than as blocks.
+   *
+   * They cost nothing: `spent` counts what is in the prompt, and these are not.
+   * What they buy is a person being able to read one list and find out that
+   * four lore entries matched and their book had no room, which is a different
+   * sentence from *the turn was too long* and has a different repair.
+   */
+  refused?: readonly RefusedBlock[];
+}
+
+/** A block a producer decided against, with the rule that decided. */
+export interface RefusedBlock {
+  blockId: string;
+  tokens: number;
+  /** In the language the workbench shows, exactly like `droppedBy`. */
+  rule: string;
 }
 
 export interface Assembly {
@@ -124,12 +148,25 @@ export function assemble(options: AssembleOptions): Assembly {
     spent,
     // Every block, in the order considered — a verdict listing only drops
     // cannot answer what falls out next.
-    decisions: blocks.map((block) => ({
-      blockId: block.id,
-      tokens: block.tokens,
-      included: block.included,
-      rule: block.droppedBy ?? ruleFor(block, annotated),
-    })),
+    //
+    // The producers' own refusals come first, because they were decided first:
+    // an entry its book had no room for never reached the chat-wide cut, and
+    // listing it after the blocks that did would put the two tiers in the wrong
+    // order in the one place somebody reads to reconstruct what happened.
+    decisions: [
+      ...(options.refused ?? []).map((one) => ({
+        blockId: one.blockId,
+        tokens: one.tokens,
+        included: false,
+        rule: one.rule,
+      })),
+      ...blocks.map((block) => ({
+        blockId: block.id,
+        tokens: block.tokens,
+        included: block.included,
+        rule: block.droppedBy ?? ruleFor(block, annotated),
+      })),
+    ],
     nextToDrop: nextToDrop(sacrificial, dropped),
   };
 
