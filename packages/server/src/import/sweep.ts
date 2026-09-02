@@ -27,12 +27,10 @@ import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { CharxReader } from './charx/reader.js';
 import { MarinaraReader } from './marinara/reader.js';
+import { nameOf, PRESET_CONVERTERS, type PresetConverter } from './preset-converters.js';
 import { convertCard } from './sillytavern/card.js';
 import { convertLorebook } from './sillytavern/lorebook.js';
-import { convertChatCompletionPreset } from './sillytavern/preset.js';
 import { SillyTavernReader } from './sillytavern/reader.js';
-import { convertSyspromptPreset } from './sillytavern/sysprompt.js';
-import { convertTextCompletionPreset } from './sillytavern/text-completion.js';
 import type { FileSource, ImportCandidate, SourceReader, SourceRefusal } from './source.js';
 
 /**
@@ -181,6 +179,16 @@ class Writer {
   }
 
   async write(candidate: ImportCandidate): Promise<ImportItemReport> {
+    /**
+     * The preset formats come from a table rather than from case labels, so the
+     * preview can make the same three-way choice without reaching a method whose
+     * every arm ends in a store (`preset-converters.ts`). Asked before the
+     * switch, not inside it, because a `case` per table key would leave the
+     * table and the labels as two lists to keep in step.
+     */
+    const preset = PRESET_CONVERTERS[candidate.format];
+    if (preset !== undefined) return this.#preset(candidate, preset);
+
     switch (candidate.format) {
       case 'sillytavern.card':
         return this.#card(candidate);
@@ -188,12 +196,6 @@ class Writer {
         return this.#persona(candidate);
       case 'sillytavern.lorebook':
         return this.#lorebook(candidate);
-      case 'sillytavern.preset.chat':
-        return this.#preset(candidate, convertChatCompletionPreset);
-      case 'sillytavern.preset.sysprompt':
-        return this.#preset(candidate, convertSyspromptPreset);
-      case 'sillytavern.preset.text':
-        return this.#preset(candidate, convertTextCompletionPreset);
 
       // Marinara's are redirections rather than a second conversion: a Marinara
       // card is a V2 card, and its preset is the same prompt-manager lineage
@@ -467,22 +469,11 @@ class Writer {
     };
   }
 
-  async #preset(
-    candidate: ImportCandidate,
-    convert: (
-      input: unknown,
-      name: string,
-    ) =>
-      | { ok: true; value: { preset: unknown; notes: ImportNote[] } }
-      | { ok: false; refusal: string },
-  ): Promise<ImportItemReport> {
+  async #preset(candidate: ImportCandidate, convert: PresetConverter): Promise<ImportItemReport> {
     const converted = convert(candidate.payload, nameOf(candidate.source));
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
-    const preset = stampImported(
-      converted.value.preset as { id: string; name: string; provenance: Provenance },
-      candidate.source,
-    );
+    const preset = stampImported(converted.value.preset, candidate.source);
     const outcome = await this.store(preset, PRESET_SCHEMA, converted.value.notes);
     return {
       source: candidate.source,
@@ -582,12 +573,6 @@ function refusedItem(candidate: ImportCandidate, refusal: string): ImportItemRep
       },
     ],
   };
-}
-
-/** A file's own name, without directory or extension — what ST names things by. */
-function nameOf(source: string): string {
-  const base = source.split('/').pop() ?? source;
-  return base.replace(/\.[^.]+$/, '') || 'Imported';
 }
 
 function countBy(items: readonly ImportItemReport[]): Record<ImportDisposition, number> {

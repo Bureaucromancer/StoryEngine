@@ -141,3 +141,72 @@ describe('a text-completion preset', () => {
     });
   }
 });
+
+describe('the credential rule, on the two converters that were not applying it', () => {
+  /**
+   * **The gap this closes.** [10 §8.4.4] drops ST's `sensitiveFields` from every
+   * preset unconditionally and offers no *"import as-is"* anywhere, but only
+   * `convertChatCompletionPreset` was doing it — the other two copied every
+   * unconsumed field into `compat` verbatim. `invariants.test.ts` walks schema
+   * declarations and `compat` is `Record<string, unknown>`, so nothing denied it.
+   *
+   * The reachable path is short: `upload.ts`'s `SAMPLERISH` arm classifies any
+   * object with a `temperature` number as a text-completion preset, so a single
+   * uploaded file carrying a temperature and a proxy password was enough.
+   */
+  const CREDENTIALS = {
+    reverse_proxy: 'https://proxy.example/v1',
+    proxy_password: 'hunter2',
+    custom_url: 'https://elsewhere.example',
+  };
+
+  it('strips them from a sampler panel, and says which', () => {
+    const result = convertTextCompletionPreset({ ...TEXT_COMPLETION, ...CREDENTIALS }, 'Local');
+    if (!result.ok) throw new Error('refused');
+    const { preset, notes } = result.value;
+
+    // The value must not survive anywhere in the object, `compat` included —
+    // asserted over the whole serialised preset rather than field by field,
+    // because the point is that there is no route by which it travels.
+    expect(JSON.stringify(preset)).not.toContain('hunter2');
+    expect(JSON.stringify(preset)).not.toContain('proxy.example');
+    expect(preset.compat?.['proxy_password']).toBeUndefined();
+    expect(preset.compat?.['reverse_proxy']).toBeUndefined();
+
+    const removed = notes.find((n) => n.key === 'import.preset.credentialsRemoved');
+    expect(removed?.level).toBe('warn');
+    // Names, never values — a value read out to be reported is one that reaches
+    // a log.
+    expect(removed?.params['fields']).toBe('reverse_proxy, proxy_password, custom_url');
+  });
+
+  it('strips them from a sysprompt preset too', () => {
+    const result = convertSyspromptPreset({ ...SYSPROMPT, ...CREDENTIALS }, 'Harbour');
+    if (!result.ok) throw new Error('refused');
+    const { preset, notes } = result.value;
+
+    expect(JSON.stringify(preset)).not.toContain('hunter2');
+    expect(preset.compat?.['proxy_password']).toBeUndefined();
+    expect(notes.map((n) => n.key)).toContain('import.preset.credentialsRemoved');
+  });
+
+  it('says nothing when the file carried none', () => {
+    // ST writes these keys into every preset, so a note per empty key would
+    // train people to ignore the one that matters.
+    const result = convertTextCompletionPreset({ ...TEXT_COMPLETION, proxy_password: '' }, 'Local');
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.notes.map((n) => n.key)).not.toContain('import.preset.credentialsRemoved');
+  });
+
+  it('still counts the credential in the ratio, because it was in the file', () => {
+    const result = convertTextCompletionPreset({ temp: 0.8, proxy_password: 'x' }, 'Local');
+    if (!result.ok) throw new Error('refused');
+    const ratio = result.value.notes.find((n) => n.key === 'import.preset.samplerRatio');
+
+    // A denominator that shrank would make a credential-carrying preset report a
+    // better score than the same file without one.
+    expect(ratio?.params['carried']).toBe(1);
+    expect(ratio?.params['total']).toBe(2);
+  });
+});

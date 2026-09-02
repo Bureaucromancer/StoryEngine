@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { makeZip } from '../storage/test-zip.js';
 
 /**
  * The first upload route this server has had ([P4 §1.3]).
@@ -964,5 +965,225 @@ describe('the size of a folder upload', () => {
 
     expect(uploaded.status).toBe(413);
     expect(uploaded.body.error).toBe('too-large');
+  });
+});
+
+describe('looking at a file before importing it', () => {
+  async function look(filename: string, contents: string) {
+    const { payload, headers } = multipart(filename, contents);
+    return server.request({ method: 'POST', url: '/api/import/file/preview', payload, headers });
+  }
+
+  async function libraryPresets() {
+    const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
+    return listed.body.objects as unknown[];
+  }
+
+  it('answers 200 with what the import would produce, and writes nothing', async () => {
+    const response = await look('Harbour.json', JSON.stringify(PRESET));
+
+    expect(response.status).toBe(200);
+    expect(response.body.preview.object.kind).toBe('preset');
+    expect(response.body.preview.object.name).toBe('Harbour');
+    expect(await libraryPresets()).toHaveLength(0);
+  });
+
+  it('is the same file the commit then takes', async () => {
+    // The two halves of the flow, in order, through the real routes. The preview
+    // holds nothing, so the commit is a second upload of the same bytes — and
+    // what lands has to be what the preview said it would be.
+    const looked = await look('Harbour.json', JSON.stringify(PRESET));
+    const { payload, headers } = multipart('Harbour.json', JSON.stringify(PRESET));
+    const committed = await server.request({
+      method: 'POST',
+      url: '/api/import/file',
+      payload,
+      headers,
+    });
+
+    expect(committed.status).toBe(201);
+    expect(committed.body.item.disposition).toBe(looked.body.preview.disposition);
+    expect(await libraryPresets()).toHaveLength(1);
+  });
+
+  it('never carries a credential, whatever the file had in it', async () => {
+    const response = await look('Harbour.json', JSON.stringify(PRESET));
+
+    // Over the whole serialised body: the claim is that no route carries the
+    // value, which is what stops a look-before-you-commit becoming a way to read
+    // somebody else's proxy password out of a preset they shared.
+    expect(JSON.stringify(response.body)).not.toContain('this must never reach disk');
+  });
+
+  it('names an instruct template rather than shrugging at it', async () => {
+    const response = await look(
+      'ChatML.json',
+      JSON.stringify({
+        input_sequence: '<|im_start|>user\n',
+        output_sequence: '<|im_start|>assistant\n',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.preview.disposition).toBe('by-position');
+    expect(response.body.preview.object).toBeNull();
+    expect(response.body.preview.notes[0].key).toBe('import.template.instruct');
+  });
+
+  it('says a zip is a folder in a file, and still writes nothing', async () => {
+    // A root in a file. Previewing one means a dry-run sweep, which sweeps do
+    // not get — so the answer is honest about that rather than absent.
+    const { payload, headers } = binaryMultipart(
+      'cards.zip',
+      makeZip([{ name: 'Vera.json', body: JSON.stringify({ name: 'Vera', first_mes: 'Hi.' }) }]),
+    );
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/file/preview',
+      payload,
+      headers,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.preview.object).toEqual({ kind: 'sweep' });
+    expect(response.body.preview.notes[0].key).toBe('import.file.importsAsFolder');
+    expect(await libraryPresets()).toHaveLength(0);
+  });
+
+  it('needs the CSRF header too — a look a cross-site form can take is worth refusing', async () => {
+    const { payload, headers } = multipart('Harbour.json', JSON.stringify(PRESET));
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/file/preview',
+      payload,
+      headers,
+      skipCsrf: true,
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('csrf');
+  });
+
+  it('refuses a request that is not multipart', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/file/preview',
+      payload: PRESET,
+    });
+
+    expect(response.status).toBe(415);
+    expect(response.body.error).toBe('not-multipart');
+  });
+
+  it('reads the upload limit per request, on this door as well as the other', async () => {
+    // The shared `readOnePart` means one behaviour; this is what proves both
+    // doors reach it rather than one having grown its own copy.
+    await server.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config: { limits: { maxUploadMb: 1 } } },
+    });
+
+    const big = JSON.stringify({ ...PRESET, padding: 'x'.repeat(2 * 1024 * 1024) });
+    const response = await look('Harbour.json', big);
+
+    expect(response.status).toBe(413);
+    expect(response.body.error).toBe('too-large');
+  });
+});
+
+describe('what a re-upload of a changed file does', () => {
+  /**
+   * **`onConflict` was plumbed everywhere except the door people use.** The
+   * sweep and the folder upload have taken it since P4.4; the single-file route
+   * ignored it, so re-uploading a changed preset silently replaced with no way
+   * to say otherwise. Survivable while the answer arrived after the write, and
+   * not once the preview asks first — a screen offering *replace or keep both*
+   * has to be able to send it.
+   *
+   * The field goes **before** the file part, which is busboy's *fields before
+   * files* convention: `request.file()` stops at the first file, so anything
+   * after it is never parsed. That is a real constraint on a client and it is
+   * asserted here rather than left to be discovered.
+   */
+  function withPolicy(filename: string, contents: string, policy?: string) {
+    const boundary = '----storyengineTestBoundary';
+    const parts: string[] = [];
+    if (policy !== undefined) {
+      parts.push(`--${boundary}`, 'Content-Disposition: form-data; name="onConflict"', '', policy);
+    }
+    parts.push(
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+      'Content-Type: application/json',
+      '',
+      contents,
+      `--${boundary}--`,
+      '',
+    );
+
+    return {
+      payload: parts.join('\r\n'),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    };
+  }
+
+  async function send(contents: string, policy?: string) {
+    const { payload, headers } = withPolicy('Harbour.json', contents, policy);
+    return server.request({ method: 'POST', url: '/api/import/file', payload, headers });
+  }
+
+  async function presetCount(): Promise<number> {
+    const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
+    return (listed.body.objects as unknown[]).length;
+  }
+
+  const CHANGED = JSON.stringify({ ...PRESET, temperature: 0.4 });
+
+  it('replaces by default, as it always has', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED);
+
+    expect(again.body.item.disposition).toBe('converted');
+    expect(await presetCount()).toBe(1);
+  });
+
+  it('keeps both when asked, and the field is read at all', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED, 'keep-both');
+
+    // The assertion that proves the field arrived: without it this is 1.
+    expect(await presetCount()).toBe(2);
+    expect(again.body.item.notes.map((n: { key: string }) => n.key)).toContain(
+      'import.object.keptBoth',
+    );
+  });
+
+  it('writes nothing when asked to skip, and says the file differs', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED, 'skip');
+
+    expect(await presetCount()).toBe(1);
+    expect(again.body.item.notes.map((n: { key: string }) => n.key)).toContain(
+      'import.object.differsAndKept',
+    );
+  });
+
+  it('treats a policy it does not know as absent rather than refusing the upload', async () => {
+    // A JSON body is validated whole and can say *this field is wrong*. A
+    // multipart field arrives after the file is buffered, so refusing here
+    // throws away an upload that was otherwise fine over a spelling.
+    const response = await send(JSON.stringify(PRESET), 'replace-all-of-them');
+
+    expect(response.status).toBe(201);
+  });
+
+  it('is unchanged, not replaced, when the same bytes arrive twice', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(JSON.stringify(PRESET));
+
+    expect(again.status).toBe(200);
+    expect(again.body.item.disposition).toBe('unchanged');
   });
 });

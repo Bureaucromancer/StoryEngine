@@ -1446,6 +1446,16 @@ named consequence, never as a silent drop.
 - **Instruct and context templates** are not converted at all
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
   completion, which is unsupported ([07 §5.5](07-tech-stack.md)).
+
+  *Extended at [P4 §7.17](workplan/06-p4-implementation.md): they are now
+  **recognised** as well as refused, and **recognising is not converting**.* The
+  sentence above is unchanged and §8.4.5's *no instruct templates* still holds —
+  what changed is the answer a person gets. Uploaded on its own, one of these
+  used to fall off the end of the content probe and come back *"nothing here
+  recognised this file"*, which is a confident wrong statement about a file the
+  directory sweep reads by position one code path over. It is now named, with the
+  reason nothing will come of it, so *not importable* does not read as *not
+  implemented yet*.
 - **Text-completion presets** convert to `params` only, and most of their fields
   ~~drop~~ **land in `compat`**: `dry_*`, `smoothing_*`, `mirostat_*`, `xtc_*`,
   `tfs`, `eta_cutoff`, `epsilon_cutoff`, `num_beams` and the rest are
@@ -1456,7 +1466,17 @@ named consequence, never as a silent drop.
   is possible*. Worth stating plainly in the review either way: *"this preset was
   mostly sampler settings for a local backend; 6 of 41 fields carried over."*
 - **Reasoning presets** (`prefix`/`suffix`/`separator`) parse reasoning blocks
-  out of output. Nothing at 1.0 consumes them; they go to `compat`.
+  out of output. Nothing at 1.0 consumes them; they ~~go to `compat`~~ **are
+  recognised and skipped**.
+
+  *Corrected at [P4 §7.17](workplan/06-p4-implementation.md), and it was a real
+  disagreement rather than a wording slip.* `compat` is a field **on a converted
+  object**, and nothing converts a reasoning preset — so there is no `Preset` for
+  one to be `compat` on, and there never was. The sweep's own registry has said
+  `skipped` about the `reasoning/` directory since P4.1, so the code and this
+  line disagreed for three stages in a way nothing could catch. The upload arm
+  now names the directory it must agree with and a test holds the two together,
+  which is what stops the same question being answered twice again.
 - **`sysprompt` presets** convert well and are the easy case: `content` becomes
   a `TextBlock` at the top, `post_history` a `TextBlock` after history.
 
@@ -1548,6 +1568,34 @@ depth-injected blocks stay at their depth, and everything that could not be
 carried is named in the review rather than discovered later. That is the same
 bargain [02 §2.7](02-data-model.md) strikes for character cards, and it is the
 right one.
+
+#### 8.4.6 What the review may say *before* it commits
+
+**Added at [P4 §7.17](workplan/06-p4-implementation.md).** One hand-picked file
+now gets a look before it lands ([05 §5](05-ui-surfaces.md), narrowed there).
+Everything §8.4.2 lists as lossy is worth reading before pressing something
+rather than after, and two rules govern what that screen may contain.
+
+**It never renders a `compat` value — only the names.** This is what keeps a
+preview from quietly becoming the *"import as-is"* affordance §8.4.4 refuses to
+have anywhere: `compat` holds the source file's own unrecognised fields, so a
+screen that showed its contents would show a proxy password to whoever was handed
+the file. The converters strip credentials before the summary is built, so this
+is belt as well as braces — and it is written down as a rule anyway, because the
+property worth having is *no route carries a value here*, not *something upstream
+was careful*. It was not, on two of three paths, until §7.17 fixed it.
+
+**And it says which sampler settings are inert.** `GenerationParams` is the
+portable subset an OpenAI-compatible endpoint *could* understand; what this build
+actually puts on the wire is narrower, and the gap is five fields — `topK`,
+`topA`, `minP`, `repetitionPenalty` and `n` — every one of which converts
+faithfully from a SillyTavern preset, validates, is stored, is shown in the
+editor, and never reaches a model. So §8.4.2's *"6 of 41 fields carried over"*
+was true and misleading for three phases. `FORWARDED_SAMPLER_PARAMS` names the
+narrower set, a test reads it off the outgoing request body rather than off the
+adapter, and closing the gap is [polish §8](workplan/09-polish.md) rather than an
+import change: it needs a provider-specific escape hatch, which is §8.5's third
+open question.
 
 ### 8.5 What is committed at `/0`, and what is not
 

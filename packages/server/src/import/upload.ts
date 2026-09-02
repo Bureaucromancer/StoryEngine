@@ -63,6 +63,60 @@ const CARDISH = [
 const CARD_SPEC = /^chara_card_v\d/;
 const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as const;
 
+/**
+ * The three SillyTavern template kinds this build recognises and will never
+ * convert.
+ *
+ * **Recognising is not converting, and the distinction is the whole of this
+ * table.** [10 §8.4.5](../../../../docs/design/10-schemas.md) says the block
+ * model is deliberately narrower than ST's in three places — *no character
+ * offsets, no instruct templates, no raw completion* — and the sweep's own
+ * registry has said `by-position` about the `instruct/` and `context/`
+ * directories since P4.1. None of that is reopened here.
+ *
+ * What was wrong is the *answer a person got*. A hand-picked instruct template
+ * fell off the end of `probe()` and came back `unrecognised` — *"Nothing here
+ * recognised this file"* — which is a confident wrong statement about a valid
+ * file this build knows perfectly well by position, one code path over. That is
+ * the same defect [P4 §7.1] was written about: a file the sweep reads and the
+ * upload refuses, differing only in how it arrived.
+ *
+ * Dispositions **match `SILLYTAVERN_DISPOSITIONS`** rather than being chosen
+ * again here — `by-position` for instruct and context, `skipped` for reasoning.
+ * `directory` is what makes that checkable rather than merely intended: it names
+ * the row in the sweep's registry that this arm has to agree with, and
+ * `registries.test.ts` holds the two together. Without it the same question —
+ * *what becomes of a reasoning template* — would be answered in two places, and
+ * the two places already disagreed once: the registry says `skipped`, and
+ * [10 §8.4.2] says these *"go to `compat`"*, which cannot be true of a kind that
+ * produces no `Preset` to be `compat` on. The doc is corrected in this stage.
+ *
+ * Field shapes vendored from a real install, on the mechanism §1.1 settled for
+ * credentials:
+ *   source  SillyTavern/default/content/presets/{instruct,context,reasoning}/
+ *   commit  8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8 (2026-07-07)
+ *   taken   2026-09-01
+ */
+export const NOT_CONVERTIBLE: Readonly<
+  Record<string, { disposition: ImportDisposition; key: string; directory: string }>
+> = {
+  'sillytavern.template.instruct': {
+    disposition: 'by-position',
+    key: 'import.template.instruct',
+    directory: 'instruct',
+  },
+  'sillytavern.template.context': {
+    disposition: 'by-position',
+    key: 'import.template.context',
+    directory: 'context',
+  },
+  'sillytavern.template.reasoning': {
+    disposition: 'skipped',
+    key: 'import.template.reasoning',
+    directory: 'reasoning',
+  },
+};
+
 export type ProbeConfidence =
   /**
    * Everything the probe can recognise. Correct for a **single upload**: a
@@ -134,6 +188,23 @@ export function readUpload(
     ]);
   }
 
+  /**
+   * A format with no converter is an **observation**, not a candidate.
+   *
+   * `source.ts` defines a candidate as one thing a converter can act on, so
+   * wrapping one of these as a candidate would mean an arm in `Writer`'s switch
+   * that exists to return nothing. Answering here keeps that switch a statement
+   * about what converts, and `level: 'info'` rather than `warn` because nothing
+   * went wrong — the answer is *this is a thing, and it is not one of ours*.
+   *
+   * The note names no file: the row it renders on already carries `source`, and
+   * the sentence is about the kind rather than about this copy of it.
+   */
+  const known = NOT_CONVERTIBLE[format];
+  if (known !== undefined) {
+    return observed(filename, known.disposition, [{ key: known.key, params: {}, level: 'info' }]);
+  }
+
   return candidate({ source: filename, format, payload: parsed });
 }
 
@@ -196,6 +267,45 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
   if (looksLikeCard(body)) return 'sillytavern.card';
+
+  /**
+   * **The three template kinds — recognised, never converted** (`NOT_CONVERTIBLE`).
+   *
+   * Placed here, below the three that convert and **above** the confidence gate,
+   * and each half of that is a claim worth stating.
+   *
+   * *They cannot swallow anything above them.* No template carries `prompts`,
+   * carries `entries`, or is `name` plus a `CARDISH` field — so inserting them
+   * here leaves the existing "most distinctive shape first" order intact rather
+   * than re-arguing it.
+   *
+   * *They belong above the gate.* The gate exists because `{content: "…"}` and
+   * `{temperature: 0.7}` are shapes half the JSON in the world has, and a folder
+   * sweep must not guess on those. Each probe below demands two or three
+   * co-occurring field names that only SillyTavern uses, which puts them on the
+   * `prompts`-array side of that line. The consequence is deliberate: a loose
+   * folder now names its instruct templates instead of counting them as
+   * unrecognised, and since none of them converts, a wrong guess cannot cost
+   * anybody an object they have to delete.
+   *
+   * `story_string` is unique to the context template and is enough alone.
+   * Instruct needs the `input_sequence`/`output_sequence` pair, because ST's own
+   * instruct files carry `story_string_prefix` and `story_string_suffix` — near
+   * enough to the context probe to be worth keeping the two apart on purpose.
+   * Reasoning is the thinnest of the three, `{name, prefix, suffix, separator}`
+   * being the whole of the format, so all three of the triple are required.
+   */
+  if (typeof body['story_string'] === 'string') return 'sillytavern.template.context';
+  if (typeof body['input_sequence'] === 'string' && typeof body['output_sequence'] === 'string') {
+    return 'sillytavern.template.instruct';
+  }
+  if (
+    typeof body['prefix'] === 'string' &&
+    typeof body['suffix'] === 'string' &&
+    typeof body['separator'] === 'string'
+  ) {
+    return 'sillytavern.template.reasoning';
+  }
 
   /**
    * **The last two are guesses, and a sweep does not get to guess.**

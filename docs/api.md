@@ -373,6 +373,54 @@ CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
 that says there is none.
 
+**An optional `onConflict` field** decides what a re-upload of a changed file
+does — `replace` (the default, and the safe one), `keep-both` or `skip`, meaning
+exactly what they mean on a sweep. **It must come before the file part.** The
+route reads the parts that arrived ahead of the file, which is where the
+multipart reader stops; a field appended after it is sent by the browser and
+never parsed. A word this build does not know is treated as absent rather than
+refused: the file has already been buffered by then, and throwing away a good
+upload over a spelling is the worse answer.
+
+### `POST /api/import/file/preview`
+
+**What that upload would do, with nothing written.** `multipart/form-data` with
+one file part → `200 { preview }`. Same limits, same three transport refusals and
+the same CSRF rule as `/import/file`, because both doors read the part through
+the same function.
+
+`preview` is `{ source, disposition, notes, advisories, object, reimport }`.
+`disposition` and `reimport` are **predictions**, not records — the file could
+change underneath, and the commit's answer is the real one.
+
+- `object` is `{ kind: 'preset', name, blocks, params, maxContextTokens,
+  preferredModelIds, compatKeys }` for a preset, `{ kind: 'sweep' }` for an
+  archive or a Marinara envelope, `{ kind: 'opaque', name }` for something that
+  converts and has no summary yet, and `null` when nothing would be imported.
+- `compatKeys` carries **names and never values** ([10 §8.4.6](design/10-schemas.md)).
+  A screen that showed what was in the file would show a proxy password to
+  whoever was handed the file.
+- `notes` are the converter's, about the file. `advisories` are about **this
+  build** — which sampler settings the adapter forwards — and are a separate
+  array because they must never be stored: they go stale on an upgrade without
+  the file changing. Near-miss `suggestions` ride beside a sweep report for the
+  same reason.
+- `reimport` is `new`, `unchanged`, `changed`, or `unknown` for a kind this build
+  has no summary for. `unknown` is an answer rather than a guess — working it out
+  means converting, and that arm has not.
+
+**A file this cannot identify is `200`, not `4xx`.** A file is a fact about the
+world rather than a malformed request, which is the shape `/import/file` already
+takes.
+
+**The commit is a second upload of the same bytes to `/import/file`**, not a
+`POST` of the object this returns. There is no staging area: nothing is written
+here and nothing is held, so the bytes travel twice and what lands is always what
+the converter says about the bytes that arrived. Posting the converted object to
+`/api/library/presets` would skip `stampImported` and the re-import check — so
+every later re-import of that file would double — leave no row in the job ledger,
+and move the credential rule from the server to the client.
+
 ### `POST /api/import/sweep`
 
 `{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its

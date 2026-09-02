@@ -828,7 +828,9 @@ Where it should differ:
   a folder; the single-file form exists for exchange only.
 - **Import is a review step, not a modal that dumps.** Show what was recognised,
   what went to `compat`, what resolved, what dangled, ~~and let the user fix it
-  before committing~~ — **and it commits first, then reports**.
+  before committing~~ — ~~and it commits first, then reports~~ **and which of the
+  two depends on how the file arrived: a sweep commits first and reports; one
+  hand-picked file reports first and commits on a word.**
 
   *Amended at P4.4, by strike rather than quietly, because the old words were
   load-bearing for anyone reading this section next
@@ -847,6 +849,31 @@ Where it should differ:
   grew a delete affordance in the same stage, because *the trash and the version
   history make it reversible* was true on disk and false in the app for three
   phases.
+
+  *Narrowed again at [P4 §7.17](workplan/06-p4-implementation.md), and by strike
+  for the same reason.* **All three of P4.4's arguments are about scale and
+  staging, and none of them reaches one file somebody has just chosen in a
+  dialog.** There is nothing to maintain, nothing to reap, and the cost of asking
+  is one click about one object. What is bought is not small: a converted preset
+  is a block list, a params table and a page of losses, none of which is visible
+  from a filename — and *"6 of 41 sampler settings carried over"* is a sentence
+  better read before pressing something than after.
+
+  **No staging area appears, which is the load-bearing claim and the reason this
+  does not reopen P4.4.** The preview writes nothing and holds nothing: the bytes
+  stay in the browser's own file handle and are sent a second time on confirm, so
+  the commit re-derives everything from the file rather than trusting a
+  prediction. Nothing is built to be discarded because nothing is built. The two
+  can therefore disagree — if the file changed in between, the commit's report is
+  the true one and the preview expired — and that is the honest posture rather
+  than a gap, since the alternative is the server-side scratch copy P4.4 refused.
+
+  **The modal clause stands.** The preview renders in the panel, on the same side
+  of the fold as the review, for the reason the panel's own comment gives: a
+  pending decision that vanishes when somebody collapses the form is worse than
+  one that does not fold. A stepper is refused on §1.1's grounds — and because
+  the steps would be empty, the only decisions being *keep it or not* and, on a
+  re-import, *replace or keep both*.
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job

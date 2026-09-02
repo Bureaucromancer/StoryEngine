@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { IMPORT_DISPOSITIONS } from '@storyengine/shared';
 
+import { NOT_CONVERTIBLE } from '../upload.js';
+
 import { MARINARA_DISPOSITIONS, MARINARA_TABLES } from './marinara.js';
 import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern.js';
 
@@ -97,5 +99,45 @@ describe('the registries are honest about what they do not convert', () => {
     const recorded = counted.filter((disposition) => disposition === 'recorded').length;
 
     expect(converted).toBeLessThan(recorded);
+  });
+});
+
+describe('the file and the folder say the same thing', () => {
+  /**
+   * **One kind, two ways in, and they must not disagree.**
+   *
+   * `instruct/`, `context/` and `reasoning/` get their disposition from the
+   * registry when a sweep walks the tree, and from `NOT_CONVERTIBLE` when
+   * somebody uploads one of those files on its own. Two tables answering the
+   * same question is how they start drifting — and the answer here has drifted
+   * once already, between the registry's `skipped` for reasoning and
+   * [10 §8.4.2]'s claim that reasoning presets go to `compat`.
+   *
+   * So the upload table names the directory it has to agree with, and this
+   * checks it. A future change to either row fails here rather than producing a
+   * build where the same file means two things depending on how it arrived.
+   */
+  it('gives an uploaded template the disposition its directory has', () => {
+    const disagreements = Object.entries(NOT_CONVERTIBLE)
+      .filter(([, arm]) => SILLYTAVERN_DISPOSITIONS[arm.directory] !== arm.disposition)
+      .map(
+        ([format, arm]) =>
+          `${format} says ${arm.disposition}, ${arm.directory}/ says ${String(
+            SILLYTAVERN_DISPOSITIONS[arm.directory],
+          )}`,
+      );
+
+    expect(disagreements).toEqual([]);
+  });
+
+  it('names a directory the registry actually has', () => {
+    // A typo here would make the check above vacuously pass, since an unknown
+    // key reads as `undefined` and would simply never match.
+    const known = new Set<string>(SILLYTAVERN_DIRECTORIES);
+    const unknown = Object.values(NOT_CONVERTIBLE)
+      .map((arm) => arm.directory)
+      .filter((directory) => !known.has(directory));
+
+    expect(unknown).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { newPreset, type ImportNote, type Preset } from '@storyengine/shared';
 
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 import type { ConvertedPreset } from './preset.js';
+import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
  * SillyTavern text-completion presets — params, and a number
@@ -61,9 +62,40 @@ export function convertTextCompletionPreset(
 
   const preset = newPreset(name);
   const carried = new Set<string>();
+  const notes: ImportNote[] = [];
+
+  /**
+   * **The credential rule is unconditional, and this converter was not applying
+   * it.**
+   *
+   * [10 §8.4.4] says the importer drops ST's `sensitiveFields` from every preset
+   * and that there is no *"import as-is"* affordance anywhere. Only
+   * `convertChatCompletionPreset` was doing it. This one and the sysprompt
+   * converter copied every unconsumed field into `compat` verbatim, so a JSON
+   * that probes as a sampler panel — `{ "temperature": 0.7, "proxy_password":
+   * "…" }` is enough, per `upload.ts`'s `SAMPLERISH` arm — imported with the
+   * password in it, against [P4 gate step 3]'s *"credential gone, from the
+   * object **and** from `compat`"*.
+   *
+   * `invariants.test.ts` could not have caught it: that test walks schema
+   * declarations, and `compat` is `Record<string, unknown>`, so there is no
+   * declared property for it to deny.
+   *
+   * Everything below reads `kept` rather than `input` from here on, which is
+   * what makes *the credential does not travel past this line* a property of the
+   * code rather than of remembering.
+   */
+  const { kept, removed } = stripSensitiveFields(input);
+  if (removed.length > 0) {
+    notes.push({
+      key: 'import.preset.credentialsRemoved',
+      params: { fields: removed.join(', ') },
+      level: 'warn',
+    });
+  }
 
   for (const [field, target] of Object.entries(PARAM_FIELDS)) {
-    const value = input[field];
+    const value = kept[field];
     if (typeof value !== 'number') continue;
     // Two source names can map to one of ours — `temp` and `temperature`,
     // `max_length` and `genamt` — so the count is of *our* fields filled, not of
@@ -74,18 +106,28 @@ export function convertTextCompletionPreset(
   }
 
   preset.compat = Object.fromEntries(
-    Object.entries(input).filter(([key]) => PARAM_FIELDS[key] === undefined),
+    Object.entries(kept).filter(([key]) => PARAM_FIELDS[key] === undefined),
   );
 
-  const notes: ImportNote[] = [
-    {
-      key: 'import.preset.samplerRatio',
-      params: { carried: carried.size, total: fields.length },
-      // `warn`, not `info`: the object will look fine and almost nothing about
-      // it survived, which is the case a person most needs pointed out.
-      level: carried.size * 4 < fields.length ? 'warn' : 'info',
-    },
-  ];
+  /**
+   * `fields` counts the file, credentials included, because they *were* in it
+   * and they did not carry. The removal has its own louder note above saying
+   * which ones and why, so the ratio does not need to explain itself — and a
+   * denominator that quietly shrank would make a credential-carrying preset
+   * report a better score than the same file without one.
+   *
+   * The prose sits above the push rather than inside it because
+   * `note-labels.test.ts` reads the emitted params out of the three hundred
+   * characters that follow the key, so a comment between the two hides the
+   * params from the gate and the label's `{carried}` reads as unsent.
+   */
+  notes.push({
+    key: 'import.preset.samplerRatio',
+    params: { carried: carried.size, total: fields.length },
+    // `warn`, not `info`: the object will look fine and almost nothing about
+    // it survived, which is the case a person most needs pointed out.
+    level: carried.size * 4 < fields.length ? 'warn' : 'info',
+  });
 
   if (preset.blocks.length === 0) {
     // Said out loud because an empty block list is the honest result and looks

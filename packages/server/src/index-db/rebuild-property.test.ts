@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import fc from 'fast-check';
@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
-import { matureTombstones, TOMBSTONE_TTL_MS } from './ingest.js';
+import { contentHashOf, matureTombstones, TOMBSTONE_TTL_MS } from './ingest.js';
 import { snapshot } from './query.js';
 import { openIndex } from './open.js';
 import { rebuild } from './rebuild.js';
@@ -46,6 +46,29 @@ beforeEach(async () => {
   registry = new SelfWriteRegistry();
   library = await makeTestLibrary({ registry });
   await mkdir(library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA), { recursive: true });
+
+  /**
+   * **`ids` describes *this* library's disk, so it dies with it.**
+   *
+   * It did not, and that was the flake: the map is module-level, and the only
+   * thing clearing it was {@link emptyTheLibrary}, which only the property case
+   * calls. So whatever slugs the last randomised sequence happened to leave
+   * behind were still in it when the next `describe` started against a brand new
+   * temp directory — bookkeeping claiming files that had never existed here.
+   *
+   * The damage is silent rather than loud, which is why it took a while to find.
+   * `apply` guards `copy` with `ids.has(to)` — correct, because you cannot copy
+   * onto a slug that is taken — so a stale `delta` made the copy in *a row that
+   * changes its id releases the one it had* **do nothing at all**, and the case
+   * asserted against a file it had never written. It read as an index that had
+   * lost a row.
+   *
+   * Seed-dependent, but not in the way it looks: the failing assertion is not
+   * inside `fc.assert`. What the seed decides is whether the *previous* case
+   * leaves `delta` behind, which is why the gate went red about two runs in five
+   * and why running the file alone always passed.
+   */
+  ids.clear();
 
   watcher = new LibraryWatcher({
     db: library.db,
@@ -183,33 +206,126 @@ async function renameWithRetry(from: string, to: string): Promise<boolean> {
 }
 
 /**
- * Waits until the watcher has finished reacting.
+ * Waits until the watcher has absorbed what is on disk.
  *
- * `settled()` drains the queue of events chokidar has already emitted, and
- * `awaitWriteFinish` means the interesting one has not been emitted yet — a
- * write that has just landed is still inside its stability window. Draining an
- * empty queue and calling that "caught up" is how this test first failed: the
- * incremental index was empty, the rebuild found the file, and the property
- * looked broken when it was the harness that had not waited.
+ * **It waits for the condition, not for quiet, and the difference is the whole
+ * of this function.** `settled()` drains the events chokidar has *already
+ * emitted* — its own comment says "seen so far" — and `awaitWriteFinish` means
+ * the interesting one has not been emitted yet: a write that just landed is
+ * still inside its stability window. So an empty queue proves nothing.
  *
- * So: quiet for two consecutive rounds, where a round is longer than the
- * window. Bounded, and it fails loudly rather than hanging.
+ * The version this replaces sampled the index instead and returned once it had
+ * been *unchanged* for three samples. That cannot tell **nothing more is
+ * coming** from **nothing has arrived yet** — both read as "it did not change" —
+ * and {@link emptyTheLibrary} already names the same defect one case over: *an
+ * index that is already empty is still from the first sample*. It was the same
+ * bug in the same file, and it survived because 120ms of quiet was usually
+ * longer than the watcher took. Usually. Under a loaded machine it was not, and
+ * this went red about one full-suite run in three or four — reproduced on
+ * demand by raising `stabilityThresholdMs` past the sampling window, which makes
+ * the old version fail every time with an index that is not merely stale but
+ * completely empty.
+ *
+ * **What it waits for instead is a fact it can check: every object file on disk
+ * is in the index under its own content hash, and the index holds no live row
+ * for a file that is not there.** Disk is settled before this is called — every
+ * `apply` awaits its own writes — so the only thing still moving is the index,
+ * and this is exactly the question *has it caught up*.
+ *
+ * *Deliberately not comparing against a rebuild*, which would be the obvious
+ * stronger condition and would be circular: rebuild-equals-incremental is the
+ * property under test, so waiting for it would make the gate assert that it had
+ * waited long enough for the gate to pass. Content hashes are the half of that
+ * both producers must agree on without either being consulted about it, and
+ * `shadowed` — the derived flag these cases are really about — is deliberately
+ * *not* in the condition, so nothing here waits for the answer it is checking.
+ *
+ * It returns as soon as the condition holds, so the common case is one round
+ * rather than the three the old floor always paid.
  */
 async function quiesce(): Promise<void> {
-  let previous = '';
-  let stableRounds = 0;
-
-  for (let round = 0; round < 60; round += 1) {
-    await new Promise((tick) => setTimeout(tick, 40));
+  for (let round = 0; round < 300; round += 1) {
+    await new Promise((tick) => setTimeout(tick, 20));
     await watcher.settled();
 
-    const current = snapshot(library.db).join('\n');
-    stableRounds = current === previous ? stableRounds + 1 : 0;
-    previous = current;
-    if (stableRounds >= 2) return;
+    const disk = await hashesOnDisk();
+    const index = hashesInIndex();
+    if (sameHashes(disk, index)) return;
   }
 
-  throw new Error('The index never stopped changing.');
+  throw new Error(
+    `The index never caught up with the disk.\n${describeDrift(await hashesOnDisk(), hashesInIndex())}`,
+  );
+}
+
+/**
+ * Every object file under the kind root, keyed by slug.
+ *
+ * **Slug rather than path, and it is not only convenience.** The `path` column
+ * holds the absolute filesystem path the watcher was handed, so comparing on it
+ * would put Windows separators, casing and short-name expansion between this
+ * harness and its answer — a difference that is real on one CI leg and invisible
+ * on the other. A slug is the directory's own name on both. It is also the
+ * vocabulary the rest of this file already speaks: {@link shadowedFlags} is
+ * keyed the same way.
+ *
+ * Unique per live row by construction — the slug *is* the directory, and a
+ * directory appears once. Two rows may share an **id**, which is what the
+ * shadowing cases are about, and that is a different column.
+ */
+async function hashesOnDisk(): Promise<Map<string, string>> {
+  const root = library.layout.kindRoot(library.owner, LOREBOOK_SCHEMA);
+  const found = new Map<string, string>();
+
+  for (const entry of await readdir(root).catch(() => [] as string[])) {
+    const bytes = await readFile(fileFor(entry)).catch(() => null);
+    if (bytes !== null) found.set(entry, contentHashOf(bytes));
+  }
+
+  return found;
+}
+
+/**
+ * The same map as the index holds it — **live rows only**.
+ *
+ * A delete leaves a tombstone rather than an absence, so excluding them is what
+ * makes a pending unlink visible as a difference instead of hiding behind a row
+ * that is on its way out.
+ */
+function hashesInIndex(): Map<string, string> {
+  const rows = library.db
+    .prepare('select slug, content_hash from object where tombstoned_at is null')
+    .all() as { slug: string; content_hash: string }[];
+  return new Map(rows.map((row) => [row.slug, row.content_hash]));
+}
+
+function sameHashes(disk: Map<string, string>, index: Map<string, string>): boolean {
+  if (disk.size !== index.size) return false;
+  for (const [slugName, hash] of disk) if (index.get(slugName) !== hash) return false;
+  return true;
+}
+
+/**
+ * What is still different, for the throw.
+ *
+ * *The index never stopped changing* was the old message and it named nothing —
+ * a timeout that says only that it timed out is one nobody can act on, which is
+ * the same objection this file makes one paragraph over to a seed-dependent
+ * gate. This one earned its keep on its first run: it said *indexed, not on
+ * disk* against an absolute path, which is how the `path` column turned out to
+ * hold something other than what the first draft compared against.
+ */
+function describeDrift(disk: Map<string, string>, index: Map<string, string>): string {
+  const lines: string[] = [];
+  for (const [slugName, hash] of disk) {
+    const indexed = index.get(slugName);
+    if (indexed === undefined) lines.push(`  on disk, not indexed: ${slugName}`);
+    else if (indexed !== hash) lines.push(`  indexed at an older revision: ${slugName}`);
+  }
+  for (const slugName of index.keys()) {
+    if (!disk.has(slugName)) lines.push(`  indexed, not on disk: ${slugName}`);
+  }
+  return lines.join('\n');
 }
 
 /**

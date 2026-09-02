@@ -341,3 +341,46 @@ intent: once a text entry exists on the gallery, the separate by-name link
 may fold into it — a typed handle that matches no tile *is* the by-name
 case — leaving the screen one text affordance instead of two. Build the
 filter as that, not as a second box beside the link.
+
+## 8. Five sampler settings the adapter drops
+
+**Found at [P4 §7.17](06-p4-implementation.md), named there and fixed here.** It
+clears this file's bar exactly: it changes what a user sees — their `min_p`
+starts working — it is bounded, and it needs no schema change and no new
+contract. `GenerationParams` already declares every field involved.
+
+**Today.** `toSdkParams` in `openai-compatible.ts` puts eight parameters on the
+wire. `GenerationParams` has thirteen, and five of the difference — `topK`,
+`topA`, `minP`, `repetitionPenalty` and `n` — convert faithfully from a
+SillyTavern preset, validate, store, and appear in the editor without ever
+reaching a model. Somebody imports a preset tuned around `min_p`, the review
+says *"6 of 41 sampler settings carried over"*, the object shows the number, and
+the model never hears about it.
+
+`FORWARDED_SAMPLER_PARAMS` names the narrower set so the import preview can be
+honest in the meantime, and a test reads that list off the outgoing request body
+rather than off the adapter. **That test is what should turn red when this
+lands**, which is the point of it: the day the gap closes is the day the
+preview's sentence has to change.
+
+**What to build.** The four this build never names are a line each in
+`toSdkParams`, routed through the adapter's provider-specific body. `topK` is
+the one to be careful with and the reason this is not a five-minute change:
+`toSdkParams` **already passes it**, and `@ai-sdk/openai-compatible` drops it
+before the body because `top_k` is not in the OpenAI chat schema. So the fix is
+not *add the missing line* — the line is there — and whoever takes this will
+reach for it first and find it already written.
+
+**The thing to get right.** These are not universal. `min_p` and
+`repetition_penalty` are understood by llama.cpp, Ollama, KoboldCpp and TabbyAPI
+and not by OpenAI; sending them to an endpoint that refuses unknown body keys
+turns a working preset into a failing turn. So this is the third of
+[10 §8.5](../10-schemas.md)'s open questions arriving in a concrete form —
+*whether the portable subset holds or needs a provider-specific escape hatch* —
+and it wants a per-connection answer rather than a global one, which is why it
+is a polish item with a design question inside it rather than a patch.
+
+**The honest alternative, if that answer is slow in coming.** Keep the adapter
+as it is and make the *editor* say what the preview now says, so a number nobody
+sends is at least labelled everywhere it appears rather than only at import.
+That is strictly worse than sending them and strictly better than today.

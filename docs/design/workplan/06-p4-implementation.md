@@ -2427,3 +2427,127 @@ nothing, and read as a click that had not registered. Every refusal did:
 while `error` was null, and it survived review because it is indistinguishable
 from the code that would be right. The message lives outside both branches now
 and is announced; the mutation that moves it back is what reddens.
+
+### 7.17 One hand-picked file gets a look before it lands — 2026-09-01
+
+**§1.4's decision is narrowed rather than reversed, and the narrowing is
+somewhere its own argument does not reach.** *Import commits immediately and the
+review reports loudly* rested on three claims: a staging area is a second library
+to maintain; dangling references are survivable, visible and non-blocking by
+stance; and a three-hundred-object sweep gated per-object on a human is not a
+review, it is a chore. All three are about **scale and staging**. None of them
+reaches one file somebody has just chosen out of a dialog — there is nothing to
+maintain, nothing to reap, and the cost of asking is one click about one object.
+
+So a **sweep** still commits first and reports. **One hand-picked file** reports
+first and commits on a word, through a new `POST /api/import/file/preview`.
+[05 §5](../05-ui-surfaces.md) is amended by strike, as P4.4 amended it.
+
+**No staging area appears, which is what keeps this from reopening §1.4.** The
+preview writes nothing and holds nothing: the bytes stay in the browser's own
+file handle and are sent a second time on confirm, so the commit re-derives
+everything from the file. Nothing is built to be discarded because nothing is
+built. The two can disagree — a file changed in between makes the commit's report
+the true one and the preview an expired prediction — and that is the honest
+posture rather than a gap, the alternative being the server-side scratch copy
+§1.4 refused.
+
+**The commit is a second upload, not a POST of the converted object.** Sending it
+to `/api/library/presets` would have been less work and cost four things at once:
+`stampImported` never runs, so re-import identity is dead for that object;
+`identify` never runs, so every later re-import doubles; nothing reaches the job
+ledger, so `importNotesFor` — which [P5 §1.8](07-p5-implementation.md) is built
+on — can never find the object's own review; and the credential rule moves from
+the converter to the client. There is one write path, and this is a way of
+looking at it rather than a second one.
+
+**Not a wizard, and the reason is not only house style.**
+[05 §1.1](../05-ui-surfaces.md) rejects progressive disclosure as a reflex on the
+dense surfaces, and import is in the dense column by name. The stronger reason is
+that the steps would be empty: the decisions here are *keep it or not* and, on a
+re-import, *replace or keep both*. Everything between is a slideshow of the
+server's progress, and disclosure has to be earned. Not a `Dialog` either — §5
+names *a review step, not a modal that dumps*, and `size="wide"` is `max-w-lg`,
+**narrower than the dock's own 640px maximum**, so it would cover the panel with
+something smaller than the panel.
+
+#### Three defects found while reading, and what became of each
+
+**Credentials were dropped on one converter of three.**
+[10 §8.4.4](../10-schemas.md) drops ST's `sensitiveFields` from every preset
+unconditionally and §1.1 gives it a vendored snapshot, but only
+`convertChatCompletionPreset` called it. The sysprompt and text-completion
+converters copied every unconsumed field into `compat` verbatim, and the path is
+short: `upload.ts`'s `SAMPLERISH` arm classifies any object with a temperature
+number as a text-completion preset, so one uploaded file carrying a temperature
+and a password was enough. Against **gate step 3**'s *credential gone, from the
+object and from `compat`* — and `invariants.test.ts` could not have caught it,
+because that test walks schema declarations and `compat` is
+`Record<string, unknown>`, so no declared property denied it. Fixed here, with
+assertions over the whole serialised preset rather than field by field: the claim
+is that no route carries the value.
+
+**Five sampler settings are stored and never sent.** `toSdkParams` puts eight
+`GenerationParams` fields on the wire. `topK`, `topA`, `minP`,
+`repetitionPenalty` and `n` are not among them, and all five convert faithfully
+from a SillyTavern preset — so *"6 of 41 sampler settings carried over"* has been
+true and misleading since P4.1. Named here and fixed at
+[polish §8](09-polish.md), because closing it needs a provider-specific escape
+hatch and that is the generation path rather than import.
+
+*The list is read off the request body by a test rather than off the adapter, and
+that is not fastidiousness: the first draft of it was written by reading
+`toSdkParams` and was wrong.* `topK` **is** passed to the SDK, and
+`@ai-sdk/openai-compatible` drops it before the body because `top_k` is not in
+the OpenAI chat schema. So the adapter reads as though it handles `topK` and does
+not, and only the wire knows. The SDK does say so — to `process.emitWarning`,
+which is not a place anybody looks and not a place the turn record reaches.
+
+**Instruct and context templates came back "nothing here recognised this file".**
+A confident wrong answer about a valid file the sweep reads by position one code
+path over — §7.1's defect again, differing only in how the file arrived. The
+content probe gains three arms, none of which converts anything:
+[10 §8.4.5](../10-schemas.md)'s *no instruct templates* stands, and what changed
+is the sentence a person reads. They sit above the confidence gate because each
+demands two or three co-occurring field names only SillyTavern uses, which is the
+`prompts`-array side of that line rather than the `{temperature: 0.7}` side.
+
+**And the same question was being answered twice.** The registry skips
+`reasoning/`; [10 §8.4.2](../10-schemas.md) said reasoning presets *go to
+`compat`*, which cannot be true of a kind that produces no `Preset` to be
+`compat` on. The upload table now names the registry directory each arm must
+agree with and a test holds the two together, so the file and the folder cannot
+start saying different things about the same kind. The doc is corrected.
+
+#### Smaller things this stage closed
+
+- **`onConflict` reached every import door except the one people use.** The sweep
+  and the folder upload have taken it since P4.4; `POST /import/file` ignored it,
+  so re-uploading a changed preset silently replaced. It reads the field now —
+  before the file part, which is where the multipart reader stops, and asserted
+  rather than left to be discovered.
+- **The content probe had no test file of its own**, so *"order is load-bearing
+  and the reason is collisions on `name`"* was true and unchecked. It has one,
+  including the adversarial direction: a chat preset that also carries
+  `story_string` is still a preset.
+- **`readOnePart` was extracted before the second copy existed**, not after. The
+  413 is a catch rather than a check, the 415 is a `catch` arm rather than a
+  content-type test, and truncation is read after the buffer — three pieces of
+  arranged-just-so control flow that would have been copied and then drifted.
+
+#### Not done here, and named
+
+- **Card and lorebook previews.** Both converters are already pure, so the
+  summary shapes and their renderers are the whole of the work. Until then those
+  files preview as `{ kind: 'opaque' }` and the screen says what it honestly can
+  — the **flow** is uniform for every hand-picked file from this stage on, and
+  only the richness of the look varies. Uniformity is the property worth
+  protecting; a preview that fired for preset JSON and not for the card PNG most
+  people upload first would be §7.1 committed on purpose.
+- **The sampler advisory does not appear on a folder sweep's report.** It would
+  go stale in storage, and forty presets would produce forty identical notes. The
+  honest counter is that somebody who only ever sweeps never learns it.
+- **`POST /import/file` still records no job.** Single-file uploads appear in no
+  *Earlier imports* list, and `importNotesFor` can never find an uploaded
+  object's own review. One `recordImport` call; it belongs to whoever needs
+  [P5 §1.8](07-p5-implementation.md).

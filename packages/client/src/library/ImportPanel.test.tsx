@@ -7,6 +7,8 @@ import userEvent from '@testing-library/user-event';
 import type { JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ImportPreview } from '@storyengine/shared';
+
 import { api } from '../api.js';
 import { ImportPanel } from './ImportPanel.js';
 
@@ -327,6 +329,60 @@ describe('a look and a sweep in flight together', () => {
  * The input stays for the dialog and the accessible name; the button drives it.
  * There was no test for this path at all before.
  */
+/**
+ * What the server would say about one hand-picked preset.
+ *
+ * A whole  rather than a partial one, because the component
+ * branches on four of its fields and a fixture that omitted them would pass by
+ * rendering nothing.  is here for the one reason that matters: it is a
+ * setting that converts, is stored, is shown, and never reaches a model.
+ */
+const PREVIEW: ImportPreview = {
+  source: 'Harbour.json',
+  disposition: 'converted',
+  notes: [{ key: 'import.preset.paramsCarried', params: { count: 2 }, level: 'info' }],
+  advisories: [
+    {
+      key: 'import.preset.samplerNotForwarded',
+      params: { fields: 'minP', count: 1 },
+      level: 'warn',
+    },
+  ],
+  object: {
+    kind: 'preset',
+    name: 'Harbour',
+    blocks: [
+      {
+        id: 'st.main',
+        label: 'Main Prompt',
+        kind: 'text',
+        role: 'system',
+        enabled: true,
+        at: 'sequence',
+        appliesTo: [],
+      },
+      {
+        id: 'st.chatHistory',
+        label: 'Chat History',
+        kind: 'slot',
+        role: 'system',
+        enabled: true,
+        at: 'sequence',
+        fills: 'history',
+        appliesTo: [],
+      },
+    ],
+    params: [
+      { name: 'temperature', value: 0.9, reaches: true },
+      { name: 'minP', value: 0.05, reaches: false },
+    ],
+    maxContextTokens: 8192,
+    preferredModelIds: ['gpt-4'],
+    compatKeys: ['chat_completion_source'],
+  },
+  reimport: 'new',
+};
+
 describe('choosing one file', () => {
   const png = () => new File([new Uint8Array([1, 2, 3])], 'Vera.png', { type: 'image/png' });
 
@@ -341,13 +397,12 @@ describe('choosing one file', () => {
     expect(input?.className).toContain('sr-only');
   });
 
-  it('imports the file and names what was chosen', async () => {
-    // The input is out of sight, so a chosen file that left no trace would be a
-    // picker whose choice you cannot check before committing to it.
-    vi.spyOn(api, 'importFile').mockResolvedValue({
-      item: { source: 'Vera.png', disposition: 'converted', notes: [] },
-      notes: [],
-    });
+  it('looks at the file first, and imports nothing until the word is given', async () => {
+    // The behaviour this stage changed. Choosing a file used to import it; it
+    // now asks. `importFile` not being called is the assertion — everything
+    // else on this screen is presentation.
+    const preview = vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    const commit = vi.spyOn(api, 'importFile');
     render(mount());
 
     expect(screen.getByText(/no file chosen/i)).toBeTruthy();
@@ -356,17 +411,108 @@ describe('choosing one file', () => {
     await userEvent.upload(input, png());
 
     await waitFor(() => {
-      // Twice, and both are wanted: the picker says what it is holding, and the
-      // review says what became of it. One of them alone would be a gap.
-      expect(screen.getAllByText('Vera.png')).toHaveLength(2);
+      expect(screen.getByRole('button', { name: /^import$/i })).toBeTruthy();
     });
+    expect(preview).toHaveBeenCalledTimes(1);
+    expect(commit).not.toHaveBeenCalled();
+    // The picker still says what it is holding.
     expect(screen.queryByText(/no file chosen/i)).toBeNull();
-    // Also twice: the counts summary and the row it counted.
-    expect(screen.getAllByText('Imported')).toHaveLength(2);
+  });
+
+  it('imports on the word, and then shows what happened', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    const commit = vi.spyOn(api, 'importFile').mockResolvedValue({
+      item: { source: 'Harbour.json', disposition: 'converted', notes: [] },
+      notes: [],
+    });
+    render(mount());
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(input, png());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Imported').length).toBeGreaterThan(0);
+    });
+    expect(commit).toHaveBeenCalledTimes(1);
+    // The preview is gone: one union, so the two cannot both be on screen.
+    expect(screen.queryByRole('button', { name: /^import$/i })).toBeNull();
+  });
+
+  it('cancels without writing anything', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    const commit = vi.spyOn(api, 'importFile');
+    render(mount());
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(input, png());
+    await userEvent.click(await screen.findByRole('button', { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /^import$/i })).toBeNull();
+    });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('marks a sampler setting that does not reach the model, in a word', async () => {
+    // Not a colour. Somebody reading this in greyscale still has to be told that
+    // a setting they can see does nothing.
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    render(mount());
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(input, png());
+
+    expect(await screen.findByText('not sent')).toBeTruthy();
+  });
+
+  it('renders the advisory with both of its parameters substituted', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    render(mount());
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(input, png());
+
+    expect(
+      await screen.findByText(
+        /1 of them are stored but do not reach the model in this build: minP./,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('offers replace or keep both only when the file has been here before', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    const { unmount } = render(mount());
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(input, png());
+    await screen.findByRole('button', { name: /^import$/i });
+    expect(screen.queryByLabelText(/what to do with the one already here/i)).toBeNull();
+    unmount();
+
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({
+      preview: { ...PREVIEW, reimport: 'changed' },
+    });
+    const commit = vi.spyOn(api, 'importFile').mockResolvedValue({
+      item: { source: 'Harbour.json', disposition: 'converted', notes: [] },
+      notes: [],
+    });
+    render(mount());
+
+    const second = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await userEvent.upload(second, png());
+
+    const choice = await screen.findByLabelText(/what to do with the one already here/i);
+    await userEvent.selectOptions(choice, 'keep-both');
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(commit).toHaveBeenCalledWith(expect.anything(), 'keep-both');
+    });
   });
 
   it('says what went wrong rather than failing silently', async () => {
-    vi.spyOn(api, 'importFile').mockRejectedValue(new Error('That file is too large.'));
+    vi.spyOn(api, 'importFilePreview').mockRejectedValue(new Error('That file is too large.'));
     render(mount());
 
     const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
