@@ -669,6 +669,24 @@ mode seats fewer than the list names.
 improving a character card reaches an ongoing game — the asymmetry with the
 copied preset is deliberate ([02 §8](design/02-data-model.md)).
 
+### `PUT /api/sessions/:sessionId/lore`
+
+`{ treatment, lore }` → `{ session }`. The treatment is an id or `null`; `lore`
+is a list of lorebook ids, and `[]` clears it. Both replace what was there
+rather than adding to it.
+
+**Selection is the only way a lorebook reaches a session.** A book does not
+volunteer — its own `scope` selects nothing — so this route is what makes a
+world reachable at all: without it a session started without naming books could
+never gain one, and every session written before the field existed would be
+stuck without one permanently. The cast route's sibling, for the same reason:
+both are links a story legitimately changes partway through.
+
+Ids that resolve to nothing are accepted, exactly as a cast's are. A dangling
+link is a session missing a book, not a rejected request, and the retriever
+reports what it could not read on every turn where somebody playing can see it
+([00 §3.3](design/00-stance.md)).
+
 ### `GET /api/sessions/:sessionId`
 
 `{ session, activeJob | null }`. The job travels with the session because a
@@ -756,7 +774,7 @@ preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { previe
         {
           "bookId": "0199…",
           "bookName": "Rain City",
-          "by": "global",
+          "by": "session",
           "tokenBudget": 2048,
           "tokensSpent": 41,
           "entryLimit": 100,
@@ -800,10 +818,14 @@ this prompt* is answerable without a model.
 which entries would fire*, which needs no endpoint of its own because sample
 text **is** an input.
 
-- `books` — every book in play, why it is in play (`treatment`, `session`,
-  `global` or `linked`), and what it spent of its own two limits. Reported even
-  for a book that contributed nothing, because *being scanned and matching
-  nothing* and *not being scanned* have different repairs.
+- `books` — every book in play, which selection put it there (`treatment` or
+  `session`), and what it spent of its own two limits. Reported even for a book
+  that contributed nothing, because *being scanned and matching nothing* and
+  *not being scanned* have different repairs.
+
+  **Selection is the only route.** A lorebook's own `scope` selects nothing: a
+  book is in a prompt because this session named it, or because the treatment
+  this session names links it.
 - `skipped` — **every** entry that did not fire, each with the rule that stopped
   it. This is the half nothing else records: a fired entry is already a block
   with a reason beside it. `reason` is a class the surface phrases, and the list

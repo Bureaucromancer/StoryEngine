@@ -77,12 +77,13 @@ const SKIP_LABELS: Record<string, string> = {
   'lost-its-group': 'another entry in its group won',
 };
 
-/** Why a book is being scanned at all — [P5.7]'s four routes. */
+/**
+ * Why a book is being scanned at all 2014 and there are only two, because
+ * selection is the only route a book reaches a session by.
+ */
 const ROUTE_LABELS: Record<string, string> = {
   treatment: 'linked by the treatment',
   session: 'linked by this session',
-  global: 'applies to every session',
-  linked: 'linked to an actor in the scene',
 };
 
 /** Enough to see the shape without becoming the panel. */

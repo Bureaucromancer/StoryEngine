@@ -50,6 +50,21 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * everywhere else — noise on import at best, and a false resolution against an
  * unrelated local session at worst. "This lorebook applies to this session" is a
  * fact about the *session*, so it lives on the session's own lore links.
+ *
+ * **Nothing reads this field, and that is the current decision rather than an
+ * omission.** [P5.7] made it decide which books a session scanned; the
+ * behaviour was reversed immediately after, because `global` is this factory's
+ * default *and* the SillyTavern importer's fallback, so every book a person had
+ * ever created or imported was in every session's prompt. The rule now is that
+ * **no lorebook is active that has not been selected for the session** —
+ * `session.lore`, or the treatment the session names. A field cannot volunteer.
+ *
+ * The union stays because it is what the format carries and what an import has
+ * to preserve; a book that says *global* keeps saying it, and a person who
+ * exports one gets back what they put in. What it does not do is select. If
+ * something above the session ever contributes books — a Worlds concept, with
+ * inheritance — that is the shape that would give this field a consumer again,
+ * and it should be designed rather than inferred from the union's wording.
  */
 export const LoreScope = Type.Union(
   [

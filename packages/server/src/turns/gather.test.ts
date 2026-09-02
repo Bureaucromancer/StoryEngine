@@ -187,73 +187,77 @@ describe('what the gather resolves without a job', () => {
 });
 
 /**
- * The cast reaching the lore resolver — [P5.7].
+ * **No lorebook is active that has not been selected for the session.**
  *
- * `scope: linked` means *this book belongs wherever these actors are*, and
- * whether an actor is there is a fact only the gather knows. It resolves the
- * cast two lines above the lore, and nothing but this test says the two are
- * connected: a resolver called without the cast would compile, admit every
- * global book exactly as before, and silently never admit a linked one.
+ * ~~The cast reaching the lore resolver, for `scope: linked`.~~ [P5.7] admitted
+ * books by their own scope and this is the reversal, asserted where it is
+ * observable end to end: the gather is what a turn actually calls, so a
+ * regression that let the library back in would show here first.
+ *
+ * `global` is the case that matters, because it is what every book is by
+ * default — the factory sets it and the SillyTavern importer falls back to it.
+ * A book nobody selected is not in the prompt.
  */
-describe('what the gather tells the lore resolver about the cast', () => {
-  async function withCast(cast: { persona: string | null; actors: string[] }): Promise<string> {
-    const created = await createSession(sessions, ACCOUNT, { name: 'Scoped', cast });
-    return created.id;
-  }
-
+describe('what a session gets without asking for it', () => {
   function libraryOf(): LibraryContext {
     return { db: sessions.index, layout: sessions.layout, keepHistoryPerObject: 0 };
   }
 
-  async function linkedTo(actorIds: string[]): Promise<void> {
-    const made = { ...newLorebook('Theirs'), scope: { kind: 'linked' as const, actorIds } };
-    await create(libraryOf(), ACCOUNT, made);
-  }
-
-  it('admits a book linked to an actor in the cast', async () => {
-    const vera = newActor('Vera');
-    await create(libraryOf(), ACCOUNT, vera);
-    await linkedTo([vera.id]);
-    const sessionId = await withCast({ persona: null, actors: [vera.id] });
+  it('reads no lorebook at all for a session that links none', async () => {
+    await create(libraryOf(), ACCOUNT, newLorebook('Everywhere'));
+    await create(libraryOf(), ACCOUNT, {
+      ...newLorebook('Vera\u2019s'),
+      scope: { kind: 'linked' as const, actorIds: ['vera'] },
+    });
+    const created = await createSession(sessions, ACCOUNT, { name: 'Bare' });
 
     const inputs = await gatherAssemblyInputs(
       { sessions, accounts },
-      { account: ACCOUNT, sessionId, parentTurnId: null },
-    );
-
-    expect(inputs.lore.books.map((one) => one.by)).toEqual(['linked']);
-  });
-
-  /**
-   * A persona *is* an actor ([02 §2.2]), and a book scoped to the player's own
-   * character is the first thing anybody would scope one to. Left out of the
-   * list, that book would never appear and the reason would be invisible.
-   */
-  it('counts the persona as part of the cast', async () => {
-    const inspector = newActor('The Inspector');
-    await create(libraryOf(), ACCOUNT, inspector);
-    await linkedTo([inspector.id]);
-    const sessionId = await withCast({ persona: inspector.id, actors: [] });
-
-    const inputs = await gatherAssemblyInputs(
-      { sessions, accounts },
-      { account: ACCOUNT, sessionId, parentTurnId: null },
-    );
-
-    expect(inputs.lore.books.map((one) => one.by)).toEqual(['linked']);
-  });
-
-  it('leaves out a book linked to an actor who is not in the scene', async () => {
-    const vera = newActor('Vera');
-    await create(libraryOf(), ACCOUNT, vera);
-    await linkedTo([vera.id]);
-    const sessionId = await withCast({ persona: null, actors: [] });
-
-    const inputs = await gatherAssemblyInputs(
-      { sessions, accounts },
-      { account: ACCOUNT, sessionId, parentTurnId: null },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
     );
 
     expect(inputs.lore.books).toEqual([]);
+  });
+
+  /**
+   * And a cast changes nothing about it, which is the specific reversal: an
+   * actor being in the scene used to pull that actor's books in.
+   */
+  it('reads no lorebook for a session whose cast matches one', async () => {
+    const vera = newActor('Vera');
+    await create(libraryOf(), ACCOUNT, vera);
+    await create(libraryOf(), ACCOUNT, {
+      ...newLorebook('Hers'),
+      scope: { kind: 'linked' as const, actorIds: [vera.id] },
+    });
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'With Vera',
+      cast: { persona: null, actors: [vera.id] },
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+
+    expect(inputs.lore.books).toEqual([]);
+  });
+
+  it('reads the one the session did select, and only that one', async () => {
+    const chosen = newLorebook('Chosen');
+    await create(libraryOf(), ACCOUNT, chosen);
+    await create(libraryOf(), ACCOUNT, newLorebook('Not chosen'));
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'Selected',
+      lore: [chosen.id],
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+
+    expect(inputs.lore.books.map((one) => one.book.name)).toEqual(['Chosen']);
+    expect(inputs.lore.books[0]?.by).toBe('session');
   });
 });

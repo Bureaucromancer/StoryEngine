@@ -483,111 +483,76 @@ describe('resolveLore', () => {
 });
 
 /**
- * `LoreScope` acted on — [P5.7], [02 §3.4].
+/**
+ * **No lorebook is active that has not been selected for the session.**
  *
- * The union has been in the schema since P4 and nothing read it, which made
- * `scope` a stored field with no behaviour — the same shape of omission
- * [P5 §1.10] caught for `useRegex`. These are the two live variants; the third
- * that [02 §3.4] describes lives on `session.lore` instead, because session ids
- * are install-local and a shared book carrying them exports nonsense.
+ * [P5.7] admitted books by their own `LoreScope` — `global` everywhere,
+ * `linked` wherever one of its actors was cast — reading [02 §3.4]'s union as a
+ * discovery mechanism. The consequence made the mistake plain: `global` is the
+ * factory default *and* the SillyTavern importer's fallback, so every book a
+ * person had ever created or imported was in every session's prompt, and the
+ * only way out was hand-editing JSON.
+ *
+ * These tests hold the rule that replaced it. They are written against `global`
+ * specifically because that is the default: a book built by the ordinary
+ * factory and left alone is the case that used to leak.
  */
-describe('what a book\u2019s own scope admits', () => {
+describe('selection is the only way into a session', () => {
   async function scoped(name: string, scope: Lorebook['scope']): Promise<string> {
     const made = { ...newLorebook(name), scope };
     await create(library, ACCOUNT, made);
     return made.id;
   }
 
-  it('scans a global book a session never linked', async () => {
+  it('leaves a global book out of a session that did not select it', async () => {
     await scoped('Everywhere', { kind: 'global' });
 
-    const resolved = resolveLore(library, ACCOUNT, {});
-
-    expect(resolved.books.map((source) => source.book.name)).toEqual(['Everywhere']);
-    expect(resolved.books[0]?.by).toBe('global');
+    expect(resolveLore(library, ACCOUNT, {}).books).toEqual([]);
   });
 
-  it('scans a linked book when one of its actors is in the cast', async () => {
-    await scoped('Vera\u2019s', { kind: 'linked', actorIds: ['vera'] });
-
-    const resolved = resolveLore(library, ACCOUNT, {}, { actorIds: ['vera', 'someone'] });
-
-    expect(resolved.books.map((source) => source.by)).toEqual(['linked']);
-  });
-
-  it('leaves a linked book out when none of its actors are in the cast', async () => {
-    await scoped('Somebody Else\u2019s', { kind: 'linked', actorIds: ['vera'] });
-
-    expect(resolveLore(library, ACCOUNT, {}, { actorIds: ['nobody'] }).books).toEqual([]);
-  });
-
-  /**
-   * A book scoped to a cast the author has not chosen yet. Inert rather than
-   * global, because reading *linked to nobody* as *linked to everybody* would
-   * put a half-finished setting into every story on the install.
-   */
-  it('leaves a linked book with no actors out of everything', async () => {
-    await scoped('Unfinished', { kind: 'linked', actorIds: [] });
-
-    expect(resolveLore(library, ACCOUNT, {}, { actorIds: ['vera'] }).books).toEqual([]);
-  });
-
-  it('admits no linked book when the caller named no cast at all', async () => {
+  it('leaves a book scoped to an actor out of a session that did not select it', async () => {
     await scoped('Vera\u2019s', { kind: 'linked', actorIds: ['vera'] });
 
     expect(resolveLore(library, ACCOUNT, {}).books).toEqual([]);
   });
 
-  /**
-   * The ownership rule again ([04 §4.3]), and it matters more here than for a
-   * link: a global book is admitted without anybody naming it, so a scope that
-   * crossed accounts would put somebody else's world in your prompt with no
-   * link to point at.
-   */
-  it("does not admit another account's global book", async () => {
-    const theirs = { ...newLorebook('Theirs'), scope: { kind: 'global' as const } };
-    await create(library, 'someone-else', theirs);
+  /** The whole library, and none of it, because nothing named any of it. */
+  it('reads a session with no links as having no world at all', async () => {
+    await scoped('One', { kind: 'global' });
+    await scoped('Two', { kind: 'global' });
+    await scoped('Three', { kind: 'linked', actorIds: [] });
 
-    expect(resolveLore(library, ACCOUNT, {}).books).toEqual([]);
+    expect(resolveLore(library, ACCOUNT, { lore: [] }).books).toEqual([]);
   });
 
-  /**
-   * Links first, scope second, so a book reached both ways keeps the link's
-   * account of itself: *the treatment asked for this* is more specific than
-   * *it is global*, and it is the answer that says which setting to change.
-   */
-  it('keeps the link as the reason when a book is also global', async () => {
-    const both = await scoped('Both', { kind: 'global' });
+  it('takes a global book once the session selects it, by that route', async () => {
+    const everywhere = await scoped('Everywhere', { kind: 'global' });
 
-    const resolved = resolveLore(library, ACCOUNT, { lore: [both] });
+    const resolved = resolveLore(library, ACCOUNT, { lore: [everywhere] });
 
-    expect(resolved.books).toHaveLength(1);
-    expect(resolved.books[0]?.by).toBe('session');
+    expect(resolved.books.map((source) => source.by)).toEqual(['session']);
   });
 
-  it("keeps a treatment's required flag on a book that is also global", async () => {
-    const both = await scoped('Both', { kind: 'global' });
-    const noir = await treatment('Noir', [{ id: both, required: true }]);
+  it('takes a global book the treatment selects, by that route', async () => {
+    const everywhere = await scoped('Everywhere', { kind: 'global' });
+    const noir = await treatment('Noir', [{ id: everywhere }]);
 
     const resolved = resolveLore(library, ACCOUNT, { treatment: noir });
 
-    expect(resolved.books[0]?.by).toBe('treatment');
-    expect(resolved.books[0]?.required).toBe(true);
+    expect(resolved.books.map((source) => source.by)).toEqual(['treatment']);
   });
 
-  it('puts the linked books before the scope-admitted ones', async () => {
-    const named = await scoped('Named', { kind: 'global' });
-    await scoped('Ambient', { kind: 'global' });
+  /**
+   * A book's own `scope` decides nothing at all now — not admission, and not
+   * exclusion either. Selecting a book scoped to a cast that is not in the
+   * scene still uses it, because the person who linked it said to.
+   */
+  it('uses a selected book whatever its own scope says', async () => {
+    const theirs = await scoped('Somebody Else\u2019s', {
+      kind: 'linked',
+      actorIds: ['an-actor-who-is-not-here'],
+    });
 
-    const resolved = resolveLore(library, ACCOUNT, { lore: [named] });
-
-    expect(resolved.books.map((source) => source.book.name)).toEqual(['Named', 'Ambient']);
-  });
-
-  /** A scope is the book's own claim, not a link, so it carries no strength. */
-  it('never marks a scope-admitted book required', async () => {
-    await scoped('Everywhere', { kind: 'global' });
-
-    expect(resolveLore(library, ACCOUNT, {}).books[0]?.required).toBe(false);
+    expect(resolveLore(library, ACCOUNT, { lore: [theirs] }).books).toHaveLength(1);
   });
 });

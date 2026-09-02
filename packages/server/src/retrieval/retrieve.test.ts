@@ -396,10 +396,10 @@ describe('loreReport', () => {
     expect(report.books[0]?.tokensSpent).toBeGreaterThan(0);
   });
 
-  it('says how a book got here', () => {
-    const global = { ...bookOf([entryOf('One', { keys: ['x'] })]), by: 'global' as const };
+  it('says which selection put a book here', () => {
+    const byTreatment = { ...bookOf([entryOf('One', { keys: ['x'] })]), by: 'treatment' as const };
 
-    expect(reportFor([global]).books[0]?.by).toBe('global');
+    expect(reportFor([byTreatment]).books[0]?.by).toBe('treatment');
   });
 
   describe('the patterns it could not run', () => {

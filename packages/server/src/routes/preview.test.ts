@@ -289,11 +289,28 @@ describe('what the retriever did, on the preview', () => {
     return { ...newLoreEntry(name), ...edits };
   }
 
+  /**
+   * **The session has to select the book.** Saving one to the library puts it
+   * nowhere: a lorebook does not volunteer, whatever its own `scope` says, and
+   * these tests used to rely on `global` admitting it — which is precisely the
+   * behaviour that was reversed.
+   */
+  async function selectBook(book: Lorebook): Promise<void> {
+    const put = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/lore`,
+      payload: { treatment: null, lore: [book.id] },
+    });
+    if (put.status !== 200) throw new Error(`the link did not save: ${String(put.status)}`);
+  }
+
   it('reports what the pasted text fired, and what it did not', async () => {
-    await aBookOf([
-      entryOf('The Ferryman', { keys: ['ferryman'], content: 'He works the crossing.' }),
-      entryOf('The Council', { keys: ['council'], content: 'They settle nothing.' }),
-    ]);
+    await selectBook(
+      await aBookOf([
+        entryOf('The Ferryman', { keys: ['ferryman'], content: 'He works the crossing.' }),
+        entryOf('The Council', { keys: ['council'], content: 'They settle nothing.' }),
+      ]),
+    );
     await bindProse();
 
     const response = await preview({ input: { text: 'She asked the ferryman.' } });
@@ -318,13 +335,14 @@ describe('what the retriever did, on the preview', () => {
    */
   it('names every book in play and how it got there', async () => {
     const book = await aBookOf([entryOf('Quiet', { keys: ['nowhere'] })]);
+    await selectBook(book);
     await bindProse();
 
     const body = (await preview({ input: { text: 'nothing relevant' } })).body
       .preview as TurnPreview;
 
     expect(body.lore.books).toEqual([
-      expect.objectContaining({ bookId: book.id, bookName: 'Rain City', by: 'global' }),
+      expect.objectContaining({ bookId: book.id, bookName: 'Rain City', by: 'session' }),
     ]);
   });
 
@@ -335,7 +353,7 @@ describe('what the retriever did, on the preview', () => {
    * install is precisely where somebody is asking.
    */
   it('answers about the lore even with no model bound', async () => {
-    await aBookOf([entryOf('The Ferryman', { keys: ['ferryman'] })]);
+    await selectBook(await aBookOf([entryOf('The Ferryman', { keys: ['ferryman'] })]));
 
     const body = (await preview({ input: { text: 'a quiet evening' } })).body
       .preview as TurnPreview;

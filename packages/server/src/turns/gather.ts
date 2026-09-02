@@ -142,17 +142,11 @@ export async function gatherAssemblyInputs(
   };
   const cast = resolveCast(library, request.account, session?.cast);
   /**
-   * The cast reaches the lore resolver, which is what makes `scope: linked`
-   * mean anything — [P5.7], [02 §3.4]. The persona is in the list because a
-   * persona *is* an actor ([02 §2.2]), and a book scoped to the player's own
-   * character is the obvious first thing anybody would scope one to.
+   * The cast is deliberately *not* passed: nothing about who is in the scene
+   * decides which books are in play. A book is here because this session, or
+   * the treatment it names, selected it — see `LoreRoute`.
    */
-  const lore = resolveLore(library, request.account, session, {
-    actorIds: [
-      ...(cast.persona === null ? [] : [cast.persona.actor.id]),
-      ...cast.actors.map((member) => member.actor.id),
-    ],
-  });
+  const lore = resolveLore(library, request.account, session);
   const windowed = history.slice(-mode.definition.assembly.historyWindow);
 
   return {

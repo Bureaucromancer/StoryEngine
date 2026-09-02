@@ -488,22 +488,20 @@ function BookHeader({ book }: { book: Lorebook }): JSX.Element {
       <Panel variant="inset">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-xs">
           {/*
-           * **First, because it decides whether any of the rest applies** —
-           * [P5.7], [02 §3.4].
+           * ~~**First, because it decides whether any of the rest applies.**~~
            *
-           * Added the moment `scope` acquired behaviour. Until P5.7 nothing
-           * read it, so its absence from this panel cost nothing; now it
-           * decides whether the book is scanned at all, it defaults to
-           * `global`, and leaving it off the one surface that reads a book back
-           * would be [05 §5.3]'s *a field that renders as nothing hides
-           * things*, scaled from an entry to a whole world.
+           * **`scope` is off this strip again, because it decides nothing.**
+           * The row was added when P5.7 gave the field behaviour; that
+           * behaviour is reversed — a book reaches a session by being
+           * *selected*, never by its own fields — so a row reading *Applies to:
+           * every session* would now be stating something false on the one
+           * surface that exists to read a book back honestly. The field is
+           * still visible in *As stored*, which is where a stored value that
+           * drives nothing belongs.
            *
-           * There is still no way to *change* it here — book-level editing is
-           * not in this phase — which is why showing it matters more rather
-           * than less: somebody about to hand-edit the file needs to know which
-           * field they are looking for.
+           * Every setting below this line does decide something, which is what
+           * the strip is for.
            */}
-          <Setting label="Applies to">{scopeLabel(book.scope)}</Setting>
           <Setting label="Scan depth">{formatCount(book.scanDepth)}</Setting>
           <Setting label="Token budget">{formatCount(book.tokenBudget)}</Setting>
           <Setting label="Entry limit">{formatCount(book.entryLimit)}</Setting>
@@ -896,41 +894,6 @@ function EntryUnit(props: {
       </details>
     </Panel>
   );
-}
-
-/**
- * A book's scope in one phrase — [02 §3.4]'s union, read back.
- *
- * *Every session* rather than *Global*, because the field's name is not the
- * question a reader has: they want to know where this book will turn up, and
- * the answer is a place rather than a category.
- *
- * A `linked` book with no actors gets its own phrase. It is the one state that
- * looks like a mistake and is not necessarily one — a book scoped to a cast
- * nobody has chosen yet — and it is inert, so a reader wondering why their
- * world never appears needs it named rather than shown as `0 linked actors`
- * among four other numbers.
- */
-function scopeLabel(scope: Lorebook['scope'] | undefined): string {
-  /**
-   * **Read defensively, because this page renders unvalidated objects.**
-   *
-   * `lorebookShape` guards `entries` and `folders` and nothing else — by
-   * design, since the promise is that a hand-edited file still *reads* — so a
-   * book with no `scope` at all arrives here, and the first version of this
-   * function crashed the whole page on one. That is the same failure
-   * `mentionIndex` had at [P5.3] and it has the same fix.
-   *
-   * The server needs no such guard and deliberately does not have one: every
-   * book the retriever sees came through `validate`, so `scope` is there. The
-   * asymmetry is the boundary doing its job rather than an inconsistency.
-   */
-  if (scope === undefined || typeof scope !== 'object') return 'Not set';
-  if (scope.kind === 'global') return 'Every session';
-  const actorIds = Array.isArray(scope.actorIds) ? scope.actorIds : [];
-  return actorIds.length === 0
-    ? 'No linked actors yet'
-    : `${formatCount(actorIds.length)} linked actors`;
 }
 
 /**

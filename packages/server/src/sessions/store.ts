@@ -540,3 +540,38 @@ export async function readTurnById(
   const turn = (await readTurns(context, handle, sessionId)).get(turnId) ?? null;
   return turn?.removed === true ? null : turn;
 }
+
+/**
+ * Sets which treatment and which lorebooks a session plays with.
+ *
+ * **The sibling of {@link setCast}, and it exists for the reason that rule
+ * created.** Selection is the only way a lorebook reaches a session — a book
+ * does not volunteer, whatever its own `scope` says — so without a way to
+ * change the selection after creation, a session started without naming books
+ * could never gain a world, and every session that predates the field would be
+ * stuck without one for good.
+ *
+ * Links rather than copies, exactly as the cast is ([02 §8]): fixing a typo in
+ * a lorebook should reach the story being told in it.
+ */
+export async function setLore(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  lore: { treatment: string | null; lore: string[] },
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      treatment: lore.treatment,
+      lore: lore.lore,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}

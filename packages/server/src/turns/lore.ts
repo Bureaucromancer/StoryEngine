@@ -9,7 +9,7 @@ import {
   validate,
 } from '@storyengine/shared';
 
-import { list, resolveRef } from '../library.js';
+import { resolveRef } from '../library.js';
 import type { LibraryContext } from '../library.js';
 
 /**
@@ -82,28 +82,37 @@ import type { LibraryContext } from '../library.js';
  */
 
 /**
- * How a book came to be in play — [P5.7], [02 §3.4].
+ * How a book came to be in play.
  *
- * **Four routes and the union has three variants, which is not a mismatch.**
- * `LoreScope` collapsed seven fields into *global*, *linked to actors*, and —
- * relocated to the session, because session ids are install-local and a shared
- * book carrying them exports nonsense — *scoped to this session*. That third
- * variant is `session.lore`, and a treatment's own links are the same route
- * arriving by a different hand, so they are told apart here rather than merged.
+ * **Selection is the only route, and that is the rule rather than the current
+ * state of the code.** A lorebook is in play because *this session* named it,
+ * or because the treatment this session names links it. Nothing else puts a
+ * book in a prompt.
+ *
+ * ~~[P5.7] also admitted books by their own `LoreScope` — `global` applying
+ * everywhere, `linked` applying wherever one of its actors is cast.~~
+ * **Reversed, and it was a mistake rather than a scheduling decision.** Read
+ * literally, [02 §3.4]'s union does describe where a book *applies*, and P5.7
+ * took that as a discovery mechanism. The consequence made the error plain:
+ * `global` is the factory default *and* the SillyTavern importer's fallback, so
+ * every book a person had ever created or imported was in every session's
+ * prompt, and the only way out was hand-editing JSON. A person's library is not
+ * their world.
+ *
+ * The rule now is: **no lorebook is active that has not been selected for the
+ * session.** Inheritance — a Worlds concept that could let something above the
+ * session contribute books — is the shape that would relax this, and it does
+ * not exist. Until it does, a field cannot volunteer.
  *
  * Reported because [P5.8]'s tester has to answer *why is this book being
- * scanned at all*, which is a different question from why an entry fired and
- * has a different repair: unlinking a book, versus narrowing its scope.
+ * scanned at all*, which is a different question from why an entry fired: the
+ * repair is unlinking the book, or unlinking the treatment that brought it.
  */
 export type LoreRoute =
-  /** The treatment links it. */
+  /** The treatment this session names links it. */
   | 'treatment'
   /** The session's own list names it. */
-  | 'session'
-  /** `scope: global` — it applies everywhere. */
-  | 'global'
-  /** `scope: linked` and one of its actors is in the cast. */
-  | 'linked';
+  | 'session';
 
 /** A resolved object with the address of the bytes that were read — [P3.0]. */
 export interface LoreSource {
@@ -162,16 +171,6 @@ export function resolveLore(
   library: LibraryContext,
   handle: string,
   session: { treatment?: unknown; lore?: unknown } | null | undefined,
-  /**
-   * Who is in the scene, for `scope: linked` — [P5.7].
-   *
-   * Passed in rather than read here for `resolveCast`'s reason and one more:
-   * `gather.ts` resolves the cast two lines above this call, and a retriever
-   * that went looking for it again would be a second place deciding who is in
-   * the scene. Absent means *no cast known*, under which no `linked` book
-   * qualifies — the honest answer for a caller that did not say.
-   */
-  cast: { actorIds: readonly string[] } = { actorIds: [] },
 ): ResolvedLore {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -229,35 +228,19 @@ export function resolveLore(
   }
 
   /**
-   * **Then whatever the library's own scopes admit** — [P5.7], [02 §3.4].
+   * ~~Then whatever the library's own scopes admit.~~ **Nothing else. The
+   * library is not read.**
    *
-   * Links come first and scope second, so a book reached both ways keeps the
-   * link's account of itself: *the treatment asked for this* is a more specific
-   * answer than *it is global*, and the dedup above already prefers the first
-   * mention. It also means a treatment's `required: true` survives a book that
-   * would have arrived globally anyway.
+   * [P5.7] listed every book this account owns and admitted the ones whose
+   * `scope` claimed to apply. That is gone: the list above is the whole answer,
+   * and a book nobody selected is not in the prompt however its own fields are
+   * set. See {@link LoreRoute} for why the reversal, and for what would have to
+   * exist before anything could volunteer again.
    *
-   * The library is listed rather than queried, which is a real cost per turn
-   * and a bounded one — it is the same read the library page makes, and there
-   * is no index on `scope` to query instead. Worth revisiting if a library ever
-   * gets big enough to notice; not worth an index today.
+   * The read went with it, which is worth noting on its own: nothing here
+   * enumerates the library any more, so a turn's cost no longer grows with the
+   * number of books somebody owns.
    */
-  for (const row of listBooks(library, handle)) {
-    if (seen.has(row.path)) continue;
-    const admits = scopeAdmits(row.body as Lorebook, cast.actorIds);
-    if (admits === null) continue;
-    seen.add(row.path);
-    books.push({
-      book: row.body as Lorebook,
-      id: row.id,
-      contentHash: row.contentHash,
-      // Nothing scope-admitted is required: `required` is a *link's* strength,
-      // and a scope is the book's own claim about where it belongs. A book that
-      // wants to be loud has to be linked by something that can say so.
-      required: false,
-      by: admits,
-    });
-  }
 
   return {
     treatment:
@@ -337,44 +320,4 @@ function oneObject(
     path: row.path,
     contentHash: row.contentHash,
   };
-}
-
-/**
- * Whether a book's own scope puts it in this session, and by which route.
- *
- * Null means it does not. The two live variants are [02 §3.4]'s first two;
- * the third — *scoped to sessions* — is deliberately not a variant here at all,
- * because session ids are install-local and a shared book carrying them would
- * export identifiers that mean nothing elsewhere and could falsely resolve
- * against an unrelated local session. It lives on `session.lore` instead, which
- * is why this function has nothing to say about it.
- *
- * **An empty `actorIds` on a `linked` book matches nobody, and that is not an
- * error.** It is a book scoped to a cast the author has not chosen yet. It is
- * inert rather than global, because the alternative — reading *linked to
- * nobody* as *linked to everybody* — would turn a half-finished setting into
- * one that appears in every story on the install.
- */
-function scopeAdmits(book: Lorebook, actorIds: readonly string[]): LoreRoute | null {
-  const scope = book.scope;
-  if (scope.kind === 'global') return 'global';
-  return scope.actorIds.some((id) => actorIds.includes(id)) ? 'linked' : null;
-}
-
-/**
- * Every lorebook this account can read, tolerating a library that cannot be.
- *
- * A read failure here must not make a turn unplayable ([00 §3.3]) — the books
- * a session *named* have already resolved by this point, and losing the
- * scope-admitted ones costs a smaller prompt rather than a broken one.
- */
-function listBooks(
-  library: LibraryContext,
-  handle: string,
-): { body: unknown; id: string; path: string; contentHash: string }[] {
-  try {
-    return list(library, handle, LOREBOOK_SCHEMA).filter((row) => validate(row.body).valid);
-  } catch {
-    return [];
-  }
 }

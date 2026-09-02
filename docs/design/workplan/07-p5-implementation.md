@@ -428,11 +428,14 @@ missing — and both change what landing a stage *means*.
   session scoping's absence by saying *"this lorebook applies to this session" is
   a fact about the session, so it lives on the session's own lore links.* There
   are no session lore links. P5.6 and P5.7 are what make that sentence true.~~
-  **Closed across both, as predicted.** P5.6 added `SessionFile.lore`; P5.7 made
-  the other two variants decide something, which the finding did not ask for and
-  which turned out to be the larger half: the union was *enforced by shape*
-  already and read by nothing, so `scope` was a stored field with no
-  consequence.
+  **Closed by P5.6 alone, and the finding was exactly right about what it
+  needed.** `SessionFile.lore` is what makes the banner's sentence true, and
+  that was the whole of it. ~~P5.7 made the other two variants decide something,
+  which the finding did not ask for and which turned out to be the larger
+  half.~~ *That addition was reversed: the finding did not ask for it because it
+  was not needed, and giving `scope` behaviour put every book in a person's
+  library into every session's prompt. Selection is the only route — see the
+  P5.7 record.*
 
 #### Four smaller findings, each with an owner
 
@@ -1769,28 +1772,58 @@ of determinism.
 
 Two commits, and the second half went further than the stage asked.
 
-**The union was already enforced by shape; what it lacked was behaviour.**
+~~**The union was already enforced by shape; what it lacked was behaviour.**
 [02 §3.4]'s collapse landed with the schema, so `characterId` and its six
 siblings have been gone since P4 — but nothing on the server ever *read* `scope`,
 which made it a stored field with no consequence: the same shape of omission
 §1.10 caught for `useRegex`, and it had been sitting in plain view for a phase
 and a half. A book now reaches a session by one of four routes, and which one is
 reported, because [P5.8] has to answer *why is this book being scanned at all*
-and that has a different repair from *why did this entry fire*.
+and that has a different repair from *why did this entry fire*.~~
 
-Four routes to three variants is not a mismatch: the third — *scoped to
+~~Four routes to three variants is not a mismatch: the third — *scoped to
 sessions* — lives on `session.lore`, exactly as `LoreScope`'s own banner says it
 should, and a treatment's links are that same route arriving by a different
 hand. Links resolve first and scope second, so a book reached both ways keeps
 the link's account of itself, which is also what keeps a treatment's `required`
-on a book that would have arrived globally anyway.
+on a book that would have arrived globally anyway.~~
 
-**`global` is the factory default and the importer's fallback, so this is a
+~~**`global` is the factory default and the importer's fallback, so this is a
 consequential change rather than a quiet one.** Every book a person creates, and
 every book they import, applies to every session until they say otherwise. That
 is faithful to §3.4 and to the source tools — it is what *global* means there
 too — but it is worth knowing, because until this stage the field was inert and
-nothing depended on getting it right.
+nothing depended on getting it right.~~
+
+> **Reversed the day it landed, and the paragraph above is why.** Everything in
+> it is accurate and the conclusion is still wrong: a person's whole library
+> being in every session's prompt is not a consequence to note, it is the
+> feature failing. `global` is the factory default *and* the importer's
+> fallback, so the observation *every book a person creates applies to every
+> session until they say otherwise* describes a system with no usable off
+> switch — the only way to say otherwise was hand-editing JSON.
+>
+> The mistake was in the reading, not the implementation. [02 §3.4] describes a
+> shape, and *where a book applies* was taken as **discovery**: a field on a
+> library object deciding to join somebody's story. The rule is the other way
+> round — **no lorebook is active that has not been selected for the session**,
+> by `session.lore` or by the treatment the session names. Two routes, not four.
+>
+> `scope` is unread again, and that is now a decision rather than an omission:
+> the union stays because it is what the format carries and what an import must
+> preserve, but nothing consults it. Giving it a consumer means designing
+> **inheritance** — something above the session contributing books, which is a
+> Worlds-shaped concept ([19](../19-world.md)) — rather than inferring one from
+> the union's wording. §3.4 carries the same correction.
+>
+> The reversal brought one thing with it that the original stage should have
+> had: **`PUT /sessions/:id/lore`**. With selection the only route, a session
+> started without naming books could otherwise never gain a world, and every
+> session written before the field existed would have been stuck without one
+> permanently. It is the cast route's sibling, for the cast route's reason.
+>
+> It also removed a per-turn read of the whole library, which scope-admission
+> needed and nothing else did.
 
 **The folder gate is not honoured by a second implementation; it is honoured by
 the same one.** §5 asks for a test that fails if the rendered reason and the

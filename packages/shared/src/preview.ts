@@ -50,7 +50,7 @@ export type UnmeasurableReason = 'role-unbound' | 'role-dangling' | 'no-prose-st
  * install is exactly where somebody is asking it.
  */
 export interface LoreReport {
-  /** Books in play, and how each got here — a link, or its own scope. */
+  /** Books in play, and which selection put each one there. */
   books: LoreBookRow[];
   /**
    * Every entry that did not fire, with the rule that stopped it.
@@ -75,8 +75,12 @@ export interface LoreReport {
 export interface LoreBookRow {
   bookId: string;
   bookName: string;
-  /** Why this book is being scanned: a link, or the book's own scope. */
-  by: 'treatment' | 'session' | 'global' | 'linked';
+  /**
+   * Why this book is being scanned. **Selection is the only route** — this
+   * session named it, or the treatment this session names links it. A book
+   * nobody selected is not in the prompt, whatever its own fields say.
+   */
+  by: 'treatment' | 'session';
   /** What its own two limits allowed and what they spent — [02 §3.2]. */
   tokenBudget: number;
   tokensSpent: number;

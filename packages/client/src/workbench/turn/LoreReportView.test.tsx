@@ -26,7 +26,7 @@ function report(over: Partial<LoreReport> = {}): LoreReport {
       {
         bookId: 'b1',
         bookName: 'Rain City',
-        by: 'global',
+        by: 'session',
         tokenBudget: 2048,
         tokensSpent: 41,
         entryLimit: 100,
@@ -121,7 +121,7 @@ describe('the books in play', () => {
             {
               bookId: 'b1',
               bookName: 'Rain City',
-              by: 'linked',
+              by: 'treatment',
               tokenBudget: 2048,
               tokensSpent: 0,
               entryLimit: 100,
@@ -133,7 +133,7 @@ describe('the books in play', () => {
     );
 
     const row = screen.getByRole('cell', { name: 'Rain City' }).closest('tr');
-    expect(row?.textContent).toContain('linked to an actor in the scene');
+    expect(row?.textContent).toContain('linked by the treatment');
   });
 
   /** Spent of allowed: a number alone cannot say whether the limit was in the way. */

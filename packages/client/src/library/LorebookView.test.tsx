@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import {
-  newLoreEntry,
-  newLorebook,
-  type Lorebook,
-  type LoreEntry,
-  type LoreFolder,
-} from '@storyengine/shared';
+import { newLoreEntry, newLorebook, type LoreEntry, type LoreFolder } from '@storyengine/shared';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -254,65 +248,6 @@ describe('the book’s own header', () => {
     // sentence would change what it checked the day the sentence was
     // translated.
     expect(screen.getByText('Token budget').nextElementSibling?.textContent).toBe('4,096');
-  });
-
-  /**
-   * **Scope earns a row the moment it earns behaviour** — [P5.7], [02 §3.4].
-   *
-   * Nothing read `scope` until P5.7, so its absence from this strip cost
-   * nothing. It now decides whether the book is scanned at all and it defaults
-   * to `global`, which makes leaving it off the one surface that reads a book
-   * back exactly [05 §5.3]'s *a field that renders as nothing hides things* —
-   * scaled up from an entry to a whole world.
-   */
-  describe('where the book applies', () => {
-    const appliesTo = (): string | undefined =>
-      screen.getByText('Applies to').nextElementSibling?.textContent ?? undefined;
-
-    it('says a global book applies everywhere', () => {
-      render(<LorebookView book={book({ scope: { kind: 'global' }, entries: [] })} />);
-
-      expect(appliesTo()).toBe('Every session');
-    });
-
-    it('counts the actors a linked book is scoped to', () => {
-      render(
-        <LorebookView
-          book={book({ scope: { kind: 'linked', actorIds: ['a', 'b'] }, entries: [] })}
-        />,
-      );
-
-      expect(appliesTo()).toBe('2 linked actors');
-    });
-
-    /**
-     * The state that looks like a mistake and is not necessarily one: a book
-     * scoped to a cast nobody has chosen yet. It is inert, so a reader
-     * wondering why their world never appears needs it named rather than shown
-     * as a zero among four other numbers.
-     */
-    it('names a linked book with no actors rather than showing a zero', () => {
-      render(
-        <LorebookView book={book({ scope: { kind: 'linked', actorIds: [] }, entries: [] })} />,
-      );
-
-      expect(appliesTo()).toBe('No linked actors yet');
-    });
-
-    /**
-     * **A book with no `scope` at all still renders**, which is not
-     * hypothetical: `lorebookShape` guards `entries` and `folders` and nothing
-     * else, deliberately, so that a hand-edited file still reads. The first
-     * version of this row crashed the whole page on exactly this and took three
-     * unrelated detail-page tests down with it.
-     */
-    it('survives a book that has no scope', () => {
-      const partial = { ...book({ entries: [] }) } as Record<string, unknown>;
-      delete partial['scope'];
-      render(<LorebookView book={partial as unknown as Lorebook} />);
-
-      expect(appliesTo()).toBe('Not set');
-    });
   });
 });
 

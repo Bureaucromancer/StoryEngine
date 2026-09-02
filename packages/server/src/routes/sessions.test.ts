@@ -629,6 +629,34 @@ describe('a session with a cast assembles the whole preset', () => {
     expect(updated.body.session.cast.actors).toEqual([actorId]);
   });
 
+  /**
+   * **Selection is the only way a lorebook reaches a session**, so there has to
+   * be a way to select one after the session exists.
+   *
+   * Without this route a session started without naming books could never gain
+   * a world, and every session written before the field existed would be stuck
+   * without one permanently. It is the cast route's sibling for the same
+   * reason: both are links a story legitimately changes partway through.
+   */
+  it('lets the world change mid-story, the way the cast does', async () => {
+    const updated = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/lore`,
+      payload: { treatment: null, lore: ['0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4abc'] },
+    });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.session.lore).toEqual(['0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4abc']);
+
+    // And back to none, which is how somebody removes a book they regret.
+    const cleared = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/lore`,
+      payload: { treatment: null, lore: [] },
+    });
+    expect(cleared.body.session.lore).toEqual([]);
+  });
+
   it('survives a cast naming an actor that is gone', async () => {
     // [00 §3.3]: a deleted actor must not make a session unplayable.
     await server.request({
