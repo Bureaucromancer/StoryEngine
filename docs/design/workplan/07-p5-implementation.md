@@ -865,9 +865,14 @@ mechanisms under it were run and every one went red, including the two that
 would read as taste rather than behaviour: the fields below the storage block,
 and the three kinds of empty collapsed into one word.
 
-#### P5.0 — The Lorebooks panel, and the book as a document
+#### ~~P5.0 — The Lorebooks panel, and the book as a document~~ Landed
 
-**In progress. The field groups landed first**, because both the *as configured*
+~~**In progress.**~~ *The marker was stale: this record was written as the stage
+was built and its opening was never updated when the stage closed. Everything
+below describes finished work, and it ends at §1.8's import-notes row — "which
+closes the stage" — with every later stage built on the surfaces it left.*
+
+**The field groups landed first**, because both the *as configured*
 fold and the entry editor render through them and neither could be built without
 them: `LoreEntry`'s comment banners are annotations on the field each one opens
 (`schema/banners.ts`), the field description groups by them, and every other kind
@@ -1369,30 +1374,30 @@ thirty years and has never once been seen to eat.…"* as the snippet, and the
 
 *The stage as it was written:*
 
-#### P5.2 — Per-entry index rows, and the search they exist for
-
-[05 §14.5](../05-ui-surfaces.md): a locator table and an FTS table for lore
-entries, mirroring the existing turn pair; an ingest branch that writes one row
-per entry; the rebuild path clearing both; a query returning **snippets**, which
-is what makes a hit worth returning; and one additive array on the search
-response. The only server work in the half, and the only place a schema id
-appears in the ingest path — justified by the rule at
-[05 §14.5](../05-ui-surfaces.md), *a fragment is indexable when it has an
-address*, and bounded by it.
-
-§1.7's five delete sites are the risk. The helper is the mitigation and ~~the
-rebuild property test is the proof~~ **the proof has to be built first** — the
-property compares `snapshot()`, which reads the `object` table alone, so it
-cannot see a stale FTS row at all (§0.4, mutation-proved). **Widen `snapshot()`
-to join the FTS tables, the way `sessionSnapshot()` already joins `turn_fts`,
-before extracting the helper.** Two further things this stage is not a copy of:
-`searchTurns` returns no snippet, so the snippet query is net-new SQL rather
-than a mirror; and `rebuild.ts` and `migrations.ts` each carry a hand-maintained
-list a new table pair joins by hand.
-
-*Ends at:* searching for a phrase that occurs in one entry of one book, and
-landing on **that entry**, with the matched text shown.
-
+> **P5.2 — Per-entry index rows, and the search they exist for**
+>
+> [05 §14.5](../05-ui-surfaces.md): a locator table and an FTS table for lore
+> entries, mirroring the existing turn pair; an ingest branch that writes one row
+> per entry; the rebuild path clearing both; a query returning **snippets**, which
+> is what makes a hit worth returning; and one additive array on the search
+> response. The only server work in the half, and the only place a schema id
+> appears in the ingest path — justified by the rule at
+> [05 §14.5](../05-ui-surfaces.md), *a fragment is indexable when it has an
+> address*, and bounded by it.
+>
+> §1.7's five delete sites are the risk. The helper is the mitigation and ~~the
+> rebuild property test is the proof~~ **the proof has to be built first** — the
+> property compares `snapshot()`, which reads the `object` table alone, so it
+> cannot see a stale FTS row at all (§0.4, mutation-proved). **Widen `snapshot()`
+> to join the FTS tables, the way `sessionSnapshot()` already joins `turn_fts`,
+> before extracting the helper.** Two further things this stage is not a copy of:
+> `searchTurns` returns no snippet, so the snippet query is net-new SQL rather
+> than a mirror; and `rebuild.ts` and `migrations.ts` each carry a hand-maintained
+> list a new table pair joins by hand.
+>
+> *Ends at:* searching for a phrase that occurs in one entry of one book, and
+> landing on **that entry**, with the matched text shown.
+>
 #### ~~P5.3 — Mentions~~ Landed
 
 **What shipped:** *Mentions* and *Mentioned by* as derived, labelled sections on
@@ -1465,33 +1470,33 @@ was never about the extension.
 
 *The stage as it was written:*
 
-#### P5.3 — Mentions
-
-The derived *Mentions* and *Mentioned by* sections
-([05 §5.3](../05-ui-surfaces.md)), each row naming what matched. Computed at
-render, memoised per book, never indexed. Deliberately last in the half: it is
-the most interesting item and the most cuttable, and it is also the one whose
-premise [16 §6](../16-lorebooks-as-a-format.md) offers to falsify — so building
-it late means building it after the corpus can answer whether it was worth
-building.
-
-**Inline highlighting is not in this stage and is not refused** — it belongs to
-the retriever half's tester, where it stops being a guess about linking and
-becomes *this is what the scanner sees*.
-
-*Ends at:* ~~the count from [16 §6](../16-lorebooks-as-a-format.md) run over the
-imported corpus, and recorded — whichever way it comes out.~~ **the count from
-[16 §6](../16-lorebooks-as-a-format.md) written as a script, run over whatever
-library is to hand, and recorded with what it ran against stated beside it.**
-*Restated 2026-08-30 (§1.6):* the falsification value is in real books and there
-may be none when this stage lands, so the stage owes the **instrument and the
-reading**, while the *verdict* on the premise waits for a corpus. A phase must
-not be held closed by a task with unknown lead time. The count over synthesised
-fixtures is still worth recording — it is the control the real reading gets
-compared against.
-
-### The retriever half
-
+> **P5.3 — Mentions**
+>
+> The derived *Mentions* and *Mentioned by* sections
+> ([05 §5.3](../05-ui-surfaces.md)), each row naming what matched. Computed at
+> render, memoised per book, never indexed. Deliberately last in the half: it is
+> the most interesting item and the most cuttable, and it is also the one whose
+> premise [16 §6](../16-lorebooks-as-a-format.md) offers to falsify — so building
+> it late means building it after the corpus can answer whether it was worth
+> building.
+>
+> **Inline highlighting is not in this stage and is not refused** — it belongs to
+> the retriever half's tester, where it stops being a guess about linking and
+> becomes *this is what the scanner sees*.
+>
+> *Ends at:* ~~the count from [16 §6](../16-lorebooks-as-a-format.md) run over the
+> imported corpus, and recorded — whichever way it comes out.~~ **the count from
+> [16 §6](../16-lorebooks-as-a-format.md) written as a script, run over whatever
+> library is to hand, and recorded with what it ran against stated beside it.**
+> *Restated 2026-08-30 (§1.6):* the falsification value is in real books and there
+> may be none when this stage lands, so the stage owes the **instrument and the
+> reading**, while the *verdict* on the premise waits for a corpus. A phase must
+> not be held closed by a task with unknown lead time. The count over synthesised
+> fixtures is still worth recording — it is the control the real reading gets
+> compared against.
+>
+> ### The retriever half
+>
 #### ~~P5.4 — The matching engine, pure~~ Landed
 
 **Two commits, in §1.10's order.** The regex timeout alone and first, then the
@@ -1576,24 +1581,24 @@ hang is a result rather than something the person running it inherits.
 
 *The stage as it was written:*
 
-#### P5.4 — The matching engine, pure
-
-**The regex timeout first, and on its own** (§1.10): `useRegex` is stored and
-read by nothing, the library is now full of patterns nobody here wrote, and
-[triage §5.1](02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
-imported pattern unbounded is a denial-of-service on your own server, triggered
-by a book somebody downloaded.
-
-Then keys, secondary keys with selective logic, whole-word/case/regex, scan
-depth, scan sources. Pure functions, exhaustively unit-tested — the cheapest
-place in the phase to be thorough, same argument as P1.1.
-
-**And the imported corpus is the test input**, not hand-written entries. P4's
-converters produce entries with `selectiveLogic` decoded from two different
-integer encodings and positions collapsed from two different tables; a matcher
-tested only against entries this repository wrote is a matcher tested against
-its own assumptions.
-
+> **P5.4 — The matching engine, pure**
+>
+> **The regex timeout first, and on its own** (§1.10): `useRegex` is stored and
+> read by nothing, the library is now full of patterns nobody here wrote, and
+> [triage §5.1](02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
+> imported pattern unbounded is a denial-of-service on your own server, triggered
+> by a book somebody downloaded.
+>
+> Then keys, secondary keys with selective logic, whole-word/case/regex, scan
+> depth, scan sources. Pure functions, exhaustively unit-tested — the cheapest
+> place in the phase to be thorough, same argument as P1.1.
+>
+> **And the imported corpus is the test input**, not hand-written entries. P4's
+> converters produce entries with `selectiveLogic` decoded from two different
+> integer encodings and positions collapsed from two different tables; a matcher
+> tested only against entries this repository wrote is a matcher tested against
+> its own assumptions.
+>
 #### ~~P5.5 — Timing and recursion~~ Landed
 
 **§1.1's lean is now a decision**, and taking it literally cost a widening that
@@ -1674,12 +1679,12 @@ the cooldown would be true about the counter and misleading about the entry.
 
 *The stage as it was written:*
 
-#### P5.5 — Timing and recursion
-
-The four timing behaviours over §1.1's state home; the three recursion flags
-and book-level recursion limits. Unit tests on the interactions, which are the
-part people actually get wrong.
-
+> **P5.5 — Timing and recursion**
+>
+> The four timing behaviours over §1.1's state home; the three recursion flags
+> and book-level recursion limits. Unit tests on the interactions, which are the
+> part people actually get wrong.
+>
 #### ~~P5.6 — The retrieval step and the budget~~ Landed
 
 Five commits, and the stage did everything it said. What is worth recording is
