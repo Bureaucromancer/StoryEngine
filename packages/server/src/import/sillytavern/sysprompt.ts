@@ -6,6 +6,7 @@ import { newPreset, type ImportNote, type PresetBlock } from '@storyengine/share
 import { convertMacros } from '../macros.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 import type { ConvertedPreset } from './preset.js';
+import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
  * SillyTavern `sysprompt` presets — *"the easy case"* ([10 §8.4.2]).
@@ -90,8 +91,26 @@ export function convertSyspromptPreset(
   }
 
   preset.blocks = blocks;
+
+  /**
+   * **The credential rule applies here too, and did not.** See the long note in
+   * `text-completion.ts` — the same omission, found the same way, fixed in the
+   * same change. A sysprompt preset is `{ name, content }` in the ordinary case
+   * and so rarely carries one of ST's `sensitiveFields`; *rarely* is not the
+   * standard [10 §8.4.4] sets, and the file this converter is handed is whatever
+   * somebody uploaded rather than whatever ST would have written.
+   */
+  const { kept, removed } = stripSensitiveFields(input);
+  if (removed.length > 0) {
+    notes.push({
+      key: 'import.preset.credentialsRemoved',
+      params: { fields: removed.join(', ') },
+      level: 'warn',
+    });
+  }
+
   preset.compat = Object.fromEntries(
-    Object.entries(input).filter(([key]) => key !== 'content' && key !== 'post_history'),
+    Object.entries(kept).filter(([key]) => key !== 'content' && key !== 'post_history'),
   );
 
   return parsed({ preset, notes });
