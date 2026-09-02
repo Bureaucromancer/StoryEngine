@@ -108,6 +108,23 @@ const NOTE_LABELS: Record<string, string> = {
   'import.file.notStored': '“{object}” could not be saved ({reason}).',
   'import.file.notYetConvertible':
     'Read and named, but this build has nowhere to put a {kind} yet.',
+
+  /**
+   * **The three SillyTavern templates, which are recognised and never
+   * converted.** Each sentence has to do two things at once: name what the file
+   * is, so the answer is better than *"nothing here recognised it"*, and say why
+   * nothing will come of it, so *not importable* does not read as *not
+   * implemented yet*. [10 §8.4.5] is the position they are stating.
+   *
+   * None interpolates a filename. The row already carries `source`, and these
+   * sentences are about the kind rather than about one copy of it.
+   */
+  'import.template.instruct':
+    'A SillyTavern instruct template. It shapes a raw-completion prompt, which this build does not send — so there is nothing here for it to become.',
+  'import.template.context':
+    'A SillyTavern context template. It lays out a raw-completion prompt; this build assembles from blocks instead.',
+  'import.template.reasoning':
+    'A SillyTavern reasoning template. It splits reasoning out of a model’s reply, which nothing here reads.',
   'import.row.unreadable': 'A row in {table} could not be read and was skipped.',
   'import.lore.stateDropped': '“{entry}” had a {field} setting that does not exist here.',
   'import.lore.unknownPosition': '“{entry}” sat at position {code}, which has no meaning here.',
