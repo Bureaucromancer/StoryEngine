@@ -1827,17 +1827,74 @@ reads.
 > reason the engine *acts on*. That correspondence is the whole value of having
 > built the rendering first, and it is worth a test that fails if the two diverge.
 
-#### P5.8 — The keyword test, generalised
+#### ~~P5.8 — The keyword test, generalised~~ Landed
 
-The workbench feature deferred from P3 ([05 §3](../05-ui-surfaces.md)): paste
-sample text, see what would fire, against a real session's channel state,
-covering every activation source. Doubles as the authoring loop for imported
-books — which, per PLAYABLE, is where "my lorebook never fires" gets diagnosed.
-**And this is where inline highlighting of entry content becomes honest**, since
-an entry's content is sample text and the matcher is now real. Off by default.
+Three commits, and the stage's own framing turned out to be the thing worth
+re-examining: **it needed no text box**, and the reason is a rule [05 §3] states
+about itself.
 
-*Ends at:* the demo — fired/why/cost/dropped, in the workbench, against the
-imported library.
+**The tester needs no endpoint either — sample text *is* an input.** So the
+preview already ran the real retriever against the real channel state on every
+keystroke, and what fired was already in the block table with the key that did
+it. What was missing was the server's account of what it **refused**, which was
+computed and discarded. `LoreReport` carries it now, on both preview arms —
+[P3.0]'s reason for `notFilled` applies unchanged, because the scan happens
+before a model is resolved and an unconfigured install is exactly where somebody
+is asking why their world is not appearing.
+
+**The text box is the composer, and that is a decision rather than a shortcut.**
+Marinara's tester has a textarea of its own; §3's rule is that the panel is *a
+reader with no state of its own*, and the section admits exactly one exception —
+import — while saying in as many words that a second should force a rewrite
+rather than be quietly bent. A textarea here would have been that second one. It
+is also the better surface: the preview re-runs on the composer, so the feature
+is live rather than a submit button, and a second box would be two ways to ask
+one question with the panel left to guess which. The cost is named in the file:
+sample text you did not mean to send sits in the composer until you clear it.
+
+**Sixteen classes became sixteen sentences, each naming what to do**, because
+that is the whole difference between sixteen reasons and one shrug. `reason`
+crosses the wire as an open string rather than today's union: the server's list
+will grow — `semantic` and the channel predicates are both scheduled — and a
+client pinned to the current sixteen would need redeploying in step with the
+server to keep rendering a report at all.
+
+**The highlighting made the matcher move**, which is the stage's structural
+result. `containsTerm` and its word-boundary argument now live in
+`shared/matching.ts` and the retriever imports them — the same move [P5.7] made
+with `entryGate`, and for the same reason: the book page claims to show *what
+the scanner sees*, and two implementations of one rule disagree eventually.
+
+The **regex arm deliberately stayed behind**. [P5.4] bounds a pattern inside
+`node:vm` because an imported book can carry a catastrophic one; a browser
+cannot interrupt `RegExp.test`, so the same pattern would hang the tab. The
+client evaluates none and prints how many entries it therefore cannot speak for
+— an author whose book is half patterns would otherwise read an empty highlight
+as *nothing links*, which is the one conclusion this feature must not allow.
+
+**`mentions.ts` keeps its own rule, and that is deliberate.** [05 §5.3] argues
+it into one stated rule because a *list* approximating thirty rule sets would be
+pretending to be the matcher, and because it is [16 §6]'s falsification
+instrument where changing the rule changes what the measurement means. So the
+list and the highlight can disagree, and the disagreement is informative: the
+list says a name appears, the highlight says whether the scanner would catch it.
+
+*Ended at:* the demo, run rather than described — a session with three imported
+books and 251 entries, four fired and 247 refused with their reasons, and the
+book page marking 242 real cross-references with the original casing preserved
+and each entry's own key left alone.
+
+*The stage as it was written:*
+
+> The workbench feature deferred from P3 ([05 §3](../05-ui-surfaces.md)): paste
+> sample text, see what would fire, against a real session's channel state,
+> covering every activation source. Doubles as the authoring loop for imported
+> books — which, per PLAYABLE, is where "my lorebook never fires" gets diagnosed.
+> **And this is where inline highlighting of entry content becomes honest**, since
+> an entry's content is sample text and the matcher is now real. Off by default.
+>
+> *Ends at:* the demo — fired/why/cost/dropped, in the workbench, against the
+> imported library.
 
 #### P5.9 — Writing samples, the other two carriers
 
@@ -2025,8 +2082,12 @@ Priced honestly, in the order the phase would cut under pressure:
    offers to falsify — with counts that cannot run until a real corpus exists
    (§1.6). Cutting it costs a feature; keeping it while the corpus is absent
    costs the ability to know whether it was worth building.
-2. **P5.8's inline highlighting goes second**, keeping the tester itself. The
-   tester is the diagnostic; the highlighting is the tester being pleasant.
+2. ~~**P5.8's inline highlighting goes second**, keeping the tester itself. The
+   tester is the diagnostic; the highlighting is the tester being pleasant.~~
+   *Both shipped, and the ordering was right about which is load-bearing and
+   wrong about what the highlighting costs: it is what moved `containsTerm` into
+   `shared/`, so cutting it would have left the retriever and the book page free
+   to disagree about the same rule. The pleasant half paid for a structural one.*
 3. **P5.9's writing-sample carriers go third** — they are three small things
    once the retriever exists, and they are the one part of this phase that is
    not about lore at all.

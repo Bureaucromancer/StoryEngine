@@ -810,3 +810,38 @@ describe('marking what the scanner sees', () => {
     expect(screen.queryByRole('checkbox', { name: 'Mark what the scanner sees' })).toBeNull();
   });
 });
+
+/**
+ * **Spans from different entries arrive grouped by entry, not in reading
+ * order**, so they have to be sorted before they can be rendered — `runsFor`
+ * walks forward and drops anything behind its cursor.
+ *
+ * This is the case that proves the sort happens, and it took a surviving
+ * mutation to find: with only one marking entry per test the order is trivially
+ * correct, and removing the merge changed nothing.
+ */
+describe('marking when two entries both match', () => {
+  it('marks both, whichever order the entries are declared in', async () => {
+    const user = userEvent.setup();
+    render(
+      <LorebookView
+        book={book({
+          entries: [
+            // 'wharf' appears *later* in the prose than 'harbour', while its
+            // entry is declared first — so the raw spans come out backwards.
+            entry('Wharf', { keys: ['wharf'] }),
+            entry('Harbour', { keys: ['harbour'] }),
+            entry('Prose', { content: 'The harbour road runs to the wharf.' }),
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+
+    expect([...unitFor('Prose').querySelectorAll('mark')].map((node) => node.textContent)).toEqual([
+      'harbour',
+      'wharf',
+    ]);
+  });
+});

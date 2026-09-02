@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  entryGate,
   newActor,
   newLorebook,
   newLoreEntry,
@@ -334,11 +335,28 @@ describe('loreReport', () => {
   });
 
   /** [P5.7]'s folder gate, named — the outermost shut one, as the surface names it. */
-  it('names the folder that shut an entry out', () => {
-    const book = bookOf([entryOf('Inside', { keys: ['ferryman'], folderId: 'act-two' })], {
+  /**
+   * **Gate step 13's second half, as an assertion** — *where the answer is a
+   * gate or a disabled book rather than a match, it agrees with what the
+   * document half already showed*.
+   *
+   * It agrees because both come from one function: [P5.7] made `activate` call
+   * the same `entryGate` the fold and the editor call, and the report carries
+   * the scan's reason verbatim. This pins the whole chain — page → `entryGate`
+   * ← scan → report → tester — at the point where a future edit could insert a
+   * second opinion.
+   */
+  it('gives the tester the same gate the reading surface shows', () => {
+    const inside = entryOf('Inside', { keys: ['ferryman'], folderId: 'act-two' });
+    const book = bookOf([inside], {
       folders: [{ id: 'act-two', name: 'Act Two', parentFolderId: null, enabled: false, order: 0 }],
     });
 
+    expect(entryGate(book.book, inside).blockedBy[0]).toEqual({
+      kind: 'folder-off',
+      folderId: 'act-two',
+      folderName: 'Act Two',
+    });
     expect(reportFor([book]).skipped[0]).toMatchObject({
       reason: 'folder-disabled',
       folder: { id: 'act-two', name: 'Act Two' },

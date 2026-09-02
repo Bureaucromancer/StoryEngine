@@ -120,7 +120,14 @@ describe('entrySpans', () => {
    * the count rather than letting an empty highlight read as *nothing links*.
    */
   it('evaluates no pattern at all', () => {
-    const entry = entryOf({ keys: ['do.ks'], useRegex: true });
+    /**
+     * **The key is one that would also match as a literal**, which the first
+     * version of this test got wrong: `do.ks` is absent from the text either
+     * way, so deleting the guard changed nothing and the mutation survived. A
+     * key that is a valid pattern *and* present verbatim is the only fixture
+     * that can tell *declined to run it* from *ran it and missed*.
+     */
+    const entry = entryOf({ keys: ['docks'], useRegex: true });
 
     expect(entrySpans(entry, 'the docks')).toEqual([]);
   });
