@@ -8,8 +8,10 @@ import {
   newLorebook,
   newTreatment,
   type Actor,
+  type Lorebook,
   type Preset,
   type PresetBlock,
+  type Treatment,
   type WritingSample,
 } from '@storyengine/shared';
 
@@ -1213,14 +1215,31 @@ describe('samples from a treatment and from a book', () => {
     expect(notFilled[0]?.reason).toBe('empty-source');
   });
 
-  /** The same additive-change tolerance the actor arm has, on the other two. */
+  /**
+   * The same additive-change tolerance the actor arm has, on the other two.
+   *
+   * **The field has to be genuinely absent**, which the first version of this
+   * missed: the factories all set `writingSamples: []`, so an object built from
+   * one exercises no fallback at all and the mutation that removes it survives.
+   * A file written before the field existed has no key, and that is what is
+   * built here.
+   */
   it('tolerates a treatment or a book written before the field existed', () => {
+    const bareTreatment = { ...newTreatment('Noir') } as Record<string, unknown>;
+    const bareBook = { ...newLorebook('Rain City') } as Record<string, unknown>;
+    delete bareTreatment['writingSamples'];
+    delete bareBook['writingSamples'];
+
     const { notFilled } = collectCandidates(
       context({
         preset: preset([samplesBlock()]),
         carriers: carriersOf({
-          treatment: { treatment: newTreatment('Noir'), id: 't1', contentHash: 'sha256:t' },
-          books: [{ book: newLorebook('Rain City'), id: 'b1', contentHash: 'sha256:b' }],
+          treatment: {
+            treatment: bareTreatment as unknown as Treatment,
+            id: 't1',
+            contentHash: 'sha256:t',
+          },
+          books: [{ book: bareBook as unknown as Lorebook, id: 'b1', contentHash: 'sha256:b' }],
         }),
       }),
     );

@@ -1322,6 +1322,53 @@ describe('a preset block can be scoped to a kind of call', () => {
     expect(samples.every((one) => one.tokens > 0)).toBe(true);
   });
 
+  /**
+   * **The book carrier, in a real turn, with nothing having matched.**
+   *
+   * Its own test rather than a third fixture in the one above, because it
+   * proves the property that makes samples a *slot* rather than a feature of
+   * the retriever: the book's prose is offered because the book is in play, and
+   * the entry that would have matched is deliberately absent. A wiring that fed
+   * the samples arm from the activated blocks would pass every test above and
+   * fail this one.
+   */
+  it('offers a book’s sample with no entry of that book having fired', async () => {
+    const book = newLorebook('Rain City');
+    book.writingSamples = [
+      { id: 'b-s1', title: 'Register', body: 'Nobody hurries here.', enabled: true, note: '' },
+    ];
+    // A key nothing in this turn will say, so the retriever activates nothing.
+    book.entries = [{ ...newLoreEntry('Unrelated'), keys: ['a-word-nobody-types'] }];
+    await create(library, ACCOUNT, book);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Book samples',
+      preset: SCENE_PRESET,
+      lore: [book.id],
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'samples-2',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const call = callOnRecord(onRecord(written[0], 'the turn on disk').turn);
+    const blocks = onRecord(call.blocks, 'the assembled blocks');
+
+    expect(blocks.filter((one) => one.source.kind === 'samples').map((one) => one.text)).toEqual([
+      'Nobody hurries here.',
+    ]);
+    // And nothing activated, which is the whole point of the fixture.
+    expect(blocks.filter((one) => one.source.kind === 'lore')).toEqual([]);
+  });
+
   it('puts a matching lore entry in the prompt, with the reason that fired it', async () => {
     const book = newLorebook('Rain City');
     book.entries = [

@@ -10,6 +10,7 @@ import { Layout } from '../storage/layout.js';
 import {
   newLorebook,
   newLoreEntry,
+  newTreatment,
   type AssembledPreview,
   type Lorebook,
   type LoreEntry,
@@ -341,5 +342,60 @@ describe('what the retriever did, on the preview', () => {
 
     expect(body.state).toBe('unmeasurable');
     expect(body.lore.skipped.map((one) => one.reason)).toEqual(['no-match']);
+  });
+});
+
+/**
+ * **The preview's carriers** — [P5.9].
+ *
+ * The runner and the preview must not disagree about what would be sent, which
+ * is `gather.ts`'s whole reason for existing; a preview that fetched the books
+ * and forgot the treatment's prose would show somebody a prompt they are not
+ * about to send, and the difference would be invisible in both. This is the
+ * assertion that keeps the two wired the same way.
+ */
+describe('writing samples on the preview', () => {
+  it('offers a treatment’s sample and a book’s, from the session’s own links', async () => {
+    const noir = newTreatment('Rain City Noir');
+    noir.writingSamples = [
+      { id: 't-s1', title: 'Tone', body: 'The rain never lets up.', enabled: true, note: '' },
+    ];
+    const book = newLorebook('Rain City');
+    book.writingSamples = [
+      { id: 'b-s1', title: 'Register', body: 'Nobody hurries here.', enabled: true, note: '' },
+    ];
+    for (const object of [noir, book]) {
+      const kind = object === noir ? 'treatments' : 'lorebooks';
+      const posted = await server.request({
+        method: 'POST',
+        url: `/api/library/${kind}`,
+        payload: object,
+      });
+      if (posted.status !== 201) throw new Error(`did not save: ${String(posted.status)}`);
+    }
+    await bindProse();
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Samples', treatment: noir.id, lore: [book.id] },
+    });
+    const withLinks = created.body.session.id as string;
+
+    const response = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${withLinks}/preview`,
+      payload: { input: { text: 'She waited.' } },
+    });
+
+    expect(response.status).toBe(200);
+    const preview = response.body.preview as AssembledPreview;
+    const samples = preview.blocks.filter((one) => one.source.kind === 'samples');
+
+    // Both carriers, and in [10 §3.1]'s order — the stance, then the world.
+    expect(samples.map((one) => one.text)).toEqual([
+      'The rain never lets up.',
+      'Nobody hurries here.',
+    ]);
   });
 });

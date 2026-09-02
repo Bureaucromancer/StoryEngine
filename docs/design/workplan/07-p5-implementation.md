@@ -189,8 +189,12 @@ was large:
   P5.6 stands as the precondition for the retriever half.
 - There is still no client lorebook surface: `library/` holds the list, the
   detail page, the as-stored fold and the revision list.
-- The five `object_fts` delete sites are still five (`ingest.ts` 325, 386, 391,
-  412, 482). §1.7's one-helper mitigation is unbuilt.
+- ~~The five `object_fts` delete sites are still five (`ingest.ts` 325, 386, 391,
+  412, 482). §1.7's one-helper mitigation is unbuilt.~~ **Built at P5.2**, which
+  had to have it: adding `lore_entry` and `lore_entry_fts` would otherwise have
+  made five sites seven. `dropSearchRows` is the one place that knows which
+  tables an object writes into, and the three remaining call sites go through
+  it — which is gate step 17's first half.
 - ~~The fixture-pair gate still asserts `lore` reads `no-producer`
   (`fixture-pair.test.ts:150`). P5.6 changes what that named CI step means.~~
   Changed at P5.6, in its own commit, and the gate is a named CI step now.
@@ -1896,31 +1900,64 @@ and each entry's own key left alone.
 > *Ends at:* the demo — fired/why/cost/dropped, in the workbench, against the
 > imported library.
 
-#### P5.9 — Writing samples, the other two carriers
+#### ~~P5.9 — Writing samples, the other two carriers~~ Landed
 
-[18 §7](../18-writing-samples.md) shipped the `samples` slot with only its
-**actor** arm live. The treatment and lore arms return nothing and report
-`no-producer`, because a session references neither object — the same posture
-`se.lore` held through P2 to P4, and it resolves here for the same reason: this
-phase is where a session first reaches a Treatment and its linked books.
+One commit, and it was the wiring change [18 §7] predicted — which is the
+result worth recording, because that prediction was made two phases before the
+thing it depended on existed. §7 said *a session references neither object
+today*, scheduled these arms for P5 on exactly that basis, and shipped the slot
+with one arm live rather than three arms dark. P5.6 made the sentence false and
+this stage cost the threading and nothing else.
 
-Three things, none of them large once the retriever exists:
+**A sample rides with its carrier, never with activation**, which is the
+distinction the stage text already drew and which the code now has to hold: the
+carriers reach the collector as their own field rather than through the
+activated blocks beside them. Threading them through the retriever's output
+would have quietly made a setting's prose conditional on a keyword, and every
+other test in this stage would still have passed. It has a test of its own — a
+book's sample in a real turn with none of that book's entries matching.
 
-- `gatherAssemblyInputs` carries the session's Treatment and its linked
-  Lorebooks, so `previewAssembly` and the runner cannot disagree about them —
-  the drift that module's docstring exists to prevent.
-- The `samples` arm fills from both, in the declared order **treatment → lore →
-  actor**, each sample its own candidate with its own priority.
-- The empty reason stops discriminating on the carrier once every carrier has a
-  producer: `no-producer` becomes `empty-source` throughout, and the test that
-  currently pins the split is the one that has to change deliberately.
+**The empty reason stops discriminating, and closing that split was the point.**
+It said something true while the carriers were landing at different times, and
+says something false now: with all three live, an empty samples slot means the
+same thing whichever carrier it names. The test that pinned it was rewritten to
+assert the collapse rather than deleted, in this stage's own commit, on §1.10's
+rule for the fixture-pair gate.
 
-**Book-scoped, so it does not touch activation.** A sample is not an entry and
-never matches a keyword; it rides with the book the way `media` does. That is
-what keeps this a stage of P5 rather than a feature of the retriever.
+15 mutations, no survivors — after three that survived the first run, all of
+them test gaps rather than code faults. Two were wiring nobody asserted: the
+preview's carriers, and a book's samples in a turn. The third is worth
+remembering beyond this file: **the factories all set `writingSamples: []`**, so
+a fixture built from one exercises no `?? []` fallback at all, and the
+additive-change tolerance test proved nothing until it deleted the key. A
+survivor also caught the *harness* rather than the code once — its suite did not
+include `routes/`, where the preview's own test lives.
 
-*Ends at:* a treatment's sample and a character's sample in one prompt, each
-addressable in the block table, each with its own cost and its own drop rule.
+*The stage as it was written:*
+
+> [18 §7](../18-writing-samples.md) shipped the `samples` slot with only its
+> **actor** arm live. The treatment and lore arms return nothing and report
+> `no-producer`, because a session references neither object — the same posture
+> `se.lore` held through P2 to P4, and it resolves here for the same reason: this
+> phase is where a session first reaches a Treatment and its linked books.
+>
+> Three things, none of them large once the retriever exists:
+>
+> - `gatherAssemblyInputs` carries the session's Treatment and its linked
+>   Lorebooks, so `previewAssembly` and the runner cannot disagree about them —
+>   the drift that module's docstring exists to prevent.
+> - The `samples` arm fills from both, in the declared order **treatment → lore →
+>   actor**, each sample its own candidate with its own priority.
+> - The empty reason stops discriminating on the carrier once every carrier has a
+>   producer: `no-producer` becomes `empty-source` throughout, and the test that
+>   currently pins the split is the one that has to change deliberately.
+>
+> **Book-scoped, so it does not touch activation.** A sample is not an entry and
+> never matches a keyword; it rides with the book the way `media` does. That is
+> what keeps this a stage of P5 rather than a feature of the retriever.
+>
+> *Ends at:* a treatment's sample and a character's sample in one prompt, each
+> addressable in the block table, each with its own cost and its own drop rule.
 
 ---
 
@@ -2088,9 +2125,10 @@ Priced honestly, in the order the phase would cut under pressure:
    wrong about what the highlighting costs: it is what moved `containsTerm` into
    `shared/`, so cutting it would have left the retriever and the book page free
    to disagree about the same rule. The pleasant half paid for a structural one.*
-3. **P5.9's writing-sample carriers go third** — they are three small things
+3. ~~**P5.9's writing-sample carriers go third** — they are three small things
    once the retriever exists, and they are the one part of this phase that is
-   not about lore at all.
+   not about lore at all.~~ *Shipped, and the size estimate was exactly right:
+   one commit, once the retriever existed. Nothing on this list was cut.*
 
 **What must not be cut, with the reason:** the regex timeout (an imported book
 should not be able to hang the server); `gatherAssemblyInputs` growing books (the
