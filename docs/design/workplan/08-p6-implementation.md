@@ -1,16 +1,26 @@
 # 08 — P6 implementation plan
 
-**Status: skeleton, expanded 2026-08-31 with a readiness audit and the deferrals
-collected, re-audited 2026-09-01 at P5's document half (§0.1), and re-audited
-again 2026-09-02 once all eleven P5 stages had landed — see §0.1a, which is the
-current one and which closes two of §0.1's findings.** ~~Drafted during P1; to be revisited before the phase starts.~~
-Drafted during P1 and expanded once P5 was planned, which is the point at which
-this phase is next-but-one and its preconditions are checkable rather than
-assumed. **It is still a skeleton and the revisit still owes it a plan** — but
-the upstream half of §5's list is now spent: P5 landed, the tape can be
-non-empty, and §1.3 is testable. **What remains before this phase opens is
-PLAYABLE**, for §1.8 and §1.2, plus the [09 §5.1](../09-branching.md) re-read.
-§0.3 is the live list.
+**Status: ~~skeleton~~ startable.** Expanded 2026-08-31 with a readiness audit
+and the deferrals collected; re-audited 2026-09-01 at P5's document half (§0.1);
+re-audited 2026-09-02 once all eleven P5 stages had landed (§0.1a); and **§2
+expanded the same day from a four-line sketch into a staged plan with orderings
+and proof obligations**, on the back of P5's close-out audit
+([07 §0.5](07-p5-implementation.md)). ~~Drafted during P1; to be revisited before the phase starts.~~
+
+**Read §0.1a, §0.3 and §2, in that order, and you can start.** §0 and §0.1 are
+superseded audits kept for their arguments rather than their findings; §1 is the
+decisions, and each stage in §2 names the ones it has to honour.
+
+The upstream half of §5's list is spent: P5 landed, the tape can be non-empty,
+and §1.3 is testable. **What remains before this phase opens is PLAYABLE**, for
+§1.8 and §1.2, plus the [09 §5.1](../09-branching.md) re-read — and neither
+blocks P6.0, which is the whole of the engine and ships no UI. §0.3 is the live
+list.
+
+**One thing to carry in from P5 before writing a line of it:** P5's exit gate was
+never walked, it ships with no client surface for selecting a lorebook, and two
+of its steps arrive here as obligations rather than as steps that changed
+meaning. §0.3's blocking box has the short version.
 
 Unusually for these plans, most of P6 is *already decided* — the tree model,
 swipes-as-branches, snapshots-as-cache and the tape are settled in
@@ -140,6 +150,18 @@ There is one drift — the per-draw flag is `turn.ts:109`; `108` is its docstrin
 > and no substance. `walkPath` (`segments.ts:188`), `config.ts:278`,
 > `state/jobs.ts:162`, `store.test.ts:224`, `state/commit.ts:346` and the
 > `shared/src/turn.ts` citations never moved at all.
+>
+> **"Refreshed throughout" was an overclaim, corrected 2026-09-02.** The eight
+> above were checked; the document was not swept. A mechanical pass over every
+> citation found **four more** stale, now fixed: `turn.branch_id`
+> 146→**212**, the 412 in `routes/sessions.ts` 462→**521**, the `indexTurn` call
+> 341→**346**, and `rebuild.ts` 131→**133**. Every claim they anchor survived
+> too. **The failure mode is worth naming, because it is the one this box assumed
+> away:** these went stale by *insertion far from the subject* — P5 added lore
+> schema above `branch_id` and route handlers above the 412 — so a citation can
+> rot in a file the phase's diff barely touched near that line. Checking the ones
+> you suspect is not a sweep. The head-gate triple was re-verified and is correct:
+> `state/jobs.ts:162`, `sessions/store.ts:372`, `turns/gather.ts:91`.
 
 What follows is what §0 got wrong about the *size*, the precondition that did
 not happen, and five things missing from its own list.
@@ -210,7 +232,7 @@ storage-ready* and *branching works*.
 - **The head-equality gate is the single line that makes branching impossible
   today.** `submitTurn` refuses any parent that is not the current head
   (`state/jobs.ts:162`, returning `stale`), and the route answers `412` with the
-  head a client should rebase onto (`routes/sessions.ts:462`). The wire already
+  head a client should rebase onto (`routes/sessions.ts:521`). The wire already
   carries `headTurnId` as an explicit field, so this is a rule to relax rather
   than a schema to migrate — but it is a rule, it is deliberate, and §1.7's
   stale-head bullet is about *this line*. It should be P6's first and cheapest
@@ -285,10 +307,10 @@ because the two blockers give the check a concrete address rather than a worry.
 Both are the shape [P4 §7.4](06-p4-implementation.md) had before it was closed —
 a schema written for a plan, and then nothing wrote it.
 
-- **`turn.branch_id`** exists in the index (`index-db/migrations.ts:146`), is
+- **`turn.branch_id`** exists in the index (`index-db/migrations.ts:212`), is
   plumbed end to end as a defaulted fourth parameter (`index-db/sessions.ts:90`)
   and comes back on every search row (`:41`) — and **both call sites omit it**
-  (`sessions/store.ts:341`, `index-db/rebuild.ts:131`), so every row's
+  (`sessions/store.ts:346`, `index-db/rebuild.ts:133`), so every row's
   `branch_id` is NULL. It is also named for the model
   [09 §3](../09-branching.md) *explicitly discarded*: there is no `Branch` entity
   owning turns. §1.6 wants a **materialised path**, which is a different column
@@ -363,11 +385,31 @@ on P5.4–P5.6.
 **That dependency is satisfied.** There are two production draw sites, both in
 the retriever: `rng.at('lore.probability', entry.id).chance(…)`
 (`retrieval/activate.ts:535`) and `rng.at('lore.group', key).weightedPick(…)`
-(`:611`). Both are keyed by entry or by book-and-group rather than positionally,
+(`:611`). ~~Both are keyed by entry or by book-and-group rather than positionally,
 which is [07 §14]'s *keyed by site, never by position* being honoured by its first
-real consumer — so a rewrite that takes a slightly different path replays the
+real consumer~~ — so a rewrite that takes a slightly different path replays the
 draws it can and draws fresh for the rest, which is the behaviour §1.3 needs to be
 able to test at all.
+
+> **Half wrong, corrected 2026-09-02 at [07 §0.5](07-p5-implementation.md).** The
+> *site keys* are stable — entry id, and book-and-group — and that half is what
+> [07 §14] asks for. **But `weightedPick`'s payload is a position.**
+> `rng/rng.ts:196-213` records `index`, an offset into the candidate list, and
+> the replay guard at `:120-125` accepts a recorded draw whenever
+> `recorded.kind === kind && recorded.detail === detail` — where `detail` is
+> `total=<summed weight>`. The candidate list is built in **scan order** from
+> `firedHere` (`activate.ts:600`), which is `entry.order` then id.
+>
+> So a group whose membership was reordered, or one member swapped for another of
+> equal weight, replays the old index onto a **different entry** and marks it
+> `replayed: true` — and `Rng.diverged` under-reports. Nothing reaches this today
+> because no production code constructs a replaying `Rng`. **P6.2 is the phase
+> that will**, which makes this the phase's inheritance rather than P5's bug:
+> §1.3's gate step 3 asks that *"the record marks replayed vs fresh draws"*, and
+> that sentence can be satisfied today by a draw that replayed to the wrong
+> entry. Fix before building on it — record the winning entry id, or put the
+> member ids into `detail` so a changed candidate set misses the tape and draws
+> fresh.
 
 **But the tape is non-empty only for a turn that actually rolled**, and that is
 the half of the finding that survives. `probability` is null by default and a
@@ -450,6 +492,16 @@ no gap — an entry whose `fired` moved writes an effect even when `sticky` and
 `cooldown` did not, which is what makes gate step 10's ephemeral case
 reconstructible.
 
+> **True by reading and protected by nothing** ([07 §0.5]). No test folds a
+> lore-timing effect through `replayChannels` at all — every call site in the
+> suite folds a clock-only path — and `left.fired === right.fired` is load-bearing
+> only for an entry with **neither** `sticky` nor `cooldown`, which is the
+> canonical `ephemeral` entry and exactly what the factory produces by default.
+> So deleting that clause leaves the whole suite green and makes an ephemeral
+> entry fire every turn forever. **P6.0 must not present the ephemeral case as
+> reconstructible on the strength of reading that function**; P6.0a below writes
+> the assertion, and it is the same test that discharges P5's gate step 14.
+
 **A session's lore links are session-wide, not per-node, and that is a relief
 worth recording.** `SessionFile` gained `treatment` and `lore` at P5.6, and
 `resolveLore` reads them from the session file rather than from any turn — so
@@ -515,6 +567,19 @@ questions that need play; and an ordering inside the phase that is worth fixing
 now because getting it wrong is the expensive kind.*
 
 #### Genuinely blocking, and only these
+
+> **Amended 2026-09-02 by [07 §0.5](07-p5-implementation.md), which added one and
+> took none away.** **P5's exit gate has never been walked**, and five of its
+> eighteen steps cannot be passed as written. Two of those five are already
+> this phase's: step 11's reproduction half is §3's step 3 here, and step 14's
+> pre-P6 discharge is P6.0a. **That does not block P6 opening** — the work is
+> named and owned. What *is* worth knowing before starting: P5 shipped with **no
+> client surface for selecting a lorebook**, so `pnpm seed` produces a session
+> that resolves zero books and every fixture in this phase that needs lore must
+> build its selection through `POST /api/sessions { treatment, lore }` or
+> `PUT /sessions/:id/lore` itself. Gate step 3 needs a rolling entry and gate
+> step 10 needs a sticky/cooldown/ephemeral one. **Do not assume `pnpm seed`
+> gives you a world.**
 
 - ~~**P5.4–P5.6, for §1.3's rewrite/reroll split and gate step 3 — and for
   nothing else.**~~ **Satisfied 2026-09-02** — all eleven P5 stages landed and
@@ -598,6 +663,21 @@ that costs more attention when met mid-stage than when cleared cold.
    still ask a question [06](../06-open-questions.md) answered.
 4. **§4's handoff names one consumer where there are two** (§0.2), and the
    constraint P6 hands forward is two-level keying rather than "a chain".
+5. **Deselecting a lorebook strands its timing counters**, and nothing has
+   decided whether that is right. `setLore` (`sessions/store.ts:557`) writes
+   `treatment`, `lore` and `updatedAt` and never touches `channels`, while
+   `timingFrom` (`retrieve.ts:195`) harvests every `se.lore.timing#<entryId>` key
+   in the map without consulting which books are selected. Removing a book is an
+   explicitly supported gesture — *"and back to none, which is how somebody
+   removes a book they regret"* — and it leaves that book's
+   `{sticky, cooldown, fired}` behind, so re-adding it resumes a spent
+   `ephemeral` and a mid-count `cooldown`. Inert for reconstruction; **P6.3's
+   undo will meet it**. Decide whether deselection prunes or deliberately keeps,
+   and say which in `setLore`'s comment.
+6. **The group draw's payload is a position** (§0.1a). Not clearable before the
+   phase — it is P6.2's own first task — but it belongs on a list somebody reads
+   before writing the replay path, because the mistake it enables looks like
+   success in the record.
 
 ---
 
@@ -796,64 +876,222 @@ ordering was lucky.
 
 ## 2. Stages
 
-### P6.0 — Reconstruction and snapshots
+*Expanded 2026-09-02 from a four-line sketch per stage, at the close-out audit
+([07 §0.5](07-p5-implementation.md)). The sketches said what each stage builds;
+they did not say what it must **prove**, or what it may not start before — and
+§0.3 spends four paragraphs arguing that the ordering inside P6.0 is what decides
+whether the phase spends its first week debugging state belonging to a branch
+nobody is on. A stage list that leaves that in prose gets read as four bullets,
+and the one-line change gets made first. It is steps now.*
+
+**Before the phase opens, read this much and no more:** §0.1a for what P5 left,
+§0.3 for what still blocks, and this section. §0 and §0.1 are superseded audits
+kept for their arguments; §1 is the decisions, and each stage below names the
+ones it has to honour.
+
+### P6.0 — Reconstruction, the head gate, and the snapshot cache
 
 *Resized at §0.1: the walk-up-replay-forward exists, so this stage is the cache,
 the generalisation of the property from head to every index, and the two
-head-snapshot readers below — not the mechanism.*
+head-snapshot readers — not the mechanism.* Pure engine, no UI. **Four sub-steps
+in a fixed order, and the order is the stage's only real risk.**
 
-**And it opens with the head gate and its two consequences**, because they are
-what stands between storage that tolerates branching and a session that can
-branch: relax `submitTurn`'s head-equality refusal (`state/jobs.ts:162`), and
-fix the two places that key on the head snapshot rather than on the node —
-`advanceHead` (`sessions/store.ts:372`), which applies effects incrementally to
-the current head's map, and `gatherAssemblyInputs` (`turns/gather.ts:91`), which
-pairs a walked history with `session.channels`. Both are correct today only
-because the gate makes them unreachable, and both are wrong the moment it moves.
+#### P6.0a — the property test, written before anything moves
 
-State-at-node as walk-up-replay-forward over §1.1's snapshot cache;
-`session.json`'s head snapshot rewritten on head move (staying derived —
-[02 §8.1](../02-data-model.md)); the replay property test green. This stage is
-pure engine and ships no UI.
+**Builds:** reconstruction generalised from *head* to *every index*, asserted
+against the code exactly as it stands today. A new `sessions/reconstruct-property.test.ts`,
+or a new describe in `sessions/store.test.ts`, over `walkPath`
+(`sessions/segments.ts:188`) and `replayChannels` (`sessions/store.ts:475`).
 
-*Two notes from §0.1a, one making this stage heavier and one lighter.*
-**Heavier:** the map being replayed is no longer mostly `se.clock`. Every turn
-touching a lorebook writes a `se.lore.timing` effect per entry whose counters
-moved, so the cache earns its place on effect volume as well as on walk depth,
-and the property test finally has state that can disagree. **Lighter:** a
-session's lore links live on `SessionFile` (`treatment` and `lore`, added at
-P5.6) rather than on any turn, so *which books are in play* does not vary by
-node — same as `cast`. Nothing here reconstructs a book list; only the timing
-of entries within those books replays.
+**Must prove:** for a fixture session with at least one sibling pair, channel
+state at every node equals `replayChannels(walkPath(turns, node))` — and **the
+fixture's effects must include `se.lore.timing#<entryId>` values, not only
+`se.clock`.** That clause is the whole point of putting this first. Every
+existing `replayChannels` test folds a clock-only path (`store.test.ts:286`,
+`:298-299`, `:337`; `channels.test.ts:121`, `:167`; `p2-gate-storage.test.ts:628`,
+`:750` — the last because its `createSession` helper posts `{ name }` alone, so
+no book is ever selected and no timing effect is ever written). Assert the three
+`EntryTiming` integers by name (`retrieval/timing.ts:48`), and include one entry
+with **neither `sticky` nor `cooldown`** so that `same()`'s
+`left.fired === right.fired` clause (`retrieve.ts:239`) is protected — today
+deleting it leaves the suite green and makes an ephemeral entry fire forever.
+
+**This sub-step is also [P5 §3](07-p5-implementation.md) step 14 discharged**,
+which is why it comes first rather than last: P5's pre-P6 escape clause was
+*"replay-from-zero covers it"* and that was never written, so this phase inherits
+an obligation rather than a step that changed meaning.
+
+**Blocks:** everything else in the phase. Without it, P6.0b's regression is
+invisible.
+
+#### P6.0b — fix the two head-snapshot readers, with the gate still closed
+
+**Builds:** `advanceHead` (`sessions/store.ts:372`) stops computing
+`applyEffects(session.channels, turn.effects)` from whatever the head's map
+happened to be, and takes its parent map from the node being appended to.
+`gatherAssemblyInputs` (`turns/gather.ts:91`) stops preferring `session.channels`
+when the file exists and takes channels from the walked history it already
+computed at `:86` — the `session ? session.channels : replayChannels(history)`
+ternary is the exact line, and the `session.channels` arm is what pairs one
+branch's history with another's state.
+
+**Must prove:** (i) with the head gate **still in place**, every existing test
+passes unchanged — no behaviour change at the head, which is what makes the diff
+reviewable; (ii) driven at store level with a hand-built sibling, both functions
+return the *sibling's* state and not the head's; (iii) P6.0a's property still
+holds.
+
+*Why this is sharper after P5:* the symptom of the wrong map used to be a wrong
+clock, which is one visibly bogus number. It is now also wrong **lore** — entries
+sticky that never fired on this path, an `ephemeral` spent by a turn not in this
+history — which changes the prose the model is given rather than a field on the
+screen, and is noticed as *the writing got strange* three sessions later.
+
+**May not start before P6.0a. Must complete before P6.0c.**
+
+#### P6.0c — relax the head gate, and decide §1.7's stale-head case in the same commit
+
+**Builds:** the refusal at `state/jobs.ts:162` and the route's `412` at
+`routes/sessions.ts:521`. **§1.7's first bullet must be decided here, not
+later**, because *"explicit sibling"* and *"a refusal that offers one"* are
+different code: the first removes the check, the second keeps it and changes the
+response.
+
+**Must prove:** (i) submitting against a non-head parent produces a sibling turn,
+and P6.0a's property still holds at both children; (ii) two submissions against
+one head do not manufacture a branch nobody asked for — gate step 12;
+(iii) idempotency-key retention still holds, so a retry cannot charge twice.
+
+**May not start before P6.0b. Blocks P6.1 and P6.2 entirely** — no gesture can
+ship over a head-gated store.
+
+#### P6.0d — the snapshot cache, and the config key
+
+**Builds:** the cache keyed by `TurnId`; the location is already fixed by
+[02 §5.1](../02-data-model.md) and this stage does not get to choose it (§0.2).
+Snapshot **at every N of depth and at any node that acquires a second child** —
+[09 §4](../09-branching.md) names both triggers and §1.1 carries only the first;
+*"a node with several children is a node whose state will be materialised
+repeatedly, once per sibling explored"* is the cheap win. No eviction at 1.0
+(§1.1; [06 C8](../06-open-questions.md) reads RESOLVED — pick generously). Flip
+`config.ts:278` from `'unread'` to `'applied'` and **write the test that does not
+exist** (gate step 9): the behavioural shape from `routes/live-config.test.ts`,
+saving a new N over `PUT /config` on a running server and showing the *cadence*
+change rather than the number.
+
+**Must prove:** (i) delete every snapshot and everything still works, slower,
+with the property asserting equality at every index — gate step 6; (ii) gate step
+14's cost bound. Note the cache now earns its place on **effect volume** as well
+as walk depth, because every turn touching a lorebook writes one
+`se.lore.timing` effect per entry whose counters moved.
+
+**May start any time after P6.0a; must land before the phase gate.**
 
 ### P6.1 — Navigation and the head
 
-Move head to any node; history renders the path to it; `BranchRef` create /
-rename / delete (a ref is ~50 bytes and moves no data); reattach and the event
-stream correct when the head moves mid-view.
+**Builds:** `BranchRef` and `lastSelectedChildId` in `packages/shared/src`;
+`branchRefs` on `SessionFile` — and fix that interface's docstring
+(`sessions/types.ts:42`) while there, which advertises branch refs the interface
+does not have *and* omits `treatment` and `lore`, added at P5.6 (§0.3 item 1: one
+edit closes both). Move-head in `sessions/store.ts`; the route in
+`routes/sessions.ts`, since branching has had no route since [P2C §5](15-p2c-first-real-run.md).
+**`state/commit.ts:346` already builds the parent→children index this stage
+needs** and refuses to guess at a node with two children — reuse it rather than
+writing a second.
+
+**Must prove:** (i) moving the head to an arbitrary node re-derives
+`session.channels` through P6.0b's path rather than incrementally — this is the
+first consumer of that fix and where a regression would show; (ii) history
+renders the path to the new head, selected path only ([09 §6](../09-branching.md));
+(iii) the event stream stays correct when the head moves mid-view; (iv) creating,
+renaming and deleting a `BranchRef` moves no turn data, and deleting a ref
+deletes no turns; (v) back-and-forward resumes from `lastSelectedChildId` rather
+than guessing.
+
+**Decide here, not during P6.3: §1.6's column.** `turn.branch_id` exists
+(`index-db/migrations.ts:212`), is plumbed as a defaulted parameter
+(`index-db/sessions.ts:90`) and is written NULL by both call sites
+(`sessions/store.ts:346`, `index-db/rebuild.ts:133`). Populate it, or add the
+materialised path [09 §3] actually asks for and drop it. §0.3 says *before* the
+index work rather than during it; this is that moment.
+
+**May not start before P6.0c.**
 
 ### P6.2 — The gestures
 
-§1.3's two buttons on every ~~message~~ **turn** — [09 §7](../09-branching.md)
+**Builds:** §1.3's two buttons on every ~~message~~ **turn** — [09 §7](../09-branching.md)
 resolves branching inside a multi-message turn to that turn's *node*, which is
-C11, and under `per-actor` dispatch one turn is several messages, so *message*
-is the unit C11 was closed to stop people using (§0.2); rewrite/reroll over the
-tape with
-replayed-vs-fresh draws marked in the record; P3's edit-and-re-run reconciled
-onto the same sibling mechanism (it was already writing siblings —
-[05 §1.2](05-p3-implementation.md)).
+C11, and under `per-actor` dispatch one turn is several messages, so *message* is
+the unit C11 was closed to stop people using (§0.2). Client work in
+`packages/client/src/play/`; server work in `turns/runner.ts`, **which must gain
+a replay path**: `runner.ts:304`'s bare `const rng = new Rng();` becomes
+`new Rng({ replay })` when a tape is supplied, with the field added to
+`RunnerOptions` or `TurnPayload`. `turns/preview.ts:135` is the second bare
+construction and belongs in the same pass. P3's edit-and-re-run reconciles onto
+the same sibling mechanism — it already writes siblings
+([05 §1.2](05-p3-implementation.md)).
+
+**Fix the group draw's payload before any of this can mean anything.**
+`weightedPick` (`rng/rng.ts:196-213`) records an *index* into a candidate list
+built in scan order, guarded on replay only by `detail = total=<summed weight>`,
+so a group whose membership changed without changing the weight sum replays the
+old index onto a different entry and still reports `replayed: true` (§0.1a).
+Gate step 3's *"the record marks replayed vs fresh draws"* is otherwise
+satisfiable by a draw that replayed to the wrong entry.
+
+**Must prove:** (i) gate step 3 against **a fixture built to roll** — a lore
+entry with `probability` below 100, or two entries contesting one group —
+asserting the tape is non-empty *before* asserting anything about it, since an
+ordinary turn commits `[]` and the step would otherwise pass by asserting
+nothing; (ii) rewrite reproduces the same activation set and reroll does not,
+with `replayed` marked per draw (`shared/src/turn.ts:109`); (iii) the reroll
+affordance does not appear on a turn that consumed no draws
+([07 §14.6](../07-tech-stack.md)); (iv) §1.8's decision is implemented **and
+written down where a person can find it** — gate step 11.
+
+*One trap for the fixture:* a session's lore links are session-wide but **not
+time-invariant** — mutable at any moment through `PUT /sessions/:id/lore`, and
+the books are live links resolved at assembly, so reconstructing an old node uses
+today's book list and today's entry text. That is deliberate design, not a bug,
+but the fixture must not change its book between the original turn and the
+rewrite, or the step reddens for a reason that is not a defect.
+
+**May not start before P6.1.** The two buttons need no draws and could in
+principle precede the rewrite/reroll split; the split cannot.
 
 ### P6.3 — Siblings, undo, and hygiene
 
-§1.2's inline sibling affordance; §1.4's tip-only undo with the branch offer;
-§1.5's escaped-effect labelling; §1.6's branch-labelled search. Tombstone
-skipping in the turn reader verified (compaction itself stays unbuilt —
-tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
+**Builds:** §1.2's inline sibling affordance (count, prev/next,
+promote-to-named-ref). §1.4's tip-only undo — **the phase's most under-priced
+line**: nothing inverts an effect anywhere in the tree, and the
+`(channelId, scopeKey, path)` index §1.4 names has no table behind it. Two things
+P5 changed here: `applyEffects` now keys on
+`channelKey(effect.channelId, effect.scopeKey)` (`sessions/store.ts:445`), so an
+undo replaying `before` lands on the right entry's timing; and `acceptEffect`
+(`turns/effects.ts:49`) still refuses anything but a whole-value set at `/`,
+correct for P5's timing writes and the place a narrower undo op would first be
+met. §1.5's escaped-effect **producer** plus the abandonment banner — nothing
+writes `'escaped'` today. §1.6's branch-labelled search, over whichever column
+P6.1 decided. Tombstone skipping in the turn reader verified (compaction stays
+unbuilt — tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
+
+**Must prove:** (i) gate step 10 **extended past sticky** — a `sticky`, a
+`cooldown` and an `ephemeral` entry activated on one line are absent from a
+sibling line that branched before the activation. This should hold *by
+construction* through P6.0b; if it does not, the bug is in this phase's
+reconstruction and not in P5's key, which is a useful thing to know before
+debugging; (ii) gate step 4 — undo at the tip reverts locally, a deeper invert is
+refused, and the refusal offers the branch; (iii) gate step 5 — a character dead
+on one line is alive on the other; (iv) gate step 7 — search finds text on an
+abandoned branch, labelled, never passed off as current; (v) gate step 8 — kill
+the server, delete `index.sqlite`, restart, and the tree, refs and head survive.
+
+**May not start its §1.6 half before P6.1's column decision.** The rest may run
+in parallel with P6.2.
 
 *Ends at:* the demo.
 
 ---
-
 ## 3. Verification — the P6 exit gate
 
 ~~Sketch; expand on revisit.~~ *Steps 1–8 were the sketch and stand. Steps 9–13
@@ -919,6 +1157,12 @@ actually landed and the gate could name real state instead of hypothetical.*
     before P6 and a branch test after; it changes meaning here, and the
     fixture-pair precedent from P5.6 is that such a step is edited deliberately
     rather than repaired when it reddens.
+    **Sharpened by [07 §0.5](07-p5-implementation.md): it arrives undischarged,
+    not changed.** The pre-P6 replay-from-zero test was never written — every
+    `replayChannels` call site in P5's suite folds a clock-only path — so P6.0a
+    *is* that discharge, generalised. Edit the step to say so rather than ticking
+    it. **And P5's step 11 is subsumed by step 3 above**: P5 discharged the
+    keying, this phase owns the reproduction, and P5's record now says so.
 
 14. **Reconstruction stays affordable against a real lorebook** *(added
     2026-09-02 from §0.1a)*. P5 made the effect log an order of magnitude

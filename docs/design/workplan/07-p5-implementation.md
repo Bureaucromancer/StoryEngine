@@ -482,6 +482,158 @@ unchanged. If that window has already passed, they are no closer than §1.11 lef
 them and the file would now be written from recollection, which is the thing §0.3
 says is worth less. If it has not, the file is worth making before it does.
 
+### 0.5 The close-out audit — 2026-09-02, at `a01e2d8`, and the phase does not close
+
+Every stage reads Landed and the suite is green: 2343 tests, plus `test:gate`
+and `test:fixture-pair`. **That is not the same as the phase being done, and this
+section is the difference.** Ten auditors were run over the gate, the stage
+records, the design contract, the test suite and the handoff; every finding was
+then put to an adversarial verifier told to refute it by reading the code, and
+eleven of fifty-nine were killed that way. What follows is what survived.
+
+**The headline: §3 has never been walked, and walking it today would fail.**
+Four human walks are recorded in the stage records (`:986-990`, `:1187-1213`,
+`:1232-1236`, `:1370-1374`), and all four are stage-level *"then somebody opened
+it"* walks rather than a pass over §3's numbered list. Two commits postdate every
+one of them — `b66e00a`'s scanner toggle and `2380bd0`'s scope-row removal.
+
+**Five steps cannot be passed as written, and one fails its own amendment.**
+This is the part that matters, because a gate walked in this condition gets
+edited until it passes, which is the failure this section's own preamble is
+written against:
+
+- **Step 6** names a means of satisfaction the repository does not contain. It
+  says the step *"is met by the handful of explicitly-permissive real books the
+  corpus policy already keeps in the repository"*. It keeps none —
+  `import/fixtures/test-sillytavern.ts:15-20` says outright *"this is the whole
+  corpus the phase gets"* and names the real-library walk as outstanding.
+  [10 §5](10-testing.md) is the policy's *plan*, not a record that it ran. The
+  same false claim is duplicated at [P4 §1057](06-p4-implementation.md).
+- **Step 8** describes a string the build does not produce. It asks the workbench
+  to show *"sticky, 2 remaining"*; `blocks.ts:94-95` returns `'still active from
+  an earlier turn'` with no count, `LoreReport` has no timing field, and
+  `EffectList.tsx:44` prints `channelId` without `scopeKey` — so two sticky
+  entries render identically. The count exists (`ScanResult.timing`,
+  `retrieve.ts:216`); `Activation` does not carry it.
+- **Step 11** cannot be executed. There is no production replay entry point:
+  `turns/runner.ts:304` and `turns/preview.ts:135` are the only non-test `Rng`
+  constructions and neither takes a tape. Its parenthetical cites *"P3's
+  edit-and-re-run"*, which [P3 §344](05-p3-implementation.md) explicitly
+  disclaims. **What P5 actually discharged is the keying, not the reproduction.**
+- **Step 12** cannot be expressed. No entry can be conditioned on a channel at
+  all: [10 §5]'s schema lists `activationConditions` as *deliberately absent*,
+  the importer discards it, and no `SkipReason` in the seventeen-arm union names
+  a channel. Meanwhile [01 §195](01-work-plan.md) still assigns the work to P5.
+  **Do not credit `unknownSources` to this step** — it is the same visible-warning
+  posture for scan *sources*, but the entry keeps scanning and can still fire, so
+  it does not satisfy *never fires*.
+- **Step 14's** pre-P6 discharge is untested. *"Replay-from-zero covers it"* is
+  the escape clause, and every `replayChannels` call site in the suite folds a
+  **clock-only** path — `store.test.ts:286`, `:298-299`, `:337`;
+  `channels.test.ts:121`, `:167`; `p2-gate-storage.test.ts:628`, `:750`, the last
+  because its `createSession` helper posts `{ name }` alone so no book is ever
+  selected. Nothing composes the pieces, though they all exist.
+- **Step 17's §0.4 amendment is unmet for one delete.** The three inside
+  `dropSearchRows` are covered; `delete from object_fts` at `rebuild.ts:52` is
+  not, because the only test reaching an in-place rebuild asserts through
+  `objectLines` and a `startsWith('lore')` filter, while an orphaned FTS row is
+  tagged `'orphan-fts'`. Production impact is nil — the line is present and
+  correct — but the amendment's bar was *"met only when deleting one **fails**
+  it"*, and for that one it does not.
+
+**Two live defects a walk would meet, and neither is a gate-step failure — they
+are bugs.**
+
+- **The reversal left selection with no surface, and the retriever half is
+  unreachable through the product.** `client/src/api.ts:579` sends `{ name }`
+  alone; nothing in the client calls `PUT /sessions/:id/lore`, whose only callers
+  are tests; and `tools/seed.mjs:164` creates its session with a cast and never
+  names the treatment it built twenty lines above. So `pnpm seed` produces a
+  session that resolves **zero books**. The reversal was right — `2380bd0` fixed
+  a real fault, and [02 §3.4](../02-data-model.md) now describes the world — but
+  it shipped half a mechanism, and no test noticed because every test builds its
+  selection by hand. **This is the standing line from [01 §2.3](01-work-plan.md)
+  undischarged for the retriever half**, and it is the single largest thing
+  between this phase and an honest close.
+- **`SCENE_PRESET` has exactly one lore slot**, `{ of: 'lore', phase: 'before' }`
+  (`modes/scene/preset.ts:191`), and it is the preset every UI-made session gets.
+  SillyTavern positions 1, 2, 3, 5 and 6 all import as `after_char`. Such an
+  entry activates, is charged against the book's `tokenBudget` and `entryLimit`
+  in `shelve`, then matches no slot in `collect` and **vanishes unreported** —
+  `unplaced` covers only outlets, and `loreReport` still counts it as kept. The
+  first imported ST book silently loses the majority of its entries after they
+  have spent the budget.
+
+**Two defects the audit itself missed, found by the critic that asked what went
+unexamined** — recorded here because the miss is as instructive as the find:
+
+- **`scanDepth` truncates the *recursion* haystack, and `entry.order` decides
+  which entries feed it.** The recursive pass replaces the messages with the
+  activated entries' content (`activate.ts:298-315`), and that array then goes
+  through the ordinary window at `match.ts:145-146`. On a default book
+  (`scanDepth: 2`) **only the first two activated entries' content is scanned**,
+  forever. Worse, `feeding` inherits `inScanOrder`, so raising an entry's
+  `order` — a *placement* setting, documented under a banner that has nothing to
+  do with recursion — silently removes its text from the recursion haystack. The
+  skip reason reported is `no-match`, which `activate.ts:493-499` argues at
+  length is the wrong thing to tell an author whose keys were fine. And
+  `match.ts:131`'s **"`scanDepth` counts messages and nothing else"** is now
+  false: in a recursive pass it counts activated entries. No test can see any of
+  it — every recursion test is a chain of *width one*. **The fix is a decision,
+  not a patch:** exempt the recursive haystack from `scanDepth` (it is not a
+  conversation window), or cap it deliberately and report the cut as its own skip
+  reason.
+- **P5 added a destructive operational-store migration and wrote no test for
+  it.** `state/migrations.ts` `STEPS[3]` does the create-copy-drop-rename dance
+  and **drops a table** — while `state/migrations.test.ts:12-14` states the
+  file's doctrine as *"none may drop a table"*. That file was untouched by all
+  thirty-six commits. The doctrine test cannot see the new step: it compares
+  `tableNames(storeAtVersion(1))`, and a v1 store has no `import_item` to
+  observe being dropped. **Deleting the `insert into import_item_new … select`
+  leaves the whole suite green** and makes every upgrading install silently lose
+  every recorded import review and note — which is exactly the data gate step 16
+  is walked against, and exactly what a walk on a fresh store would never notice.
+
+**Four document-vs-code contradictions to settle before anyone walks**, because
+each is an argument waiting to happen mid-walk:
+
+1. **`tokenBudget: 0`.** [10 §5](10-schemas.md) and the schema both say
+   *0 = unlimited*; `shelf.ts:142` is a plain ceiling with no zero arm, so such a
+   book refuses every entry with *"over the book's token budget of 0"*. The
+   inverted reading is **pinned** by `shelf.test.ts:296`, so a doc-conformant fix
+   reddens a test. The sibling field is handled correctly — `match.ts:137` says
+   *"Zero-as-unlimited is the format's convention and not ours to improve"* — and
+   the importer leaves `tokenBudget` unclamped where it clamps `entryLimit`.
+2. **Step 12's ownership** (§1.4 and [01 §195] say P5; the schema says
+   deliberately absent).
+3. **Step 11's ownership** (this document says P3's gesture; P3 says P6's).
+4. **Step 6's stated means** (above).
+
+**What would have to happen, in the order that costs least.** Settle the four
+contradictions; fix the two live defects rather than discovering them as gate
+failures; write the three cheap tests the gate leans on and does not have
+(replay-from-zero over a lore-timing path; an `orphan-fts` assertion after the
+in-place rebuild; and an `ephemeral` entry with neither `sticky` nor `cooldown`,
+which is what protects `same()`'s `left.fired === right.fired` clause at
+`retrieve.ts:239` — deleting that clause today leaves the suite green and makes
+an ephemeral entry fire forever); make selection reachable enough to walk from;
+then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and have a
+person walk all eighteen **against HEAD**. Everything but step 6 is about a day's
+work. Step 6 is person-blocked with lead time, and it is fine for it to be
+recorded as person-blocked rather than pretended.
+
+**What the audit confirmed is sound, since a close-out that only lists faults
+misrepresents the phase.** The reversal's core is complete: `resolveLore` has one
+production caller, reads only `session.lore` and the named treatment's links, and
+the library enumeration is gone — **selection is provably the only route by which
+a lorebook enters a prompt**, which is what `2380bd0` set out to guarantee. The
+folder gate really is one shared function both halves read, and
+`gate-correspondence.test.ts` pins the correspondence under a 300-run property.
+Steps 4 and 5 are met and witnessed. Step 9's depth limit and `preventRecursion`
+are honoured. Step 15's timeout is a genuine V8 interrupt, measured at ~55-62ms
+per abandoned evaluation, and its refusal reaches the screen. Step 18 is met, and
+met the way the step asked — changed in the commit that changed its meaning.
+
 ---
 
 ## 1. Decisions this plan has to make
@@ -1857,19 +2009,36 @@ own `enabled` rather than mutating it — so an entry inside a shut folder still
 reads as enabled on every surface that shows it, and collapsing the two would
 mean telling that person their entry is off while the page says it is on.
 
-**A surface came with it, unasked but owed.** `scope` was nowhere on the
+~~**A surface came with it, unasked but owed.** `scope` was nowhere on the
 detail page, which cost nothing while it was inert; the moment it decides
 whether a book is scanned, its absence is [05 §5.3]'s *a field that renders as
 nothing hides things* with a whole world behind it. Book-level *editing* remains
-out of this phase, which makes showing it matter more rather than less.
+out of this phase, which makes showing it matter more rather than less.~~
 
-18 mutations, no survivors. Two of the three that survived the first run were
+~~18 mutations, no survivors. Two of the three that survived the first run were
 the gather handing the cast to the resolver — without it, every global book
 would have been admitted exactly as before and a `linked` one never, silently.
 The scope row's first draft also crashed the detail page on a book with no
 `scope` at all, which is not hypothetical: `lorebookShape` guards `entries` and
 `folders` and nothing else, deliberately, so that a hand-edited file still
-reads.
+reads.~~
+
+> **Struck at §0.5 — both paragraphs describe code the reversal deleted**, and
+> they were the two the reversal commit missed while striking the three above
+> them. The `scope` row is gone by the argument that replaced it: *it is off this
+> strip again, because it decides nothing*, and a row reading *Applies to: every
+> session* would state something false on the one surface that exists to read a
+> book back honestly. And the mutation count is not transferable — its worked
+> example, *the gather handing the cast to the resolver*, names a mutant that can
+> no longer be applied, since the gather now says the cast is deliberately not
+> passed. **The implementation that stands is the reversal's, and its own count
+> is 6.**
+>
+> *One thing here outlived the reversal and is worth keeping:* the scope row's
+> first draft crashed the detail page on a book with no `scope` at all, because
+> `lorebookShape` guards `entries` and `folders` and nothing else, deliberately,
+> so that a hand-edited file still reads. That guard is unchanged and the trap is
+> still live for the next field somebody renders.
 
 *The stage as it was written:*
 
@@ -2038,13 +2207,21 @@ halfway, so it says which is which.
 *Which of these need real books, settled 2026-08-30 (§1.6) so the gate is not
 walked into and then argued about.* **Step 1 does not:** three hundred entries
 is a load, and a synthesised book of that size exercises the layout, the
-virtualisation and the address exactly as an authored one would. **Step 6
+~~virtualisation and~~ address exactly as an authored one would *(the cut list
+below removes list virtualisation from the client, and the test's own docblock
+already words this correctly)*. **Step 6
 does** — "a book you did not author" is false by construction for a fixture we
 wrote, and the judgement it asks for is about somebody else's organising
-habits. It is met by the **handful of explicitly-permissive real books** the
+habits. ~~It is met by the **handful of explicitly-permissive real books** the
 corpus policy already keeps in the repository
 ([testing §5](10-testing.md)), which is what that handful is for; it does not
-need the private corpus. **Only [16 §6]'s falsification counts need that**, and
+need the private corpus.~~ **False, found at §0.5: the repository keeps none.**
+`import/fixtures/` holds three synthesised files and one of them says so —
+*"this is the whole corpus the phase gets"*, naming the real-library walk as
+outstanding and owned by §1.6. [10 §5](10-testing.md) is the policy's *plan*.
+**The walker must supply the book**, which §1.6 already classes as person-blocked
+with lead time; it still does not need the private corpus, and the same false
+claim wants correcting at [P4 §1057](06-p4-implementation.md). **Only [16 §6]'s falsification counts need that**, and
 P5.3 is written so they do not hold the phase closed.
 
 ### The retriever half
@@ -2053,21 +2230,57 @@ P5.3 is written so they do not hold the phase closed.
    appear as blocks with "keyword match: '…'" reasons.
 8. A sticky entry persists N messages and the workbench shows "sticky, 2
    remaining"; cooldown, delay and ephemeral each observable in the record.
+   **Unmet at §0.5, and the string is the design's, not the gate's** —
+   [05 §11](../05-ui-surfaces.md) specifies it. Nothing renders a remaining
+   count: `blocks.ts:94` returns `'still active from an earlier turn'`,
+   `LoreReport` has no timing field, and `EffectList.tsx:44` prints `channelId`
+   without `scopeKey`, so two sticky entries are indistinguishable on the one
+   surface that carries the numbers. The count is in `ScanResult.timing`
+   (`activate.ts:134`) and `Activation` does not carry it — which is the fix.
+   *And `delay` is a third case rather than a third of the same case:* it has no
+   counter by design, so its only trace would be a skip reason, and skip reasons
+   reach the preview but never the turn record.
 9. Recursion: an activated entry's text activates another; `preventRecursion`
    et al. honoured; no runaway at the book's depth limit.
 10. Budget pressure: a book over its `tokenBudget` drops entries in the
     documented order, each skip named with the blocking budget; a small entry
     still fits after a large one dropped.
-11. A rewrite (P3's edit-and-re-run) reproduces identical activations,
-    including stochastic ones (§1.2).
-12. An entry conditioned on a channel that does not exist → visible warning,
-    never fires, nothing blocks (§1.4).
+11. ~~A rewrite (P3's edit-and-re-run) reproduces identical activations,
+    including stochastic ones (§1.2).~~ **Split at §0.5, and the half this phase
+    owns is met.** P5 discharged the *keying*: two production draw sites,
+    `activate.ts:535` and `:611`, each carrying its own entry or group as
+    purpose. The *reproduction* half cannot be executed here — there is no
+    production replay entry point, and the parenthetical was wrong, since
+    [P3 §344](05-p3-implementation.md) disclaims rewrite and reroll explicitly.
+    It is carried by [P6 §3](08-p6-implementation.md) step 3, which already names
+    the fixture constraint P5 could not have known: an ordinary turn commits an
+    empty tape, so the fixture has to be built to roll.
+12. ~~An entry conditioned on a channel that does not exist → visible warning,
+    never fires, nothing blocks (§1.4).~~ **Unbuildable, and the scope never
+    moved.** No entry can be conditioned on a channel: [10 §5](10-schemas.md)
+    lists `activationConditions` as *deliberately absent*, the importer discards
+    it, and no `SkipReason` names a channel. §1.4 kept the predicate check and
+    §4 defers only *"the rule vocabulary"*, so the deferral was taken in the code
+    without either section following — and [01 §195](01-work-plan.md) still reads
+    **P5**. **This step is not met and this phase does not meet it**; the work
+    moves to the phase that ships channel predicates. *Do not credit
+    `unknownSources` here* — it is the identical visible-warning posture for scan
+    *sources*, but such an entry keeps scanning its other haystacks and can still
+    fire, so it fails the *never fires* clause.
 13. The keyword tester answers "why does this entry never fire" without playing
     a turn — **and where the answer is a gate or a disabled book rather than a
     match, it agrees with what the document half already showed.** Disagreement
     here is the failure §1.6 predicts and P5.7 is meant to prevent.
 14. Timing counters reconstruct correctly at an old node (with P6 landed, this
     becomes the branch test; before P6, replay-from-zero covers it).
+    **The escape clause was never cashed** (§0.5): every `replayChannels` call
+    site in the suite folds a *clock-only* path, so replay-from-zero has never
+    been run over a `se.lore.timing` effect. The missing test is one test — take
+    a session through two turns with a sticky-or-cooldown entry and assert
+    `replayChannels(walkPath(turns, head))` equals `session.channels` with the
+    three counters checked. **So P6 inherits an obligation rather than a step
+    that changed meaning**, and [P6 §2](08-p6-implementation.md)'s P6.0a is where
+    it is discharged.
 
 ### Added at the audit
 
@@ -2099,6 +2312,31 @@ needs a value set, name where someone sets it before calling the phase done.
 **The document half is the first phase to discharge that line in the other
 direction** — it builds surfaces for configuration that has shipped without one
 since P1, which is the same rule read from the other end.
+
+**And the retriever half does not discharge it at all** (§0.5). Three values it
+built have no surface, and the first is the phase's largest open item:
+
+- **A session's `treatment` and `lore`** — the only route by which a lorebook
+  reaches a session, after `2380bd0` made selection the only route. `POST
+  /sessions` accepts both and `PUT /sessions/:id/lore` sets them; **no client
+  code calls either**, and `pnpm seed` never names the treatment it builds. Until
+  a surface exists, selection is API-only. That is an acceptable answer — the
+  cast route set the precedent — **but only written down**, and the owner should
+  be named: P7's setup wizard is where this belongs.
+- **`SlotSource.outlet`** is set by no shipped preset, there is no preset editor,
+  and the ST importer routinely creates entries addressed to one. The permanent
+  consequence is a correct diagnosis — *"no preset slot positions the outlet"* —
+  whose only repair today is hand-writing preset JSON.
+- **The five per-book retrieval knobs** (`scanDepth`, `tokenBudget`,
+  `entryLimit`, `recursiveScanning`, `maxRecursionDepth`) and the book-level
+  `enabled` gate all acquired real consumers in this phase and have no write
+  surface. Book-level editing was out of scope, which is why this is recorded
+  rather than repaired — but the standing line asks for it to be *named*, and
+  before now it was not.
+
+*The config half is clean and worth saying so:* P5 added no config keys, no
+`unread` rows, and no `applied` row that lies. `config.ts` is byte-identical to
+`main` across the whole phase.
 
 ---
 
