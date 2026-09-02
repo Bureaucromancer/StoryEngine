@@ -78,7 +78,7 @@ const SKIP_LABELS: Record<string, string> = {
 };
 
 /**
- * Why a book is being scanned at all 2014 and there are only two, because
+ * Why a book is being scanned at all — and there are only two, because
  * selection is the only route a book reaches a session by.
  */
 const ROUTE_LABELS: Record<string, string> = {

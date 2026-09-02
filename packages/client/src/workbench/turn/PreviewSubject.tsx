@@ -61,7 +61,7 @@ export function PreviewSubject({
             honest answer. */}
         <NotFilledList notFilled={preview.notFilled} />
         {/* The scan ran before the role was resolved, so its answer survives
-            the failure that made the numbers unmeasurable 2014 and an
+            the failure that made the numbers unmeasurable — and an
             unconfigured install is exactly where somebody is asking why their
             world is not appearing. */}
         <LoreReportView lore={preview.lore} />
