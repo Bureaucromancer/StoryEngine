@@ -98,6 +98,18 @@ export function newLorebook(name: string): Lorebook {
     id: uuidv7(),
     name,
     description: '',
+    /**
+     * **The widest value in the union, and that is an open question rather
+     * than a considered default** — [06 §B15](../../../docs/design/06-open-questions.md).
+     *
+     * It is harmless today because nothing reads `scope`: a lorebook reaches a
+     * session by being selected and by nothing else ([02 §3.4]). It was not
+     * harmless when [P5.7] briefly gave the field behaviour — this default, plus
+     * the SillyTavern importer's identical fallback, is what put every book a
+     * person owned into every session's prompt. Anything that gives `scope` a
+     * consumer again has to decide this line first, because a field nobody sets
+     * should not default to the most permissive answer it can hold.
+     */
     scope: { kind: 'global' },
     enabled: true,
     scanDepth: 2,

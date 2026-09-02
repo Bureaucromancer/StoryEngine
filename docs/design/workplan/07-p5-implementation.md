@@ -1824,6 +1824,15 @@ nothing depended on getting it right.~~
 >
 > It also removed a per-turn read of the whole library, which scope-admission
 > needed and nothing else did.
+>
+> **Two questions were left open on purpose and written down**, so the next
+> person meets them rather than re-deriving them from the union's wording:
+> [06 §B14](../06-open-questions.md) — may `scope` *narrow* a book the session
+> already chose, which is coherent and was declined because it is a new way for
+> a deliberate choice to go quiet; and [06 §B15] — what a new book's `scope`
+> should default to, since `global` is the widest value in the union and is what
+> both the factory and the SillyTavern importer produce.
+> [19 §5.3](../19-world.md) is where a consumer would come from.
 
 **The folder gate is not honoured by a second implementation; it is honoured by
 the same one.** §5 asks for a test that fails if the rendered reason and the

@@ -65,6 +65,23 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * something above the session ever contributes books — a Worlds concept, with
  * inheritance — that is the shape that would give this field a consumer again,
  * and it should be designed rather than inferred from the union's wording.
+ * [19 §5.3](../../../../docs/design/19-world.md) is where that gets decided.
+ *
+ * **Two questions are open and written down rather than left to be
+ * re-derived**, both in [06](../../../../docs/design/06-open-questions.md):
+ *
+ * - **§B14** — may this field *narrow* a book the session has already chosen?
+ *   A `linked` book that a session selected could reasonably go quiet when none
+ *   of its actors are cast. Coherent, and not taken: it is a new way for a
+ *   deliberate choice to be silently inactive, which is the same surprise the
+ *   reversal removed, pointing the other way. If it ever ships it needs a skip
+ *   reason in the retrieval report, or it reintroduces the silence [P5.8]'s
+ *   tester exists to end.
+ * - **§B15** — what should a new book's scope *be*? `newLorebook` produces
+ *   `global` and the SillyTavern importer falls back to it, which is harmless
+ *   while nothing reads the field and is exactly the default that made P5.7's
+ *   behaviour so sharp. A field nobody sets should not default to the widest
+ *   value in its own union.
  */
 export const LoreScope = Type.Union(
   [

@@ -394,6 +394,47 @@ rewritten because the argument for the third answer is the reason it binds — a
 future proposal to move preferences onto `Account` has to answer the chatty
 write path beside a password hash, not merely prefer a different file.*
 
+**B14. May a lorebook's `scope` narrow a book the session already chose? —
+OPEN. Deliberately not decided at [P5.7], and it is the question that survives
+the reversal.**
+
+Settled first, so the open part is small: **selection is the only way a lorebook
+reaches a session** ([02 §3.4](02-data-model.md)) — `session.lore`, or the
+treatment the session names. P5.7 briefly let `scope` *admit* books and that was
+reversed, because `global` is the factory default *and* the SillyTavern
+importer's fallback, so a person's whole library landed in every prompt.
+
+What is open is the other direction. A book scoped `linked` to Vera, which a
+session has **chosen**, could reasonably either:
+
+- **Contribute unconditionally** — what ships. The person who linked it said to,
+  and that is the end of it. `scope` is stored, exported, and read by nothing.
+- **Narrow to sessions casting one of its actors** — so the chosen book goes
+  quiet when Vera is not in the scene.
+
+The second is coherent and was **not** taken, for a stated reason rather than by
+omission: it introduces a new way for a deliberately chosen book to be silently
+inactive, which is the same class of surprise the reversal removed, pointing the
+other way. A person who links a book and sees nothing from it would have to
+learn that a field on the *book* was overruling their choice.
+
+Two things would change the answer. If **inheritance** arrives — a Worlds
+concept ([19 §5](19-world.md)) where something above the session contributes
+books — then `scope` acquires a real consumer and narrowing may follow naturally
+from it. And if narrowing does ship, it needs a surface: the reason has to reach
+the retrieval report as a skip reason, or it reintroduces exactly the silence
+[P5.8]'s tester was built to end.
+
+**B15. What should a new lorebook's `scope` be? — OPEN, and only *because* B14
+is.** `newLorebook` sets `{ kind: 'global' }`, and the SillyTavern importer
+falls back to it for a chat-scoped book. That is currently harmless — nothing
+reads the field — and it is exactly the default that made P5.7's behaviour so
+sharp. If `scope` ever regains a consumer, this default is the thing to decide
+first rather than to inherit: *global* is the most permissive value in the union,
+and a field nobody sets should not default to the widest answer. There is also
+no surface for changing it; a book's scope is visible only in *As stored*.
+*[10 §5](10-schemas.md), [02 §3.4](02-data-model.md)*
+
 ---
 
 ## C. Mode and pipeline questions
