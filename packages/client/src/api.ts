@@ -3,6 +3,7 @@
 
 import {
   LIBRARY_DIRECTORIES,
+  type ImportPreview,
   type NearMissOffer,
   type Turn as TurnRecord,
   type TurnPreview,
@@ -399,9 +400,33 @@ export const api = {
   deleteObject: (kind: LibraryKind, id: string, contentHash: string): Promise<undefined> =>
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
 
-  /** One file, converted and stored. `FormData` — the first non-JSON body here. */
-  importFile: (file: File): Promise<ImportFileResult> => {
+  /**
+   * What that file *would* become, with nothing written ([05 §5], as amended).
+   *
+   * The bytes are sent twice — once here and again to `importFile` on confirm —
+   * because there is no staging area and the confirm has to re-derive from the
+   * file rather than trust this answer. A preset is kilobytes.
+   */
+  importFilePreview: (file: File): Promise<{ preview: ImportPreview }> => {
     const body = new FormData();
+    body.append('file', file);
+    return requestForm('/api/import/file/preview', body);
+  },
+
+  /**
+   * One file, converted and stored. `FormData` — the first non-JSON body here.
+   *
+   * **`onConflict` is appended before the file, and the order is load-bearing.**
+   * The route reads it off the parts that arrived ahead of the file part, which
+   * is where `request.file()` stops — a field appended after this one would be
+   * accepted by `FormData`, sent by the browser, and silently never parsed.
+   */
+  importFile: (
+    file: File,
+    onConflict?: 'replace' | 'keep-both' | 'skip',
+  ): Promise<ImportFileResult> => {
+    const body = new FormData();
+    if (onConflict !== undefined) body.append('onConflict', onConflict);
     body.append('file', file);
     return requestForm('/api/import/file', body);
   },

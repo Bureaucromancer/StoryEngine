@@ -4,7 +4,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent, type JSX, type ReactNode } from 'react';
 
-import type { NearMissOffer } from '@storyengine/shared';
+import type { ImportPreview, ImportPreviewBlock, NearMissOffer } from '@storyengine/shared';
 
 import { api, type ImportItem, type ImportReport } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
@@ -17,12 +17,24 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
  * The way in — [P4 §1.4](../../../../docs/design/05-ui-surfaces.md)'s review
  * step, rendered.
  *
- * **Import commits immediately and the review reports loudly**, which is the
- * decision §1.4 made against [05 §5]'s original *"let the user fix it before
- * committing"*. A staging area is a second library to maintain; dangling
- * references are survivable, visible and non-blocking by stance; and a
- * three-hundred-object sweep gated per-object on a human is not a review, it is
- * a chore. So this shows what happened rather than asking what should.
+ * **~~Import commits immediately and the review reports loudly~~ — and which of
+ * the two depends on how the file arrived.** §1.4's decision, made against
+ * [05 §5]'s original *"let the user fix it before committing"*, rested on three
+ * arguments: a staging area is a second library to maintain; dangling references
+ * are survivable, visible and non-blocking by stance; and a three-hundred-object
+ * sweep gated per-object on a human is not a review, it is a chore.
+ *
+ * *Narrowed rather than reversed.* All three are arguments about **scale and
+ * staging**, and none of them reaches one file somebody just picked out of a
+ * dialog. So a **sweep** still commits first and reports — `onFolder` and
+ * `onSweep` go straight to `Report` — and **one hand-picked file** reports first
+ * and commits on a word. No staging area appears either way: the preview writes
+ * nothing and holds nothing, the bytes stay in the browser's own file handle,
+ * and the confirm sends them again.
+ *
+ * The preview renders **outside the fold, where the review renders**, for the
+ * reason the fold's own comment gives below: a pending decision that vanishes
+ * when somebody collapses the form is worse than one that does not fold.
  *
  * **The sentences are composed here, from classes and params.** The server sends
  * `{ key, params, level }` and never prose ([06 A2d]) — a report stored as
@@ -239,6 +251,29 @@ export function importOpenPatch(open: boolean): Record<string, unknown> {
   return { [IMPORT_OPEN_KEY]: open ? null : false };
 }
 
+/**
+ * What a re-import should do about the object already here.
+ *
+ * **Two choices, not three.** `skip` is a policy the sweep needs, because a
+ * three-hundred-object walk has to be able to leave one alone. Offered here it
+ * would do nothing Cancel does not, except write a ledger row saying you
+ * declined — and [01 §2.2] forbids a control that does nothing.
+ */
+type PreviewPolicy = 'replace' | 'keep-both';
+
+/**
+ * A pending decision, a finished review, or neither.
+ *
+ * The union is what makes *the two paths coexist* a fact the types carry: only
+ * a hand-picked file can produce the `preview` arm, and a sweep can only
+ * produce `report`. Two independent slots would make *both on screen at once* a
+ * state somebody could reach by accident.
+ */
+type Outcome =
+  | { kind: 'preview'; file: File; preview: ImportPreview; onConflict: PreviewPolicy }
+  | { kind: 'report'; report: ImportReport }
+  | null;
+
 export function ImportPanel(): JSX.Element {
   const queryClient = useQueryClient();
   const prefs = usePrefs();
@@ -258,7 +293,16 @@ export function ImportPanel(): JSX.Element {
   const mayReadFolders = auth.data?.account?.capabilities.fileAccess !== 'none';
   const fileInput = useRef<HTMLInputElement | null>(null);
   const folderInput = useRef<HTMLInputElement | null>(null);
-  const [report, setReport] = useState<ImportReport | null>(null);
+  /**
+   * A pending decision, a finished review, or neither — never both.
+   *
+   * **One union rather than two pieces of state**, because *the two paths
+   * coexist* has to be a fact the types carry rather than a convention. A folder
+   * sweep can only ever set the `report` arm; a hand-picked file sets `preview`
+   * first and `report` after the word is given. Two independent slots would make
+   * *a preview and a report on screen together* a state somebody could reach.
+   */
+  const [outcome, setOutcome] = useState<Outcome>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,6 +371,17 @@ export function ImportPanel(): JSX.Element {
    * `removeQueries`, because a destroyed entry does not notify its observers
    * and the list would sit on what it was already holding ([P3.5]).
    */
+  /**
+   * Whether a picker may start something new.
+   *
+   * **Disabled, not hidden**, while a decision is pending — [05 §1.1] rejects
+   * hiding a control to make a screen calmer, and a person who has just been
+   * asked a question should be able to see the thing that asked it. What this
+   * stops is a second import starting on top of an unanswered one, which would
+   * leave the preview on screen describing a file nobody is looking at.
+   */
+  const pending = busy || outcome?.kind === 'preview';
+
   const refresh = async (): Promise<void> => {
     await queryClient.resetQueries({ queryKey: ['library'] });
     await queryClient.invalidateQueries({ queryKey: ['import-jobs'] });
@@ -342,19 +397,43 @@ export function ImportPanel(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.importFile(file);
-      setReport({
-        jobId: 'file',
-        source: file.name,
-        items: [result.item],
-        counts: { [result.item.disposition]: 1 },
+      /**
+       * **A look, not an import** ([05 §5], as amended). The file stays in the
+       * browser's own handle and is sent again on confirm; nothing is held here
+       * and nothing is written there, which is what keeps this short of the
+       * staging area [P4 §1.4] refused.
+       */
+      const { preview } = await api.importFilePreview(file);
+      setOutcome({ kind: 'preview', file, preview, onConflict: 'replace' });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That file could not be read.');
+    } finally {
+      setBusy(false);
+      event.target.value = '';
+    }
+  };
+
+  /** The word, given. The bytes go a second time, and this one writes. */
+  const commit = async (): Promise<void> => {
+    if (outcome?.kind !== 'preview') return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.importFile(outcome.file, outcome.onConflict);
+      setOutcome({
+        kind: 'report',
+        report: {
+          jobId: 'file',
+          source: outcome.file.name,
+          items: [result.item],
+          counts: { [result.item.disposition]: 1 },
+        },
       });
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
     } finally {
       setBusy(false);
-      event.target.value = '';
     }
   };
 
@@ -398,7 +477,7 @@ export function ImportPanel(): JSX.Element {
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
       );
-      setReport(result.report);
+      setOutcome({ kind: 'report', report: result.report });
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
@@ -415,7 +494,7 @@ export function ImportPanel(): JSX.Element {
     setError(null);
     try {
       const result = await api.importSweep(root.trim());
-      setReport(result.report);
+      setOutcome({ kind: 'report', report: result.report });
       // A sweep of the wrong folder succeeds, so the advice matters *more* after
       // one than before: nothing in the report itself says the wrong folder was
       // named.
@@ -485,14 +564,14 @@ export function ImportPanel(): JSX.Element {
               type="file"
               accept=".png,.json,.charx,.seactor"
               onChange={(event) => void onFile(event)}
-              disabled={busy}
+              disabled={pending}
               className="sr-only"
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 size="compact"
-                disabled={busy}
+                disabled={pending}
                 onClick={() => fileInput.current?.click()}
               >
                 Choose a file…
@@ -521,14 +600,14 @@ export function ImportPanel(): JSX.Element {
               multiple
               {...{ webkitdirectory: '' }}
               onChange={(event) => void onFolder(event)}
-              disabled={busy}
+              disabled={pending}
               className="sr-only"
             />
             <Button
               type="button"
               size="compact"
               className="self-start"
-              disabled={busy}
+              disabled={pending}
               onClick={() => folderInput.current?.click()}
             >
               Choose a folder…
@@ -569,7 +648,7 @@ export function ImportPanel(): JSX.Element {
               onBlur={(event) => void check(event.target.value.trim())}
               placeholder="The full path to a SillyTavern or Marinara data folder"
               className={control}
-              disabled={busy}
+              disabled={pending}
             />
 
             {/*
@@ -590,7 +669,7 @@ export function ImportPanel(): JSX.Element {
               size="compact"
               className="self-start"
               onClick={() => void onSweep()}
-              disabled={busy || root.trim().length === 0}
+              disabled={pending || root.trim().length === 0}
             >
               {busy ? 'Reading…' : 'Import folder'}
             </Button>
@@ -621,7 +700,7 @@ export function ImportPanel(): JSX.Element {
                     type="button"
                     size="tiny"
                     className="mt-2"
-                    disabled={busy}
+                    disabled={pending}
                     onClick={() => {
                       setRoot(target);
                       void check(target);
@@ -642,8 +721,28 @@ export function ImportPanel(): JSX.Element {
         </Alert>
       ) : null}
 
-      {report !== null && <Report report={report} />}
-      <PastImports onOpen={setReport} />
+      {outcome?.kind === 'preview' ? (
+        <Preview
+          preview={outcome.preview}
+          onConflict={outcome.onConflict}
+          busy={busy}
+          onPolicy={(onConflict) => {
+            setOutcome({ ...outcome, onConflict });
+          }}
+          onImport={() => void commit()}
+          onCancel={() => {
+            setOutcome(null);
+            setChosen(null);
+          }}
+        />
+      ) : null}
+
+      {outcome?.kind === 'report' ? <Report report={outcome.report} /> : null}
+      <PastImports
+        onOpen={(report) => {
+          setOutcome({ kind: 'report', report });
+        }}
+      />
     </div>
   );
 }
@@ -782,4 +881,183 @@ function Report(props: { report: ImportReport }): JSX.Element {
       </ul>
     </section>
   );
+}
+
+/**
+ * What that file would become, before it becomes it.
+ *
+ * **One dense block rather than a stepper**, which is [05 §1.1]'s rule on the
+ * tooling side of the split — *progressive disclosure as a reflex* and
+ * *infinite layers of click-through* are both rejected there, and import lives
+ * in the dense column by name. The stronger reason is that the steps would be
+ * empty: the decisions here are *keep it or not* and, only on a re-import,
+ * *replace or keep both*. Everything between is a slideshow of the server's
+ * progress, and disclosure has to be earned.
+ *
+ * **Not a `Dialog`** either. [05 §5] names the failure mode — *a review step,
+ * not a modal that dumps* — and a modal would buy nothing mechanically:
+ * `size="wide"` is `max-w-lg`, narrower than the dock's own 640px maximum, so
+ * it would be a layer that covers the panel with something smaller than the
+ * panel.
+ *
+ * **The 280px problem**, which `Report`'s own docstring solved once and this
+ * inherits: at the dock's narrow end a three-column table degenerates, so the
+ * blocks are a *list* with the label on its own line. The params stay a table
+ * because they are two short columns of comparable values and there are at most
+ * eleven of them.
+ */
+function Preview(props: {
+  preview: ImportPreview;
+  onConflict: PreviewPolicy;
+  busy: boolean;
+  onPolicy: (policy: PreviewPolicy) => void;
+  onImport: () => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const { preview } = props;
+  const object = preview.object;
+  const preset = object !== null && object.kind === 'preset' ? object : null;
+
+  return (
+    <section aria-label="What this would import" className="flex flex-col gap-3">
+      <SubsectionTitle as="h4">Before it lands</SubsectionTitle>
+
+      <div className="flex flex-col gap-1 text-sm">
+        <code className="block break-all text-xs text-ink">{preview.source}</code>
+        <p className="text-ink-subtle">{summary(preview)}</p>
+      </div>
+
+      {preset !== null && preset.blocks.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <h5 className="text-sm font-medium text-ink">{blockCountLabel(preset.blocks.length)}</h5>
+          <ul className="flex flex-col text-sm">
+            {preset.blocks.map((block) => (
+              <li key={block.id} className="border-t border-line py-1">
+                <span className="text-ink">{block.label}</span>
+                <span className="block text-xs text-ink-subtle">{blockLine(block)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {preset !== null && preset.params.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <h5 className="text-sm font-medium text-ink">Sampler settings</h5>
+          <table className="w-full text-sm">
+            <tbody>
+              {preset.params.map((param) => (
+                <tr key={param.name} className="border-t border-line">
+                  <td className="py-1 pe-2 text-ink">{param.name}</td>
+                  <td className="py-1 pe-2 text-ink-subtle">{param.value}</td>
+                  {/*
+                    A word and not a colour. Somebody reading this in greyscale,
+                    or not distinguishing the two, still has to be told that a
+                    setting they can see does nothing.
+                  */}
+                  <td className="py-1 text-xs text-ink-subtle">
+                    {param.reaches ? '' : 'not sent'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {/*
+        Names, never values. A screen that showed what was in the file would show
+        a proxy password to whoever was handed the file ([10 §8.4.4]).
+      */}
+      {preset !== null && preset.compatKeys.length > 0 ? (
+        <p className="text-sm text-ink-subtle">{compatLabel(preset.compatKeys)}</p>
+      ) : null}
+
+      {preview.notes.length > 0 || preview.advisories.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-sm">
+          {[...preview.notes, ...preview.advisories].map((note, index) => (
+            <li key={index} className={note.level === 'warn' ? 'text-ink' : 'text-ink-subtle'}>
+              {sentence(note)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {preview.reimport === 'changed' ? (
+        <div className="flex flex-col gap-1">
+          <Alert tone="warning">
+            This file has been imported before, and it has changed since.
+          </Alert>
+          <FieldLabel htmlFor="import-on-conflict">What to do with the one already here</FieldLabel>
+          <select
+            id="import-on-conflict"
+            className={control}
+            value={props.onConflict}
+            onChange={(event) => {
+              props.onPolicy(event.target.value === 'keep-both' ? 'keep-both' : 'replace');
+            }}
+          >
+            <option value="replace">Replace it — the old state stays in its history</option>
+            <option value="keep-both">Keep both</option>
+          </select>
+        </div>
+      ) : null}
+
+      {preview.reimport === 'unchanged' ? (
+        <Note>This is identical to what is already here, so importing writes nothing.</Note>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="compact"
+          onClick={props.onImport}
+          disabled={props.busy || preview.object === null}
+        >
+          Import
+        </Button>
+        <Button type="button" variant="secondary" size="compact" onClick={props.onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** The one line that says what the file is and what would come of it. */
+function summary(preview: ImportPreview): string {
+  const object = preview.object;
+  if (object === null) return 'Nothing would be imported from this file.';
+  if (object.kind === 'sweep') return 'Everything inside would be imported.';
+  if (object.kind === 'opaque') return `It would be imported as “${object.name}”.`;
+  return `It would become a preset called “${object.name}”.`;
+}
+
+/** A block's placement and what it fills, in the width a narrow dock has. */
+function blockLine(block: ImportPreviewBlock): string {
+  const parts: string[] = [block.kind === 'slot' ? `fills ${block.fills ?? 'nothing'}` : 'text'];
+  parts.push(block.role);
+  parts.push(
+    block.at === 'in-history' ? `${String(block.fromEnd ?? 0)} messages back` : 'in sequence',
+  );
+  if (!block.enabled) parts.push('off');
+  if (block.appliesTo.length > 0) parts.push(`only for ${block.appliesTo.join(', ')}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Whole sentences, because half a sentence cannot be translated.
+ *
+ * Both of these were JSX with the value sitting between two runs of text, which
+ * the `userFacing` rule refuses for the reason [work plan §2] gives: word order
+ * differs between languages, so a sentence assembled from fragments is the part
+ * of i18n that cannot be retrofitted. The value is substituted into one string
+ * instead, and the helper owns the whole phrase rather than half of it.
+ */
+function blockCountLabel(count: number): string {
+  return `${String(count)} blocks, in this order`;
+}
+
+function compatLabel(keys: readonly string[]): string {
+  return `${String(keys.length)} fields this build does not read are kept as they were: ${keys.join(', ')}.`;
 }
