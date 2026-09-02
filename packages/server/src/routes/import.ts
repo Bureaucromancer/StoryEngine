@@ -99,6 +99,22 @@ function isTooLarge(error: unknown): boolean {
 }
 
 /**
+ * A conflict policy off the wire, or nothing.
+ *
+ * **A word this build does not know is absent rather than refused**, which is
+ * the opposite of how the sweep's TypeBox body treats the same three values —
+ * and the difference is the transport rather than a change of mind. A JSON body
+ * is validated as a whole and can say *this field is wrong*; a multipart field
+ * arrives after the file has been buffered, so refusing here means throwing away
+ * an upload that was otherwise fine over a spelling. The default it falls back
+ * to is `replace`, which is the safe one: the write goes through version
+ * history, so what it replaced becomes a version rather than a loss.
+ */
+function conflictPolicy(value: string | null): ConflictPolicy | undefined {
+  return value === 'replace' || value === 'keep-both' || value === 'skip' ? value : undefined;
+}
+
+/**
  * One file part, the limit, and the three refusals both upload doors share.
  *
  * **Extracted when the preview arrived, before the second copy existed rather
@@ -110,12 +126,20 @@ function isTooLarge(error: unknown): boolean {
  * number is set now.
  *
  * Returns `null` having already answered, the way `requireAccount` does.
+ *
+ * **`fields` carries the parts that arrived before the file, and only those.**
+ * `request.file()` stops at the first file, so a text field sent after it is
+ * never parsed — which is busboy's *fields before files* convention rather than
+ * a limitation worth working around. The alternative is `request.parts()` and a
+ * hand-rolled running size total, which `/import/directory` needs because it
+ * takes many files and this does not. Callers that read a field say so, and
+ * `docs/api.md` says so where a person writing a client will look.
  */
 async function readOnePart(
   request: FastifyRequest,
   reply: FastifyReply,
   services: AppServices,
-): Promise<{ filename: string; bytes: Buffer } | null> {
+): Promise<{ filename: string; bytes: Buffer; field: (name: string) => string | null } | null> {
   const limitBytes = services.config.limits.maxUploadMb * MEGABYTE;
 
   /**
@@ -161,7 +185,16 @@ async function readOnePart(
   }
   if (file.file.truncated) return tooLarge();
 
-  return { filename: file.filename, bytes };
+  const field = (name: string): string | null => {
+    const found: unknown = (file.fields as Record<string, unknown>)[name];
+    // A repeated field arrives as an array; the first wins rather than the last,
+    // so a second copy cannot quietly override the one a person meant.
+    const one: unknown = Array.isArray(found) ? (found as unknown[])[0] : found;
+    const value = (one as { value?: unknown } | null | undefined)?.value;
+    return typeof value === 'string' ? value : null;
+  };
+
+  return { filename: file.filename, bytes, field };
 }
 
 export function registerImportRoutes(app: FastifyInstance, services: AppServices): void {
@@ -175,7 +208,29 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const part = await readOnePart(request, reply, services);
     if (part === null) return;
 
-    const result = await importOneFile(services, account.handle, part.filename, part.bytes);
+    /**
+     * **What a re-import does, which this route did not ask until now.**
+     *
+     * `onConflict` has been plumbed through the sweep and the folder upload
+     * since P4.4, and the single-file door ignored it — so re-uploading a
+     * changed preset silently replaced, with no way to say otherwise. That was
+     * survivable while the answer arrived after the write; it is not once the
+     * preview asks the question first, because a screen that offers *replace or
+     * keep both* has to be able to send it.
+     *
+     * An unknown value is treated as absent rather than refused: the default is
+     * `replace`, and `replace` is the safe one — the write goes through version
+     * history, so what it replaced becomes a version rather than a loss.
+     */
+    const onConflict = conflictPolicy(part.field('onConflict'));
+
+    const result = await importOneFile(
+      services,
+      account.handle,
+      part.filename,
+      part.bytes,
+      onConflict,
+    );
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
 
@@ -778,6 +833,7 @@ async function importOneFile(
   handle: string,
   filename: string,
   bytes: Uint8Array,
+  onConflict?: ConflictPolicy,
 ): Promise<UploadResult> {
   const item = (
     disposition: ImportItemReport['disposition'],
@@ -816,7 +872,12 @@ async function importOneFile(
       ]);
     }
 
-    const outcome = await sweep({ library: services.library, handle, files: opened.source });
+    const outcome = await sweep({
+      library: services.library,
+      handle,
+      files: opened.source,
+      ...(onConflict === undefined ? {} : { onConflict }),
+    });
     if (!outcome.ok) {
       return item('unrecognised', [
         {
@@ -861,7 +922,12 @@ async function importOneFile(
       ]);
     }
 
-    const outcome = await sweep({ library: services.library, handle, files });
+    const outcome = await sweep({
+      library: services.library,
+      handle,
+      files,
+      ...(onConflict === undefined ? {} : { onConflict }),
+    });
     if (!outcome.ok) {
       return item('unrecognised', [
         {
@@ -882,7 +948,12 @@ async function importOneFile(
   if (read.outcome === 'observed') return { item: read.report, notes: read.report.notes };
 
   const reports = await convertOne(
-    { library: services.library, handle, files: new MemoryFileSource({ [filename]: bytes }) },
+    {
+      library: services.library,
+      handle,
+      files: new MemoryFileSource({ [filename]: bytes }),
+      ...(onConflict === undefined ? {} : { onConflict }),
+    },
     read.candidate,
   );
 

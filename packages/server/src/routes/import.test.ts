@@ -1092,3 +1092,98 @@ describe('looking at a file before importing it', () => {
     expect(response.body.error).toBe('too-large');
   });
 });
+
+describe('what a re-upload of a changed file does', () => {
+  /**
+   * **`onConflict` was plumbed everywhere except the door people use.** The
+   * sweep and the folder upload have taken it since P4.4; the single-file route
+   * ignored it, so re-uploading a changed preset silently replaced with no way
+   * to say otherwise. Survivable while the answer arrived after the write, and
+   * not once the preview asks first — a screen offering *replace or keep both*
+   * has to be able to send it.
+   *
+   * The field goes **before** the file part, which is busboy's *fields before
+   * files* convention: `request.file()` stops at the first file, so anything
+   * after it is never parsed. That is a real constraint on a client and it is
+   * asserted here rather than left to be discovered.
+   */
+  function withPolicy(filename: string, contents: string, policy?: string) {
+    const boundary = '----storyengineTestBoundary';
+    const parts: string[] = [];
+    if (policy !== undefined) {
+      parts.push(`--${boundary}`, 'Content-Disposition: form-data; name="onConflict"', '', policy);
+    }
+    parts.push(
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+      'Content-Type: application/json',
+      '',
+      contents,
+      `--${boundary}--`,
+      '',
+    );
+
+    return {
+      payload: parts.join('\r\n'),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    };
+  }
+
+  async function send(contents: string, policy?: string) {
+    const { payload, headers } = withPolicy('Harbour.json', contents, policy);
+    return server.request({ method: 'POST', url: '/api/import/file', payload, headers });
+  }
+
+  async function presetCount(): Promise<number> {
+    const listed = await server.request({ method: 'GET', url: '/api/library/presets' });
+    return (listed.body.objects as unknown[]).length;
+  }
+
+  const CHANGED = JSON.stringify({ ...PRESET, temperature: 0.4 });
+
+  it('replaces by default, as it always has', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED);
+
+    expect(again.body.item.disposition).toBe('converted');
+    expect(await presetCount()).toBe(1);
+  });
+
+  it('keeps both when asked, and the field is read at all', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED, 'keep-both');
+
+    // The assertion that proves the field arrived: without it this is 1.
+    expect(await presetCount()).toBe(2);
+    expect(again.body.item.notes.map((n: { key: string }) => n.key)).toContain(
+      'import.object.keptBoth',
+    );
+  });
+
+  it('writes nothing when asked to skip, and says the file differs', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(CHANGED, 'skip');
+
+    expect(await presetCount()).toBe(1);
+    expect(again.body.item.notes.map((n: { key: string }) => n.key)).toContain(
+      'import.object.differsAndKept',
+    );
+  });
+
+  it('treats a policy it does not know as absent rather than refusing the upload', async () => {
+    // A JSON body is validated whole and can say *this field is wrong*. A
+    // multipart field arrives after the file is buffered, so refusing here
+    // throws away an upload that was otherwise fine over a spelling.
+    const response = await send(JSON.stringify(PRESET), 'replace-all-of-them');
+
+    expect(response.status).toBe(201);
+  });
+
+  it('is unchanged, not replaced, when the same bytes arrive twice', async () => {
+    await send(JSON.stringify(PRESET));
+    const again = await send(JSON.stringify(PRESET));
+
+    expect(again.status).toBe(200);
+    expect(again.body.item.disposition).toBe('unchanged');
+  });
+});
