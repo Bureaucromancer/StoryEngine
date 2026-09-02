@@ -502,6 +502,7 @@ export class TurnRunner {
                 actors: cast.actors,
                 channels: running,
                 lore: lore.blocks,
+                carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
                 ...(payload.input === undefined ? {} : { input: payload.input }),
                 ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
               });

@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   newActor,
+  newLorebook,
+  newTreatment,
   type Actor,
   type Preset,
   type PresetBlock,
@@ -15,7 +17,7 @@ import { SCENE_PRESET } from '../modes/scene/preset.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
 import type { LoreBlock } from '../retrieval/blocks.js';
-import { collectCandidates, type CollectContext } from './collect.js';
+import { collectCandidates, type CollectContext, type SampleCarriers } from './collect.js';
 
 /**
  * Step 1 of [03 §5] — collect, the preset-to-prompt mapping.
@@ -767,28 +769,42 @@ describe('writing samples, which are shown rather than described', () => {
     expect(candidates).toHaveLength(2);
   });
 
-  it('separates a slot waiting on the engine from one waiting on the author', () => {
-    // **The reason `emptyReason` discriminates on `from`.** Collapsing both to
-    // `no-producer` would tell an author their preset is blocked on P5 when it
-    // is blocked on them having written a sample. Mutation: return a single
-    // constant from the `samples` arm and one of these two flips.
-    const waitingOnEngine = collectCandidates(
+  /**
+   * ~~separates a slot waiting on the engine from one waiting on the author~~
+   *
+   * **The split closed at [P5.9], and this is the test the stage said would
+   * have to change deliberately.** It pinned a real distinction while the three
+   * carriers were landing at different times: *waiting on the engine* and
+   * *waiting on you* have different repairs, and telling an author their preset
+   * is blocked on a phase when it is blocked on them writing a sample is the
+   * mistake `no-producer` existed to prevent.
+   *
+   * All three carriers are live now. So an empty samples slot means the same
+   * thing whichever one it names — write a sample, or link an object that has
+   * one — and keeping the discrimination would leave `no-producer` claiming an
+   * outstanding phase that does not exist. Changed here rather than repaired by
+   * whoever finds the build red, on [P5 §1.10]'s rule for the fixture-pair
+   * gate: a test that changes meaning is changed by the change that alters it.
+   */
+  it('says the same thing about an empty samples slot whichever carrier it names', () => {
+    const noTreatment = collectCandidates(
       context({
         preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
         actors: cast(withSamples('Vera', [{}])),
+        carriers: { treatment: null, books: [] },
       }),
     );
-    expect(waitingOnEngine.notFilled).toEqual([
-      { blockId: 'se.samples', source: 'samples', reason: 'no-producer' },
+    expect(noTreatment.notFilled).toEqual([
+      { blockId: 'se.samples', source: 'samples', reason: 'empty-source' },
     ]);
 
-    const waitingOnAuthor = collectCandidates(
+    const noSamples = collectCandidates(
       context({
         preset: preset([samplesBlock()]),
         actors: cast(newActor('Vera')),
       }),
     );
-    expect(waitingOnAuthor.notFilled).toEqual([
+    expect(noSamples.notFilled).toEqual([
       { blockId: 'se.samples', source: 'samples', reason: 'empty-source' },
     ]);
   });
@@ -986,5 +1002,229 @@ describe('the lore slot', () => {
 
       expect(notFilled[0]?.reason).toBe('no-producer');
     });
+  });
+});
+
+/**
+ * The other two carriers — [P5.9], [18 §7].
+ *
+ * [18 §7] shipped this slot with only its actor arm live and said the other two
+ * would arrive when a session could reach a Treatment and its books. [P5.6]
+ * made that true, and this is the wiring change §7 promised it would be.
+ */
+describe('samples from a treatment and from a book', () => {
+  // Local copies of the actor block's helpers: they live inside that describe,
+  // and hoisting them to the file would put two suites' fixtures in one place
+  // where a change for one silently retunes the other.
+  const samplesBlock = (over: Partial<PresetBlock> = {}): PresetBlock =>
+    block({
+      kind: 'slot',
+      id: 'se.samples',
+      label: 'writing samples',
+      priority: 20,
+      source: { of: 'samples' },
+      ...over,
+    });
+
+  const cast = (...actors: Actor[]): CollectContext['actors'] =>
+    actors.map((actor) => ({ actor, contentHash: `hash-${actor.name}` }));
+
+  const withSamples = (name: string, bodies: string[]): Actor => ({
+    ...newActor(name),
+    writingSamples: bodies.map((body, at) => ({
+      id: `a${String(at)}`,
+      title: body,
+      body,
+      enabled: true,
+      note: '',
+    })),
+  });
+
+  function samplesOn<T extends { writingSamples?: WritingSample[] }>(
+    object: T,
+    bodies: string[],
+  ): T {
+    return {
+      ...object,
+      writingSamples: bodies.map((body, at) => ({
+        id: `s${String(at)}`,
+        title: body,
+        body,
+        enabled: true,
+        note: '',
+      })),
+    };
+  }
+
+  const carriersOf = (over: Partial<SampleCarriers> = {}): SampleCarriers => ({
+    treatment: null,
+    books: [],
+    ...over,
+  });
+
+  const treatmentWith = (bodies: string[]) => ({
+    treatment: samplesOn(newTreatment('Noir'), bodies),
+    id: 't1',
+    contentHash: 'sha256:t',
+  });
+
+  const bookWith = (bodies: string[], id = 'b1') => ({
+    book: samplesOn(newLorebook('Rain City'), bodies),
+    id,
+    contentHash: 'sha256:b',
+  });
+
+  it('fills from a treatment’s samples', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
+        carriers: carriersOf({ treatment: treatmentWith(['The rain never lets up.']) }),
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['The rain never lets up.']);
+    expect(candidates[0]?.source).toEqual({
+      kind: 'samples',
+      owner: { kind: 'treatment', id: 't1', contentHash: 'sha256:t' },
+      sampleId: 's0',
+    });
+  });
+
+  it('fills from a book’s samples', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'lore' } })]),
+        carriers: carriersOf({ books: [bookWith(['Nobody hurries here.'])] }),
+      }),
+    );
+
+    expect(candidates[0]?.source).toMatchObject({
+      owner: { kind: 'lore', id: 'b1', contentHash: 'sha256:b' },
+    });
+  });
+
+  it('reads every book in play, not only the first', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'lore' } })]),
+        carriers: carriersOf({
+          books: [bookWith(['One.'], 'b1'), bookWith(['Two.'], 'b2')],
+        }),
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['One.', 'Two.']);
+  });
+
+  /**
+   * **The order [10 §3.1] fixes**: the stance on the material, then the world,
+   * then the person, which is the order they narrow in. A preset that declines
+   * to name a `from` is relying on it.
+   */
+  it('takes all three in the declared order when the slot names none', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        actors: cast(withSamples('Vera', ['from the actor'])),
+        carriers: carriersOf({
+          treatment: treatmentWith(['from the treatment']),
+          books: [bookWith(['from the book'])],
+        }),
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual([
+      'from the treatment',
+      'from the book',
+      'from the actor',
+    ]);
+  });
+
+  /**
+   * One candidate per sample, as the actor arm already does: the budgeter's
+   * only move against a single block is to drop all of it, and somebody who
+   * pasted three samples would rather lose one.
+   */
+  it('emits one candidate per sample, each addressable', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
+        carriers: carriersOf({ treatment: treatmentWith(['One.', 'Two.']) }),
+      }),
+    );
+
+    expect(candidates).toHaveLength(2);
+    expect(new Set(candidates.map((one) => one.id)).size).toBe(2);
+  });
+
+  it('skips a disabled sample without spending anything on it', () => {
+    const carrier = treatmentWith(['Kept.', 'Dropped.']);
+    const samples = carrier.treatment.writingSamples ?? [];
+    if (samples[1] !== undefined) samples[1].enabled = false;
+
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
+        carriers: carriersOf({ treatment: carrier }),
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['Kept.']);
+  });
+
+  it('lets a sample’s own priority override the slot’s', () => {
+    const carrier = treatmentWith(['Ranked.']);
+    const samples = carrier.treatment.writingSamples ?? [];
+    if (samples[0] !== undefined) samples[0].priority = 99;
+
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'treatment' } })]),
+        carriers: carriersOf({ treatment: carrier }),
+      }),
+    );
+
+    expect(candidates[0]?.priority).toBe(99);
+  });
+
+  /**
+   * **A sample rides with its carrier, never with activation** — which is what
+   * keeps this a slot rather than a feature of the retriever. The book's prose
+   * is offered because the book is in play; nothing here consults what matched.
+   */
+  it('offers a book’s samples with no entry having fired', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([samplesBlock({ source: { of: 'samples', from: 'lore' } })]),
+        carriers: carriersOf({ books: [bookWith(['Still offered.'])] }),
+        lore: [],
+      }),
+    );
+
+    expect(candidates.map((one) => one.text)).toEqual(['Still offered.']);
+  });
+
+  /** A caller that supplies no carriers at all simply has none to read. */
+  it('reads nothing from carriers nobody supplied', () => {
+    const { notFilled } = collectCandidates(
+      context({ preset: preset([samplesBlock({ source: { of: 'samples', from: 'lore' } })]) }),
+    );
+
+    expect(notFilled[0]?.reason).toBe('empty-source');
+  });
+
+  /** The same additive-change tolerance the actor arm has, on the other two. */
+  it('tolerates a treatment or a book written before the field existed', () => {
+    const { notFilled } = collectCandidates(
+      context({
+        preset: preset([samplesBlock()]),
+        carriers: carriersOf({
+          treatment: { treatment: newTreatment('Noir'), id: 't1', contentHash: 'sha256:t' },
+          books: [{ book: newLorebook('Rain City'), id: 'b1', contentHash: 'sha256:b' }],
+        }),
+      }),
+    );
+
+    expect(notFilled[0]?.reason).toBe('empty-source');
   });
 });

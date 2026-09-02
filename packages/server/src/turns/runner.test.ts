@@ -33,7 +33,7 @@ import type { StepDefinition, TurnPlan } from './steps.js';
 import { NARRATE } from '../modes/scene/mode.js';
 import { SCENE_PRESET } from '../modes/scene/preset.js';
 import { create, type LibraryContext } from '../library.js';
-import { newLorebook, newLoreEntry } from '@storyengine/shared';
+import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
 import { TurnRunner } from './runner.js';
 
@@ -1245,6 +1245,83 @@ describe('a preset block can be scoped to a kind of call', () => {
    * there. Every one of those is a place where a correct piece can be attached
    * to the wrong thing and produce silence.
    */
+  /**
+   * **What [P5.9] ends at**, run rather than described: *a treatment's sample
+   * and a character's sample in one prompt, each addressable in the block
+   * table, each with its own cost and its own drop rule.*
+   *
+   * The unit tests prove the collector's three arms apart. This proves the join
+   * — a session naming a treatment, the gather resolving it, the carriers
+   * reaching the slot, and both objects' prose arriving in one assembled
+   * record with the owner that carried each. Every step of that is a place a
+   * correct piece can be attached to the wrong thing and produce silence.
+   */
+  it('puts a treatment’s sample and an actor’s in one prompt, each addressable', async () => {
+    const noir = newTreatment('Rain City Noir');
+    noir.writingSamples = [
+      { id: 't-s1', title: 'Tone', body: 'The rain never lets up.', enabled: true, note: '' },
+    ];
+    await create(library, ACCOUNT, noir);
+
+    const vera = newActor('Vera');
+    vera.writingSamples = [
+      {
+        id: 'a-s1',
+        title: 'Voice',
+        body: 'She says less than she knows.',
+        enabled: true,
+        note: '',
+      },
+    ];
+    await create(library, ACCOUNT, vera);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Samples',
+      preset: SCENE_PRESET,
+      treatment: noir.id,
+      cast: { persona: null, actors: [vera.id] },
+    });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'samples-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+    const samples = blocks.filter((one) => one.source.kind === 'samples');
+
+    // Both carriers, in [10 §3.1]'s declared order: the stance, then the person.
+    expect(samples.map((one) => one.text)).toEqual([
+      'The rain never lets up.',
+      'She says less than she knows.',
+    ]);
+    // Each addressable to the object that carried it, and each with its own
+    // cost — which is what makes them two blocks rather than one.
+    expect(samples.map((one) => one.source)).toEqual([
+      {
+        kind: 'samples',
+        owner: { kind: 'treatment', id: noir.id, contentHash: expect.any(String) },
+        sampleId: 't-s1',
+      },
+      {
+        kind: 'samples',
+        owner: { kind: 'actor', id: vera.id, contentHash: expect.any(String) },
+        sampleId: 'a-s1',
+      },
+    ]);
+    expect(new Set(samples.map((one) => one.id)).size).toBe(2);
+    expect(samples.every((one) => one.tokens > 0)).toBe(true);
+  });
+
   it('puts a matching lore entry in the prompt, with the reason that fired it', async () => {
     const book = newLorebook('Rain City');
     book.entries = [

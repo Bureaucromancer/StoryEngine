@@ -151,6 +151,10 @@ export async function previewAssembly(
     actors: inputs.cast.actors,
     channels: inputs.channels,
     lore: lore.blocks,
+    // The books and the treatment, for the samples slot 2014 [P5.9]. Separate from
+    // `lore` above because a sample rides with its carrier rather than with an
+    // activation: a book's prose is offered because the book is in play.
+    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
   });

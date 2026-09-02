@@ -191,16 +191,34 @@ Two constraints from §4 that the field still honours:
   the **actor** arm end to end — cast actors are already gathered and read fresh
   every turn, so nothing new has to reach the session. The Scene preset positions
   the block; the actor editor grows a repeatable sample row.
-- **P5.** The **treatment** and **lore** arms. A session references neither
+- ~~**P5.** The **treatment** and **lore** arms. A session references neither
   object today, which is why those arms return nothing and report
   `no-producer` — the same posture `se.lore` has held since P2, and for the same
   reason: the slot rendering empty is what keeps this a wiring change rather than
-  a preset change.
+  a preset change.~~ **Shipped at [P5.9]**, and it was the wiring change this
+  predicted it would be: [P5.6] gave `SessionFile` a `treatment` and a `lore`
+  list, so the two arms needed the carriers threaded to the slot and nothing
+  else. The prediction that *a session references neither object today* was the
+  load-bearing part, and it is what made the schedule right.
 
-The empty reason discriminates on the carrier, deliberately. A slot naming the
+~~The empty reason discriminates on the carrier, deliberately. A slot naming the
 Treatment is waiting on the engine; an actor slot with nothing in it is waiting
 on the author. Collapsing both to `no-producer` would tell somebody their preset
-is blocked on P5 when it is blocked on them having written a sample.
+is blocked on P5 when it is blocked on them having written a sample.~~
+
+**The discrimination closed with the arms it existed for.** It said something
+true only while the three carriers were landing at different times. With all
+three live, an empty samples slot means the same thing whichever carrier it
+names — *write a sample, or link an object that has one* — and keeping the split
+would leave `no-producer` claiming an outstanding phase that no longer exists.
+The test that pinned it was changed in P5.9's own commit rather than repaired
+later, on the rule [P5 §1.10] set for the fixture-pair gate.
+
+**A sample rides with its carrier, never with activation.** A book's samples are
+offered because the book is *in play*, not because one of its entries matched: a
+sample is not an entry, has no keys, and has nothing to match with. That is what
+keeps this a preset slot rather than a feature of the retriever, and it is why
+P5.9 was a stage of the phase rather than part of P5.6.
 
 ## 8. Deliberately not decided here
 
