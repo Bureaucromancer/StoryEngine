@@ -900,33 +900,108 @@ the generalisation of the property from head to every index, and the two
 head-snapshot readers — not the mechanism.* Pure engine, no UI. **Four sub-steps
 in a fixed order, and the order is the stage's only real risk.**
 
-#### P6.0a — the property test, written before anything moves
+#### ~~P6.0a — the property test, written before anything moves~~ Landed
 
-**Builds:** reconstruction generalised from *head* to *every index*, asserted
-against the code exactly as it stands today. A new `sessions/reconstruct-property.test.ts`,
-or a new describe in `sessions/store.test.ts`, over `walkPath`
-(`sessions/segments.ts:188`) and `replayChannels` (`sessions/store.ts:475`).
+One file, `packages/server/src/sessions/reconstruct-property.test.ts`, and the
+whole of it is a fixture that forks. Seven turns on disk across three segments
+— four on a main line and three on a sibling line that leaves from the first —
+with a `sticky`, a `cooldown` and an `ephemeral` entry fired in a different
+order on each line, and the state at every one of the seven nodes replayed
+from zero and checked. The effects are **genuine**: each turn runs the real
+retriever and commits its proposals through `acceptEffect` and `applyEffects`
+exactly as `turns/runner.ts` does, then the clock the same way. That was the
+only way to make the stage's reason for existing falsifiable — the clause it
+protects decides whether an effect is *written at all*, and a fixture that
+wrote its own effects would stay green with the clause gone.
 
-**Must prove:** for a fixture session with at least one sibling pair, channel
-state at every node equals `replayChannels(walkPath(turns, node))` — and **the
-fixture's effects must include `se.lore.timing#<entryId>` values, not only
-`se.clock`.** That clause is the whole point of putting this first. Every
-existing `replayChannels` test folds a clock-only path (`store.test.ts:286`,
-`:298-299`, `:337`; `channels.test.ts:121`, `:167`; `p2-gate-storage.test.ts:628`,
-`:750` — the last because its `createSession` helper posts `{ name }` alone, so
-no book is ever selected and no timing effect is ever written). Assert the three
-`EntryTiming` integers by name (`retrieval/timing.ts:48`), and include one entry
-with **neither `sticky` nor `cooldown`** so that `same()`'s
-`left.fired === right.fired` clause (`retrieve.ts:239`) is protected — today
-deleting it leaves the suite green and makes an ephemeral entry fire forever.
+**Two oracles, because either alone is vacuous in its own way.** The writer's
+forward map, captured after each turn, proves the disk round-trip and the walk
+— but it is computed with the same `applyEffects` the replay uses, so a keying
+fault moves both sides together. Beside it is a literal table of the three
+integers per entry per node, derived by hand from `timingVerdict` and
+`advanceTiming` and passing through no production code; that is the side that
+reddens when `applyEffects` keys on the channel id alone, and when `same()`
+loses a clause, because then a firing or a countdown is never written and the
+key is absent or stale. In the table tests absence is asserted as absence,
+never through `timingOf`, whose tolerance would read a missing key as zeros. A
+fourth test runs the same forward computation over 150 random trees in memory
+with the pure timing fold as its oracle, so *every index* means more than the
+seven nodes somebody drew; it reads through `timingOf`, which is sound there
+and only there — `fired` never decreases, so the fold predicts zeros exactly
+when the key is absent — and it shares `timing.ts` with the code under test,
+so a fault in the counting itself is the table's to catch.
 
-**This sub-step is also [P5 §3](07-p5-implementation.md) step 14 discharged**,
-which is why it comes first rather than last: P5's pre-P6 escape clause was
-*"replay-from-zero covers it"* and that was never written, so this phase inherits
-an obligation rather than a step that changed meaning.
+**Twenty mutations, seventeen red, and the three that stayed green were
+predicted before the run rather than explained after it.** Killed: each of
+`same()`'s three clauses on its own, and the clause weakened to tell only zero
+from non-zero — the mutant an adversarial review of the first draft found
+surviving, because nothing then fired twice on one path, and the reason the
+ephemeral entry's limit is two and the sibling line mentions the omen three
+times; `fired` made a flag on the write side; `applyEffects` keying on the
+channel id alone, or dropping what a turn did not touch; the recorded effect
+losing its scope key; `replayChannels` seeded from a non-empty map; `walkPath`
+returning head-first; `listSegments` losing its first file or stopping after
+it; the retriever writing no-ops for every entry, rewriting only present keys
+with their own value (which only the per-turn write list sees), or advancing
+counters only for entries that fired; a cooldown that stops counting; and
+`acceptEffect` refusing an engine proposal. Two of those — the cooldown clause
+and counters-only-for-fired-entries — fail identically and count as one
+observation. Not caught here, and where each is caught instead: applying a
+refused effect (nothing this fixture proposes is refused, and a refusal would
+be value-neutral anyway since `acceptEffect` stamps `after: before`; killed in
+`sessions/store.test.ts`, *ignores a rejected effect*); `before` stamped as
+null (`turns/effects.test.ts`, *takes its inverse from its own scope* —
+nothing in this file reads `before`, and undo is P6.3's); and `walkPath`'s
+cycle guard, which **no test anywhere exercises**, nor its missing-parent stop.
+That last pair is a hygiene item for P6.3, recorded rather than padded into
+this fixture. Also outside it, and outside the contract: `delay`, whose
+counter is path depth rather than a stored value, and two effects on one key
+in one turn.
 
-**Blocks:** everything else in the phase. Without it, P6.0b's regression is
-invisible.
+**[P5 §3](07-p5-implementation.md) step 14 is discharged** in the first test,
+as written: replay from zero to the file's own head pointer against
+`session.channels`, three counters by name. It is legitimate there and only
+there, because before the fork every append's parent was the previous head.
+After the fork the file's `channels` are deliberately not read, and what they
+hold is worth writing down for P6.0b: `advanceHead` folds each sibling onto
+the *previous head's* map, so after `s2` the file carried `t4`'s cooldown
+counter on a path that never wrote one — and by `s4` every inherited key had
+been overwritten by a whole-value set and the file agreed with the replay
+again. The divergence is real and transient, and P6.0b's test has to look at
+the moment it exists rather than at the tip, where this fixture would pass
+the fix and the bug alike. What this property sees is the walk, the fold, the
+segment reader, `acceptEffect` and the retriever; it does not call
+`advanceHead` or `gatherAssemblyInputs`, so P6.0b's proof (ii) is its own test
+and not this one twice. Generative coverage *with* disk is P6.0d's, where a
+second implementation exists to compare against.
+
+*The stage as it was written:*
+
+> **Builds:** reconstruction generalised from *head* to *every index*, asserted
+> against the code exactly as it stands today. A new `sessions/reconstruct-property.test.ts`,
+> or a new describe in `sessions/store.test.ts`, over `walkPath`
+> (`sessions/segments.ts:188`) and `replayChannels` (`sessions/store.ts:475`).
+>
+> **Must prove:** for a fixture session with at least one sibling pair, channel
+> state at every node equals `replayChannels(walkPath(turns, node))` — and **the
+> fixture's effects must include `se.lore.timing#<entryId>` values, not only
+> `se.clock`.** That clause is the whole point of putting this first. Every
+> existing `replayChannels` test folds a clock-only path (`store.test.ts:286`,
+> `:298-299`, `:337`; `channels.test.ts:121`, `:167`; `p2-gate-storage.test.ts:628`,
+> `:750` — the last because its `createSession` helper posts `{ name }` alone, so
+> no book is ever selected and no timing effect is ever written). Assert the three
+> `EntryTiming` integers by name (`retrieval/timing.ts:48`), and include one entry
+> with **neither `sticky` nor `cooldown`** so that `same()`'s
+> `left.fired === right.fired` clause (`retrieve.ts:239`) is protected — today
+> deleting it leaves the suite green and makes an ephemeral entry fire forever.
+>
+> **This sub-step is also [P5 §3](07-p5-implementation.md) step 14 discharged**,
+> which is why it comes first rather than last: P5's pre-P6 escape clause was
+> *"replay-from-zero covers it"* and that was never written, so this phase inherits
+> an obligation rather than a step that changed meaning.
+>
+> **Blocks:** everything else in the phase. Without it, P6.0b's regression is
+> invisible.
 
 #### P6.0b — fix the two head-snapshot readers, with the gate still closed
 
@@ -1167,6 +1242,9 @@ actually landed and the gate could name real state instead of hypothetical.*
     *is* that discharge, generalised. Edit the step to say so rather than ticking
     it. **And P5's step 11 is subsumed by step 3 above**: P5 discharged the
     keying, this phase owns the reproduction, and P5's record now says so.
+    **Edited at P6.0a, 2026-09-02:** step 14 is struck in
+    [07 §3](07-p5-implementation.md) and names the test; its branch half is
+    step 10 above.
 
 14. **Reconstruction stays affordable against a real lorebook** *(added
     2026-09-02 from §0.1a)*. P5 made the effect log an order of magnitude
