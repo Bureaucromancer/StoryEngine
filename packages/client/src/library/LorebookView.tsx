@@ -7,7 +7,9 @@ import {
   entriesGoverned,
   entriesInFolder,
   entryGate,
+  entrySpans,
   mentionIndex,
+  mergeSpans,
   offCount,
   resolvedFolderId,
   type GateReason,
@@ -29,7 +31,7 @@ import { loreEntrySchema } from './fields.js';
 import type { ObjectImportNotes } from '../api.js';
 import { ImportNotes, notesForEntry } from './ImportNotes.js';
 import { sentence } from './note-labels.js';
-import { entryMatches, highlight, matches } from './search.js';
+import { entryMatches, highlight, matches, runsFor } from './search.js';
 
 /**
  * Which folder the list is narrowed to, where the outer `null` is *any folder*
@@ -135,6 +137,12 @@ export function LorebookView({
   const [key, setKey] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [folder, setFolder] = useState<FolderChoice>(null);
+  /**
+   * **Off by default**, which [05 §5.3] says twice — an underline inside a
+   * sentence reads as an activation preview, and it only becomes an honest one
+   * once somebody has asked for it and been told what it means.
+   */
+  const [scanner, setScanner] = useState(false);
   const narrowed = query !== '' || key !== null || tag !== null || folder !== null;
 
   /**
@@ -213,6 +221,13 @@ export function LorebookView({
                 hint="Everything here is local — nothing is sent anywhere."
               />
 
+              <ScannerToggle
+                book={book}
+                on={scanner}
+                onChange={setScanner}
+                searching={query !== ''}
+              />
+
               {narrowed ? (
                 <div className="flex flex-wrap items-center gap-2 text-sm text-ink-subtle">
                   <span>{`Showing ${formatCount(visible.length)} of ${formatCount(book.entries.length)}`}</span>
@@ -258,6 +273,7 @@ export function LorebookView({
                     entry={entry}
                     query={query}
                     activeKey={key}
+                    scanner={scanner ? scannerSpans(book, entry) : undefined}
                     focused={entry.id === (focused ?? null)}
                     importNotes={notesForEntry(importNotes ?? [], entry.name)}
                     linkToEntry={linkToEntry}
@@ -398,11 +414,30 @@ function Chip({ label, onClick }: { label: string; onClick: () => void }): JSX.E
   );
 }
 
-/** The matched stretches of a string, marked. Renders plainly when nothing is. */
-function Marked({ text, query }: { text: string; query: string }): JSX.Element {
+/**
+ * The matched stretches of a string, marked. Renders plainly when nothing is.
+ *
+ * Two things can mark, and they mean different things, so they never both do at
+ * once: the search query, and — when the scanner view is on — the spans the
+ * **real matcher** would hit ([P5.8]). The scanner wins where both apply,
+ * because it is the one somebody switched on deliberately; a text carrying two
+ * kinds of mark at once would be asking a reader to distinguish two highlights
+ * by colour alone.
+ */
+function Marked({
+  text,
+  query,
+  spans,
+}: {
+  text: string;
+  query: string;
+  spans?: readonly { start: number; end: number }[];
+}): JSX.Element {
+  const runs = spans === undefined ? highlight(text, query) : runsFor(text, spans);
+
   return (
     <>
-      {highlight(text, query).map((run, index) =>
+      {runs.map((run, index) =>
         run.hit ? (
           <mark
             key={`${String(index)}:${run.text}`}
@@ -633,6 +668,12 @@ function EntryUnit(props: {
   query: string;
   activeKey: string | null;
   focused: boolean;
+  /**
+   * Where the real matcher would hit inside this entry's prose — [P5.8].
+   * Undefined when the scanner view is off, which is the default and is what
+   * makes {@link Marked} fall back to marking the search query instead.
+   */
+  scanner: { start: number; end: number }[] | undefined;
   importNotes: ObjectImportNotes['notes'];
   // Required and nullable rather than optional: `exactOptionalPropertyTypes`
   // makes those different, and the caller forwards a value that may be absent.
@@ -771,7 +812,11 @@ function EntryUnit(props: {
               : 'line-clamp-6 whitespace-pre-wrap text-sm text-ink'
           }
         >
-          <Marked text={entry.content} query={query} />
+          <Marked
+            text={entry.content}
+            query={query}
+            {...(props.scanner === undefined ? {} : { spans: props.scanner })}
+          />
         </p>
       )}
 
@@ -886,4 +931,115 @@ function scopeLabel(scope: Lorebook['scope'] | undefined): string {
   return actorIds.length === 0
     ? 'No linked actors yet'
     : `${formatCount(actorIds.length)} linked actors`;
+}
+
+/**
+ * Where the **real matcher** would hit inside one entry's prose — [P5.8],
+ * [05 §5.3].
+ *
+ * §5.3 scheduled inline highlighting rather than refusing it: *once a real
+ * matcher exists it stops being a guess about linking and becomes the keyword
+ * test applied to entry content instead of pasted text — at which point it can
+ * say the true thing, **this is what the scanner sees**.* This is that, and the
+ * matcher is literally the same code the retriever runs, shared at
+ * `shared/matching.ts` so the two cannot answer differently.
+ *
+ * **Other entries' keys, not this one's.** An entry matching its own key is
+ * trivially true and says nothing; the question an author has is *if this fires,
+ * what does it pull in* — which is recursion, and which is what the Mentions
+ * list beside it answers in prose.
+ *
+ * **It will sometimes disagree with that list, and the disagreement is the
+ * point.** Mentions uses one stated rule — whole-word, no per-entry flags —
+ * because [05 §5.3] argues a *list* that approximated thirty rule sets would be
+ * pretending to be the matcher. This uses each entry's own flags. So the list
+ * says a name appears and the highlight says whether the scanner would catch
+ * it, and where they differ somebody has learnt something about their book.
+ *
+ * **Off by default**, which §5.3 says twice.
+ */
+function scannerSpans(book: Lorebook, entry: LoreEntry): { start: number; end: number }[] {
+  const found = book.entries
+    .filter((other) => other.id !== entry.id)
+    .flatMap((other) => entrySpans(other, entry.content));
+
+  return mergeSpans(found);
+}
+
+/**
+ * How many of a book's entries this view cannot speak for.
+ *
+ * A `useRegex` entry is not evaluated here at all, and the count is shown
+ * rather than the omission being silent — an author whose book is half patterns
+ * would otherwise read an empty highlight as *nothing links*, which is the one
+ * conclusion this feature must not let them draw. The reason is in
+ * `shared/matching.ts`: a browser cannot bound a catastrophic pattern, so it
+ * declines to run one rather than hanging the tab.
+ */
+function patternEntryCount(book: Lorebook): number {
+  return book.entries.filter((entry) => entry.useRegex).length;
+}
+
+/**
+ * The switch, and the sentence that makes the highlight honest — [P5.8],
+ * [05 §5.3].
+ *
+ * §5.3's objection to inline highlighting was never that it is uncomputable; it
+ * was that *an underlined name inside a body reads as an activation preview and
+ * is not one*. The switch is what fixes that: nobody meets this by accident,
+ * and the label says which question it answers. Off by default, twice stated.
+ *
+ * **The pattern count is not a footnote.** A book that is half `useRegex`
+ * entries would show a nearly empty highlight, and an author reading that as
+ * *nothing links* would have drawn the one conclusion this feature must not
+ * allow. So the number is beside the switch rather than buried, whether or not
+ * the switch is on.
+ */
+function ScannerToggle({
+  book,
+  on,
+  onChange,
+  searching,
+}: {
+  book: Lorebook;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  /** Whether a search is running, so the exchange of marks can be explained. */
+  searching: boolean;
+}): JSX.Element | null {
+  const patterns = patternEntryCount(book);
+  // Nothing to link to and nothing to say: a one-entry book cannot mention
+  // itself, and offering a switch that provably changes nothing is the same
+  // complaint §5.3 makes about a *Show all* on a two-line entry.
+  if (book.entries.length < 2) return null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm text-ink-subtle">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(event) => {
+            onChange(event.target.checked);
+          }}
+        />
+        <span>Mark what the scanner sees</span>
+      </label>
+
+      {on ? (
+        <Fine>
+          {patterns === 0
+            ? 'Marks where another entry’s keys appear in this one’s text, under that entry’s own matching rules — which is what a recursive scan would find.'
+            : `Marks where another entry’s keys appear in this one’s text, under that entry’s own matching rules. ${formatCount(patterns)} entries match by pattern and are not shown: a pattern cannot be run safely in a browser.`}
+        </Fine>
+      ) : null}
+
+      {on && searching ? (
+        // Two kinds of mark on one text would ask a reader to tell them apart
+        // by colour, so the scanner takes the marks while it is on and this
+        // says so rather than leaving the search looking broken.
+        <Fine>While this is on, the search below narrows the list but does not mark the text.</Fine>
+      ) : null}
+    </div>
+  );
 }

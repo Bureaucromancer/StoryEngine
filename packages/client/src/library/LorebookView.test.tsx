@@ -700,3 +700,113 @@ describe('an entry’s mentions', () => {
     expect(row.getAttribute('href')).toBe(`?entry=${linked[0]!.id}`);
   });
 });
+
+/**
+ * Inline highlighting, made honest — [P5.8], [05 §5.3].
+ *
+ * §5.3 scheduled this rather than refusing it: *once a real matcher exists it
+ * stops being a guess about linking and becomes the keyword test applied to
+ * entry content*. The matcher is now the same code the retriever runs, shared
+ * at `shared/matching.ts`, and the switch is what keeps the underline from
+ * reading as an activation preview nobody asked for.
+ */
+describe('marking what the scanner sees', () => {
+  const linked = () =>
+    book({
+      entries: [
+        entry('Harbour', { keys: ['harbour'], content: 'Cranes over the water.' }),
+        entry('The Docks', { keys: ['docks'], content: 'The harbour is north of the docks.' }),
+      ],
+    });
+
+  const marksIn = (name: string): string[] =>
+    [...unitFor(name).querySelectorAll('mark')].map((node) => node.textContent);
+
+  /** Off by default, which §5.3 says twice. */
+  it('marks nothing until it is switched on', () => {
+    render(<LorebookView book={linked()} />);
+
+    expect(marksIn('The Docks')).toEqual([]);
+  });
+
+  it('marks another entry’s key inside this one’s prose', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={linked()} />);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+
+    expect(marksIn('The Docks')).toEqual(['harbour']);
+  });
+
+  /**
+   * **An entry's own key is not marked.** Matching itself is trivially true and
+   * says nothing; the question is *if this fires, what does it pull in*.
+   */
+  it('does not mark an entry’s own key', async () => {
+    const user = userEvent.setup();
+    render(<LorebookView book={linked()} />);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+
+    // 'docks' is The Docks' own key and appears in its own prose.
+    expect(marksIn('The Docks')).not.toContain('docks');
+  });
+
+  /**
+   * The per-entry flags are the whole reason this is *honest* rather than a
+   * guess: the mentions list beside it uses one stated rule, and this uses the
+   * matcher's.
+   */
+  it('honours the matching entry’s own whole-word rule', async () => {
+    const user = userEvent.setup();
+    render(
+      <LorebookView
+        book={book({
+          entries: [
+            entry('Dock', { keys: ['dock'], matchWholeWords: true }),
+            entry('Prose', { content: 'Down at the dockside.' }),
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+
+    expect(marksIn('Prose')).toEqual([]);
+  });
+
+  /**
+   * **A pattern is never run in a browser** — it cannot be bounded there, and
+   * [P5.4] exists because an unbounded one is a denial of service. The count is
+   * beside the switch rather than buried, because an author whose book is half
+   * patterns would otherwise read an empty highlight as *nothing links*.
+   */
+  it('says how many entries it cannot speak for', async () => {
+    const user = userEvent.setup();
+    render(
+      <LorebookView
+        book={book({
+          entries: [
+            entry('Pattern', { keys: ['do.ks'], useRegex: true }),
+            entry('Prose', { content: 'Down at the docks.' }),
+          ],
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+
+    expect(marksIn('Prose')).toEqual([]);
+    expect(screen.getByText(/1 entries match by pattern/)).toBeTruthy();
+  });
+
+  /**
+   * Offering a switch that provably changes nothing is the same complaint §5.3
+   * makes about a *Show all* on a two-line entry.
+   */
+  it('offers no switch on a book with nothing to link', () => {
+    render(<LorebookView book={book({ entries: [entry('Alone')] })} />);
+
+    expect(screen.queryByRole('checkbox', { name: 'Mark what the scanner sees' })).toBeNull();
+  });
+});

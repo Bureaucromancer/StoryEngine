@@ -35,6 +35,11 @@ export * from './lore.js';
 // falsification script counts it, and an instrument that measured a different
 // rule from the one on screen would be measuring nothing anybody sees.
 export * from './mentions.js';
+// The pure half of key matching, shared so the retriever and the book page's
+// inline highlighting cannot answer differently 2014 [P5.8]. The regex arm stays
+// server-side: a browser cannot bound a catastrophic pattern, so it declines to
+// run one rather than hanging the tab.
+export * from './matching.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Lorebook, LoreEntry } from '@storyengine/shared';
+import { containsTerm, type Lorebook, type LoreEntry } from '@storyengine/shared';
 
 import { testPattern, type PatternOutcome } from './regex.js';
 
@@ -79,40 +79,19 @@ export interface MatchResult {
   unknownSources: string[];
 }
 
-/** Characters that count as being inside a word, for whole-word matching. */
-const WORD = /[\p{L}\p{N}_]/u;
-
-function isWordCharacter(character: string): boolean {
-  return character !== '' && WORD.test(character);
-}
-
 /**
- * A literal term in a haystack, optionally at word boundaries.
+ * ~~A literal term in a haystack, optionally at word boundaries.~~
  *
- * **Written out rather than built as a `\b`-anchored pattern**, for two
- * reasons. `\b` in JavaScript is ASCII-only unless the pattern is Unicode, and
- * a key in any other script would stop matching at a boundary it should have;
- * and a term has to be escaped before it can go in a pattern at all, which is
- * one more place to get user text wrong in a file whose whole subject is not
- * doing that.
+ * **Moved to `shared/matching.ts` at [P5.8]**, unchanged, because the book
+ * page's inline highlighting claims to show *what the scanner sees* and two
+ * implementations of one rule disagree eventually — this one has three flags to
+ * disagree about. The same move [P5.7] made with `entryGate`, for the same
+ * reason. The argument for writing the boundary test out rather than building a
+ * `\b`-anchored pattern travelled with it.
  *
- * The boundary test is that the characters immediately outside the match are
- * not word characters — so `docks` does not match inside `dockside`, and a term
- * that itself begins with punctuation still behaves.
+ * The **regex** arm below deliberately did not travel: it needs `node:vm` and a
+ * timeout, and a browser has neither.
  */
-function containsTerm(haystack: string, term: string, wholeWords: boolean): boolean {
-  if (term === '') return false;
-  if (!wholeWords) return haystack.includes(term);
-
-  let at = haystack.indexOf(term);
-  while (at !== -1) {
-    const before = at === 0 ? '' : haystack.charAt(at - 1);
-    const after = haystack.charAt(at + term.length);
-    if (!isWordCharacter(before) && !isWordCharacter(after)) return true;
-    at = haystack.indexOf(term, at + 1);
-  }
-  return false;
-}
 
 /** One key against one haystack, under the entry's own three flags. */
 function keyMatches(

@@ -74,3 +74,29 @@ export function highlight(text: string, query: string): Run[] {
   if (cursor < text.length) runs.push({ text: text.slice(cursor), hit: false });
   return runs;
 }
+
+/**
+ * The same cut, driven by spans somebody else computed — [P5.8].
+ *
+ * `highlight` above finds its own occurrences of one query string. This takes
+ * positions worked out by the **real matcher's** rules, which vary per entry
+ * (whole-word, case) and cannot be re-derived from a single needle. Sharing the
+ * `Run` shape is what lets one component render both.
+ */
+export function runsFor(text: string, spans: readonly { start: number; end: number }[]): Run[] {
+  if (spans.length === 0) return [{ text, hit: false }];
+
+  const runs: Run[] = [];
+  let cursor = 0;
+  for (const span of spans) {
+    // Defensive against a span outside the text: the caller computes these from
+    // the same string, but a run with a negative length would render as an
+    // empty mark and be invisible rather than wrong-looking.
+    if (span.start < cursor || span.end > text.length) continue;
+    if (span.start > cursor) runs.push({ text: text.slice(cursor, span.start), hit: false });
+    runs.push({ text: text.slice(span.start, span.end), hit: true });
+    cursor = span.end;
+  }
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), hit: false });
+  return runs;
+}
