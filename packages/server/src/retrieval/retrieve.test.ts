@@ -19,6 +19,7 @@ import { seededSource } from '../rng/source.js';
 import { channelKey, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
 import type { LoreSource } from '../turns/lore.js';
+import { loreReport } from './blocks.js';
 import { retrieve, type RetrieveContext } from './retrieve.js';
 
 /**
@@ -290,5 +291,135 @@ describe('retrieve', () => {
       expect(not.blocks).toEqual([]);
       expect(not.unplaced.map((one) => one.outletName)).toEqual(['rules']);
     });
+  });
+});
+
+/**
+ * The report the keyword tester is a surface over — [P5.8].
+ *
+ * Assembled from three sources the tester has no business knowing apart: the
+ * scan's refusals, the shelf's per-book spend, and the books themselves. What
+ * is asserted here is that each of them arrives whole, because the surface can
+ * only show what the report contains and *my lorebook never fires* is answered
+ * by the half nothing else records.
+ */
+describe('loreReport', () => {
+  function reportFor(
+    books: LoreSource[],
+    edits: Partial<RetrieveContext> = {},
+  ): ReturnType<typeof loreReport> {
+    const result = run(books, edits);
+    return loreReport({
+      books,
+      scan: result.scan,
+      shelf: result.shelf,
+      unplaced: result.unplaced,
+    });
+  }
+
+  it('carries every reason an entry did not fire', () => {
+    const report = reportFor([
+      bookOf([
+        entryOf('No keys', { keys: [] }),
+        entryOf('Missed', { keys: ['nowhere'] }),
+        entryOf('Switched off', { keys: ['ferryman'], enabled: false }),
+      ]),
+    ]);
+
+    expect(
+      report.skipped
+        .map((one) => `${one.entryName}: ${one.reason}`)
+        .sort((left, right) => (left < right ? -1 : 1)),
+    ).toEqual(['Missed: no-match', 'No keys: no-keys', 'Switched off: entry-disabled']);
+  });
+
+  /** [P5.7]'s folder gate, named — the outermost shut one, as the surface names it. */
+  it('names the folder that shut an entry out', () => {
+    const book = bookOf([entryOf('Inside', { keys: ['ferryman'], folderId: 'act-two' })], {
+      folders: [{ id: 'act-two', name: 'Act Two', parentFolderId: null, enabled: false, order: 0 }],
+    });
+
+    expect(reportFor([book]).skipped[0]).toMatchObject({
+      reason: 'folder-disabled',
+      folder: { id: 'act-two', name: 'Act Two' },
+    });
+  });
+
+  /**
+   * A book that activated nothing is the row somebody most needs: *being
+   * scanned and contributing nothing* and *not being scanned* are different
+   * problems, and only a row tells them apart.
+   */
+  it('lists a book that contributed nothing at all', () => {
+    const report = reportFor([bookOf([entryOf('Quiet', { keys: ['nowhere'] })])]);
+
+    expect(report.books).toEqual([
+      {
+        bookId: 'book-1',
+        bookName: 'Rain City',
+        by: 'session',
+        tokenBudget: 2048,
+        tokensSpent: 0,
+        entryLimit: 100,
+        entriesKept: 0,
+      },
+    ]);
+  });
+
+  it('reports what each book spent of its own budget', () => {
+    const report = reportFor(
+      [bookOf([entryOf('Fires', { keys: ['ferryman'], content: 'Yes.' })])],
+      {
+        input: { text: 'the ferryman' },
+      },
+    );
+
+    expect(report.books[0]?.entriesKept).toBe(1);
+    expect(report.books[0]?.tokensSpent).toBeGreaterThan(0);
+  });
+
+  it('says how a book got here', () => {
+    const global = { ...bookOf([entryOf('One', { keys: ['x'] })]), by: 'global' as const };
+
+    expect(reportFor([global]).books[0]?.by).toBe('global');
+  });
+
+  describe('the patterns it could not run', () => {
+    /**
+     * **Deduplicated by key, and the reason is arithmetic.** `firstHit` walks
+     * every haystack, so one bad pattern in an entry scanned across a
+     * `scanDepth` of eight produces eight identical refusals — and somebody
+     * reading *8 patterns could not be run* goes looking for eight problems.
+     */
+    it('reports one bad pattern once, however many haystacks it was tried in', () => {
+      const entry = entryOf('Broken', { keys: ['('], useRegex: true, scanDepth: 0 });
+      const report = reportFor([bookOf([entry])], {
+        history: [turnOf('a', 'b'), turnOf('c', 'd'), turnOf('e', 'f')],
+      });
+
+      expect(report.refused).toHaveLength(1);
+      expect(report.refused[0]).toMatchObject({ key: '(', reason: 'invalid' });
+    });
+
+    /** The entry is recovered from the key, so a person has something to open. */
+    it('names the entry the pattern belongs to', () => {
+      const entry = entryOf('Broken', { keys: ['('], useRegex: true });
+
+      expect(
+        reportFor([bookOf([entry])], { input: { text: 'anything at all' } }).refused[0],
+      ).toMatchObject({
+        entryId: entry.id,
+        entryName: 'Broken',
+      });
+    });
+  });
+
+  it('carries the sources nothing supplied', () => {
+    const entry = entryOf('Elsewhere', {
+      keys: ['ferryman'],
+      additionalMatchingSources: ['the-moon'],
+    });
+
+    expect(reportFor([bookOf([entry])]).unknownSources).toEqual(['the-moon']);
   });
 });

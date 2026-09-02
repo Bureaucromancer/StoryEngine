@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ModelCall } from '@storyengine/shared';
+import { NO_LORE_REPORT, type ModelCall } from '@storyengine/shared';
 
 import type { TurnPreview, TurnRecord } from '../api.js';
 
@@ -338,6 +338,7 @@ export function pendingPreview(): TurnPreview {
     blocks: call.blocks,
     budget: call.budget,
     notFilled: call.notFilled,
+    lore: NO_LORE_REPORT,
   };
 }
 
@@ -354,6 +355,7 @@ export function unmeasurablePreview(): TurnPreview {
     pendingInput: true,
     reason: 'role-unbound',
     notFilled: proseCall().notFilled,
+    lore: NO_LORE_REPORT,
   };
 }
 

@@ -6,6 +6,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { NO_LORE_REPORT } from '@storyengine/shared';
+
 import type { TurnPreview, TurnRecord } from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
@@ -132,6 +134,7 @@ function previewOf(spent: number): { preview: TurnPreview } {
         nextToDrop: [],
       },
       notFilled: [],
+      lore: NO_LORE_REPORT,
     },
   };
 }
@@ -472,6 +475,7 @@ describe('the context meter', () => {
         pendingInput: false,
         reason: 'role-unbound',
         notFilled: [],
+        lore: NO_LORE_REPORT,
       },
     });
     renderPage();

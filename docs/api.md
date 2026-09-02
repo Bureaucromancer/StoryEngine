@@ -750,7 +750,23 @@ preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { previe
     "resolved": { "connectionId": "0199…", "modelId": "…" },
     "blocks": [],
     "budget": {},
-    "notFilled": []
+    "notFilled": [],
+    "lore": {
+      "books": [
+        {
+          "bookId": "0199…",
+          "bookName": "Rain City",
+          "by": "global",
+          "tokenBudget": 2048,
+          "tokensSpent": 41,
+          "entryLimit": 100,
+          "entriesKept": 1
+        }
+      ],
+      "skipped": [{ "entryName": "The Council", "reason": "no-match", "entryId": "0199…" }],
+      "refused": [],
+      "unknownSources": []
+    }
   }
 }
 ```
@@ -778,6 +794,30 @@ context*, not a refused request:
 `reason` is `role-unbound`, `role-dangling` (a binding whose connection is gone)
 or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
 this prompt* is answerable without a model.
+
+`lore` rides on both arms for the same reason, and it is what the keyword tester
+([05 §3](design/05-ui-surfaces.md)) is a surface over — *paste sample text, see
+which entries would fire*, which needs no endpoint of its own because sample
+text **is** an input.
+
+- `books` — every book in play, why it is in play (`treatment`, `session`,
+  `global` or `linked`), and what it spent of its own two limits. Reported even
+  for a book that contributed nothing, because *being scanned and matching
+  nothing* and *not being scanned* have different repairs.
+- `skipped` — **every** entry that did not fire, each with the rule that stopped
+  it. This is the half nothing else records: a fired entry is already a block
+  with a reason beside it. `reason` is a class the surface phrases, and the list
+  is open — it will grow — so a client that meets an unfamiliar one shows the
+  class itself rather than nothing. `folder` accompanies the folder gate, naming
+  the outermost shut folder.
+- `refused` — patterns that could not be run, deduplicated by key. One bad
+  pattern in an entry scanned across eight messages is one problem, not eight.
+- `unknownSources` — sources entries asked to scan that nothing supplied. An
+  entry looking somewhere that does not exist never fires and looks exactly like
+  an entry whose keys are wrong.
+
+Nothing here is truncated. A surface may cap what it shows; a report that
+arrived pre-trimmed could not offer *and 40 more* honestly.
 
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { LoreEntry } from '@storyengine/shared';
+import type { LoreEntry, LoreReport } from '@storyengine/shared';
 
 import type { Candidate } from '../assembly/types.js';
-import type { Activation } from './activate.js';
+import type { LoreSource } from '../turns/lore.js';
+import type { PatternRefusal } from './match.js';
+import type { Activation, ScanResult } from './activate.js';
 import { trimRank } from './shelf.js';
-import type { Shelved } from './shelf.js';
+import type { Shelved, ShelfResult } from './shelf.js';
 
 /**
  * Activated entries as prompt blocks — the last third of [P5 §1.3], after the
@@ -243,4 +245,95 @@ export function refusalsFor(
       rule: `no preset slot positions the outlet “${one.outletName}”`,
     })),
   ];
+}
+
+/**
+ * The scan, the shelf and the outlets as one report for a surface — [P5.8].
+ *
+ * **Assembled here rather than in the preview**, because every piece of it is
+ * this module's vocabulary and the preview's job is to answer a question rather
+ * than to know how a lorebook works. It is also what keeps the runner and the
+ * preview from producing two differently-shaped accounts of one scan.
+ *
+ * The *skipped* half is the substance. An entry that fired is already legible —
+ * it is a block with a reason beside it — and nothing anywhere could say why an
+ * entry did not.
+ */
+export function loreReport(input: {
+  books: readonly LoreSource[];
+  scan: ScanResult;
+  shelf: ShelfResult;
+  unplaced: readonly Unplaced[];
+}): LoreReport {
+  const spend = new Map(input.shelf.books.map((row) => [row.bookId, row]));
+
+  return {
+    /**
+     * Every book in play, including one that activated nothing — which is the
+     * row somebody most needs. *This book is being scanned and contributed
+     * nothing* and *this book is not being scanned* are different problems with
+     * different repairs, and only a row can tell them apart.
+     */
+    books: input.books.map((source) => {
+      const spent = spend.get(source.id);
+      return {
+        bookId: source.id,
+        bookName: source.book.name,
+        by: source.by,
+        tokenBudget: source.book.tokenBudget,
+        tokensSpent: spent?.tokensSpent ?? 0,
+        entryLimit: source.book.entryLimit,
+        entriesKept: spent?.entriesKept ?? 0,
+      };
+    }),
+    skipped: input.scan.skipped.map((one) => ({
+      bookId: one.bookId,
+      entryId: one.entry.id,
+      entryName: one.entry.name,
+      reason: one.reason,
+      ...(one.folder === undefined ? {} : { folder: one.folder }),
+    })),
+    /**
+     * Deduplicated by entry and key. `firstHit` walks every haystack, so one
+     * bad pattern in an entry scanned across a `scanDepth` of eight produces
+     * eight identical refusals — and a person reading *8 patterns could not be
+     * run* would go looking for eight problems.
+     */
+    refused: dedupeRefusals(input.scan, input.scan.refused),
+    unknownSources: input.scan.unknownSources,
+  };
+}
+
+function dedupeRefusals(
+  scan: ScanResult,
+  refused: readonly PatternRefusal[],
+): LoreReport['refused'] {
+  /**
+   * The matcher reports a refusal by key without saying whose entry it was, so
+   * the entry is recovered by looking for one that holds that key. Ambiguous
+   * only when two entries share a key *and* both patterns fail, in which case
+   * naming either is more use than naming none — and the key itself, which is
+   * the thing to fix, is exact either way.
+   */
+  const owner = new Map<string, { id: string; name: string }>();
+  for (const one of [...scan.activated.map((a) => a.entry), ...scan.skipped.map((s) => s.entry)]) {
+    for (const key of one.keys) {
+      if (!owner.has(key)) owner.set(key, { id: one.id, name: one.name });
+    }
+  }
+
+  const seen = new Set<string>();
+  const rows: LoreReport['refused'] = [];
+  for (const one of refused) {
+    if (seen.has(one.key)) continue;
+    seen.add(one.key);
+    const from = owner.get(one.key);
+    rows.push({
+      entryId: from?.id ?? '',
+      entryName: from?.name ?? '',
+      key: one.key,
+      reason: one.reason,
+    });
+  }
+  return rows;
 }

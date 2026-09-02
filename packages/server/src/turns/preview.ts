@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { TurnPreview, UnmeasurableReason } from '@storyengine/shared';
+import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
 
 import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
@@ -12,6 +12,7 @@ import type { SessionContext } from '../sessions/store.js';
 import type { StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
+import { loreReport } from '../retrieval/blocks.js';
 import { planCall, RoleUnresolved } from './calls.js';
 import { gatherAssemblyInputs } from './gather.js';
 
@@ -102,6 +103,9 @@ export async function previewAssembly(
       pendingInput,
       reason: 'no-prose-step',
       notFilled: [],
+      // No call kind means no scan: `generationTriggerFilter` reads one, so a
+      // scan here would have to invent the fact it filters on.
+      lore: NO_LORE_REPORT,
     };
   }
 
@@ -130,6 +134,13 @@ export async function previewAssembly(
     callKind: step.callKind,
     rng: new Rng(),
     ...(request.input === undefined ? {} : { input: request.input }),
+  });
+
+  const report = loreReport({
+    books: inputs.lore.books,
+    scan: lore.scan,
+    shelf: lore.shelf,
+    unplaced: lore.unplaced,
   });
 
   const collected = collectCandidates({
@@ -172,6 +183,7 @@ export async function previewAssembly(
       blocks: call.blocks,
       budget: call.budget,
       notFilled: call.notFilled,
+      lore: report,
     };
   } catch (error) {
     // **The one caught throw, and it is an answer rather than a failure.**
@@ -189,6 +201,10 @@ export async function previewAssembly(
         pendingInput,
         reason,
         notFilled: collected.notFilled,
+        // The scan ran before the role was resolved, so its answer survives the
+        // failure that made the numbers unmeasurable — which is the state an
+        // unconfigured install is in while somebody asks why nothing fires.
+        lore: report,
       };
     }
     throw error;
