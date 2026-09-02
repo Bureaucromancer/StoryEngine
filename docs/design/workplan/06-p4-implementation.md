@@ -772,6 +772,19 @@ through the store reader:
   - **The whole vault exports as a zip of a SQLite snapshot**
     (`services/backupService.ts:45`), zipped in native Rust. This is the heavy
     path: a zip reader plus a SQLite reader, and `node:sqlite` is already here.
+  - **There is a fourth, and P4.3 missed it** — *added 2026-09-01, at
+    [21](../21-session-import.md)'s survey.* A single story exports as **`.avt`,
+    one versioned JSON file** (`services/export.ts:28`, shape at
+    `services/import/types.ts:24`, `EXPORT_FORMAT_VERSION = '1.8.0'` with nine
+    additive revisions recorded in the file). It carries the story, its entries,
+    its cast, its lorebook entries, checkpoints, branches, chapters and its
+    images as base64. Missing it mattered in the direction that flatters P4
+    least: this stage concluded the vault-as-SQLite-zip was how a whole story
+    leaves, and named it *the heavy path*, when the light one was beside it.
+    Nothing P4 shipped is wrong because of it — `.avt` is session-shaped and
+    §4 puts sessions out of scope — but the survey's *shape* of Aventuras was
+    incomplete, and a later reader costing the work would have costed the wrong
+    path.
 
   *Finding this cost something and paid for itself.* Aventuras' SillyTavern
   export writes book-level settings in **snake_case**, as the V3
@@ -1459,12 +1472,32 @@ twelve rather than woven in, because §1.3 and §1.5 cite the old numbers.*
 - **Instruct and context templates** — not converted, *by position*
   ([00 §2.2]: raw completion is not supported at all). A distinct review
   category, because "will never come" answers differently from "not yet".
-- **Chat and session history import — closed, not deferred.** The skeleton
-  said "to confirm on revisit"; [06 E4] had already answered: session import
-  is speculative and unroadmapped, "a half-working importer generates more
+- **Chat and session history import — ~~closed, not deferred~~ *conditional*,
+  and out of scope here either way.** The skeleton said "to confirm on revisit";
+  [06 E4](../06-open-questions.md) had already answered: ~~session import
+  is speculative and unroadmapped,~~ "a half-working importer generates more
   support burden than no importer at all. Better none than one that rots" —
   and card/lorebook/preset import is explicitly distinguished as the bounded
-  surface against formats that barely move. Confirmed by citation.
+  surface against formats that barely move. ~~Confirmed by citation.~~
+
+  *Corrected 2026-09-01, and the correction is about a citation rather than a
+  decision.* **[06 E4] was rewritten on 2026-08-31**, two days after this
+  paragraph, to *"conditional on an interchange format — not a commitment, and
+  no longer a flat refusal. The condition is the shape, not the appetite"*. The
+  quoted words above are the version it replaced, and this document was itself
+  edited on 2026-08-31 at §7.5's `.seactor` repair without the quotation being
+  refreshed — which is how a citation chain rots, and worth leaving visible
+  rather than tidying away.
+
+  **P4's own scope does not change**, and neither does the disposition: `chats`,
+  `groups` and `group chats` stay `recorded` in §1.8's registry. What changes is
+  what the review is saying *when* about. The condition E4 names is
+  a session interchange format, which begins at P11's session export
+  ([06 B12](../06-open-questions.md)) — so the answer is *after the phase that
+  writes the target*, and [21](../21-session-import.md) is the survey that makes
+  the condition checkable. Its §1 reaches this document's own `.seactor` rule
+  for the reason: an importer for a format with no writer is what
+  [01 §2.2](01-work-plan.md) forbids.
 - **Package (`.sepack`) import/export** — our own format, not a port; P11-ish.
   The stale comment at layout.ts:74–79 promising the package folder shape "is
   settled at P4" is corrected at P4.0 rather than left dangling.

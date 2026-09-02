@@ -250,6 +250,39 @@ and it is the sharpest scheduling consequence of the release re-cut. If §2's
 audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
 than guessing.
 
+**And it has a second reader nobody in the room represents** — *added
+2026-09-01, from [21 §3](../21-session-import.md).* [06 E4](../06-open-questions.md)
+makes session *import* conditional on an interchange format and says the format
+begins here: *"a format designed with import in mind and a format designed
+without it are different documents, and only one of them can be written at
+P11."* Four consequences, none of them scope added to this stage and all of them
+free while the format is being written:
+
+1. **Do not make the turn record's optional fields mandatory.** `input`,
+   `output`, `request`, `cost` and `steps` are all optional today, which is
+   exactly what lets a turn that never ran a model exist. Ours always have them,
+   so a serialiser written against our own records would tighten this without
+   anyone deciding to.
+2. **Leave somewhere for a foreign identifier**, tolerating its absence. The
+   three surveyed sources supply a message id, a message id, and nothing at all
+   ([21 §2.1](../21-session-import.md)) — and the one with nothing is the most
+   widely deployed.
+3. **Export siblings, not the path.** Every read surface today walks
+   `walkPath(head)`; serialising that drops every swipe, which
+   [09 §3](../09-branching.md) makes the same thing as dropping every unnamed
+   branch. The format would be lossy against our own data before import was
+   involved.
+4. **Session and Turn need a provenance field, and this is the last stage that
+   can add one cheaply.** Neither carries `provenance`, `metadata` or `compat` —
+   no field, not an empty one — and [10 §1](../10-schemas.md) puts them in the
+   *free to move* tier **because nothing exports them**. This stage ends that.
+   [02 §8](../02-data-model.md) already specifies `origin: Provenance` on
+   Session and it was never implemented; adding it before the freeze is an edit,
+   after it a migration of the record this project has the most of.
+
+Only the fourth costs more by waiting, and it is the one that looks least like
+this stage's business.
+
 **Backup and restore is the smallest.** Quiesce, archive excluding the index,
 restore and rebuild ([06 E6](../06-open-questions.md)). The part that matters is
 the CI restore test, which belongs to [testing](10-testing.md) rather than here.

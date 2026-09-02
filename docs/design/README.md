@@ -91,14 +91,17 @@ were written in. **Start with 00, then 01.**
 | [18-writing-samples.md](18-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
 | [19-world.md](19-world.md) | World: a grouping of sessions that share a continuity, and the story bible that says what one contains |
 | [20-authoring.md](20-authoring.md) | The authoring tier: authored rules, lorebook extraction and the Character Studio — turning what you played into what you can author with |
+| [21-session-import.md](21-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
 
-15 through 20 sit after 14 by number only — the slots beneath them were taken
+15 through 21 sit after 14 by number only — the slots beneath them were taken
 when they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05,
 whose lorebook and library sections it takes a position about and whose surfaces
 carry the specifications; 17 reads after 03 and 05, whose mode contract it
 extends and whose surface count it changes; 19 reads after 02 and 11, whose
 session model and memory keying it widens; 20 reads after 03 and 08, whose
-extensibility tiers it completes. Which is why they are all indexed here.
+extensibility tiers it completes; 21 reads after 01 and 06, whose source survey
+it extends into the session half and whose E4 it makes checkable. Which is why
+they are all indexed here.
 
 **19 and 20 were promoted out of [14](14-roadmap.md)** when their subjects
 acquired releases. That is the pattern rather than an accident: the feature list
