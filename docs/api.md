@@ -627,7 +627,7 @@ object, oldest unpinned first.
 
 ### `GET /api/search?q=&limit=`
 
-`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
 
 Full-text across all three, because a person looking for *the cathedral* does not
 know or care whether they wrote it in a lorebook, in one entry of one, or said it
@@ -808,6 +808,61 @@ and walks the whole path, and the workbench wants one turn, including one the
 head has passed. The lookup is scoped to *this* session inside the store, so a
 bare turn id cannot confirm existence across the ownership boundary: a turn in
 somebody else's session is the same `404` as one that never existed.
+
+### `PUT /api/sessions/:sessionId/head`
+
+```
+{ turnId: string, resume?: boolean }
+```
+
+→ **200** `{ session }`; **404 `not-found`** for the session, **404
+`no-such-turn`** when `turnId` is not a turn of it, **409 `busy`** carrying the
+active `job`.
+
+**Moving the head moves no turn data.** It is where you are in the tree
+([09 §3](design/09-branching.md)) — every node on both lines stays exactly where
+it was, and the write is this session's head pointer, its channel snapshot
+re-derived *at that node*, and the path the move selected.
+
+**`resume` is the forward gesture.** From the node named, follow what was last
+selected — or the only child, where there is nothing to choose between — and
+stop at a fork nobody has been through. That is the difference between resuming
+and guessing: a node with two children and no memory of which one you were on is
+where a server would be inventing your story for you.
+
+**Refused while a turn is in flight**, with the job, for the reason
+[P2 §2.10](design/workplan/04-p2-implementation.md) gives about submissions: the
+running turn will set the head when it commits, so a move that raced it would
+either be overwritten without a word or overwrite the turn's own parentage.
+
+### `POST /api/sessions/:sessionId/refs`
+
+```
+{ name: string, turnId: string }
+```
+
+→ **200** `{ session }` with the ref appended; **404 `no-such-turn`** when the
+node is not in this session.
+
+### `PATCH /api/sessions/:sessionId/refs/:refId`
+
+```
+{ name: string }
+```
+
+→ **200** `{ session }`; **404 `no-such-ref`**. Renaming a name does not move
+the bookmark.
+
+### `DELETE /api/sessions/:sessionId/refs/:refId`
+
+→ **200** `{ session }`; **404 `no-such-ref`**.
+
+**A branch ref is a name and nothing more** ([09 §3]) — an id, a name, and the
+node it bookmarks. There is no `Branch` entity owning turns: a swipe is a
+sibling nobody named and a branch is a sibling somebody did, so promoting one
+writes about fifty bytes and moves no data. **Deleting a ref deletes a name**,
+and the turns it pointed at are exactly where they were, reachable by id and by
+a walk from anything below them. Several refs may name one node.
 
 ### `POST /api/sessions/:sessionId/preview`
 

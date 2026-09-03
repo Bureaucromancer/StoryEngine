@@ -10,16 +10,21 @@ import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
+  createBranchRef,
   createSession,
+  deleteBranchRef,
   deleteSession,
   listSessionFiles,
+  moveHead,
   readSession,
   reconcileHandEdits,
+  renameBranchRef,
   setCast,
   setLore,
   readTurns,
   readTurnById,
   setArchived,
+  type BranchRefOutcome,
 } from '../sessions/store.js';
 import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
@@ -175,6 +180,62 @@ const SubmitBody = Type.Object(
   },
   { additionalProperties: false },
 );
+
+/**
+ * Where to put the head — [P6.1].
+ *
+ * `resume` rather than a second route, because it is the same write with one
+ * question answered differently: *this node*, or *this node and then wherever I
+ * was going*.
+ */
+const HeadBody = Type.Object(
+  {
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    resume: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+/** A name, and the node it bookmarks — [09 §3]. */
+const RefBody = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 200 }),
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+  },
+  { additionalProperties: false },
+);
+
+const RefNameBody = Type.Object(
+  { name: Type.String({ minLength: 1, maxLength: 200 }) },
+  { additionalProperties: false },
+);
+
+const RefParams = Type.Object({
+  sessionId: Type.String(),
+  refId: Type.String(),
+});
+
+/**
+ * The three ref writes answer the same four ways, so they say so once.
+ *
+ * A named node that is not in this session is a `404` rather than a `422` for
+ * the reason the turn submission's `no-such-parent` gives: the request is well
+ * formed and names something that is not there.
+ */
+function refReply(reply: FastifyReply, outcome: BranchRefOutcome): FastifyReply {
+  switch (outcome.kind) {
+    case 'no-session':
+      return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+    case 'no-turn':
+      return reply
+        .code(404)
+        .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+    case 'no-ref':
+      return reply.code(404).send({ error: 'no-such-ref', message: 'No such branch ref.' });
+    case 'written':
+      return reply.send({ session: outcome.session });
+  }
+}
 
 export function registerSessionRoutes(app: FastifyInstance, services: AppServices): void {
   app.post('/sessions', { schema: { body: CreateBody } }, async (request, reply) => {
@@ -486,6 +547,123 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       );
 
       return reply.send({ preview });
+    },
+  );
+
+  /**
+   * Where you are in the tree — [09 §3], [P6.1].
+   *
+   * **Moving the head moves no turn data.** It re-derives the channel state at
+   * the node ([P6.0b], through [P6.0d]'s cache) and records the path it
+   * selected, so navigating back and forward again resumes rather than guesses.
+   * `resume` is that forward gesture: from the node named, follow what was last
+   * selected — or the only child, where there is nothing to choose between —
+   * and stop at a fork nobody has been through.
+   *
+   * **Refused while a turn is in flight**, with the job, for the reason [P2
+   * §2.10] gives about submissions: the running turn is going to set the head
+   * when it commits, and a move that raced it would either be silently
+   * overwritten or overwrite the turn's own parentage. One turn advances a
+   * session at a time, and this is the same rule seen from the other side.
+   */
+  app.put(
+    '/sessions/:sessionId/head',
+    { schema: { params: SessionParams, body: HeadBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { turnId: string; resume?: boolean };
+
+      // No account filter, matching `submitTurn`'s own busy check: a session
+      // belongs to the directory it is in, so the job on it is this account's.
+      const active = activeJob(services.state.db, sessionId);
+      if (active !== null) {
+        return reply.code(409).send({
+          error: 'busy',
+          message: 'This session already has a turn in flight.',
+          job: active,
+        });
+      }
+
+      const outcome = await moveHead(services.sessions, account.handle, sessionId, body.turnId, {
+        ...(body.resume === undefined ? {} : { resume: body.resume }),
+      });
+
+      switch (outcome.kind) {
+        case 'no-session':
+          return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'moved':
+          return reply.send({ session: outcome.session });
+      }
+    },
+  );
+
+  /**
+   * Naming a node, renaming the name, and forgetting it — [09 §6]'s *promote*,
+   * [P6.1].
+   *
+   * Three routes over one array in `session.json`, because that is all a
+   * `BranchRef` is: an id, a name, and the node it bookmarks. None of them
+   * reads or writes a turn, and the delete deletes a name — which is worth
+   * saying in the routing layer as well as in the store, since *delete branch*
+   * is a phrase that sounds like it removes a story.
+   */
+  app.post(
+    '/sessions/:sessionId/refs',
+    { schema: { params: SessionParams, body: RefBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { name: string; turnId: string };
+      const outcome = await createBranchRef(
+        services.sessions,
+        account.handle,
+        sessionId,
+        body.name,
+        body.turnId,
+      );
+      return refReply(reply, outcome);
+    },
+  );
+
+  app.patch(
+    '/sessions/:sessionId/refs/:refId',
+    { schema: { params: RefParams, body: RefNameBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, refId } = request.params as { sessionId: string; refId: string };
+      const body = request.body as { name: string };
+      const outcome = await renameBranchRef(
+        services.sessions,
+        account.handle,
+        sessionId,
+        refId,
+        body.name,
+      );
+      return refReply(reply, outcome);
+    },
+  );
+
+  app.delete(
+    '/sessions/:sessionId/refs/:refId',
+    { schema: { params: RefParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, refId } = request.params as { sessionId: string; refId: string };
+      const outcome = await deleteBranchRef(services.sessions, account.handle, sessionId, refId);
+      return refReply(reply, outcome);
     },
   );
 

@@ -27,7 +27,7 @@ import {
   type TurnLocation,
   walkPath,
 } from './segments.js';
-import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
+import type { BranchRef, ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
  * Session storage — [02 §5.5](../../../../docs/design/02-data-model.md),
@@ -425,6 +425,241 @@ export async function advanceHead(
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   indexSession(context.index, scopeOf(context, handle), next);
   return next;
+}
+
+/**
+ * Every node's children, by parent id — [P6.1].
+ *
+ * **Extracted from `reconcileSession` rather than written a second time.** That
+ * function has built this map since P2 to decide whether a session's head can
+ * be walked forward, and it refuses to guess at a node with two children; the
+ * navigation this phase adds asks the same question of the same shape, and two
+ * copies would be two places for *what counts as a fork* to drift.
+ *
+ * `null` keys the roots. Order within a parent is the map's insertion order,
+ * which is the order the turns were read — creation order, since a segment is
+ * append-only ([02 §5.5]). That is the order siblings should be offered in.
+ */
+export function childrenByParent(turns: Map<string, Turn>): Map<string | null, Turn[]> {
+  const byParent = new Map<string | null, Turn[]>();
+  for (const turn of turns.values()) {
+    const siblings = byParent.get(turn.parentTurnId) ?? [];
+    siblings.push(turn);
+    byParent.set(turn.parentTurnId, siblings);
+  }
+  return byParent;
+}
+
+/**
+ * Where *forward* goes from a node — [09 §3]'s
+ * *"navigating back and then forward again resumes where you were rather than
+ * guessing"*.
+ *
+ * Two rules, and the second one is the one that keeps the promise:
+ *
+ * - **What was selected**, from `lastSelectedChild`. A head move records the
+ *   whole path it moved to, so every node on the line somebody left remembers
+ *   which way they went.
+ * - **The only child**, when a node has exactly one. That is not guessing —
+ *   there is nothing to guess between — and it is what makes forward work on a
+ *   session that has never branched, whose map is empty.
+ *
+ * It stops at a node with two or more children that the map does not name,
+ * which is `reconcileSession`'s rule for the identical situation: *a session
+ * with two children of the head is a branch, and guessing there would silently
+ * pick somebody's story for them.*
+ *
+ * A remembered child that is missing, tombstoned or not actually a child of the
+ * node stops the walk too — the map is written by this server and edited by
+ * whoever opens the file, and a name that no longer resolves is a stale note
+ * rather than an error.
+ */
+export function resumeFrom(
+  session: SessionFile,
+  turns: Map<string, Turn>,
+  fromTurnId: string,
+): string {
+  const children = childrenByParent(turns);
+  const remembered = session.lastSelectedChild ?? {};
+
+  let at = fromTurnId;
+  // A hand-edited map can name a cycle, and walking one forever is the single
+  // outcome worse than stopping early.
+  const seen = new Set<string>([at]);
+
+  for (;;) {
+    const here = children.get(at) ?? [];
+    const named = remembered[at];
+    const next =
+      named !== undefined && here.some((child) => child.id === named)
+        ? named
+        : here.length === 1
+          ? here[0]?.id
+          : undefined;
+
+    if (next === undefined || seen.has(next)) return at;
+    seen.add(next);
+    at = next;
+  }
+}
+
+/** What moving the head can answer — [P6.1]. */
+export type MoveHeadOutcome =
+  { kind: 'moved'; session: SessionFile } | { kind: 'no-session' } | { kind: 'no-turn' };
+
+/**
+ * Points the head at any node, and re-derives the channel state there — [P6.1].
+ *
+ * **The first consumer of [P6.0b]**, and where a regression in it would show.
+ * `advanceHead` folds one turn's effects onto the map at its parent, which is
+ * right for appending and meaningless here: this head did not arrive by a turn
+ * being taken. So the state is reconstructed at the node through the cache
+ * ([P6.0d]), which is the same answer `replayChannels(walkPath(...))` gives and
+ * the property test says so at every index.
+ *
+ * **Moving the head moves no turn data**, which is the whole point of the tree
+ * model: every node on both lines is where it was, and the only writes are this
+ * file's `headTurnId`, its channel snapshot, and the path this move selects.
+ *
+ * `resume` is the forward gesture — see {@link resumeFrom}. Without it the head
+ * lands exactly where it was told.
+ */
+export async function moveHead(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+  options: { resume?: boolean } = {},
+): Promise<MoveHeadOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    // Scoped to this session by the read itself, so a bare turn id from another
+    // one cannot move this head — the same boundary `GET /turns/:turnId` keeps.
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+
+    const target = options.resume === true ? resumeFrom(session, turns, turnId) : turnId;
+    const path = walkPath(turns, target);
+
+    /**
+     * The path is remembered, not just the tip.
+     *
+     * Recording only the new head's parent would answer *forward* for one node
+     * and lose it for every ancestor, so walking back twice and forward twice
+     * would resume once and then guess. Entries for nodes off this path are
+     * left alone, which is what makes the line somebody abandoned still
+     * remember its own continuation when they come back to it.
+     */
+    const lastSelectedChild = { ...(session.lastSelectedChild ?? {}) };
+    for (const [at, turn] of path.entries()) {
+      const parent = path[at - 1];
+      if (parent !== undefined) lastSelectedChild[parent.id] = turn.id;
+    }
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      headTurnId: target,
+      channels: await reconstructAlong(context, handle, sessionId, path),
+      lastSelectedChild,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return { kind: 'moved', session: next };
+  });
+}
+
+/** What a branch-ref write can answer — [P6.1]. */
+export type BranchRefOutcome =
+  | { kind: 'written'; session: SessionFile }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' }
+  | { kind: 'no-ref' };
+
+/**
+ * Writes the session file with a new set of refs, under the lock.
+ *
+ * The three gestures below differ only in how they compute that set, and every
+ * one of them writes **names** — no turn is read, moved, or written by any of
+ * them, which is [09 §6]'s *promoting a swipe writes about fifty bytes and
+ * moves no data* stated as code.
+ */
+async function withBranchRefs(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  change: (session: SessionFile, turns: Map<string, Turn>) => BranchRef[] | BranchRefOutcome,
+): Promise<BranchRefOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    const changed = change(session, turns);
+    if (!Array.isArray(changed)) return changed;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      branchRefs: changed,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return { kind: 'written', session: next };
+  });
+}
+
+/** Names a node — [09 §6]'s *promote*. */
+export async function createBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  name: string,
+  turnId: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session, turns) => {
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+    const ref: BranchRef = { id: uuidv7(), name, headTurnId: turnId };
+    return [...(session.branchRefs ?? []), ref];
+  });
+}
+
+/** Renames one. The node it points at is not this gesture's business. */
+export async function renameBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  refId: string,
+  name: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session) => {
+    const refs = session.branchRefs ?? [];
+    if (!refs.some((ref) => ref.id === refId)) return { kind: 'no-ref' };
+    return refs.map((ref) => (ref.id === refId ? { ...ref, name } : ref));
+  });
+}
+
+/**
+ * Forgets a name.
+ *
+ * **Deleting a ref deletes a name**, and the turns it pointed at are exactly
+ * where they were — reachable by id, by a walk from anything below them, and by
+ * any other ref. There is no cascade here because there is nothing to cascade
+ * to: a ref owns nothing.
+ */
+export async function deleteBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  refId: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session) => {
+    const refs = session.branchRefs ?? [];
+    if (!refs.some((ref) => ref.id === refId)) return { kind: 'no-ref' };
+    return refs.filter((ref) => ref.id !== refId);
+  });
 }
 
 /**

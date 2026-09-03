@@ -668,10 +668,13 @@ Two smaller orderings, each cheap to get right and annoying to retrofit:
 None of these blocks anything; all four are small, and each is the kind of thing
 that costs more attention when met mid-stage than when cleared cold.
 
-1. **`SessionFile`'s docstring advertises branch refs the interface does not
+1. ~~**`SessionFile`'s docstring advertises branch refs the interface does not
    have** (`sessions/types.ts:42`). A reader will believe the field exists.
    *Now doubly out of date:* it also omits `treatment` and `lore`, which P5.6
-   added and which are the session's lore links. One edit fixes both.
+   added and which are the session's lore links. One edit fixes both.~~
+   **Closed at P6.1**, in one edit as predicted — and the interface has
+   `branchRefs` now, so the docstring stopped being wrong in both directions at
+   once.
 2. **Gate step 9 owes a test that does not exist** (§0.1). Writing it is
    independent of the snapshot work and pins what "applied" has to mean.
 3. **C8's stale framing** in §1.1 here and in [09 §9](../09-branching.md) — both
@@ -781,6 +784,16 @@ abandonment banner, not a reader over data that is already there.
 > path* this section asks for is a different column and does not exist. So the
 > decision here is: populate what is there, or add the path and drop it. Not a
 > field to start using.
+>
+> **Decided at P6.1: it is dropped, because it cannot be populated.** A turn is
+> not *on* a branch — it is on every path that passes through it — so the column
+> was unpopulatable in principle rather than merely unpopulated, which is why
+> both call sites wrote NULL for two phases. Labelling a hit is a question about
+> the reader's head, answered at query time. The materialised path is specified
+> where the table is defined and **not built**: as a string it is quadratic in
+> depth, so P6.3 should use a parent link walked by a recursive query, or a path
+> materialised for the head alone. A column nothing reads is the same smell as a
+> config key nothing applies.
 
 Session-scoped index rows carry their turn id and a materialised path;
 turn-search hits off the current path stay indexed and are **labelled** with
@@ -1306,35 +1319,123 @@ before it; what changed is that the number now does something.
 >
 > **May start any time after P6.0a; must land before the phase gate.**
 
-### P6.1 — Navigation and the head
+### ~~P6.1 — Navigation and the head~~ Landed
 
-**Builds:** `BranchRef` and `lastSelectedChildId` in `packages/shared/src`;
-`branchRefs` on `SessionFile` — and fix that interface's docstring
-(`sessions/types.ts:42`) while there, which advertises branch refs the interface
-does not have *and* omits `treatment` and `lore`, added at P5.6 (§0.3 item 1: one
-edit closes both). Move-head in `sessions/store.ts`; the route in
-`routes/sessions.ts`, since branching has had no route since [P2C §5](15-p2c-first-real-run.md).
-**`state/commit.ts:346` already builds the parent→children index this stage
-needs** and refuses to guess at a node with two children — reuse it rather than
-writing a second.
+`BranchRef` is in `packages/shared/src/turn.ts` beside the record it bookmarks,
+`branchRefs` and `lastSelectedChild` are on `SessionFile`, and `moveHead`,
+`resumeFrom`, `childrenByParent` and the three ref writes are in
+`sessions/store.ts` behind four routes. Branching has had no route since
+[P2C §5] called it *"a storage affordance with no route"*; it has five now, and
+still no gesture — the buttons are §1.3's, at P6.2.
 
-**Must prove:** (i) moving the head to an arbitrary node re-derives
-`session.channels` through P6.0b's path rather than incrementally — this is the
-first consumer of that fix and where a regression would show; (ii) history
-renders the path to the new head, selected path only ([09 §6](../09-branching.md));
-(iii) the event stream stays correct when the head moves mid-view; (iv) creating,
-renaming and deleting a `BranchRef` moves no turn data, and deleting a ref
-deletes no turns; (v) back-and-forward resumes from `lastSelectedChildId` rather
-than guessing.
+**Moving the head is the first gesture that is not a turn, which is what makes
+it the first consumer of [P6.0b].** `advanceHead` folds a turn's effects onto
+the map at its parent; a head that did not arrive by a turn being taken has no
+effects to fold, so the state is reconstructed *at the node* through [P6.0d]'s
+cache. The falsifying mutation — keep the session's channels and write only the
+pointer — reddens three tests, and it would have been invisible to a clock-only
+fixture for the reason this phase has now met four times: a whole-value set
+lands on the same number whichever map it folds onto. The fixture writes a lore
+key on one line that the other never writes.
 
-**Decide here, not during P6.3: §1.6's column.** `turn.branch_id` exists
-(`index-db/migrations.ts:212`), is plumbed as a defaulted parameter
-(`index-db/sessions.ts:90`) and is written NULL by both call sites
-(`sessions/store.ts:346`, `index-db/rebuild.ts:133`). Populate it, or add the
-materialised path [09 §3] actually asks for and drop it. §0.3 says *before* the
-index work rather than during it; this is that moment.
+**`lastSelectedChild` is a map on the session file, and that is forced rather
+than chosen.** [09 §3] says *a node may record* which child was last continued
+through, but a turn is a line in an append-only segment that is never rewritten
+([02 §5.5]) — a field on the record could only be written at creation, when the
+answer is not yet known. The mutable half of a session is `session.json`, so
+that is where the mutable fact about a node lives, keyed by the node's id.
 
-**May not start before P6.0c.**
+**A move records the whole path, not the tip**, and that is the difference
+between resuming once and resuming always: remembering only the new head's
+parent answers *forward* for one node and guesses above it. Entries for nodes
+off the path are left alone, so a line somebody abandoned still remembers its
+own continuation when they come back to it. `resumeFrom` then follows what was
+selected, or **the only child** where a node has exactly one — which is not a
+guess, and is what makes forward work on a session that has never branched —
+and stops at a fork the map does not name. That last rule is
+`reconcileSession`'s, reused rather than rewritten: *a session with two children
+of the head is a branch, and guessing there would silently pick somebody's story
+for them.* The parent→children index it needs is now `childrenByParent`, shared
+by both, which is what §2 asked for.
+
+**A head move is refused while a turn is in flight**, with the job, and that is
+this stage's answer to proof obligation (iii). The running turn is going to set
+the head when it commits, so a move that raced it would either be silently
+overwritten or overwrite the turn's own parentage — the same *one turn advances
+a session at a time* [P2 §2.10] applies to submissions, seen from the other
+side. Nothing is published for a move, so a stream somebody has open sees no
+frame it would have to interpret; what it sees next is the turn that lands on
+the node the head moved to.
+
+**§1.6's column is decided, and the decision is that it cannot be populated.**
+`turn.branch_id` is dropped, not filled. Under [09 §3] a turn is not *on* a
+branch — there is no `Branch` entity owning turns, a turn is on every path that
+passes through it, and a `BranchRef` is a name — so the column was unpopulatable
+in principle rather than merely unpopulated, which is why both call sites wrote
+NULL from P4 until now. It was named for the model that section explicitly
+discarded. Labelling a search hit is therefore a question about the *reader* —
+*is this turn on the head I am looking at* — answered at query time against that
+head's path. The index version is bumped and the schema is drop-and-rebuild, so
+the change cost a rebuild and nothing else; `branchId` leaves the search row and
+`docs/api.md` with it.
+
+*And the materialised path §1.6 asks for is specified without being built.* As a
+string it is quadratic in depth — a session eight hundred turns long would store
+megabytes of repeated ancestry — so if P6.3's labelled search wants one, the
+cheap forms are a parent link walked by a recursive query, or a path
+materialised for the head alone. That is written where the table is defined.
+Adding it now would have been a column nothing reads, which is the same smell as
+a config key nothing applies.
+
+**Eight mutations, all red**: the head moving without re-deriving; remembering
+only the tip; replacing the memory rather than adding to it; guessing the first
+child at an unvisited fork; following a remembered child that no longer
+resolves; moving the head to a turn from another session; naming a ref on one;
+and moving the head out from under a running turn.
+
+**Proof obligations.** (i) The head re-derives at the node, shown with a key one
+line wrote and the other did not. (ii) `GET /turns` renders the path to the new
+head and nothing else, with both children still on disk. (iii) Refused under a
+running turn, and an open stream is undisturbed by a move and still delivers the
+next turn's frames. (iv) Create, rename and delete move no turn data — every
+turn compared before and after, and the node a deleted ref pointed at is still
+reachable with its state. (v) Back-and-forward resumes two levels down, follows
+the *last* line visited rather than the first, and stops where it would be
+guessing.
+
+**§0.3's first item is closed on the way past**: `SessionFile`'s docstring
+advertised branch refs the interface did not have and had stopped mentioning
+`treatment` and `lore`. One edit, as that item predicted.
+
+*The stage as it was written:*
+
+> **Builds:** `BranchRef` and `lastSelectedChildId` in `packages/shared/src`;
+> `branchRefs` on `SessionFile` — and fix that interface's docstring
+> (`sessions/types.ts:42`) while there, which advertises branch refs the interface
+> does not have *and* omits `treatment` and `lore`, added at P5.6 (§0.3 item 1: one
+> edit closes both). Move-head in `sessions/store.ts`; the route in
+> `routes/sessions.ts`, since branching has had no route since [P2C §5](15-p2c-first-real-run.md).
+> **`state/commit.ts:346` already builds the parent→children index this stage
+> needs** and refuses to guess at a node with two children — reuse it rather than
+> writing a second.
+>
+> **Must prove:** (i) moving the head to an arbitrary node re-derives
+> `session.channels` through P6.0b's path rather than incrementally — this is the
+> first consumer of that fix and where a regression would show; (ii) history
+> renders the path to the new head, selected path only ([09 §6](../09-branching.md));
+> (iii) the event stream stays correct when the head moves mid-view; (iv) creating,
+> renaming and deleting a `BranchRef` moves no turn data, and deleting a ref
+> deletes no turns; (v) back-and-forward resumes from `lastSelectedChildId` rather
+> than guessing.
+>
+> **Decide here, not during P6.3: §1.6's column.** `turn.branch_id` exists
+> (`index-db/migrations.ts:212`), is plumbed as a defaulted parameter
+> (`index-db/sessions.ts:90`) and is written NULL by both call sites
+> (`sessions/store.ts:346`, `index-db/rebuild.ts:133`). Populate it, or add the
+> materialised path [09 §3] actually asks for and drop it. §0.3 says *before* the
+> index work rather than during it; this is that moment.
+>
+> **May not start before P6.0c.**
 
 ### P6.2 — The gestures
 

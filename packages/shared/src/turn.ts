@@ -539,3 +539,23 @@ export interface Turn {
   /** A tombstone the reader skips. */
   removed?: true;
 }
+
+/**
+ * A name bookmarking a node — [09 §3](../../../docs/design/09-branching.md), and
+ * *a name, nothing more*.
+ *
+ * **There is no `Branch` entity owning turns**, which is the decision that
+ * whole section exists to record: a session is a tree of turns, a swipe is a
+ * sibling nobody named, and a branch is a sibling somebody did. So this is a
+ * bookmark on a node, like a git ref — promoting a swipe writes about fifty
+ * bytes and moves no data, and deleting a ref deletes a name.
+ *
+ * `headTurnId` rather than `turnId` because that is what a ref points at: the
+ * tip of a line somebody wants to come back to, which is a head they may later
+ * move.
+ */
+export interface BranchRef {
+  id: string;
+  name: string;
+  headTurnId: string;
+}

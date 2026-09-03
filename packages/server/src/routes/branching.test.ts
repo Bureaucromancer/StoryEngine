@@ -234,3 +234,176 @@ describe('a turn submitted against an old node', () => {
     expect((await turnsOnDisk(sessionId)).size).toBe(3);
   });
 });
+
+describe('moving the head, through the routes', () => {
+  async function moveTo(
+    sessionId: string,
+    turnId: string,
+    resume?: boolean,
+  ): Promise<{ status: number; body: any }> {
+    return server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/head`,
+      payload: { turnId, ...(resume === undefined ? {} : { resume }) },
+    });
+  }
+
+  async function history(sessionId: string): Promise<string[]> {
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/turns`,
+    });
+    expect(read.status, JSON.stringify(read.body)).toBe(200);
+    return (read.body.turns as { id: string }[]).map((turn) => turn.id);
+  }
+
+  it('makes history the path to the new head, and nothing else', async () => {
+    // Proof obligation (ii): *history shows the selected path only* ([09 §6]).
+    // The transcript route walks from the head, so moving the head is the whole
+    // of switching lines — no turn is rewritten and no list is reordered.
+    const sessionId = await createSession();
+    const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
+    const firstId = first.body.turnId as string;
+    const second = await takeTurn(sessionId, 'k2', firstId, 'She stepped out.');
+    const secondId = second.body.turnId as string;
+    const branched = await takeTurn(sessionId, 'k3', firstId, 'She stayed in.', {
+      parentTurnId: firstId,
+    });
+    const siblingId = branched.body.turnId as string;
+
+    // The branch took the head with it, so history is that line.
+    expect(await history(sessionId)).toEqual([firstId, siblingId]);
+
+    const moved = await moveTo(sessionId, secondId);
+    expect(moved.status).toBe(200);
+    expect(moved.body.session.headTurnId).toBe(secondId);
+
+    // The other line, whole, and the sibling is not in it.
+    expect(await history(sessionId)).toEqual([firstId, secondId]);
+
+    // Back to the fork: one turn of history, both children still on disk.
+    await moveTo(sessionId, firstId);
+    expect(await history(sessionId)).toEqual([firstId]);
+    expect((await turnsOnDisk(sessionId)).size).toBe(3);
+
+    // And forward resumes the line last selected rather than picking one.
+    const forward = await moveTo(sessionId, firstId, true);
+    expect(forward.body.session.headTurnId).toBe(secondId);
+  });
+
+  it('is refused while a turn is in flight, and says which job', async () => {
+    // Proof obligation (iii), first half. The running turn is going to set the
+    // head when it commits; a move that raced it would either be overwritten
+    // without a word or overwrite the turn's own parentage. One turn advances a
+    // session at a time — the same rule `submitTurn` applies to submissions.
+    const sessionId = await createSession();
+    const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
+    const firstId = first.body.turnId as string;
+
+    // A provider that has not answered yet, so the job is still in flight when
+    // the move arrives. The submission is awaited — it answers `202` the moment
+    // the job is reserved, which is strictly before the provider replies — so
+    // the refusal below is a fact about the job rather than a race with it.
+    provider.setScript([{ text: 'A long while later.', stallMs: 1000 }]);
+    const accepted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k2', headTurnId: firstId, input: { text: 'She waited.' } },
+    });
+    expect(accepted.status).toBe(202);
+
+    const refused = await moveTo(sessionId, firstId);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toBe('busy');
+    expect(refused.body.job.sessionId).toBe(sessionId);
+
+    await server.services.runner.settle();
+
+    // And once it has landed, the move it refused is allowed.
+    expect((await moveTo(sessionId, firstId)).status).toBe(200);
+  });
+
+  it('leaves an open stream alone, and the next turn lands on the moved head', async () => {
+    // Proof obligation (iii), second half. A head move is not a turn: nothing
+    // is published for it, so a client watching this session sees no frame it
+    // would have to interpret. What it *does* see is the next turn — appended
+    // to the node the head was moved to, which is how a viewer's stream and the
+    // story stay the same story.
+    const sessionId = await createSession();
+    const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
+    const firstId = first.body.turnId as string;
+    const second = await takeTurn(sessionId, 'k2', firstId, 'She stepped out.');
+    const secondId = second.body.turnId as string;
+
+    const tab = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await tab.until((frame) => frame.event === 'snapshot');
+    const seen = tab.frames().length;
+
+    await moveTo(sessionId, firstId);
+    expect(tab.frames()).toHaveLength(seen);
+
+    // The next turn goes where the head now is, and the watching tab is told
+    // about it on the same stream it already had open.
+    const next = await takeTurn(sessionId, 'k3', firstId, 'She looked back.');
+    // The frame's SSE event name is `progress` for every progress event; which
+    // one it is lives in `key` beside the sequence number.
+    await tab.until(
+      (frame) =>
+        frame.event === 'progress' && (frame.data as { key?: string }).key === 'turn.finished',
+      8000,
+    );
+    await tab.abort();
+
+    const byId = await turnsOnDisk(sessionId);
+    expect(byId.get(next.body.turnId as string)?.parentTurnId).toBe(firstId);
+    expect(walkPath(byId, next.body.turnId as string).map((turn) => turn.id)).toEqual([
+      firstId,
+      next.body.turnId as string,
+    ]);
+    expect(secondId).not.toBe(next.body.turnId);
+  });
+
+  it('names a node without moving one, and forgets the name the same way', async () => {
+    // Proof obligation (iv) through the routes: promote, rename, delete.
+    const sessionId = await createSession();
+    const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
+    const firstId = first.body.turnId as string;
+    await takeTurn(sessionId, 'k2', firstId, 'She stepped out.');
+    const before = await turnsOnDisk(sessionId);
+
+    const created = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/refs`,
+      payload: { name: 'The way in', turnId: firstId },
+    });
+    expect(created.status).toBe(200);
+    const refId = created.body.session.branchRefs[0].id as string;
+
+    const renamed = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${sessionId}/refs/${refId}`,
+      payload: { name: 'The other way' },
+    });
+    expect(renamed.body.session.branchRefs[0].name).toBe('The other way');
+
+    const deleted = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${sessionId}/refs/${refId}`,
+    });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.session.branchRefs).toEqual([]);
+
+    // Nothing moved, through all three.
+    const after = await turnsOnDisk(sessionId);
+    expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
+
+    // And a name on a node that is not here is refused rather than stored.
+    const nowhere = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/refs`,
+      payload: { name: 'Nowhere', turnId: '0192b7c0-0000-7000-8000-00000000dead' },
+    });
+    expect(nowhere.status).toBe(404);
+    expect(nowhere.body.error).toBe('no-such-turn');
+  });
+});
