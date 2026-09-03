@@ -38,6 +38,7 @@ const readSession = vi.fn();
 const readTranscript = vi.fn();
 const submitTurn = vi.fn();
 const cancelTurn = vi.fn();
+const moveHead = vi.fn();
 const previewTurn = vi.fn();
 const patchPrefs = vi.fn();
 let prefsStore: Record<string, unknown> = {};
@@ -57,6 +58,7 @@ vi.mock('../api.js', async (importOriginal) => {
     readTranscript: (...a: unknown[]) => readTranscript(...a) as unknown,
     submitTurn: (...a: unknown[]) => submitTurn(...a) as unknown,
     cancelTurn: (...a: unknown[]) => cancelTurn(...a) as unknown,
+    moveHead: (...a: unknown[]) => moveHead(...a) as unknown,
     // Since [P3.4] the page carries the context meter, which reads the auth
     // state for its locale, reads and writes the workbench preference, and
     // asks for a preview on every pause. These were the *real* functions
@@ -146,6 +148,7 @@ beforeEach(() => {
   readTranscript.mockResolvedValue({ turns: [TURN] });
   submitTurn.mockResolvedValue({ jobId: 'job-1', cursor: 'job-1.0' });
   cancelTurn.mockResolvedValue({ jobId: 'job-1' });
+  moveHead.mockResolvedValue({ session: SESSION });
   previewTurn.mockResolvedValue(previewOf(100));
 });
 
@@ -619,5 +622,135 @@ describe('the context meter', () => {
     await new Promise((settle) => setTimeout(settle, 700));
     const asked = previewTurn.mock.calls.slice(sentAt).map((call) => call[1]);
     expect(asked).not.toContainEqual({ text: 'I step in.', guidance: '' });
+  });
+});
+
+/**
+ * The two gestures — [09 §7], [07 §14.5–14.6], [P6.2].
+ *
+ * What only shows at this level is which request each button makes, and — the
+ * one the design states as a rule rather than a preference — that **the reroll
+ * affordance is absent on a turn that consumed no draws**. A button offering to
+ * roll again where nothing was rolled is a button that lies, and an ordinary
+ * turn against an ordinary book draws nothing, so absent is the common case.
+ */
+describe('the two gestures', () => {
+  /** A turn that rolled, which is the only kind reroll may be offered on. */
+  const ROLLED: TurnRecord = {
+    ...TURN,
+    id: 'turn-2',
+    parentTurnId: 'turn-1',
+    input: { actorId: null, text: 'I ask about the ferryman.', kind: 'action', raw: '' },
+    output: { text: 'He does not look up.' },
+    tape: [
+      {
+        key: 'lore.probability:e1#0',
+        site: 'lore.probability',
+        purpose: 'e1',
+        index: 0,
+        kind: 'chance',
+        detail: 'p=0.5',
+        value: true,
+        replayed: false,
+      },
+    ],
+  };
+
+  it('redoes a turn as a sibling, replaying its draws', async () => {
+    readTranscript.mockResolvedValue({ turns: [TURN, ROLLED] });
+    renderPage();
+    await screen.findByText('He does not look up.');
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // The turn's own words, not the composer's: this is *that turn
+          // again*.
+          text: 'I ask about the ferryman.',
+          // A sibling — same parent — and the draws come off its tape.
+          parentTurnId: 'turn-1',
+          rewriteOf: 'turn-2',
+        }),
+      );
+    });
+  });
+
+  it('rerolls without a tape, which is the explicit second action', async () => {
+    readTranscript.mockResolvedValue({ turns: [TURN, ROLLED] });
+    renderPage();
+    await screen.findByText('He does not look up.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reroll' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I ask about the ferryman.', parentTurnId: 'turn-1' }),
+      );
+    });
+    // Rewrite is the default and reroll is the departure from it, so the
+    // absence of the tape is the whole difference between the two buttons.
+    expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('rewriteOf');
+  });
+
+  it('offers no reroll on a turn that consumed no draws', async () => {
+    // [07 §14.6]'s rule. `TURN` has an empty tape, which is what every turn
+    // against a book with nothing probabilistic in it has.
+    readTranscript.mockResolvedValue({ turns: [TURN] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reroll' })).toBeNull();
+  });
+
+  it('redoes the first turn of a session from the root, explicitly', async () => {
+    // `null` and *absent* are different requests on the wire: absent means the
+    // head, which is what this gesture is not. The first turn's parent is the
+    // root, and it has to be said.
+    readTranscript.mockResolvedValue({ turns: [TURN] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Redo' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ parentTurnId: null, rewriteOf: 'turn-1' }),
+      );
+    });
+  });
+
+  it('continues from a turn by moving the head there, sending nothing', async () => {
+    readTranscript.mockResolvedValue({ turns: [TURN, ROLLED] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Continue from here' })[0]!);
+
+    await waitFor(() => {
+      expect(moveHead).toHaveBeenCalledWith(SESSION.id, 'turn-1');
+    });
+    // Nothing was submitted: the composer writes the child, and this only says
+    // where the child goes.
+    expect(submitTurn).not.toHaveBeenCalled();
+  });
+
+  it('leaves the composer alone when it redoes', async () => {
+    // The gesture did not use what is in the box, so clearing it would throw
+    // away something somebody typed.
+    readTranscript.mockResolvedValue({ turns: [TURN] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    const box = screen.getByRole('textbox', { name: 'What do you do?' });
+    await userEvent.type(box, 'I was still writing this.');
+    await userEvent.click(screen.getByRole('button', { name: 'Redo' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalled();
+    });
+    expect((box as HTMLInputElement).value).toBe('I was still writing this.');
   });
 });

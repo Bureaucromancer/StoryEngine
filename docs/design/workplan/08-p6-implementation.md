@@ -692,10 +692,14 @@ that costs more attention when met mid-stage than when cleared cold.
    `ephemeral` and a mid-count `cooldown`. Inert for reconstruction; **P6.3's
    undo will meet it**. Decide whether deselection prunes or deliberately keeps,
    and say which in `setLore`'s comment.
-6. **The group draw's payload is a position** (§0.1a). Not clearable before the
-   phase — it is P6.2's own first task — but it belongs on a list somebody reads
-   before writing the replay path, because the mistake it enables looks like
-   success in the record.
+6. ~~**The group draw's payload is a position** (§0.1a). Not clearable before
+   the phase — it is P6.2's own first task — but it belongs on a list somebody
+   reads before writing the replay path, because the mistake it enables looks
+   like success in the record.~~ **Fixed at P6.2, first**, as this item said
+   it had to be: the draw records the winner's id and `draw()` gained a
+   `usable` gate, so a replay is refused when the winner is no longer a
+   candidate or has been silenced. A reorder still replays, which putting the
+   members into `detail` would have lost.
 
 ---
 
@@ -863,6 +867,13 @@ offers both gestures and then silently moves the view has un-decided §1.3.
 
 *The lean, for the revisit to confirm or overturn:* **the view follows the new
 sibling and the old one stays reachable through §1.2's inline affordance.**
+
+> **Implemented at P6.2, still a lean** (gate step 11). Redo commits a sibling
+> and the head becomes it, so the transcript re-renders as the line it is now
+> on. The argument is repeated at the mutation in `PlayPage.tsx`, which is
+> where somebody wondering *why did my reply change* will be looking. Until
+> P6.3's affordance lands the way back is *continue from here* on the turn
+> before it, which is P6.1's move-head. PLAYABLE is still where the answer is.
 Marinara's rule protects against losing work you were reading; the sibling
 affordance is that protection, made visible, which Marinara did not have. But
 this is a use question and PLAYABLE is where the answer is.
@@ -1437,47 +1448,115 @@ advertised branch refs the interface did not have and had stopped mentioning
 >
 > **May not start before P6.0c.**
 
-### P6.2 — The gestures
+### ~~P6.2 — The gestures~~ Landed
 
-**Builds:** §1.3's two buttons on every ~~message~~ **turn** — [09 §7](../09-branching.md)
-resolves branching inside a multi-message turn to that turn's *node*, which is
-C11, and under `per-actor` dispatch one turn is several messages, so *message* is
-the unit C11 was closed to stop people using (§0.2). Client work in
-`packages/client/src/play/`; server work in `turns/runner.ts`, **which must gain
-a replay path**: `runner.ts:304`'s bare `const rng = new Rng();` becomes
-`new Rng({ replay })` when a tape is supplied, with the field added to
-`RunnerOptions` or `TurnPayload`. `turns/preview.ts:135` is the second bare
-construction and belongs in the same pass. P3's edit-and-re-run reconciles onto
-the same sibling mechanism — it already writes siblings
-([05 §1.2](05-p3-implementation.md)).
+**The group draw was fixed first, as this stage said it had to be.**
+`weightedPick` recorded a *position* into a candidate list guarded only by
+`detail = total=<summed weight>`, so a group whose membership changed without
+changing the sum replayed the old index onto a different entry and reported
+`replayed: true` while doing it. It records **the winner's id** now, and
+`draw()` gained a `usable` gate — `kind` and `detail` ask *was this the same
+question*, `usable` asks *is the recorded answer still one of the available
+answers*, which only the caller can know. The id is also what makes the record
+legible: *this entry won*, rather than *index two won* of a list nobody kept.
 
-**Fix the group draw's payload before any of this can mean anything.**
-`weightedPick` (`rng/rng.ts:196-213`) records an *index* into a candidate list
-built in scan order, guarded on replay only by `detail = total=<summed weight>`,
-so a group whose membership changed without changing the weight sum replays the
-old index onto a different entry and still reports `replayed: true` (§0.1a).
-Gate step 3's *"the record marks replayed vs fresh draws"* is otherwise
-satisfiable by a draw that replayed to the wrong entry.
+Recording the winner turned out better than the alternative §0.1a offered.
+Putting the member ids into `detail` would have missed on any change including
+a **reorder**, which is not a different contest — the same entry is still there
+to win. The id replays through a reorder and refuses when the winner is gone
+or has been silenced, which is the narrowest honest rule. The refusal on a
+zeroed weight is the method's own promise — *zero-weight entries are never
+chosen* — kept under replay rather than only on a first run.
 
-**Must prove:** (i) gate step 3 against **a fixture built to roll** — a lore
-entry with `probability` below 100, or two entries contesting one group —
-asserting the tape is non-empty *before* asserting anything about it, since an
-ordinary turn commits `[]` and the step would otherwise pass by asserting
-nothing; (ii) rewrite reproduces the same activation set and reroll does not,
-with `replayed` marked per draw (`shared/src/turn.ts:109`); (iii) the reroll
-affordance does not appear on a turn that consumed no draws
-([07 §14.6](../07-tech-stack.md)); (iv) §1.8's decision is implemented **and
-written down where a person can find it** — gate step 11.
+**The replay path is one line in the runner and a turn id on the wire.**
+`runner.ts`'s bare `new Rng()` becomes `new Rng({ replay })` when a tape is
+supplied, which is [P2 §2.13]'s deferral — *the tape is recorded though nothing
+rerolls until P6* — coming due. **The tape comes from the server's own record**:
+the submission carries `rewriteOf`, a turn id, and the route reads that turn's
+draws. A client cannot post the roll it wishes it had got, and a turn id from
+another session is `404 no-such-turn`. `turns/preview.ts`'s second bare
+construction was examined in the same pass and **stays bare**: a preview commits
+nothing, so it has nothing to reproduce, and the one case where a tape would
+belong there is a preview *of a rewrite*, which nothing offers.
 
-*One trap for the fixture:* a session's lore links are session-wide but **not
-time-invariant** — mutable at any moment through `PUT /sessions/:id/lore`, and
-the books are live links resolved at assembly, so reconstructing an old node uses
-today's book list and today's entry text. That is deliberate design, not a bug,
-but the fixture must not change its book between the original turn and the
-rewrite, or the step reddens for a reason that is not a defect.
+**The two gestures are two buttons on every turn**, and the unit is the turn's
+node rather than a message — C11, and the reason [09 §7] closed it. *Redo* is
+another attempt at that turn: a sibling of the same parent, carrying the turn's
+own words rather than the composer's. *Continue from here* moves the head to the
+node and lets the composer write its child, which is P6.1's move-head doing the
+whole job. **Redo splits where draws exist**: rewrite is the default and reroll
+is the explicit second action, and reroll is **absent on a turn that consumed no
+draws** — [07 §14.6]'s rule, which is most turns, since an ordinary book draws
+nothing.
 
-**May not start before P6.1.** The two buttons need no draws and could in
-principle precede the rewrite/reroll split; the split cannot.
+**§1.8 is implemented and written down** (gate step 11): *the view follows the
+new sibling*. The head is the new turn when a redo commits, so the transcript
+re-renders as the line it is now on, and the attempt it replaced is on disk and
+reachable. The lean is argued in §1.8 and repeated at the mutation in
+`PlayPage.tsx`, which is where somebody wondering *why did my reply change*
+will be. Marinara's rule was *editing does not change the reply already on
+screen*; the protection it offered is what P6.3's sibling affordance provides
+visibly, and until that lands the way back is *continue from here* on the turn
+before. It is a lean pending PLAYABLE and says so.
+
+**Ten mutations, all red** — and one of them found a test of this stage's own
+that passed for the wrong reason. Zeroing the winner's weight also moves the
+weight *sum*, so the guard refused on `detail` before it ever asked about the
+winner, and the clause the test was written for was never exercised. The weight
+it loses is given to another member now, so the total is unchanged and only the
+`usable` gate can refuse. That is the fifth time in this phase a test has been
+green for a reason other than the one it claimed.
+
+**Proof obligations.** (i) Gate step 3 against a fixture built to roll — a book
+whose entry carries `probability: 50`, selected through `POST /api/sessions
+{ lore }` — with **the tape asserted non-empty before anything is asserted about
+it**, since an ordinary turn commits `[]` and the step would otherwise pass by
+asserting nothing. (ii) Rewrite reproduces the draws and marks every one
+`replayed`; reroll draws fresh and marks every one not — asserted on the flag
+rather than the outcome, because a coin can land the same way twice. (iii) The
+reroll affordance is absent on a turn with an empty tape. (iv) §1.8 above.
+
+*The stage as it was written:*
+
+> **Builds:** §1.3's two buttons on every ~~message~~ **turn** — [09 §7](../09-branching.md)
+> resolves branching inside a multi-message turn to that turn's *node*, which is
+> C11, and under `per-actor` dispatch one turn is several messages, so *message* is
+> the unit C11 was closed to stop people using (§0.2). Client work in
+> `packages/client/src/play/`; server work in `turns/runner.ts`, **which must gain
+> a replay path**: `runner.ts:304`'s bare `const rng = new Rng();` becomes
+> `new Rng({ replay })` when a tape is supplied, with the field added to
+> `RunnerOptions` or `TurnPayload`. `turns/preview.ts:135` is the second bare
+> construction and belongs in the same pass. P3's edit-and-re-run reconciles onto
+> the same sibling mechanism — it already writes siblings
+> ([05 §1.2](05-p3-implementation.md)).
+>
+> **Fix the group draw's payload before any of this can mean anything.**
+> `weightedPick` (`rng/rng.ts:196-213`) records an *index* into a candidate list
+> built in scan order, guarded on replay only by `detail = total=<summed weight>`,
+> so a group whose membership changed without changing the weight sum replays the
+> old index onto a different entry and still reports `replayed: true` (§0.1a).
+> Gate step 3's *"the record marks replayed vs fresh draws"* is otherwise
+> satisfiable by a draw that replayed to the wrong entry.
+>
+> **Must prove:** (i) gate step 3 against **a fixture built to roll** — a lore
+> entry with `probability` below 100, or two entries contesting one group —
+> asserting the tape is non-empty *before* asserting anything about it, since an
+> ordinary turn commits `[]` and the step would otherwise pass by asserting
+> nothing; (ii) rewrite reproduces the same activation set and reroll does not,
+> with `replayed` marked per draw (`shared/src/turn.ts:109`); (iii) the reroll
+> affordance does not appear on a turn that consumed no draws
+> ([07 §14.6](../07-tech-stack.md)); (iv) §1.8's decision is implemented **and
+> written down where a person can find it** — gate step 11.
+>
+> *One trap for the fixture:* a session's lore links are session-wide but **not
+> time-invariant** — mutable at any moment through `PUT /sessions/:id/lore`, and
+> the books are live links resolved at assembly, so reconstructing an old node uses
+> today's book list and today's entry text. That is deliberate design, not a bug,
+> but the fixture must not change its book between the original turn and the
+> rewrite, or the step reddens for a reason that is not a defect.
+>
+> **May not start before P6.1.** The two buttons need no draws and could in
+> principle precede the rewrite/reroll split; the split cannot.
 
 ### P6.3 — Siblings, undo, and hygiene
 
@@ -1526,8 +1605,13 @@ actually landed and the gate could name real state instead of hypothetical.*
    discarded ones still exist an hour later. Promote one to a named ref —
    nothing copies.
 3. Rewrite a turn that rolled dice → same outcome, different prose; reroll →
-   new outcome; the record marks replayed vs fresh draws. At temperature 0 a
-   rewrite returns ~the same text, and that is correct
+   new outcome; the record marks replayed vs fresh draws.
+   **Covered at P6.2** in `routes/branching.test.ts`, over a session that
+   selects a book with a `probability` below a hundred, with the tape asserted
+   non-empty first. The group draw's positional payload was fixed before any of
+   it, which is what makes *the record marks replayed vs fresh* mean something:
+   it was satisfiable by a draw that replayed to the wrong entry.
+   At temperature 0 a rewrite returns ~the same text, and that is correct
    ([07 §14.6](../07-tech-stack.md)).
    **The fixture has to be built to roll** (§0.1a): the production draw sites are
    `lore.probability` and `lore.group`, so the session needs a lore entry with a
@@ -1581,6 +1665,9 @@ actually landed and the gate could name real state instead of hypothetical.*
     sibling that never fired it is the same bug with a less visible symptom.
 11. **Edit-and-re-run does what §1.8 decided**, and the decision is written down
     somewhere a person can find — not left as whatever the implementation does.
+    **Done at P6.2**: the view follows the new sibling, argued in §1.8 and
+    repeated at the mutation in `PlayPage.tsx`. Still a lean pending PLAYABLE,
+    and it says so in both places.
 12. **The stale-head case behaves as §1.7 decided**: two submissions against one
     head either produce an explicit sibling or a refusal that offers one, and
     never a race that manufactures a branch nobody asked for.

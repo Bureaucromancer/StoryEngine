@@ -6,7 +6,7 @@ import type { Candidate } from '../assembly/types.js';
 import type { Config } from '../config.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { ProviderFactory } from '../providers/factory.js';
-import { Rng } from '../rng/rng.js';
+import { Rng, type Tape } from '../rng/rng.js';
 import { advance, MINUTES_PER_TURN, readClock, SE_CLOCK } from '../sessions/channels.js';
 import { applyEffects } from '../sessions/store.js';
 import type {
@@ -62,6 +62,20 @@ export interface TurnPayload {
   input?: { actorId: string | null; kind: string; text: string; raw: string };
   /** The guidance box. Its own field, never concatenated into the action ([03 §5.1]). */
   guidance?: string;
+  /**
+   * A previous turn's draws, to replay — **rewrite**, [07 §14.5], [P6.2].
+   *
+   * Present means *same mechanical outcome, different prose*: the roll that
+   * decided a lore entry's appearance is taken off the tape rather than made
+   * again. Absent means *reroll*, which is also what an ordinary first run is —
+   * and rewrite is the default of the two gestures precisely because the other
+   * way round makes swiping past a failed check save-scumming by accident.
+   *
+   * **The tape comes from the server's own record**, never from the wire: the
+   * route reads it from the turn a submission names, so a client cannot post
+   * the draws it would like to have had.
+   */
+  replay?: Tape;
 }
 
 export interface RunnerOptions {
@@ -301,7 +315,16 @@ export class TurnRunner {
     const { commit, bus, config } = this.#options;
 
     const draft = initialDraft(job, payload);
-    const rng = new Rng();
+    /**
+     * **The replay path** — [P6.2], and the line [P6 §2] names.
+     *
+     * This was a bare `new Rng()` from P2 until now: the tape was recorded from
+     * the first turn *though nothing rerolled until P6*, which is the deferral
+     * [P2 §2.13] wrote down. A supplied tape makes this turn a rewrite of the
+     * one it came from; the draws that still apply come off it, the ones that
+     * do not are drawn fresh, and every draw says which it was.
+     */
+    const rng = payload.replay === undefined ? new Rng() : new Rng({ replay: payload.replay });
     const steps: StepOutcome[] = [];
     const calls: ModelCall[] = [];
     const effects: ChannelEffect[] = [];

@@ -32,6 +32,7 @@ import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { previewAssembly } from '../turns/preview.js';
 import { PathEscapeError } from '../storage/paths.js';
+import type { Tape } from '../rng/rng.js';
 
 /**
  * Sessions, turns, and the stream — [P2 §2.10], [04 §3.1], [07 §8].
@@ -171,6 +172,15 @@ const SubmitBody = Type.Object(
      * the root.
      */
     parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    /**
+     * Replay this turn's draws — **rewrite** rather than reroll, [07 §14.5],
+     * [P6.2].
+     *
+     * A turn id rather than a tape: the draws are read from the record on this
+     * server, so a client cannot post the roll it wishes it had got. Absent is
+     * a reroll, which is also every ordinary turn.
+     */
+    rewriteOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     input: Type.Object({
       text: Type.String({ maxLength: 100_000 }),
       actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -679,9 +689,33 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         idempotencyKey: string;
         headTurnId: string | null;
         parentTurnId?: string | null;
+        rewriteOf?: string;
         input: { text: string; actorId?: string | null; kind?: string };
         guidance?: string;
       };
+
+      /**
+       * The tape a rewrite replays, read from the record — [P6.2].
+       *
+       * Read here rather than in the runner because this is where the request
+       * is still a request: a turn id that names nothing in this session is a
+       * refusal, and the runner's job starts after that question is settled.
+       */
+      let replay: Tape | undefined;
+      if (body.rewriteOf !== undefined) {
+        const rewritten = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.rewriteOf,
+        );
+        if (rewritten === null) {
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
+        }
+        replay = rewritten.tape;
+      }
 
       const outcome = await submitTurn(services.jobs, {
         account: account.handle,
@@ -743,13 +777,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body));
+            services.runner.start(outcome.job, payloadOf(body, replay));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body));
+          services.runner.start(outcome.job, payloadOf(body, replay));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -859,12 +893,16 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 }
 
-function payloadOf(body: {
-  input: { text: string; actorId?: string | null; kind?: string };
-  guidance?: string;
-}): {
+function payloadOf(
+  body: {
+    input: { text: string; actorId?: string | null; kind?: string };
+    guidance?: string;
+  },
+  replay?: Tape,
+): {
   input: { actorId: string | null; kind: string; text: string; raw: string };
   guidance?: string;
+  replay?: Tape;
 } {
   return {
     input: {
@@ -876,6 +914,7 @@ function payloadOf(body: {
       raw: body.input.text,
     },
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+    ...(replay === undefined ? {} : { replay }),
   };
 }
 

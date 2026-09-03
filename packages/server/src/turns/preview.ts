@@ -123,6 +123,14 @@ export async function previewAssembly(
    * with it. A preview showing a 50% entry that the turn then rolls differently
    * is honest — the number says so — and the alternative, reserving the turn's
    * draws from a preview, would let a person reroll by retyping.
+   *
+   * **Examined again at [P6.2] and left bare**, since that stage gave the
+   * runner a replay path and [P6 §2] asks for the second construction site in
+   * the same pass. It stays: a preview commits nothing, so it has nothing to
+   * reproduce. The one case where a tape would belong here is a preview *of a
+   * rewrite* — showing the outcome the rewrite will actually get rather than a
+   * fresh roll of it — and nothing offers one, because the gestures submit
+   * rather than preview.
    */
   const lore = retrieve({
     lore: inputs.lore,

@@ -762,7 +762,7 @@ of it.
 
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
-  input: { text, actorId?, kind? }, guidance? }
+  rewriteOf?: string, input: { text, actorId?, kind? }, guidance? }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -785,6 +785,18 @@ two tabs on one session look like. An explicit `null` branches from the root —
 *start this story again* — and is a different request from omitting the field.
 One turn at a time still holds: a second submission while a turn is in flight is
 `409 busy` whether it branches or not.
+
+**`rewriteOf` is the difference between rewrite and reroll** ([07 §14.5]). It
+names a turn whose draws this one should replay: the same roll, so the same
+mechanical outcome and different prose. Absent, the turn draws fresh — which is
+reroll, and also every ordinary turn. **A turn id rather than a tape**, because
+the draws are read from this server's record: a client cannot post the roll it
+wishes it had got, and a turn from another session is `404 no-such-turn`.
+
+Rewrite is the default of the two gestures, which is what stops swiping past a
+failed check from being save-scumming by accident. A turn that consumed no
+draws has nothing to reroll, and the surface must not offer it one
+([07 §14.6]).
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot

@@ -5,6 +5,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { newLorebook, newLoreEntry } from '@storyengine/shared';
+
 import { FakeProvider } from '../providers/fake.js';
 import { readClock } from '../sessions/channels.js';
 import { walkPath } from '../sessions/segments.js';
@@ -83,7 +85,7 @@ async function takeTurn(
   key: string,
   headTurnId: string | null,
   text: string,
-  branchFrom?: { parentTurnId: string | null },
+  branchFrom?: { parentTurnId?: string | null; rewriteOf?: string },
 ): Promise<{ status: number; body: any }> {
   const accepted = await server.request({
     method: 'POST',
@@ -405,5 +407,138 @@ describe('moving the head, through the routes', () => {
     });
     expect(nowhere.status).toBe(404);
     expect(nowhere.body.error).toBe('no-such-turn');
+  });
+});
+
+/**
+ * Rewrite and reroll — [07 §14.5], [P6 §3] step 3, [P6.2].
+ *
+ * **The fixture has to be built to roll**, which [P6 §0.1a] found the hard way:
+ * the production draw sites are `lore.probability` and `lore.group`, so a turn
+ * against an ordinary book commits an empty tape and every assertion about
+ * replay would pass by asserting nothing. This session selects a book whose one
+ * entry carries a `probability` below a hundred, and **the tape is asserted
+ * non-empty before anything is asserted about it** — that assertion is the one
+ * that fails if a future change quietly stops drawing.
+ *
+ * *And the trap [P6 §2] names for this fixture:* a session's lore links are
+ * live, so the book must not change between the turn and its rewrite, or the
+ * step reddens for a reason that is not a defect. Nothing here touches it after
+ * the session is created.
+ */
+describe('rewrite replays the draws, and reroll does not', () => {
+  const KEY = 'ferryman';
+
+  /** A session that selects a book built to roll. */
+  async function rollingSession(): Promise<string> {
+    const book = {
+      ...newLorebook('Rain City'),
+      scanDepth: 1,
+      entries: [
+        {
+          ...newLoreEntry('The ferryman'),
+          keys: [KEY],
+          content: 'He takes coin, not names.',
+          // Below a hundred, so activation is a draw rather than a certainty —
+          // which is the whole of what makes this fixture roll.
+          probability: 50,
+        },
+      ],
+    };
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: book,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+
+    const session = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain City', lore: [book.id] },
+    });
+    expect(session.status, JSON.stringify(session.body)).toBe(201);
+    return session.body.session.id as string;
+  }
+
+  async function turnOnDisk(sessionId: string, turnId: string): Promise<Turn> {
+    const found = (await turnsOnDisk(sessionId)).get(turnId);
+    if (found === undefined) throw new Error('the turn is not on disk');
+    return found;
+  }
+
+  it('reproduces the draw it was given, and marks it replayed', async () => {
+    const sessionId = await rollingSession();
+
+    const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+    const firstId = first.body.turnId as string;
+    const original = await turnOnDisk(sessionId, firstId);
+
+    // **Before anything about replay**: the fixture actually rolled. Without
+    // this the rest of the test holds just as well for a turn that drew
+    // nothing, which is what an ordinary book produces.
+    expect(original.tape.length).toBeGreaterThan(0);
+    expect(original.tape.map((draw) => draw.site)).toContain('lore.probability');
+    expect(original.tape.every((draw) => !draw.replayed)).toBe(true);
+
+    // Redo, rewriting: a sibling of the same parent, replaying that turn's
+    // draws.
+    const rewritten = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+      parentTurnId: original.parentTurnId,
+      rewriteOf: firstId,
+    });
+    expect(rewritten.status).toBe(202);
+    const rewrite = await turnOnDisk(sessionId, rewritten.body.turnId as string);
+
+    // A sibling, not a continuation.
+    expect(rewrite.parentTurnId).toBe(original.parentTurnId);
+    // The same mechanical outcome, and the record says which draws were taken
+    // off the tape — gate step 3's *the record marks replayed vs fresh draws*.
+    expect(rewrite.tape.map((draw) => draw.key)).toEqual(original.tape.map((draw) => draw.key));
+    expect(rewrite.tape.map((draw) => draw.value)).toEqual(original.tape.map((draw) => draw.value));
+    expect(rewrite.tape.every((draw) => draw.replayed)).toBe(true);
+  });
+
+  it('draws fresh when nothing was handed to it, which is reroll', async () => {
+    const sessionId = await rollingSession();
+    const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+    const original = await turnOnDisk(sessionId, first.body.turnId as string);
+    expect(original.tape.length).toBeGreaterThan(0);
+
+    // The same gesture without a tape: a sibling that rolls again.
+    const rerolled = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+      parentTurnId: original.parentTurnId,
+    });
+    const reroll = await turnOnDisk(sessionId, rerolled.body.turnId as string);
+
+    expect(reroll.parentTurnId).toBe(original.parentTurnId);
+    expect(reroll.tape.length).toBeGreaterThan(0);
+    // **Fresh, and it says so.** The value may coincide — a coin can land the
+    // same way twice — so the assertion is on the flag rather than on the
+    // outcome, which is exactly what the flag is for.
+    expect(reroll.tape.every((draw) => !draw.replayed)).toBe(true);
+  });
+
+  it('refuses to rewrite a turn that is not in this session', async () => {
+    const sessionId = await rollingSession();
+    const elsewhere = await createSession('Another city');
+    const theirs = await takeTurn(elsewhere, 'k1', null, 'Elsewhere entirely.');
+
+    const refused = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: {
+        idempotencyKey: 'k2',
+        headTurnId: null,
+        rewriteOf: theirs.body.turnId as string,
+        input: { text: 'I ask again.' },
+      },
+    });
+
+    // The tape is read from this server's record, and only from this session's
+    // — so a rewrite cannot reach across the boundary for somebody else's luck.
+    expect(refused.status).toBe(404);
+    expect(refused.body.error).toBe('no-such-turn');
+    expect((await turnsOnDisk(sessionId)).size).toBe(0);
   });
 });

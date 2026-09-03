@@ -105,13 +105,23 @@ export class Rng {
     return this.#replay.size > 0 && this.#tape.some((draw) => !draw.replayed);
   }
 
-  /** @internal Used by {@link SiteRng}; not part of the caller-facing API. */
+  /**
+   * @internal Used by {@link SiteRng}; not part of the caller-facing API.
+   *
+   * `usable` is the second half of the replay guard, added at [P6.2]. `kind`
+   * and `detail` ask *was this the same question*; `usable` asks *is the
+   * recorded answer still one of the available answers*, which only the caller
+   * can know. A draw whose value is a position into caller data — or an
+   * identity from it — is meaningless against a list that has changed, and
+   * without this the guard would accept it and mark it `replayed: true`.
+   */
   draw<T>(
     site: string,
     purpose: string,
     kind: DrawKind,
     detail: string,
     produce: (source: RandomSource) => T,
+    usable?: (recorded: unknown) => boolean,
   ): T {
     const counterKey = `${site}:${purpose}`;
     const index = this.#counters.get(counterKey) ?? 0;
@@ -122,7 +132,11 @@ export class Rng {
     // A replayed draw has to be the *same kind* of draw, or the tape is being
     // read against a different question — `d20 → 7` handed to a `pick` is the
     // positional-tape failure wearing a key.
-    if (recorded?.kind === kind && recorded.detail === detail) {
+    if (
+      recorded?.kind === kind &&
+      recorded.detail === detail &&
+      (usable?.(recorded.value) ?? true)
+    ) {
       this.#tape.push({ ...recorded, replayed: true });
       return recorded.value as T;
     }
@@ -181,6 +195,20 @@ export class SiteRng {
     return this.#draw('chance', `p=${String(p)}`, (source) => source.float() < p);
   }
 
+  /**
+   * One of `items`, uniformly.
+   *
+   * **The same hazard `weightedPick` was fixed for is open here, and nothing
+   * can reach it** — [P6.2]. `detail` is `n=<length>`, which describes the
+   * list's size and not its membership, so a replay against a list of the same
+   * length hands back a position into different content. There is no
+   * production caller: the two draw sites are the retriever's, and both are
+   * `chance` and `weightedPick`. Closing it means what closing that one meant —
+   * the caller naming its candidates — and doing that to a uniform pick over a
+   * list of strings would be ceremony for a hazard nobody can trigger. The
+   * first production caller is where it gets paid for, and `draw`'s `usable`
+   * gate is the mechanism waiting for it. `shuffle` below is the same sentence.
+   */
   pick<T>(items: readonly T[]): T {
     if (items.length === 0) throw new RangeError('pick() needs something to pick from.');
     // The *index* is the drawn value, not the item: an index survives a
@@ -191,24 +219,50 @@ export class SiteRng {
     return items[index] as T;
   }
 
-  /** Weighted by `weight`. Zero-weight entries are never chosen. */
-  weightedPick<T>(items: readonly { value: T; weight: number }[]): T {
+  /**
+   * Weighted by `weight`. Zero-weight entries are never chosen.
+   *
+   * **The winner's id is the recorded value, not its position** — [P6.2], and
+   * the reason is the one failure a positional tape has left: `detail` is
+   * `total=<summed weight>`, which describes the *shape* of the contest and not
+   * its membership. A group whose members changed without changing the sum —
+   * one entry swapped for another of equal weight, or the scan order moved —
+   * replayed the old index onto a **different entry** and reported
+   * `replayed: true` while doing it. [P6 §0.1a] found it before anything could
+   * construct a replaying `Rng`; [P6.2] is the stage that does, so it is fixed
+   * before the thing that would have suffered from it exists.
+   *
+   * An id also makes the record legible in the way `detail` is meant to be:
+   * *this entry won*, rather than *index two won* of a list nobody kept.
+   *
+   * **Replay is refused when the winner is no longer a candidate**, or when its
+   * weight has been zeroed — which is this method's own promise, kept under
+   * replay rather than only on a first run. A refusal is a fresh draw, which is
+   * what a rewrite down a genuinely different path is supposed to do.
+   */
+  weightedPick<T>(items: readonly { id: string; value: T; weight: number }[]): T {
     const total = items.reduce((sum, item) => sum + Math.max(item.weight, 0), 0);
     if (items.length === 0 || total <= 0) {
       throw new RangeError('weightedPick() needs at least one entry with a positive weight.');
     }
 
-    const index = this.#draw('weightedPick', `total=${String(total)}`, (source) => {
-      let roll = source.float() * total;
-      for (const [at, item] of items.entries()) {
-        roll -= Math.max(item.weight, 0);
-        if (roll < 0) return at;
-      }
-      // Only reachable through floating-point drift at the very top of the
-      // range; the last positive-weight entry is the honest answer.
-      return items.findLastIndex((item) => item.weight > 0);
-    });
-    return items[index]?.value as T;
+    const won = this.#draw(
+      'weightedPick',
+      `total=${String(total)}`,
+      (source) => {
+        let roll = source.float() * total;
+        for (const item of items) {
+          roll -= Math.max(item.weight, 0);
+          if (roll < 0) return item.id;
+        }
+        // Only reachable through floating-point drift at the very top of the
+        // range; the last positive-weight entry is the honest answer.
+        return items.findLast((item) => item.weight > 0)?.id;
+      },
+      (recorded) => items.some((item) => item.id === recorded && item.weight > 0),
+    );
+
+    return items.find((item) => item.id === won)?.value as T;
   }
 
   /** A new array, shuffled. The input is not touched. */
@@ -241,7 +295,12 @@ export class SiteRng {
     return rolls.reduce((sum, roll) => sum + roll, 0) + parsed.modifier;
   }
 
-  #draw<T>(kind: DrawKind, detail: string, produce: (source: RandomSource) => T): T {
-    return this.#rng.draw(this.#site, this.#purpose, kind, detail, produce);
+  #draw<T>(
+    kind: DrawKind,
+    detail: string,
+    produce: (source: RandomSource) => T,
+    usable?: (recorded: unknown) => boolean,
+  ): T {
+    return this.#rng.draw(this.#site, this.#purpose, kind, detail, produce, usable);
   }
 }
