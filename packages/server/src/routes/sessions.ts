@@ -157,6 +157,15 @@ const SubmitBody = Type.Object(
   {
     idempotencyKey: Type.String({ minLength: 1, maxLength: 200 }),
     headTurnId: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * Branch from this node instead of extending the head — [P6.0c].
+     *
+     * Absent is every submission before P6: attach to `headTurnId`, and refuse
+     * with `412` if that is no longer the head. Present says *I mean this one*,
+     * and the head check does not apply to it. Explicit `null` branches from
+     * the root.
+     */
+    parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     input: Type.Object({
       text: Type.String({ maxLength: 100_000 }),
       actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -491,6 +500,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as {
         idempotencyKey: string;
         headTurnId: string | null;
+        parentTurnId?: string | null;
         input: { text: string; actorId?: string | null; kind?: string };
         guidance?: string;
       };
@@ -500,6 +510,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         sessionId,
         idempotencyKey: body.idempotencyKey,
         headTurnId: body.headTurnId,
+        // Spread rather than passed, because *absent* and *null* are different
+        // requests here — see `SubmitRequest.parentTurnId`.
+        ...('parentTurnId' in body ? { parentTurnId: body.parentTurnId } : {}),
       });
 
       switch (outcome.kind) {
@@ -516,12 +529,32 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           });
 
         case 'stale':
-          // With the head it should have used, so a client can rebase rather
-          // than reload everything.
+          /**
+           * With the head it should have used, so a client can rebase rather
+           * than reload everything.
+           *
+           * **Still a refusal after [P6.0c], and that is the decision rather
+           * than a leftover.** A client whose head moved under it can now do
+           * one of two things with this answer, where before it could only
+           * rebase: resubmit against `head`, or resubmit naming
+           * `parentTurnId` and keep the line it was composing on. The refusal
+           * is what makes the second one a choice somebody made instead of a
+           * branch the server invented — [08 §1.7].
+           */
           return reply.code(412).send({
             error: 'stale-head',
             message: 'The session has moved on since this was composed.',
             head: outcome.head,
+          });
+
+        case 'no-parent':
+          // A named branch point that is not a turn of this session. A 404
+          // rather than a 422: the request is well formed and names something
+          // that is not there, which is the same answer `GET /turns/:turnId`
+          // gives for the same id.
+          return reply.code(404).send({
+            error: 'no-such-parent',
+            message: 'No such turn in this session to branch from.',
           });
 
         case 'existing': {

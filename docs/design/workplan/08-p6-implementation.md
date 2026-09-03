@@ -234,12 +234,17 @@ five belong beside them, and three are the difference between *branching is
 storage-ready* and *branching works*.
 
 - **The head-equality gate is the single line that makes branching impossible
-  today.** `submitTurn` refuses any parent that is not the current head
+  today.** *(Relaxed at P6.0c: it now applies to a submission that does not name
+  a parent, which is what keeps a stale client from becoming a branch.)*
+  `submitTurn` refuses any parent that is not the current head
   (`state/jobs.ts:162`, returning `stale`), and the route answers `412` with the
   head a client should rebase onto (`routes/sessions.ts:521`). The wire already
   carries `headTurnId` as an explicit field, so this is a rule to relax rather
-  than a schema to migrate — but it is a rule, it is deliberate, and §1.7's
-  stale-head bullet is about *this line*. It should be P6's first and cheapest
+  than a schema to migrate — ~~but it is a rule, it is deliberate, and §1.7's
+  stale-head bullet is about *this line*.~~ *Half right, and P6.0c is where the
+  other half showed: relaxing the rule alone would fail §3's own step 12, so the
+  phase added one optional field. It is a rule, it is deliberate, and §1.7's
+  stale-head bullet is about this line.* It should be P6's first and cheapest
   change, named as a step.
 - **`advanceHead` is child-of-head-only.** It computes the new channel map as
   `applyEffects(session.channels, turn.effects)` (`sessions/store.ts:372`) —
@@ -795,8 +800,15 @@ work, not a mention.
   case into an explicit sibling; P2 must not manufacture one by race."* That is
   a decision with a real UI consequence — two people, or one person in two tabs,
   submitting against the same head — and it is where branching stops being a
-  gesture and becomes a concurrency answer. **Decide it, or say it stays a
-  refusal.**
+  gesture and becomes a concurrency answer. ~~**Decide it, or say it stays a
+  refusal.**~~ **Decided at P6.0c, 2026-09-02, and it is both.** The two answers
+  are for different clients: a submission names the node it attaches to through
+  a new optional `parentTurnId`, absent meaning *the head* and still refused
+  with `412` when the head has moved, present meaning *I mean this node* and
+  landing as a sibling. An explicit `null` branches from the root. The refusal
+  is what keeps a stale client from becoming a branch nobody asked for; the
+  field is what lets somebody ask. `busy` is unchanged, so two branches arriving
+  together are still one turn at a time.
 - **The tape's first real use** ([P2 §2.13](04-p2-implementation.md)). The tape
   is recorded from P2 *"though nothing rerolls until P6"*, and P3 §1.8 records
   the consequence: every committed tape is empty because there is no production
@@ -1108,21 +1120,90 @@ written above it. Making that walk cheap is P6.0d.
 >
 > **May not start before P6.0a. Must complete before P6.0c.**
 
-#### P6.0c — relax the head gate, and decide §1.7's stale-head case in the same commit
+#### ~~P6.0c — relax the head gate, and decide §1.7's stale-head case in the same commit~~ Landed
 
-**Builds:** the refusal at `state/jobs.ts:162` and the route's `412` at
-`routes/sessions.ts:521`. **§1.7's first bullet must be decided here, not
-later**, because *"explicit sibling"* and *"a refusal that offers one"* are
-different code: the first removes the check, the second keeps it and changes the
-response.
+**§1.7's first bullet is decided, and the two answers it offered are not
+alternatives.** P2 left *"P6 may turn the stale-head case into an explicit
+sibling; P2 must not manufacture one by race"*, and this document turned that
+into a choice between an explicit sibling and a refusal that offers one. It is
+both, because they answer different clients: **a submission now names the node
+it attaches to, and naming one that is not the head has to be deliberate.**
+`parentTurnId` absent means *the head* — every submission P2 through P5 makes —
+and a head that has moved is still refused with `412` carrying the head to
+rebase onto. `parentTurnId` present means *I mean this node*, the head check
+does not apply, and the turn lands as a sibling. An explicit `null` is a branch
+from the root, which is why the field is optional *and* nullable.
 
-**Must prove:** (i) submitting against a non-head parent produces a sibling turn,
-and P6.0a's property still holds at both children; (ii) two submissions against
-one head do not manufacture a branch nobody asked for — gate step 12;
-(iii) idempotency-key retention still holds, so a retry cannot charge twice.
+**This is the correction to §0.1 that the stage forced.** That audit read the
+refusal as *a rule to relax rather than a schema to migrate*, on the strength of
+the wire already carrying `headTurnId`. Relaxing it alone fails this phase's own
+gate step 12: with nothing to distinguish a deliberate branch from a client
+whose head moved under it, two tabs submitting against one head manufacture a
+branch nobody asked for — the precise thing P2 refused to do and P6 was told not
+to inherit. One optional field is not a migration, but it is not nothing either,
+and the reasoning is [09 §7]'s: guessing is wrong half the time, so the server
+does not guess. The one field carried two facts that coincide only while a
+session is a line — *what I attach to* and *what I believe is current* — and
+branching separates them.
 
-**May not start before P6.0b. Blocks P6.1 and P6.2 entirely** — no gesture can
-ship over a head-gated store.
+**One new refusal.** A named parent has to be a turn of this session, or the
+answer is `404 no-such-parent`. `walkPath` stops at a parent it cannot find
+rather than throwing, which is right for a pruned subtree and wrong as a way to
+arrive: a turn appended under an unknown id would start a line whose history
+silently begins in the middle. The lookup is `readTurnById`, which is scoped to
+the session inside the store, so a real turn id from someone else's session is
+the same 404 rather than a cross-session branch.
+
+**What did not change, deliberately.** The `busy` check: one turn advances a
+session at a time, branch or not, and that is the concurrency answer for two
+branches arriving together. The idempotency reservation, which is read before
+anything else — branching gets no path of its own through it, so a client that
+reconnects mid-branch is answered with its own job rather than starting a
+second. And the runner, which needed nothing: it gathers at `job.parentTurnId`,
+and P6.0b already made that return the node's own state.
+
+**Seven mutations, all red.** Deleting the head check outright (three tests,
+including the route-level *nobody asked for it* case, which is gate step 12);
+ignoring a named parent; conflating absent with `null`, which turns every
+ordinary submission into a branch (five tests); accepting a branch point that is
+not in this session; reading an explicit `null` as the head rather than the
+root; applying the head check to a branching submission too (six tests); and
+letting a branch skip the one-turn-at-a-time check. The one that matters is the
+first: it is the mutation that *is* the naive reading of this stage, and the
+test that catches it is the one this stage exists to be able to write.
+
+**Nothing sends the field yet, and that is the stage boundary rather than an
+oversight.** `parentTurnId` is reachable through the API and exercised by
+`routes/branching.test.ts`; the client's own submission still omits it, so the
+played UI behaves exactly as it did. The two buttons that will send it are
+§1.3's, at P6.2, and P6.1's head movement comes between. Branching therefore
+has a route now — [P2C §5]'s *"branching is a storage affordance with no
+route"* is answered — and no gesture.
+
+**Proof obligations.** (i) A submission against a non-head parent produces a
+sibling turn, through the route, with both lines walking back to their shared
+node and reconstructing their own state — and the head snapshot equal to the
+replay at the new head, which is P6.0b's invariant seen through the pipeline.
+(ii) Two submissions against one head produce a refusal and not a branch, and a
+second turn in flight is still `busy`. (iii) The idempotency key still holds on
+the branching path: two identical branch submissions are one job, one turn and
+one provider call.
+
+*The stage as it was written:*
+
+> **Builds:** the refusal at `state/jobs.ts:162` and the route's `412` at
+> `routes/sessions.ts:521`. **§1.7's first bullet must be decided here, not
+> later**, because *"explicit sibling"* and *"a refusal that offers one"* are
+> different code: the first removes the check, the second keeps it and changes the
+> response.
+>
+> **Must prove:** (i) submitting against a non-head parent produces a sibling turn,
+> and P6.0a's property still holds at both children; (ii) two submissions against
+> one head do not manufacture a branch nobody asked for — gate step 12;
+> (iii) idempotency-key retention still holds, so a retry cannot charge twice.
+>
+> **May not start before P6.0b. Blocks P6.1 and P6.2 entirely** — no gesture can
+> ship over a head-gated store.
 
 #### P6.0d — the snapshot cache, and the config key
 
@@ -1311,6 +1392,10 @@ actually landed and the gate could name real state instead of hypothetical.*
 12. **The stale-head case behaves as §1.7 decided**: two submissions against one
     head either produce an explicit sibling or a refusal that offers one, and
     never a race that manufactures a branch nobody asked for.
+    **Decided and covered at P6.0c** — it is both answers, one per client, and
+    the refusal is the one that survives for a submission that did not ask.
+    `routes/branching.test.ts` walks it; the falsifying mutation is deleting the
+    head check, which is the naive reading of this step's own first clause.
 13. **P5's gate step 14 is re-read and edited in this phase's own commit.**
     Timing counters reconstructing at an old node is a replay-from-zero test
     before P6 and a branch test after; it changes meaning here, and the

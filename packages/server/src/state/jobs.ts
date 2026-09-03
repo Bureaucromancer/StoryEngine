@@ -5,7 +5,12 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { readSession, type SessionContext, withSessionLock } from '../sessions/store.js';
+import {
+  readSession,
+  readTurnById,
+  type SessionContext,
+  withSessionLock,
+} from '../sessions/store.js';
 import type { EventSink } from '../stream/bus.js';
 import type { Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
@@ -49,6 +54,31 @@ export interface SubmitRequest {
   idempotencyKey: string;
   /** The head the client composed against. Null for the first turn. */
   headTurnId: string | null;
+  /**
+   * The node to attach this turn to, when it is deliberately not the head —
+   * [P6.0c], and the field that decides §1.7's stale-head question.
+   *
+   * **Absent means *the head*, which is every submission P2 through P5 makes.**
+   * One field used to carry two facts that coincide only while a session is a
+   * line: *what I am attaching to* and *what I believe is current*. Branching
+   * separates them, so they are separate fields, and the rule follows from the
+   * names — a submission that does not name a parent must be at the head; one
+   * that names a parent is taken at its word.
+   *
+   * **This is why the gate could not simply be deleted.** [P6 §0.1] read the
+   * refusal as *a rule to relax rather than a schema to migrate*, and relaxing
+   * it alone would fail this phase's own gate step 12: with nothing to tell a
+   * deliberate branch from a client whose head has moved under it, two tabs
+   * submitting against one head would manufacture a branch nobody asked for —
+   * exactly what [P2 §2.10] said P2 must not do and P6 must not inherit. The
+   * server does not guess, for the same reason [09 §7] gives for offering redo
+   * and continue-differently as two buttons: guessing is wrong half the time.
+   *
+   * An explicit `null` is a branch from the root — *start this story again* —
+   * and is distinct from the field being absent, which is why the type has
+   * three states rather than two.
+   */
+  parentTurnId?: string | null;
 }
 
 /**
@@ -64,7 +94,9 @@ export type SubmitOutcome =
   | { kind: 'existing'; job: Job }
   | { kind: 'busy'; job: Job }
   | { kind: 'stale'; head: string | null }
-  | { kind: 'no-session' };
+  | { kind: 'no-session' }
+  /** A named `parentTurnId` that is not a turn of this session — [P6.0c]. */
+  | { kind: 'no-parent' };
 
 export interface JobContext {
   db: DatabaseSync;
@@ -140,6 +172,36 @@ export async function submitTurn(
     const session = await readSession(context.sessions, request.account, request.sessionId);
     if (session === null) return { kind: 'no-session' };
 
+    /**
+     * **Branching is asked for, never inferred** — [P6.0c]. See `SubmitRequest`.
+     */
+    const branching = request.parentTurnId !== undefined;
+    const parentTurnId = branching ? (request.parentTurnId ?? null) : request.headTurnId;
+
+    /**
+     * A named parent has to be a turn of *this* session.
+     *
+     * `walkPath` stops at a parent it cannot find rather than throwing, which is
+     * right for a pruned subtree and wrong as a way to arrive: a turn appended
+     * under an id that is not there would start a line whose history silently
+     * begins in the middle. `readTurnById` is scoped to the session inside the
+     * store, so a bare turn id cannot reach across the ownership boundary
+     * either — the same guard `GET /turns/:turnId` relies on.
+     *
+     * Outside the transaction because it reads files, and inside the session
+     * lock because a parent that exists now must still exist when the job is
+     * reserved.
+     */
+    if (branching && parentTurnId !== null) {
+      const parent = await readTurnById(
+        context.sessions,
+        request.account,
+        request.sessionId,
+        parentTurnId,
+      );
+      if (parent === null) return { kind: 'no-parent' };
+    }
+
     return inTransaction(context.db, (): SubmitOutcome => {
       // First, because a retry is the *expected* case and must be free of every
       // other check: a client that reconnects mid-turn resubmits, and the
@@ -157,9 +219,17 @@ export async function submitTurn(
       const active = activeJob(context.db, request.sessionId);
       if (active) return { kind: 'busy', job: active };
 
-      // The head is re-read from the file above rather than from any cache: it
-      // is what the append actually writes against.
-      if ((session.headTurnId ?? null) !== request.headTurnId) {
+      /**
+       * The head is re-read from the file above rather than from any cache: it
+       * is what the append actually writes against.
+       *
+       * **Only for a submission that claims the head** — [P6.0c]. A branching
+       * one has named its parent instead, and where the head happens to be is
+       * not a fact about it; the concurrency answer for two branches arriving
+       * at once is the `busy` check above, which is unchanged and still admits
+       * exactly one turn at a time.
+       */
+      if (!branching && (session.headTurnId ?? null) !== request.headTurnId) {
         return { kind: 'stale', head: session.headTurnId };
       }
 
@@ -167,7 +237,7 @@ export async function submitTurn(
         id: uuidv7(),
         sessionId: request.sessionId,
         account: request.account,
-        parentTurnId: request.headTurnId,
+        parentTurnId,
         turnId: uuidv7(),
         status: 'queued',
         commitStep: 0,

@@ -761,16 +761,30 @@ of it.
 ### `POST /api/sessions/:sessionId/turns`
 
 ```
-{ idempotencyKey, headTurnId: string|null, input: { text, actorId?, kind? }, guidance? }
+{ idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
+  input: { text, actorId?, kind? }, guidance? }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
 is reserved; **200** with the same body when the idempotency key already names a
 job; **409 `busy`** carrying the active `job`; **412 `stale-head`** carrying the
-current `head`.
+current `head`; **404 `no-such-parent`** when `parentTurnId` names a turn that
+is not in this session.
 
 Both refusals carry what a client needs to recover. A bare "no" leaves a UI able
 to offer only *try again*, which produces the same "no".
+
+**`parentTurnId` is how a client branches, and its absence is how it does not.**
+A submission names the node it attaches to; leaving the field out means *the
+head*, and a head that has moved is still refused with `412`. Sending it means
+*I mean this node*, the head check does not apply, and the turn lands as a
+sibling of whatever else that node already has. The distinction is the whole of
+it: a server that took any non-head parent at face value would turn every
+client whose head moved under it into a branch nobody asked for, which is what
+two tabs on one session look like. An explicit `null` branches from the root —
+*start this story again* — and is a different request from omitting the field.
+One turn at a time still holds: a second submission while a turn is in flight is
+`409 busy` whether it branches or not.
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
@@ -1460,6 +1474,7 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
+| 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

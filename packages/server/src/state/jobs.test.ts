@@ -203,6 +203,136 @@ describe('one turn advances a session at a time', () => {
   });
 });
 
+describe('branching is asked for, never inferred', () => {
+  /** A committed first turn, and the id it left as the head. */
+  async function aTurn(key: string, headTurnId: string | null): Promise<string> {
+    const first = await submitTurn(context, submission({ idempotencyKey: key, headTurnId }));
+    if (first.kind !== 'created') throw new Error('expected a reservation');
+    setJobStatus(context, first.job.id, 'committed');
+    await appendTurnToSession(sessions, ACCOUNT, sessionId, {
+      ...draftTurn(first.job),
+      status: 'complete',
+    });
+    return first.job.turnId;
+  }
+
+  it('takes a named parent at its word, without a claim about the head', async () => {
+    // [P6.0c], and §1.7's decision in one test: the same stale head is a
+    // refusal when nothing names a parent and a sibling when something does.
+    const first = await aTurn('key-1', null);
+    const second = await aTurn('key-2', first);
+
+    // Composed against `first`, which is no longer the head.
+    const refused = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-3', headTurnId: first }),
+    );
+    expect(refused.kind).toBe('stale');
+    expect(refused.kind === 'stale' && refused.head).toBe(second);
+
+    // The same head, said on purpose. The falsifying mutation is deleting the
+    // head check outright, which makes the refusal above impossible and turns
+    // every stale client into a branch nobody asked for.
+    const branched = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-4', headTurnId: first, parentTurnId: first }),
+    );
+    expect(branched.kind).toBe('created');
+    expect(branched.kind === 'created' && branched.job.parentTurnId).toBe(first);
+  });
+
+  it('reads an explicit null as the root, which is not the same as saying nothing', async () => {
+    // *Start this story again.* The three states of the field are the reason it
+    // is optional-and-nullable rather than nullable: absent means the head,
+    // which here is `first` and would make this an ordinary second turn.
+    const first = await aTurn('key-1', null);
+
+    const branched = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-2', headTurnId: first, parentTurnId: null }),
+    );
+
+    expect(branched.kind).toBe('created');
+    expect(branched.kind === 'created' && branched.job.parentTurnId).toBeNull();
+    expect(first).not.toBeNull();
+  });
+
+  it('refuses a parent that is not a turn of this session', async () => {
+    // `walkPath` stops at a parent it cannot find rather than throwing, so a
+    // turn appended under an unknown id would start a line whose history begins
+    // in the middle — silently. The falsifying mutation is dropping the lookup.
+    await aTurn('key-1', null);
+
+    const invented = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-2', parentTurnId: uuidv7() }),
+    );
+    expect(invented.kind).toBe('no-parent');
+
+    // And a real turn id from a *different* session is the same answer, which
+    // is the ownership boundary rather than a lookup miss.
+    const elsewhere = (await createSession(sessions, ACCOUNT, 'Another city')).id;
+    const theirs = await submitTurn(context, {
+      account: ACCOUNT,
+      sessionId: elsewhere,
+      idempotencyKey: 'key-3',
+      headTurnId: null,
+    });
+    if (theirs.kind !== 'created') throw new Error('expected a reservation');
+    await appendTurnToSession(sessions, ACCOUNT, elsewhere, {
+      ...draftTurn(theirs.job),
+      sessionId: elsewhere,
+      status: 'complete',
+    });
+
+    const crossed = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-4', parentTurnId: theirs.job.turnId }),
+    );
+    expect(crossed.kind).toBe('no-parent');
+  });
+
+  it('answers a retry of a branching submission with the same job', async () => {
+    // The reservation is read before anything else, and branching does not get
+    // its own path through it: a client that reconnects mid-branch must not
+    // start a second one.
+    const first = await aTurn('key-1', null);
+    await aTurn('key-2', first);
+
+    const branched = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-3', parentTurnId: first }),
+    );
+    if (branched.kind !== 'created') throw new Error('expected a reservation');
+
+    const retry = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-3', parentTurnId: first }),
+    );
+    expect(retry.kind).toBe('existing');
+    expect(retry.kind === 'existing' && retry.job.id).toBe(branched.job.id);
+  });
+
+  it('still admits one turn at a time, branch or not', async () => {
+    // Gate step 12's other half. Two branches arriving at once are two turns in
+    // flight on one session, and the answer is the `busy` check that has been
+    // there since P2 — relaxing the head gate did not relax that one.
+    const first = await aTurn('key-1', null);
+
+    const branched = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-2', parentTurnId: first }),
+    );
+    expect(branched.kind).toBe('created');
+
+    const second = await submitTurn(
+      context,
+      submission({ idempotencyKey: 'key-3', parentTurnId: first }),
+    );
+    expect(second.kind).toBe('busy');
+  });
+});
+
 describe('the draft is checkpointed with its events', () => {
   it('sequences events in the transaction that writes the draft they describe', async () => {
     const submitted = await submitTurn(context, submission());
