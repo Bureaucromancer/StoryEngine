@@ -504,8 +504,52 @@ export function resumeFrom(
 }
 
 /** What moving the head can answer — [P6.1]. */
+/**
+ * What moving the head leaves behind — [09 §7]'s honesty banner, [§1.5],
+ * [P6.3].
+ *
+ * **Reversibility holds for channel state and not for what left the session.**
+ * A library write, a generated asset, a message an extension sent: branching
+ * cannot un-write those, and effects carry `scope: 'escaped'` so that a line
+ * somebody abandons can *say* how many of them it still has out in the world
+ * rather than implying they went with it.
+ *
+ * Counted over the turns that are on the old path and not on the new one, which
+ * is the honest definition of *abandoned*: everything before the fork is shared
+ * by construction and is not going anywhere.
+ *
+ * **Nothing writes an escaped effect yet**, and that is recorded rather than
+ * hidden: `acceptEffect` hard-codes `'session'`, so `escaped` is a count that
+ * is always zero until something produces one. [P6 §0.2] identifies the first
+ * producer as P8's memory extraction — memory books are ordinary library
+ * lorebooks, so every extraction is exactly the *lorebook entry promoted to the
+ * shared library* [09 §7] classifies as escaped. The count is here because the
+ * alternative is P8 shipping a producer with nowhere for it to surface.
+ */
+function abandonedBy(
+  from: readonly Turn[],
+  to: readonly Turn[],
+): { turns: number; escapedEffects: number } {
+  const joining = new Set(to.map((turn) => turn.id));
+  const left = from.filter((turn) => !joining.has(turn.id));
+  let escapedEffects = 0;
+  for (const turn of left) {
+    for (const effect of turn.effects) {
+      if (effect.scope === 'escaped') escapedEffects += 1;
+    }
+  }
+  return { turns: left.length, escapedEffects };
+}
+
 export type MoveHeadOutcome =
-  { kind: 'moved'; session: SessionFile } | { kind: 'no-session' } | { kind: 'no-turn' };
+  | {
+      kind: 'moved';
+      session: SessionFile;
+      /** What the old line still has out in the world — [09 §7], [P6.3]. */
+      abandoned: { turns: number; escapedEffects: number };
+    }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' };
 
 /**
  * Points the head at any node, and re-derives the channel state there — [P6.1].
@@ -567,7 +611,11 @@ export async function moveHead(
     };
     await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
     indexSession(context.index, scopeOf(context, handle), next);
-    return { kind: 'moved', session: next };
+    return {
+      kind: 'moved',
+      session: next,
+      abandoned: abandonedBy(walkPath(turns, session.headTurnId), path),
+    };
   });
 }
 
@@ -660,6 +708,165 @@ export async function deleteBranchRef(
     if (!refs.some((ref) => ref.id === refId)) return { kind: 'no-ref' };
     return refs.filter((ref) => ref.id !== refId);
   });
+}
+
+/** What an undo can answer — [§1.4], [13 §1.2.1], [P6.3]. */
+export type UndoOutcome =
+  | { kind: 'undone'; session: SessionFile; turn: Turn }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' }
+  /** On disk, but not on the line the head is on. */
+  | { kind: 'off-path' }
+  /** Nothing this turn wrote can be inverted — see the kinds below. */
+  | { kind: 'nothing-to-undo' }
+  /**
+   * Something wrote those keys after it, so `before` is not an inverse.
+   * `branchFrom` is the node to branch from instead — the refusal's whole
+   * point is that it can offer one.
+   */
+  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null };
+
+/**
+ * Undoes a turn's effects by applying their `before` — [§1.4],
+ * [13 §1.2.1](../../../../docs/design/13-internal-contracts.md).
+ *
+ * **`before` is only an inverse while nothing has touched the same key since**,
+ * and that sentence is the whole of this function. [13 §1.2.1] corrects an
+ * earlier draft that thought otherwise, with the case that makes it plain: HP
+ * goes 10 → 8 at turn N and 8 → 5 later; applying turn N's `before: 10` now
+ * does not undo turn N, it destroys the later change and produces a state no
+ * turn ever wrote. The value is plausible, so nothing surfaces. **Refusing is
+ * what converts a silent corruption into an affordance** — and the affordance
+ * is the one this phase built: branch from before it and play it differently.
+ *
+ * **The check reads the log rather than the index.** [13 §1.2.1] says *the
+ * index knows the latest effect per path*; this index knows no effects at all,
+ * and [P6.1] decided against the column that would have carried a path — a turn
+ * is on every path through it, so *latest on the path* is a question about the
+ * reader's head rather than a fact about a row. Walking the path from the log is
+ * O(depth) against turns already read, which is what everything else here costs.
+ *
+ * **The undo is an append, not an erasure.** A segment is never rewritten
+ * ([02 §5.5]), so the inverse lands as its own turn, attributed to the user, the
+ * way a hand edit does ([02 §8.1]). The record then says a person undid
+ * something, which is more honest than a history that quietly lacks it — and it
+ * is why undoing an undo is an ordinary undo.
+ *
+ * **Escaped effects are never inverted** ([09 §7]): a library write or a
+ * generated asset left the session, and pretending a branch can un-write it
+ * would be worse than saying plainly that it cannot.
+ */
+export async function undoTurn(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+): Promise<UndoOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+
+    const path = walkPath(turns, session.headTurnId);
+    const at = path.findIndex((turn) => turn.id === turnId);
+    const subject = path[at];
+    // A turn on an abandoned line has no *current* state to be the tip of, and
+    // inverting it would write its `before` into a line it was never on.
+    if (subject === undefined) return { kind: 'off-path' };
+
+    /**
+     * The pre-turn value per key, and the value standing now.
+     *
+     * **The first `before` and the last `after`**, because `acceptEffect`
+     * chains within a turn: a second effect on one key carries the first one's
+     * `after` as its `before`, so the earliest is the only one that names the
+     * state the turn began from.
+     */
+    const restore = new Map<string, { was: unknown; now: unknown; effect: ChannelEffect }>();
+    for (const effect of subject.effects) {
+      if (!effect.applied || effect.scope === 'escaped') continue;
+      const key = channelKey(effect.channelId, effect.scopeKey);
+      const held = restore.get(key);
+      restore.set(key, {
+        was: held === undefined ? effect.before : held.was,
+        now: effect.after,
+        effect,
+      });
+    }
+    if (restore.size === 0) return { kind: 'nothing-to-undo' };
+
+    const later = new Set<string>();
+    for (const turn of path.slice(at + 1)) {
+      for (const effect of turn.effects) {
+        if (!effect.applied || effect.scope === 'escaped') continue;
+        later.add(channelKey(effect.channelId, effect.scopeKey));
+      }
+    }
+
+    const blocked = [...restore.keys()].filter((key) => later.has(key));
+    if (blocked.length > 0) {
+      return { kind: 'not-at-tip', keys: blocked, branchFrom: subject.parentTurnId };
+    }
+
+    const id = uuidv7();
+    const effects = [...restore.entries()].map(([, held]) =>
+      inverseOf(id, held.effect, held.was, held.now),
+    );
+    const undone: Turn = {
+      id,
+      sessionId,
+      parentTurnId: session.headTurnId,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      effects,
+      tape: [],
+    };
+
+    await appendTurnOnly(context, handle, sessionId, undone);
+    const next = await advanceHead(context, handle, sessionId, undone);
+    if (next === null) return { kind: 'no-session' };
+    return { kind: 'undone', session: next, turn: undone };
+  });
+}
+
+/**
+ * One effect's inverse, attributed to the person who asked for it.
+ *
+ * **A `before` of null becomes a delete rather than a set to null**, and the
+ * ambiguity is worth naming: `acceptEffect` stamps `null` both for a key that
+ * held null and for one that did not exist, because it reads
+ * `running[key]?.value ?? null`. Restoring by *setting* null would leave the key
+ * present holding null, which for a timing counter is the difference between
+ * *this entry has never fired* and *this entry fired and the record of it is
+ * broken*. Deleting is the reading that matches every value the engine actually
+ * writes, all of which are objects.
+ */
+function inverseOf(
+  turnId: string,
+  effect: ChannelEffect,
+  was: unknown,
+  now: unknown,
+): ChannelEffect {
+  return {
+    id: uuidv7(),
+    turnId,
+    channelId: effect.channelId,
+    scopeKey: effect.scopeKey,
+    op: was === null ? { type: 'delete', path: '/' } : { type: 'set', path: '/' },
+    // Honest in both directions, so undoing an undo is an ordinary undo.
+    before: now,
+    after: was,
+    // The person who pressed it, not the engine that computed the original —
+    // the same attribution a hand edit gets, and for the same reason.
+    proposedBy: { kind: 'user' },
+    applied: true,
+    rejectedReason: null,
+    supersedes: effect.id,
+    channelVersion: effect.channelVersion,
+    scope: 'session',
+  };
 }
 
 /**

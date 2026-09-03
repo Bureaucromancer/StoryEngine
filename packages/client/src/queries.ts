@@ -427,7 +427,9 @@ export function useSession(
   return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
 }
 
-export function useTranscript(sessionId: string): UseQueryResult<{ turns: TurnRecord[] }> {
+export function useTranscript(
+  sessionId: string,
+): UseQueryResult<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
   return useQuery({
     queryKey: ['transcript', sessionId],
     queryFn: () => readTranscript(sessionId),

@@ -611,8 +611,40 @@ export function readSession(
   return request('GET', `/api/sessions/${sessionId}`);
 }
 
-export function readTranscript(sessionId: string): Promise<{ turns: TurnRecord[] }> {
+/**
+ * The path from the head, and which of its nodes have siblings — [P6.3].
+ *
+ * `siblings` maps a turn on the path to every child of its parent, in creation
+ * order, and only for nodes that have more than one. History shows the selected
+ * path only ([09 §6]), so this is how an alternative is reachable at all.
+ */
+export function readTranscript(
+  sessionId: string,
+): Promise<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
   return request('GET', `/api/sessions/${sessionId}/turns`);
+}
+
+/**
+ * Name a node — [09 §6]'s *promote*. A name and nothing more: no turn moves,
+ * and deleting one later deletes a name.
+ */
+export function createBranchRef(
+  sessionId: string,
+  name: string,
+  turnId: string,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/refs`, { name, turnId });
+}
+
+/**
+ * Undo a turn's effects — [§1.4]. Refused, with the branch offered, when
+ * something has written the same channels since.
+ */
+export function undoTurn(sessionId: string, turnId: string): Promise<{ session: SessionSummary }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/undo`,
+  );
 }
 
 /**

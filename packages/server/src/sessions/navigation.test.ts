@@ -12,6 +12,7 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import {
   appendTurnToSession,
+  childrenByParent,
   createBranchRef,
   createSession,
   deleteBranchRef,
@@ -313,5 +314,42 @@ describe('a branch ref is a name and nothing more', () => {
     const refs = third.kind === 'written' ? (third.session.branchRefs ?? []) : [];
     expect(refs.map((ref) => ref.name)).toEqual(['The ferryman', 'Where I was', 'The other way']);
     expect(new Set(refs.map((ref) => ref.id)).size).toBe(3);
+  });
+});
+
+describe('a tombstoned turn is not a sibling', () => {
+  it('is out of the children index, so navigation cannot reach it', async () => {
+    // [P6 §2]'s last hygiene item: tombstone skipping in the turn reader,
+    // verified where this phase newly depends on it. Nothing removes turns at
+    // 1.0 and compaction stays unbuilt — the format tolerates removal so that
+    // pruning is possible later without a migration ([02 §5.5]).
+    //
+    // What is new is that navigation asks the turn reader *who are this node's
+    // children*, and a tombstone that reached that answer would put a turn
+    // nobody can read into a sibling count, and let `resume` walk to it.
+    const session = await createSession(context, ACCOUNT, 'Rain City');
+    const t1 = await append(session.id, null, 1);
+    const real = await append(session.id, t1, 2);
+
+    const ghost = uuidv7();
+    await appendTurnToSession(context, ACCOUNT, session.id, {
+      id: ghost,
+      sessionId: session.id,
+      parentTurnId: t1,
+      createdAt: new Date(Date.UTC(2026, 8, 2, 8, 50)).toISOString(),
+      status: 'complete',
+      effects: [],
+      tape: [],
+      removed: true,
+    });
+
+    const turns = await readTurns(context, ACCOUNT, session.id);
+    expect(turns.has(ghost)).toBe(false);
+    expect([...(childrenByParent(turns).get(t1) ?? [])].map((child) => child.id)).toEqual([real]);
+
+    // And so `resume` follows the only *readable* child rather than stopping at
+    // a fork one of whose branches cannot be read.
+    const file = await onDisk(session.id);
+    expect(resumeFrom({ ...file, lastSelectedChild: {} }, turns, t1)).toBe(real);
   });
 });

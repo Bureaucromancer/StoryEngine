@@ -10,6 +10,7 @@ import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
+  childrenByParent,
   createBranchRef,
   createSession,
   deleteBranchRef,
@@ -24,6 +25,7 @@ import {
   readTurns,
   readTurnById,
   setArchived,
+  undoTurn,
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
@@ -475,7 +477,29 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const limit =
         query.limit === undefined ? 100 : Math.min(Math.max(Number(query.limit), 1), 1000);
 
-      return reply.send({ turns: path.slice(-limit) });
+      /**
+       * Which nodes on this path have siblings, and what they are — [§1.2],
+       * [P6.3].
+       *
+       * **History shows the selected path only** ([09 §6]), so the alternatives
+       * are not in `turns` and must be named some other way or they are
+       * unreachable — which is what [P2C §5] meant by *a storage affordance with
+       * no route*, and what [21 §4.3] predicted for an imported chat: swipes
+       * land correctly in the tree and cannot be seen.
+       *
+       * Only nodes that actually have alternatives appear. A map of every turn
+       * to its lone self would be a payload that grows with the transcript and
+       * says nothing, and the surface's rule is that an affordance appears where
+       * there is a choice.
+       */
+      const children = childrenByParent(byId);
+      const siblings: Record<string, string[]> = {};
+      for (const turn of path.slice(-limit)) {
+        const here = (children.get(turn.parentTurnId) ?? []).map((child) => child.id);
+        if (here.length > 1) siblings[turn.id] = here;
+      }
+
+      return reply.send({ turns: path.slice(-limit), siblings });
     },
   );
 
@@ -609,7 +633,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
         case 'moved':
-          return reply.send({ session: outcome.session });
+          // With what the line being left still has out in the world — [09 §7]'s
+          // honesty banner. Zero until something writes an escaped effect, and
+          // the field is here so the first producer has somewhere to surface.
+          return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
       }
     },
   );
@@ -624,6 +651,71 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * saying in the routing layer as well as in the store, since *delete branch*
    * is a phrase that sounds like it removes a story.
    */
+
+  /**
+   * Undo — apply an effect's `before`, or refuse and offer the branch —
+   * [§1.4], [13 §1.2.1], [P6.3].
+   *
+   * The refusal is the feature. `before` is an inverse only while nothing has
+   * touched the same key since; applying it otherwise destroys the later change
+   * and produces a state no turn ever wrote, plausibly enough that nothing
+   * surfaces. So a turn that is no longer the tip for its keys is refused with
+   * the keys that block it and the node to branch from instead — which is the
+   * thing this phase spent four stages making cheap.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/undo',
+    { schema: { params: TurnParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+
+      // The same rule a head move follows: a running turn is about to write
+      // state and move the head, and an undo racing it would be inverting
+      // against a tip that is moving underneath.
+      const active = activeJob(services.state.db, sessionId);
+      if (active !== null) {
+        return reply.code(409).send({
+          error: 'busy',
+          message: 'This session already has a turn in flight.',
+          job: active,
+        });
+      }
+
+      const outcome = await undoTurn(services.sessions, account.handle, sessionId, turnId);
+
+      switch (outcome.kind) {
+        case 'no-session':
+          return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'off-path':
+          return reply.code(409).send({
+            error: 'off-path',
+            message: 'That turn is not on the line this session is on.',
+          });
+        case 'nothing-to-undo':
+          return reply
+            .code(409)
+            .send({ error: 'nothing-to-undo', message: 'That turn changed no channel state.' });
+        case 'not-at-tip':
+          // With what blocks it and where to branch from, because a bare "no"
+          // leaves a UI able to offer only *try again*.
+          return reply.code(409).send({
+            error: 'not-at-tip',
+            message: 'Something has written those channels since. Branch instead.',
+            keys: outcome.keys,
+            branchFrom: outcome.branchFrom,
+          });
+        case 'undone':
+          return reply.send({ session: outcome.session, turn: outcome.turn });
+      }
+    },
+  );
   app.post(
     '/sessions/:sessionId/refs',
     { schema: { params: SessionParams, body: RefBody } },

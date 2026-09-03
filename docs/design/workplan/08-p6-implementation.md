@@ -1558,35 +1558,116 @@ reroll affordance is absent on a turn with an empty tape. (iv) §1.8 above.
 > **May not start before P6.1.** The two buttons need no draws and could in
 > principle precede the rewrite/reroll split; the split cannot.
 
-### P6.3 — Siblings, undo, and hygiene
+### ~~P6.3 — Siblings, undo, and hygiene~~ Landed
 
-**Builds:** §1.2's inline sibling affordance (count, prev/next,
-promote-to-named-ref). §1.4's tip-only undo — **the phase's most under-priced
-line**: nothing inverts an effect anywhere in the tree, and the
-`(channelId, scopeKey, path)` index §1.4 names has no table behind it. Two things
-P5 changed here: `applyEffects` now keys on
-`channelKey(effect.channelId, effect.scopeKey)` (`sessions/store.ts:445`), so an
-undo replaying `before` lands on the right entry's timing; and `acceptEffect`
-(`turns/effects.ts:49`) still refuses anything but a whole-value set at `/`,
-correct for P5's timing writes and the place a narrower undo op would first be
-met. §1.5's escaped-effect **producer** plus the abandonment banner — nothing
-writes `'escaped'` today. §1.6's branch-labelled search, over whichever column
-P6.1 decided. Tombstone skipping in the turn reader verified (compaction stays
-unbuilt — tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
+**Undo was the under-priced line and the estimate was right.** Nothing inverted
+an effect anywhere, and the `(channelId, scopeKey, path)` index §1.4 names still
+has no table — so `undoTurn` reads the log instead, which [P6.1] made the
+honest answer: a turn is on every path that passes through it, so *latest on the
+path* is a question about the reader's head rather than a fact about a row.
+Walking the path is O(depth) against turns already read.
 
-**Must prove:** (i) gate step 10 **extended past sticky** — a `sticky`, a
-`cooldown` and an `ephemeral` entry activated on one line are absent from a
-sibling line that branched before the activation. This should hold *by
-construction* through P6.0b; if it does not, the bug is in this phase's
-reconstruction and not in P5's key, which is a useful thing to know before
-debugging; (ii) gate step 4 — undo at the tip reverts locally, a deeper invert is
-refused, and the refusal offers the branch; (iii) gate step 5 — a character dead
-on one line is alive on the other; (iv) gate step 7 — search finds text on an
-abandoned branch, labelled, never passed off as current; (v) gate step 8 — kill
-the server, delete `index.sqlite`, restart, and the tree, refs and head survive.
+**The refusal is the feature, and it is the whole of the implementation.**
+`before` is an inverse only while nothing has touched the same key since;
+[13 §1.2.1]'s worked case is HP 10 → 8 at turn N and 8 → 5 later, where applying
+N's `before` now destroys the later change and leaves a state no turn ever
+wrote — plausibly, which is why it needs a check rather than a warning. A turn
+that is no longer the tip **for its keys** is refused with the keys that block
+it and the node to branch from instead. *Tip* is per key, not per turn: a later
+turn on a different channel does not block anything, and that is asserted.
 
-**May not start its §1.6 half before P6.1's column decision.** The rest may run
-in parallel with P6.2.
+Three details the code carries because none of them is obvious. The undo is an
+**append**, not an erasure — a segment is never rewritten ([02 §5.5]), so the
+inverse lands as its own turn attributed to the user, which also makes undoing
+an undo an ordinary undo. A key the turn **created** is restored by a `delete`
+rather than a set to null, because `acceptEffect` stamps `null` both for a key
+that held null and for one that did not exist, and for a timing counter the
+difference is *never fired* versus *fired, and the record of it is broken*. And
+a turn that wrote one key twice restores the **first** `before`, because
+`acceptEffect` chains within a turn and the latest names a state the turn
+itself produced.
+
+**Escaped effects are never inverted** ([09 §7]), which is where §1.5 lands.
+The abandonment count is on the head move — how many turns the old line keeps
+and how many escaped effects went with them — and it is **always zero**, because
+`acceptEffect` hard-codes `'session'` and nothing produces an escaped effect
+yet. That is written where the count is computed rather than left to be
+discovered: [P6 §0.2] identified the first producer as P8's memory extraction,
+since a memory book is an ordinary library lorebook and every extraction is the
+*lorebook entry promoted to the shared library* [09 §7] calls escaped. The
+count exists so that producer has somewhere to surface instead of arriving with
+nowhere to say it.
+
+**§1.6's labelled search is computed, not stored**, which is what [P6.1]'s
+column decision implies: the route answers *is this hit on the head you are on*
+per session in the results, and a hit off the path comes back marked, with the
+head it is not on. Never hidden, because the text is on the record and somebody
+wrote it; never unmarked, because that would pass it off as current.
+
+**§1.2's affordance is a count, two arrows and a name.** The transcript route
+names each path node's siblings — only where there is more than one, because a
+count of one on every turn is noise on every turn — and stepping to one is a
+head move **with `resume`**, so coming back to a line returns to where you were
+on it. Naming is [09 §6]'s *promote*: a name, and no data moves. The full tree
+visualiser stays post-1.0 ([14 §1]) and this is deliberately not a small one.
+
+**Tombstones**, the last hygiene item: `readTurns` drops them, so they never
+reach `childrenByParent` — which matters newly here, because navigation asks
+that function *who are this node's children* and a tombstone reaching the answer
+would put an unreadable turn in a sibling count and let `resume` walk to it.
+Compaction stays unbuilt: tolerated, not shipped ([02 §5.5]).
+
+**Nine mutations, all red** — and the pass earned its place again. Reporting no
+alternatives at a node with two children stayed green through the first run,
+because the test that was meant to catch it used *three* siblings and the
+threshold only breaks at two. One swipe is already an alternative, and the
+assertion is made there now. That is the sixth time in this phase a test has
+been green for a reason other than the one it claimed, and the sixth time the
+mutation pass is what found it.
+
+**Proof obligations.** (i) Gate step 10 past sticky — all three counters
+activate after a fork and none of them is on the sibling, asserted as an absent
+key rather than a zero value, since a decoder reads a missing key as zeros.
+(ii) Gate step 4 — the tip reverts, a deeper turn whose keys nothing touched
+also reverts, and one whose keys were written since is refused with the branch
+offered. (iii) Gate step 5 — a character dead on one line and alive on the
+other, through the replay and through the head. (iv) Gate step 7 — a hit on an
+abandoned line found, labelled, and the current head named beside it, with the
+converse asserted so the label cannot be a constant. (v) Gate step 8 — the
+server killed, `index.sqlite` deleted with its WAL, restarted: the tree, the
+ref and the parked head all survive, and the other line is still reachable.
+Gate step 2 came with them: three siblings, navigated among, one promoted, and
+nothing copied.
+
+*The stage as it was written:*
+
+> **Builds:** §1.2's inline sibling affordance (count, prev/next,
+> promote-to-named-ref). §1.4's tip-only undo — **the phase's most under-priced
+> line**: nothing inverts an effect anywhere in the tree, and the
+> `(channelId, scopeKey, path)` index §1.4 names has no table behind it. Two things
+> P5 changed here: `applyEffects` now keys on
+> `channelKey(effect.channelId, effect.scopeKey)` (`sessions/store.ts:445`), so an
+> undo replaying `before` lands on the right entry's timing; and `acceptEffect`
+> (`turns/effects.ts:49`) still refuses anything but a whole-value set at `/`,
+> correct for P5's timing writes and the place a narrower undo op would first be
+> met. §1.5's escaped-effect **producer** plus the abandonment banner — nothing
+> writes `'escaped'` today. §1.6's branch-labelled search, over whichever column
+> P6.1 decided. Tombstone skipping in the turn reader verified (compaction stays
+> unbuilt — tolerated, not shipped, per [02 §5.5](../02-data-model.md)).
+>
+> **Must prove:** (i) gate step 10 **extended past sticky** — a `sticky`, a
+> `cooldown` and an `ephemeral` entry activated on one line are absent from a
+> sibling line that branched before the activation. This should hold *by
+> construction* through P6.0b; if it does not, the bug is in this phase's
+> reconstruction and not in P5's key, which is a useful thing to know before
+> debugging; (ii) gate step 4 — undo at the tip reverts locally, a deeper invert is
+> refused, and the refusal offers the branch; (iii) gate step 5 — a character dead
+> on one line is alive on the other; (iv) gate step 7 — search finds text on an
+> abandoned branch, labelled, never passed off as current; (v) gate step 8 — kill
+> the server, delete `index.sqlite`, restart, and the tree, refs and head survive.
+>
+> **May not start its §1.6 half before P6.1's column decision.** The rest may run
+> in parallel with P6.2.
 
 *Ends at:* the demo.
 
@@ -1604,6 +1685,9 @@ actually landed and the gate could name real state instead of hypothetical.*
 2. Swipe a reply → a sibling; swipe again → a third; navigate among them; the
    discarded ones still exist an hour later. Promote one to a named ref —
    nothing copies.
+   **Covered at P6.3** in `routes/p6-gate.test.ts`, including the two-child
+   case: one swipe is already an alternative, and a test that only ever looked
+   at three passed a threshold that hid the first.
 3. Rewrite a turn that rolled dice → same outcome, different prose; reroll →
    new outcome; the record marks replayed vs fresh draws.
    **Covered at P6.2** in `routes/branching.test.ts`, over a session that
@@ -1622,8 +1706,12 @@ actually landed and the gate could name real state instead of hypothetical.*
    drawing.
 4. Undo the newest turn → channel state reverts locally; attempt to invert a
    deeper effect → refused, branch offered (§1.4).
+   **Covered at P6.3** in `sessions/undo.test.ts`. *Tip* turned out to be per
+   **key** rather than per turn, which is what [13 §1.2.1] says and what makes
+   a deeper turn nothing has written over still undoable.
 5. A character dead on one line is alive on the other; timing counters
    ([07 §1.1](07-p5-implementation.md)) diverge per line correctly.
+   **Covered at P6.3**, through the replay and through the head.
 6. Delete every snapshot → everything still works, slower; the property test
    asserts equality at every index.
    **Covered at P6.0d**, twice: `sessions/snapshots.test.ts` deletes the
@@ -1633,8 +1721,12 @@ actually landed and the gate could name real state instead of hypothetical.*
    *replay-from-zero must equal snapshot-plus-replay at every index*, which it
    asks CI for by name.
 7. Search finds text on an abandoned branch, labelled as such (§1.6).
+   **Covered at P6.3**, with the converse asserted too — otherwise the label
+   could be a constant `false` and the step would still pass.
 8. Kill the server, delete `index.sqlite`, restart → the tree, refs and head
    all survive; only derived things were lost.
+   **Covered at P6.3**, WAL files included — deleting the main file alone
+   leaves a log SQLite recovers from, and the step would assert nothing.
 
 9. ~~**`sessions.snapshotEveryNTurns` reads `applied`**~~ **Done at P6.0d**: the
    row says `applied`, `reconstructAlong` reads it per reconstruction through a
@@ -1654,7 +1746,12 @@ actually landed and the gate could name real state instead of hypothetical.*
    already attached to it.
 10. **A sticky lore entry does not leak across a branch** (§1.9): activate one on
     a line, branch from a node before the activation, and the sibling line does
-    not have it. ~~Whether that holds by construction or by repair depends on
+    not have it.
+    **Covered at P6.3** for all three counters, asserted as an **absent key**
+    rather than a zero value — `timingOf` reads a missing key as zeros, so a
+    value assertion would pass on a branch that had inherited nothing *and* on
+    one that had inherited everything and then been zeroed.
+    ~~Whether that holds by construction or by repair depends on
     which phase shipped first, and the gate does not care which.~~ **P5 shipped
     first and paid**, so this should hold *by construction* — `se.lore.timing`
     effects are keyed `se.lore.timing#<entryId>` and replay along the walked path

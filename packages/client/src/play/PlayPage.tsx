@@ -7,7 +7,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { cancelTurn, moveHead, submitTurn, type TurnRecord } from '../api.js';
+import {
+  cancelTurn,
+  createBranchRef,
+  moveHead,
+  submitTurn,
+  undoTurn,
+  type TurnRecord,
+} from '../api.js';
 import {
   liveKey,
   previewKey,
@@ -141,6 +148,21 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
    * wherever the head is, so pointing at an old message and then typing is
    * exactly *continue from here*. Nothing is submitted, and no turn moves.
    */
+  /**
+   * Stepping to a sibling — [§1.2].
+   *
+   * `resume: true`, so coming back to a line returns to where you were on it
+   * rather than to its first turn ([09 §3]).
+   */
+  const goToSibling = useMutation({
+    mutationFn: (turnId: string) => moveHead(sessionId, turnId, true),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+
   const continueFrom = useMutation({
     mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.id),
     onSuccess: () => {
@@ -148,6 +170,30 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
       void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
+  });
+
+  /**
+   * Undo, and naming a line — [§1.4], [§1.2], [P6.3].
+   *
+   * Both refresh the same two entries a head move does, because both change
+   * what the session file says: undo appends a turn and advances the head, and
+   * a name is a write to `branchRefs`.
+   */
+  const refreshSession = () => {
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+    void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+  };
+
+  const undo = useMutation({
+    mutationFn: (turn: TurnRecord) => undoTurn(sessionId, turn.id),
+    onSuccess: refreshSession,
+  });
+
+  const name = useMutation({
+    mutationFn: (named: { turnId: string; name: string }) =>
+      createBranchRef(sessionId, named.name, named.turnId),
+    onSuccess: refreshSession,
   });
 
   /**
@@ -252,12 +298,28 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
           <TurnView
             key={turn.id}
             turn={turn}
-            busy={running || redo.isPending || continueFrom.isPending}
+            siblings={transcript.data?.siblings?.[turn.id] ?? []}
+            busy={
+              running ||
+              redo.isPending ||
+              continueFrom.isPending ||
+              undo.isPending ||
+              name.isPending
+            }
             onRedo={(subject, rewrite) => {
               redo.mutate({ turn: subject, rewrite });
             }}
             onContinueFrom={(subject) => {
               continueFrom.mutate(subject);
+            }}
+            onUndo={(subject) => {
+              undo.mutate(subject);
+            }}
+            onGoToSibling={(turnId) => {
+              goToSibling.mutate(turnId);
+            }}
+            onName={(turnId, given) => {
+              name.mutate({ turnId, name: given });
             }}
           />
         ))}
@@ -352,14 +414,22 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
  */
 function TurnView({
   turn,
+  siblings,
   busy,
   onRedo,
   onContinueFrom,
+  onUndo,
+  onGoToSibling,
+  onName,
 }: {
   turn: TurnRecord;
+  siblings: string[];
   busy: boolean;
   onRedo: (turn: TurnRecord, rewrite: boolean) => void;
   onContinueFrom: (turn: TurnRecord) => void;
+  onUndo: (turn: TurnRecord) => void;
+  onGoToSibling: (turnId: string) => void;
+  onName: (turnId: string, name: string) => void;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([02 §8.1]) is the one that exists today — so there is nothing to
@@ -416,8 +486,133 @@ function TurnView({
         >
           Continue from here
         </Button>
+        {/* Undo is offered on every turn and refused by the server when
+            something has written the same channels since — the refusal is the
+            feature ([§1.4]), and hiding the button would make the rule
+            invisible instead of explaining it. */}
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            onUndo(turn);
+          }}
+        >
+          Undo
+        </Button>
       </div>
+
+      <SiblingStrip
+        turn={turn}
+        siblings={siblings}
+        busy={busy}
+        onGo={onGoToSibling}
+        onName={onName}
+      />
     </li>
+  );
+}
+
+/**
+ * The inline affordance on a node that has siblings — [§1.2], [09 §6], [P6.3].
+ *
+ * **History shows the selected path only**, so this is the whole of how an
+ * alternative is reachable: a count, a way to step between them, and a way to
+ * give one a name. The full tree visualiser is post-1.0 ([14 §1]) and this is
+ * deliberately not a small version of it — it answers *there are others* and
+ * *take me to one*, which is what a person swiping needs.
+ *
+ * **Stepping resumes rather than lands.** Moving to a sibling follows what was
+ * last selected below it, so coming back to a line you explored returns to
+ * where you were on it instead of to its first turn.
+ */
+function SiblingStrip({
+  turn,
+  siblings,
+  busy,
+  onGo,
+  onName,
+}: {
+  turn: TurnRecord;
+  siblings: string[];
+  busy: boolean;
+  onGo: (turnId: string) => void;
+  onName: (turnId: string, name: string) => void;
+}): React.JSX.Element | null {
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+
+  const at = siblings.indexOf(turn.id);
+  if (siblings.length < 2 || at < 0) return null;
+
+  const previous = siblings[at - 1];
+  const next = siblings[at + 1];
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-ink-subtle">
+      <Button
+        type="button"
+        disabled={busy || previous === undefined}
+        onClick={() => {
+          if (previous !== undefined) onGo(previous);
+        }}
+        aria-label="Previous version"
+      >
+        ‹
+      </Button>
+      {/* A count, not a list: which of these you are on is the fact, and the
+          others are addressed by stepping rather than by being enumerated. */}
+      <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
+      <Button
+        type="button"
+        disabled={busy || next === undefined}
+        onClick={() => {
+          if (next !== undefined) onGo(next);
+        }}
+        aria-label="Next version"
+      >
+        ›
+      </Button>
+
+      {naming ? (
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim().length === 0) return;
+            onName(turn.id, name.trim());
+            setNaming(false);
+            setName('');
+          }}
+        >
+          <label>
+            <span className="sr-only">Name for this line</span>
+            <input
+              className={control}
+              value={name}
+              placeholder="Name this line"
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
+            />
+          </label>
+          <Button type="submit" variant="primary">
+            Save
+          </Button>
+        </form>
+      ) : (
+        // Promoting a swipe writes a name and moves no data ([09 §6]), which is
+        // why this sits beside the count rather than behind a confirmation.
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setNaming(true);
+          }}
+        >
+          Name this line
+        </Button>
+      )}
+    </div>
   );
 }
 

@@ -627,7 +627,7 @@ object, oldest unpinned first.
 
 ### `GET /api/search?q=&limit=`
 
-`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, segment, offset, onPath, headTurnId } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
 
 Full-text across all three, because a person looking for *the cathedral* does not
 know or care whether they wrote it in a lorebook, in one entry of one, or said it
@@ -754,9 +754,15 @@ session's turns are its history, and deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns }` — the path from the head, **oldest first**, not every turn in the file. A
-session is a tree that P2 happens to use linearly, and a transcript is one walk
-of it.
+`{ turns, siblings }` — the path from the head, **oldest first**, not every turn
+in the file. A session is a tree, and a transcript is one walk of it.
+
+`siblings` maps a turn on that path to every child of its parent, in creation
+order, and **only for nodes that have more than one**. History shows the
+selected path only ([09 §6](design/09-branching.md)), so this is how an
+alternative is reachable at all — a swipe is a sibling nobody named, and without
+this it would be on disk and invisible. A map of every turn to its lone self
+would grow with the transcript and say nothing.
 
 ### `POST /api/sessions/:sessionId/turns`
 
@@ -827,9 +833,16 @@ somebody else's session is the same `404` as one that never existed.
 { turnId: string, resume?: boolean }
 ```
 
-→ **200** `{ session }`; **404 `not-found`** for the session, **404
+→ **200** `{ session, abandoned }`; **404 `not-found`** for the session, **404
 `no-such-turn`** when `turnId` is not a turn of it, **409 `busy`** carrying the
 active `job`.
+
+`abandoned` is `{ turns, escapedEffects }` — what the line being left keeps, and
+how many of its effects escaped the session ([09 §7]). Reversibility holds for
+channel state and not for what left: a library write or a generated asset cannot
+be un-written by branching, so an abandoned line says how many it still has out
+in the world. **It is zero until something writes an escaped effect**, which
+nothing does yet.
 
 **Moving the head moves no turn data.** It is where you are in the tree
 ([09 §3](design/09-branching.md)) — every node on both lines stays exactly where
@@ -846,6 +859,27 @@ where a server would be inventing your story for you.
 [P2 §2.10](design/workplan/04-p2-implementation.md) gives about submissions: the
 running turn will set the head when it commits, so a move that raced it would
 either be overwritten without a word or overwrite the turn's own parentage.
+
+### `POST /api/sessions/:sessionId/turns/:turnId/undo`
+
+→ **200** `{ session, turn }`; **404** for the session or the turn; **409
+`busy`** while a turn is in flight; **409 `off-path`** for a turn on a line this
+session is not on; **409 `nothing-to-undo`** for a turn that changed no channel
+state; **409 `not-at-tip`** carrying `keys` and `branchFrom`.
+
+**Undo applies the effect's `before`, and the refusal is the feature.** That is
+an inverse only while nothing has touched the same key since — apply it after
+something has and you destroy the later change and produce a state no turn ever
+wrote, plausibly enough that nothing surfaces
+([13 §1.2.1](design/13-internal-contracts.md)). So a turn that is no longer the
+tip **for its keys** is refused with the keys that block it and the node to
+branch from instead. *Tip* is per key: a later turn on a different channel
+blocks nothing.
+
+**The undo is an append**, not an erasure — the inverse lands as its own turn,
+attributed to the person, which is why undoing an undo is an ordinary undo.
+Escaped effects are never inverted ([09 §7]): what left the session cannot be
+un-written, and saying so is better than pretending.
 
 ### `POST /api/sessions/:sessionId/refs`
 
