@@ -76,18 +76,16 @@ import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js'
  * beliefs while the real ones drifted (`routes/p2-gate-storage.test.ts` says
  * the same about step 16).
  *
- * **What this file does not assert: `session.channels` after the fork.**
- * `advanceHead` folds a new turn's effects onto whatever the head's map was
- * rather than onto the parent's, so appending a sibling can leave the file
- * describing a state no path has. For this fixture the divergence is
- * transient: after the first sibling the file carries the cooldown counter it
- * inherited from the other line's tip, and by the sibling line's own tip every
- * inherited key has been overwritten by a whole-value set, so the file and the
- * replay coincide again. That is P6.0b's bug, and its test has to read the file
- * at the moment of divergence rather than at the end; asserting either state
- * here would pin the defect or fail until it is fixed, and this stage's charter
- * is to hold *as the code stands today* so that P6.0b's diff has a property to
- * be reviewed against.
+ * **The head snapshot, which this file could not assert when it was written.**
+ * At P6.0a `advanceHead` folded a new turn's effects onto whatever the head's
+ * map was rather than onto the parent's, so appending a sibling left the file
+ * describing a state no path had — and asserting that either way would have
+ * pinned the defect or failed until it was fixed. **[P6.0b] fixed it**, and the
+ * last test now says so on the richest fork in the suite: the snapshot is the
+ * replay at the head it names. `snapshotIsAt` is why that is worth one line
+ * here as well as at store level — two readers take the file's map for the
+ * head and replay for every other node, and this fixture is the only one whose
+ * effects are lore rather than a clock.
  */
 
 const ACCOUNT = 'ned';
@@ -352,6 +350,9 @@ interface Fixture {
   nodes: ReadonlyMap<NodeName, Played>;
   /** The session file as it stood after `t4`, before any sibling existed. */
   headBeforeFork: SessionFile;
+  /** And as it stood the moment the first sibling landed, which is where a
+   * wrong parent map shows before later writes cover it over. */
+  fileAfterFork: SessionFile;
   turns: Map<string, Turn>;
 }
 
@@ -359,6 +360,7 @@ async function buildOnDisk(): Promise<Fixture> {
   const session = await createSession(context, ACCOUNT, { name: 'Rain City', lore: ['book-1'] });
   const nodes = new Map<NodeName, Played>();
   let headBeforeFork: SessionFile | null = null;
+  let fileAfterFork: SessionFile | null = null;
 
   for (const [at, step] of SCRIPT.entries()) {
     if (step.name === 's2') headBeforeFork = await onDisk(session.id);
@@ -367,13 +369,17 @@ async function buildOnDisk(): Promise<Fixture> {
     const played = playTurn(session.id, parent, step.text, at);
     await appendTurnToSession(context, ACCOUNT, session.id, played.turn);
     nodes.set(step.name, played);
+    if (step.name === 's2') fileAfterFork = await onDisk(session.id);
   }
-  if (headBeforeFork === null) throw new Error('the fork never happened');
+  if (headBeforeFork === null || fileAfterFork === null) {
+    throw new Error('the fork never happened');
+  }
 
   return {
     sessionId: session.id,
     nodes,
     headBeforeFork,
+    fileAfterFork,
     turns: await readTurns(context, ACCOUNT, session.id),
   };
 }
@@ -494,13 +500,22 @@ describe('reconstruction from zero', () => {
 
     // The store took the sibling appends without complaint — the head gate that
     // refuses a non-head parent lives in `state/jobs.ts`, not here — and the
-    // head now points at s4. What the file's `channels` say is deliberately not
-    // asserted: `advanceHead` folded each sibling onto the previous head's map,
-    // so after s2 the file carried t4's cooldown counter on a path that never
-    // wrote one, and by s4 every inherited key had been overwritten and the
-    // file agreed with the replay again. That is P6.0b's to fix, and its test
-    // has to look at the moment of divergence rather than at the tip.
-    expect((await onDisk(fixture.sessionId)).headTurnId).toBe(node(fixture, 's4').turn.id);
+    // head now points at s4.
+    const file = await onDisk(fixture.sessionId);
+    expect(file.headTurnId).toBe(node(fixture, 's4').turn.id);
+
+    // And the snapshot is the replay at the head it names — [P6.0b], asserted
+    // **at the fork rather than at the tip**, which is the whole subtlety.
+    // Before P6.0b `advanceHead` folded each sibling onto the *previous head's*
+    // map, so the file that s2 wrote carried t4's cooldown counter on a path
+    // that never wrote one. By s4 the sibling line has written that key twice
+    // itself and the file agrees with the replay again — so the same assertion
+    // one node later passes the bug it was written to catch. This fixture is
+    // also the only one whose stranded key is lore rather than a clock, and a
+    // whole-value set of the clock lands on the same number whichever map it
+    // folds onto.
+    expect(fixture.fileAfterFork.headTurnId).toBe(node(fixture, 's2').turn.id);
+    expect(fixture.fileAfterFork.channels).toEqual(replayedAt(fixture, 's2'));
   });
 });
 

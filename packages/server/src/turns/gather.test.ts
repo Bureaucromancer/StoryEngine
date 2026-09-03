@@ -73,7 +73,10 @@ function clockEffect(turnId: string, hour: number): ChannelEffect {
 }
 
 /** A session of `count` turns in a line, each moving the clock on by an hour. */
-async function aSessionOf(count: number): Promise<{ sessionId: string; head: string }> {
+async function aSessionOf(
+  count: number,
+): Promise<{ sessionId: string; head: string; ids: string[] }> {
+  const ids: string[] = [];
   const session = await createSession(sessions, ACCOUNT, 'Rain City');
   let parent: string | null = null;
 
@@ -89,11 +92,12 @@ async function aSessionOf(count: number): Promise<{ sessionId: string; head: str
       tape: [],
     };
     await appendTurnToSession(sessions, ACCOUNT, session.id, turn);
+    ids.push(id);
     parent = id;
   }
 
   if (parent === null) throw new Error('a session of no turns has no head');
-  return { sessionId: session.id, head: parent };
+  return { sessionId: session.id, head: parent, ids };
 }
 
 describe('the history the collector is given', () => {
@@ -150,6 +154,80 @@ describe('the channels the collector is given', () => {
 
     expect(inputs.session).not.toBeNull();
     expect(inputs.channels[CLOCK]?.value).toEqual({ hour: 3 });
+  });
+
+  it('replays them at the node asked for, rather than reading the head’s', async () => {
+    // [P6.0b]: the file's map is state at `headTurnId` and at no other node, so
+    // preferring it whenever the file was readable assembled this history
+    // against another node's state. Assembling at the first of three turns is
+    // the cheapest demonstration — one hour in, not three — and it is the same
+    // fault a branch gesture meets, since an ancestor is no more the head than
+    // a sibling is.
+    const { sessionId, ids } = await aSessionOf(3);
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: ids[0] ?? null },
+    );
+
+    expect(inputs.session).not.toBeNull();
+    expect(inputs.channels[CLOCK]?.value).toEqual({ hour: 1 });
+  });
+
+  it('gives an abandoned line its own state while the head is on a sibling', async () => {
+    // The case the phase is for, driven at the level the runner drives it: the
+    // head is on one branch and the assembly is asked for the other. The clock
+    // alone would not show a wrong map — a whole-value set lands on the same
+    // number whichever map it folds onto — so the abandoned line writes a
+    // second key that the sibling's path never wrote, which is what P5's lore
+    // timing looks like on the wire.
+    const { sessionId, ids } = await aSessionOf(1);
+    const fork = ids[0] ?? null;
+
+    const abandonedId = uuidv7();
+    await appendTurnToSession(sessions, ACCOUNT, sessionId, {
+      id: abandonedId,
+      sessionId,
+      parentTurnId: fork,
+      createdAt: new Date(Date.UTC(2026, 7, 16, 2)).toISOString(),
+      status: 'complete',
+      effects: [
+        clockEffect(abandonedId, 2),
+        {
+          ...clockEffect(abandonedId, 2),
+          channelId: 'se.lore.timing',
+          scopeKey: 'ferryman',
+          before: null,
+          after: { sticky: 0, cooldown: 2, fired: 1 },
+        },
+      ],
+      tape: [],
+    });
+
+    const siblingId = uuidv7();
+    await appendTurnToSession(sessions, ACCOUNT, sessionId, {
+      id: siblingId,
+      sessionId,
+      parentTurnId: fork,
+      createdAt: new Date(Date.UTC(2026, 7, 16, 3)).toISOString(),
+      status: 'complete',
+      effects: [clockEffect(siblingId, 50)],
+      tape: [],
+    });
+
+    // The head is the sibling; the assembly is asked for the other line's tip.
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: abandonedId },
+    );
+
+    expect(inputs.session?.headTurnId).toBe(siblingId);
+    expect(inputs.channels[CLOCK]?.value).toEqual({ hour: 2 });
+    expect(inputs.channels['se.lore.timing#ferryman']?.value).toEqual({
+      sticky: 0,
+      cooldown: 2,
+      fired: 1,
+    });
   });
 });
 

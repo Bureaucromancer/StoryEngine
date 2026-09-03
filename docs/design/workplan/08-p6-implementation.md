@@ -637,6 +637,12 @@ prose the model is given rather than a field on the screen, and is therefore the
 kind of bug a person notices as *the writing got strange* three sessions later.
 Fix the triple first.
 
+**Two of the three are fixed** (P6.0b, 2026-09-02). `advanceHead` and
+`gatherAssemblyInputs` take the map at the node rather than the head's, through
+one predicate — `snapshotIsAt` — and with the refusal still in place, so that
+diff was a fix rather than a fix and a feature at once. The third is the
+refusal itself, and relaxing it is P6.0c.
+
 Two smaller orderings, each cheap to get right and annoying to retrofit:
 
 - ~~**The effect log's key space, if §1.9 is to hold by construction.**
@@ -969,8 +975,12 @@ counter on a path that never wrote one — and by `s4` every inherited key had
 been overwritten by a whole-value set and the file agreed with the replay
 again. The divergence is real and transient, and P6.0b's test has to look at
 the moment it exists rather than at the tip, where this fixture would pass
-the fix and the bug alike. What this property sees is the walk, the fold, the
-segment reader, `acceptEffect` and the retriever; it does not call
+the fix and the bug alike. *Closed at P6.0b, and the warning earned its keep:*
+the first assertion written there was at the tip, it passed, and it stayed
+green when the fold was reverted. This fixture asserts the snapshot at the
+**fork** now, which is where a wrong parent map is visible. What this property
+sees is the walk, the fold, the segment reader, `acceptEffect` and the
+retriever; it does not call
 `advanceHead` or `gatherAssemblyInputs`, so P6.0b's proof (ii) is its own test
 and not this one twice. Generative coverage *with* disk is P6.0d's, where a
 second implementation exists to compare against.
@@ -1003,30 +1013,100 @@ second implementation exists to compare against.
 > **Blocks:** everything else in the phase. Without it, P6.0b's regression is
 > invisible.
 
-#### P6.0b — fix the two head-snapshot readers, with the gate still closed
+#### ~~P6.0b — fix the two head-snapshot readers, with the gate still closed~~ Landed
 
-**Builds:** `advanceHead` (`sessions/store.ts:372`) stops computing
-`applyEffects(session.channels, turn.effects)` from whatever the head's map
-happened to be, and takes its parent map from the node being appended to.
-`gatherAssemblyInputs` (`turns/gather.ts:91`) stops preferring `session.channels`
-when the file exists and takes channels from the walked history it already
-computed at `:86` — the `session ? session.channels : replayChannels(history)`
-ternary is the exact line, and the `session.channels` arm is what pairs one
-branch's history with another's state.
+Both readers now ask the same question, and it is asked in one place:
+`snapshotIsAt` (`sessions/store.ts`), a type predicate whose whole body is
+*the file's map is the state at the head and at no other node*. `advanceHead`
+takes the head's map when the turn being appended is a child of the head and
+replays the parent's path otherwise; `gatherAssemblyInputs` takes it when the
+node being assembled at *is* the head and replays the walked history it had
+already computed otherwise. The stage is two expressions and a docstring.
 
-**Must prove:** (i) with the head gate **still in place**, every existing test
-passes unchanged — no behaviour change at the head, which is what makes the diff
-reviewable; (ii) driven at store level with a hand-built sibling, both functions
-return the *sibling's* state and not the head's; (iii) P6.0a's property still
-holds.
+**One rule rather than two, and that is load-bearing rather than tidy.** The
+runner chains its effects' `before` values from the map the gather hands it,
+and `advanceHead` folds those same effects onto the map it chooses; if the two
+disagreed about which node's state that is, every effect would record an
+inverse against a state the fold never had — and `before` is exactly what
+§1.4's undo replays at P6.3. The bug and its fix are one decision, so they are
+one function.
 
-*Why this is sharper after P5:* the symptom of the wrong map used to be a wrong
-clock, which is one visibly bogus number. It is now also wrong **lore** — entries
-sticky that never fired on this path, an `ephemeral` spent by a turn not in this
-history — which changes the prose the model is given rather than a field on the
-screen, and is noticed as *the writing got strange* three sessions later.
+**The hand-edit arm was kept on purpose, and it had no test.** Preferring the
+file at the head is not merely a saved read: a person who opens `session.json`
+has expressed an intent, and `reconcileHandEdits` calls recomputing over the
+top of it *"the worst of the three possible behaviours"*. Every existing test
+of that mechanism reconciles first, so the *unreconciled* case — the one the
+arm exists for — could be deleted with the suite green. `channels.test.ts`
+gained it: a hand edit on a channel the next turn does not write survives that
+turn, and is still absent from the log, which is the divergence the read route
+closes.
 
-**May not start before P6.0a. Must complete before P6.0c.**
+**The trap this stage nearly walked into is worth more than the fix.** P6.0a's
+record predicted that a test of this fix has to read the file *at the moment of
+divergence* rather than at the tip, because later whole-value sets cover the
+stranded key over. The first version of the assertion added here did exactly
+what the record warned against — asserted at the sibling line's tip, passed,
+and stayed green when `advanceHead` was reverted. It is asserted at the fork
+now, and the same reason explains why a clock-only fixture cannot see this
+class of fault at all: a whole-value set lands on the same number whichever map
+it folds onto. What shows it is a key the abandoned line wrote and this one
+never did, which since P5 is lore timing.
+
+**Five mutations, four red, one equivalent.** Killed: `advanceHead` folding
+onto the head's map again (caught at store level *and* by P6.0a's fork
+assertion, on the only fixture in the suite whose stranded key is lore);
+`gatherAssemblyInputs` preferring the file whenever it exists (both new gather
+tests); `snapshotIsAt` never true, which makes both readers replay and an
+unreconciled hand edit vanish (the new `channels.test.ts` case, and nothing
+else — it was unfalsifiable before); and `snapshotIsAt` ignoring the node,
+which is the pre-P6.0b behaviour in both readers at once (four tests). The
+equivalent one: replaying the path to *the turn itself* rather than to its
+parent changes nothing, because every effect op the vocabulary admits is
+idempotent — `acceptEffect` refuses anything but a whole-value set at `/`, and
+a delete of an absent key is a delete. It becomes falsifiable the day that
+refusal is relaxed, which `acceptEffect`'s own comment says is where a narrower
+op has to be met first; re-mutate that line then.
+
+**Proof obligations, in the stage's own order.** (i) The head gate is
+untouched, `state/jobs.ts` still refuses a non-head parent, and the whole suite
+passes unchanged — no existing test was edited to accommodate the fix, and the
+one existing test whose name reads like the removed behaviour (*takes the
+file's channels when it has them*) is still true, because it assembles at the
+head. (ii) Driven at store level with a hand-built sibling, and through the
+gather with the head parked on the other branch, both functions return the
+node's own state. (iii) P6.0a's property holds unchanged, and its fixture now
+carries the fork assertion.
+
+**What it costs.** Nothing on the path P2 produces: a child of the head is
+still one read of the session file and no walk. A sibling append pays one cold
+read of the segments, and an interrupted commit's resumed head advance pays the
+same — `advanceHead` stays idempotent, by a slightly different argument that is
+written above it. Making that walk cheap is P6.0d.
+
+*The stage as it was written:*
+
+> **Builds:** `advanceHead` (`sessions/store.ts:372`) stops computing
+> `applyEffects(session.channels, turn.effects)` from whatever the head's map
+> happened to be, and takes its parent map from the node being appended to.
+> `gatherAssemblyInputs` (`turns/gather.ts:91`) stops preferring `session.channels`
+> when the file exists and takes channels from the walked history it already
+> computed at `:86` — the `session ? session.channels : replayChannels(history)`
+> ternary is the exact line, and the `session.channels` arm is what pairs one
+> branch's history with another's state.
+>
+> **Must prove:** (i) with the head gate **still in place**, every existing test
+> passes unchanged — no behaviour change at the head, which is what makes the diff
+> reviewable; (ii) driven at store level with a hand-built sibling, both functions
+> return the *sibling's* state and not the head's; (iii) P6.0a's property still
+> holds.
+>
+> *Why this is sharper after P5:* the symptom of the wrong map used to be a wrong
+> clock, which is one visibly bogus number. It is now also wrong **lore** — entries
+> sticky that never fired on this path, an `ephemeral` spent by a turn not in this
+> history — which changes the prose the model is given rather than a field on the
+> screen, and is noticed as *the writing got strange* three sessions later.
+>
+> **May not start before P6.0a. Must complete before P6.0c.**
 
 #### P6.0c — relax the head gate, and decide §1.7's stale-head case in the same commit
 

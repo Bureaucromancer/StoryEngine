@@ -355,6 +355,12 @@ export async function appendTurnOnly(
  * running it twice produces the state it produced the first time. That is what
  * makes step 3 of the commit protocol safe to resume without knowing whether it
  * already ran.
+ *
+ * **Still idempotent after [P6.0b], by a slightly different argument.** A second
+ * run finds the head already naming this turn, so the parent map is replayed
+ * from the log rather than read off the file — and the same effects folded onto
+ * the same parent state land on the same map. The resume costs one walk it did
+ * not cost before, on a path that runs when a commit was interrupted.
  */
 export async function advanceHead(
   context: SessionContext,
@@ -365,11 +371,35 @@ export async function advanceHead(
   const session = await readSession(context, handle, sessionId);
   if (session === null) return null;
 
+  /**
+   * **The map at the node this turn was appended to, not the map the head
+   * happened to hold** — [P6.0b].
+   *
+   * This read `session.channels` unconditionally, which is correct for the only
+   * shape P2 can produce — a child of the head — and wrong for every gesture P6
+   * adds: append a sibling and the new state is the *abandoned* line's, plus
+   * this turn's effects. It was unreachable while `submitTurn`'s head-equality
+   * refusal held, and it is fixed here with that refusal still in place, so the
+   * diff is a fix rather than a fix and a feature at once.
+   *
+   * **A clock-only fixture cannot see the difference**, which is why this went
+   * five phases without being noticed: a whole-value set lands on the same
+   * number whichever map it folds onto. What shows it is a key the abandoned
+   * line wrote and this one never did.
+   *
+   * The head case still costs no read at all — the ordinary commit is as cheap
+   * as it was — and the walk is paid only by an append that is genuinely off
+   * the head. Making *that* cheap is P6.0d's snapshot cache.
+   */
+  const atParent = snapshotIsAt(session, turn.parentTurnId)
+    ? session.channels
+    : replayChannels(walkPath(await readTurns(context, handle, sessionId), turn.parentTurnId));
+
   const next: SessionFile = {
     ...session,
     updatedAt: new Date().toISOString(),
     headTurnId: turn.id,
-    channels: applyEffects(session.channels, turn.effects),
+    channels: applyEffects(atParent, turn.effects),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   indexSession(context.index, scopeOf(context, handle), next);
@@ -478,6 +508,41 @@ export function replayChannels(path: readonly Turn[]): Record<string, ChannelSta
     channels = applyEffects(channels, turn.effects);
   }
   return channels;
+}
+
+/**
+ * Whether `session.channels` is the state at this node — [P6.0b].
+ *
+ * **It is the state at the head, and at no other node.** `SessionFile` says so
+ * of itself — *"state at `headTurnId`. Derived."* ([02 §8.1]) — and until this
+ * stage nothing enforced it: two readers took the file's map whenever the file
+ * was there, which pairs one line's history with another line's state the
+ * moment anything asks for a node that is not the head. The symptom used to be
+ * a wrong clock, one visibly bogus number. Since P5 it is also wrong **lore** —
+ * an entry sticky on a line that never fired it, an `ephemeral` spent by a turn
+ * that is not in this history — which changes the prose the model is given
+ * rather than a field on the screen.
+ *
+ * **The fast path is sound because `advanceHead` maintains it**, and the two
+ * belong together: the head snapshot is that turn's effects folded onto its own
+ * parent's map, so it equals `replayChannels(walkPath(turns, head))` by
+ * construction rather than by luck.
+ *
+ * **The one legitimate divergence is a hand edit, and preferring the file there
+ * is deliberate.** A person who opens `session.json` has expressed an intent,
+ * and `reconcileHandEdits` calls recomputing over the top of it *"the worst of
+ * the three possible behaviours"* — the read route folds the edit into the log
+ * as a user-attributed effect rather than this path discarding it.
+ *
+ * A type predicate, so a caller's `session.channels` narrows without an
+ * assertion. A null session — an unreadable or missing file — is the state at
+ * nothing.
+ */
+export function snapshotIsAt(
+  session: SessionFile | null,
+  nodeId: string | null,
+): session is SessionFile {
+  return session !== null && (session.headTurnId ?? null) === (nodeId ?? null);
 }
 
 /**
