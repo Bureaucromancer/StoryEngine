@@ -18,11 +18,31 @@ one. What was actually examined:
 - **SillyTavern** — `src/users.js`, `src/constants.js`,
   `src/character-card-parser.js`, `public/scripts/group-chats.js` (activation and
   generation modes), endpoint and directory layout.
+- **Both projects' image subsystems**, added 2026-09-03 — Aventuras'
+  `services/generation/phases/{Image,BackgroundImage}Phase.ts`,
+  `services/ai/image/*`, `services/ai/sdk/schemas/imageanalysis.ts` and
+  `services/prompts/templates/image.ts`; Marinara's
+  `routes/game.routes.ts` storyboard path, `services/game/game-asset-generation.ts`,
+  `services/roleplay/storyboard-episode.ts`,
+  `shared/src/constants/game-storyboard-prompts.ts` and the Illustrator agent in
+  `routes/generate.routes.ts`. The two *How it generates images* sections below
+  are what that read found.
+
+  *Marinara caveat:* commit `f1e688c12` moved the storyboard planner prompt
+  bodies out of the repository into an installable agent package fetched at
+  runtime, leaving only the host contract. Prompts quoted below are the last
+  in-repo copies, read via `git show f1e688c12^:…`, and the shipped package's may
+  have moved on.
 
 Not examined in any depth: client component trees, extension/plugin runtimes in
-detail, TTS/image/video subsystems, tokenizers, the Noodle subsystem, Marinara's
-tactical combat engine, Aventuras' retrieval implementation. Anything asserted
-about those areas below is inference and marked as such.
+detail, TTS and video subsystems, tokenizers, Marinara's tactical combat engine,
+Aventuras' retrieval implementation. Assertions about those areas are inference
+and should be read as such — a promise this document previously made in the form
+*"and marked as such"*, which it never kept: no claim anywhere below carries an
+inference marker. Stating the caveat once here is honest; the per-claim version
+was not. (The Noodle subsystem was on this list until it was read; the notes are
+at [14 §4.6](14-roadmap.md), and [02 §9](workplan/02-triage.md) had already
+struck it here.)
 
 ---
 
@@ -201,6 +221,62 @@ episode directors. Individually defensible; collectively they define the product
 as "everything". StoryEngine should ship a much smaller core with the seams that
 would let all of that be built externally.
 
+### How it generates images — surveyed 2026-09-03
+
+**One planner call per turn, and it decides both the count and the prompts.**
+`POST /game/storyboard/generate` builds one `game_turn_storyboards` row per
+(chat, message, swipe) owning N `game_turn_storyboard_keyframes`. The call
+returns free-form JSON — `responseFormat: { type: "json_object" }` against a
+one-line shape string, no tool definition and no JSON Schema — validated by
+hand-written normalisers.
+
+**`gameStoryboardKeyframeCount` is a soft target and a hard ceiling, and never a
+floor.** Bounds are 1–6, default 3, resolved per-request → per-chat → agent
+global. It is interpolated into the planner prompt (*"Create exactly
+`${keyframeCount}` ordered keyframes unless the narration is too short to support
+that many"*, and for the animation presets *"return fewer shots rather than
+duplicating moments, padding the plan, or inventing events"*) and enforced
+downward by `.slice(0, keyframeCount)` then a second `.slice(0, 6)` in
+`sanitizeStoryboardPlan`. Nothing pads back up — **except** the deterministic
+fallback used when the planner call fails, which chunks the narration into
+exactly N frames with a hardcoded prompt string. The one code path that runs
+without a judgement is the one that manufactures moments.
+
+**Keyframes are anchored into the narration**, by `anchorQuote` plus
+`sectionStartIndex`/`sectionEndIndex` over a client-supplied section list, which
+is how a storyboard frame knows which sentence it illustrates.
+
+**The prompt is written by the planner and then wrapped by a formatter
+template** that adds visibility rules, matched character appearance, reference
+handling, location context, art direction and user instructions. Real character
+reference *images* are attached for consistency, up to a provider-derived limit
+running from 1 to 16 by backend, with a spatial location reference consuming one
+slot. Several length budgets are enforced in code, up to 7000 characters on the
+compiled prompt.
+
+**It feeds the count forward into the narrator.** The GM system prompt carries
+`{{gameStoryboardKeyframeCount}}` — *"Aim to include N strong visual anchor
+moments when the scene and pacing support them"* — so the production setting
+this section already criticises `GameSetupConfig` for mixing in with narrative
+content also steers the prose. [03 §10.6](03-modes-and-turn-pipeline.md) declines
+that coupling and says why.
+
+**Timing.** The planner call blocks the HTTP request; image rendering is detached
+behind it at a frame concurrency of 4, and the client polls a status field every
+2.5s. There is no queue and no SSE for storyboards. A per-chat mutex serialises
+asset generation.
+
+**The separate Illustrator agent is the only per-turn *whether* judgement in
+either project**: a `shouldGenerate` boolean — *"Only illustrate when the moment
+deserves a picture"* — gated by a `runInterval` cadence defaulting to 5, counted
+over messages since the last *successful* run. It is mutually suppressed with the
+storyboard path. Its image count is a variation count (1–4 renders of one
+prompt), not a count of moments.
+
+**No cost gate of any kind**, here or anywhere: no credit, quota, budget or tier
+check. Marinara is self-hosted, so the bill is the operator's problem and the
+code never mentions it.
+
 ---
 
 ## 2. Aventuras
@@ -298,6 +374,58 @@ directly.
 **Hardcoded entity taxonomy.** `EntryType = 'character' | 'location' | 'item' |
 'faction' | 'concept' | 'event'` with a per-type state interface and a per-type
 `BeforeState` for the undo system. Extensible only by editing the union.
+
+### How it generates images — surveyed 2026-09-03
+
+**Two mutually exclusive modes, and they decide the count in opposite ways.**
+`imageGenerationMode: 'none' | 'agentic' | 'inline'`, set per adventure.
+
+**`agentic` — a dedicated structured call, and a cap that is only a suggestion.**
+The image phase gates on mode and configuration and then delegates to a scene
+analysis service, which asks a model (Zod structured output) for
+`scenes: [{ prompt, sourceText, sceneType, priority, characters,
+generatePortrait }]` — a model-written image prompt, a verbatim 3–15 word
+`sourceText` quote used for text matching, and a priority from 1 to 10. The
+system prompt says *"identify up to `{{ maxImages }}` key visual moments"* and
+*"Return empty array [] if no suitable visual moments exist"*, with qualitative
+priority guidelines and an instruction to skip *"mundane actions, dialogue-only
+scenes, abstract concepts"*.
+
+Then the enforcement, or its absence: `maxImages` is interpolated into that
+prompt **as a string and appears nowhere else in the program**. The result is
+sorted by `priority` and every scene is queued — no slice, no threshold — and
+`priority` is not persisted on the record. Ask for three, get eight, pay for
+eight; and the field that would have chosen between them survives only as queue
+order. [03 §10.4](03-modes-and-turn-pipeline.md) takes the opposite rule from
+this.
+
+**`inline` — the narrative model decides, in the same call, and here the cap is
+real.** The narrative system prompt gains instructions to emit
+`<pic prompt="…" characters="…"></pic>` tags mid-prose, *"Use sparingly: 1-3
+images per response maximum, reserved for impactful visual moments"*. Because
+enforcement is then a matter of counting tags in a string, it is enforced twice —
+during streaming and again on rescan, the second counting existing rows so the
+budget is per message rather than per call. The mode that trusts the model least
+is the one that constrains it best. It is also markup inside the stored prose,
+which is why [03 §10.4](03-modes-and-turn-pipeline.md) declines it and
+[05 §13.1](05-ui-surfaces.md) supplies the rule.
+
+**Nothing else gates a story image.** No scene-change detection, no importance
+threshold, no cooldown, no minimum turns between images, no per-session cap, no
+budget. The stated 500-character prompt limit is prompt text only; no provider
+checks it, and the style suffix is concatenated *after* the model has budgeted,
+so the total overruns routinely.
+
+**Backgrounds are the exception, and they are prior art worth naming.** A
+separate phase asks a model for
+`{ changeNecessary: boolean, prompt: string }` over the last two narration
+entries, with explicit criteria — *"A location change warrants a new background
+only if the physical environment fundamentally shifts"*, and minor movement or
+dialogue does not. It fails closed. This is independent confirmation that
+[03 §10.1a](03-modes-and-turn-pipeline.md)'s *not every turn* requirement is
+real; note only that StoryEngine answers the same question by diffing the
+assembled fragments, which costs no call and caches on the recipe digest
+besides.
 
 ---
 

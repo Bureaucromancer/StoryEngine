@@ -265,6 +265,16 @@ the two apart would have the dial invent its own prefill path. Worth having,
 because a contract designed against one real need beats one designed against
 three imagined ones — which is §6's own argument for deferring it.
 
+**A second consumer has since appeared, and it is the same shape**, which is the
+outcome that argument was betting on. Illustration pacing
+([03 §10.6](03-modes-and-turn-pipeline.md)) is a session channel with
+`update: "user-only"`, `budget: null` and an init from treatment — hook pacing's
+declaration with a different subject. It arrives later than P7, so it does not
+move the dependency above; it is worth recording only because *designed against
+one real need* is a claim that has to be checked rather than assumed, and the
+check came back clean. A contract that fits its second consumer without
+alteration was fitted to the right thing.
+
 ### 1.4 `ModelCall`
 
 ```ts

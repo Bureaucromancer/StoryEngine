@@ -154,7 +154,8 @@ prose · fast · reasoning · vision · image · video · speech · embedding
 ```
 
 Narration asks for `prose`; a classification or summarisation step asks for
-`fast`; a rendition step asks for `image` ([03 §10](03-modes-and-turn-pipeline.md)).
+`fast`; a rendition step asks for both, `fast` to write the moment and `image` to
+render it ([03 §10.3](03-modes-and-turn-pipeline.md)).
 Nothing in a mode, step or extension refers to a provider or a model id — which
 is what makes an install portable, an extension safe to share, and per-actor
 `ModelHint` ([10 §3](10-schemas.md)) resolvable as a *request* rather than a

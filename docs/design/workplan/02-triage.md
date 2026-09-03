@@ -473,7 +473,7 @@ suite absent across 518k lines does not appear.
 | **Card version history** | Marinara `characters.storage.ts`, `CharacterCardVersion` | **PORT, generalised** | Automatic snapshot-on-change, no-op suppression, the replaced state's own timestamp, and non-destructive restore are all the non-obvious choice and all correct. Widened from two card types to every library object, and moved from a database table to files in the object's folder ([02 §11](../02-data-model.md)). Add a retention cap, which Marinara lacks. |
 | Character panel with active/inactive/dead | Aventuras | **PORT, corrected** | The state tracking is the valuable part. Split the one enum into presence and status channels, and make the panel *editable* so it repairs identity errors rather than only reporting them ([05 §13.2](../05-ui-surfaces.md)). |
 | NPC identity resolution | Aventuras | **REBUILD** | Splits one character into several and merges several into one — notably worse at it than the models are. Ours proposes rather than auto-materialising, and surfaces its conclusions as linked mentions ([05 §13.1](../05-ui-surfaces.md)). |
-| Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. |
+| Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. The storyboard *surface* is what is discarded — the planner call under it, which decides how many moments of a turn deserve a picture, is taken and rebuilt ([03 §10.4](../03-modes-and-turn-pipeline.md)). A judgement about one turn is not an anime-episode director; the difference is the surface. |
 | Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [14 §4.6](../14-roadmap.md) |
 
 ### Platform
@@ -597,6 +597,16 @@ against the extension API without engine changes, [03 §9](../03-modes-and-turn-
 has failed — which makes this list a useful acceptance test rather than a
 backlog.
 
+**One item on that list has since been split rather than discarded whole**, and
+saying so keeps this section from contradicting
+[03 §10.4](../03-modes-and-turn-pipeline.md).
+Reading Marinara's storyboard path in 2026-09 found a planner call inside it
+answering a question core does need — *which moments of this turn deserve a
+picture, and how many* — which is now designed as part of illustration. What is
+discarded is what the list was ever about: the storyboard as a **surface**, with
+its own presentation and its own pacing. A judgement about one turn is not an
+episode director, and the line between them is the surface rather than the call.
+
 The desirable ones are picked up as **desired extensions** in
 [14 §4](../14-roadmap.md), with the seam each should use and where the naive
 version goes wrong. Two in particular — table games and music — are genuinely
@@ -689,4 +699,4 @@ detail:
 | **Achievements** | **DISCARD.** No plans, no roadmap entry, no seam owed to it. |
 | **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [07 §5.2](../07-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
 | **`professor-mari`** | Examined for the assistant design; see [03 §7.4](../03-modes-and-turn-pipeline.md). General-purpose assistant yes, its tool surface no, its default tone no, and the card is swappable. |
-| **Image / video / TTS pipelines** | Not ported, but the *requirement* is now designed: per-turn and on-demand illustration is a 1.0 feature, with video and speech as further kinds of the same mechanism ([03 §10](../03-modes-and-turn-pipeline.md)). |
+| **Image / video / TTS pipelines** | ~~Not examined~~ — **the image halves of both were read on 2026-09-03**, notes in [survey §1](../01-source-survey.md) and [survey §2](../01-source-survey.md), and [03 §10.3](../03-modes-and-turn-pipeline.md), [§10.4](../03-modes-and-turn-pipeline.md) and [§10.4a](../03-modes-and-turn-pipeline.md) are what changed as a result. Still not ported: the requirement is designed rather than taken. TTS and video remain unexamined. |

@@ -854,7 +854,11 @@ be.**
 Worth stating as policy because of what it buys:
 
 - **Any rendition can be re-created**, even one whose image is long gone. The
-  recipe is bytes; the asset is megabytes.
+  recipe is bytes; the asset is megabytes. **Which requires that re-creation make
+  no model call**: one fragment of an image prompt is written by a model
+  ([03 §10.3](03-modes-and-turn-pipeline.md)), and a fragment regenerated on
+  re-creation would make *"the same rendition"* a thing this policy could not
+  actually promise. It is stored with the rest of the recipe and replayed.
 - **Eviction becomes safe.** "Generated images will fill the disk" gets an answer
   that loses nothing irreplaceable — evict pixels, keep recipes, regenerate on
   demand.

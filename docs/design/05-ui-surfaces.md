@@ -1828,7 +1828,11 @@ should drift toward the other.
 - **Renditions inline**, where they exist ([03 §10](03-modes-and-turn-pipeline.md)) —
   the illustrations, and **not the backdrop**. This view strips chrome and a
   backdrop is chrome (§2.3); a location change reads here as the prose saying so,
-  which is how it reads in a book.
+  which is how it reads in a book. *Inline* is meant literally: an illustration
+  renders at its anchor, the sentence it is of
+  ([03 §10.4a](03-modes-and-turn-pipeline.md)), and falls to the end of the
+  message when the anchor no longer resolves — §13.1's rule, with a quote where
+  mentions use a span, and for the reason §10.4a gives.
 
 ### 12.2 Formats, and not shipping a PDF library
 

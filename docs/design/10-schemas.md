@@ -743,6 +743,11 @@ interface Treatment {
    *  session owns it thereafter. §6.1b. */
   hookPacing?: HookPacing
 
+  /** Advisory. Authored prose asking the narrator for turns that stage well —
+   *  a property of the material, never derived from the image settings.
+   *  §6.1b, [03 §10.6]. */
+  stagingNotes?: string
+
   /** Advisory only. A treatment proposes a mode; it never configures production
    *  treatments. [00 §3.2] */
   modeHints: { modeId?: string; config?: unknown }
@@ -958,6 +963,31 @@ the session resolves to its own default; it does not mean `normal`.
 how much authored plot should be pushed at a player, which is authorial, and it
 has nowhere to put an endpoint or a key ([00 §3.2](00-stance.md)).
 
+#### `stagingNotes` is the second field this argument covers
+
+Added when [03 §10.6](03-modes-and-turn-pipeline.md) needed a way for a treatment
+to ask the narrator for turns that stage well — *this material wants scenes you
+can see*. Every clause above transfers unchanged: advisory, optional on both for
+the `/1` reason, authorial intent about the material rather than a property of
+one playthrough, and holding no endpoint and no key.
+
+**The clause that has to be checked rather than transferred is the last one**,
+because this is the field with a production setting standing next to it. It is
+prose, and it is **never derived from the image controls**: a treatment that
+wants cinematic staging wants it with illustration switched off, because it is a
+statement about how the prose should read. Marinara runs the coupling the other
+way and substitutes its keyframe count into the narrator's prompt, so changing
+the image budget rewrites the story — which
+[01 §1](01-source-survey.md) already identifies as production and
+narrative content confused with each other, one level higher up. Production must
+not reach the prose; a treatment may, because a treatment is prose.
+
+Prose rather than an enum, unlike `hookPacing`, and the difference is real: a
+cadence has levels an engine schedules against
+([03 §6.1](03-modes-and-turn-pipeline.md) puts the numbers in engine code and the
+words in the pack), while this one only ever reaches a model. There is nothing
+for the engine to do with it, so there is nothing to enumerate.
+
 ### 6.2 `contentRating` is advisory — and says so
 
 Settled in [06 E8](06-open-questions.md), recorded here because it constrains
@@ -1133,6 +1163,16 @@ not reach pacing at all.
 > statements have coexisted because nothing consumed them together. Hook pacing
 > does not inherit the problem, because it is a channel from the start rather than
 > a `mode.config` key, but the next dial will, so it is recorded here.
+>
+> **Two dials have arrived since, and neither inherited it** — which is evidence
+> about the shape rather than a resolution. Illustration pacing
+> ([03 §10.6](03-modes-and-turn-pipeline.md)) is a channel for exactly hook
+> pacing's reasons and copies its declaration line for line; `stagingNotes`
+> (§6.1b) is authored prose with no live value to locate at all. So the prediction
+> above has held twice by dials following the precedent rather than by the
+> question being answered, and it stays open for the first one that does not —
+> which will be a dial belonging to a single mode, since that is what puts a value
+> in `mode.config` and out of the host's reach.
 
 ---
 

@@ -1311,10 +1311,10 @@ unrecorded random source ([07 §14](07-tech-stack.md)).
 ## 10. Renditions: illustration, and the shape video and speech share
 
 **Per-turn and on-demand illustration is a 1.0 feature.** Ask for an image, or a
-short series, for a turn — automatically each turn, or on demand from any
-message in the history. Video and speech are lower priority and are *not* 1.0,
-but the mechanism is designed so they are additional **kinds** rather than
-additional subsystems.
+short series, for a turn — each turn that has a moment worth one, or on demand
+from any message in the history. Video and speech are lower priority and are
+*not* 1.0, but the mechanism is designed so they are additional **kinds** rather
+than additional subsystems.
 
 ### 10.1 One concept, three kinds
 
@@ -1328,9 +1328,9 @@ interface Rendition {
   kind: "image" | "video" | "speech"
   /** What it is for: where it renders, and how long it lives. §10.1a */
   purpose: "illustration" | "background"
-  /** Which part of the turn this renders. Whole turn, or one message under
-   *  per-actor dispatch — speech needs this, images usually do not. */
-  scope: { messageId?: string } | null
+  /** Which part of the turn this renders: one message under per-actor
+   *  dispatch, and the moment inside it this picture is of. §10.4a */
+  scope: { messageId?: string; anchor?: string } | null
   state: "pending" | "ready" | "failed"
   /** Ranked prompt fragments as sent, plus what the cap dropped. [07 §5.3] */
   prompt: AssembledPrompt | null
@@ -1424,7 +1424,9 @@ What the split buys, all of it for free:
 
 Assembled the ordinary way (§10.3), from **channel state and the treatment's
 tone — and pointedly not from the turn's output text or the present actors'
-`VisualDescriptors`.**
+`VisualDescriptors`.** Which is also why a background is the branch of §10.3 that
+makes **no model call at all**: that call writes the moment, and a backdrop does
+not have one.
 
 A backdrop is a place, not a moment. Illustrating what just happened is what
 §10.6's **Illustrate** is for, and a backdrop that redraws itself around each
@@ -1498,10 +1500,12 @@ special case in the branching code, which it is not.
 
 ### 10.3 Where the prompt comes from
 
-An ordinary pipeline step at the `post` stage, which means it composes from
-what is already there rather than needing a private pathway:
+An ordinary pipeline step at the `post` stage, which means it uses the ordinary
+mechanisms rather than a private pathway — one call and an assembly, both of a
+kind the pipeline already makes. Four fragments:
 
-- the turn's output text — what actually happened;
+- **the moment** — one line saying what is in this picture, written by a model
+  reading the turn's output text (below);
 - present actors' `VisualDescriptors` and their `reference` media
   ([10 §3](10-schemas.md)) — this is what the Character Studio's payload exists
   to feed, and the reason typed media roles are a 1.0 obligation;
@@ -1511,34 +1515,225 @@ what is already there rather than needing a private pathway:
 Assembled as **ranked fragments under the provider's declared cap**
 ([07 §5.3](07-tech-stack.md)), so overrun drops the lowest-ranked fragment
 rather than truncating mid-sentence. That work was specified for exactly this
-case.
+case, and it already named this first fragment: *subject, style, quality tags,
+character reference, negative* is [07 §5.3](07-tech-stack.md)'s own list, and the
+subject is the moment.
+
+#### The moment is written, not extracted
+
+**A turn is prose and a picture is one instant of it**, so something has to say
+which instant. Handing the whole turn text to an image model is not that. It
+produces a prompt about a paragraph, which is how an illustration ends up
+depicting three things at once and none of them well.
+
+So the first fragment comes from a call — the cheap `fast` role the pipeline's
+other judgements use ([07 §5.1](07-tech-stack.md)) — reading the turn's output
+text and answering *what is the picture of*. Both sources do this, and it is the
+one thing their two otherwise opposite designs agree on.
+
+**What that call must not do is write the whole prompt.** Aventuras' does, and
+then concatenates the style suffix afterwards, so the result routinely overruns
+the character limit its own system prompt spends four lines insisting on — and
+nothing downstream checks. Ranked fragments are what make a cap true, because the
+cap applies to the assembled whole and the ranking decides what goes. The model
+is *told* its budget and writes within it ([07 §5.3](07-tech-stack.md)); the
+assembler is what makes the budget real.
+
+**The moment is a fragment like any other, and that is what keeps it from costing
+the recipe.** §10.7 requires a rendition's prompt be preserved forever, and
+§10.1a's reuse digest hashes the assembled fragments as sent — a *re-generated*
+moment would break both, because a second call is a second answer and two
+identical places would stop hashing alike. So the moment is written once, stored
+in `prompt` as the fragment it is, and **replayed** on re-creation, never asked
+for again: re-creating an evicted rendition makes no text call at all. That is
+§10.7's promise about the seed, extended to the one fragment that has an author.
+
+#### Two rules the assembler owns, and neither belongs in a prompt
+
+**A character's name never appears in an image prompt.** The image model does not
+know who Elena is; it knows what a woman with cropped grey hair looks like.
+Aventuras learned this and states it as a rule *to the model*, which is the wrong
+place for it — `VisualDescriptors` exist precisely so the substitution is
+mechanical ([10 §3](10-schemas.md)). The descriptors are a fragment; the name is
+not one. This is the clearest vindication the structured appearance field has
+had.
+
+**How many named characters one picture can hold is a provider capability.** It
+belongs beside `maxPromptChars` in [07 §5.3](07-tech-stack.md)'s block rather
+than in prose to a model. Aventuras caps at one for consistency's sake; Marinara
+derives both a visible-character limit and a reference-image limit that runs from
+one to sixteen depending on the backend. A number that varies per endpoint is the
+definition of a capability.
+
+#### The background branch, and the sentence not to misread
 
 **A background takes a different subset of the same list**, and the difference is
 the point rather than an optimisation: channel state and tone, without the turn's
-output text and without the present actors' descriptors. A place, not a moment
-(§10.1a). Same step, same assembly, same cap — a different ranking, because what
+output text, without the present actors' descriptors, and — the sharpened version
+of the same sentence — **without the moment call**, because a backdrop is a place
+and a place has no moment (§10.1a). Same step, same fragments, same cap; one
+branch makes a call the other does not, and the ranking differs, because what
 belongs in a backdrop and what belongs in an illustration are different
 questions asked of one turn.
 
-### 10.4 A series, and what "series" should not mean
+**"Text in, images out" (§10.1a) is untouched by any of this**, and it is worth
+saying because it is the sentence most likely to be quoted against the moment
+call. That rule is about what the *image* generation is conditioned on — text,
+not a reference image — and a model writing a line of text does not move it.
+Lore-conditioned renditions ([14 §3](14-roadmap.md)) are still deferred, for the
+reason they were always deferred.
 
-A turn may produce more than one image. Two mechanisms, and only the first is
-1.0:
+### 10.4 How many, and which moments
 
-- **Variations** — N renditions from one prompt. Trivial, useful, and what most
-  people mean.
-- **Beats** — split the turn into moments and illustrate each. This is
-  storyboarding, it needs a planner call, and it is where Marinara's storyboard
-  machinery lives. Out of scope at 1.0; expressible later as a step that emits
-  several prompts, because §10.1 already allows many renditions per turn.
+A turn may produce more than one image, and three different things have gone by
+the name "a series" here. Separating them is most of the work, because only the
+first is 1.0 and only the second is a judgement:
 
-### 10.5 What speech needs that images do not
+- **Variations** — N renditions from one prompt. A re-roll count, not a decision
+  about the turn. Trivial, useful, and what most people mean. 1.0.
+- **Moments** — which parts of a turn deserve a picture, and how many. This is
+  the judgement, it is specified in full below, and **P9 does not build it**:
+  that phase builds the one-image-per-turn case, and the count judgement lands in
+  a later one against the shape recorded here. §10.1 already allows many
+  renditions per turn, which is what makes the deferral cheap.
+- **Storyboarding** — a strip *presented* as a storyboard, with its own surface
+  and its own pacing. Downstream of moments rather than a third mechanism, and
+  the thing that stays deferred as a product ([14 §3](14-roadmap.md)). Worth
+  stating plainly, because [02 §6.3](workplan/02-triage.md) discards Marinara's
+  storyboard and anime-episode directors from core and that verdict stands: a
+  judgement about one turn is not a director, and the line between them is the
+  surface, not the call.
+
+**The shape.** One cheap call at `post`, over the turn's output text, returning a
+list rather than a number — because *how many* and *which* are one question, and
+asking for a count without asking what the pictures are of gets an opinion about
+length:
+
+```ts
+interface ProposedMoment {
+  /** What is in the picture. Becomes §10.3's moment fragment. */
+  subject: string
+  /** Verbatim from the turn's output text: where this picture goes. §10.4a */
+  anchor: string
+  /** How much this moment wants a picture. The engine sorts on it. */
+  salience: number
+}
+```
+
+**The empty list is a real answer.** *Nothing here is worth a picture* is what a
+turn of pure dialogue should return, and it is the permission
+[§6.1](#61-the-plot-hook-selector)'s selector already has to judge *none*. A
+setting that promises an image every turn is what makes zero look like a bug,
+which is why §10.6 stopped offering one.
+
+Three rules follow, and each is something one of the sources paid for.
+
+**The model proposes; the engine disposes.** Sort by salience, take the top *k*,
+and *k* is enforced in code. Aventuras is the counter-example in full: its
+per-message maximum is interpolated into the system prompt as a string and
+appears nowhere else in the program, so every scene the model returns is queued.
+It sorts by the priority it asked for and never slices on it, and never stores
+it. A cap that lives only in prompt text is a request — ask for three, get eight,
+pay for eight — and a sortable field spent on queue order is a judgement thrown
+away.
+
+**The cap is a ceiling and never a floor.** Marinara has this right in the
+planner, which is told to return fewer when the turn does not support the target
+— *"return fewer shots rather than duplicating moments, padding the plan, or
+inventing events"* — and enforced by a slice that can only reduce. Its *fallback*
+is the trap: when the planner call fails, it chunks the narration into exactly N
+frames with a hardcoded prompt string, so a quiet turn gets padded with moments
+it did not contain, by the code path that runs precisely when no judgement was
+available. **A failed judgement generates nothing.** Under-firing is the bias
+[§6.1](#61-the-plot-hook-selector) chose for hooks and
+[§8.1](#81-presence-and-status-who-is-here-and-who-is-still-alive) for death, and
+here it is also the only one that declines to spend money on a picture of
+nothing.
+
+**Salience is recorded, not merely used.** If the engine sorts on a number, that
+number is on the rendition. And the judgement writes its own line into the turn
+record the way the hook selector does: *held by pacing*, *nothing worth
+illustrating*, *proposed five and paid for two, with the two reasons*. Without
+that line the first two are indistinguishable from outside — which is
+[§6.1](#61-the-plot-hook-selector)'s argument arriving unchanged at a second
+consumer — and *why this picture and not that one* stays answerable in the
+abstract and never for the turn in front of you. It is the standard the assembler
+meets when it records why a slot went unfilled, and the retriever when it says
+why an entry fired.
+
+#### Why the narrator does not do this itself
+
+Aventuras' other mode has the narrative model emit `<pic prompt="…">` tags inside
+the prose, capped at three per response. It is much the cheaper design — no
+second call, and placement is free because the tag is already where it belongs —
+and, the honest part, it is the only one of that project's two modes where the
+cap is genuinely enforced, because counting tags in a string is something a
+program can do to a model's output without trusting it.
+
+It is still the wrong trade, and the reason is not stylistic. **The tags are in
+the text the turn record stores.** Everything downstream inherits them: assembly
+of the history for the next turn, export, mention resolution, the reading view
+([05 §12.1](05-ui-surfaces.md)) — each has to know about them or strip them, and
+each is a place where the story's own bytes have stopped being the story.
+[05 §13.1](05-ui-surfaces.md) states the rule and already claims renditions obey
+it: *"the message text stays canonical plain prose with no markup injected into
+it … the artefact is annotated, the authored bytes are not touched."*
+[00 §2.2](00-stance.md)'s preference for structured output over markup fished out
+of prose points the same way without needing to be stretched to cover this.
+
+§10.4a buys the placement back without the markup, which is the only thing worth
+having from that design.
+
+### 10.4a Where a picture goes
+
+`scope` grows a second optional field, and it is the one part of this section
+that ships at P9 whether or not the judgement above does:
+
+```ts
+  scope: { messageId?: string; anchor?: string } | null
+```
+
+**The anchor is a verbatim quote from the message's own text** — the sentence the
+picture is of. A three-image turn then shows its images at three moments rather
+than three in a row underneath, which is the difference between an illustrated
+page and a contact sheet. Both sources do this: Aventuras asks for three to
+fifteen words copied exactly, Marinara for a quote plus the indices of the
+section it came from.
+
+**Annotate, never rewrite** ([05 §13.1](05-ui-surfaces.md)). Same rule mentions
+obey, same rule that rejects inline tags above — and it is why the anchor is a
+quote rather than the `{ start, end }` span mentions use. A span is exact, and an
+offset does not survive an edit to the text it indexes; §13.1 concedes as much
+when it says editing a message recomputes the spans, which it can do because it
+can re-run the scan that produced them. A rendition has no scan to re-run: the
+call that wrote the anchor is deliberately not made twice (§10.3). So it holds a
+quote and resolves at render time against whatever the text now says.
+
+**Which makes the miss ordinary, and it must not be an error.** A model
+paraphrases. A message is edited afterwards, which the turn tree makes routine. A
+sentence occurs twice. So: **an anchor that does not resolve does not fail the
+rendition** — the image renders at the end of its message and the unresolved
+anchor is recorded. A picture in slightly the wrong place is a worse outcome than
+a picture and a far better one than an error, and first match wins on a repeat.
+Neither source specifies this; both need it.
+
+Recorded now for §10.5's reason, which this field turns out to share: a field on
+a stored type is cheap before there are records and expensive afterwards. It is
+not speculative machinery either, because with one image per turn it already does
+visible work — the picture lands *in* the prose rather than under it from the
+first phase, and the miss path gets exercised long before a multi-moment turn
+depends on it.
+
+### 10.5 What speech still needs that images do not
 
 Recorded now because it is cheap to accommodate and awkward to retrofit:
 
 - **`scope.messageId`.** Speech is per utterance, not per turn — under
-  `per-actor` dispatch a turn holds several. Images virtually never need this;
-  the field exists so speech does not force a schema change.
+  `per-actor` dispatch a turn holds several. Images rarely need *this* half of
+  `scope`; they need the other half (§10.4a). So the field is no longer one
+  reserved against a feature nobody builds at 1.0 — it is simply in use, by two
+  callers wanting different halves of it, which is a better argument for its
+  shape than the one it was introduced with.
 - **A voice binding per actor.** Belongs in `modeData` or a `speech` block on
   the actor, and — like `ModelHint` — it is a *preference resolved locally*
   ([10 §3](10-schemas.md)), never a provider binding travelling in a shared card.
@@ -1547,10 +1742,28 @@ Recorded now because it is cheap to accommodate and awkward to retrofit:
 
 ### 10.6 Controls
 
-Per session: off, on-demand only, or every turn. Per mode defaults — Scene wants
-illustration far more than Messages does. And a manual **Illustrate** action on
-any message in the history, which is the same step invoked by hand — **additive,
-never replacing** (§10.7).
+Per session: off, on-demand only, or **each turn that has a moment worth one**.
+The third setting is conditional rather than absolute because §10.4's judgement
+is permitted to answer none, and a control that promises an image every turn is
+what makes zero read as a failure. Per mode defaults — Scene wants illustration
+far more than Messages does. And a manual **Illustrate** action on any message in
+the history, which is the same step invoked by hand — **additive, never
+replacing** (§10.7).
+
+**Two dials on different axes, once the judgement exists.** *How many at most* is
+the cap §10.4 slices on. *How often the judgement is asked at all* is pacing, and
+it is the dial [§6.1](#61-the-plot-hook-selector) already built, down to the
+argument: the step runs every turn, the dial is a gate inside it before the call,
+and it is the *judgement* that has a cadence rather than the step. A channel —
+session scope, `update: "user-only"`, `budget: null`, `init` from treatment — so
+it costs no new concept, changes mid-session, and branches correctly
+([10 §6.1b](10-schemas.md)).
+
+What the dial protects is different here, and worth the sentence. For hooks,
+pacing is about drama: a hook every third turn is incoherence. For renditions it
+is also about money — the judgement call is cheap and the pictures it authorises
+are not — so a cadence is the first thing in this section that puts a rate on the
+bill. It is not a budget, and §10 still does not have one.
 
 **Backgrounds get their own control, because they are not on the same axis.**
 Off, or on — and *on* means when the place changes, not every turn (§10.1a).
@@ -1558,6 +1771,32 @@ There is no per-turn setting to offer, because a backdrop that regenerates each
 turn is the failure mode rather than the thorough setting. The manual
 counterpart is **Set the scene**, which regenerates the backdrop for where you
 are now.
+
+The two axes sit closer together now that illustration is conditional too, so the
+distinction is worth restating rather than assuming: an illustration is withheld
+when the turn holds no moment worth one, a backdrop when the place has not
+changed. A judgement in the first case and a fragment diff in the second — and
+only the first costs a call.
+
+**And one dial that is not a control at all, which is the point.** A treatment
+may ask for turns that stage well — `stagingNotes`, authored prose beside `tone`
+in the same advisory register as `hookPacing` ([10 §6.1b](10-schemas.md)): *this
+material wants scenes you can see*. It passes that section's test for what a
+Treatment may carry, clause by clause. It is authorial intent about the material rather than a
+property of one playthrough; it holds no endpoint and no key; and it is precisely
+what would be lost the moment somebody built a Setup over the treatment.
+
+**It does not read the image settings, and that inversion is the whole safety of
+it.** A treatment that wants cinematic staging wants it with illustration
+switched off, because it is a statement about prose. Marinara's version runs the
+other way — its keyframe count is substituted straight into the narrator's system
+prompt, *"aim to include N strong visual anchor moments"* — so moving the image
+budget from three to one silently rewrites the story.
+[01 §1](01-source-survey.md) already names that field as a **production**
+setting while criticising `GameSetupConfig` for mixing production settings with
+narrative content; feeding it to the narrator is the same confusion one level
+further down. Production must not reach the prose. A treatment may, because a
+treatment *is* prose.
 
 **Off is a first-class configuration and not a degraded one.** §7.2 already
 requires text-only Scene to be fully supported, as it is in both sources, and a

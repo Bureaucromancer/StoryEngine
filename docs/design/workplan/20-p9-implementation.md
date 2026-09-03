@@ -41,6 +41,15 @@ is the same property read from the other side (§1.7), so it is one assertion
 rather than a second harness: *equal recipes hash equal, and a place already
 rendered dispatches no job.*
 
+**That property is now load-bearing in a way it was not when it was written**,
+because one fragment of the prompt is written by a model
+([03 §10.3](../03-modes-and-turn-pipeline.md)). Byte-identical re-runs and equal
+digests both survive only if the moment is stored and **replayed** rather than
+asked for a second time, so the assertion has to be run against an implementation
+that makes no text call on re-creation. Written the natural way it regenerates,
+the golden files pass anyway on the day, and the digest quietly stops matching
+itself a month later. P9.1 says it again where the code is.
+
 ---
 
 ## 0. What this document is, six phases out
@@ -81,8 +90,8 @@ unusual for something this late and worth naming:
 
 **The phase's first stage is a contract, not a feature**, and this is the reason.
 [03 §10.1](../03-modes-and-turn-pipeline.md) gives the full interface — `kind`,
-`purpose`, `scope`, `state`, `prompt`, `asset`, `provenance`, `error` — and it is
-the only place in the design that has it. It is **not** in
+`purpose`, `scope` (both halves, §1.6), `state`, `prompt`, `asset`, `provenance`,
+`error` — and it is the only place in the design that has it. It is **not** in
 [10](../10-schemas.md), which owns portable objects; **not** in
 [13](../13-internal-contracts.md), which owns internal ones; and **not** in
 [02](../02-data-model.md), which owns what is on disk. `sessions/<id>/assets/`
@@ -208,14 +217,24 @@ a delivery-policy question and therefore P10's — the summary's `{ key, params 
 has to distinguish the two purposes so P10 *can* decide, which is the only part
 that is this phase's to get right.
 
-### 1.6 Two fields that keep video and speech cheap, and cost nothing now
+### 1.6 Three fields whose absence would force a schema change later
 
-[03 §10.5](../03-modes-and-turn-pipeline.md) records both. `kind` is a union from
-the first commit even though only `"image"` is ever written, and
-`scope.messageId` exists even though images virtually never need it — speech is
-per utterance, and under `per-actor` dispatch a turn holds several. Neither is
-speculative machinery: they are two fields whose absence would force a schema
-change on a stored type.
+[03 §10.5](../03-modes-and-turn-pipeline.md) records the first two. `kind` is a
+union from the first commit even though only `"image"` is ever written, and
+`scope.messageId` exists even though images rarely need it — speech is per
+utterance, and under `per-actor` dispatch a turn holds several. Neither is
+speculative machinery: they are fields whose absence would force a schema change
+on a stored type.
+
+**`scope.anchor` is the third, and it is the one with a consumer in this phase**
+([03 §10.4a](../03-modes-and-turn-pipeline.md)). That makes it a different
+argument from the other two rather than a longer version of the same one: they
+are shapes held open for kinds nobody builds at 1.0, while the anchor is used on
+the first turn P9 illustrates — the picture lands *in* the prose rather than
+under it — and its miss path (P9.1) gets exercised long before the multi-moment
+turns of §4's deferred judgement depend on it. Note what that does to the
+section's own framing: `scope` is now a field two callers want different halves
+of, which is a better warrant for its shape than the one it was introduced with.
 
 **What is *not* being pre-built** is any provider, step or surface for the other
 two kinds. The shape is general; the implementation is images.
@@ -348,16 +367,42 @@ digest and the exit gate's property both hash.
 ### P9.1 — The step, and the prompt
 
 An ordinary `post`-stage step ([03 §10.3](../03-modes-and-turn-pipeline.md)),
-composing from what is already there: the turn's output text, present actors'
+composing from what is already there: **the moment**, present actors'
 `VisualDescriptors` and their `reference` media, channel state, and the
 treatment's tone. Assembled as **ranked fragments under the provider's declared
 cap** ([07 §5.3](../07-tech-stack.md)) so overrun drops the lowest-ranked
 fragment rather than truncating mid-sentence — work that was specified for
 exactly this case and has had no consumer until now.
 
+**The moment is the one fragment with an author**, and it is where this stage
+stopped being pure assembly. A cheap `fast`-role call reads the turn's output
+text and answers *what is the picture of*, because handing a whole paragraph to
+an image model produces a prompt about a paragraph
+([03 §10.3](../03-modes-and-turn-pipeline.md)). The call also returns the
+**anchor** — a verbatim quote saying where in the message the picture belongs
+([03 §10.4a](../03-modes-and-turn-pipeline.md)) — and its miss path is built
+here, not deferred: an anchor that does not resolve renders the image at the end
+of its message and records the miss, and it must never fail the rendition.
+
+**One image per turn this phase.** The call asks for *the* moment, singular.
+[03 §10.4](../03-modes-and-turn-pipeline.md)'s count judgement — a list, a
+salience, a cap, top-*k* — is specified and deliberately not built (§4), which is
+only safe if this stage does not foreclose it: the step contract emits a **list**
+of rendition requests from the first commit even though the list has one element,
+and the ordering field the judgement will sort on has a home on the record.
+
+**The moment is written once and replayed, never regenerated.** This is the
+constraint that keeps a model call from costing the phase its central property:
+the recipe-survives-eviction assertion above and the backdrop reuse key both hash
+the fragments as sent, and a second call is a second answer. Re-creating an
+evicted rendition makes **no text call at all** — it replays the stored fragment.
+Test it in that direction, because the natural implementation regenerates and the
+golden files will still pass on the day it is written.
+
 **And the background ranking, which is the same step with a different answer**
 (§1.7): channel state and tone up, the turn's output text and the actor
-descriptors out. Built here rather than later because two rankings of one
+descriptors out — **and no moment call**, because a backdrop is a place and a
+place has no moment. Built here rather than later because two rankings of one
 fragment set is the design, and a second assembly path written in P9.4 under
 pressure to show a backdrop is how it stops being one. The **recipe digest**
 lands with it, over the fragments as sent.
@@ -388,10 +433,20 @@ and nothing is written for them — the check is that nothing *was*.
 
 ### P9.4 — Controls
 
-Per session: off, on-demand only, or every turn. Per-mode defaults, since Scene
-wants illustration far more than a text-only Freeform does. The manual
-**Illustrate** action on any message in the history — the same step invoked by
-hand, additive and never replacing — and §1.3's decision, disclosed.
+Per session: off, on-demand only, or each turn that has a moment worth one
+([03 §10.6](../03-modes-and-turn-pipeline.md)). The third setting reads as
+conditional in the design because the count judgement may answer none — but that
+judgement is §4's deferral, so **what P9 ships behind that label is one image per
+turn**, and the label is written to survive the later phase rather than promise
+what it does not yet do. Per-mode defaults, since Scene wants illustration far
+more than a text-only Freeform does. The manual **Illustrate** action on any
+message in the history — the same step invoked by hand, additive and never
+replacing — and §1.3's decision, disclosed.
+
+**Neither pacing dial is P9's** — not the cap and not the cadence
+([03 §10.6](../03-modes-and-turn-pipeline.md)). They arrive with the judgement
+they gate, and building either here would be a control over a decision nothing
+makes yet.
 
 **The backdrop's own control, which is off or on and has no per-turn setting**
 ([03 §10.6](../03-modes-and-turn-pipeline.md)): *on* means when the place
@@ -446,23 +501,38 @@ Sketch; expand on revisit.
     point and both branches are in their own room.
 12. Turn the backdrop off: Play is pixel-identical to a text-only session, and
     no `image` call was made.
+13. An illustration renders **at its anchor** — inside the prose, at the sentence
+    the moment call quoted, not underneath the message
+    ([03 §10.4a](../03-modes-and-turn-pipeline.md)).
+14. Edit that message so the quote no longer occurs in it: the image renders at
+    the end of the message, the unresolved anchor is recorded, and the rendition
+    is still `ready`. A miss is ordinary and must never be an error — this is the
+    assertion that stops the natural implementation from throwing.
+15. Re-create an evicted rendition and **no text call is made**: the moment is
+    replayed from `prompt`, not asked for again (§1.1, P9.1). Assert on the call
+    log, because assertion 5's byte-identical request passes either way on the
+    day it is written and only diverges later.
 
 **And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
-configuration that has no surface.** Four settings arrive here — the per-session
-illustration mode, the per-mode default, the backdrop's own on/off, and the
-`image` role binding — and the last of them belongs on
-[P2B](14-p2b-provider-configuration.md)'s existing surface rather than a new one.
+configuration that has no surface.** Five settings arrive here — the per-session
+illustration mode, the per-mode default, the backdrop's own on/off, and two role
+bindings, since the moment call (P9.1) needs a `fast` binding beside the `image`
+one. Both bindings belong on
+[P2B](14-p2b-provider-configuration.md)'s existing surface rather than a new one;
+the other three do not have a surface anywhere in
+[05](../05-ui-surfaces.md) yet, and P9.4 is where that debt comes due.
 
 ---
 
 ## 4. Out of scope, deliberately
 
 Video and speech as *implementations* (the shape is general from P9.0 and the
-two fields that keep them cheap ship now — §1.6); **beats** and storyboarding
-([03 §10.4](../03-modes-and-turn-pipeline.md) — it needs a planner call, and the
-schema already permits many renditions per turn, so it is expressible later as a
-step emitting several prompts); an eviction *policy* (§1.4 — the hook, not the
-policy); **lore-conditioned renditions** ([14 §3](../14-roadmap.md): committed
+fields that keep them cheap ship now — §1.6); **the count judgement** — which
+moments of a turn deserve a picture, and how many — now specified in full at
+[03 §10.4](../03-modes-and-turn-pipeline.md) and deliberately not built here,
+along with the storyboard surface downstream of it; an eviction *policy* (§1.4 —
+the hook, not the policy); **lore-conditioned renditions**
+([14 §3](../14-roadmap.md): committed
 intent rather than a maybe, and deferred because *choosing which images* is the
 hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
@@ -471,6 +541,17 @@ for crossing that line and still does not cross it); the Character Studio
 ([20 §4](../20-authoring.md)); any model-quality evaluation of generated images
 ([testing §4.3](10-testing.md) — do not build quality evals, and an image eval is
 the most tempting version of the mistake).
+
+**The count judgement is the one deferral on that list that constrains this
+phase**, and the constraint is worth stating because it is easy to honour now and
+expensive to recover later. Deferring a design is only cheap when the phase
+before it does not foreclose it, so three things are P9's even though the
+judgement is not: the step contract emits a **list** of rendition requests rather
+than one, from the first commit, with a list of one; the anchor field ships and
+is used (§1.6); and the moment call is shaped as *the* moment of a turn, so
+widening it to a list of moments with a salience is a change to one call's
+schema rather than a new call. Nothing here builds the cap, the ranking or the
+pacing dial ([03 §10.6](../03-modes-and-turn-pipeline.md)).
 
 **Three more that backgrounds specifically do not drag in** (§1.7), named
 because each is one step away from something this phase does build:
@@ -501,7 +582,8 @@ because each is one step away from something this phase does build:
 risk is entirely in getting the type right, because it is the one thing here
 that later phases and later *releases* will be stuck with: video and speech are
 named in [14](../14-roadmap.md) as things the `kind` union and
-`scope.messageId` should keep cheap, and §1.6 is the two fields that do it.
+`scope.messageId` should keep cheap, and §1.6 is the three fields that do it —
+the third, `scope.anchor`, being the one this phase actually uses.
 
 **The provider layer is the second real cost, and it is structural.** §1.2 says
 plainly that our provider layer speaks chat and no image endpoint does. That is
@@ -557,3 +639,13 @@ account of itself.
   not answer the question, and the revisit should resist reading it as though it
   had: nothing here gives a person a budget, a quota, or a number before the
   fact.
+
+  **The count judgement brings the other half, and it arrives after this phase**
+  ([03 §10.4](../03-modes-and-turn-pipeline.md), §4). Two of its rules are cost
+  rules wearing other clothes: a cap enforced in code rather than requested in a
+  prompt is the only kind that bounds a bill, and a cadence dial gating the
+  judgement puts a *rate* on illustration the way §1.7's digest puts one on
+  backdrops. Both narrow the gap. Neither closes it — a rate is not a budget, and
+  a person still cannot see a number before the fact — so the vocabulary this
+  entry asks for is still missing, and is now missing from a phase later than
+  this one too.
