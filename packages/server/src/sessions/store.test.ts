@@ -302,6 +302,44 @@ describe('the head snapshot', () => {
     expect(onBranch[CLOCK]?.value).toEqual({ hour: 50 });
   });
 
+  it('is the state at the node appended to, not at the head it displaced', async () => {
+    // [P6.0b]. `advanceHead` computed the new map from `session.channels` —
+    // whatever the head's map happened to be — which is right for a child of
+    // the head and wrong for a sibling: the state written was the *abandoned*
+    // line's, plus this turn's effects.
+    //
+    // **A clock-only fixture cannot see it**, which is why it survived five
+    // phases: a whole-value set lands on the same number whichever map it folds
+    // onto, so the falsifying mutation passes every other test in this file.
+    // What shows it is a key the abandoned line wrote and this branch never
+    // did — after P5 that is lore timing, and it reads as an entry sticky on a
+    // line that never fired it.
+    const { sessionId, turns } = await aSessionOf(1);
+
+    const abandoned = turnAfter(sessionId, turns[0]!.id, 2);
+    abandoned.effects.push({
+      ...clockEffect(abandoned.id, null, { sticky: 0, cooldown: 2, fired: 1 }),
+      channelId: 'se.lore.timing',
+      scopeKey: 'ferryman',
+    });
+    await appendTurnToSession(context, 'ned', sessionId, abandoned);
+
+    const sibling = turnAfter(sessionId, turns[0]!.id, 50);
+    const { session } = await appendTurnToSession(context, 'ned', sessionId, sibling);
+
+    // The stranded key, spelled out rather than composed, so this fails on the
+    // name a reader of `session.json` would see.
+    expect(session.channels['se.lore.timing#ferryman']).toBeUndefined();
+    expect(session.channels[CLOCK]?.value).toEqual({ hour: 50 });
+
+    // And the invariant the whole file rests on, now true by construction
+    // rather than by nothing having branched yet: the snapshot is the replay at
+    // the head. `gatherAssemblyInputs` reads the file for exactly this reason
+    // and for no other node.
+    const byId = await readTurns(context, 'ned', sessionId);
+    expect(session.channels).toEqual(replayChannels(walkPath(byId, sibling.id)));
+  });
+
   it('ignores a rejected effect, because the record keeps what was refused', async () => {
     // "The model tried to give itself 40 gold" is part of the turn record and
     // must not be part of the state.

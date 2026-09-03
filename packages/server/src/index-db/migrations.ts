@@ -53,7 +53,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * parsed"* — a missing table reported to the user as a mistake in their own
  * typing, on every search, forever.
  */
-export const INDEX_SCHEMA_VERSION = 6;
+export const INDEX_SCHEMA_VERSION = 7;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -203,16 +203,32 @@ create index session_by_owner on session(owner, updated_at);
 -- [07 §7.1](../../../../docs/design/07-tech-stack.md) makes three requirements that are
 -- cheap here and awkward later — turn text is indexed on write rather than
 -- lazily, the row stores turn and session ids rather than an offset into a
--- rendered transcript, and records off the current path stay indexed but carry
--- their branch so a hit can be labelled rather than hidden
--- ([09 §7](../../../../docs/design/09-branching.md)).
+-- rendered transcript, and records off the current path stay indexed so a hit
+-- can be labelled rather than hidden ([09 §7](../../../../docs/design/09-branching.md)).
+--
+-- **There is no branch column, and [P6.1] removed the one that was here.** It
+-- was written null by both call sites from P4 until then, and the reason is not
+-- that nobody got round to filling it: under [09 §3]'s model a turn is not *on*
+-- a branch. There is no Branch entity owning turns — a turn is on every path
+-- that passes through it, and a BranchRef is a name bookmarking a node. So the
+-- column was unpopulatable in principle rather than merely unpopulated, and it
+-- was named for the model that section explicitly discarded.
+--
+-- **Labelling a hit is therefore a question about the reader**, not a fact
+-- about the row: *is this turn on the head I am looking at* is answered at
+-- query time against that head's path. [09 §3] notes the index may materialise
+-- paths to make that fast, and [P6.1] settled the shape without building it —
+-- as a string it is quadratic in depth, so a session eight hundred turns long
+-- would store megabytes of repeated ancestry. If [P6.3]'s labelled search wants
+-- it, the cheap forms are a parent link walked by a recursive query, or a path
+-- materialised for the head alone.
 create table turn (
   turn_id     text primary key,
   session_id  text not null,
-  branch_id   text,
   segment     text not null,
   offset      integer not null
 ) strict;
+
 
 create index turn_by_session on turn(session_id);
 

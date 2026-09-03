@@ -627,7 +627,7 @@ object, oldest unpinned first.
 
 ### `GET /api/search?q=&limit=`
 
-`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, branchId, segment, offset } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
+`{ "objects": [ { id, schema, name, slug, source } ], "turns": [ { turnId, sessionId, sessionName, segment, offset, onPath, headTurnId } ], "entries": [ { entryId, entryName, objectId, objectName, slug, source, snippet } ] }`
 
 Full-text across all three, because a person looking for *the cathedral* does not
 know or care whether they wrote it in a lorebook, in one entry of one, or said it
@@ -754,23 +754,55 @@ session's turns are its history, and deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns }` — the path from the head, **oldest first**, not every turn in the file. A
-session is a tree that P2 happens to use linearly, and a transcript is one walk
-of it.
+`{ turns, siblings }` — the path from the head, **oldest first**, not every turn
+in the file. A session is a tree, and a transcript is one walk of it.
+
+`siblings` maps a turn on that path to every child of its parent, in creation
+order, and **only for nodes that have more than one**. History shows the
+selected path only ([09 §6](design/09-branching.md)), so this is how an
+alternative is reachable at all — a swipe is a sibling nobody named, and without
+this it would be on disk and invisible. A map of every turn to its lone self
+would grow with the transcript and say nothing.
 
 ### `POST /api/sessions/:sessionId/turns`
 
 ```
-{ idempotencyKey, headTurnId: string|null, input: { text, actorId?, kind? }, guidance? }
+{ idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
+  rewriteOf?: string, input: { text, actorId?, kind? }, guidance? }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
 is reserved; **200** with the same body when the idempotency key already names a
 job; **409 `busy`** carrying the active `job`; **412 `stale-head`** carrying the
-current `head`.
+current `head`; **404 `no-such-parent`** when `parentTurnId` names a turn that
+is not in this session.
 
 Both refusals carry what a client needs to recover. A bare "no" leaves a UI able
 to offer only *try again*, which produces the same "no".
+
+**`parentTurnId` is how a client branches, and its absence is how it does not.**
+A submission names the node it attaches to; leaving the field out means *the
+head*, and a head that has moved is still refused with `412`. Sending it means
+*I mean this node*, the head check does not apply, and the turn lands as a
+sibling of whatever else that node already has. The distinction is the whole of
+it: a server that took any non-head parent at face value would turn every
+client whose head moved under it into a branch nobody asked for, which is what
+two tabs on one session look like. An explicit `null` branches from the root —
+*start this story again* — and is a different request from omitting the field.
+One turn at a time still holds: a second submission while a turn is in flight is
+`409 busy` whether it branches or not.
+
+**`rewriteOf` is the difference between rewrite and reroll** ([07 §14.5]). It
+names a turn whose draws this one should replay: the same roll, so the same
+mechanical outcome and different prose. Absent, the turn draws fresh — which is
+reroll, and also every ordinary turn. **A turn id rather than a tape**, because
+the draws are read from this server's record: a client cannot post the roll it
+wishes it had got, and a turn from another session is `404 no-such-turn`.
+
+Rewrite is the default of the two gestures, which is what stops swiping past a
+failed check from being save-scumming by accident. A turn that consumed no
+draws has nothing to reroll, and the surface must not offer it one
+([07 §14.6]).
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
@@ -794,6 +826,89 @@ and walks the whole path, and the workbench wants one turn, including one the
 head has passed. The lookup is scoped to *this* session inside the store, so a
 bare turn id cannot confirm existence across the ownership boundary: a turn in
 somebody else's session is the same `404` as one that never existed.
+
+### `PUT /api/sessions/:sessionId/head`
+
+```
+{ turnId: string, resume?: boolean }
+```
+
+→ **200** `{ session, abandoned }`; **404 `not-found`** for the session, **404
+`no-such-turn`** when `turnId` is not a turn of it, **409 `busy`** carrying the
+active `job`.
+
+`abandoned` is `{ turns, escapedEffects }` — what the line being left keeps, and
+how many of its effects escaped the session ([09 §7]). Reversibility holds for
+channel state and not for what left: a library write or a generated asset cannot
+be un-written by branching, so an abandoned line says how many it still has out
+in the world. **It is zero until something writes an escaped effect**, which
+nothing does yet.
+
+**Moving the head moves no turn data.** It is where you are in the tree
+([09 §3](design/09-branching.md)) — every node on both lines stays exactly where
+it was, and the write is this session's head pointer, its channel snapshot
+re-derived *at that node*, and the path the move selected.
+
+**`resume` is the forward gesture.** From the node named, follow what was last
+selected — or the only child, where there is nothing to choose between — and
+stop at a fork nobody has been through. That is the difference between resuming
+and guessing: a node with two children and no memory of which one you were on is
+where a server would be inventing your story for you.
+
+**Refused while a turn is in flight**, with the job, for the reason
+[P2 §2.10](design/workplan/04-p2-implementation.md) gives about submissions: the
+running turn will set the head when it commits, so a move that raced it would
+either be overwritten without a word or overwrite the turn's own parentage.
+
+### `POST /api/sessions/:sessionId/turns/:turnId/undo`
+
+→ **200** `{ session, turn }`; **404** for the session or the turn; **409
+`busy`** while a turn is in flight; **409 `off-path`** for a turn on a line this
+session is not on; **409 `nothing-to-undo`** for a turn that changed no channel
+state; **409 `not-at-tip`** carrying `keys` and `branchFrom`.
+
+**Undo applies the effect's `before`, and the refusal is the feature.** That is
+an inverse only while nothing has touched the same key since — apply it after
+something has and you destroy the later change and produce a state no turn ever
+wrote, plausibly enough that nothing surfaces
+([13 §1.2.1](design/13-internal-contracts.md)). So a turn that is no longer the
+tip **for its keys** is refused with the keys that block it and the node to
+branch from instead. *Tip* is per key: a later turn on a different channel
+blocks nothing.
+
+**The undo is an append**, not an erasure — the inverse lands as its own turn,
+attributed to the person, which is why undoing an undo is an ordinary undo.
+Escaped effects are never inverted ([09 §7]): what left the session cannot be
+un-written, and saying so is better than pretending.
+
+### `POST /api/sessions/:sessionId/refs`
+
+```
+{ name: string, turnId: string }
+```
+
+→ **200** `{ session }` with the ref appended; **404 `no-such-turn`** when the
+node is not in this session.
+
+### `PATCH /api/sessions/:sessionId/refs/:refId`
+
+```
+{ name: string }
+```
+
+→ **200** `{ session }`; **404 `no-such-ref`**. Renaming a name does not move
+the bookmark.
+
+### `DELETE /api/sessions/:sessionId/refs/:refId`
+
+→ **200** `{ session }`; **404 `no-such-ref`**.
+
+**A branch ref is a name and nothing more** ([09 §3]) — an id, a name, and the
+node it bookmarks. There is no `Branch` entity owning turns: a swipe is a
+sibling nobody named and a branch is a sibling somebody did, so promoting one
+writes about fifty bytes and moves no data. **Deleting a ref deletes a name**,
+and the turns it pointed at are exactly where they were, reachable by id and by
+a walk from anything below them. Several refs may name one node.
 
 ### `POST /api/sessions/:sessionId/preview`
 
@@ -1460,6 +1575,7 @@ I restart it?"* is a worse answer than one that says.
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
+| 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

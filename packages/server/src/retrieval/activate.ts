@@ -597,7 +597,15 @@ function pickOne(key: string, members: readonly Activation[], rng: Rng): Activat
   if (first === undefined) return null;
   if (rest.length === 0) return first;
 
-  const items = members.map((one) => ({ value: one, weight: one.entry.groupWeight ?? 1 }));
+  // Each candidate carries its entry's id, which is what the draw records and
+  // what a replay checks is still in the contest — [P6.2]. Before that the tape
+  // held a position into this list, and a group whose membership changed
+  // without changing its weight sum replayed onto a different entry.
+  const items = members.map((one) => ({
+    id: one.entry.id,
+    value: one,
+    weight: one.entry.groupWeight ?? 1,
+  }));
   /**
    * **Every weight at zero is an author's instruction, not an error.**
    * `weightedPick` refuses a set with no positive weight, correctly, since

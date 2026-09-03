@@ -10,16 +10,23 @@ import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
+  childrenByParent,
+  createBranchRef,
   createSession,
+  deleteBranchRef,
   deleteSession,
   listSessionFiles,
+  moveHead,
   readSession,
   reconcileHandEdits,
+  renameBranchRef,
   setCast,
   setLore,
   readTurns,
   readTurnById,
   setArchived,
+  undoTurn,
+  type BranchRefOutcome,
 } from '../sessions/store.js';
 import { DEFAULT_MODE_ID, modeById } from '../modes/registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
@@ -27,6 +34,7 @@ import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { previewAssembly } from '../turns/preview.js';
 import { PathEscapeError } from '../storage/paths.js';
+import type { Tape } from '../rng/rng.js';
 
 /**
  * Sessions, turns, and the stream — [P2 §2.10], [04 §3.1], [07 §8].
@@ -157,6 +165,24 @@ const SubmitBody = Type.Object(
   {
     idempotencyKey: Type.String({ minLength: 1, maxLength: 200 }),
     headTurnId: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * Branch from this node instead of extending the head — [P6.0c].
+     *
+     * Absent is every submission before P6: attach to `headTurnId`, and refuse
+     * with `412` if that is no longer the head. Present says *I mean this one*,
+     * and the head check does not apply to it. Explicit `null` branches from
+     * the root.
+     */
+    parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    /**
+     * Replay this turn's draws — **rewrite** rather than reroll, [07 §14.5],
+     * [P6.2].
+     *
+     * A turn id rather than a tape: the draws are read from the record on this
+     * server, so a client cannot post the roll it wishes it had got. Absent is
+     * a reroll, which is also every ordinary turn.
+     */
+    rewriteOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     input: Type.Object({
       text: Type.String({ maxLength: 100_000 }),
       actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -166,6 +192,62 @@ const SubmitBody = Type.Object(
   },
   { additionalProperties: false },
 );
+
+/**
+ * Where to put the head — [P6.1].
+ *
+ * `resume` rather than a second route, because it is the same write with one
+ * question answered differently: *this node*, or *this node and then wherever I
+ * was going*.
+ */
+const HeadBody = Type.Object(
+  {
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    resume: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+/** A name, and the node it bookmarks — [09 §3]. */
+const RefBody = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 200 }),
+    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+  },
+  { additionalProperties: false },
+);
+
+const RefNameBody = Type.Object(
+  { name: Type.String({ minLength: 1, maxLength: 200 }) },
+  { additionalProperties: false },
+);
+
+const RefParams = Type.Object({
+  sessionId: Type.String(),
+  refId: Type.String(),
+});
+
+/**
+ * The three ref writes answer the same four ways, so they say so once.
+ *
+ * A named node that is not in this session is a `404` rather than a `422` for
+ * the reason the turn submission's `no-such-parent` gives: the request is well
+ * formed and names something that is not there.
+ */
+function refReply(reply: FastifyReply, outcome: BranchRefOutcome): FastifyReply {
+  switch (outcome.kind) {
+    case 'no-session':
+      return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+    case 'no-turn':
+      return reply
+        .code(404)
+        .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+    case 'no-ref':
+      return reply.code(404).send({ error: 'no-such-ref', message: 'No such branch ref.' });
+    case 'written':
+      return reply.send({ session: outcome.session });
+  }
+}
 
 export function registerSessionRoutes(app: FastifyInstance, services: AppServices): void {
   app.post('/sessions', { schema: { body: CreateBody } }, async (request, reply) => {
@@ -395,7 +477,29 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const limit =
         query.limit === undefined ? 100 : Math.min(Math.max(Number(query.limit), 1), 1000);
 
-      return reply.send({ turns: path.slice(-limit) });
+      /**
+       * Which nodes on this path have siblings, and what they are — [§1.2],
+       * [P6.3].
+       *
+       * **History shows the selected path only** ([09 §6]), so the alternatives
+       * are not in `turns` and must be named some other way or they are
+       * unreachable — which is what [P2C §5] meant by *a storage affordance with
+       * no route*, and what [21 §4.3] predicted for an imported chat: swipes
+       * land correctly in the tree and cannot be seen.
+       *
+       * Only nodes that actually have alternatives appear. A map of every turn
+       * to its lone self would be a payload that grows with the transcript and
+       * says nothing, and the surface's rule is that an affordance appears where
+       * there is a choice.
+       */
+      const children = childrenByParent(byId);
+      const siblings: Record<string, string[]> = {};
+      for (const turn of path.slice(-limit)) {
+        const here = (children.get(turn.parentTurnId) ?? []).map((child) => child.id);
+        if (here.length > 1) siblings[turn.id] = here;
+      }
+
+      return reply.send({ turns: path.slice(-limit), siblings });
     },
   );
 
@@ -480,6 +584,191 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     },
   );
 
+  /**
+   * Where you are in the tree — [09 §3], [P6.1].
+   *
+   * **Moving the head moves no turn data.** It re-derives the channel state at
+   * the node ([P6.0b], through [P6.0d]'s cache) and records the path it
+   * selected, so navigating back and forward again resumes rather than guesses.
+   * `resume` is that forward gesture: from the node named, follow what was last
+   * selected — or the only child, where there is nothing to choose between —
+   * and stop at a fork nobody has been through.
+   *
+   * **Refused while a turn is in flight**, with the job, for the reason [P2
+   * §2.10] gives about submissions: the running turn is going to set the head
+   * when it commits, and a move that raced it would either be silently
+   * overwritten or overwrite the turn's own parentage. One turn advances a
+   * session at a time, and this is the same rule seen from the other side.
+   */
+  app.put(
+    '/sessions/:sessionId/head',
+    { schema: { params: SessionParams, body: HeadBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { turnId: string; resume?: boolean };
+
+      // No account filter, matching `submitTurn`'s own busy check: a session
+      // belongs to the directory it is in, so the job on it is this account's.
+      const active = activeJob(services.state.db, sessionId);
+      if (active !== null) {
+        return reply.code(409).send({
+          error: 'busy',
+          message: 'This session already has a turn in flight.',
+          job: active,
+        });
+      }
+
+      const outcome = await moveHead(services.sessions, account.handle, sessionId, body.turnId, {
+        ...(body.resume === undefined ? {} : { resume: body.resume }),
+      });
+
+      switch (outcome.kind) {
+        case 'no-session':
+          return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'moved':
+          // With what the line being left still has out in the world — [09 §7]'s
+          // honesty banner. Zero until something writes an escaped effect, and
+          // the field is here so the first producer has somewhere to surface.
+          return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
+      }
+    },
+  );
+
+  /**
+   * Naming a node, renaming the name, and forgetting it — [09 §6]'s *promote*,
+   * [P6.1].
+   *
+   * Three routes over one array in `session.json`, because that is all a
+   * `BranchRef` is: an id, a name, and the node it bookmarks. None of them
+   * reads or writes a turn, and the delete deletes a name — which is worth
+   * saying in the routing layer as well as in the store, since *delete branch*
+   * is a phrase that sounds like it removes a story.
+   */
+
+  /**
+   * Undo — apply an effect's `before`, or refuse and offer the branch —
+   * [§1.4], [13 §1.2.1], [P6.3].
+   *
+   * The refusal is the feature. `before` is an inverse only while nothing has
+   * touched the same key since; applying it otherwise destroys the later change
+   * and produces a state no turn ever wrote, plausibly enough that nothing
+   * surfaces. So a turn that is no longer the tip for its keys is refused with
+   * the keys that block it and the node to branch from instead — which is the
+   * thing this phase spent four stages making cheap.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/undo',
+    { schema: { params: TurnParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+
+      // The same rule a head move follows: a running turn is about to write
+      // state and move the head, and an undo racing it would be inverting
+      // against a tip that is moving underneath.
+      const active = activeJob(services.state.db, sessionId);
+      if (active !== null) {
+        return reply.code(409).send({
+          error: 'busy',
+          message: 'This session already has a turn in flight.',
+          job: active,
+        });
+      }
+
+      const outcome = await undoTurn(services.sessions, account.handle, sessionId, turnId);
+
+      switch (outcome.kind) {
+        case 'no-session':
+          return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+        case 'no-turn':
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
+        case 'off-path':
+          return reply.code(409).send({
+            error: 'off-path',
+            message: 'That turn is not on the line this session is on.',
+          });
+        case 'nothing-to-undo':
+          return reply
+            .code(409)
+            .send({ error: 'nothing-to-undo', message: 'That turn changed no channel state.' });
+        case 'not-at-tip':
+          // With what blocks it and where to branch from, because a bare "no"
+          // leaves a UI able to offer only *try again*.
+          return reply.code(409).send({
+            error: 'not-at-tip',
+            message: 'Something has written those channels since. Branch instead.',
+            keys: outcome.keys,
+            branchFrom: outcome.branchFrom,
+          });
+        case 'undone':
+          return reply.send({ session: outcome.session, turn: outcome.turn });
+      }
+    },
+  );
+  app.post(
+    '/sessions/:sessionId/refs',
+    { schema: { params: SessionParams, body: RefBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { name: string; turnId: string };
+      const outcome = await createBranchRef(
+        services.sessions,
+        account.handle,
+        sessionId,
+        body.name,
+        body.turnId,
+      );
+      return refReply(reply, outcome);
+    },
+  );
+
+  app.patch(
+    '/sessions/:sessionId/refs/:refId',
+    { schema: { params: RefParams, body: RefNameBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, refId } = request.params as { sessionId: string; refId: string };
+      const body = request.body as { name: string };
+      const outcome = await renameBranchRef(
+        services.sessions,
+        account.handle,
+        sessionId,
+        refId,
+        body.name,
+      );
+      return refReply(reply, outcome);
+    },
+  );
+
+  app.delete(
+    '/sessions/:sessionId/refs/:refId',
+    { schema: { params: RefParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId, refId } = request.params as { sessionId: string; refId: string };
+      const outcome = await deleteBranchRef(services.sessions, account.handle, sessionId, refId);
+      return refReply(reply, outcome);
+    },
+  );
+
   app.post(
     '/sessions/:sessionId/turns',
     { schema: { params: SessionParams, body: SubmitBody } },
@@ -491,15 +780,43 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as {
         idempotencyKey: string;
         headTurnId: string | null;
+        parentTurnId?: string | null;
+        rewriteOf?: string;
         input: { text: string; actorId?: string | null; kind?: string };
         guidance?: string;
       };
+
+      /**
+       * The tape a rewrite replays, read from the record — [P6.2].
+       *
+       * Read here rather than in the runner because this is where the request
+       * is still a request: a turn id that names nothing in this session is a
+       * refusal, and the runner's job starts after that question is settled.
+       */
+      let replay: Tape | undefined;
+      if (body.rewriteOf !== undefined) {
+        const rewritten = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.rewriteOf,
+        );
+        if (rewritten === null) {
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
+        }
+        replay = rewritten.tape;
+      }
 
       const outcome = await submitTurn(services.jobs, {
         account: account.handle,
         sessionId,
         idempotencyKey: body.idempotencyKey,
         headTurnId: body.headTurnId,
+        // Spread rather than passed, because *absent* and *null* are different
+        // requests here — see `SubmitRequest.parentTurnId`.
+        ...('parentTurnId' in body ? { parentTurnId: body.parentTurnId } : {}),
       });
 
       switch (outcome.kind) {
@@ -516,12 +833,32 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           });
 
         case 'stale':
-          // With the head it should have used, so a client can rebase rather
-          // than reload everything.
+          /**
+           * With the head it should have used, so a client can rebase rather
+           * than reload everything.
+           *
+           * **Still a refusal after [P6.0c], and that is the decision rather
+           * than a leftover.** A client whose head moved under it can now do
+           * one of two things with this answer, where before it could only
+           * rebase: resubmit against `head`, or resubmit naming
+           * `parentTurnId` and keep the line it was composing on. The refusal
+           * is what makes the second one a choice somebody made instead of a
+           * branch the server invented — [08 §1.7].
+           */
           return reply.code(412).send({
             error: 'stale-head',
             message: 'The session has moved on since this was composed.',
             head: outcome.head,
+          });
+
+        case 'no-parent':
+          // A named branch point that is not a turn of this session. A 404
+          // rather than a 422: the request is well formed and names something
+          // that is not there, which is the same answer `GET /turns/:turnId`
+          // gives for the same id.
+          return reply.code(404).send({
+            error: 'no-such-parent',
+            message: 'No such turn in this session to branch from.',
           });
 
         case 'existing': {
@@ -532,13 +869,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body));
+            services.runner.start(outcome.job, payloadOf(body, replay));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body));
+          services.runner.start(outcome.job, payloadOf(body, replay));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -648,12 +985,16 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 }
 
-function payloadOf(body: {
-  input: { text: string; actorId?: string | null; kind?: string };
-  guidance?: string;
-}): {
+function payloadOf(
+  body: {
+    input: { text: string; actorId?: string | null; kind?: string };
+    guidance?: string;
+  },
+  replay?: Tape,
+): {
   input: { actorId: string | null; kind: string; text: string; raw: string };
   guidance?: string;
+  replay?: Tape;
 } {
   return {
     input: {
@@ -665,6 +1006,7 @@ function payloadOf(body: {
       raw: body.input.text,
     },
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+    ...(replay === undefined ? {} : { replay }),
   };
 }
 

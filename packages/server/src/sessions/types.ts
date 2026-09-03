@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ChannelState, Preset } from '@storyengine/shared';
+import type { BranchRef, ChannelState, Preset } from '@storyengine/shared';
 
 /**
  * Sessions and turns on disk — [02 §5.5](../../../../docs/design/02-data-model.md),
@@ -20,6 +20,7 @@ import type { ChannelState, Preset } from '@storyengine/shared';
 export type {
   AssembledBlock,
   BlockSource,
+  BranchRef,
   BudgetLimit,
   BudgetVerdict,
   CallPurpose,
@@ -39,7 +40,8 @@ export type {
 } from '@storyengine/shared';
 
 /**
- * `session.json` — metadata, cast, branch refs, and the head channel snapshot.
+ * `session.json` — metadata, cast, the lore links, named branch refs, and the
+ * head channel snapshot.
  *
  * **The snapshot is derived, not authoritative** ([02 §8.1]). A session is a
  * tree, so "the channel state of a session" is not a thing that exists: state
@@ -48,6 +50,11 @@ export type {
  * else. It is in the file at all because somebody will open it, and a session
  * file that cannot tell you what time it is in the story fails the legibility
  * promise the whole storage design rests on.
+ *
+ * *This docstring advertised branch refs the interface did not have from P2
+ * until [P6.1], and stopped mentioning `treatment` and `lore` when P5.6 added
+ * them — [P6 §0.3]'s first item, which asked for one edit because a reader of
+ * this file would believe both.*
  */
 export interface SessionFile {
   schema: 'storyengine.session/1';
@@ -99,6 +106,36 @@ export interface SessionFile {
   treatment?: string | null;
   /** Extras beyond whatever the treatment already links — [02 §7]. */
   lore?: string[];
+  /**
+   * Named bookmarks on nodes — [09 §3], added at [P6.1].
+   *
+   * **A list of names, and no turn data.** Creating one writes a name and an
+   * id; deleting one deletes a name. Nothing in this array owns a turn, and
+   * nothing reads it to decide what history is: that is `headTurnId` and the
+   * walk. Optional because every session written before P6.1 predates it, and
+   * absent reads as *no names yet*.
+   */
+  branchRefs?: BranchRef[];
+  /**
+   * Which child a node was last continued through — [09 §3]'s
+   * `lastSelectedChildId`, *"purely so that navigating back and then forward
+   * again resumes where you were rather than guessing"*.
+   *
+   * **A map here rather than a field on the turn, and that is forced.** The
+   * design says *a node may record* it, but a turn is a line in an append-only
+   * segment that is never rewritten ([02 §5.5]) — so a field on the record
+   * could only be written once, at creation, when the answer is not yet known.
+   * The mutable half of a session lives in this file; this is the mutable fact
+   * about a node, keyed by the node's id.
+   *
+   * Derived in the weak sense that losing it costs a person one navigation
+   * choice rather than any story: `resumeFrom` falls back to the only child
+   * when a node has exactly one, and stops at a node with two the map does not
+   * name — which is `reconcileSession`'s rule for the same situation, and the
+   * difference between resuming and guessing.
+   */
+  lastSelectedChild?: Record<string, string>;
+
   /**
    * Set when the session is archived — [02 §10.3].
    *

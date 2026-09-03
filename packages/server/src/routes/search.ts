@@ -6,7 +6,9 @@ import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { search, searchLoreEntries } from '../index-db/query.js';
-import { searchTurns } from '../index-db/sessions.js';
+import { searchTurns, type TurnHit } from '../index-db/sessions.js';
+import { walkPath } from '../sessions/segments.js';
+import { readSession, readTurns } from '../sessions/store.js';
 import { readableOwners } from '../library.js';
 
 /**
@@ -51,6 +53,55 @@ const MAX_RESULTS = 200;
 function resultLimit(raw: string | undefined): number {
   if (raw === undefined) return 50;
   return Math.min(Math.max(Number(raw), 1), MAX_RESULTS);
+}
+
+/**
+ * Whether each turn hit is on the line its session is currently on — [§1.6],
+ * [07 §7.1], [P6.3].
+ *
+ * **Labelled, never hidden and never passed off as current.** A hit on an
+ * abandoned line is a real thing somebody wrote and is exactly what *I know I
+ * read this somewhere* is looking for; dropping it would make the search lie by
+ * omission, and returning it unmarked would make it lie by implication.
+ *
+ * **Computed here rather than stored**, which is [P6.1]'s decision about the
+ * column that used to be called `branch_id`: a turn is on *every* path that
+ * passes through it, so *is this current* is a question about the reader's head
+ * rather than a fact about a row. The answer costs one read of the session's
+ * turns per distinct session in the results, which is why it is done once per
+ * session rather than once per hit.
+ *
+ * A session whose file or turns cannot be read leaves its hits unlabelled
+ * rather than dropping them — the same posture the rest of this route takes
+ * towards a store that disagrees with the index.
+ */
+async function labelTurnHits(
+  services: AppServices,
+  handle: string,
+  hits: readonly TurnHit[],
+): Promise<(TurnHit & { onPath: boolean; headTurnId: string | null })[]> {
+  const paths = new Map<string, { onPath: Set<string>; headTurnId: string | null }>();
+
+  for (const sessionId of new Set(hits.map((hit) => hit.sessionId))) {
+    const session = await readSession(services.sessions, handle, sessionId);
+    if (session === null) continue;
+    const turns = await readTurns(services.sessions, handle, sessionId);
+    paths.set(sessionId, {
+      onPath: new Set(walkPath(turns, session.headTurnId).map((turn) => turn.id)),
+      headTurnId: session.headTurnId,
+    });
+  }
+
+  return hits.map((hit) => {
+    const known = paths.get(hit.sessionId);
+    return {
+      ...hit,
+      // Unknown reads as *current*: an unlabelled hit is better than one
+      // labelled abandoned on the strength of a read that failed.
+      onPath: known === undefined ? true : known.onPath.has(hit.turnId),
+      headTurnId: known?.headTurnId ?? null,
+    };
+  });
 }
 
 export function registerSearchRoutes(app: FastifyInstance, services: AppServices): void {
@@ -132,7 +183,7 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
           slug: row.slug,
           source: row.owner === 'system' ? 'system' : 'user',
         })),
-      turns,
+      turns: await labelTurnHits(services, account.handle, turns),
       /**
        * The owner key is mapped the way `objects` maps it above, because it is
        * the internal `user:ned` spelling and no client should learn it.

@@ -3,6 +3,7 @@
 
 import {
   advanceHead,
+  childrenByParent,
   appendTurnOnly,
   readSession,
   readTurns,
@@ -343,12 +344,9 @@ export async function reconcileSession(
     if (session === null) return 0;
 
     const turns = await readTurns(sessions, handle, sessionId);
-    const byParent = new Map<string | null, Turn[]>();
-    for (const turn of turns.values()) {
-      const siblings = byParent.get(turn.parentTurnId) ?? [];
-      siblings.push(turn);
-      byParent.set(turn.parentTurnId, siblings);
-    }
+    // Shared with the navigation [P6.1] added, which asks the same question of
+    // the same shape — and refuses to guess at a fork for the same reason.
+    const byParent = childrenByParent(turns);
 
     let head = session.headTurnId;
     let advanced = 0;

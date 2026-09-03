@@ -9,7 +9,7 @@ import type { RoleBindings } from '../providers/roles.js';
 import type { Connection } from '../providers/connections.js';
 import { resolveConnections } from '../providers/connections.js';
 import { walkPath } from '../sessions/segments.js';
-import { readSession, readTurns, replayChannels } from '../sessions/store.js';
+import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
 import { resolveCast, type CastMember } from './cast.js';
@@ -84,12 +84,25 @@ export async function gatherAssemblyInputs(
   const session = await readSession(context.sessions, request.account, request.sessionId);
   const turnsById = await readTurns(context.sessions, request.account, request.sessionId);
   const history = walkPath(turnsById, request.parentTurnId);
-  // A session file carries its channels; one that does not — a hand edit, an
-  // older file — has them replayed from the effect log, which is the single
-  // source of truth either way ([02 §5.5]).
-  const channels: Record<string, ChannelState> = session
+  /**
+   * **The channels at `parentTurnId`** — [P6.0b], with the rule and its argument
+   * in `snapshotIsAt`.
+   *
+   * This preferred `session.channels` whenever the file could be read, which
+   * assembles this history against *another* node's state the moment anything
+   * asks for a node that is not the head. The effect log is the single source
+   * of truth either way ([02 §5.5]), so the replay is the general case and the
+   * file's map is the cheap answer for the one node it describes.
+   *
+   * **The same rule as `advanceHead`'s, and that is load-bearing rather than
+   * tidy.** The runner chains its effects' `before` values from this map and
+   * `advanceHead` folds those effects onto its own; two different rules would
+   * record an inverse against a state the fold never had, and `before` is
+   * exactly what P6.3's undo replays.
+   */
+  const channels: Record<string, ChannelState> = snapshotIsAt(session, request.parentTurnId)
     ? session.channels
-    : replayChannels(history);
+    : await reconstructAlong(context.sessions, request.account, request.sessionId, history);
 
   /**
    * **The capability, not a literal** — [P2A §2.1], [04 §4.5].

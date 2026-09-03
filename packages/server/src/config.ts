@@ -274,8 +274,23 @@ export const LIVE_APPLIERS = {
   // inherits. The one key that was live before this table existed.
   'log.level': 'applied',
 
-  // Snapshots are P6's. Nothing reads this.
-  'sessions.snapshotEveryNTurns': 'unread',
+  /**
+   * **Flipped at P6.0d, when the snapshot cache arrived.**
+   *
+   * It read `unread` from P2A until then, with the honest reason that snapshots
+   * were P6's and nothing read the number. Now `reconstructAlong`
+   * (`sessions/store.ts`) reads it **per reconstruction**, through a closure the
+   * session context holds rather than a number read at construction — which is
+   * the shape that would have made this row say `applied` and be a lie, and is
+   * exactly what `routes/live-config.test.ts` exists to catch. Saving a new
+   * value changes the *cadence* of the next reconstruction rather than
+   * anything on the next restart.
+   *
+   * Nothing about correctness depends on it: snapshots are derived and
+   * disposable ([09 §4]), so the value chooses how often the cache is written
+   * and never what a reconstruction answers.
+   */
+  'sessions.snapshotEveryNTurns': 'applied',
 
   // Read inside the runner's streaming loop, through the config reference
   // `applyLiveConfig` now assigns into rather than replaces.

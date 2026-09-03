@@ -33,7 +33,7 @@ describe('the draws', () => {
     expect(typeof site.bool()).toBe('boolean');
     expect(typeof site.chance(0.5)).toBe('boolean');
     expect(site.pick(['a', 'b'])).toMatch(/a|b/);
-    expect(site.weightedPick([{ value: 'only', weight: 1 }])).toBe('only');
+    expect(site.weightedPick([{ id: 'only', value: 'only', weight: 1 }])).toBe('only');
     expect(site.shuffle([1, 2, 3])).toHaveLength(3);
     expect(typeof site.dice('1d20')).toBe('number');
   });
@@ -73,8 +73,8 @@ describe('the draws', () => {
     const rng = seeded();
     const site = rng.at('step', 'loot');
     const table = [
-      { value: 'common', weight: 10 },
-      { value: 'impossible', weight: 0 },
+      { id: 'common', value: 'common', weight: 10 },
+      { id: 'impossible', value: 'impossible', weight: 0 },
     ];
 
     for (let i = 0; i < 200; i += 1) {
@@ -97,7 +97,7 @@ describe('the draws', () => {
     expect(() => site.int(5, 1)).toThrow(RangeError);
     expect(() => site.chance(1.5)).toThrow(RangeError);
     expect(() => site.pick([])).toThrow(RangeError);
-    expect(() => site.weightedPick([{ value: 'x', weight: 0 }])).toThrow(RangeError);
+    expect(() => site.weightedPick([{ id: 'x', value: 'x', weight: 0 }])).toThrow(RangeError);
   });
 });
 
@@ -262,5 +262,120 @@ describe('the source', () => {
     const draw = (rng: Rng) => rng.at('step', 'x').int(1, 1_000_000);
 
     expect(draw(a)).toBe(draw(b));
+  });
+});
+
+describe('a group contest replays to an entry, not to a position', () => {
+  /**
+   * The fault [P6 §0.1a] found and [P6.2] fixed, from both sides.
+   *
+   * `weightedPick` recorded an *index* into the candidate list, guarded on
+   * replay by `detail = total=<summed weight>` alone. A group whose membership
+   * changed without changing the sum therefore replayed the old index onto a
+   * **different entry** — and reported `replayed: true` while doing it, so
+   * `diverged` said the rewrite had reproduced the turn.
+   *
+   * Nothing could reach it before this stage: no production code constructed a
+   * replaying `Rng`. [P6.2] is the stage that does, which is why the fix came
+   * first — gate step 3 asks that *the record marks replayed vs fresh draws*,
+   * and that sentence was satisfiable by a draw that replayed to the wrong
+   * entry.
+   */
+  function contest(members: { id: string; weight: number }[]) {
+    return members.map((member) => ({ id: member.id, value: member.id, weight: member.weight }));
+  }
+
+  const original = contest([
+    { id: 'ferryman', weight: 1 },
+    { id: 'lighthouse', weight: 1 },
+    { id: 'omen', weight: 1 },
+  ]);
+
+  /** The first run, and the winner it recorded. */
+  function firstRun(seed: number): { rng: Rng; won: string } {
+    const rng = new Rng({ source: seededSource(seed) });
+    return { rng, won: rng.at('lore.group', 'weather').weightedPick(original) };
+  }
+
+  it('replays the same winner when the contest is the same', () => {
+    const { rng, won } = firstRun(1);
+
+    const rewrite = new Rng({ source: seededSource(999), replay: rng.tape });
+    expect(rewrite.at('lore.group', 'weather').weightedPick(original)).toBe(won);
+    expect(rewrite.tape[0]?.replayed).toBe(true);
+    expect(rewrite.diverged).toBe(false);
+  });
+
+  it('records the winner rather than where it stood', () => {
+    // The record is legible for the same reason it is safe: *this entry won*,
+    // rather than *index two won* of a list nobody kept.
+    const { rng, won } = firstRun(1);
+    expect(rng.tape[0]?.value).toBe(won);
+    expect(typeof rng.tape[0]?.value).toBe('string');
+  });
+
+  it('still replays when the same members are in a different order', () => {
+    // A reorder is not a different contest: the same entry is still there to
+    // win. Recording the position would have replayed onto whoever now stands
+    // where the winner used to; putting the members into `detail` instead would
+    // have missed and drawn fresh, which is safe but loses a rewrite that
+    // should have held.
+    const { rng, won } = firstRun(1);
+    const reordered = [...original].reverse();
+
+    const rewrite = new Rng({ source: seededSource(999), replay: rng.tape });
+    expect(rewrite.at('lore.group', 'weather').weightedPick(reordered)).toBe(won);
+    expect(rewrite.tape[0]?.replayed).toBe(true);
+  });
+
+  it('draws fresh when the winner is no longer in the contest', () => {
+    // **The falsifying case**, and it is built so the weight sum is unchanged:
+    // one member swapped for another of equal weight. Under the old record this
+    // replayed the winner's index onto whoever inherited it, and said
+    // `replayed: true`.
+    const { rng, won } = firstRun(1);
+    const without = contest([
+      ...original.filter((item) => item.id !== won).map((item) => ({ ...item })),
+      { id: 'stranger', weight: 1 },
+    ]);
+    expect(without.reduce((sum, item) => sum + item.weight, 0)).toBe(
+      original.reduce((sum, item) => sum + item.weight, 0),
+    );
+
+    const rewrite = new Rng({ source: seededSource(999), replay: rng.tape });
+    const winner = rewrite.at('lore.group', 'weather').weightedPick(without);
+
+    expect(winner).not.toBe(won);
+    expect(without.some((item) => item.id === winner)).toBe(true);
+    // And it says so, which is the half gate step 3 leans on.
+    expect(rewrite.tape[0]?.replayed).toBe(false);
+    expect(rewrite.diverged).toBe(true);
+  });
+
+  it('draws fresh when the winner is still there with its weight zeroed', () => {
+    // *Zero-weight entries are never chosen* is this method's promise, and a
+    // replay is where it would quietly stop being true.
+    //
+    // **The weight the winner lost is given to somebody else**, so the total is
+    // unchanged and `detail` still matches. Without that this test passes for
+    // the wrong reason — the mutation pass found exactly that, since zeroing a
+    // weight ordinarily moves the sum and the guard refuses on the sum before
+    // it ever asks about the winner.
+    const { rng, won } = firstRun(1);
+    const other = original.find((item) => item.id !== won)?.id;
+    const silenced = original.map((item) =>
+      item.id === won
+        ? { ...item, weight: 0 }
+        : { ...item, weight: item.id === other ? item.weight + 1 : item.weight },
+    );
+    expect(silenced.reduce((sum, item) => sum + item.weight, 0)).toBe(
+      original.reduce((sum, item) => sum + item.weight, 0),
+    );
+
+    const rewrite = new Rng({ source: seededSource(999), replay: rng.tape });
+    const winner = rewrite.at('lore.group', 'weather').weightedPick(silenced);
+
+    expect(winner).not.toBe(won);
+    expect(rewrite.tape[0]?.replayed).toBe(false);
   });
 });

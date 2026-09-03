@@ -616,7 +616,9 @@ failures; write the three cheap tests the gate leans on and does not have
 in-place rebuild; and an `ephemeral` entry with neither `sticky` nor `cooldown`,
 which is what protects `same()`'s `left.fired === right.fired` clause at
 `retrieve.ts:239` — deleting that clause today leaves the suite green and makes
-an ephemeral entry fire forever); make selection reachable enough to walk from;
+an ephemeral entry fire forever — *the first and third of these are one test,
+written at [P6.0a](08-p6-implementation.md) on 2026-09-02; the `orphan-fts`
+assertion is still owed*); make selection reachable enough to walk from;
 then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and have a
 person walk all eighteen **against HEAD**. Everything but step 6 is about a day's
 work. Step 6 is person-blocked with lead time, and it is fine for it to be
@@ -2271,8 +2273,8 @@ P5.3 is written so they do not hold the phase closed.
     a turn — **and where the answer is a gate or a disabled book rather than a
     match, it agrees with what the document half already showed.** Disagreement
     here is the failure §1.6 predicts and P5.7 is meant to prevent.
-14. Timing counters reconstruct correctly at an old node (with P6 landed, this
-    becomes the branch test; before P6, replay-from-zero covers it).
+14. ~~Timing counters reconstruct correctly at an old node (with P6 landed, this
+    becomes the branch test; before P6, replay-from-zero covers it).~~
     **The escape clause was never cashed** (§0.5): every `replayChannels` call
     site in the suite folds a *clock-only* path, so replay-from-zero has never
     been run over a `se.lore.timing` effect. The missing test is one test — take
@@ -2281,6 +2283,15 @@ P5.3 is written so they do not hold the phase closed.
     three counters checked. **So P6 inherits an obligation rather than a step
     that changed meaning**, and [P6 §2](08-p6-implementation.md)'s P6.0a is where
     it is discharged.
+    **Discharged at P6.0a, 2026-09-02**, in
+    `packages/server/src/sessions/reconstruct-property.test.ts`: four turns
+    with a sticky, a cooldown and an ephemeral entry, then
+    `replayChannels(walkPath(turns, head))` against `session.channels` with
+    the three counters asserted by name — and then the same replay at every
+    node of a forked session, against a table that passes through no
+    production code. The branch-*gesture* half — activate on one line, branch
+    from before it, the sibling line does not have it — is
+    [P6 §3](08-p6-implementation.md) step 10, owned by P6.3.
 
 ### Added at the audit
 

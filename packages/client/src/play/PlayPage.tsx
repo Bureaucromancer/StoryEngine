@@ -7,7 +7,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { uuidv7 } from '@storyengine/shared';
 
-import { cancelTurn, submitTurn, type TurnRecord } from '../api.js';
+import {
+  cancelTurn,
+  createBranchRef,
+  moveHead,
+  submitTurn,
+  undoTurn,
+  type TurnRecord,
+} from '../api.js';
 import {
   liveKey,
   previewKey,
@@ -37,10 +44,13 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * The play surface — a deliberately thin chat view
  * ([P2 §3](../../../../docs/design/workplan/04-p2-implementation.md)).
  *
- * Message list, input, streaming render, reattach on reload, and the collapsed
- * guidance box. What is *not* here is the point: no impersonation, no axis
- * controls, no block table, no branching. Each has an owning phase, and a chat
- * view is exactly the surface that invites building the workbench by accident.
+ * Message list, input, streaming render, reattach on reload, the collapsed
+ * guidance box — and, since [P6.2], the two gestures on every turn. What is
+ * *not* here is still the point: no impersonation, no axis controls, no block
+ * table, and no sibling affordance yet — that is P6.3's, and until it lands the
+ * way back to a replaced attempt is *continue from here* on the turn before it.
+ * Each has an owning phase, and a chat view is exactly the surface that invites
+ * building the workbench by accident.
  * The record itself is the workbench's to show since [P3.2] — the raw
  * disclosure this page carried through P2 is gone with it.
  */
@@ -91,6 +101,99 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       // rendering the value they had last been handed. Resetting notifies.
       void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
     },
+  });
+
+  /**
+   * Redo — another attempt at a turn, as a sibling of it — [09 §7], [P6.2].
+   *
+   * The words are the turn's own rather than the composer's: this is *that turn
+   * again*, and taking what is in the box would silently make it a different
+   * one. `parentTurnId` is sent explicitly, and `null` for the first turn of a
+   * session is a real value rather than an omission — absent would mean *the
+   * head*, which is the thing this gesture is not.
+   *
+   * **§1.8, decided and written where a person can find it:** the view follows
+   * the new sibling. When this commits the head is the new turn, so the
+   * transcript below re-renders as the line it is now on, and the attempt it
+   * replaced is still on disk — reachable by moving the head back to it, and by
+   * P6.3's inline sibling affordance when that lands. Marinara's rule was
+   * *editing does not change the reply already on screen*, and the reason to
+   * depart from it is that the protection it offered — not losing the thing you
+   * were reading — is what the sibling affordance provides visibly, which
+   * Marinara did not have. This is a lean pending PLAYABLE, and [08 §1.8] is
+   * where it is argued.
+   */
+  const redo = useMutation({
+    mutationFn: ({ turn, rewrite }: { turn: TurnRecord; rewrite: boolean }) =>
+      submitTurn({
+        sessionId,
+        idempotencyKey: uuidv7(),
+        headTurnId: session.data?.session.headTurnId ?? null,
+        text: turn.input?.text ?? '',
+        parentTurnId: turn.parentTurnId,
+        ...(rewrite ? { rewriteOf: turn.id } : {}),
+      }),
+    onSuccess: (accepted) => {
+      dispatch({ kind: 'submitted', jobId: accepted.jobId });
+      // The composer is left alone: this gesture did not use what is in it, so
+      // clearing it would throw away something somebody typed.
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+
+  /**
+   * Continue differently — a new turn *after* this one — [09 §7], [P6.2].
+   *
+   * Moving the head is the whole of it: the composer writes a child of
+   * wherever the head is, so pointing at an old message and then typing is
+   * exactly *continue from here*. Nothing is submitted, and no turn moves.
+   */
+  /**
+   * Stepping to a sibling — [§1.2].
+   *
+   * `resume: true`, so coming back to a line returns to where you were on it
+   * rather than to its first turn ([09 §3]).
+   */
+  const goToSibling = useMutation({
+    mutationFn: (turnId: string) => moveHead(sessionId, turnId, true),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+
+  const continueFrom = useMutation({
+    mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+
+  /**
+   * Undo, and naming a line — [§1.4], [§1.2], [P6.3].
+   *
+   * Both refresh the same two entries a head move does, because both change
+   * what the session file says: undo appends a turn and advances the head, and
+   * a name is a write to `branchRefs`.
+   */
+  const refreshSession = () => {
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+    void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+  };
+
+  const undo = useMutation({
+    mutationFn: (turn: TurnRecord) => undoTurn(sessionId, turn.id),
+    onSuccess: refreshSession,
+  });
+
+  const name = useMutation({
+    mutationFn: (named: { turnId: string; name: string }) =>
+      createBranchRef(sessionId, named.name, named.turnId),
+    onSuccess: refreshSession,
   });
 
   /**
@@ -192,7 +295,33 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
 
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
-          <TurnView key={turn.id} turn={turn} />
+          <TurnView
+            key={turn.id}
+            turn={turn}
+            siblings={transcript.data?.siblings?.[turn.id] ?? []}
+            busy={
+              running ||
+              redo.isPending ||
+              continueFrom.isPending ||
+              undo.isPending ||
+              name.isPending
+            }
+            onRedo={(subject, rewrite) => {
+              redo.mutate({ turn: subject, rewrite });
+            }}
+            onContinueFrom={(subject) => {
+              continueFrom.mutate(subject);
+            }}
+            onUndo={(subject) => {
+              undo.mutate(subject);
+            }}
+            onGoToSibling={(turnId) => {
+              goToSibling.mutate(turnId);
+            }}
+            onName={(turnId, given) => {
+              name.mutate({ turnId, name: given });
+            }}
+          />
         ))}
 
         {/* The turn being written. A live region, because its text arrives
@@ -256,9 +385,60 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   );
 }
 
-function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
+/**
+ * One turn, with the two gestures on it — [09 §7], [P6.2].
+ *
+ * **On the turn, not on the message.** Under `per-actor` dispatch one turn is
+ * several messages, and [09 §7] resolves branching inside a multi-message turn
+ * to that turn's *node* — which is C11, closed precisely to stop *message*
+ * becoming the unit people reach for.
+ *
+ * **Two gestures, offered explicitly, because guessing is wrong half the time.**
+ * *Redo* is another attempt at this turn: a sibling, same parent, same words.
+ * *Continue from here* is a new turn after it: it moves the head to this node,
+ * and the composer below then writes its child. Those are the two things a
+ * person can mean by pointing at an old message, and the design's argument for
+ * two buttons is that a server picking between them is wrong about half the
+ * time.
+ *
+ * **Redo splits into rewrite and reroll where draws exist** ([07 §14.5]).
+ * *Redo* rewrites: the draws come off this turn's tape, so the mechanical
+ * outcome holds and only the prose changes. *Reroll* is the explicit second
+ * action that rolls again — and it **only appears when the turn consumed
+ * draws**, which is [07 §14.6]'s rule and the reason it is absent from most
+ * turns: an ordinary turn against an ordinary book draws nothing, and a button
+ * offering to re-roll nothing would be a button that lies.
+ *
+ * Rewrite is the default of the two because the other way round makes swiping
+ * past a failed check save-scumming by accident.
+ */
+function TurnView({
+  turn,
+  siblings,
+  busy,
+  onRedo,
+  onContinueFrom,
+  onUndo,
+  onGoToSibling,
+  onName,
+}: {
+  turn: TurnRecord;
+  siblings: string[];
+  busy: boolean;
+  onRedo: (turn: TurnRecord, rewrite: boolean) => void;
+  onContinueFrom: (turn: TurnRecord) => void;
+  onUndo: (turn: TurnRecord) => void;
+  onGoToSibling: (turnId: string) => void;
+  onName: (turnId: string, name: string) => void;
+}): React.JSX.Element {
+  // A turn with no input is not one a person wrote — a divergence turn from a
+  // hand edit ([02 §8.1]) is the one that exists today — so there is nothing to
+  // attempt again.
+  const rerunnable = turn.input !== undefined;
+  const rolled = turn.tape.length > 0;
+
   return (
-    <li className="flex flex-col gap-1">
+    <li className="group/turn flex flex-col gap-1">
       {turn.input === undefined ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
       )}
@@ -270,7 +450,169 @@ function TurnView({ turn }: { turn: TurnRecord }): React.JSX.Element {
       {turn.status === 'failed' ? (
         <p className="text-sm text-warn-ink">This turn did not finish.</p>
       ) : null}
+
+      {/* Visible on hover and on focus. Focus is not decoration here: these are
+          the only controls in the transcript, and a keyboard reaching them
+          would otherwise tab into things it cannot see. */}
+      <div className="flex gap-2 opacity-0 transition-opacity group-focus-within/turn:opacity-100 group-hover/turn:opacity-100">
+        {rerunnable ? (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              onRedo(turn, true);
+            }}
+          >
+            Redo
+          </Button>
+        ) : null}
+        {rerunnable && rolled ? (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              onRedo(turn, false);
+            }}
+          >
+            Reroll
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            onContinueFrom(turn);
+          }}
+        >
+          Continue from here
+        </Button>
+        {/* Undo is offered on every turn and refused by the server when
+            something has written the same channels since — the refusal is the
+            feature ([§1.4]), and hiding the button would make the rule
+            invisible instead of explaining it. */}
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            onUndo(turn);
+          }}
+        >
+          Undo
+        </Button>
+      </div>
+
+      <SiblingStrip
+        turn={turn}
+        siblings={siblings}
+        busy={busy}
+        onGo={onGoToSibling}
+        onName={onName}
+      />
     </li>
+  );
+}
+
+/**
+ * The inline affordance on a node that has siblings — [§1.2], [09 §6], [P6.3].
+ *
+ * **History shows the selected path only**, so this is the whole of how an
+ * alternative is reachable: a count, a way to step between them, and a way to
+ * give one a name. The full tree visualiser is post-1.0 ([14 §1]) and this is
+ * deliberately not a small version of it — it answers *there are others* and
+ * *take me to one*, which is what a person swiping needs.
+ *
+ * **Stepping resumes rather than lands.** Moving to a sibling follows what was
+ * last selected below it, so coming back to a line you explored returns to
+ * where you were on it instead of to its first turn.
+ */
+function SiblingStrip({
+  turn,
+  siblings,
+  busy,
+  onGo,
+  onName,
+}: {
+  turn: TurnRecord;
+  siblings: string[];
+  busy: boolean;
+  onGo: (turnId: string) => void;
+  onName: (turnId: string, name: string) => void;
+}): React.JSX.Element | null {
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+
+  const at = siblings.indexOf(turn.id);
+  if (siblings.length < 2 || at < 0) return null;
+
+  const previous = siblings[at - 1];
+  const next = siblings[at + 1];
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-ink-subtle">
+      <Button
+        type="button"
+        disabled={busy || previous === undefined}
+        onClick={() => {
+          if (previous !== undefined) onGo(previous);
+        }}
+        aria-label="Previous version"
+      >
+        ‹
+      </Button>
+      {/* A count, not a list: which of these you are on is the fact, and the
+          others are addressed by stepping rather than by being enumerated. */}
+      <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
+      <Button
+        type="button"
+        disabled={busy || next === undefined}
+        onClick={() => {
+          if (next !== undefined) onGo(next);
+        }}
+        aria-label="Next version"
+      >
+        ›
+      </Button>
+
+      {naming ? (
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim().length === 0) return;
+            onName(turn.id, name.trim());
+            setNaming(false);
+            setName('');
+          }}
+        >
+          <label>
+            <span className="sr-only">Name for this line</span>
+            <input
+              className={control}
+              value={name}
+              placeholder="Name this line"
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
+            />
+          </label>
+          <Button type="submit" variant="primary">
+            Save
+          </Button>
+        </form>
+      ) : (
+        // Promoting a swipe writes a name and moves no data ([09 §6]), which is
+        // why this sits beside the count rather than behind a confirmation.
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setNaming(true);
+          }}
+        >
+          Name this line
+        </Button>
+      )}
+    </div>
   );
 }
 

@@ -611,8 +611,40 @@ export function readSession(
   return request('GET', `/api/sessions/${sessionId}`);
 }
 
-export function readTranscript(sessionId: string): Promise<{ turns: TurnRecord[] }> {
+/**
+ * The path from the head, and which of its nodes have siblings — [P6.3].
+ *
+ * `siblings` maps a turn on the path to every child of its parent, in creation
+ * order, and only for nodes that have more than one. History shows the selected
+ * path only ([09 §6]), so this is how an alternative is reachable at all.
+ */
+export function readTranscript(
+  sessionId: string,
+): Promise<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
   return request('GET', `/api/sessions/${sessionId}/turns`);
+}
+
+/**
+ * Name a node — [09 §6]'s *promote*. A name and nothing more: no turn moves,
+ * and deleting one later deletes a name.
+ */
+export function createBranchRef(
+  sessionId: string,
+  name: string,
+  turnId: string,
+): Promise<{ session: SessionSummary }> {
+  return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/refs`, { name, turnId });
+}
+
+/**
+ * Undo a turn's effects — [§1.4]. Refused, with the branch offered, when
+ * something has written the same channels since.
+ */
+export function undoTurn(sessionId: string, turnId: string): Promise<{ session: SessionSummary }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/undo`,
+  );
 }
 
 /**
@@ -635,6 +667,20 @@ export interface SubmitTurn {
   text: string;
   /** Its own field, never folded into the action — [03 §5.1]. */
   guidance?: string;
+  /**
+   * Attach this turn to a node other than the head — [P6.0c].
+   *
+   * **Absent and `null` are different requests.** Absent means *the head*, and
+   * a head that has moved is refused; `null` means *the root*, which is what
+   * redoing the first turn of a session asks for.
+   */
+  parentTurnId?: string | null;
+  /**
+   * Replay this turn's draws — **rewrite** rather than reroll, [07 §14.5].
+   *
+   * A turn id, not a tape: the server reads the draws from its own record.
+   */
+  rewriteOf?: string;
 }
 
 export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cursor: string }> {
@@ -645,6 +691,28 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
       : { guidance: submission.guidance }),
+    // Spread rather than passed, because absent and null are different
+    // requests — see `SubmitTurn.parentTurnId`.
+    ...('parentTurnId' in submission ? { parentTurnId: submission.parentTurnId } : {}),
+    ...(submission.rewriteOf === undefined ? {} : { rewriteOf: submission.rewriteOf }),
+  });
+}
+
+/**
+ * Where you are in the tree — [09 §3], [P6.1].
+ *
+ * Moving the head moves no turn data: it is the selection, and the transcript
+ * is the path to it. `resume` follows what was last selected forward, which is
+ * how *back* and then *forward* returns where you were instead of guessing.
+ */
+export function moveHead(
+  sessionId: string,
+  turnId: string,
+  resume?: boolean,
+): Promise<{ session: SessionSummary }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/head`, {
+    turnId,
+    ...(resume === undefined ? {} : { resume }),
   });
 }
 

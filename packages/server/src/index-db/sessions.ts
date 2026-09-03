@@ -37,8 +37,6 @@ export interface TurnHit {
   turnId: string;
   sessionId: string;
   sessionName: string;
-  /** Null while P2 has one branch per session; carried from the start ([09 §7]). */
-  branchId: string | null;
   segment: string;
   offset: number;
 }
@@ -83,21 +81,15 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
  * searchable but unlocatable, is a state no reader knows how to handle, and
  * there is no reason to allow it to exist.
  */
-export function indexTurn(
-  db: DatabaseSync,
-  turn: Turn,
-  location: TurnLocation,
-  branchId: string | null = null,
-): void {
+export function indexTurn(db: DatabaseSync, turn: Turn, location: TurnLocation): void {
   inTransaction(db, () => {
     db.prepare(
-      `insert into turn (turn_id, session_id, branch_id, segment, offset)
-         values (?, ?, ?, ?, ?)
+      `insert into turn (turn_id, session_id, segment, offset)
+         values (?, ?, ?, ?)
          on conflict(turn_id) do update set session_id = excluded.session_id,
-                                            branch_id = excluded.branch_id,
                                             segment = excluded.segment,
                                             offset = excluded.offset`,
-    ).run(turn.id, turn.sessionId, branchId, location.segment, location.offset);
+    ).run(turn.id, turn.sessionId, location.segment, location.offset);
 
     // FTS5 has no upsert, so a reindex of the same turn is a delete and an
     // insert. Cheap, and it keeps a re-run of the same append — which the commit
@@ -182,7 +174,7 @@ export function searchTurns(
 
   const rows = db
     .prepare(
-      `select turn.turn_id, turn.session_id, turn.branch_id, turn.segment, turn.offset,
+      `select turn.turn_id, turn.session_id, turn.segment, turn.offset,
               session.name as session_name
          from turn_fts
          join turn on turn.turn_id = turn_fts.turn_id
@@ -193,7 +185,6 @@ export function searchTurns(
     .all(term, ...owners, limit) as {
     turn_id: string;
     session_id: string;
-    branch_id: string | null;
     segment: string;
     offset: number;
     session_name: string;
@@ -203,7 +194,6 @@ export function searchTurns(
     turnId: row.turn_id,
     sessionId: row.session_id,
     sessionName: row.session_name,
-    branchId: row.branch_id,
     segment: row.segment,
     offset: row.offset,
   }));
@@ -259,7 +249,7 @@ export function sessionSnapshot(db: DatabaseSync): string[] {
 
   const turns = db
     .prepare(
-      `select turn.turn_id, turn.session_id, turn.branch_id, turn.segment, turn.offset,
+      `select turn.turn_id, turn.session_id, turn.segment, turn.offset,
               coalesce(turn_fts.text, '') as text
          from turn left join turn_fts on turn_fts.turn_id = turn.turn_id
         order by turn.turn_id`,

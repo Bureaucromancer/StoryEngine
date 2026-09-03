@@ -284,7 +284,16 @@ async function assembleWithState(
   await watcher?.start();
   const maturation = startMaturation(index.db, layout);
 
-  const sessions: SessionContext = { layout, index: index.db };
+  const config = structuredClone(options.config);
+
+  const sessions: SessionContext = {
+    layout,
+    index: index.db,
+    // The live reference, read per reconstruction rather than captured — see
+    // `SessionContext.snapshotEvery` and `LIVE_APPLIERS`. `config` is the
+    // server's own clone, which is what `applyLiveConfig` assigns into.
+    snapshotEvery: () => config.sessions.snapshotEveryNTurns,
+  };
   const bus = new TurnStream();
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
@@ -350,8 +359,14 @@ async function assembleWithState(
    * `services.config` — the object the route writes and the form reads back.
    * The value really did change. Nothing had asked the component that consumes
    * it, which is why the test that catches this takes a turn.
+   *
+   * **Declared above the session context rather than here, since P6.0d**, which
+   * holds a closure over it for `sessions.snapshotEveryNTurns`. A closure may
+   * legally name a `const` declared later, and this one would never have been
+   * called before the declaration ran — but *would never* is a property of the
+   * lines in between rather than of the code, and the failure it buys is a
+   * temporal-dead-zone throw at startup.
    */
-  const config = structuredClone(options.config);
   const runner = new TurnRunner({ commit, bus, providers, accounts, config });
 
   return {

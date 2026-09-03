@@ -181,6 +181,37 @@ describe('a hand edit lands as a user-attributed effect', () => {
     expect(readClock((await onDisk()).channels)).toEqual({ day: 1, hour: 19, minute: 35 });
   });
 
+  it('survives a head advance that has not reconciled it yet', async () => {
+    // The failure this whole mechanism exists to prevent, in the reconciler's
+    // own words: *the next head advance would recompute `channels` from the log
+    // and the edit would vanish with no error, which is the worst of the three
+    // possible behaviours*. What prevents it is `advanceHead` folding onto the
+    // **file's** map at the head, which is the arm [P6.0b] kept when it stopped
+    // trusting that map everywhere else — see `snapshotIsAt`. The falsifying
+    // mutation is replaying unconditionally, and until this test that arm could
+    // be deleted with the suite green.
+    //
+    // On a channel the turn does not write, because a whole-value set of the
+    // clock lands on the same number whichever map it folds onto — which is the
+    // reason the fault this stage fixes went five phases unnoticed.
+    await turn(null);
+
+    const edited = JSON.parse(await readFile(sessionFile(), 'utf8')) as SessionFile;
+    edited.channels['se.mood'] = { version: 1, value: 'thunderstruck' };
+    await writeFile(sessionFile(), JSON.stringify(edited, null, 2));
+
+    await turn((await onDisk()).headTurnId);
+
+    expect((await onDisk()).channels['se.mood']?.value).toBe('thunderstruck');
+
+    // And it is still only in the snapshot: nothing wrote it to the log, which
+    // is precisely the divergence `reconcileHandEdits` exists to close on the
+    // next read. The edit is held, not adopted.
+    const turns = await readTurns(context, ACCOUNT, session.id);
+    const replayed = replayChannels(walkPath(turns, (await onDisk()).headTurnId));
+    expect(replayed['se.mood']).toBeUndefined();
+  });
+
   it('is reversible like any other effect', async () => {
     await turn(null);
     await editTheClockOnDisk({ day: 1, hour: 19, minute: 30 });

@@ -18,6 +18,7 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
+import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
   readAllTurns,
@@ -26,7 +27,7 @@ import {
   type TurnLocation,
   walkPath,
 } from './segments.js';
-import type { ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
+import type { BranchRef, ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
  * Session storage — [02 §5.5](../../../../docs/design/02-data-model.md),
@@ -75,6 +76,18 @@ export interface SessionContext {
   scope?: (handle: string) => string;
   /** Test seam; production uses the defaults. */
   limits?: SegmentLimits;
+  /**
+   * How many turns of depth a reconstruction may replay before leaving a
+   * snapshot behind — `sessions.snapshotEveryNTurns`, [P6.0d].
+   *
+   * **A function, so the value cannot be captured.** The key is tiered `live`
+   * ([13 §4]), and `applyLiveConfig` assigns into the config object rather than
+   * replacing it — so a number read at construction would make this key's row
+   * in `LIVE_APPLIERS` say `applied` and be a lie, which is the exact failure
+   * that table exists to prevent and what `routes/live-config.test.ts` was
+   * written for. Absent in a store-only test, where the default stands.
+   */
+  snapshotEvery?: () => number;
 }
 
 function scopeOf(context: SessionContext, handle: string): string {
@@ -355,6 +368,12 @@ export async function appendTurnOnly(
  * running it twice produces the state it produced the first time. That is what
  * makes step 3 of the commit protocol safe to resume without knowing whether it
  * already ran.
+ *
+ * **Still idempotent after [P6.0b], by a slightly different argument.** A second
+ * run finds the head already naming this turn, so the parent map is replayed
+ * from the log rather than read off the file — and the same effects folded onto
+ * the same parent state land on the same map. The resume costs one walk it did
+ * not cost before, on a path that runs when a commit was interrupted.
  */
 export async function advanceHead(
   context: SessionContext,
@@ -365,15 +384,489 @@ export async function advanceHead(
   const session = await readSession(context, handle, sessionId);
   if (session === null) return null;
 
+  /**
+   * **The map at the node this turn was appended to, not the map the head
+   * happened to hold** — [P6.0b].
+   *
+   * This read `session.channels` unconditionally, which is correct for the only
+   * shape P2 can produce — a child of the head — and wrong for every gesture P6
+   * adds: append a sibling and the new state is the *abandoned* line's, plus
+   * this turn's effects. It was unreachable while `submitTurn`'s head-equality
+   * refusal held, and it is fixed here with that refusal still in place, so the
+   * diff is a fix rather than a fix and a feature at once.
+   *
+   * **A clock-only fixture cannot see the difference**, which is why this went
+   * five phases without being noticed: a whole-value set lands on the same
+   * number whichever map it folds onto. What shows it is a key the abandoned
+   * line wrote and this one never did.
+   *
+   * The head case still costs no read at all — the ordinary commit is as cheap
+   * as it was — and the walk is paid only by an append that is genuinely off
+   * the head. Making *that* cheap is P6.0d's snapshot cache.
+   */
+  let atParent = session.channels;
+  if (!snapshotIsAt(session, turn.parentTurnId)) {
+    const turns = await readTurns(context, handle, sessionId);
+    atParent = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, turn.parentTurnId),
+    );
+    await snapshotFork(context, handle, sessionId, turns, turn, atParent);
+  }
+
   const next: SessionFile = {
     ...session,
     updatedAt: new Date().toISOString(),
     headTurnId: turn.id,
-    channels: applyEffects(session.channels, turn.effects),
+    channels: applyEffects(atParent, turn.effects),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   indexSession(context.index, scopeOf(context, handle), next);
   return next;
+}
+
+/**
+ * Every node's children, by parent id — [P6.1].
+ *
+ * **Extracted from `reconcileSession` rather than written a second time.** That
+ * function has built this map since P2 to decide whether a session's head can
+ * be walked forward, and it refuses to guess at a node with two children; the
+ * navigation this phase adds asks the same question of the same shape, and two
+ * copies would be two places for *what counts as a fork* to drift.
+ *
+ * `null` keys the roots. Order within a parent is the map's insertion order,
+ * which is the order the turns were read — creation order, since a segment is
+ * append-only ([02 §5.5]). That is the order siblings should be offered in.
+ */
+export function childrenByParent(turns: Map<string, Turn>): Map<string | null, Turn[]> {
+  const byParent = new Map<string | null, Turn[]>();
+  for (const turn of turns.values()) {
+    const siblings = byParent.get(turn.parentTurnId) ?? [];
+    siblings.push(turn);
+    byParent.set(turn.parentTurnId, siblings);
+  }
+  return byParent;
+}
+
+/**
+ * Where *forward* goes from a node — [09 §3]'s
+ * *"navigating back and then forward again resumes where you were rather than
+ * guessing"*.
+ *
+ * Two rules, and the second one is the one that keeps the promise:
+ *
+ * - **What was selected**, from `lastSelectedChild`. A head move records the
+ *   whole path it moved to, so every node on the line somebody left remembers
+ *   which way they went.
+ * - **The only child**, when a node has exactly one. That is not guessing —
+ *   there is nothing to guess between — and it is what makes forward work on a
+ *   session that has never branched, whose map is empty.
+ *
+ * It stops at a node with two or more children that the map does not name,
+ * which is `reconcileSession`'s rule for the identical situation: *a session
+ * with two children of the head is a branch, and guessing there would silently
+ * pick somebody's story for them.*
+ *
+ * A remembered child that is missing, tombstoned or not actually a child of the
+ * node stops the walk too — the map is written by this server and edited by
+ * whoever opens the file, and a name that no longer resolves is a stale note
+ * rather than an error.
+ */
+export function resumeFrom(
+  session: SessionFile,
+  turns: Map<string, Turn>,
+  fromTurnId: string,
+): string {
+  const children = childrenByParent(turns);
+  const remembered = session.lastSelectedChild ?? {};
+
+  let at = fromTurnId;
+  // A hand-edited map can name a cycle, and walking one forever is the single
+  // outcome worse than stopping early.
+  const seen = new Set<string>([at]);
+
+  for (;;) {
+    const here = children.get(at) ?? [];
+    const named = remembered[at];
+    const next =
+      named !== undefined && here.some((child) => child.id === named)
+        ? named
+        : here.length === 1
+          ? here[0]?.id
+          : undefined;
+
+    if (next === undefined || seen.has(next)) return at;
+    seen.add(next);
+    at = next;
+  }
+}
+
+/** What moving the head can answer — [P6.1]. */
+/**
+ * What moving the head leaves behind — [09 §7]'s honesty banner, [§1.5],
+ * [P6.3].
+ *
+ * **Reversibility holds for channel state and not for what left the session.**
+ * A library write, a generated asset, a message an extension sent: branching
+ * cannot un-write those, and effects carry `scope: 'escaped'` so that a line
+ * somebody abandons can *say* how many of them it still has out in the world
+ * rather than implying they went with it.
+ *
+ * Counted over the turns that are on the old path and not on the new one, which
+ * is the honest definition of *abandoned*: everything before the fork is shared
+ * by construction and is not going anywhere.
+ *
+ * **Nothing writes an escaped effect yet**, and that is recorded rather than
+ * hidden: `acceptEffect` hard-codes `'session'`, so `escaped` is a count that
+ * is always zero until something produces one. [P6 §0.2] identifies the first
+ * producer as P8's memory extraction — memory books are ordinary library
+ * lorebooks, so every extraction is exactly the *lorebook entry promoted to the
+ * shared library* [09 §7] classifies as escaped. The count is here because the
+ * alternative is P8 shipping a producer with nowhere for it to surface.
+ */
+function abandonedBy(
+  from: readonly Turn[],
+  to: readonly Turn[],
+): { turns: number; escapedEffects: number } {
+  const joining = new Set(to.map((turn) => turn.id));
+  const left = from.filter((turn) => !joining.has(turn.id));
+  let escapedEffects = 0;
+  for (const turn of left) {
+    for (const effect of turn.effects) {
+      if (effect.scope === 'escaped') escapedEffects += 1;
+    }
+  }
+  return { turns: left.length, escapedEffects };
+}
+
+export type MoveHeadOutcome =
+  | {
+      kind: 'moved';
+      session: SessionFile;
+      /** What the old line still has out in the world — [09 §7], [P6.3]. */
+      abandoned: { turns: number; escapedEffects: number };
+    }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' };
+
+/**
+ * Points the head at any node, and re-derives the channel state there — [P6.1].
+ *
+ * **The first consumer of [P6.0b]**, and where a regression in it would show.
+ * `advanceHead` folds one turn's effects onto the map at its parent, which is
+ * right for appending and meaningless here: this head did not arrive by a turn
+ * being taken. So the state is reconstructed at the node through the cache
+ * ([P6.0d]), which is the same answer `replayChannels(walkPath(...))` gives and
+ * the property test says so at every index.
+ *
+ * **Moving the head moves no turn data**, which is the whole point of the tree
+ * model: every node on both lines is where it was, and the only writes are this
+ * file's `headTurnId`, its channel snapshot, and the path this move selects.
+ *
+ * `resume` is the forward gesture — see {@link resumeFrom}. Without it the head
+ * lands exactly where it was told.
+ */
+export async function moveHead(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+  options: { resume?: boolean } = {},
+): Promise<MoveHeadOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    // Scoped to this session by the read itself, so a bare turn id from another
+    // one cannot move this head — the same boundary `GET /turns/:turnId` keeps.
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+
+    const target = options.resume === true ? resumeFrom(session, turns, turnId) : turnId;
+    const path = walkPath(turns, target);
+
+    /**
+     * The path is remembered, not just the tip.
+     *
+     * Recording only the new head's parent would answer *forward* for one node
+     * and lose it for every ancestor, so walking back twice and forward twice
+     * would resume once and then guess. Entries for nodes off this path are
+     * left alone, which is what makes the line somebody abandoned still
+     * remember its own continuation when they come back to it.
+     */
+    const lastSelectedChild = { ...(session.lastSelectedChild ?? {}) };
+    for (const [at, turn] of path.entries()) {
+      const parent = path[at - 1];
+      if (parent !== undefined) lastSelectedChild[parent.id] = turn.id;
+    }
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      headTurnId: target,
+      channels: await reconstructAlong(context, handle, sessionId, path),
+      lastSelectedChild,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return {
+      kind: 'moved',
+      session: next,
+      abandoned: abandonedBy(walkPath(turns, session.headTurnId), path),
+    };
+  });
+}
+
+/** What a branch-ref write can answer — [P6.1]. */
+export type BranchRefOutcome =
+  | { kind: 'written'; session: SessionFile }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' }
+  | { kind: 'no-ref' };
+
+/**
+ * Writes the session file with a new set of refs, under the lock.
+ *
+ * The three gestures below differ only in how they compute that set, and every
+ * one of them writes **names** — no turn is read, moved, or written by any of
+ * them, which is [09 §6]'s *promoting a swipe writes about fifty bytes and
+ * moves no data* stated as code.
+ */
+async function withBranchRefs(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  change: (session: SessionFile, turns: Map<string, Turn>) => BranchRef[] | BranchRefOutcome,
+): Promise<BranchRefOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    const changed = change(session, turns);
+    if (!Array.isArray(changed)) return changed;
+
+    const next: SessionFile = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      branchRefs: changed,
+    };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return { kind: 'written', session: next };
+  });
+}
+
+/** Names a node — [09 §6]'s *promote*. */
+export async function createBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  name: string,
+  turnId: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session, turns) => {
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+    const ref: BranchRef = { id: uuidv7(), name, headTurnId: turnId };
+    return [...(session.branchRefs ?? []), ref];
+  });
+}
+
+/** Renames one. The node it points at is not this gesture's business. */
+export async function renameBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  refId: string,
+  name: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session) => {
+    const refs = session.branchRefs ?? [];
+    if (!refs.some((ref) => ref.id === refId)) return { kind: 'no-ref' };
+    return refs.map((ref) => (ref.id === refId ? { ...ref, name } : ref));
+  });
+}
+
+/**
+ * Forgets a name.
+ *
+ * **Deleting a ref deletes a name**, and the turns it pointed at are exactly
+ * where they were — reachable by id, by a walk from anything below them, and by
+ * any other ref. There is no cascade here because there is nothing to cascade
+ * to: a ref owns nothing.
+ */
+export async function deleteBranchRef(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  refId: string,
+): Promise<BranchRefOutcome> {
+  return withBranchRefs(context, handle, sessionId, (session) => {
+    const refs = session.branchRefs ?? [];
+    if (!refs.some((ref) => ref.id === refId)) return { kind: 'no-ref' };
+    return refs.filter((ref) => ref.id !== refId);
+  });
+}
+
+/** What an undo can answer — [§1.4], [13 §1.2.1], [P6.3]. */
+export type UndoOutcome =
+  | { kind: 'undone'; session: SessionFile; turn: Turn }
+  | { kind: 'no-session' }
+  | { kind: 'no-turn' }
+  /** On disk, but not on the line the head is on. */
+  | { kind: 'off-path' }
+  /** Nothing this turn wrote can be inverted — see the kinds below. */
+  | { kind: 'nothing-to-undo' }
+  /**
+   * Something wrote those keys after it, so `before` is not an inverse.
+   * `branchFrom` is the node to branch from instead — the refusal's whole
+   * point is that it can offer one.
+   */
+  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null };
+
+/**
+ * Undoes a turn's effects by applying their `before` — [§1.4],
+ * [13 §1.2.1](../../../../docs/design/13-internal-contracts.md).
+ *
+ * **`before` is only an inverse while nothing has touched the same key since**,
+ * and that sentence is the whole of this function. [13 §1.2.1] corrects an
+ * earlier draft that thought otherwise, with the case that makes it plain: HP
+ * goes 10 → 8 at turn N and 8 → 5 later; applying turn N's `before: 10` now
+ * does not undo turn N, it destroys the later change and produces a state no
+ * turn ever wrote. The value is plausible, so nothing surfaces. **Refusing is
+ * what converts a silent corruption into an affordance** — and the affordance
+ * is the one this phase built: branch from before it and play it differently.
+ *
+ * **The check reads the log rather than the index.** [13 §1.2.1] says *the
+ * index knows the latest effect per path*; this index knows no effects at all,
+ * and [P6.1] decided against the column that would have carried a path — a turn
+ * is on every path through it, so *latest on the path* is a question about the
+ * reader's head rather than a fact about a row. Walking the path from the log is
+ * O(depth) against turns already read, which is what everything else here costs.
+ *
+ * **The undo is an append, not an erasure.** A segment is never rewritten
+ * ([02 §5.5]), so the inverse lands as its own turn, attributed to the user, the
+ * way a hand edit does ([02 §8.1]). The record then says a person undid
+ * something, which is more honest than a history that quietly lacks it — and it
+ * is why undoing an undo is an ordinary undo.
+ *
+ * **Escaped effects are never inverted** ([09 §7]): a library write or a
+ * generated asset left the session, and pretending a branch can un-write it
+ * would be worse than saying plainly that it cannot.
+ */
+export async function undoTurn(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turnId: string,
+): Promise<UndoOutcome> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return { kind: 'no-session' };
+
+    const turns = await readTurns(context, handle, sessionId);
+    if (!turns.has(turnId)) return { kind: 'no-turn' };
+
+    const path = walkPath(turns, session.headTurnId);
+    const at = path.findIndex((turn) => turn.id === turnId);
+    const subject = path[at];
+    // A turn on an abandoned line has no *current* state to be the tip of, and
+    // inverting it would write its `before` into a line it was never on.
+    if (subject === undefined) return { kind: 'off-path' };
+
+    /**
+     * The pre-turn value per key, and the value standing now.
+     *
+     * **The first `before` and the last `after`**, because `acceptEffect`
+     * chains within a turn: a second effect on one key carries the first one's
+     * `after` as its `before`, so the earliest is the only one that names the
+     * state the turn began from.
+     */
+    const restore = new Map<string, { was: unknown; now: unknown; effect: ChannelEffect }>();
+    for (const effect of subject.effects) {
+      if (!effect.applied || effect.scope === 'escaped') continue;
+      const key = channelKey(effect.channelId, effect.scopeKey);
+      const held = restore.get(key);
+      restore.set(key, {
+        was: held === undefined ? effect.before : held.was,
+        now: effect.after,
+        effect,
+      });
+    }
+    if (restore.size === 0) return { kind: 'nothing-to-undo' };
+
+    const later = new Set<string>();
+    for (const turn of path.slice(at + 1)) {
+      for (const effect of turn.effects) {
+        if (!effect.applied || effect.scope === 'escaped') continue;
+        later.add(channelKey(effect.channelId, effect.scopeKey));
+      }
+    }
+
+    const blocked = [...restore.keys()].filter((key) => later.has(key));
+    if (blocked.length > 0) {
+      return { kind: 'not-at-tip', keys: blocked, branchFrom: subject.parentTurnId };
+    }
+
+    const id = uuidv7();
+    const effects = [...restore.entries()].map(([, held]) =>
+      inverseOf(id, held.effect, held.was, held.now),
+    );
+    const undone: Turn = {
+      id,
+      sessionId,
+      parentTurnId: session.headTurnId,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      effects,
+      tape: [],
+    };
+
+    await appendTurnOnly(context, handle, sessionId, undone);
+    const next = await advanceHead(context, handle, sessionId, undone);
+    if (next === null) return { kind: 'no-session' };
+    return { kind: 'undone', session: next, turn: undone };
+  });
+}
+
+/**
+ * One effect's inverse, attributed to the person who asked for it.
+ *
+ * **A `before` of null becomes a delete rather than a set to null**, and the
+ * ambiguity is worth naming: `acceptEffect` stamps `null` both for a key that
+ * held null and for one that did not exist, because it reads
+ * `running[key]?.value ?? null`. Restoring by *setting* null would leave the key
+ * present holding null, which for a timing counter is the difference between
+ * *this entry has never fired* and *this entry fired and the record of it is
+ * broken*. Deleting is the reading that matches every value the engine actually
+ * writes, all of which are objects.
+ */
+function inverseOf(
+  turnId: string,
+  effect: ChannelEffect,
+  was: unknown,
+  now: unknown,
+): ChannelEffect {
+  return {
+    id: uuidv7(),
+    turnId,
+    channelId: effect.channelId,
+    scopeKey: effect.scopeKey,
+    op: was === null ? { type: 'delete', path: '/' } : { type: 'set', path: '/' },
+    // Honest in both directions, so undoing an undo is an ordinary undo.
+    before: now,
+    after: was,
+    // The person who pressed it, not the engine that computed the original —
+    // the same attribution a hand edit gets, and for the same reason.
+    proposedBy: { kind: 'user' },
+    applied: true,
+    rejectedReason: null,
+    supersedes: effect.id,
+    channelVersion: effect.channelVersion,
+    scope: 'session',
+  };
 }
 
 /**
@@ -402,7 +895,26 @@ export async function reconcileHandEdits(
     if (session === null) return [];
 
     const turns = await readTurns(context, handle, sessionId);
-    const replayed = replayChannels(walkPath(turns, session.headTurnId));
+    /**
+     * Through the cache — [P6.0d]. This runs on the outermost session read, so
+     * it is the reconstruction a person waits for when they open a session, and
+     * the one [09 §4] means by *too slow to feel casual* at turn eight hundred.
+     *
+     * **It is also the one place a bad snapshot would have a durable
+     * consequence**, which is worth naming rather than discovering: a snapshot
+     * that disagreed with the fold would read here as a hand edit and be
+     * written into the log as a user-attributed effect. What stands between is
+     * the property test asserting the two agree at every index, a snapshot that
+     * carries its own turn id so a copied or renamed file is refused, and an
+     * atomic write so a torn one is never read. [09 §4] says the rest plainly:
+     * a snapshot that disagrees with a replay is a bug in the effects.
+     */
+    const replayed = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, session.headTurnId),
+    );
 
     const effects = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
     if (effects.length === 0) return [];
@@ -478,6 +990,158 @@ export function replayChannels(path: readonly Turn[]): Record<string, ChannelSta
     channels = applyEffects(channels, turn.effects);
   }
   return channels;
+}
+
+/**
+ * How many turns a reconstruction may replay before leaving a snapshot behind.
+ *
+ * The schema already says integer-and-at-least-one (`config.ts`), so the guard
+ * below is for this store's own callers rather than for a settings save: a
+ * closure returning zero would otherwise write a snapshot per turn through a
+ * modulo by zero, and the failure would read as a cache bug rather than as a
+ * bad argument.
+ */
+const DEFAULT_SNAPSHOT_EVERY = 10;
+
+function snapshotInterval(context: SessionContext): number {
+  const every = context.snapshotEvery?.() ?? DEFAULT_SNAPSHOT_EVERY;
+  return Number.isInteger(every) && every > 0 ? every : DEFAULT_SNAPSHOT_EVERY;
+}
+
+/**
+ * The channel state at the end of a path, through the snapshot cache —
+ * [09 §4](../../../../docs/design/09-branching.md), [P6.0d].
+ *
+ * *Walk up to the nearest ancestor holding a snapshot, replay effects forward
+ * along the path.* The walk is the caller's, because every caller has already
+ * done one; what this adds is the two ends — where to start, and what to leave
+ * behind.
+ *
+ * **It must return exactly what `replayChannels` would**, and that is a
+ * property this phase asserts rather than a hope it holds:
+ * `reconstruct-property.test.ts` compares the two at every node of a forked
+ * session, with the cache warm and again with every snapshot deleted. [09 §4]
+ * asks CI for precisely that, and it is why a cache is allowed on this path.
+ *
+ * **Snapshots are written while folding forward, every N turns of the replayed
+ * suffix** — not at fixed depths. Nothing depends on *which* nodes have one, so
+ * the useful rule is the one that bounds the work: after this returns, no node
+ * it replayed through is more than N turns from a snapshot, and the next
+ * reconstruction on this line replays at most N. One slow reconstruction of a
+ * long line therefore leaves the whole line cached, which is what makes a
+ * property test that reconstructs at *every* node affordable.
+ *
+ * **A miss is only ever slower.** An unreadable snapshot, an id no path can
+ * name, a directory somebody deleted — each is a miss, and the fold behind it
+ * is still the truth.
+ */
+export async function reconstructAlong(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  path: readonly Turn[],
+): Promise<Record<string, ChannelState>> {
+  if (path.length === 0) return {};
+
+  const available = await listSnapshots(context.layout, handle, sessionId);
+
+  let channels: Record<string, ChannelState> = {};
+  let start = 0;
+  // From the tip back, so the first hit is the deepest — the least to replay.
+  for (let at = path.length - 1; at >= 0; at -= 1) {
+    const turn = path[at];
+    if (turn === undefined || !available.has(turn.id)) continue;
+    const held = await readSnapshot(context.layout, handle, sessionId, turn.id);
+    // A listed file that will not read is a miss rather than an error, so the
+    // scan carries on to the next-deepest rather than falling all the way to
+    // zero because of one bad file.
+    if (held === null) continue;
+    channels = held;
+    start = at + 1;
+    break;
+  }
+
+  const every = snapshotInterval(context);
+  let replayed = 0;
+  for (const turn of path.slice(start)) {
+    channels = applyEffects(channels, turn.effects);
+    replayed += 1;
+    if (replayed % every === 0) {
+      await writeSnapshot(context.layout, handle, sessionId, turn.id, channels);
+    }
+  }
+
+  return channels;
+}
+
+/**
+ * A snapshot at a node that has just acquired a second child — [09 §4]'s other
+ * trigger, and the cheap one: a node with several children is a node whose
+ * state will be materialised once per sibling explored.
+ *
+ * **Free where it is called.** `advanceHead` has already read the turns and
+ * already computed the parent's map to fold onto, so the whole added cost is
+ * counting that parent's children in a map it is holding.
+ *
+ * **Today a branch append is the only way a node acquires a second child**,
+ * which is worth stating because it will stop being true. A second child means
+ * two turns naming one parent, and the second of those cannot be a child of the
+ * head unless the head moved backwards first — and moving the head backwards is
+ * P6.1's work. When it lands, the head path in `advanceHead` needs this too.
+ */
+async function snapshotFork(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turns: Map<string, Turn>,
+  turn: Turn,
+  atParent: Record<string, ChannelState>,
+): Promise<void> {
+  const parentTurnId = turn.parentTurnId;
+  if (parentTurnId === null) return;
+
+  let siblings = 0;
+  for (const other of turns.values()) {
+    if (other.parentTurnId === parentTurnId && other.id !== turn.id) siblings += 1;
+  }
+  if (siblings === 0) return;
+
+  await writeSnapshot(context.layout, handle, sessionId, parentTurnId, atParent);
+}
+
+/**
+ * Whether `session.channels` is the state at this node — [P6.0b].
+ *
+ * **It is the state at the head, and at no other node.** `SessionFile` says so
+ * of itself — *"state at `headTurnId`. Derived."* ([02 §8.1]) — and until this
+ * stage nothing enforced it: two readers took the file's map whenever the file
+ * was there, which pairs one line's history with another line's state the
+ * moment anything asks for a node that is not the head. The symptom used to be
+ * a wrong clock, one visibly bogus number. Since P5 it is also wrong **lore** —
+ * an entry sticky on a line that never fired it, an `ephemeral` spent by a turn
+ * that is not in this history — which changes the prose the model is given
+ * rather than a field on the screen.
+ *
+ * **The fast path is sound because `advanceHead` maintains it**, and the two
+ * belong together: the head snapshot is that turn's effects folded onto its own
+ * parent's map, so it equals `replayChannels(walkPath(turns, head))` by
+ * construction rather than by luck.
+ *
+ * **The one legitimate divergence is a hand edit, and preferring the file there
+ * is deliberate.** A person who opens `session.json` has expressed an intent,
+ * and `reconcileHandEdits` calls recomputing over the top of it *"the worst of
+ * the three possible behaviours"* — the read route folds the edit into the log
+ * as a user-attributed effect rather than this path discarding it.
+ *
+ * A type predicate, so a caller's `session.channels` narrows without an
+ * assertion. A null session — an unreadable or missing file — is the state at
+ * nothing.
+ */
+export function snapshotIsAt(
+  session: SessionFile | null,
+  nodeId: string | null,
+): session is SessionFile {
+  return session !== null && (session.headTurnId ?? null) === (nodeId ?? null);
 }
 
 /**
