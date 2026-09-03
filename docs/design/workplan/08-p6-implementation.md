@@ -1205,27 +1205,106 @@ one provider call.
 > **May not start before P6.0b. Blocks P6.1 and P6.2 entirely** — no gesture can
 > ship over a head-gated store.
 
-#### P6.0d — the snapshot cache, and the config key
+#### ~~P6.0d — the snapshot cache, and the config key~~ Landed
 
-**Builds:** the cache keyed by `TurnId`; the location is already fixed by
-[02 §5.1](../02-data-model.md) and this stage does not get to choose it (§0.2).
-Snapshot **at every N of depth and at any node that acquires a second child** —
-[09 §4](../09-branching.md) names both triggers and §1.1 carries only the first;
-*"a node with several children is a node whose state will be materialised
-repeatedly, once per sibling explored"* is the cheap win. No eviction at 1.0
-(§1.1; [06 C8](../06-open-questions.md) reads RESOLVED — pick generously). Flip
-`config.ts:278` from `'unread'` to `'applied'` and **write the test that does not
-exist** (gate step 9): the behavioural shape from `routes/live-config.test.ts`,
-saving a new N over `PUT /config` on a running server and showing the *cadence*
-change rather than the number.
+`sessions/snapshots.ts` is the whole store: one JSON file per node under
+`sessions/<id>/snapshots/`, the location [02 §5.1] fixed and this stage did not
+get to choose. `reconstructAlong` (`sessions/store.ts`) is the read — *walk up
+to the nearest ancestor holding a snapshot, replay forward along the path* —
+and the three readers that used to fold from zero now call it: `advanceHead`'s
+branch path, `reconcileHandEdits`, and `gatherAssemblyInputs`. `replayChannels`
+stays exactly as it was, because it is what the cache is checked against.
 
-**Must prove:** (i) delete every snapshot and everything still works, slower,
-with the property asserting equality at every index — gate step 6; (ii) gate step
-14's cost bound. Note the cache now earns its place on **effect volume** as well
-as walk depth, because every turn touching a lorebook writes one
-`se.lore.timing` effect per entry whose counters moved.
+**The interval rule is *never replay more than N twice*, and it is not the
+literal reading of §1.1.** Snapshots are written while folding forward, every N
+turns of the replayed suffix, rather than at fixed depths — nothing depends on
+*which* nodes have one, so the useful rule is the one that bounds work. Two
+consequences fall out of it that fixed depths would not have given: a single
+slow reconstruction of a long line leaves the **whole line** cached, which is
+what makes a property test that reconstructs at every node affordable; and no
+depth bookkeeping exists anywhere, so there is no second derived number to keep
+honest beside the head snapshot. The other trigger is [09 §4]'s cheap win, and
+it is free where it happens: a branch append has already read the turns and
+already computed the parent's map, so writing the fork's snapshot costs one
+count of that parent's children. **A branch append is the only way a node
+acquires a second child today**, and the code says where that stops being true
+— P6.1's move-head is the other route, and the head path will need it then.
 
-**May start any time after P6.0a; must land before the phase gate.**
+**Nothing on the ordinary path writes a snapshot**, which is the honest cost
+note. A child of the head still folds one turn's effects onto the head's map and
+writes no cache, so a purely linear session accumulates snapshots only when
+something reconstructs — the first branch from turn eight hundred pays the full
+fold once, and everything after it is bounded. That is the *slower* gate step 6
+tolerates, and the alternative — a walk on every commit to learn the depth —
+would have made every ordinary turn pay for a cache that ordinary turns do not
+use.
+
+**The key is `applied` now, and the test is behavioural.** `LIVE_APPLIERS`'s row
+read *"Snapshots are P6's. Nothing reads this."* since P2A;
+`reconstructAlong` reads it per reconstruction through a closure the session
+context holds, because a number read at construction is exactly the shape that
+made four rows in that table lie ([13 §4.3]). `live-config.test.ts` gained a
+second describe for it: six turns, a save of two, and `GET /api/sessions/:id` —
+which reconciles hand edits, and so reconstructs — leaves snapshots at the
+second, fourth and sixth nodes; delete them, save five, read again, and the
+snapshot is at the fifth. **The cadence, not the number**, and it cannot pass if
+the value is read once.
+
+**Eight mutations, all red.** Never reading the cache; never writing it; the
+interval ignoring the live config; the fork trigger removed; a copied snapshot
+believed rather than refused; a corrupt one throwing instead of missing; the
+shallowest ancestor used instead of the deepest; and the interval off by one.
+
+**The trap, for the third time in this stage's own tests.** Two of the cache
+tests were written asserting a clock, passed, and proved nothing: every turn
+sets the clock to a whole value, so the tip reads the same number whether the
+fold started at the snapshot, at the one before it, or at zero. Both were
+rewritten around a marker key that no effect writes, which is the only thing
+that answers *where did you start*. It is the same shape as [P6.0b]'s stranded
+lore key and [P6.0a]'s fork-versus-tip assertion, and it is now written down
+three times because it has caught three different tests in one phase.
+
+**Proof obligations.** (i) Gate step 6, twice. At store level a line
+reconstructs the same warm, warmer and with the directory deleted; and in
+`reconstruct-property.test.ts` — the fixture whose effects are lore rather than
+a clock — cached and from-zero agree at **every node** of the forked session,
+before deletion and after, with the cache refilling itself. That is [09 §4]'s
+*replay-from-zero must equal snapshot-plus-replay at every index*, which it asks
+CI for by name. (ii) Gate step 14's cost bound, asserted as a bound on **work**
+rather than on wall-clock: two hundred turns each carrying twenty-five
+entry-scoped timing effects, reconstructed cold, then reconstructed again
+replaying *nothing* — proved with a marker in the tip's snapshot rather than by
+timing, because *a time a person would accept* is a judgement about a machine
+and a CI assertion about it is a flake waiting for a busy runner. The wall-clock
+half belongs to the gate walk.
+
+**What is deliberately not here.** No eviction, per §1.1 and [06 C8]'s
+*generous during alpha* — snapshots are small and derived, and the phase gate's
+own step 6 is the argument that keeping them costs nothing that matters. And the
+default N is still ten, because C8 says to tighten on evidence rather than
+before it; what changed is that the number now does something.
+
+*The stage as it was written:*
+
+> **Builds:** the cache keyed by `TurnId`; the location is already fixed by
+> [02 §5.1](../02-data-model.md) and this stage does not get to choose it (§0.2).
+> Snapshot **at every N of depth and at any node that acquires a second child** —
+> [09 §4](../09-branching.md) names both triggers and §1.1 carries only the first;
+> *"a node with several children is a node whose state will be materialised
+> repeatedly, once per sibling explored"* is the cheap win. No eviction at 1.0
+> (§1.1; [06 C8](../06-open-questions.md) reads RESOLVED — pick generously). Flip
+> `config.ts:278` from `'unread'` to `'applied'` and **write the test that does not
+> exist** (gate step 9): the behavioural shape from `routes/live-config.test.ts`,
+> saving a new N over `PUT /config` on a running server and showing the *cadence*
+> change rather than the number.
+>
+> **Must prove:** (i) delete every snapshot and everything still works, slower,
+> with the property asserting equality at every index — gate step 6; (ii) gate step
+> 14's cost bound. Note the cache now earns its place on **effect volume** as well
+> as walk depth, because every turn touching a lorebook writes one
+> `se.lore.timing` effect per entry whose counters moved.
+>
+> **May start any time after P6.0a; must land before the phase gate.**
 
 ### P6.1 — Navigation and the head
 
@@ -1362,12 +1441,24 @@ actually landed and the gate could name real state instead of hypothetical.*
    ([07 §1.1](07-p5-implementation.md)) diverge per line correctly.
 6. Delete every snapshot → everything still works, slower; the property test
    asserts equality at every index.
+   **Covered at P6.0d**, twice: `sessions/snapshots.test.ts` deletes the
+   directory on a line, and `reconstruct-property.test.ts` compares cached
+   against from-zero at every node of the forked lore fixture — warm, then with
+   every snapshot deleted, then warm again as it refills. That is [09 §4]'s
+   *replay-from-zero must equal snapshot-plus-replay at every index*, which it
+   asks CI for by name.
 7. Search finds text on an abandoned branch, labelled as such (§1.6).
 8. Kill the server, delete `index.sqlite`, restart → the tree, refs and head
    all survive; only derived things were lost.
 
-9. **`sessions.snapshotEveryNTurns` reads `applied`**, and this phase ~~its test
-   passes~~ **writes the test, because there is not one** (§0.1) — editing the
+9. ~~**`sessions.snapshotEveryNTurns` reads `applied`**~~ **Done at P6.0d**: the
+   row says `applied`, `reconstructAlong` reads it per reconstruction through a
+   closure, and `routes/live-config.test.ts` gained the behavioural test — six
+   turns, a save, and a session read that leaves snapshots at a different
+   cadence. The original step, and why it owed a test rather than inheriting
+   one, follows. **`sessions.snapshotEveryNTurns` reads `applied`**, and this
+   phase ~~its test passes~~ **writes the test, because there is not one**
+   (§0.1) — editing the
    row today would break nothing and prove nothing. The behavioural shape is the
    one to copy (`routes/live-config.test.ts`, which exists because four rows said
    `applied` and were lying): save a new N over `PUT /config` on a running server
@@ -1412,7 +1503,12 @@ actually landed and the gate could name real state instead of hypothetical.*
     step 10 above.
 
 14. **Reconstruction stays affordable against a real lorebook** *(added
-    2026-09-02 from §0.1a)*. P5 made the effect log an order of magnitude
+    2026-09-02 from §0.1a)*. **The work half is covered at P6.0d** — two hundred
+    turns of twenty-five entry-scoped timing effects each, reconstructed cold
+    and then again replaying nothing, proved with a marker rather than a clock.
+    **The wall-clock half stays for the walk**: *a time a person would accept*
+    is a judgement about a machine, and a CI assertion about it is a flake
+    waiting for a busy runner. P5 made the effect log an order of magnitude
     busier: every turn touching a book writes one `se.lore.timing` effect per
     entry whose counters moved. `retrieve` already filters to entries that
     actually changed — *"a library of four hundred entries would otherwise write

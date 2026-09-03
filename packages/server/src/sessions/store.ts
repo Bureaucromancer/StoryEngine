@@ -18,6 +18,7 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import { channelKey, divergenceEffects, divergenceTurn } from './channels.js';
+import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
   readAllTurns,
@@ -75,6 +76,18 @@ export interface SessionContext {
   scope?: (handle: string) => string;
   /** Test seam; production uses the defaults. */
   limits?: SegmentLimits;
+  /**
+   * How many turns of depth a reconstruction may replay before leaving a
+   * snapshot behind — `sessions.snapshotEveryNTurns`, [P6.0d].
+   *
+   * **A function, so the value cannot be captured.** The key is tiered `live`
+   * ([13 §4]), and `applyLiveConfig` assigns into the config object rather than
+   * replacing it — so a number read at construction would make this key's row
+   * in `LIVE_APPLIERS` say `applied` and be a lie, which is the exact failure
+   * that table exists to prevent and what `routes/live-config.test.ts` was
+   * written for. Absent in a store-only test, where the default stands.
+   */
+  snapshotEvery?: () => number;
 }
 
 function scopeOf(context: SessionContext, handle: string): string {
@@ -391,9 +404,17 @@ export async function advanceHead(
    * as it was — and the walk is paid only by an append that is genuinely off
    * the head. Making *that* cheap is P6.0d's snapshot cache.
    */
-  const atParent = snapshotIsAt(session, turn.parentTurnId)
-    ? session.channels
-    : replayChannels(walkPath(await readTurns(context, handle, sessionId), turn.parentTurnId));
+  let atParent = session.channels;
+  if (!snapshotIsAt(session, turn.parentTurnId)) {
+    const turns = await readTurns(context, handle, sessionId);
+    atParent = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, turn.parentTurnId),
+    );
+    await snapshotFork(context, handle, sessionId, turns, turn, atParent);
+  }
 
   const next: SessionFile = {
     ...session,
@@ -432,7 +453,26 @@ export async function reconcileHandEdits(
     if (session === null) return [];
 
     const turns = await readTurns(context, handle, sessionId);
-    const replayed = replayChannels(walkPath(turns, session.headTurnId));
+    /**
+     * Through the cache — [P6.0d]. This runs on the outermost session read, so
+     * it is the reconstruction a person waits for when they open a session, and
+     * the one [09 §4] means by *too slow to feel casual* at turn eight hundred.
+     *
+     * **It is also the one place a bad snapshot would have a durable
+     * consequence**, which is worth naming rather than discovering: a snapshot
+     * that disagreed with the fold would read here as a hand edit and be
+     * written into the log as a user-attributed effect. What stands between is
+     * the property test asserting the two agree at every index, a snapshot that
+     * carries its own turn id so a copied or renamed file is refused, and an
+     * atomic write so a torn one is never read. [09 §4] says the rest plainly:
+     * a snapshot that disagrees with a replay is a bug in the effects.
+     */
+    const replayed = await reconstructAlong(
+      context,
+      handle,
+      sessionId,
+      walkPath(turns, session.headTurnId),
+    );
 
     const effects = divergenceEffects(session.headTurnId ?? '', replayed, session.channels);
     if (effects.length === 0) return [];
@@ -508,6 +548,123 @@ export function replayChannels(path: readonly Turn[]): Record<string, ChannelSta
     channels = applyEffects(channels, turn.effects);
   }
   return channels;
+}
+
+/**
+ * How many turns a reconstruction may replay before leaving a snapshot behind.
+ *
+ * The schema already says integer-and-at-least-one (`config.ts`), so the guard
+ * below is for this store's own callers rather than for a settings save: a
+ * closure returning zero would otherwise write a snapshot per turn through a
+ * modulo by zero, and the failure would read as a cache bug rather than as a
+ * bad argument.
+ */
+const DEFAULT_SNAPSHOT_EVERY = 10;
+
+function snapshotInterval(context: SessionContext): number {
+  const every = context.snapshotEvery?.() ?? DEFAULT_SNAPSHOT_EVERY;
+  return Number.isInteger(every) && every > 0 ? every : DEFAULT_SNAPSHOT_EVERY;
+}
+
+/**
+ * The channel state at the end of a path, through the snapshot cache —
+ * [09 §4](../../../../docs/design/09-branching.md), [P6.0d].
+ *
+ * *Walk up to the nearest ancestor holding a snapshot, replay effects forward
+ * along the path.* The walk is the caller's, because every caller has already
+ * done one; what this adds is the two ends — where to start, and what to leave
+ * behind.
+ *
+ * **It must return exactly what `replayChannels` would**, and that is a
+ * property this phase asserts rather than a hope it holds:
+ * `reconstruct-property.test.ts` compares the two at every node of a forked
+ * session, with the cache warm and again with every snapshot deleted. [09 §4]
+ * asks CI for precisely that, and it is why a cache is allowed on this path.
+ *
+ * **Snapshots are written while folding forward, every N turns of the replayed
+ * suffix** — not at fixed depths. Nothing depends on *which* nodes have one, so
+ * the useful rule is the one that bounds the work: after this returns, no node
+ * it replayed through is more than N turns from a snapshot, and the next
+ * reconstruction on this line replays at most N. One slow reconstruction of a
+ * long line therefore leaves the whole line cached, which is what makes a
+ * property test that reconstructs at *every* node affordable.
+ *
+ * **A miss is only ever slower.** An unreadable snapshot, an id no path can
+ * name, a directory somebody deleted — each is a miss, and the fold behind it
+ * is still the truth.
+ */
+export async function reconstructAlong(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  path: readonly Turn[],
+): Promise<Record<string, ChannelState>> {
+  if (path.length === 0) return {};
+
+  const available = await listSnapshots(context.layout, handle, sessionId);
+
+  let channels: Record<string, ChannelState> = {};
+  let start = 0;
+  // From the tip back, so the first hit is the deepest — the least to replay.
+  for (let at = path.length - 1; at >= 0; at -= 1) {
+    const turn = path[at];
+    if (turn === undefined || !available.has(turn.id)) continue;
+    const held = await readSnapshot(context.layout, handle, sessionId, turn.id);
+    // A listed file that will not read is a miss rather than an error, so the
+    // scan carries on to the next-deepest rather than falling all the way to
+    // zero because of one bad file.
+    if (held === null) continue;
+    channels = held;
+    start = at + 1;
+    break;
+  }
+
+  const every = snapshotInterval(context);
+  let replayed = 0;
+  for (const turn of path.slice(start)) {
+    channels = applyEffects(channels, turn.effects);
+    replayed += 1;
+    if (replayed % every === 0) {
+      await writeSnapshot(context.layout, handle, sessionId, turn.id, channels);
+    }
+  }
+
+  return channels;
+}
+
+/**
+ * A snapshot at a node that has just acquired a second child — [09 §4]'s other
+ * trigger, and the cheap one: a node with several children is a node whose
+ * state will be materialised once per sibling explored.
+ *
+ * **Free where it is called.** `advanceHead` has already read the turns and
+ * already computed the parent's map to fold onto, so the whole added cost is
+ * counting that parent's children in a map it is holding.
+ *
+ * **Today a branch append is the only way a node acquires a second child**,
+ * which is worth stating because it will stop being true. A second child means
+ * two turns naming one parent, and the second of those cannot be a child of the
+ * head unless the head moved backwards first — and moving the head backwards is
+ * P6.1's work. When it lands, the head path in `advanceHead` needs this too.
+ */
+async function snapshotFork(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  turns: Map<string, Turn>,
+  turn: Turn,
+  atParent: Record<string, ChannelState>,
+): Promise<void> {
+  const parentTurnId = turn.parentTurnId;
+  if (parentTurnId === null) return;
+
+  let siblings = 0;
+  for (const other of turns.values()) {
+    if (other.parentTurnId === parentTurnId && other.id !== turn.id) siblings += 1;
+  }
+  if (siblings === 0) return;
+
+  await writeSnapshot(context.layout, handle, sessionId, parentTurnId, atParent);
 }
 
 /**

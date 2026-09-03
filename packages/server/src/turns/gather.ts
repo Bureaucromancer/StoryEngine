@@ -9,7 +9,7 @@ import type { RoleBindings } from '../providers/roles.js';
 import type { Connection } from '../providers/connections.js';
 import { resolveConnections } from '../providers/connections.js';
 import { walkPath } from '../sessions/segments.js';
-import { readSession, readTurns, replayChannels, snapshotIsAt } from '../sessions/store.js';
+import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
 import { resolveCast, type CastMember } from './cast.js';
@@ -102,7 +102,7 @@ export async function gatherAssemblyInputs(
    */
   const channels: Record<string, ChannelState> = snapshotIsAt(session, request.parentTurnId)
     ? session.channels
-    : replayChannels(history);
+    : await reconstructAlong(context.sessions, request.account, request.sessionId, history);
 
   /**
    * **The capability, not a literal** — [P2A §2.1], [04 §4.5].

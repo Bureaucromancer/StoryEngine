@@ -33,12 +33,14 @@ import {
   SE_LORE_TIMING,
 } from './channels.js';
 import { listSegments, walkPath } from './segments.js';
+import { listSnapshots, snapshotsRoot } from './snapshots.js';
 import {
   appendTurnToSession,
   applyEffects,
   createSession,
   readSession,
   readTurns,
+  reconstructAlong,
   replayChannels,
   sessionRoot,
   type SessionContext,
@@ -106,6 +108,9 @@ beforeEach(async () => {
     // lost an earlier one would replay a path that starts in the middle and
     // is simply shorter, which is the quiet kind of wrong.
     limits: { maxTurns: 3, maxBytes: 1_000_000 },
+    // Two rather than the shipped ten, so a fixture four turns deep exercises
+    // the snapshot cache at all — see the cache test at the end of this file.
+    snapshotEvery: () => 2,
   };
 });
 
@@ -516,6 +521,51 @@ describe('reconstruction from zero', () => {
     // folds onto.
     expect(fixture.fileAfterFork.headTurnId).toBe(node(fixture, 's2').turn.id);
     expect(fixture.fileAfterFork.channels).toEqual(replayedAt(fixture, 's2'));
+  });
+
+  it('answers the same through the snapshot cache, warm and with every one deleted', async () => {
+    /**
+     * [09 §4](../../../../docs/design/09-branching.md) asks CI for exactly this
+     * — *replay-from-zero must equal snapshot-plus-replay at every index* — and
+     * [P6 §3] step 6 asks for the other half: delete every snapshot and
+     * everything still works, slower. Both are here rather than beside the
+     * cache because this is the fixture whose effects are **lore**: a cache
+     * that lost a scoped key would pass a clock-only comparison.
+     *
+     * `snapshotEvery` is two in this file, so a fixture four turns deep
+     * exercises the cache at all. Ten — the shipped default — would leave every
+     * path here below the interval and the comparison would be between a fold
+     * and the same fold.
+     */
+    const fixture = await buildOnDisk();
+    const root = snapshotsRoot(context.layout, ACCOUNT, fixture.sessionId);
+
+    // Building the fixture already branched twice, and a branch append
+    // reconstructs at its parent — so the cache is not empty before the first
+    // assertion, which is the state a real session is in.
+    expect((await listSnapshots(context.layout, ACCOUNT, fixture.sessionId)).size).toBeGreaterThan(
+      0,
+    );
+
+    async function agreesEverywhere(when: string): Promise<void> {
+      for (const name of NODE_NAMES) {
+        const path = walkPath(fixture.turns, node(fixture, name).turn.id);
+        const cached = await reconstructAlong(context, ACCOUNT, fixture.sessionId, path);
+        expect(cached, `${name} ${when}`).toEqual(replayChannels(path));
+      }
+    }
+
+    await agreesEverywhere('warm');
+    await agreesEverywhere('warmer');
+
+    await rm(root, { recursive: true, force: true });
+    expect(await listSnapshots(context.layout, ACCOUNT, fixture.sessionId)).toEqual(new Set());
+
+    // Slower, and identical. Then it fills again on its own.
+    await agreesEverywhere('cold');
+    expect((await listSnapshots(context.layout, ACCOUNT, fixture.sessionId)).size).toBeGreaterThan(
+      0,
+    );
   });
 });
 
