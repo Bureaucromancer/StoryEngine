@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -207,22 +208,33 @@ describe('--reset-password', () => {
  * copies of this suite cannot collide on an address nothing ever binds.
  */
 describe('the config-file line', () => {
-  async function startupLine(argv: string[]): Promise<Record<string, unknown>> {
+  async function startupLine(
+    argv: string[],
+    /**
+     * A substring that picks the line out of the log. Defaulted rather than
+     * required so the two tests below read as they did — the parameter exists
+     * for the environment tests, which wait for a different line and in one
+     * case for one written *after* `listen`.
+     */
+    marker = 'fileFound',
+    environment: Record<string, string> = {},
+  ): Promise<Record<string, unknown>> {
     const child = spawn(process.execPath, ['--import', 'tsx', ENTRY, ...argv], {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: HERE,
+      env: { ...process.env, ...environment },
     });
 
     try {
       return await new Promise<Record<string, unknown>>((resolve, reject) => {
         let seen = '';
         const timer = setTimeout(() => {
-          reject(new Error('the server never said whether it found a config file'));
+          reject(new Error(`the server never logged a line containing ${marker}`));
         }, 15_000);
         child.stdout.on('data', (chunk: Buffer) => {
           seen += chunk.toString();
           for (const line of seen.split('\n').slice(0, -1)) {
-            if (!line.includes('fileFound')) continue;
+            if (!line.includes(marker)) continue;
             clearTimeout(timer);
             resolve(JSON.parse(line) as Record<string, unknown>);
             return;
@@ -253,4 +265,91 @@ describe('the config-file line', () => {
     expect(line['level']).toBe(30);
     expect(line['fileFound']).toBe(true);
   });
+
+  /**
+   * **The environment layer, where it actually has to work** — [P6A.0],
+   * [P6A §1.2], [P10 §1.2](../../../../docs/design/workplan/21-p10-implementation.md).
+   *
+   * `config.test.ts` proves the resolver: what the layers are and which wins.
+   * What it cannot prove is that this entry point *uses* it, and that is the
+   * half the phase turns on — the environment layer was built because an image
+   * with no config file was unreachable no matter how its port was mapped, and
+   * a layer nothing calls leaves that exactly as it was. The falsifying
+   * mutation is one line: `loadConfig(configPath)` with the document dropped.
+   *
+   * It is here rather than beside the resolver because the subject is a
+   * process: argv, an environment, and a socket. The suite already spawns this
+   * entry point for the same reason.
+   */
+  it('takes its bind from the environment when there is no config file', async () => {
+    /**
+     * **A bound port, which the two tests above deliberately avoid** — they are
+     * about a line written before `listen`, and this one is about `listen`
+     * itself. So it takes a port the OS has just told us is free, and binds a
+     * loopback name rather than a wildcard: `localhost` is provably not the
+     * `127.0.0.1` default, reaches nothing outside the machine, and does not
+     * ask a Windows firewall for an opinion.
+     */
+    const port = await freePort();
+
+    const line = await startupLine(['--data', dataDir], 'StoryEngine listening', {
+      SE_HOST: 'localhost',
+      SE_PORT: String(port),
+    });
+
+    // The whole chain in one assertion: two variables, through the document,
+    // through the merge, into `app.listen`, with no config file anywhere.
+    expect(line['api']).toBe(`http://localhost:${String(port)}`);
+  });
+
+  /**
+   * **`SE_DATA_DIR` decides where the config file is looked for**, which is the
+   * one place the environment is read *before* the file rather than under it —
+   * the key that names the file's own directory cannot wait for the file to
+   * say. No `--data` here, deliberately: that flag would settle the location
+   * itself and the variable would prove nothing.
+   *
+   * `fileFound` is the assertion because it separates the two answers exactly.
+   * A process that ignored the variable looks in `./data` relative to its
+   * working directory, finds nothing, and says `false`.
+   */
+  it('looks for the config file where a variable puts the data directory', async () => {
+    await writeFile(join(dataDir, 'config.json'), JSON.stringify({ server: { port: 8180 } }));
+
+    const line = await startupLine([], 'fileFound', { SE_DATA_DIR: dataDir });
+
+    expect(line['fileFound']).toBe(true);
+    expect(String(line['configPath'])).toContain(dataDir);
+  });
+
+  it('says so when the file already speaks for a key a variable sets', async () => {
+    await writeFile(
+      join(dataDir, 'config.json'),
+      JSON.stringify({ server: { host: 'localhost' } }),
+    );
+
+    const line = await startupLine(['--data', dataDir], 'did not apply', {
+      SE_HOST: '0.0.0.0',
+    });
+
+    // A warning, not an info: the operator set something that is not taking
+    // effect, and the file outranking it ([P6A §1.2]) is invisible otherwise.
+    expect(line['level']).toBe(40);
+    expect(line['variables']).toEqual(['SE_HOST']);
+  });
 });
+
+/** A port the OS has just confirmed is free, for the one test that binds one. */
+async function freePort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((ready) => probe.listen(0, '127.0.0.1', ready));
+  const address = probe.address();
+  const port = typeof address === 'object' && address !== null ? address.port : 0;
+  await new Promise<void>((closed) => {
+    probe.close(() => {
+      closed();
+    });
+  });
+  if (port === 0) throw new Error('could not find a free port');
+  return port;
+}

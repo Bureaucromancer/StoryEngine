@@ -548,6 +548,40 @@ restart" is wrong within two releases.
 key — the same structural enforcement as the portable types
 ([00 §3.2](00-stance.md)).
 
+**Three keys also take an environment variable**
+([P6A §1.2](workplan/23-p6a-alpha-1.md)):
+
+| Variable | Key |
+|---|---|
+| `SE_DATA_DIR` | `dataDir` |
+| `SE_HOST` | `server.host` |
+| `SE_PORT` | `server.port` |
+
+These and no others, because these are the keys that decide where the config
+file is and whether the process is reachable at all — everything else can wait
+for the file it finds. The list is
+[P10 §1.2](workplan/21-p10-implementation.md)'s rule made concrete: the
+container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
+that decided differently, because *a hidden difference between artifacts is a
+support burden shaped like a security feature*. The same variable tightens the
+bind from a container and loosens it on bare metal.
+
+**Precedence is defaults, then the environment, then the file** — and `--data`
+above all three. The file outranking a variable is the part worth stating: the
+file is what the settings page writes, so an operator who changed a value in the
+UI, restarted, and found a variable had quietly outranked it would be right to
+call that a bug. A variable set where the file speaks for the same key is
+reported as a warning at startup rather than ignored in silence.
+
+Two smaller rules, both of them about a container. **An empty value is an unset
+variable**, because `docker compose` forwards a host variable that does not
+exist as an empty string, and treating that as a value would turn *the operator
+did nothing* into a refusal to start. **And a bad value is refused by name**:
+validation is the same `validateConfigDocument` a file goes through — one answer
+to *would this start?* — but its issues are translated from JSON pointers back
+to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
+`/server/port`, which is in a file the operator never edited.
+
 ### 4.1 The log record
 
 `log.format` had two literals and no meaning behind either. This is the meaning,

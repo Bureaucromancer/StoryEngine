@@ -100,6 +100,13 @@ instead… There, the `-p` flag is your explicit act instead."* `main.ts:141` an
 the first of them is in the first file a new operator opens. This phase is what
 makes them true.
 
+**Corrected at P6A.0, 2026-09-04:** two of the three, not all three. The
+`config.example.json` and `config.ts` comments are the bind claim and are now
+true. `main.ts:141` says *"in a packaged build they are the same origin"*, which
+is the **serving** claim rather than the bind one — equally false today, and made
+true by §0.3's stage rather than this one. Recorded rather than quietly widened,
+because the stage that owns a false sentence is the stage that makes it true.
+
 **The mechanism is constrained, not free.** [P10 §1.2](21-p10-implementation.md)
 already ruled out the obvious shortcut — the image shipping a different baked
 default — as *"a hidden difference between artifacts"*, and requires **one
@@ -371,14 +378,73 @@ Reachable, then visible, then safe, then identified, then released. Each stage
 ends at something demonstrable, and the first four are all prerequisites of the
 fifth rather than parallel work.
 
-### P6A.0 — Reachable: the environment layer
+### ~~P6A.0 — Reachable: the environment layer~~ Landed
 
-§1.2's overrides and precedence, the documented variable, and the three false
-comments at `config.example.json:34`, `main.ts:141` and `config.ts:50` made true
-in the same commit that makes them true.
+**Three variables, and the table is the whole surface.** `CONFIG_ENVIRONMENT` in
+`config.ts` maps `SE_DATA_DIR`, `SE_HOST` and `SE_PORT` onto `dataDir`,
+`server.host` and `server.port`. `environmentDocument(env)` turns whatever is
+set into a **sparse document** rather than a `Config`, which is what makes the
+layering work at all: the file is then merged on top of it exactly as it is
+merged on top of the defaults, and nothing the environment did not mention
+becomes an assertion. `loadConfig(path, environment)` does the merge and reports
+which variables applied and which the file shadowed; `main.ts` composes the two
+and logs both lists.
 
-*Ends at:* a server bound to `0.0.0.0` by an environment variable alone, with no
-config file present.
+**Precedence is enforced by argument order in one expression** —
+`mergeDefaults(environment, parsed)` — rather than by a rule written down
+somewhere and obeyed. The one exception is `SE_DATA_DIR`, which is read *before*
+the file because it decides which file there is; that is not a special case so
+much as the shape `./data` always had, and the record is that a `dataDir` inside
+whatever file it finds still wins downstream.
+
+**Two of the three comments were the same claim; the third was not.** §0.2 says
+`config.example.json:34`, `main.ts:141` and `config.ts:50` all assert the
+container binds `0.0.0.0`. The first and third do, and both are now true and say
+how. `main.ts:141` says something else — *"in a packaged build they are the same
+origin"* — which is about the client being served, not about the bind, and is
+made true by **P6A.1** rather than by this stage. Left alone deliberately: a
+comment edited to describe a mechanism that does not exist yet is the defect this
+stage was fixing.
+
+**Four decisions worth having on the record, each with a test.** An empty value
+is an unset variable, because `docker compose` forwards a host variable it has
+not got as an empty string and refusing that would turn *the operator did
+nothing* into a failure to start. A bad value is refused **by the name that was
+typed**: validation is the same `validateConfigDocument` a file goes through —
+one answer to *would this start?* — with the JSON pointers translated back, so
+`SE_PORT=99999` reports `SE_PORT` rather than sending somebody to a file they
+never edited. `ConfigLoadResult.document` stays the **file's** document, because
+the settings write round-trips through it and an environment value reaching it
+would be written into the file on the next save. And `loadConfig`'s environment
+argument defaults to *none* rather than to `process.env`, so a test that loads a
+config does not depend on the machine it runs on — the convenience fails open
+where the argument fails closed.
+
+**The variable table is in [13 §4](../13-internal-contracts.md) and a test parses
+it**, the same way the tier table has been checked since P2A. That is the
+requirement rather than a courtesy: [P10 §1.2](21-p10-implementation.md) asks for
+*one documented environment variable* precisely so that the image is not a build
+that behaves differently, and an undocumented variable would satisfy the code and
+fail the rule.
+
+**Thirteen mutations, thirteen red**, including two on `main.ts` and one on the
+shipped documentation. The stage's *ends at* is proved in two halves and neither
+half is sufficient alone: `config.test.ts` asserts the resolved `server.host` is
+`0.0.0.0` with no file anywhere, and `main.test.ts` spawns the real entry point
+and asserts the `listening` line reports the address the variables named. That
+second one binds `localhost` rather than `0.0.0.0` — a wildcard bind in a unit
+suite is a Windows firewall prompt and a CI hazard, and `localhost` is provably
+not the `127.0.0.1` default, which is the property the test needs. The literal
+`0.0.0.0` in a container is [§3](#3-verification--the-p6a-exit-gate) step 3.
+
+*The stage as it was written:*
+
+> §1.2's overrides and precedence, the documented variable, and the three false
+> comments at `config.example.json:34`, `main.ts:141` and `config.ts:50` made
+> true in the same commit that makes them true.
+>
+> *Ends at:* a server bound to `0.0.0.0` by an environment variable alone, with
+> no config file present.
 
 ### P6A.1 — The client, served
 
