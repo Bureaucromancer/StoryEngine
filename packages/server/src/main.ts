@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
-import { environmentDocument, loadConfig, type Config } from './config.js';
+import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -137,7 +137,9 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.server.host, port: config.server.port });
 
-  const loopback = config.server.host === '127.0.0.1' || config.server.host === 'localhost';
+  // One definition of *is this exposed*, shared with the setup token's — two
+  // spellings of that question is a security bug rather than an inconsistency.
+  const loopback = isLoopbackHost(config.server.host);
   /**
    * **The API's address, said as the API's address.**
    *
@@ -181,19 +183,23 @@ async function main(): Promise<void> {
         'No accounts yet. Open this address to create the first admin.',
       );
     } else {
-      // **The claim window.** Bound beyond loopback with no admin, anyone who
-      // can reach the port can claim the install
+      // **The claim window, and what now closes it.** Bound beyond loopback
+      // with no admin, anyone who can reach the port could claim the install
       // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)).
       //
-      // The token that is supposed to close it is **not printed here** (F10).
-      // It used to be — freshly generated on every boot, stored nowhere, and
-      // checked by nothing, which is the worst version: an operator who reads
-      // "setup token" in a console reasonably concludes something is enforcing
-      // it. The warning is true; the token was not. It lands with the container
-      // image that needs it, at P10.
+      // The token is printed here again, and this time something checks it
+      // (F10, [P6A.2]). It used to be printed and stored nowhere, which is the
+      // worst version — an operator who reads "setup token" in a console
+      // reasonably concludes something is enforcing it — so P2.0 removed the
+      // print rather than half-building the check. The print comes back with
+      // the check, not before it.
+      //
+      // **The console is the channel, deliberately**: only somebody with host
+      // access reads it, which is exactly the audience allowed to claim an
+      // install. In a container that is `docker logs`.
       app.log.warn(
-        { host: config.server.host },
-        'Bound beyond loopback with no admin account yet — anyone who can reach this port can claim this install',
+        { host: config.server.host, setupToken: services.setupToken },
+        'Bound beyond loopback with no admin account yet — creating the first account needs this setup token',
       );
     }
   }

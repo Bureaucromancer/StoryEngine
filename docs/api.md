@@ -82,7 +82,12 @@ where they are doing it.
 ### `GET /api/auth/state`
 
 ```json
-{ "setupRequired": true, "account": null, "minPasswordLength": 8 }
+{
+  "setupRequired": true,
+  "setupTokenRequired": true,
+  "account": null,
+  "minPasswordLength": 8
+}
 ```
 
 `account` is the public account shape once signed in — never `passwordHash` or
@@ -92,6 +97,7 @@ added later cannot leak by default.
 ```json
 {
   "setupRequired": false,
+  "setupTokenRequired": false,
   "minPasswordLength": 8,
   "account": {
     "handle": "ned",
@@ -121,6 +127,15 @@ the settings surface groups them apart and says the setting will apply when the
 feature does, rather than presenting three switches as though they were equally
 live.
 
+**`setupTokenRequired` says whether creating the first admin needs the token
+from the server's console** (F10, [04 §5.1](design/04-server-multiuser-deployment.md)).
+It is true exactly when setup is still needed *and* this process is bound beyond
+loopback. A client cannot work that out for itself — it may be reaching a
+loopback server directly or an exposed one through a proxy — and both guesses
+fail visibly: a token box on a laptop is baffling, and no box on an exposed
+install makes it look broken. It narrows nothing that this same response does not
+already say, and the token itself never leaves the console.
+
 **`minPasswordLength` is `auth.minPasswordLength`**, the shortest password this
 install accepts where one is *set*. It is here rather than on the admin config
 route because the setup form needs it before any account exists, and that route
@@ -131,9 +146,21 @@ string is a valid password.
 
 ### `POST /api/auth/setup`
 
-First run only. `{ handle, password, displayName? }` → `201 { account }`, and
-signs you in. `409` once an admin exists. A password shorter than
-`minPasswordLength` is `400 invalid`, naming `/password` in `issues`.
+First run only. `{ handle, password, displayName?, setupToken? }` →
+`201 { account }`, and signs you in. `409` once an admin exists. A password
+shorter than `minPasswordLength` is `400 invalid`, naming `/password` in
+`issues`.
+
+**`setupToken` is required when `setupTokenRequired` is true** and ignored
+otherwise — a wrong one, or none, is
+`403 {"error":"invalid-setup-token"}`. Absent and wrong are the same answer for
+the reason login gives one answer for three failures. The token is written to
+the server's console on the boot that mints it and to nowhere else, which is the
+point: only somebody with host access can read it, and that is exactly the
+audience entitled to claim an unclaimed install. It is checked before the
+password rule and after nothing, except that an install which already has an
+admin answers `409 already-setup` instead — the honest reason, rather than a
+token refusal about a route that no longer applies.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
 digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
@@ -1568,6 +1595,7 @@ I restart it?"* is a worse answer than one that says.
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
 | 403 | `read-only` | A system-library object |
 | 403 | `forbidden` | A signed-in non-admin on `/api/admin` |
+| 403 | `invalid-setup-token` | Creating the first admin on an install bound beyond loopback, with the console token missing or wrong |
 | 404 | `not-found` / `unknown-kind` | No such object, or no such kind — and an address under `/api` that matches no route at all, which answers JSON rather than the client's app shell |
 | 409 | `busy` | The session already has a turn in flight. Carries the active `job` |
 | 409 | `finished` | That turn is already over, so there is nothing to cancel |

@@ -17,6 +17,7 @@ import { createValidator } from '@storyengine/shared';
 
 import { Accounts, type PublicAccount } from './auth/accounts.js';
 import { PrefsStore } from './auth/prefs.js';
+import { loadOrCreateSetupToken } from './auth/setup-token.js';
 import {
   CSRF_COOKIE,
   CSRF_HEADER_NAME,
@@ -26,7 +27,7 @@ import {
   readSession,
   SESSION_COOKIE,
 } from './auth/session.js';
-import { type Config, pendingRestart } from './config.js';
+import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
 import { rebuild } from './index-db/rebuild.js';
@@ -140,6 +141,18 @@ export interface AppServices {
    */
   maturation: Maturation;
   sessionKey: string;
+  /**
+   * The first-run setup token, or null when nothing needs one — F10,
+   * [04 §5.1](../../../docs/design/04-server-multiuser-deployment.md),
+   * [P6A §1.4](../../../docs/design/workplan/23-p6a-alpha-1.md).
+   *
+   * **Null carries the decision**, which is why it is a nullable value rather
+   * than a token plus a boolean somewhere else: a token exists exactly when this
+   * process booted bound beyond loopback with no admin account, and the two
+   * places that read it — the check on setup and the advertisement on
+   * `auth/state` — ask the same question by asking whether it is here.
+   */
+  setupToken: string | null;
   /**
    * Where `config.json` actually is.
    *
@@ -395,6 +408,21 @@ async function assembleWithState(
     maturation,
     prefs: new PrefsStore(layout),
     sessionKey: await loadOrCreateSessionKey(layout),
+    /**
+     * **Minted only in the window it is for.** A loopback install never gets
+     * one — [04 §5.1]'s claim window is closed by the bind itself — and an
+     * install that already has an admin never gets one either, because the
+     * thing a token protects has already happened.
+     *
+     * Read once at boot rather than per request. `server.host` is a `restart`
+     * key, so it cannot change under a running process; and an admin appearing
+     * mid-life does not need to un-mint anything, because both readers
+     * re-check `needsSetup()` themselves.
+     */
+    setupToken:
+      isLoopbackHost(config.server.host) || !(await accounts.needsSetup())
+        ? null
+        : await loadOrCreateSetupToken(layout),
     // Defaulted rather than required: every test builds services without a real
     // command line, and the layout's answer is right whenever nobody overrode it.
     fetch: options.fetch ?? globalThis.fetch,

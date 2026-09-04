@@ -516,15 +516,68 @@ rendered from one origin with no console error.
 > *Ends at:* one process on one port serving both halves — and `pnpm dev`
 > unchanged, two processes, Vite proxying as before.
 
-### P6A.2 — Safe: both halves of F10
+### ~~P6A.2 — Safe: both halves of F10~~ Landed
 
-§1.4's stored-and-checked token with its `state` advertisement and its client
-field, and the cookie `secure`/`trustProxy` config. Both gated on a non-loopback
-bind.
+**The token, as §1.4 specified it.** `auth/setup-token.ts` mirrors
+`loadOrCreateSessionKey`; `AppServices.setupToken` is a string when this process
+booted bound beyond loopback with no admin and `null` otherwise, so the two
+readers ask *is this install exposed and unclaimed* by asking whether it is
+there. `POST /api/auth/setup` refuses without it —
+`403 invalid-setup-token`, absent and wrong being one answer — `GET
+/api/auth/state` advertises `setupTokenRequired`, the setup form renders a field
+when it is told to, and `main.ts` prints the token on the boot that mints it.
+Compared with `secretsMatch`, which is constant-time and length-safe.
 
-*Ends at:* a non-loopback server that refuses every route but the two
-`survivesSetupGate` allows, and accepts the first admin only with the token from
-its own log.
+**Stored, not per-boot, and that is a decision this plan did not make for us.**
+The window a token is used in is the window a container might restart in —
+somebody is reading its log — so a token regenerated on each boot would be wrong
+in exactly the case it exists for. It is also what P1 did, which is part of why
+nothing could check it.
+
+**One definition of *loopback*, and the old one was wrong twice.** `main.ts`
+carried `host === '127.0.0.1' || host === 'localhost'` and nothing else did.
+Under it `127.0.0.2` and `::1` read as exposed — an install nobody can reach
+demanding a token — and the wildcard `::` read as exposed correctly only by
+accident. It is `isLoopbackHost` in `config.ts` now, used by the mint, the check
+and the startup line, because two spellings of *is this exposed* is a security
+bug rather than an inconsistency.
+
+**The twin turned out to be half-done already.** §1.4 asks for cookie `secure`
+*and* `trustProxy` to become config; `trustProxy` had already become a config key
+at P2A and is already wired into `Fastify({ … })`. So what this stage owed was
+`server.cookieSecure`, and [04 §5.1](../04-server-multiuser-deployment.md) and
+[P2 §2.11](04-p2-implementation.md) now say so rather than leaving a reader to
+find one of the two missing.
+
+**And it is deliberately not derived from the bind**, which is the one place the
+obvious rule is wrong. *Secure whenever exposed* sounds right and would lock out
+the trusted-LAN install [04 §5.1] explicitly supports: a `Secure` cookie is not
+sent back over plain HTTP, so signing in would fail with no error anywhere,
+because the browser declines silently. It is the operator's statement that TLS
+is in front — the same thing `trustProxy` beside it is.
+
+**The five-place edit was caught by the tests rather than by memory**, which is
+the mechanism [01 §2.3](01-work-plan.md) asks for working: the key landed in the
+schema, the tiers and `DEFAULT_CONFIG`, the suite went red on
+`config.example.json` and [13 §4](../13-internal-contracts.md)'s table, and named
+both.
+
+Twelve mutations, twelve red, across the server and the client. Not covered here
+and named rather than implied: gate steps 5 and 6 are a person against a real
+container, and what the suite proves is the same claims against a config-bound
+server — `server.host` is a config value, so an exposed install is one line
+rather than a socket, which is why a feature gated on being exposed leaves every
+`inject`-driven test in the suite untouched.
+
+*The stage as it was written:*
+
+> §1.4's stored-and-checked token with its `state` advertisement and its client
+> field, and the cookie `secure`/`trustProxy` config. Both gated on a
+> non-loopback bind.
+>
+> *Ends at:* a non-loopback server that refuses every route but the two
+> `survivesSetupGate` allows, and accepts the first admin only with the token
+> from its own log.
 
 ### P6A.3 — Identified: version, commit, stamp, changelog
 

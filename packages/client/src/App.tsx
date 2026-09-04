@@ -55,7 +55,14 @@ function Gate(): JSX.Element {
 
   // Passed rather than fetched again: `Gate` already holds the state, and a
   // prop keeps `forms.tsx` free of a query dependency.
-  if (auth.data.setupRequired) return <SetupForm minPasswordLength={auth.data.minPasswordLength} />;
+  if (auth.data.setupRequired) {
+    return (
+      <SetupForm
+        minPasswordLength={auth.data.minPasswordLength}
+        tokenRequired={auth.data.setupTokenRequired}
+      />
+    );
+  }
   if (auth.data.account === null) return <LoginForm />;
   return <RouterProvider router={router} />;
 }

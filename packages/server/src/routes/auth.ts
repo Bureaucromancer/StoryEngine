@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { AccountError } from '../auth/accounts.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
+import { secretsMatch } from '../auth/secrets.js';
 import {
   CSRF_COOKIE,
   csrfCookieOptions,
@@ -46,6 +47,16 @@ const Credentials = Type.Object({
 
 const SetupRequest = Type.Object({
   handle: Type.String({ minLength: 1, maxLength: 63 }),
+  /**
+   * The console token, when this install is exposed and unclaimed — F10.
+   *
+   * Optional in the schema and required in the handler, which is the same
+   * division `password` makes one line down and for a related reason: whether
+   * it is needed is a property of *this process's bind*, and a schema Ajv
+   * compiles once cannot ask. A required field here would refuse every loopback
+   * setup, which is every development install.
+   */
+  setupToken: Type.Optional(Type.String({ maxLength: 512 })),
   // The minimum is `auth.minPasswordLength`, checked in the handler — a `live`
   // key cannot live in a schema Ajv compiles once. See `refuseShortPassword`.
   password: Type.String({ maxLength: 512 }),
@@ -53,7 +64,22 @@ const SetupRequest = Type.Object({
 });
 
 export function registerAuthRoutes(app: FastifyInstance, services: AppServices): void {
-  const secure = false; // No HTTPS by default on a LAN ([04 §5.1]). See sessionCookieOptions.
+  /**
+   * `Secure` on both cookies — config since [P6A.2], hardcoded `false` before
+   * it (F10, deferred at [P2 §2.11] on the loopback default that the container
+   * image removes).
+   *
+   * **Read once, because the key is `restart` tier**, like `trustProxy` beside
+   * it in `Fastify({ … })`. Reading it per request would make a `restart` key
+   * behave as a live one, which is the sort of drift the tier annotation exists
+   * to prevent.
+   *
+   * Still `false` by default: [04 §5.1] blesses plain HTTP on a trusted LAN, and
+   * a `Secure` cookie is not sent back over HTTP — so a default derived from the
+   * bind would lock out the LAN install the design endorses, silently, because
+   * the browser declines without telling anyone.
+   */
+  const secure = services.config.server.cookieSecure;
 
   /**
    * What the client needs before it can render anything.
@@ -61,24 +87,69 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
    * Reachable without a session on purpose: it is how the client learns whether
    * to show the setup form, the login form, or the library.
    */
-  app.get('/auth/state', async (request) => ({
-    setupRequired: await services.accounts.needsSetup(),
-    account: request.account,
-    /**
-     * **The password rule, so a form can state it before anybody types.**
-     *
-     * It has to be here rather than on the admin config route because the
-     * setup form needs it *before any account exists*, and that route is behind
-     * both `adminOnly` and the first-run gate. Unauthenticated on purpose: this
-     * is the length of a secret, not a secret, and the same response already
-     * says whether this install is unclaimed, which is the more sensitive fact
-     * by some distance.
-     */
-    minPasswordLength: services.config.auth.minPasswordLength,
-  }));
+  app.get('/auth/state', async (request) => {
+    const setupRequired = await services.accounts.needsSetup();
+    return {
+      setupRequired,
+      /**
+       * **Whether the console token is needed, so the form can say so** — F10.
+       *
+       * Advertised rather than guessed. A client cannot tell a loopback server
+       * from an exposed one — it may be reaching either through a proxy — so
+       * without this the setup form either always shows a token field, which is
+       * baffling on a laptop, or never does, which makes an exposed install look
+       * broken.
+       *
+       * It is not a secret and does not narrow anything: this same response
+       * already says whether the install is unclaimed, which is the sensitive
+       * half, and the token itself is only ever on the server's console.
+       */
+      setupTokenRequired: setupRequired && services.setupToken !== null,
+      account: request.account,
+      /**
+       * **The password rule, so a form can state it before anybody types.**
+       *
+       * It has to be here rather than on the admin config route because the
+       * setup form needs it *before any account exists*, and that route is behind
+       * both `adminOnly` and the first-run gate. Unauthenticated on purpose: this
+       * is the length of a secret, not a secret, and the same response already
+       * says whether this install is unclaimed, which is the more sensitive fact
+       * by some distance.
+       */
+      minPasswordLength: services.config.auth.minPasswordLength,
+    };
+  });
 
   app.post('/auth/setup', { schema: { body: SetupRequest } }, async (request, reply) => {
-    const body = request.body as { handle: string; password: string; displayName?: string };
+    const body = request.body as {
+      handle: string;
+      password: string;
+      displayName?: string;
+      setupToken?: string;
+    };
+
+    /**
+     * **The check P1 never made** — F10, [04 §5.1], [P10 §1.1].
+     *
+     * Only when this process is exposed *and* still unclaimed: `setupToken` is
+     * null on a loopback bind, and `needsSetup` is re-read here rather than
+     * trusted from boot so that a claimed install answers `409 already-setup`
+     * — the honest reason — instead of a token refusal about a route that no
+     * longer applies.
+     *
+     * Absent and wrong are one answer, like a bad handle and a bad password at
+     * login: the caller cannot tell which, and telling them costs something and
+     * buys nothing. `secretsMatch` is constant-time and length-safe, so an
+     * empty string compares false rather than throwing.
+     */
+    if (services.setupToken !== null && (await services.accounts.needsSetup())) {
+      if (!secretsMatch(body.setupToken ?? '', services.setupToken)) {
+        return await reply.code(403).send({
+          error: 'invalid-setup-token',
+          message: 'This install needs the setup token from the server console.',
+        });
+      }
+    }
 
     // Before `createFirstAdmin`, which is where the schema's `minLength` used
     // to run: a short password is refused whether or not setup has already

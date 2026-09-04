@@ -490,7 +490,11 @@ behaviour.
 ```ts
 interface Config {
   dataDir: string
-  server: { host: string; port: number; trustProxy: boolean; clientRoot: string }
+  server: {
+    host: string; port: number; trustProxy: boolean
+    cookieSecure: boolean                    // [P6A §1.4]
+    clientRoot: string                       // [P6A §1.3]
+  }
   auth: { minPasswordLength: number }        // [04 §4.1]
   log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
@@ -519,6 +523,7 @@ interface Config {
 | `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([04 §5.1](04-server-multiuser-deployment.md)) |
 | `server.port` | `restart` | `8080` | |
 | `server.trustProxy` | `restart` | `false` | |
+| `server.cookieSecure` | `restart` | `false` | `Secure` on the session and CSRF cookies. Deliberately **not** derived from the bind: [04 §5.1](04-server-multiuser-deployment.md) supports plain HTTP on a trusted LAN, and a `Secure` cookie is not sent back over HTTP — so deriving it would lock that install out silently (F10, [P6A §1.4](workplan/23-p6a-alpha-1.md)) |
 | `server.clientRoot` | `restart` | `""` | Where the built client is, so one process serves the API and the UI on one port ([P6A §1.3](workplan/23-p6a-alpha-1.md)). Empty means serve nothing, which is what development wants — two processes, Vite proxying `/api`. `/api` is never the fallback: an unrouted address there answers JSON |
 | `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([04 §5.1](04-server-multiuser-deployment.md)). `0` means the empty string is a password |
 | `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/04-p2-implementation.md)) |

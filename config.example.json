@@ -59,6 +59,17 @@
     // you control is actually in front, or client addresses become spoofable.
     "trustProxy": false,
 
+    // restart — put Secure on the session and CSRF cookies. Turn this on when
+    // there is TLS in front of this server, and only then: a Secure cookie is
+    // not sent back over plain HTTP, so switching it on without HTTPS makes
+    // signing in fail with no error anywhere — the browser just declines.
+    //
+    // It is not derived from the bind address on purpose. Plain HTTP on a LAN
+    // you trust is a supported way to run this (docs/design/04 §5.1), and a
+    // rule that hardened the cookie whenever you bound 0.0.0.0 would lock out
+    // exactly that install.
+    "cookieSecure": false,
+
     // restart — where the built web client is, so this one process serves both
     // the API and the UI on one port. Empty means serve nothing, which is the
     // default and what development wants: `pnpm dev` runs two processes, with

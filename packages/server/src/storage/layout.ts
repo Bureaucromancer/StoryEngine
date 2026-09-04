@@ -211,6 +211,19 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'session.key');
   }
 
+  /**
+   * The first-run setup token ([04 §5.1], F10).
+   *
+   * Beside the session key and operational for the same reason, with one of its
+   * own: it is written when the bind is exposed and no admin exists, and a
+   * restart must not invalidate a token somebody has already copied out of a
+   * container's log. Regenerating per boot is what P1 did, and is why nothing
+   * could check it.
+   */
+  get setupTokenFile(): string {
+    return resolveWithin(this.stateRoot, 'setup.token');
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }

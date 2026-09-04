@@ -64,6 +64,22 @@ export const ConfigSchema = Type.Object(
       port: Type.Integer({ minimum: 1, maximum: 65_535, default: 8080 }),
       trustProxy: Type.Boolean({ default: false }),
       /**
+       * `Secure` on the session and CSRF cookies — [P6A §1.4], F10.
+       *
+       * **Off by default, and not derived from the bind.** The obvious rule —
+       * *secure whenever the bind is not loopback* — is wrong here, and wrong
+       * in the direction that locks people out: [04 §5.1] blesses plain HTTP on
+       * a trusted LAN and refuses to ship self-signed certificates that train
+       * people to click through warnings. A `Secure` cookie is simply not sent
+       * back over HTTP, so deriving this would make a LAN install unable to
+       * sign in, with no error anywhere — the browser declines silently.
+       *
+       * So it is the operator's statement that TLS is in front, which is the
+       * same thing `trustProxy` beside it is. Both were deferred at
+       * [P2 §2.11] on the loopback default, and both expire with the image.
+       */
+      cookieSecure: Type.Boolean({ default: false }),
+      /**
        * The built client, served from this process — [P6A §1.3].
        *
        * **Unset means serve nothing, and that is the default on purpose.**
@@ -224,6 +240,27 @@ export const ConfigSchema = Type.Object(
 export type Config = Static<typeof ConfigSchema>;
 
 /**
+ * Whether a bind address reaches only this machine — [04 §5.1], [P6A §1.4].
+ *
+ * **One definition, because two would be a security bug rather than an
+ * inconsistency.** Everything that turns on *is this install exposed* reads
+ * this: whether a setup token is required, and what the startup line says. A
+ * second spelling that forgot `127.0.0.2` or `::1` would answer *exposed* for
+ * an install that is not, or — the direction that matters — *safe* for one that
+ * is.
+ *
+ * `0.0.0.0` and `::` are deliberately not loopback. They are the wildcard, which
+ * is what a container binds and precisely the case the token exists for.
+ */
+export function isLoopbackHost(host: string): boolean {
+  // A bracketed IPv6 literal is what a URL carries; `server.host` may hold
+  // either spelling, and the answer must not depend on which.
+  const bare = host.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
+  if (bare === 'localhost' || bare === '::1') return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(bare);
+}
+
+/**
  * The tier table from 13 §4, by dotted path.
  *
  * Exhaustive by construction: {@link configKeys} walks the defaults and
@@ -237,6 +274,7 @@ export const CONFIG_TIERS = {
   'server.host': 'restart',
   'server.port': 'restart',
   'server.trustProxy': 'restart',
+  'server.cookieSecure': 'restart',
   'server.clientRoot': 'restart',
   'auth.minPasswordLength': 'live',
   'log.level': 'live',
@@ -366,7 +404,7 @@ export function applierOf(key: string): LiveApplier | null {
 
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
-  server: { host: '127.0.0.1', port: 8080, trustProxy: false, clientRoot: '' },
+  server: { host: '127.0.0.1', port: 8080, trustProxy: false, cookieSecure: false, clientRoot: '' },
   auth: { minPasswordLength: 8 },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },

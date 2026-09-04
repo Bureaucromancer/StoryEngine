@@ -150,14 +150,20 @@ export function LoginForm(): JSX.Element {
   );
 }
 
-export function SetupForm(props: { minPasswordLength: number }): JSX.Element {
+export function SetupForm(props: {
+  minPasswordLength: number;
+  /** Whether this install wants the console token — F10, and the server says so. */
+  tokenRequired: boolean;
+}): JSX.Element {
   const setup = useSetup();
   const handleId = useId();
   const passwordId = useId();
   const displayNameId = useId();
+  const tokenId = useId();
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [setupToken, setSetupToken] = useState('');
 
   return (
     <Panel title="Welcome to StoryEngine">
@@ -172,6 +178,7 @@ export function SetupForm(props: { minPasswordLength: number }): JSX.Element {
             handle,
             password,
             ...(displayName === '' ? {} : { displayName }),
+            ...(setupToken === '' ? {} : { setupToken }),
           });
         }}
       >
@@ -234,6 +241,43 @@ export function SetupForm(props: { minPasswordLength: number }): JSX.Element {
           />
           <p className="mt-1 text-xs text-ink-faint">{passwordRule(props.minPasswordLength)}</p>
         </div>
+        {/*
+         * **Rendered only when the server says so**, because it is baffling on
+         * a laptop and essential on an exposed install, and the client cannot
+         * tell those apart — it may be reaching either one through a proxy.
+         *
+         * Last, after the account it is not part of: it is a fact about *this
+         * install being reachable*, not about the person being created, and
+         * putting it above the handle would read as the first thing an account
+         * needs.
+         */}
+        {props.tokenRequired ? (
+          <div>
+            <label htmlFor={tokenId} className={LABEL_CLASS}>
+              Setup token
+            </label>
+            <input
+              id={tokenId}
+              className={INPUT_CLASS}
+              value={setupToken}
+              onChange={(event) => {
+                setSetupToken(event.target.value);
+              }}
+              // Not `type="password"`: it is copied out of a server console and
+              // pasted here once, and masking it only makes a paste harder to
+              // check. `off`, because a browser offering to remember a one-time
+              // token is offering the wrong thing.
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={512}
+              required
+            />
+            <p className="mt-1 text-xs text-ink-faint">
+              This install is reachable from the network, so creating the first account needs the
+              token printed in the server&rsquo;s log.
+            </p>
+          </div>
+        ) : null}
         <Button type="submit" variant="primary" className="w-full" disabled={setup.isPending}>
           Create account
         </Button>
