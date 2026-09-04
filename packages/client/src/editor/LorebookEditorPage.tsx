@@ -40,6 +40,7 @@ import {
 import { ConflictDialog } from './ActorEditorPage.js';
 import { EntryFields } from './EntryFields.js';
 import { HistoryPanel } from './HistoryPanel.js';
+import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
 /**
  * The entry editor's minimum —
@@ -286,10 +287,18 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       {
         onSuccess: (result) => {
           setConflict(null);
+          /**
+           * **`ignoreBlocker`, because the changes were just saved** — into a
+           * different book, which is what a copy is. The draft still differs
+           * from *this* book's base and always will, so the unsaved-changes
+           * guard would otherwise stop the one navigation that is the whole
+           * point of the button the user just pressed.
+           */
           void navigate({
             to: '/library/lorebooks/$id/edit',
             params: { id: result.id },
             search: {},
+            ignoreBlocker: true,
           });
         },
       },
@@ -472,7 +481,18 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           </section>
         )}
 
-        <div className="flex items-center gap-3">
+        {/*
+         * Held at the bottom of the scrollport rather than parked at the foot
+         * of the form — [05 §11.6]. A book with a folder rail, a filter, a list
+         * and an open entry is several screens tall, and Save was reachable
+         * only by scrolling past all of it, which is how an editor teaches
+         * people to leave work unsaved.
+         *
+         * Last inside the `<form>`, which is what makes the pin last: a sticky
+         * element is held only within the element that holds it, and the form
+         * is everything on this page that Save is about.
+         */}
+        <div className={page.actions}>
           <Button type="submit" disabled={!changed || save.isPending} variant="primary">
             Save
           </Button>
@@ -522,6 +542,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           />
         </div>
       ) : null}
+
+      <UnsavedChangesGuard changed={changed} heading="This lorebook has unsaved changes" />
 
       {conflict !== null ? (
         <ConflictDialog

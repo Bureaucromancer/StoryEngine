@@ -1812,6 +1812,41 @@ before they are discovered:
 - **Refine must be cheap to reject.** One click back to the previous value, no
   confirmation dialogue.
 
+### 11.6 Saving is explicit, so the two edges of that have to be built
+
+Nothing an editor holds is written until Save. That is not a placeholder for
+autosave; it is what lets a delete be mild (§11.2a — the file still has the
+entry), lets the entry list mark what is unsaved (§11.2d), and lets *as stored*
+sit under the form without either of them being a lie. The whole cost of the
+decision lands in two places, and both are the frame around the form rather
+than anything in it.
+
+**The save control is held against the bottom of the scrollport**, for as long
+as there is form left below it. An editor is several screens tall — a lorebook
+with a folder rail, a filter, a list and an open entry certainly is — and a
+Save reachable only by scrolling past all of it is an editor that teaches
+people to leave work unsaved. It is held within the **form**, which is the
+extent it is about: it releases over the panels below, which are the part of
+the page a person reads rather than edits.
+
+**Leaving with unsaved changes is confirmed, never silent.** Every other
+surface is one click away in the header, and the draft is gone the moment the
+page unmounts. Two exits, and they are not one mechanism: in-app navigation —
+the back link, the header, the browser's Back button — is the exit people
+actually take and is the application's to stop; reload, close and a typed URL
+never reach the application at all, and only the browser's own generic dialog
+can stop those. Each covers precisely what the other cannot.
+
+**What counts as leaving is a different path, not a different address.** The
+lorebook editor names the entry it has open in `?entry=` (§5.3), so picking the
+next entry out of the list is a navigation like any other — and a guard that
+asked only *are there changes* would put a dialog about losing work in front of
+the most common click on the surface, over a draft that is book-wide and was
+never at risk. An editor's identity is its path; what it has open is search.
+
+The confirmation's default is to stay, and dismissing it is staying. The
+destructive answer is never the one a stray Return key finds.
+
 ---
 
 ## 12. The reading view

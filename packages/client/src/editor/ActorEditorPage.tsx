@@ -25,6 +25,7 @@ import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
 import { AsStored } from '../library/AsStored.js';
 import { HistoryPanel } from './HistoryPanel.js';
+import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
 /**
  * The prototype actor editor — [P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md).
@@ -202,7 +203,15 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       {
         onSuccess: (result) => {
           setConflict(null);
-          void navigate({ to: '/library/actors/$id/edit', params: { id: result.id } });
+          // `ignoreBlocker`: the edits were just saved, into a different
+          // actor — which is what a copy is. The draft still differs from this
+          // actor's base and always will, so the unsaved-changes guard would
+          // otherwise refuse the one navigation this button exists to make.
+          void navigate({
+            to: '/library/actors/$id/edit',
+            params: { id: result.id },
+            ignoreBlocker: true,
+          });
         },
       },
     );
@@ -452,7 +461,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           </div>
         </section>
 
-        <div className="flex items-center gap-3">
+        {/* Held against the bottom of the scrollport — [05 §11.6], and the
+            recipe in `ui/classes.ts` carries the why. Last inside the `<form>`,
+            because that is the extent a sticky element is held within and the
+            form is everything Save is about. */}
+        <div className={page.actions}>
           <Button
             type="submit"
             disabled={!changed || save.isPending || form.name.trim() === ''}
@@ -505,6 +518,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           />
         </div>
       ) : null}
+
+      <UnsavedChangesGuard changed={changed} heading="This actor has unsaved changes" />
 
       {conflict !== null ? (
         <ConflictDialog

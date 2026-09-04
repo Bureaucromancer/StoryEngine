@@ -419,6 +419,34 @@ describe('a save over a change that really did arrive from elsewhere', () => {
 });
 
 /**
+ * Leaving with unsaved changes — [05 §11.6](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * One test, where the lorebook editor beside this one has five. The guard is a
+ * single shared component and its behaviour is proved there; what is unproved
+ * anywhere else is whether **this** editor mounts it, and that is a thing two
+ * editors can differ on silently. So this asserts the wiring and nothing more.
+ */
+describe('leaving the actor editor with unsaved changes', () => {
+  it('asks first', async () => {
+    renderApp();
+    await openTheEditor();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), ', the fixer');
+    await userEvent.click(screen.getByRole('link', { name: 'Back to the actor' }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('This actor has unsaved changes');
+
+    // Left where it was, so the test after this one opens on an editor rather
+    // than on whatever a half-finished navigation settled into.
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+  });
+});
+
+/**
  * [polish §2]'s editor pane, discharged at [P3.3]: the fold shows the *saved*
  * object and says so, because showing unsaved form state as "as stored" would
  * be a lie in the one place a user came for the truth. The falsifying

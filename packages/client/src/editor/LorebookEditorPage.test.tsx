@@ -104,6 +104,18 @@ function makeLibrary() {
       revision += 1;
     },
     readObject: (): Promise<LibraryObject> => Promise.resolve(envelope()),
+    /**
+     * Enough of a create for *save my version as a copy* to succeed. It does
+     * not keep the copy — nothing here reads it back, and the claim the test
+     * using this makes is about the navigation that follows, which is the one
+     * navigation out of this editor that must not be stopped by the
+     * unsaved-changes guard.
+     */
+    createObject: (
+      _kind: unknown,
+      object: Record<string, unknown>,
+    ): Promise<{ id: string; slug: string; contentHash: string }> =>
+      Promise.resolve({ id: object['id'] as string, slug: 'ardent-copy', contentHash: hash() }),
     updateObject(
       _kind: unknown,
       _id: unknown,
@@ -146,6 +158,8 @@ vi.mock('../api.js', async (importOriginal) => {
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
+      createObject: (kind: unknown, object: Record<string, unknown>) =>
+        server.createObject(kind, object),
       updateObject: (
         kind: unknown,
         id: unknown,
@@ -614,5 +628,124 @@ describe('reordering entries', () => {
     expect([...server.stored().entries.map((each) => each.order)].sort()).toEqual(
       [...before].sort(),
     );
+  });
+});
+
+/**
+ * Leaving with unsaved changes — [05 §11.6](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * The claim under test is **not** that a dialog appears. It is that the draft
+ * survives the answer *stay*, and is released only on the answer *leave* — a
+ * warning that lost the work anyway would be a worse version of losing it
+ * quietly, because it would have told you first.
+ *
+ * The third test is the one that pays for the other two. This editor addresses
+ * the entry it has open with `?entry=`, so picking the next entry out of the
+ * list is a navigation like any other, and the guard has to let it through:
+ * blocking there would put a dialog about losing work in front of the most
+ * common click on the surface, over a draft that is book-wide and was never in
+ * danger.
+ */
+describe('leaving an editor with unsaved changes', () => {
+  /** Edit the open entry, so the draft differs from the book on disk. */
+  async function typeSomething(): Promise<void> {
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Content' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+  }
+
+  /** The editor's own way out, which is the exit a person takes. */
+  function backLink(): HTMLElement {
+    return screen.getByRole('link', { name: 'Back to the lorebook' });
+  }
+
+  it('asks before discarding them, and still holds them when you stay', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await typeSomething();
+
+    await userEvent.click(backLink());
+    await screen.findByRole('alertdialog');
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    // Both halves: still in the editor, and the edit still in it.
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', 'Cranes.');
+  });
+
+  it('lets go when you say so', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await typeSomething();
+
+    await userEvent.click(backLink());
+    await screen.findByRole('alertdialog');
+    await userEvent.click(screen.getByRole('button', { name: 'Leave without saving' }));
+
+    // The editor is gone — asserted on Save rather than on what the next page
+    // renders, which is a different surface's business and a different mock's.
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+  });
+
+  it('does not ask when there is nothing to lose', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    await userEvent.click(backLink());
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  /**
+   * **Save as a copy is the one exit that carries the work with it**, and it
+   * is the exit the guard is most likely to break: the draft still differs
+   * from *this* book's base and always will — the copy was written to a
+   * different id — so a guard reading only *are there changes* would raise a
+   * dialog about losing work on the click that just saved it, in front of the
+   * conflict dialog the user was already in the middle of.
+   *
+   * The falsifying mutation is dropping `ignoreBlocker` from that navigation.
+   */
+  it('does not ask when the copy it just wrote is where it is going', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    // A foreign write, so the save is refused and the two ways out are offered.
+    server.handEdit(makeBook());
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alertdialog');
+
+    const wasAt = router.state.location.pathname;
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Save my version as a copy instead' }),
+    );
+
+    // The address moved to the copy, and nothing stood in the way of it.
+    await waitFor(() => {
+      expect(router.state.location.pathname).not.toBe(wasAt);
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('does not ask when the address changes but the editor does not', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await typeSomething();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Bridge/ }));
+
+    // The other entry is open, with no dialog in the way and the first entry's
+    // edit still in the book-wide draft where it was.
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveProperty('value', 'Bridge');
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });

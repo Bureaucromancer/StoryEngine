@@ -136,4 +136,26 @@ export const control =
 export const page = {
   tooling: 'mx-auto w-full max-w-4xl px-6 py-8',
   reading: 'mx-auto w-full max-w-reading px-6 py-8',
+  /**
+   * The row a page's primary action sits in, held against the bottom of the
+   * scrollport for as long as there is page left below it.
+   *
+   * **`-mx-6 px-6` is not a margin the call site chose**, which is why it is
+   * here with the columns rather than there with the layout. It is exactly the
+   * column's own `px-6`, cancelled and re-applied, so that the bar reaches both
+   * edges of the column while what is in it stays on the column's text line.
+   * The two are one decision — change a column's padding and this is wrong —
+   * and that is the same ground the `mx-auto` above stands on.
+   *
+   * `bg-surface` is opacity rather than decoration: the bar floats over the
+   * form, and a transparent one renders two lines of text in the same pixels.
+   *
+   * It sticks within **whichever element holds it**, against `<main>`, which is
+   * the scroll container ([P3.−1]). So it goes last inside the thing it should
+   * stay in front of — in the editors, the form: it releases only over the
+   * panels below, which is the part of the page a person reads rather than
+   * edits.
+   */
+  actions:
+    'sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t border-line bg-surface px-6 py-3',
 } as const;
