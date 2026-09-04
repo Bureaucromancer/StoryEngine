@@ -95,6 +95,20 @@ nothing binds non-loopback without someone typing a bind address — which is wh
 has been carrying the safety in the meantime, and what stops carrying it in this
 phase.
 
+**~~this phase~~ — [P6A](23-p6a-alpha-1.md) built it, and this section is why.**
+The sentence above states the trigger as *until an image ships*, which is a
+condition rather than a date; P6A ships the image, so the condition fired there.
+Nothing about the decision changed — a stored token, checked, on the console —
+and the framing this section exists for, **the check and not the print**, is what
+P6A implemented. Kept rather than deleted because it is the argument, and because
+the phase that inherited it should be able to read why.
+
+**Its twin came with it.** The cookie `secure`/`trustProxy` hardening deferred at
+[P2 §2.11](04-p2-implementation.md) rests on the identical premise — the loopback
+default — so it expired at the same instant and shipped in the same stage
+([P6A §1.4](23-p6a-alpha-1.md)). What is left for this phase is what always was:
+mDNS, and the surfaces below.
+
 ### 1.2 The container inverts the bind default, and that is not a hidden build flag
 
 [04 §5.3](../04-server-multiuser-deployment.md): `127.0.0.1` inside a container
@@ -107,6 +121,16 @@ explicit act, and §1.1's token covers the rest.
 difference**, so a bare-metal user can opt into the same behaviour and a
 container user can tighten it. A hidden difference between artifacts is a
 support burden shaped like a security feature.
+
+**Built at [P6A](23-p6a-alpha-1.md), and this rule is what shaped it.** The
+finding that made it expensive rather than trivial belongs here, because it is
+this section's own constraint that produced it: the server read **exactly one
+environment variable in the entire codebase**, and it was dev-only, so *one
+documented environment variable* meant building the environment layer that had
+never existed rather than reading a value that had. The baked-build shortcut this
+paragraph forbids was the only thing the code could otherwise have done — which
+is the rule earning its keep, at the cost of the largest single piece of
+construction in that phase.
 
 ### 1.3 The router is server-side, and 1.0 has no presence signal
 
@@ -216,18 +240,31 @@ subsumes *sign in by name* rather than as a second box beside it.
 Reachability first — the phase's spine — then the things that make a second
 person's experience correct, then arrival.
 
-### P10.0 — Reachable and safe: bind, container, token, mDNS
+### P10.0 — Reachable and safe: ~~bind, container, token,~~ mDNS
 
-§1.1's stored-and-checked token; §1.2's single documented environment variable
-and the image that uses it; first-run setup gating every route until an admin
-exists, verified from a non-loopback bind; mDNS advertising `storyengine.local`
-once bound beyond loopback. Cookie `secure`/`trustProxy` hardening,
-deferred at [P2 §2.11](04-p2-implementation.md) with the loopback default cited
-as what made the deferral safe — and it stops being safe in this stage, which
-is why it lands in it.
+**Mostly built at [P6A](23-p6a-alpha-1.md), and this stage is what is left.**
+Struck rather than rewritten, because what this stage *was* is the clearest
+statement of what that phase took: §1.1's stored-and-checked token, §1.2's single
+documented environment variable and the image that uses it, first-run setup
+gating every route until an admin exists verified from a non-loopback bind, and
+the cookie `secure`/`trustProxy` hardening whose deferral premise the container
+removes. All of it landed at P6A.0 through P6A.2, for the reason §1.1 gives:
+those deferrals were scheduled against the image, and P6A is where the image
+shipped.
 
-*Ends at:* `docker run`, a token in `docker logs`, an admin created, a turn
-taken — from a machine that is not the host.
+**What remains here is mDNS** — advertising `storyengine.local` once bound beyond
+loopback — plus verifying the whole first-run path again against the artifact
+this phase inherits rather than one it built.
+
+~~*Ends at:* `docker run`, a token in `docker logs`, an admin created, a turn
+taken — from a machine that is not the host.~~ That gate was met at
+[P6A §3](23-p6a-alpha-1.md). *Ends at:* somebody on the LAN reaching the install
+by name rather than by address.
+
+**And the stage is now much smaller than its neighbours**, which changes §5's
+reading of this phase: the *"two phases wearing one number"* argument was about
+P10.0's deployment work versus everything after it, and P10.0 is no longer the
+half where the risk lives. That paragraph is corrected in place below.
 
 ### P10.1 — The notification router
 
@@ -351,6 +388,20 @@ compose files and stay there. §1.1 and §1.2 already treat them that way — *t
 check, not the print*, and *not a hidden build flag* — and the revisit should
 resist any pressure to soften either for convenience.
 
+**Both paragraphs above are now history, and they were right.**
+[P6A](23-p6a-alpha-1.md) took the unrecoverable half — the bind default, the
+token, the container — and the two rules this section told the revisit to defend
+are the two that survived contact: P6A built the environment layer rather than a
+baked build difference, and shipped the check rather than the print. **The
+warning worked, which is the argument for having written it down a phase early.**
+
+So the correction is to the *shape*, not the reasoning: P10 is no longer two
+phases wearing one number. P10.0 is a stage-sized remainder — mDNS and a
+re-verification — and the phase's centre of gravity, and its risk, has moved to
+the notification router and the surfaces after it. **The thing to price
+separately at the revisit is now P10.1**, for the reason two paragraphs down:
+its classes have to be agreed with three phases that will already have shipped.
+
 **What is smaller than it looks:** the gallery (P10.4). §1.9 says its
 obligations are enumerated in [15](../15-account-gallery.md) and to take them as
 written, which is the cheapest kind of stage — a specification that already did
@@ -371,9 +422,15 @@ than after.
   can be real while the delivery channels are one; deciding that early is what
   keeps §1.7's *ships with its producer or ships dark* from becoming a late
   argument.
-- **What the container image actually is.** §1.2 decides the bind default
+- ~~**What the container image actually is.** §1.2 decides the bind default
   inverts inside it; nothing yet says what *it* is, and that is a
-  [07](../07-tech-stack.md) question this phase inherits.
+  [07](../07-tech-stack.md) question this phase inherits.~~ **Closed by
+  [P6A §2](23-p6a-alpha-1.md)**, which answers it — base image, package manager,
+  the workspace prune, the volume, the user, the compose file — rather than
+  passing it on again. Worth noting that it was routed to
+  [07](../07-tech-stack.md) and [07](../07-tech-stack.md) never grew a section
+  for it: a question forwarded to a document that does not answer it is a
+  question with no owner, which is what this bullet was really recording.
 - **Whether §1.8's system-library bullet found an owner.** It is recorded here
   as a defect to close, which is the right place for it — but a defect with no
   owner at the revisit is one that ships.

@@ -956,6 +956,45 @@ Branching, rewrite/reroll, the RNG tape, sibling navigation.
 built after it inherits the behaviour for free. Built after modes, it is a
 migration.
 
+### P6A — Alpha 1
+
+**Expanded into a working plan: [23](23-p6a-alpha-1.md)**, written at its phase
+rather than ahead of it — P6 merged the morning it was drafted.
+
+**The first build you can go back to.** Six phases in, the only record of a
+working state is the commit graph, so *the version where lorebooks worked before
+the budgeter changed* is archaeology rather than something anyone can run. Alpha
+1 is that state tagged, changelogged, built from the tag, and started with one
+command.
+
+**It is an artifact, not a distribution**, and [23 §0](23-p6a-alpha-1.md) makes
+that the load-bearing distinction. The repository and the registry package are
+both private, the unraid template is written and committed rather than submitted,
+and nothing about `latest`, `nightly` or the other five packaging artifacts
+moves — so [releases §0](11-repo-and-releases.md)'s argument that alpha should
+not be *maintaining a distribution for software that has no users* survives
+intact. AGPL §13 attaches on distribution and therefore does not attach here,
+which is what keeps the About surface and the source link where P10 and P11
+already plan them.
+
+**Three things stand in front of the release flow, and none of them is release
+engineering** — which is why this is a phase rather than an afternoon. The server
+reads one environment variable in the whole codebase and has no `--host`, so an
+image binds the container's own loopback and is unreachable however its port is
+mapped. It serves no static files, so an image is an API and a 404. And the setup
+token and the cookie hardening were both deferred on a premise — *the loopback
+default* — that a container removes at a stroke, so [P2 §2.11](04-p2-implementation.md)'s
+F10 comes forward here whole rather than in halves.
+
+**Why after P6 specifically:** it is the first point at which there is something
+worth freezing — a turn tree, a library, retrieval and branching — and it lands
+before [P7](18-p7-implementation.md), the largest phase in the plan and the one
+that most wants a known-good baseline to measure against.
+
+**Demonstrable:** pull a tagged image, map a port, take the setup token out of
+`docker logs`, create an admin, play a session — with the working tree in any
+state at all, and the running build able to name the commit it came from.
+
 ### P7 — Modes and channels
 
 **Skeleton: [18](18-p7-implementation.md)**, whose §0 states what a skeleton
@@ -1211,17 +1250,31 @@ is hardening toward ends when someone gets tired:
 
 - CI that builds, tests and produces artifacts on every merge.
 - Reproducible builds of the container and the tarball, from a tag. **Those two
-  artifacts only** (§0.4) — the remaining four are a 1.0 requirement, and
+  artifacts only** (§0.5) — the remaining four are a 1.0 requirement, and
   standing up four more build chains is exactly the kind of work that reads as
   progress while delaying the thing being packaged.
 - The release cut itself automated: tag → build → publish → changelog.
+  **Partly taken early at [P6A](23-p6a-alpha-1.md)** — one artifact's chain,
+  built once for real; five to go.
 - Channels wired (`latest`, `testing`, `nightly`) and *boring* — a nightly that
   is often broken is worse than none ([11 §4](11-repo-and-releases.md)).
+  **Untouched by P6A**, deliberately: a private immutable tag is not a channel,
+  and P6A moves no alias.
 - Version and commit embedded in the build, which AGPL §13 already requires
-  ([04 §7](../04-server-multiuser-deployment.md)).
+  ([04 §7](../04-server-multiuser-deployment.md)). **Taken early at
+  [P6A](23-p6a-alpha-1.md)**, for a reason of its own rather than §13's — a
+  frozen build that cannot say what it is defeats its own purpose. The §13
+  *surface* is not built there, because §13 attaches on distribution and P6A
+  distributes nothing.
 - Upgrade tested, not assumed: an install from the previous release upgrading
   with its data intact.
 - Backup and restore actually exercised.
 
-The plan above front-loads none of this, which is defensible during alpha and
-would be a mistake to carry into beta.
+~~The plan above front-loads none of this, which is defensible during alpha and
+would be a mistake to carry into beta.~~ **The plan above now front-loads three
+of these seven, at [P6A](23-p6a-alpha-1.md).** The original sentence was written
+when nothing did, and its argument is unchanged for the other four: front-loading
+release engineering during alpha is defensible only where the artifact is for the
+project rather than for an audience, which is the distinction
+[releases §0](11-repo-and-releases.md) now draws. What would be a mistake is
+carrying the *deferral* into beta, and this list is still what retires it.
