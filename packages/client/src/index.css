@@ -147,6 +147,34 @@ body {
 }
 
 /**
+ * A disclosure's arrow sits beside its title, never above it.
+ *
+ * `<summary>` is a `list-item`, and its `::marker` is placed at the start of the
+ * summary's **first line box**. Give it a block child — a heading, which is what
+ * a fold with a real title wants — and that child opens a line box of its own,
+ * so the arrow is laid out on the line above and the title sits under it
+ * indented. Nothing about it looks like a layout bug in the markup, which is why
+ * it survived: the summary reads correctly, the heading reads correctly, and the
+ * two are only wrong together.
+ *
+ * Making the heading inline is the whole fix, and it is deliberately smaller
+ * than the usual answer. Turning the summary into a flex row is the pattern the
+ * web reaches for, and it costs the native marker — flexing a `list-item` drops
+ * it — so it has to be replaced with a glyph, a rotation, and a
+ * `::-webkit-details-marker` suppression, in exchange for behaviour the browser
+ * was already giving us for free in every other fold in this client.
+ *
+ * Here rather than at the one call site that has the problem today, because the
+ * next fold with a heading in it would have it too, and a rule about how a
+ * disclosure lays out is a fact about disclosures rather than about that
+ * component. `SubsectionTitle` carries no margin of its own, so nothing is lost
+ * by the inline box.
+ */
+summary > :is(h1, h2, h3, h4, h5, h6) {
+  display: inline;
+}
+
+/**
  * The second theme.
  *
  * It exists this early on purpose. A token vocabulary that has only ever
