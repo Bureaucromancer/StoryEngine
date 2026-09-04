@@ -155,6 +155,17 @@ async function main(): Promise<void> {
     {
       api: `http://${config.server.host}:${String(config.server.port)}`,
       dataRoot: services.layout.dataRoot,
+      /**
+       * **What build this is** — [P6A §1.5]. On the listening line because that
+       * is the line a person reads first and the one `docker logs` shows
+       * without scrolling, and because the question it answers — *which commit
+       * is this?* — is asked about a running server rather than about a file.
+       *
+       * `null` for a build nobody identified. Reported rather than omitted, so
+       * the absence is a fact in the log rather than a field somebody assumes
+       * their log shipper dropped.
+       */
+      build: services.build,
     },
     'StoryEngine listening',
   );

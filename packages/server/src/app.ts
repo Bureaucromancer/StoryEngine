@@ -27,6 +27,7 @@ import {
   readSession,
   SESSION_COOKIE,
 } from './auth/session.js';
+import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
@@ -55,6 +56,7 @@ import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { listDirectoryNames, readFileBytes } from './storage/files.js';
+import { stampDataDirectory } from './storage/stamp.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
@@ -154,6 +156,14 @@ export interface AppServices {
    */
   setupToken: string | null;
   /**
+   * What build this is, or null for one nobody identified — [P6A §1.5].
+   *
+   * Null is every development run, and it is a state rather than a missing
+   * value: it is what the `notices` route reports, and it is what makes the
+   * data-directory stamp neither write nor refuse.
+   */
+  build: BuildInfo | null;
+  /**
    * Where `config.json` actually is.
    *
    * **Not derivable from the layout.** `main.ts` resolves it from `--config`,
@@ -211,6 +221,18 @@ export interface BuildAppOptions {
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
   /**
+   * Say what build this is, instead of reading the identity file — [P6A §1.5].
+   *
+   * A seam of the same kind as `providers` and `fetch` above, and it exists for
+   * a reason the others do not have: the identity is a property of *the
+   * artifact*, so no test can arrange one without writing into the package it is
+   * testing. Without this the data-directory stamp's wiring — refusing before
+   * anything opens — would be provable only by running a built server, and a
+   * guard that runs one line too late is exactly the sort of thing that then
+   * regresses in silence.
+   */
+  build?: BuildInfo | null;
+  /**
    * Where a connection becomes a provider.
    *
    * The one seam an end-to-end turn test needs, and it belongs here rather than
@@ -237,6 +259,17 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);
+
+  /**
+   * **Before the index opens, which is the first thing that writes** — [P6A §1.7].
+   *
+   * The refusal has to happen before this process has touched anything, or it
+   * is not a refusal: `openIndex` creates and migrates, and a guard that ran
+   * afterwards would be reporting a directory it had already changed.
+   */
+  const build = options.build === undefined ? await readBuildInfo() : options.build;
+  await stampDataDirectory(layout, build);
+
   const index = await openIndex({ path: layout.indexFile });
 
   /**
@@ -251,7 +284,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * and none of it was guarded, so one failed build buried its own cause.
    */
   try {
-    return await assembleServices(options, layout, index);
+    return await assembleServices(options, layout, index, build);
   } catch (error) {
     index.close();
     throw error;
@@ -262,10 +295,14 @@ async function assembleServices(
   options: BuildAppOptions,
   layout: Layout,
   index: OpenedIndex,
+  // Threaded rather than read again here. It is one file and it cannot change
+  // under a running process, so a second read would be a second chance to
+  // disagree with the stamp that was already written from the first.
+  build: BuildInfo | null,
 ): Promise<AppServices> {
   const state = await openState({ path: layout.stateFile });
   try {
-    return await assembleWithState(options, layout, index, state);
+    return await assembleWithState(options, layout, index, state, build);
   } catch (error) {
     state.close();
     throw error;
@@ -277,6 +314,7 @@ async function assembleWithState(
   layout: Layout,
   index: OpenedIndex,
   state: OpenedState,
+  build: BuildInfo | null,
 ): Promise<AppServices> {
   const library: LibraryContext = {
     db: index.db,
@@ -407,6 +445,7 @@ async function assembleWithState(
     watcher,
     maturation,
     prefs: new PrefsStore(layout),
+    build,
     sessionKey: await loadOrCreateSessionKey(layout),
     /**
      * **Minted only in the window it is for.** A loopback install never gets

@@ -982,6 +982,10 @@ export const adminApi = {
       ...(contentHash === undefined ? {} : { contentHash }),
     }),
 
-  notices: (): Promise<{ pendingRestart: string[]; canRestart: boolean }> =>
-    request('GET', '/api/admin/notices'),
+  notices: (): Promise<{
+    pendingRestart: string[];
+    canRestart: boolean;
+    /** What build the server is, or null for one nobody identified ([P6A §1.5]). */
+    build: { version: string; commit: string } | null;
+  }> => request('GET', '/api/admin/notices'),
 };

@@ -1565,7 +1565,13 @@ and waits with the rest of that half.
 
 ### `GET /api/admin/notices`
 
-`{ "pendingRestart": ["server.port"], "canRestart": false }`.
+```json
+{
+  "pendingRestart": ["server.port"],
+  "canRestart": false,
+  "build": { "version": "0.1.0-alpha.1", "commit": "a54afcc…" }
+}
+```
 
 Its own route because the restart banner is on **every** page rather than on the
 settings page ([04 §6.3](design/04-server-multiuser-deployment.md)) — the person
@@ -1575,6 +1581,17 @@ Computed per request and stored nowhere, which is what makes it self-healing:
 change a value, change it back, and the list empties. It is also why every
 administrator sees the same list — one process, one answer, not a per-session
 note.
+
+**`build` is what this build is**, or `null` for one nobody identified — which
+is every development run and anything not produced by a release
+([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Written into the artifact at
+build time rather than read from the environment, so a container cannot claim to
+be something it is not. `null` rather than `0.0.0` or `"unknown"`: a version
+string that is not a version is the thing a bug report quotes back at you. The
+surface that renders it is [P11.6]'s About panel, which no document specifies
+yet; this is the value waiting for it. It is on **this** route rather than a new
+one because this is already the *state of this install* answer, and the shell
+asks for it on every navigation.
 
 `canRestart` is `false` and says so rather than being absent. **The server does
 not restart itself**: under no supervisor a restart control leaves the

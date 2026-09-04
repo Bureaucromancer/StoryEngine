@@ -202,7 +202,8 @@ gate that is already met:
   in the repository is `p1`, a bare phase marker — which means the on-tag CI
   trigger must filter `tags: ['v*']` or it fires on phase tags.
 - **No CHANGELOG.** [releases §7](11-repo-and-releases.md) requires an entry per
-  release tag.
+  release tag. *Written at [P6A.3]; the `0.1.0-alpha.1` entry is in it, marked
+  unreleased until the tag is cut.*
 - **No data-directory stamp.** Nothing records which build wrote a data
   directory, and nothing refuses to open one it does not understand.
 - **The image's own shape is an open question the corpus already flagged.**
@@ -579,14 +580,68 @@ rather than a socket, which is why a feature gated on being exposed leaves every
 > `survivesSetupGate` allows, and accepts the first admin only with the token
 > from its own log.
 
-### P6A.3 — Identified: version, commit, stamp, changelog
+### ~~P6A.3 — Identified: version, commit, stamp, changelog~~ Landed
 
-§1.5's build-time embed reported by the running server, §1.7's data-directory
-stamp, and the CHANGELOG with the entry convention
-[releases §7](11-repo-and-releases.md) requires.
+**The identity is a file the release build writes, and `pnpm build` does not
+write it.** `tools/write-build-info.mjs` puts `{version, commit}` into
+`packages/server/build-info.json` from the root `package.json` and `git
+rev-parse`, refusing a dirty tree unless told otherwise — a build identified by
+a commit it does not match is worse than one with no identity, because the whole
+promise of this phase is a build you can go back to and you cannot go back to a
+working tree. `readBuildInfo` resolves it from the **package root**, which is
+the one path that works both as `src/build-info.ts` under `tsx` and as
+`dist/build-info.js` after a build.
 
-*Ends at:* a running server that names its own commit, and an older build that
-declines a newer volume.
+**That `pnpm build` does not run it is the decision the rest rests on.** If it
+did, every developer would have an identified build carrying their own commit,
+and the stamp below would start refusing directories over versions nobody
+released. So a build nobody released has no identity, and *no identity* is a
+state the code reports rather than a value it invents: `null` on the route and
+in the log, not `0.0.0` and not `"unknown"`, because a version string that is not
+a version is the thing a bug report then quotes back at you.
+
+**Reported on `GET /api/admin/notices` and on the startup line.** The route
+because it is already the *state of this install* answer the shell asks for on
+every navigation; the log line because that is what `docker logs` shows without
+scrolling, and *which commit is this* is a question asked about a running server.
+
+**The stamp refuses, and refuses before anything opens.** `state/build.json`
+records the build that last opened the directory, and an older one will not open
+it. The ordering is a hand-written semver comparator, which is defensible only
+because it can say **`null` for a version it cannot place** and the caller has a
+safe answer for that — refuse, and print both strings. `alpha.10` against
+`alpha.2` is the case a string compare gets backwards and the case that will
+actually arise, so it is tested rather than assumed.
+
+Placement is the part a unit test cannot see: `openIndex` creates and migrates,
+so a guard one line later would be refusing a directory it had already changed.
+`BuildAppOptions.build` exists for that — a seam of the same kind as `providers`
+and `fetch`, and it exists because the identity is a property of *the artifact*,
+so no test can arrange one without writing into the package it is testing. The
+test asserts no index file exists after the refusal; moving the call is a
+mutation that fails it.
+
+**The version is `0.1.0-alpha.1` in the root `package.json`**, which is where a
+human edits it, and [§1.6](#16-the-tag-scheme-and-why-latest-does-not-move)'s tag
+is `v` plus that string. The CHANGELOG entry names the same version, so the three
+agree or the release is wrong in a way somebody notices.
+
+Ten mutations, ten red. And checked against real processes where no test reaches:
+`pnpm build:identify` then the entry point spawned twice against one directory —
+the listening line carried
+`"build":{"version":"0.1.0-alpha.1","commit":"ee4a28f…"}`, the stamp appeared on
+disk, and a second run pretending to be `0.0.9` exited with *was written by a
+newer build*. That is this stage's *ends at*, both halves, before the container
+that [§3](#3-verification--the-p6a-exit-gate) step 8 will ask it of.
+
+*The stage as it was written:*
+
+> §1.5's build-time embed reported by the running server, §1.7's data-directory
+> stamp, and the CHANGELOG with the entry convention
+> [releases §7](11-repo-and-releases.md) requires.
+>
+> *Ends at:* a running server that names its own commit, and an older build that
+> declines a newer volume.
 
 ### P6A.4 — Released: image, compose, template, workflow
 

@@ -224,6 +224,18 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'setup.token');
   }
 
+  /**
+   * Which build last opened this data directory ([P6A §1.7]).
+   *
+   * Operational by the same test as the two above: it is not derived from
+   * anything, and losing it would not surprise a user so much as remove a guard
+   * they never knew was there. In `state/` rather than at the data root because
+   * it is about the process that opened the directory, not about its contents.
+   */
+  get buildStampFile(): string {
+    return resolveWithin(this.stateRoot, 'build.json');
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }
