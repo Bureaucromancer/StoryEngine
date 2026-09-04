@@ -1,6 +1,13 @@
 # 23 — P6A implementation plan: Alpha 1
 
-**Status: ~~plan~~ in progress.** Opened 2026-09-04 on branch `p6a` at
+**Status: ~~plan~~ ~~in progress~~ built, unwalked.** All five stages in §2 are
+landed, and the phase does **not** close: §3's exit gate is manual by design,
+and twelve of its thirteen steps need a Docker daemon, an unraid host, and a
+second machine to sign in from. No image has been built. What the code can prove
+is proved; what only a person with a container can prove is listed there
+unticked.
+
+Opened 2026-09-04 on branch `p6a` at
 `a54afcc`, main's tip after this document's own merge. The audit below stands as
 written and needed no repeat: `git diff a6f78c3..a54afcc -- packages/server
 packages/shared config.example.json` is empty, so every line number and every
@@ -643,18 +650,80 @@ that [§3](#3-verification--the-p6a-exit-gate) step 8 will ask it of.
 > *Ends at:* a running server that names its own commit, and an older build that
 > declines a newer volume.
 
-### P6A.4 — Released: image, compose, template, workflow
+### ~~P6A.4 — Released: image, compose, template, workflow~~ Written, unbuilt
 
-The `.dockerignore` that does not exist; a multi-stage build on a Node ≥26.4.0
-base with corepack pnpm 11.18.0 (`.npmrc` is `engine-strict=true`, so a lower
-base fails hard rather than warning); the `workspace:*` prune story; the `/data`
-volume and the non-root user; `compose.yaml`, because
-[04 §5.4](../04-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
-compose file"* and compose is therefore inside the deliverable rather than beside
-it; the unraid template; and the on-tag workflow filtered to `v*`, publishing to
-a **private** GHCR package.
+**Every file this stage owes exists**, and one thing this stage owes cannot be
+done from here: **there is no Docker on this machine, so the image has never been
+built.** That is the honest state and it is the first line of this record rather
+than a footnote — [§3](#3-verification--the-p6a-exit-gate) step 1 is a person
+with a daemon, and steps 3 through 12 follow it. Nothing below claims otherwise.
 
-*Ends at:* the demo.
+**What is verified, and it is more than the file list suggests.** The two things
+most likely to be wrong in a Dockerfile are the workspace prune and the runtime
+command, and both were run outside a container:
+
+- `pnpm --filter @storyengine/server --legacy deploy --prod` produces a
+  self-contained 51 MB tree with `dist`, `package.json`, `build-info.json` and a
+  `node_modules` holding `@storyengine/shared` and `@storyengine/sdk` as real
+  directories. `--legacy` is required — pnpm 10 and later refuse the
+  non-injected form — and that is a measurement, not a reading of the docs.
+- That tree was then run exactly as the runtime stage will run it: `node
+  dist/main.js`, no config file, an empty data directory, and only the four `SE_`
+  variables. It served the shell at `/` (200, `text/html`), the hashed asset
+  (200, `application/javascript`), `GET /api/auth/state` (200, JSON), and it
+  logged `"build":{"version":"0.1.0-alpha.1","commit":"…"}`.
+
+**A trap worth recording:** `pnpm deploy` leaves the workspace's recorded install
+state pointing at a production install, so the next `pnpm build` tries
+`pnpm install --production` and — with no TTY — aborts rather than asking. A
+plain `pnpm install` restores it. In the image that never matters, because the
+deploy is the last thing the build stage does; on a developer's machine it
+matters immediately.
+
+**`SE_CLIENT_ROOT` is new, and finding it is what writing the image was for.**
+[§1.2] fixed the environment layer's keys before [§1.3] invented `clientRoot`, so
+a container had no way to say where the client was — the config file lives
+*inside* the data directory, which on a first run is an empty volume. It is a
+fifth entry in `CONFIG_ENVIRONMENT` and a row in
+[13 §4](../13-internal-contracts.md)'s table, which `config.test.ts` enforces.
+
+**Two checks made mechanical rather than remembered.** `write-build-info.mjs`
+gained `--expect-version`, so a tag that disagrees with the root `package.json`
+stops the image build instead of shipping a version nobody released; and
+`tools/release.test.ts` — a new vitest project, because the subject is the
+repository rather than any package — compares that version against the CHANGELOG
+entry, `compose.yaml`'s image tag and the unraid template's `Repository`. The
+workflow could never have caught the last two.
+
+**`slim` rather than `alpine`**, deliberately paying a few tens of megabytes:
+this server formats numbers and dates against a user's locale ([04 §4.2]), and a
+musl base with a trimmed ICU shows up as one wrong separator in one language
+rather than as a build failure. Nothing needs a native compiler — SQLite is
+`node:sqlite` — so the usual reason for alpine does not apply.
+
+**The unraid template lost its icon before it gained anything.** The first draft
+pointed `<Icon>` at `packages/client/public/favicon.svg`; the client ships no
+`public/` directory and names no favicon, so that was a template with a URL that
+404s — [04 §5.3]'s *"a template that only half-works is worse than none"*,
+committed. It has no icon element and a comment saying when to add one.
+
+Eight mutations, eight red: a compose tag off by one alpha, the template's, an
+unfiltered release trigger, `contents: write`, a `.dockerignore` that lets a
+developer's identity file into the image, one that lets `data/` in, a `0.0.0`
+version, and a missing `SE_CLIENT_ROOT`.
+
+*The stage as it was written:*
+>
+> The `.dockerignore` that does not exist; a multi-stage build on a Node ≥26.4.0
+> base with corepack pnpm 11.18.0 (`.npmrc` is `engine-strict=true`, so a lower
+> base fails hard rather than warning); the `workspace:*` prune story; the `/data`
+> volume and the non-root user; `compose.yaml`, because
+> [04 §5.4](../04-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
+> compose file"* and compose is therefore inside the deliverable rather than beside
+> it; the unraid template; and the on-tag workflow filtered to `v*`, publishing to
+> a **private** GHCR package.
+>
+> *Ends at:* the demo.
 
 #### The unraid template, specifically
 

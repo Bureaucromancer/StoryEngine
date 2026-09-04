@@ -27,6 +27,13 @@ import { fileURLToPath } from 'node:url';
  * is worse than one with no identity at all: the whole promise of P6A is *a
  * build you can go back to*, and you cannot go back to a working tree.
  *
+ * **`--commit <sha>` says it instead**, for the one caller that cannot ask git:
+ * an image build, whose context has no `.git` because `.dockerignore` excludes
+ * it. That is the *build* environment stating a fact it has in hand — the
+ * release workflow passes `github.sha` — and not the runtime environment, which
+ * is the thing `build-info.ts` refuses to trust. A caller that says the commit
+ * is trusted about it; there is nothing here that could check.
+ *
  * Exempt from the no-direct-`fs` rule for the reason `emit-schemas.ts` is: that
  * rule keeps one audited resolver the only door to *user data* reached from a
  * request, and a build script writing into the repository has no user root to
@@ -35,6 +42,20 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const allowDirty = process.argv.includes('--allow-dirty');
+const stated = argumentValue('--commit');
+const expected = argumentValue('--expect-version');
+
+/** The value after a flag, or undefined. Refuses a flag with nothing after it. */
+function argumentValue(flag) {
+  const at = process.argv.indexOf(flag);
+  if (at === -1) return undefined;
+  const value = process.argv[at + 1];
+  if (value === undefined || value.startsWith('--')) {
+    console.error(`${flag} needs a value.`);
+    process.exit(1);
+  }
+  return value;
+}
 
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 
@@ -44,17 +65,36 @@ if (typeof version !== 'string' || version === '0.0.0') {
   process.exit(1);
 }
 
-const dirty = git('status', '--porcelain');
-if (dirty !== '' && !allowDirty) {
+/**
+ * **`--expect-version` makes the three-way agreement mechanical.** The tag, the
+ * root `package.json` and the changelog entry all name one version, and the
+ * failure mode is tagging `v0.1.0-alpha.2` against a tree that still says
+ * `alpha.1` — an image that reports a version nobody released, discovered by
+ * whoever tries to reproduce it. The release workflow passes the tag here, so
+ * that mistake stops the build instead of shipping.
+ */
+if (expected !== undefined && expected !== version && expected !== `v${version}`) {
   console.error(
-    'The working tree is not clean, so this build cannot honestly name a commit.\n' +
-      'Commit, or pass --allow-dirty for a local build you are not going to keep.\n' +
-      dirty,
+    `The release says ${expected} and the root package.json says ${version}.\n` +
+      'Bump the version and its CHANGELOG entry, or tag the version that is there.',
   );
   process.exit(1);
 }
 
-const commit = git('rev-parse', 'HEAD') + (dirty === '' ? '' : '-dirty');
+let commit = stated;
+if (commit === undefined) {
+  const dirty = git('status', '--porcelain');
+  if (dirty !== '' && !allowDirty) {
+    console.error(
+      'The working tree is not clean, so this build cannot honestly name a commit.\n' +
+        'Commit, pass --commit <sha>, or pass --allow-dirty for a local build you\n' +
+        'are not going to keep.\n' +
+        dirty,
+    );
+    process.exit(1);
+  }
+  commit = git('rev-parse', 'HEAD') + (dirty === '' ? '' : '-dirty');
+}
 const path = join(root, 'packages', 'server', 'build-info.json');
 writeFileSync(path, `${JSON.stringify({ version, commit }, null, 2)}\n`);
 console.log(`${path}: ${version} at ${commit}`);

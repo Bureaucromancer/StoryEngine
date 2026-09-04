@@ -77,6 +77,27 @@ export default defineConfig({
           environment: 'node',
         },
       },
+
+      /**
+       * The packaging artefacts, whose subject is the **repository** rather
+       * than any package in it — [P6A.4].
+       *
+       * A project of its own because the `packages` project below only looks
+       * inside each package's own `src`, and a test about `compose.yaml` and the unraid
+       * template that lived there would be filed under a package it is not
+       * about. The alternative — no test — is what lets an image tag in three
+       * files drift from the version in a fourth, which is the same drift class
+       * `config.test.ts` already guards for config keys.
+       */
+      {
+        test: {
+          name: 'release',
+          ...TIMEOUTS,
+          root: '.',
+          include: ['tools/*.test.ts'],
+          environment: 'node',
+        },
+      },
       {
         test: {
           name: 'packages',

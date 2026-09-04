@@ -562,10 +562,14 @@ key — the same structural enforcement as the portable types
 | `SE_DATA_DIR` | `dataDir` |
 | `SE_HOST` | `server.host` |
 | `SE_PORT` | `server.port` |
+| `SE_CLIENT_ROOT` | `server.clientRoot` |
 
 These and no others, because these are the keys that decide where the config
-file is and whether the process is reachable at all — everything else can wait
-for the file it finds. The list is
+file is, whether the process is reachable at all, and whether it serves
+anything — everything else can wait for the file it finds. The last of them was
+added at [P6A.4](workplan/23-p6a-alpha-1.md) for the reason the list exists: the
+config file lives *inside* the data directory, so a container starting on an
+empty volume has no file to be configured by. The list is
 [P10 §1.2](workplan/21-p10-implementation.md)'s rule made concrete: the
 container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
 that decided differently, because *a hidden difference between artifacts is a

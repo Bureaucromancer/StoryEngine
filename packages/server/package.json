@@ -14,7 +14,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "build-info.json"
   ],
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.30",

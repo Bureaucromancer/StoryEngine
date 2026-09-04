@@ -36,8 +36,8 @@ newer one has touched
 
 ### Added
 
-- **The server can be told where to bind.** `SE_HOST`, `SE_PORT` and
-  `SE_DATA_DIR` override the config file's defaults, resolved between the
+- **The server can be told where to bind.** `SE_HOST`, `SE_PORT`, `SE_DATA_DIR`
+  and `SE_CLIENT_ROOT` override the config file's defaults, resolved between the
   defaults and the file so a value written in the file still wins. Before this
   the server read one environment variable in the whole codebase and it was
   dev-only, so a container bound its own loopback and was unreachable however
@@ -54,6 +54,10 @@ newer one has touched
   cookie is not sent back over it.
 - **A version and a commit the running server reports**, on
   `GET /api/admin/notices` and on the startup line.
+- **A container image, a compose file and an unraid template**, with an on-tag
+  workflow that publishes to a private registry. See
+  [docs/deploy.md](docs/deploy.md) — starting with the fact that the package is
+  private, so nothing pulls until you have logged in.
 
 ### Fixed
 

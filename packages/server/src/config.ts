@@ -590,6 +590,15 @@ export const CONFIG_ENVIRONMENT = {
   SE_DATA_DIR: 'dataDir',
   SE_HOST: 'server.host',
   SE_PORT: 'server.port',
+  /**
+   * **Added at [P6A.4], which is where the gap showed.** [P6A §1.2] listed the
+   * bootstrap keys before [§1.3] invented this one, and an image has nowhere
+   * else to put it: the config file lives inside the data directory, which is
+   * an empty volume on first run, so a container that could not name the client
+   * root through the environment would serve a 404 until somebody wrote a file
+   * into the volume it was trying to avoid needing.
+   */
+  SE_CLIENT_ROOT: 'server.clientRoot',
 } as const satisfies Record<string, string>;
 
 /** The variable that sets a key, for an error message that names what was typed. */
