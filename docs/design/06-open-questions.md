@@ -706,11 +706,18 @@ required rather than as-capacity-allows, which rewrites the earlier tiering — 
 tiers now describe order of value, not optionality. Declined stays declined:
 Flatpak, AppImage, Snap, `.rpm`, LXC.
 
-**Re-cut on the milestone, not on the list** ([work plan §0.4](workplan/01-work-plan.md)): the
+**Re-cut on the milestone, not on the list** ([work plan §0.5](workplan/01-work-plan.md)): the
 OCI image and the tarball are the **beta** requirement; the other four join the
 in-app update **check** as **1.0 release** requirements. Tiers 1 and 2 are enough
 to have users, and four more build chains before there are any is work that reads
 as progress. *[04 §5.4, releases §0]*
+
+**The first of the six is built early, and it does not change this list**
+([P6A](workplan/23-p6a-alpha-1.md)). P6A produces the OCI image, its compose file
+and the unraid template as a **private** artifact — undistributed, so no
+milestone here moves and the beta requirement is unchanged. The template is not a
+seventh artifact: [04 §5.4](04-server-multiuser-deployment.md) calls it a thin
+wrapper over Tier 1, and it is scheduled with the image.
 
 **D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. Feature
 list, High** ([14 §3.1](14-roadmap.md)). *Post-2.0* was the old phrasing and it

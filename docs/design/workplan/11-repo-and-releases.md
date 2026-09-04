@@ -13,7 +13,7 @@ what is deferred rather than forgotten.
 
 | Phase | Definition | Distribution |
 |---|---|---|
-| **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No release artifacts, no channels, no packages. |
+| **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No *distribution* — no channels, no packages anyone else installs. One private artifact from [P6A](23-p6a-alpha-1.md) onward; see below. |
 | **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
 | **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
@@ -70,6 +70,38 @@ Two consequences worth naming:
   philosophy.** [04 §5.4](../04-server-multiuser-deployment.md) argues that
   build-from-source should stay genuinely first-class forever — that remains
   true, but during alpha it is the *only* path, which is a different claim.
+
+### 0.1 The distinction the table above was missing
+
+*Added at [P6A](23-p6a-alpha-1.md), which is the phase that needed it.*
+
+Both bullets say **distribution**, and both are right about it. Neither
+distinguishes distribution from the thing that happens to share its build chain:
+
+- **A release artifact** is tagged, changelogged, published to a channel, tracked
+  by other people's auto-updaters, and carries an implied support promise. Every
+  word of the two bullets applies to it, and it stays post-alpha.
+- **A build the project produces for itself** is tagged, changelogged,
+  reproducible and identified — and handed to nobody. None of the recurring costs
+  [04 §5.4](../04-server-multiuser-deployment.md) warns about attach to it,
+  because every one of them is a cost of having an audience.
+
+**P6A cuts the second and calls it Alpha 1.** A private repository, a private
+registry package, an unraid template written and committed rather than submitted.
+`latest` moves nowhere, `nightly` does not exist, and the other five packaging
+artifacts stay exactly where §0's table puts them. **The maintaining-a-
+distribution argument is not weakened by this; it is what the privacy is for.**
+
+Two things follow that are worth stating rather than inferring:
+
+- **AGPL §13 attaches on distribution**
+  ([04 §7](../04-server-multiuser-deployment.md)), so it does not attach to
+  Alpha 1 — which is why the About surface and the version-aware source link stay
+  at P10 and P11 rather than being dragged forward.
+- **Publishing is therefore one decision, not a toggle.** A public image obliges
+  a public repository at the same instant, plus the §13 surface, plus a data
+  story for strangers' installs. [P6A §4](23-p6a-alpha-1.md) lists them together
+  for that reason.
 
 ---
 
@@ -179,6 +211,15 @@ Three channels:
 | **testing** | a chosen commit on `main` | **a human decided `main` is in a good state** | manual testing of unreleased work |
 | **nightly** | `main` HEAD | schedule only | seeing today's state; may be broken |
 
+**An alpha build occupies none of these rows**, which is worth saying because the
+table invites the assumption that anything published must land somewhere.
+[P6A](23-p6a-alpha-1.md) publishes under an **immutable tag and moves no alias**:
+`latest` still names nothing, and it stays that way until a release is actually
+cut. The reason is concrete rather than tidy — `updates.channel` already ships as
+a closed union defaulting to `latest`, and both unraid's auto-update and
+watchtower track exactly that alias, so moving it is how an alpha turns into an
+unattended upgrade for everyone who ever installs one.
+
 **`testing` and `nightly` are not the same channel at different frequencies**,
 and most projects blur them. `nightly` is unattended and carries no claim.
 `testing` is somebody's judgement that the current trunk is worth other people's
@@ -252,7 +293,16 @@ protecting from merge volume rather than from individual mistakes.
 ## 8. Open
 
 - **[OPEN]** When to introduce `nightly` and `testing`. Gated on CI reliability
-  per §4, and on reaching beta per §0.
+  per §4, and on reaching beta per §0. **Resolved in part at
+  [P6A](23-p6a-alpha-1.md), and the halves are worth naming separately** because
+  only one of them moved. The *CI reliability* half is substantially met — the
+  per-PR tier runs format, typecheck, lint, build, schema-drift, the suite and
+  the named gate on ubuntu and Windows, and P6A adds the on-tag tier. The
+  *reaching beta* half is **unchanged** and still gates both channels, because
+  what P6A settles is only that a build may exist before beta (§0.1), not that
+  one may be published to an audience. What remains genuinely open is therefore
+  narrower than it was: not whether artifacts may exist during alpha, but when
+  the project takes on people tracking one.
 - **[OPEN]** How long a release line is maintained. "Forever" for the *branch*
   is cheap; "forever" for *fixes* is not, and the two are easy to conflate in
   users' expectations. A stated support window — current minor plus one — costs

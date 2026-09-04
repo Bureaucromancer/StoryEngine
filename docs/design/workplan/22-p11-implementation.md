@@ -234,12 +234,27 @@ being cheap.
 **Packaging is now all six artifacts, not two.**
 [releases §0](11-repo-and-releases.md) still requires only the OCI image and the
 tarball *for beta to count*, and that is unchanged. What changed is that `.deb`,
-AUR, Homebrew, the Windows service and the unraid template
-([04 §5.3](../04-server-multiuser-deployment.md)) are owned here rather than by a
-"1.0 bar" — a bar this phase had itself put out of scope, which left four
-required artifacts with a requirement and no builder. The unraid template is
-worth naming because it is the one most likely to feel obligatory: a first-class
-artifact *for 1.0*, and a half-working template is worse than none.
+AUR, Homebrew and the Windows service are owned here rather than by a "1.0 bar" —
+a bar this phase had itself put out of scope, which left four required artifacts
+with a requirement and no builder.
+
+*Corrected at [P6A](23-p6a-alpha-1.md), which had to count them.* This paragraph
+listed **five** names as those four, by including the unraid template
+([04 §5.3](../04-server-multiuser-deployment.md)) — which is not one of the six.
+[06 D0b](../06-open-questions.md)'s canonical enumeration is OCI image, tarball,
+`.deb`, AUR, Windows service installer and Homebrew formula, and
+[04 §5.4](../04-server-multiuser-deployment.md) calls the template *"a thin
+wrapper over"* Tier 1 rather than an artifact beside it. The old sentence's
+instinct was sound — the template *is* the one most likely to feel obligatory,
+and a half-working one is worse than none — but the fix for that is scheduling
+it with the thing it wraps, which is what P6A does.
+
+**So this phase owns five, not six.** P6A builds the OCI image, its compose file
+and the unraid template as a private artifact
+([releases §0.1](11-repo-and-releases.md)); what lands here is the tarball, the
+other four, and the step P6A explicitly did not take — **public distribution**,
+with the AGPL §13 surface, the About page and the channels that come with having
+an audience.
 
 **Session export is the largest of the three and the one with a dependency.**
 It drags `localActors`, channel state, branch structure and renditions
@@ -376,6 +391,22 @@ publish, changelog; channels wired and *boring*, because a nightly that is often
 broken is worse than none ([releases §4](11-repo-and-releases.md)); version and
 commit embedded in the build, which AGPL §13 requires anyway and which
 [P10](21-p10-implementation.md) needs for its About surface.
+
+**Rehearsed once already, at [P6A](23-p6a-alpha-1.md), and that changes what this
+stage is.** Three of [01 §8](01-work-plan.md)'s seven bullets were taken there on
+one artifact: the release cut automated end to end, version and commit embedded,
+and an on-tag CI tier that exists. So this stage is no longer standing a release
+process up from nothing — it is **widening a working one to five more artifacts
+and to an audience**, which is a different and better-understood job. The
+rewrite of [01 §8](01-work-plan.md) that §1.1 owns should say what the rehearsal
+actually taught rather than restating the list.
+
+**What P6A deliberately left here is the audience half**, and it is the half with
+the obligations: public distribution, the AGPL §13 source link and the About
+surface that no UI document yet specifies
+([05 §15.3](../05-ui-surfaces.md) enumerates the admin panels and About is not
+among them), the channels, and the upgrade and restore tests that only matter
+once somebody else's data is at stake.
 
 *Ends at:* the demo.
 

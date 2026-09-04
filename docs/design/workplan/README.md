@@ -9,8 +9,9 @@ would mean two documents. Work-plan documents are referenced as
 [`work plan §4.1`](01-work-plan.md), [`triage §6.2`](02-triage.md),
 [`P1 §1.3`](03-p1-implementation.md),
 [`P2A §2.5`](13-p2a-configuration-surface.md),
-[`P2B §1.2`](14-p2b-provider-configuration.md), [`polish §4`](09-polish.md),
-[`testing §2`](10-testing.md) and [`releases §2`](11-repo-and-releases.md).
+[`P2B §1.2`](14-p2b-provider-configuration.md), [`P6A §1.8`](23-p6a-alpha-1.md),
+[`polish §4`](09-polish.md), [`testing §2`](10-testing.md) and
+[`releases §2`](11-repo-and-releases.md).
 Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 
 ## The documents
@@ -39,6 +40,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
 | [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
 | [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
+| [23-p6a-alpha-1.md](23-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering |
 
 ## How to read them
 
@@ -51,6 +53,17 @@ beta does, because it is where the design starts being tested by use.
 15 are detailed because they are current or just finished; 05, 06, 07 and 08
 were skeletons and have been revised as their phases arrived; 18 through 22
 are skeletons and will be filled in as each phase approaches.
+
+**23 is the one written neither ahead of its phase nor behind it**, which is a
+third case worth naming because the others are all compromises with distance.
+P6A was proposed and planned the day P6 merged, so it carries no skeleton, no
+half-revisit and no **[AWAITS]** marker: every precondition it depends on was
+checkable while it was being written, and its status line says so. The cost is
+that nothing in it has been slept on; the benefit is that its readiness audit is
+not a forecast — and its §0 found that the phase was about twice the size its own
+one-line scope implied, which is the kind of thing only an audit against the code
+turns up. That §0 is the shape to copy when a phase starts sooner than its
+document expected.
 
 **07 is the one written *half* ahead of its phase, and says so.** P5 sits behind
 PLAYABLE, which has not run — so it carries a readiness audit against the code,

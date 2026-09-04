@@ -737,7 +737,7 @@ So:
 - **Flipping it must be trivial, and available in both places** — a treatment in
   the UI (admin only), and a plainly-named key in `config.json` for people who
   never open the UI first. Neither may be the only route.
-- **Containers are the exception, necessarily** — see §4.3.
+- **Containers are the exception, necessarily** — see §5.3.
 - Advertise over mDNS as `storyengine.local` once bound beyond loopback, so
   nobody types an IP. Small feature, large effect on whether non-technical
   household members ever use it.
@@ -753,7 +753,7 @@ closes the claim window on bare-metal installs.
 **When the bind is non-loopback and no admin exists yet**, print a one-time
 setup token to the server console and require it to create the first admin.
 Only someone with host access sees the console, which is exactly the right
-audience. This is what makes §4.3's container default safe rather than merely
+audience. This is what makes §5.3's container default safe rather than merely
 unavoidable.
 
 *Not built, and deliberately not half-built.* P1 printed a freshly generated
@@ -762,10 +762,24 @@ token on every non-loopback boot and stored it nowhere, so it was never checked
 a token printed reasonably concludes something is enforcing it. P2.0 removes the
 print rather than implementing the check, because the check is a new field on
 two auth routes and the setup form, and P2.0 forbids feature work
-([P2 §2.1](workplan/04-p2-implementation.md)). It lands with **P10**, beside the
-container inversion in §5.3 that is the reason it exists: until an image ships,
-nothing binds non-loopback without someone typing the bind address, and the
-loopback default is what carries the safety in the meantime.
+([P2 §2.1](workplan/04-p2-implementation.md)). ~~It lands with **P10**~~, beside
+the container inversion in §5.3 that is the reason it exists: until an image
+ships, nothing binds non-loopback without someone typing the bind address, and
+the loopback default is what carries the safety in the meantime.
+
+**It lands with [P6A](workplan/23-p6a-alpha-1.md), because that is the phase that
+ships the image.** The deferral above was always scheduled against the *artifact*
+rather than against a phase number — *until an image ships* is its own condition —
+and P6A ships one. Re-pointed rather than rewritten, because the reasoning is
+unchanged and only its address moved.
+
+**And it does not travel alone.** The cookie `secure`/`trustProxy` hardening
+deferred at [P2 §2.11](workplan/04-p2-implementation.md) rests on the *same*
+premise, in the same words — the loopback default is what makes deferring it safe
+— so a container binding `0.0.0.0`, typically behind the reverse proxy an unraid
+user already runs, voids both justifications at one stroke. They ship together or
+not at all; splitting them leaves the survivor resting on a premise that no
+longer holds, which is worse than either alternative because it looks decided.
 
 **And the same console is the break-glass for a lost password.** `--reset-password
 <handle>` replaces an account's password and re-enables it if it was disabled,
@@ -860,8 +874,24 @@ the install itself, which is the stated goal. A template that only half-works is
 worse than none, so it belongs in the repo and in the release checklist rather
 than being left to a third party.
 
-**[OPEN]** Whether to also publish to the unraid CA store directly, which means
-maintaining a presence there, versus letting the template be community-submitted.
+~~**[OPEN]** Whether to also publish to the unraid CA store directly, which means
+maintaining a presence there, versus letting the template be community-submitted.~~
+
+**Closed at [P6A](workplan/23-p6a-alpha-1.md): the template is written and
+committed; the store submission is deferred, and not to a phase.** The two halves
+turned out to be separable, which is what the open question had missed. Shipping
+the XML in the repository is a repository act with no external obligation
+attached — and it is worth doing early, because writing the template is what
+proves the image is *installable* rather than merely built. Submitting it to the
+Community Applications store is the other thing entirely: a moderated listing, a
+support thread, and an ongoing compatibility obligation, which is exactly the
+*"recurring cost, not a one-time build"* §5.4 warns about, taken on by a project
+with one maintainer and no users.
+
+So the template exists from P6A onward and is submitted to nobody. The submission
+becomes live again when the project takes on an audience — the same decision as
+publishing the image at all ([releases §0.1](workplan/11-repo-and-releases.md)),
+not a separate one.
 
 ### 5.4 Which packages are first-class
 
@@ -884,7 +914,7 @@ Linux hats.
 distribution; everything else is a convenience. It also covers far more ground
 than it appears to: Podman, unraid, TrueNAS, Synology, Portainer, Proxmox users
 running Docker inside a VM or LXC, and anyone on a NAS. The unraid CA template
-(§4.3) is a thin wrapper over it.
+(§5.3) is a thin wrapper over it.
 
 **Tier 2 — a generic tarball with a systemd unit and an install script.** The
 single highest-value non-container artifact, and the one most easily skipped.
@@ -987,6 +1017,23 @@ home-server product people cannot install is a home-server product nobody uses,
 and an unclaimed AUR slot gets claimed by someone else. Both are true of a
 release; neither is true of a beta.
 
+**Five, since [P6A](workplan/23-p6a-alpha-1.md)** — and the *list* is still six.
+Tier 1, the image and its compose file plus the unraid template that wraps it, is
+built there instead: privately, during alpha, for the project rather than for an
+audience. P11 keeps the tarball and the other four. Nothing above changes except
+who builds one row of it, and no milestone moves, because an artifact nobody can
+install is not an installation story.
+
+**The *all six are owned by P11* correction above is what makes this a
+re-assignment rather than a repeat of the same defect.** That one fixed four
+artifacts with a requirement
+and no builder; the failure available here is the mirror image — one artifact
+with two builders — and it was already live before P6A existed, since
+[P10.0](workplan/21-p10-implementation.md) gated on `docker run` while
+[P10 §4](workplan/21-p10-implementation.md) called packaging P11's. So the
+boundary is stated once, at the foot of this section, and cited from P10 and P11
+rather than restated in either.
+
 **Auto-update — settled in [releases §4](workplan/11-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container
 users through unraid auto-update or watchtower, package users through their
@@ -995,10 +1042,28 @@ release and links to it. That check pairs with the version-awareness the AGPL
 §13 source link already needs (§5). Self-updating a running server with a live
 data directory is not planned.
 
-**None of this packaging work is alpha-phase.** Per
+**None of this packaging work is alpha-phase** — *with one artifact's exception,
+added at [P6A](workplan/23-p6a-alpha-1.md).* Per
 [releases §0](workplan/11-repo-and-releases.md), release engineering begins at beta — defined
 as feature-complete to the 1.0 spec. Until then the distribution strategy is
 build-it-yourself, and the tiers above are a plan rather than a backlog.
+
+**Tier 1 is built during alpha, privately, and that does not move this
+milestone.** P6A produces the OCI image, its compose file and the unraid
+template as an artifact for the project rather than for an audience: private
+repository, private registry, no channel, no store submission, no alias moved.
+[releases §0.1](workplan/11-repo-and-releases.md) is where that distinction is
+argued, and the reason it costs nothing here is that every recurring cost this
+section warns about — the CI matrix entry aside — is a cost of *having users*.
+Tiers 2 and 3 are untouched and remain exactly as scheduled above.
+
+**Ownership, since three documents have claimed it.**
+[P10.0](workplan/21-p10-implementation.md) gates on `docker run`,
+[P10 §4](workplan/21-p10-implementation.md) calls packaging P11's, and the
+paragraph above says all six are P11's. The boundary, stated once and cited from
+the others: **P6A builds** the image, compose file and template; **P10 consumes**
+them; **P11 owns** the tarball, the other four artifacts, and public
+distribution. [P6A §1.8](workplan/23-p6a-alpha-1.md) carries the argument.
 
 ---
 
