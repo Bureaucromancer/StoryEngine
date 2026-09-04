@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -267,7 +267,9 @@ describe('an entry created, edited and deleted through the real write path', () 
     await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
     await userEvent.click(screen.getByRole('button', { name: /^Bridge/ }));
 
-    const marked = await screen.findByRole('button', { name: /Harbour/ });
+    // Anchored, as the query above it is: since the rows gained move controls
+    // the name `Harbour` also matches *Move Harbour up*.
+    const marked = await screen.findByRole('button', { name: /^Harbour/ });
     expect(within(marked).getByText('unsaved')).toBeTruthy();
     // And the edit survived the navigation rather than being discarded with a
     // remount — the reason the loader is keyed on the book and not on `?entry=`.
@@ -482,5 +484,135 @@ describe('what the editor writes and what it only shows', () => {
     const saved = server.stored();
     expect(saved.folders[0]?.enabled).toBe(false);
     expect(saved.entries.find((each) => each.id === HARBOUR)?.enabled).toBe(true);
+  });
+});
+
+/**
+ * Reordering the entry list — [05 §5.3], [05 §11.2c].
+ *
+ * **What is being reordered is reading order**, which [05 §5.3] says is the
+ * file's array order, and *not* `order`, which is injection order: *"Silently
+ * sorting a reading list by injection order conflates two different things, and
+ * it is the kind of small lie that teaches a false model of what the field
+ * means."* So the assertions below are about the saved array, and one of them
+ * is about `order` staying where it was.
+ *
+ * The gesture has two halves and both are tested, because a list that can only
+ * be reordered by dragging cannot be reordered by a keyboard at all.
+ */
+describe('reordering entries', () => {
+  /**
+   * The order the list is showing, by name.
+   *
+   * The name span rather than the row's whole text, which also carries the
+   * *off* and *unsaved* marks — a reorder marks nothing unsaved (no entry's
+   * bytes change), and reading the row whole would make that a silent
+   * dependency of every assertion here.
+   */
+  function shown(): string[] {
+    return screen
+      .getAllByRole('button', { name: /^(Harbour|Bridge)/ })
+      .map((button) => button.querySelector('span')?.textContent ?? '');
+  }
+
+  it('moves an entry down with the keyboard, and saves the new order', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    expect(shown()).toEqual(['Harbour', 'Bridge']);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move Harbour down' }));
+    expect(shown()).toEqual(['Bridge', 'Harbour']);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().entries.map((each) => each.name)).toEqual(['Bridge', 'Harbour']);
+  });
+
+  it('moves one up again, and cannot move past either end', async () => {
+    renderApp();
+    await openEditor();
+
+    // The book is left reordered by the test above — the router and the fake
+    // are singletons — so this starts from whatever that left and asserts the
+    // ends rather than a fixed pair.
+    const first = shown()[0] ?? '';
+    const last = shown()[1] ?? '';
+    expect(screen.getByRole('button', { name: `Move ${first} up` })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    expect(screen.getByRole('button', { name: `Move ${last} down` })).toHaveProperty(
+      'disabled',
+      true,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: `Move ${last} up` }));
+    expect(shown()).toEqual([last, first]);
+  });
+
+  it('says what moved, for a reader who cannot see the row move', async () => {
+    renderApp();
+    await openEditor();
+
+    const first = shown()[0] ?? '';
+    await userEvent.click(screen.getByRole('button', { name: `Move ${first} down` }));
+
+    // A live region rather than a toast: the change is a *position*, which the
+    // DOM does not announce on its own.
+    expect(screen.getByText(`Moved ${first} to position 2 of 2.`)).toBeTruthy();
+  });
+
+  it('drops a dragged row where the pointer left it', async () => {
+    renderApp();
+    await openEditor();
+
+    const rows = screen.getAllByRole('listitem');
+    const [top, bottom] = [rows[0], rows[1]];
+    if (top === undefined || bottom === undefined) throw new Error('expected two rows');
+    const order = shown();
+
+    /**
+     * **jsdom has no `DataTransfer`**, so the platform object the handler sets
+     * `effectAllowed` on has to be supplied — without it the drag handler
+     * throws on every run and this test still passes, because the state it
+     * needs is set on the line before the throw. That is what a mutation pass
+     * found here, and it is why the stub is not a convenience.
+     */
+    const dataTransfer = { effectAllowed: '', setData: vi.fn(), getData: () => '' };
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.drop(bottom, { dataTransfer });
+
+    // The id travels, which is what a drop between two open editors would read.
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', expect.any(String));
+
+    /**
+     * **Not covered here, and named rather than implied:** the `dragOver`
+     * handler's `preventDefault`. jsdom implements no drag-and-drop protocol,
+     * so `fireEvent.drop` fires whether or not the drop was allowed — deleting
+     * that line leaves this test green and the feature dead in every browser.
+     * A mutation pass says so; only a real browser could say otherwise.
+     */
+
+    expect(shown()).toEqual([order[1] ?? '', order[0] ?? '']);
+  });
+
+  it('leaves `order` alone, because dragging is not injection order', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const before = server.stored().entries.map((each) => each.order);
+    await userEvent.click(screen.getByRole('button', { name: `Move ${shown()[0] ?? ''} down` }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    // Same numbers, in the same set — the array moved and the field did not.
+    expect([...server.stored().entries.map((each) => each.order)].sort()).toEqual(
+      [...before].sort(),
+    );
   });
 });

@@ -1611,6 +1611,19 @@ Absent a smaller unit, copying one entry out of one of your own books and into
 another means exporting a book, hand-editing JSON, and importing it back. People
 do exactly that, which is evidence about the unit rather than about the people.
 
+**Reorder is a drag, and equally a pair of buttons.** Dragging a row is the
+gesture people arrive expecting; a list that could *only* be dragged could not
+be reordered by a keyboard at all, so each row also carries move up and move
+down, and both go through the same edit. What moves is **reading order — the
+file's array order per §5.3 — and never `order`**, which is injection order and
+has its own labelled field in the form. A drag that changed where an entry
+lands in the prompt would be exactly the conflation §5.3 refuses.
+
+The list is filtered twice over, by the folder rail and by the name box, so a
+move is expressed as *place this entry before that one* rather than as an index:
+a position among visible rows is not a position in the array, while the entry a
+row lands in front of is the same fact in both.
+
 **An entry export is a lorebook.** Same `storyengine.lorebook/1`
 ([10 §5](10-schemas.md)) with `entries` holding the selection — no fragment
 schema, nothing new to version, and the file opens in anything that reads a

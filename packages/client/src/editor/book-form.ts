@@ -133,6 +133,85 @@ export function bookChanges(base: Draft, draft: Draft): boolean {
 }
 
 /**
+ * The book with one entry moved to sit immediately before another — the entry
+ * list's reordering gesture ([05 §5.3], [05 §11.2c]).
+ *
+ * **This moves reading order, and it never touches `order`.** [05 §5.3] is
+ * explicit that the list's default order is the file's array order and that
+ * `order` is *injection* order — where an activated entry lands in the prompt —
+ * and that conflating them *"is the kind of small lie that teaches a false model
+ * of what the field means"*. Dragging a row is therefore an edit to the array
+ * and to nothing else; an author who wants an entry to arrive earlier in the
+ * prompt changes `order` in the form, where it is labelled.
+ *
+ * **Addressed by the entry it lands before, not by an index**, because the list
+ * it is dragged in is filtered — by folder, and by the name box. A position
+ * among visible rows is not a position in the array, while *before this entry*
+ * is the same fact in both. `null` is the end of the book.
+ *
+ * A move that changes nothing returns the book **by identity**, so the editor's
+ * change test stays false and a drag that landed where it started does not
+ * light up Save. That covers dropping a row on itself without a guard of its
+ * own: the entry is taken out before the target is looked for, so its own id is
+ * never found. A separate check read as a guard and could not fail, which a
+ * mutation pass is how you find out.
+ */
+export function moveEntryBefore(book: Draft, id: string, beforeId: string | null): Draft {
+  const entries = entriesOf(book);
+  const moving = entries.find((entry) => entry.id === id);
+  if (moving === undefined) return book;
+
+  const rest = entries.filter((entry) => entry.id !== id);
+  const at = beforeId === null ? rest.length : rest.findIndex((entry) => entry.id === beforeId);
+  /**
+   * A target that does not resolve leaves the book alone rather than appending.
+   * The caller named a row it was showing, so an id that is not there is a bug
+   * in the caller — and appending would turn that bug into a silent move to the
+   * end of a two-hundred-entry book.
+   */
+  if (at < 0) return book;
+  if (entries[at] === moving) return book;
+
+  return { ...book, entries: [...rest.slice(0, at), moving, ...rest.slice(at)] };
+}
+
+/**
+ * Whether I moved anything, judged on the entries this draft and its pristine
+ * copy both hold.
+ *
+ * Restricted to the shared ids on purpose: an entry I added or deleted changes
+ * the sequence without being a *reorder*, and treating that as one would make
+ * every ordinary edit claim a position the merge then has to honour.
+ */
+function reorderedByMe(pristine: Draft, draft: Draft): boolean {
+  const mine = entriesOf(draft).map((entry) => entry.id);
+  const before = entriesOf(pristine).map((entry) => entry.id);
+  const held = new Set(mine);
+  const was = new Set(before);
+  return (
+    JSON.stringify(before.filter((id) => held.has(id))) !==
+    JSON.stringify(mine.filter((id) => was.has(id)))
+  );
+}
+
+/**
+ * The merged entries in the order my draft has them, with anything only they
+ * have kept at the end.
+ *
+ * The mirror of the loss the ordinary case takes: their concurrent insertion
+ * loses its position instead of my reordering losing all of them. It is the
+ * cheaper loss in this direction for the same reason it was in the other — one
+ * entry's position against an author's whole arrangement.
+ */
+function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
+  const rank = new Map(entriesOf(draft).map((entry, at) => [entry.id, at] as const));
+  const known = merged
+    .filter((entry) => rank.has(entry.id))
+    .sort((left, right) => (rank.get(left.id) ?? 0) - (rank.get(right.id) ?? 0));
+  return [...known, ...merged.filter((entry) => !rank.has(entry.id))];
+}
+
+/**
  * The reload-and-reapply merge, for the 412 dialog
  * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
  *
@@ -164,6 +243,16 @@ export function bookChanges(base: Draft, draft: Draft): boolean {
  * appended — so a concurrent insertion is not shuffled to the end of somebody
  * else's book, and an entry rescued from their delete loses its position, which
  * is the cheaper of the two losses.
+ *
+ * **Unless I reordered, which the entry list can do since drag-and-drop landed.**
+ * That sentence above was written when nothing in this editor could change the
+ * array, and left alone it would make a reorder the one edit this merge drops
+ * without saying so: rearrange forty entries, lose the race, reload-and-reapply,
+ * and the arrangement is quietly theirs again. So the sequence gets the same
+ * three-way treatment every field gets — `pristine` says whether I moved
+ * anything, and if I did, my order wins for the entries I hold and theirs go to
+ * the end. That is the mirror of the loss named above, taken in the direction
+ * that costs one entry's position rather than an author's whole arrangement.
  *
  * Everything outside `entries` and `folders` takes the newer object's value,
  * which is correct **only while this editor writes nothing else** — the book's
@@ -202,9 +291,10 @@ export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): D
     return JSON.stringify(entry) !== JSON.stringify(was);
   });
 
+  const merged = [...kept, ...rescued];
   return {
     ...fresh,
-    entries: [...kept, ...rescued],
+    entries: reorderedByMe(pristine, draft) ? inMyOrder(merged, draft) : merged,
     folders: mergedFolders(pristine, draft, fresh),
   };
 }

@@ -29,6 +29,7 @@ import {
   bookChanges,
   entryList,
   entryOf,
+  moveEntryBefore,
   reapplyBookEdits,
   withEntry,
   withFolderGate,
@@ -398,6 +399,9 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             base={base.object}
             selectedId={search.entry}
             onSelect={select}
+            onMove={(id, beforeId) => {
+              edit(moveEntryBefore(draft, id, beforeId));
+            }}
           />
         </section>
 
@@ -587,14 +591,27 @@ function GateNote({ book, entry }: { book: Lorebook; entry: LoreEntry }): JSX.El
  * over the same object is the thing not to build. Finding an entry *by what it
  * says* is the read page's job, and it has the Edit link that lands here.
  */
+/**
+ * The two nudge buttons, which are one row tall and carry no label text.
+ *
+ * Inline rather than a token in `classes.ts`, following this package's rule
+ * that only what a design decision *shares* is lifted: these are one control in
+ * one list, and a token used once is a second place to look.
+ */
+const nudge =
+  'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';
+
 function EntryList(props: {
   book: Lorebook;
   entries: LoreEntry[];
   base: Draft;
   selectedId: string | undefined;
   onSelect: (id: string) => void;
+  onMove: (id: string, beforeId: string | null) => void;
 }): JSX.Element {
   const [query, setQuery] = useState('');
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [moved, setMoved] = useState('');
   const held = useRef<HTMLUListElement>(null);
 
   const saved = new Map(
@@ -611,6 +628,32 @@ function EntryList(props: {
   useEffect(() => {
     held.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [props.selectedId]);
+
+  /**
+   * The whole book's order, which is what a move is expressed against.
+   *
+   * This list is filtered twice over — by the folder rail and by the name box —
+   * so *the row below the one I dropped on* is a fact about the screen and not
+   * about the array. `moveEntryBefore` takes the entry a row should land in
+   * front of, and this is where a visible neighbour is turned into that.
+   */
+  const full = props.book.entries;
+
+  /** The entry after this one in the book, or null for the end of it. */
+  function after(id: string): string | null {
+    const at = full.findIndex((entry) => entry.id === id);
+    return at < 0 ? null : (full[at + 1]?.id ?? null);
+  }
+
+  function move(entry: LoreEntry, beforeId: string | null, to: number): void {
+    props.onMove(entry.id, beforeId);
+    // Announced rather than only shown, because the thing that changed is a
+    // *position*, and a row moving under the pointer is exactly the change a
+    // screen reader is not told about by the DOM alone.
+    setMoved(
+      `Moved ${nameOfEntry(entry)} to position ${String(to + 1)} of ${String(visible.length)}.`,
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -630,12 +673,56 @@ function EntryList(props: {
         <Note>No entry here is named that.</Note>
       ) : (
         <ul ref={held} className="flex max-h-80 flex-col overflow-y-auto">
-          {visible.map((entry) => {
+          {visible.map((entry, at) => {
             const before = saved.get(entry.id);
             const unsaved = before === undefined || before !== JSON.stringify(entry);
             const current = entry.id === props.selectedId;
+            const previous = visible[at - 1];
+            const next = visible[at + 1];
             return (
-              <li key={entry.id}>
+              <li
+                key={entry.id}
+                /**
+                 * The row is the drag handle, which is what a list of one-line
+                 * rows can afford: a separate grip would be a third target in a
+                 * row that already has a button and two more beside it.
+                 */
+                draggable
+                onDragStart={(event) => {
+                  setDragging(entry.id);
+                  event.dataTransfer.effectAllowed = 'move';
+                  // Firefox starts no drag at all without payload, and the id
+                  // is what a drop between two editors would want anyway.
+                  event.dataTransfer.setData('text/plain', entry.id);
+                }}
+                onDragEnd={() => {
+                  setDragging(null);
+                }}
+                onDragOver={(event) => {
+                  // Without this the drop never fires: the default action for a
+                  // dragover is *refuse the drop*.
+                  if (dragging !== null && dragging !== entry.id) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const from = visible.findIndex((candidate) => candidate.id === dragging);
+                  const source = visible[from];
+                  setDragging(null);
+                  if (source === undefined || from === at) return;
+                  /**
+                   * Dropping on a row above puts the entry in front of it;
+                   * dropping on one below puts it behind — which is the same
+                   * rule every list with this gesture uses, and the only one
+                   * where the row ends up where the pointer left it.
+                   */
+                  move(source, from > at ? entry.id : after(entry.id), at);
+                }}
+                className={
+                  dragging === entry.id
+                    ? 'flex items-baseline gap-1 opacity-50'
+                    : 'group/entry flex items-baseline gap-1'
+                }
+              >
                 <button
                   type="button"
                   aria-current={current ? 'true' : undefined}
@@ -644,25 +731,70 @@ function EntryList(props: {
                   }}
                   className={
                     current
-                      ? 'flex w-full items-baseline gap-2 rounded-control bg-surface-muted px-2 py-1 text-start text-sm'
-                      : 'flex w-full items-baseline gap-2 rounded-control px-2 py-1 text-start text-sm hover:bg-surface-muted'
+                      ? 'flex flex-1 items-baseline gap-2 rounded-control bg-surface-muted px-2 py-1 text-start text-sm'
+                      : 'flex flex-1 items-baseline gap-2 rounded-control px-2 py-1 text-start text-sm hover:bg-surface-muted'
                   }
                 >
-                  <span className="text-ink">
-                    {entry.name === '' ? 'Untitled entry' : entry.name}
-                  </span>
+                  <span className="text-ink">{nameOfEntry(entry)}</span>
                   {entryGate(props.book, entry).active ? null : (
                     <span className="text-xs text-ink-faint">off</span>
                   )}
                   {unsaved ? <span className="ms-auto text-xs text-ink-muted">unsaved</span> : null}
                 </button>
+
+                {/*
+                 * **The keyboard's half of the same gesture**, and not an
+                 * afterthought: a list that can only be reordered by dragging
+                 * cannot be reordered by a keyboard at all, which is the whole
+                 * of [01 §2.1]'s day-one habit failing in one control. Shown on
+                 * hover and on focus, so a pointer sees them where it is looking
+                 * and a tab reaches them where it is.
+                 */}
+                <span className="flex gap-1 opacity-0 transition-opacity group-focus-within/entry:opacity-100 group-hover/entry:opacity-100">
+                  <button
+                    type="button"
+                    aria-label={`Move ${nameOfEntry(entry)} up`}
+                    disabled={previous === undefined}
+                    className={nudge}
+                    onClick={() => {
+                      if (previous !== undefined) move(entry, previous.id, at - 1);
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${nameOfEntry(entry)} down`}
+                    disabled={next === undefined}
+                    className={nudge}
+                    onClick={() => {
+                      if (next !== undefined) move(entry, after(next.id), at + 1);
+                    }}
+                  >
+                    ↓
+                  </button>
+                </span>
               </li>
             );
           })}
         </ul>
       )}
+
+      {/*
+       * One region for the whole list rather than a message per row: what is
+       * announced is the outcome of a gesture, and a live region that moves with
+       * the rows is one that gets re-read when the list re-renders.
+       */}
+      <span aria-live="polite" className="sr-only">
+        {moved}
+      </span>
     </div>
   );
+}
+
+/** The name a row shows, which is also the name a control is labelled with. */
+function nameOfEntry(entry: LoreEntry): string {
+  return entry.name === '' ? 'Untitled entry' : entry.name;
 }
 
 /**

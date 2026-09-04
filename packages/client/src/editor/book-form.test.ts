@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bookChanges,
+  entryList,
   entryOf,
+  moveEntryBefore,
   reapplyBookEdits,
   withEntry,
   withFolderGate,
@@ -316,5 +318,118 @@ describe('reapplying my edits onto a newer book', () => {
 
     expect(only?.name).toBe('Locations');
     expect(only?.enabled).toBe(false);
+  });
+});
+
+describe('moving an entry', () => {
+  /** Three entries, named so an order assertion reads as a sentence. */
+  function threeEntries(): Draft {
+    return {
+      entries: [
+        { ...newLoreEntry('Harbour'), id: 'a', order: 100 },
+        { ...newLoreEntry('Bridge'), id: 'b', order: 200 },
+        { ...newLoreEntry('Cathedral'), id: 'c', order: 300 },
+      ],
+      folders: [],
+    };
+  }
+
+  const names = (book: Draft): string[] => entryList(book).map((entry) => entry.name);
+
+  it('puts an entry in front of the one it was dropped on', () => {
+    const moved = moveEntryBefore(threeEntries(), 'c', 'a');
+    expect(names(moved)).toEqual(['Cathedral', 'Harbour', 'Bridge']);
+  });
+
+  it('puts it at the end when nothing follows', () => {
+    const moved = moveEntryBefore(threeEntries(), 'a', null);
+    expect(names(moved)).toEqual(['Bridge', 'Cathedral', 'Harbour']);
+  });
+
+  it('leaves `order` alone, because that is injection order and not this', () => {
+    // [05 §5.3]: the list's order is the file's array order, and `order` is
+    // where an activated entry lands in the prompt. Conflating them is *the
+    // kind of small lie that teaches a false model of what the field means* —
+    // so the falsifying mutation is a reorder that renumbers.
+    const moved = moveEntryBefore(threeEntries(), 'c', 'a');
+    expect(entryList(moved).map((entry) => entry.order)).toEqual([300, 100, 200]);
+  });
+
+  it('changes nothing else about any entry', () => {
+    const book = threeEntries();
+    const moved = moveEntryBefore(book, 'c', 'a');
+    for (const entry of entryList(book)) {
+      expect(JSON.stringify(entryOf(moved, entry.id))).toBe(JSON.stringify(entry));
+    }
+  });
+
+  it('returns the same book when the move is not one', () => {
+    // Identity, not equality: the editor's change test is a byte comparison, so
+    // a drag that landed where it started must not light up Save.
+    const book = threeEntries();
+    expect(moveEntryBefore(book, 'a', 'a')).toBe(book);
+    expect(moveEntryBefore(book, 'a', 'b')).toBe(book);
+    expect(moveEntryBefore(book, 'c', null)).toBe(book);
+  });
+
+  it('refuses to move against a target that is not there', () => {
+    // Appending would turn a caller's bug into a silent move to the end of a
+    // two-hundred-entry book.
+    const book = threeEntries();
+    expect(moveEntryBefore(book, 'a', 'gone')).toBe(book);
+    expect(moveEntryBefore(book, 'gone', 'a')).toBe(book);
+  });
+});
+
+describe('the merge, when I reordered', () => {
+  function book(ids: string[]): Draft {
+    return {
+      entries: ids.map((id) => ({ ...newLoreEntry(id.toUpperCase()), id })),
+      folders: [],
+    };
+  }
+
+  const ids = (merged: Draft): string[] => entryList(merged).map((entry) => entry.id);
+
+  it('keeps my arrangement rather than taking theirs', () => {
+    // The loss this rule exists to stop: rearrange a book, lose the race, and
+    // reload-and-reapply hands the arrangement back to them without a word.
+    const pristine = book(['a', 'b', 'c']);
+    const mine = moveEntryBefore(pristine, 'c', 'a');
+    const theirs = book(['a', 'b', 'c']);
+
+    expect(ids(reapplyBookEdits(pristine, mine, theirs))).toEqual(['c', 'a', 'b']);
+  });
+
+  it('takes their order when I did not move anything', () => {
+    // The ordinary case, unchanged: a concurrent insertion is not shuffled to
+    // the end of somebody else's book.
+    const pristine = book(['a', 'b']);
+    const mine = withEntry(pristine, 'a', { content: 'Cranes.' });
+    const theirs = book(['b', 'a']);
+
+    expect(ids(reapplyBookEdits(pristine, mine, theirs))).toEqual(['b', 'a']);
+    expect(entryOf(reapplyBookEdits(pristine, mine, theirs), 'a')?.content).toBe('Cranes.');
+  });
+
+  it('puts an entry only they have at the end of my arrangement', () => {
+    // The mirror of the loss the ordinary case takes, and the cheaper one in
+    // this direction: one entry's position against a whole arrangement.
+    const pristine = book(['a', 'b']);
+    const mine = moveEntryBefore(pristine, 'b', 'a');
+    const theirs = book(['a', 'new', 'b']);
+
+    expect(ids(reapplyBookEdits(pristine, mine, theirs))).toEqual(['b', 'a', 'new']);
+  });
+
+  it('does not read an addition or a deletion of mine as a reorder', () => {
+    // Restricted to the ids we both hold: otherwise every ordinary edit claims
+    // a position the merge then has to honour.
+    const pristine = book(['a', 'b']);
+    const mine = withoutEntry(pristine, 'a');
+    const theirs = book(['b', 'a']);
+
+    // Their order stands for what is left, because I moved nothing.
+    expect(ids(reapplyBookEdits(pristine, mine, theirs))).toEqual(['b']);
   });
 });
