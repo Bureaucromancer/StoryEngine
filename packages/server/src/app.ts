@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { join, resolve } from 'node:path';
+
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
@@ -50,7 +53,7 @@ import type { JobContext } from './state/jobs.js';
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { listDirectoryNames } from './storage/files.js';
+import { listDirectoryNames, readFileBytes } from './storage/files.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
@@ -690,6 +693,89 @@ export async function buildApp(
     },
     { prefix: '/api' },
   );
+
+  /**
+   * The client, from this process, on this port — [P6A §1.3].
+   *
+   * **Registered after the API and nothing about the API moved**, which is the
+   * whole reason this is a small change: every route in the server lives inside
+   * the one encapsulated plugin above at `{ prefix: '/api' }`, so the root
+   * namespace was empty and a static handler shadows nothing. The client needed
+   * no change either — `vite.config.ts` sets no `base`, so `index.html` names
+   * `/assets/…` absolutely, and every call in `api.ts` is already a relative
+   * `/api/…`. It was written for one origin from the start; only the server was
+   * not.
+   *
+   * **Unset means serve nothing**, and development stays two processes. The
+   * exit gate checks that rather than assuming it ([P6A §3] step 13).
+   *
+   * **The check before the register is not defensive tidiness.** Measured:
+   * `@fastify/static` with a root that is not there does not throw. It finds
+   * nothing and serves nothing, so a typo'd `clientRoot` would start a server
+   * that answers the API, serves no asset, and hands every page request to the
+   * fallback below, which then fails per-request on a file that was never
+   * there. That is a packaged build coming up and showing a blank page, which
+   * is the class of failure this stage exists to remove.
+   *
+   * `index.html` rather than the directory, because a directory that exists and
+   * holds no build is the same failure wearing a better disguise — an image
+   * whose build step silently produced nothing would pass a directory check.
+   */
+  const clientRoot = services.config.server.clientRoot;
+  if (clientRoot !== '') {
+    const root = resolve(clientRoot);
+    if ((await readFileBytes(join(root, 'index.html'))) === null) {
+      throw new Error(`server.clientRoot has no index.html in it: ${root}`);
+    }
+    await app.register(fastifyStatic, {
+      root,
+      /**
+       * **The `/api` namespace is the router's, never the filesystem's.**
+       *
+       * [P6A §0.3] names the SPA fallback as the place `isApi` has to be used,
+       * and that is necessary and not sufficient: a fallback only sees requests
+       * that matched no route, and a file at `<clientRoot>/api/nonsense` *is* a
+       * route. Measured before this line existed — `GET /api/nonsense` answered
+       * `200` with the file's bytes, past every guard below.
+       *
+       * Not a hypothetical about the client we ship, whose build is
+       * `index.html` and `assets/`: `clientRoot` is a path an operator sets, so
+       * what it happens to contain must not be able to decide what `/api`
+       * means. One predicate used twice — this refuses, the handler below
+       * answers.
+       */
+      allowedPath: (pathName) => !isApi(pathName),
+    });
+  }
+
+  /**
+   * Everything unrouted, and the one branch that matters.
+   *
+   * **`/api` is never the app shell.** An address under the prefix that matches
+   * no route answers JSON, because [the API doc](../../../docs/api.md) is a
+   * contract with clients that parse it — and HTML arriving where JSON is
+   * expected is a worse failure than the 404 that passage already argues for:
+   * the parse error names a syntax position in a document nobody wrote, and
+   * says nothing about the address being wrong.
+   *
+   * The body is this server's documented error shape rather than Fastify's
+   * default `{statusCode, error, message}`. The default was never the contract
+   * — it was what the framework happened to send while nothing had set a
+   * not-found handler — and a *packaged* build answering differently from a
+   * development one would be the worst of the three options.
+   *
+   * **Anything else is `index.html`**, which is what makes a bookmarked
+   * `/library/actors/…/edit` load. The accepted cost is that a request for an
+   * asset that is not there also answers the shell: a built client names its
+   * assets by content hash, so a miss means the browser is holding a stale
+   * `index.html`, and the shell it gets back is the newer one.
+   */
+  app.setNotFoundHandler((request, reply) => {
+    if (clientRoot === '' || isApi(request.url)) {
+      return reply.code(404).send({ error: 'not-found', message: 'No such route.' });
+    }
+    return reply.sendFile('index.html');
+  });
 
   return app;
 }

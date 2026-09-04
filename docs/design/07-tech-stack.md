@@ -491,6 +491,25 @@ mechanical part.
 
 Both are MIT and pinned exactly, like everything above them.
 
+*And one at [P6A.1](workplan/23-p6a-alpha-1.md):*
+
+- **`@fastify/static`** so the server can serve the built client from the same
+  process on the same port, which is what makes a container image something a
+  person can open rather than an API and a 404
+  ([P6A §1.3](workplan/23-p6a-alpha-1.md)). First-party to Fastify, so it shares
+  the framework's maintenance and versioning — the same argument
+  `@fastify/multipart` was taken on. **The surface depended on is two options
+  and one decorator**: `root`, `wildcard: false`, and `reply.sendFile`. Writing
+  it by hand is the alternative that looks cheap and is not: content types,
+  conditional requests, range requests and — the one that matters — refusing a
+  path that escapes the root, which is a traversal bug rather than a missing
+  feature when it is got wrong.
+
+  It is the largest transitive addition so far, sixteen packages including
+  `glob`, `@fastify/send` and `@fastify/accept-negotiator`. Recorded rather than
+  glossed: §6's test is whether a swap is a day's work, and this one is, but the
+  count is the honest cost of not writing a static file server.
+
 ### 7.1 Turn text in the index is a feature, not a side effect
 
 The FTS5 line above says *"cards, entries and turn text"*, and the third of those

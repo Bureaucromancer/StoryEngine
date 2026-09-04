@@ -446,14 +446,75 @@ not the `127.0.0.1` default, which is the property the test needs. The literal
 > *Ends at:* a server bound to `0.0.0.0` by an environment variable alone, with
 > no config file present.
 
-### P6A.1 — The client, served
+### ~~P6A.1 — The client, served~~ Landed
 
-§1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
-including [13 §4](../13-internal-contracts.md)'s table, and the SPA fallback
-branching on `isApi`.
+**§0.3 was right about the easy half, and wrong about one thing that mattered.**
+The root namespace really was empty, there really was no `setNotFoundHandler`
+anywhere, and the client really needed no change — `vite.config.ts` sets no
+`base`, so the built `index.html` names `/assets/…` absolutely and every call in
+`api.ts` is already a relative `/api/…`. The five-place edit landed as described,
+including [13 §4](../13-internal-contracts.md)'s markdown table, and
+`config.test.ts` was the thing that would have caught it if it had not.
 
-*Ends at:* one process on one port serving both halves — and `pnpm dev`
-unchanged, two processes, Vite proxying as before.
+**Where §0.3 was wrong: `isApi` in the fallback is necessary and not
+sufficient.** A not-found handler only sees requests that matched no route — and
+a file at `<clientRoot>/api/nonsense` *is* a route once the static plugin is
+looking at that directory. Measured before the fix: `GET /api/nonsense` answered
+`200` with the file's bytes, past the branch §0.3 asks for. The guard that
+actually holds the namespace is `@fastify/static`'s `allowedPath`, refusing
+anything `isApi` claims; the fallback's branch is what then produces the JSON.
+One predicate, used at both points. `clientRoot` is a path an operator sets, so
+what it happens to contain must not be able to decide what `/api` means.
+
+**`wildcard: false` was in the first draft and is not in the last.** It was
+there to make unmatched paths reach the fallback, and a mutation that flipped it
+to `true` killed no test. Measured: both settings fall through to the fallback,
+both serve every asset, and both let the shadowing above happen. It was a
+plausible-sounding option justified by a comment nothing could check, so it is
+gone and the plugin's default stands.
+
+**A missing build is refused at startup**, because the plugin is not: measured,
+`@fastify/static` pointed at a directory that is not there does not throw — it
+finds nothing, serves nothing, and the server comes up answering the API behind
+a blank page. `buildApp` checks for `index.html` and refuses with the path in the
+message. The directory-exists check that suggests itself first is weaker: a build
+step that silently produced nothing leaves the directory.
+
+**The API's 404 body changed, deliberately and everywhere.** An unrouted `/api`
+address used to get Fastify's `{statusCode, error, message}` — the framework's
+default, which nothing had ever chosen, and which is not the `{error, message}`
+shape [docs/api.md](../../api.md) documents. It is `404 {"error":"not-found"}`
+now, in development and in a packaged build alike, and the API doc says so.
+
+**One dependency, argued in [07 §7](../07-tech-stack.md) rather than noticed in a
+lockfile**, per that section's own convention. `@fastify/static` is MIT, pinned,
+first-party to Fastify, and the surface depended on is `root`, `allowedPath` and
+`reply.sendFile`. Sixteen transitive packages, which is the largest addition so
+far and is written down rather than glossed.
+
+**A finding one level out, from a mutation that killed nothing.** Changing the
+schema's `default` for a key made no test fail, because `DEFAULT_CONFIG` is a
+separate hand-written literal and the literal is the only one ever read. Every
+default in this codebase was written twice with nothing checking they agreed —
+the fourth table in `config.test.ts`'s family, and the one nobody had noticed was
+a table. There is a test now, over all twenty-three keys.
+
+Nine mutations, nine red. Not covered here and named rather than implied: that
+`pnpm dev` still runs two processes with Vite's proxy is [§3](#3-verification--the-p6a-exit-gate)
+step 13, a person's check — what the suite proves is the server half of it, that
+the default is *serve nothing*. And the real built client loading from the real
+server is [§3](#3-verification--the-p6a-exit-gate) step 4; it was checked by hand
+at this stage, against `pnpm build`'s output on a bound port, and the setup screen
+rendered from one origin with no console error.
+
+*The stage as it was written:*
+
+> §1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
+> including [13 §4](../13-internal-contracts.md)'s table, and the SPA fallback
+> branching on `isApi`.
+>
+> *Ends at:* one process on one port serving both halves — and `pnpm dev`
+> unchanged, two processes, Vite proxying as before.
 
 ### P6A.2 — Safe: both halves of F10
 

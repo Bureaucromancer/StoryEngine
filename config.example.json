@@ -57,7 +57,20 @@
 
     // restart — trust X-Forwarded-* headers. Only turn this on when something
     // you control is actually in front, or client addresses become spoofable.
-    "trustProxy": false
+    "trustProxy": false,
+
+    // restart — where the built web client is, so this one process serves both
+    // the API and the UI on one port. Empty means serve nothing, which is the
+    // default and what development wants: `pnpm dev` runs two processes, with
+    // Vite on its own port proxying /api back here.
+    //
+    // Set it to a directory holding index.html and its assets — the container
+    // image does, which is what makes the mapped port serve a UI rather than a
+    // 404. A relative path is resolved against the working directory. Anything
+    // under /api is still the API: an address there that matches no route
+    // answers JSON, never the app shell, because a client parsing JSON is
+    // better served by a 404 than by a page.
+    "clientRoot": ""
   },
 
   "auth": {

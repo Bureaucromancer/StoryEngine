@@ -63,6 +63,21 @@ export const ConfigSchema = Type.Object(
       host: Type.String({ default: '127.0.0.1' }),
       port: Type.Integer({ minimum: 1, maximum: 65_535, default: 8080 }),
       trustProxy: Type.Boolean({ default: false }),
+      /**
+       * The built client, served from this process — [P6A §1.3].
+       *
+       * **Unset means serve nothing, and that is the default on purpose.**
+       * Development is two processes — Vite on its own port, proxying `/api`
+       * back here — and it has to stay that way, so a packaged build is the
+       * only configuration in which this is set. A default pointing at
+       * `packages/client/dist` would make the two arrangements differ by
+       * whether somebody had run a build, which is the least legible way for
+       * them to differ.
+       *
+       * A directory holding `index.html` and the assets it names. Resolved
+       * against the working directory when relative.
+       */
+      clientRoot: Type.String({ default: '' }),
     }),
     auth: Type.Object({
       /**
@@ -222,6 +237,7 @@ export const CONFIG_TIERS = {
   'server.host': 'restart',
   'server.port': 'restart',
   'server.trustProxy': 'restart',
+  'server.clientRoot': 'restart',
   'auth.minPasswordLength': 'live',
   'log.level': 'live',
   'log.format': 'restart',
@@ -350,7 +366,7 @@ export function applierOf(key: string): LiveApplier | null {
 
 export const DEFAULT_CONFIG: Config = {
   dataDir: './data',
-  server: { host: '127.0.0.1', port: 8080, trustProxy: false },
+  server: { host: '127.0.0.1', port: 8080, trustProxy: false, clientRoot: '' },
   auth: { minPasswordLength: 8 },
   log: { level: 'info', format: 'json' },
   index: { rebuildOnStart: false },

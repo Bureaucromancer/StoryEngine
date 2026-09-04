@@ -111,6 +111,48 @@ describe('the tier table is the source', () => {
   });
 
   /**
+   * **Every default is written twice, and nothing checked they agreed.**
+   *
+   * `ConfigSchema` annotates each leaf with a `default` and `DEFAULT_CONFIG` is
+   * a hand-written literal of the same values. Only the literal is ever read —
+   * `configKeys` walks it, `mergeDefaults` fills from it, every process boots on
+   * it — so a schema annotation that drifted would be wrong in the one place a
+   * reader goes to *find out* what a key defaults to, and would stay wrong
+   * indefinitely because nothing runs it.
+   *
+   * Found at [P6A.1] by a mutation that changed the schema's `server.clientRoot`
+   * default and made no test fail. It is the fourth table in this file's family
+   * — tiers, appliers, the example file — and it was the one nobody had noticed
+   * was a table.
+   */
+  it('declares the same default in the schema as DEFAULT_CONFIG holds', () => {
+    const declared: Record<string, unknown> = {};
+    const walk = (node: unknown, prefix: string): void => {
+      if (typeof node !== 'object' || node === null) return;
+      const schema = node as { default?: unknown; properties?: Record<string, unknown> };
+      if (schema.properties) {
+        for (const [key, child] of Object.entries(schema.properties)) {
+          walk(child, prefix ? `${prefix}.${key}` : key);
+        }
+        return;
+      }
+      declared[prefix] = schema.default;
+    };
+    walk(ConfigSchema, '');
+
+    const held: Record<string, unknown> = {};
+    for (const key of configKeys()) {
+      held[key] = key
+        .split('.')
+        .reduce<unknown>((node, part) => (node as Record<string, unknown>)[part], DEFAULT_CONFIG);
+    }
+
+    // Both directions at once: a key in one and not the other fails on the
+    // shape, and a value that moved fails on the value.
+    expect(declared).toEqual(held);
+  });
+
+  /**
    * The appliers table covers exactly the `live` keys — [P2A §2.5].
    *
    * Both directions, for the same reason the tier table gets both: a `live` key

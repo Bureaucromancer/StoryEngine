@@ -20,6 +20,7 @@
     "@ai-sdk/openai-compatible": "3.0.30",
     "@fastify/cookie": "11.1.2",
     "@fastify/multipart": "10.1.1",
+    "@fastify/static": "10.1.3",
     "@sinclair/typebox": "0.34.52",
     "@storyengine/sdk": "workspace:*",
     "@storyengine/shared": "workspace:*",

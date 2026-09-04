@@ -9,6 +9,16 @@ today, but nothing here is client-specific: `curl` is a first-class way to drive
 it, and the P1 exit gate ([P1 §3](design/workplan/03-p1-implementation.md)) is written in
 terms of it.
 
+**The prefix is a boundary, not a convention.** Since
+[P6A.1](design/workplan/23-p6a-alpha-1.md) the same process can also serve the
+web client, so an address outside `/api` may answer HTML — but an address
+*under* it never does. One that matches no route is
+`404 {"error":"not-found"}` like any other JSON error, because a client that
+parses this API is worse served by a page than by a 404. Whether the UI is
+served at all is one config key, `server.clientRoot`
+([13 §4](design/13-internal-contracts.md)); in development it is unset and the
+client is a second process.
+
 ---
 
 ## The shape of a session
@@ -1558,7 +1568,7 @@ I restart it?"* is a worse answer than one that says.
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
 | 403 | `read-only` | A system-library object |
 | 403 | `forbidden` | A signed-in non-admin on `/api/admin` |
-| 404 | `not-found` / `unknown-kind` | No such object, or no such kind |
+| 404 | `not-found` / `unknown-kind` | No such object, or no such kind — and an address under `/api` that matches no route at all, which answers JSON rather than the client's app shell |
 | 409 | `busy` | The session already has a turn in flight. Carries the active `job` |
 | 409 | `finished` | That turn is already over, so there is nothing to cancel |
 | 412 | `stale-head` | The session moved on since this was composed. Carries the current `head` |
