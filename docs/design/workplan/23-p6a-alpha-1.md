@@ -1,6 +1,13 @@
 # 23 — P6A implementation plan: Alpha 1
 
-**Status: plan, written at its phase and audited 2026-09-03 at `a6f78c3`.**
+**Status: ~~plan~~ in progress.** Opened 2026-09-04 on branch `p6a` at
+`a54afcc`, main's tip after this document's own merge. The audit below stands as
+written and needed no repeat: `git diff a6f78c3..a54afcc -- packages/server
+packages/shared config.example.json` is empty, so every line number and every
+claim about the code in §0 still resolves. P6A.0 first, per §2 — the stages are
+prerequisites of each other rather than parallel work.
+
+Written at its phase and audited 2026-09-03 at `a6f78c3`.
 Unusually for these documents there is no half-revisit, no skeleton and no
 **[AWAITS]** marker. P6 merged the morning this was written, the phase starts
 now, and every precondition it depends on is checkable today rather than on the
