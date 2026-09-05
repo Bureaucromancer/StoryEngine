@@ -1,8 +1,10 @@
 # The HTTP API
 
-**Status: as built at P2.5.** This describes what exists, not what is
-planned — where the two differ, this file is right and the design notes record
-intent ([docs/README.md](README.md)).
+**Status: as built, and kept so.** Written at P2.5 and revised with every phase
+since — last at [P6A](design/workplan/23-p6a-alpha-1.md), for the setup token,
+the build identity and the `/api` boundary. This describes what exists, not what
+is planned — where the two differ, this file is right and the design notes
+record intent ([docs/README.md](README.md)).
 
 Everything is under `/api`. Responses are JSON. The client is the only consumer
 today, but nothing here is client-specific: `curl` is a first-class way to drive
@@ -1638,8 +1640,17 @@ I restart it?"* is a worse answer than one that says.
 
 ## Not here yet
 
-No workbench (P3), ~~no import (P4),~~ and no static file serving: the client runs
-on Vite's dev server and talks to this over `/api`.
+~~No workbench (P3),~~ ~~no import (P4),~~ ~~and no static file serving~~: in
+development the client runs on Vite's dev server and talks to this over `/api`.
+
+*Three clauses, three phases, and only the setting survives. The workbench
+shipped at P3 as a reader over the turn record and needed no route of its own.
+Import finished at P4.4 and P4.5 — both halves the paragraph below still calls
+missing — and the directory form previews what it would do before it writes.
+Static serving arrived at [P6A.1](design/workplan/23-p6a-alpha-1.md) behind
+`server.clientRoot`, unset in development, so the sentence stays true where it
+was written and is false in a packaged build, where one process serves both
+halves.*
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
 is documented under Sessions above. The provider settings surface was listed

@@ -5,11 +5,15 @@ These are design notes, not documentation of what exists — see [../](../) for
 that distinction, and treat anything here as intent rather than as a description
 of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
-[06](06-open-questions.md), and [P1](workplan/03-p1-implementation.md) is a plan being
-worked from rather than argued with.
+[06](06-open-questions.md), and the phase plans from
+[P1](workplan/03-p1-implementation.md) through
+[P6A](workplan/23-p6a-alpha-1.md) have been worked from rather than argued with,
+each carrying its own record of what shipped.
 
-**Phase: alpha** — see the [root README](../../README.md) for what actually runs
-today.
+**Phase: alpha, with Alpha 1 — the first tagged build, private and for the
+project's own use — about to be cut** ([P6A](workplan/23-p6a-alpha-1.md)). See
+the [root README](../../README.md) for what actually runs today, and
+[`CHANGELOG.md`](../../CHANGELOG.md) for what that build will say it is.
 
 **[work plan §0](workplan/01-work-plan.md) is the only place the version cut is
 stated.** It is not restated here, deliberately: this block used to carry a copy
@@ -18,7 +22,9 @@ add Write, then World, then Campaign.
 
 Distribution, when there is something to distribute, is build-it-yourself until
 beta — which is defined as *feature complete to the 1.0 spec*. See
-[releases §0](workplan/11-repo-and-releases.md).
+[releases §0](workplan/11-repo-and-releases.md). The one build before that is
+not a distribution, and [releases §0.1](workplan/11-repo-and-releases.md) is
+the distinction.
 
 **The first checkpoint is PLAYABLE** ([work plan §4.1](workplan/01-work-plan.md)) — well before
 beta, and the point at which the design gets tested by use rather than completed
@@ -127,10 +133,10 @@ of its own.
 
 [`workplan/`](workplan/) has its own index. In reading order it is the work plan
 itself, the triage the plan is built on, the phase documents — one per phase from
-P1 to P11, plus P2A, P2B and P2C — the polish list, testing, the release model,
-and the P2C supplements. The phase documents are numbered in the order they were
-written, so P2A, P2B and P2C are 13, 14 and 15 rather than sitting between P2 and
-P3, and P7 through P11 are 18 through 22.
+P1 to P11, plus P2A, P2B, P2C and P6A — the polish list, testing, the release
+model, and the P2C supplements. The phase documents are numbered in the order
+they were written, so P2A, P2B and P2C are 13, 14 and 15 rather than sitting
+between P2 and P3, P7 through P11 are 18 through 22, and P6A is 23.
 
 **02 and 10 are a pair.** 02 carries the reasoning and the alternatives
 considered; 10 carries the definitions. Where they disagree, 10 is current.

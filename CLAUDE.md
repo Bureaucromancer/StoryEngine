@@ -11,14 +11,24 @@ pnpm workspace, Node ≥ 26, ESM throughout (imports use `.js` suffixes).
 - `packages/shared` — schemas (TypeBox) and types both sides use
 - `packages/server` — the server; provider adapters live in `src/providers/`
 - `packages/client` — React client
-- `tools/` — dev scripts (`dev-server.mjs`, `seed.mjs`, `reset-data.mjs`)
+- `tools/` — dev scripts (`dev-server.mjs`, `seed.mjs`, `reset-data.mjs`),
+  `write-build-info.mjs` (the identity a release build carries), and
+  `release.test.ts` (the `release` vitest project: the version agrees across
+  `package.json`, `CHANGELOG.md`, `compose.yaml` and the unraid template)
+- `Dockerfile`, `compose.yaml`, `deploy/unraid/` — Alpha 1's image and its two
+  wrappers; `docs/deploy.md` is how a built one runs. Private registry, no
+  `latest`; the image has never been built here (no Docker on this machine)
 - `data/` — runtime data, canonical and gitignored; never the repository's
 
 ## Commands
 
 - `pnpm test` — full suite (vitest projects; deterministic, no network)
 - `pnpm test:gate` — the CI-named P1 gate property test
+- `pnpm test:fixture-pair` — the import fixture-pair project alone
 - `pnpm test:live` — live provider tests against a real endpoint (below)
+- `pnpm build:identify` — writes gitignored `packages/server/build-info.json`;
+  `pnpm build` deliberately does not. Delete it after a local experiment, or
+  the suite runs in a configuration CI never sees
 - `pnpm typecheck` / `pnpm lint` / `pnpm format:check` — all expected clean
 - `pnpm dev` — server + client; `pnpm dev:logged` captures logs and cassettes
 
@@ -53,3 +63,16 @@ pattern. Never commit `.env`, keys, or raw captures.
   rather than writing sparse what-comments.
 - `eslint.rules.js` and `tools/lint-fixtures/` hold project-specific lint
   rules and their tests.
+- Adding a config key is a five-place edit — the schema, `CONFIG_TIERS` and
+  `DEFAULT_CONFIG` in `config.ts`, `config.example.json`, and the tier table in
+  `docs/design/13-internal-contracts.md` §4 — and `config.test.ts` fails on any
+  one of them missed. The same test parses §4's environment-variable table, so
+  a new `SE_*` variable needs a row there too.
+- Phase branches are bare `pN` (`p5`, `p6`, `p6a`) and merge into `main` with
+  `--no-ff` and a colon-subtitled merge commit; the phase documents cite stage
+  commits by hash, so never squash them. A green suite closes a stage, not a
+  phase: exit gates are walked by a person, and the phase document records
+  which steps the suite covers and which still wait.
+- `pnpm --filter @storyengine/server --legacy deploy` leaves the workspace's
+  install state pointing at a production install; run a plain `pnpm install`
+  before the next `pnpm build`.
