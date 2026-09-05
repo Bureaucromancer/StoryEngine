@@ -1,11 +1,18 @@
 # 23 — P6A implementation plan: Alpha 1
 
-**Status: ~~plan~~ ~~in progress~~ built, unwalked.** All five stages in §2 are
-landed, and the phase does **not** close: §3's exit gate is manual by design,
-and twelve of its thirteen steps need a Docker daemon, an unraid host, and a
-second machine to sign in from. No image has been built. What the code can prove
-is proved; what only a person with a container can prove is listed there
-unticked.
+**Status: ~~plan~~ ~~in progress~~ ~~built, unwalked~~ landed; the phase closes
+on its merge into `main`, and the exit gate is the Alpha 1 cut, which waits on a
+person with Docker.** All five stages in §2 are landed on branch `p6a` at
+`90b282c`, and the full gate is green there: typecheck, lint, format, the suite
+twice (2581 tests, 2 skipped), `test:gate` and `test:fixture-pair`. The merge is
+the close, as it was for P5 and P6 — `--no-ff`, so the stage commits this
+document cites by hash stay reachable from `main`. What closed is everything a
+checkout can close. What did not is §3, which is manual by design: twelve of its
+thirteen steps need a Docker daemon, an unraid host and a second machine to sign
+in from, and **no image has been built**, because there was no daemon on the
+machine that wrote it. §3 is annotated step by step with what the suite proves
+and what only the container can, so that whoever walks it starts from the record
+rather than from the list. *(Status written 2026-09-05, at the close.)*
 
 Opened 2026-09-04 on branch `p6a` at
 `a54afcc`, main's tip after this document's own merge. The audit below stands as
@@ -203,20 +210,30 @@ gate that is already met:
 ### 0.6 Readiness — what does not exist and has to be invented
 
 - **No `.dockerignore`.** Without one, `data/`, `captures/`, every `node_modules`
-  and the whole git history go to the daemon on every build.
+  and the whole git history go to the daemon on every build. *Written at
+  [P6A.4], and `tools/release.test.ts` reads it: `data/`, `captures/`, the local
+  secrets and a local `build-info.json` are asserted excluded, because two of
+  the stage's eight mutations were exactly those lines.*
 - **No version anywhere.** All five `package.json` files are `0.0.0`, no route
   reports a build identifier, and there is no build-time define. The only git tag
   in the repository is `p1`, a bare phase marker — which means the on-tag CI
-  trigger must filter `tags: ['v*']` or it fires on phase tags.
+  trigger must filter `tags: ['v*']` or it fires on phase tags. *`0.1.0-alpha.1`
+  in the root `package.json` since [P6A.3], which is the one place a human edits
+  it; the four workspace packages stay `0.0.0`, and nothing reads them. The
+  trigger is filtered, and the filter has a test.*
 - **No CHANGELOG.** [releases §7](11-repo-and-releases.md) requires an entry per
   release tag. *Written at [P6A.3]; the `0.1.0-alpha.1` entry is in it, marked
   unreleased until the tag is cut.*
 - **No data-directory stamp.** Nothing records which build wrote a data
   directory, and nothing refuses to open one it does not understand.
+  *`state/build.json` since [P6A.3], and the refusal with it.*
 - **The image's own shape is an open question the corpus already flagged.**
   [P10 §5](21-p10-implementation.md) records *"what the container image actually
   is"* as unsettled and sends it to [07](../07-tech-stack.md), which does not
-  answer it. This document is where it gets answered.
+  answer it. This document is where it gets answered. *Answered at [P6A.4]:
+  `node:26-slim`, pnpm from corepack, `pnpm deploy --legacy --prod` as the
+  prune, `/data` as the volume, a non-root user, and `compose.yaml` beside it,
+  because Tier 1 is the pair.*
 
 ---
 
@@ -707,6 +724,14 @@ pointed `<Icon>` at `packages/client/public/favicon.svg`; the client ships no
 404s — [04 §5.3]'s *"a template that only half-works is worse than none"*,
 committed. It has no icon element and a comment saying when to add one.
 
+*Overtaken the same evening, and it changes nothing yet.* `893fd91` on `main`
+gave the client `public/favicon.svg` — the wordmark's initial on a typewriter
+key — six hours after this record said there was none. The template still has
+no `<Icon>`, for the reason that survives the favicon: unraid fetches the icon
+over HTTP, and a raw URL into a private repository is the same 404 the first
+draft had. The comment in the template says so now. It goes in with
+publication, which §4 makes one decision rather than a toggle.
+
 Eight mutations, eight red: a compose tag off by one alpha, the template's, an
 unfiltered release trigger, `contents: write`, a `.dockerignore` that lets a
 developer's identity file into the image, one that lets `data/` in, a `0.0.0`
@@ -755,33 +780,90 @@ Manual, numbered, and run against a build from a clean checkout at the tag — n
 against the working tree, because a gate that passes on the developer's machine
 state is testing the wrong thing.
 
+*Annotated at the close, 2026-09-05, in the shape [P6 §3](08-p6-implementation.md)
+uses: under each step, what the suite already proves and what only the walk can.
+Nothing here is ticked. The suite drives the app through `fastify.inject` and a
+config-bound host — never a socket, never a container — so what it proves is
+the mechanism, and every step below is a step because the mechanism inside a
+container is the thing nobody has yet seen. The tag does not exist and no image
+has been built.*
+
 1. **Tag and build.** `v0.1.0-alpha.1` exists; the on-tag workflow ran; a second
    build from the same tag produces an image that behaves identically.
+   **Nothing covered.** What a checkout can pin, `tools/release.test.ts` pins:
+   the version agrees across `package.json`, the CHANGELOG, `compose.yaml` and
+   the template, and the build context excludes `data/` and a local
+   `build-info.json`. The tag itself is the walk's first act.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
+   **Half covered**, and the half matters: `release.test.ts` asserts the
+   `tags: ['v*']` line is in `release.yml`, and a mutation that removed it went
+   red — but red there is a test reading a file, not a push that fires nothing.
+   The push is the walk.
 3. **Fresh container, no volume.** Comes up reachable on the mapped port with no
    config file anywhere, having taken its bind from the documented variable.
+   **Mechanism covered at P6A.0**: `config.test.ts` resolves `server.host` to
+   `0.0.0.0` from `SE_HOST` with no file anywhere, and `main.test.ts` spawns the
+   real entry point and reads the address off its `listening` line. The literal
+   `0.0.0.0` from inside a container is the walk.
 4. **The UI is served.** The mapped port serves the client, not a 404, and an
    unrouted `/api/nonsense` still answers JSON rather than `index.html`.
+   **Server half covered at P6A.1** in `routes/client.test.ts`, including the
+   `allowedPath` guard that holds `/api` even when the client directory holds a
+   file at that address; the built client against the built server was checked
+   by hand at that stage, on a bound port, with the setup screen rendered from
+   one origin. The mapped port is the walk.
 5. **Refusal before setup.** Every route except `/api/auth/setup` and
    `/api/auth/state` refuses, from a non-loopback bind.
+   **Covered in two halves.** The gate that leaves only two routes answering
+   before an admin exists has been tested since P1 (`survivesSetupGate`), and
+   P6A.2's `routes/setup-token.test.ts` proves the token is minted only on a
+   host `isLoopbackHost` reads as exposed, and never on loopback. The two
+   halves meeting inside a container is the walk.
 6. **The token is required and checked.** Setup with no token fails; setup with a
    wrong token fails; setup with the token from `docker logs` succeeds.
+   **Covered at P6A.2** in the same file: absent, wrong and right, and the token
+   surviving a restart — stored, so a container restarting while somebody reads
+   its log does not invalidate the one they copied. Reading it out of
+   `docker logs` is the walk.
 7. **A turn, from another machine.** Sign in from a host that is not the
    container's host and take a turn end to end.
+   **Nothing covered.** Two machines and a model that is not ours — the clause
+   that has kept three earlier gates open ([P2C](15-p2c-first-real-run.md)).
 8. **Identity.** The running server reports a version and commit matching the
    tag.
+   **Mechanism covered at P6A.3** in `build-info.test.ts`, and checked against
+   real processes — `pnpm build:identify`, then the entry point's `listening`
+   line carrying the version and commit. That they match *the tag* is the
+   workflow's `--expect-version`, and the workflow has not run.
 9. **Restart with the volume.** Stop, start again against the same volume;
    accounts, library and sessions are intact.
+   **Nothing covered here.** The storage tier's own suite survives a reopen; a
+   container restarting against a named volume owned by its non-root user is
+   the walk.
 10. **The stamp refuses.** A build older than the volume's stamp declines to open
     it, with a message that says why.
+    **Covered at P6A.3** in `build-info.test.ts` — `alpha.10` ordering above
+    `alpha.2`, both versions in the message, the newer stamp left untouched, and
+    the refusal landing before the index opens — and checked by hand with a
+    second process pretending to be `0.0.9`.
 11. **The template installs.** On unraid, with a registry credential configured,
     the template pulls, maps `/data`, and its WebUI button opens the UI.
+    **Nothing covered** beyond `release.test.ts`'s check that the template names
+    the same tag as everything else. An unraid host is the walk.
 12. **The package is private.** An unauthenticated `docker pull` fails. This is a
     gate step rather than an assumption, because the exposure decision is the one
     thing in this phase that is invisible from inside the repository.
+    **Nothing covered, and nothing can be** from inside the repository — which
+    is why it is a step. `release.test.ts` proves only that the workflow asks
+    for `packages: write` and not `contents: write`.
 13. **Development is unchanged.** `pnpm dev` still runs two processes with Vite's
     proxy, and `pnpm test`, `pnpm typecheck` and `pnpm lint` are clean.
+    **Half covered.** The clean half is the gate this close ran at `90b282c`:
+    typecheck, lint, format, the suite, `test:gate` and `test:fixture-pair`, all
+    green, and `routes/client.test.ts` proves the default is *serve nothing*.
+    That `pnpm dev` still runs two processes is a person's, and the one step
+    here that needs no daemon.
 
 ---
 
@@ -834,3 +916,9 @@ So the rule this document sets is the weaker, true one, rather than a date:
 
 Which is the same rule §4 states from the other side, and the reason both are
 written down.
+
+*At the close, both halves of that sentence are still ahead: Alpha 1 is not cut
+and PLAYABLE has not run. The rule is unchanged, and the order it allows is the
+order the next step takes — the tag first, from a machine with a daemon, then
+the gate above, then PLAYABLE on the build it produced, which is the case this
+section made for cutting it first.*

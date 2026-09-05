@@ -893,6 +893,9 @@ the record as built rather than as designed. It holds almost everything the
 workbench renders; the exceptions are named there, and two of them are one field
 each in P2's record rather than work for this phase.
 
+*Built and merged. Every phase since has been debugged through it, which was the
+argument for building it early.*
+
 ### P4 — Import
 
 **Expanded into a working plan: [06](06-p4-implementation.md)**, the revisit its
@@ -925,6 +928,11 @@ rather than during P4.3.
 
 **Then stop — this is where PLAYABLE falls (§4.1).**
 
+*Built and merged, and the import previews what it would do before it writes
+([P4 §7](06-p4-implementation.md)). Nobody stopped: PLAYABLE has not run, and a
+private Alpha 1 is being cut first, under the rule
+[P6A §5](23-p6a-alpha-1.md) sets.*
+
 ### P5 — Lorebooks and retrieval
 
 **Expanded into a working plan: [07](07-p5-implementation.md)**, restructured
@@ -944,17 +952,26 @@ reporting. Now testable against P4's real library rather than fixtures.
 **Demonstrable:** the workbench showing exactly which entries fired, why, what
 they cost, and what the budget dropped.
 
+*Built and merged (`a27be5b`). The exit gate is unwalked, and
+[07 §0.5](07-p5-implementation.md) says what walking it would meet — including
+that the browser still has no way to choose a session's lorebooks.*
+
 ### P6 — The turn tree
 
-**Skeleton: [08](08-p6-implementation.md)** — mostly sequencing, unusually,
-because [09](../09-branching.md) and [07 §14.5](../07-tech-stack.md) already
-decided the tree model, swipes-as-branches, snapshots-as-cache and the tape.
+**~~Skeleton~~ Plan, and now the record: [08](08-p6-implementation.md)** —
+mostly sequencing, unusually, because [09](../09-branching.md) and
+[07 §14.5](../07-tech-stack.md) already decided the tree model,
+swipes-as-branches, snapshots-as-cache and the tape.
 
 Branching, rewrite/reroll, the RNG tape, sibling navigation.
 
 **Why before modes:** it changes the shape of the turn store, and every mode
 built after it inherits the behaviour for free. Built after modes, it is a
 migration.
+
+*Built and merged (`a6f78c3`). [08 §3](08-p6-implementation.md) marks what the
+suite covers; the demo that defines done, and the three questions §5 there hands
+to PLAYABLE, wait on a person.*
 
 ### P6A — Alpha 1
 
@@ -994,6 +1011,11 @@ that most wants a known-good baseline to measure against.
 **Demonstrable:** pull a tagged image, map a port, take the setup token out of
 `docker logs`, create an admin, play a session — with the working tree in any
 state at all, and the running build able to name the commit it came from.
+
+*Built: all five stages landed on branch `p6a`, and the phase closes on its
+merge. No image has been built — there was no Docker on the machine that wrote
+it — so the demonstration above is the next thing, and a person's;
+[23 §3](23-p6a-alpha-1.md) says what the suite already proves of it.*
 
 ### P7 — Modes and channels
 
@@ -1112,9 +1134,11 @@ the remainder of [05 §15](../05-ui-surfaces.md) — the extensions panel, the
 system library panel if it ever earns an admin action, *Restart now* with the
 supervisor detection and drain it needs, and connectivity state once P11's
 update check produces the signal. Plus the notification router and delivery
-channels, the loopback bind and its container inversion, the setup token, mDNS,
-the account-gallery arrival screen ([15](../15-account-gallery.md)), the About
-surface and §13 source link.
+channels, ~~the loopback bind and its container inversion, the setup token,~~
+mDNS, the account-gallery arrival screen ([15](../15-account-gallery.md)), the
+About surface and §13 source link. *The struck pair went to
+[P6A](23-p6a-alpha-1.md), which shipped the image their deferral was scheduled
+against; [P10.0](21-p10-implementation.md) is what is left.*
 
 ### P11 — Beta hardening
 

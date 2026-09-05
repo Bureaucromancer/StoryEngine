@@ -392,10 +392,12 @@ broken is worse than none ([releases §4](11-repo-and-releases.md)); version and
 commit embedded in the build, which AGPL §13 requires anyway and which
 [P10](21-p10-implementation.md) needs for its About surface.
 
-**Rehearsed once already, at [P6A](23-p6a-alpha-1.md), and that changes what this
+**Written once already, at [P6A](23-p6a-alpha-1.md), and that changes what this
 stage is.** Three of [01 §8](01-work-plan.md)'s seven bullets were taken there on
 one artifact: the release cut automated end to end, version and commit embedded,
-and an on-tag CI tier that exists. So this stage is no longer standing a release
+and an on-tag CI tier that exists — *exists*, and at P6A's close had not run,
+because the first `v*` tag is the rehearsal and it is a person's to push. So
+this stage is no longer standing a release
 process up from nothing — it is **widening a working one to five more artifacts
 and to an audience**, which is a different and better-understood job. The
 rewrite of [01 §8](01-work-plan.md) that §1.1 owns should say what the rehearsal

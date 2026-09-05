@@ -24,8 +24,8 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [04-p2-implementation.md](04-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
 | [05-p3-implementation.md](05-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
 | [06-p4-implementation.md](06-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
-| [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Audited twice; §0.1 is the current readiness, and the four decisions that need PLAYABLE are marked, open, and given a window in §0.3 |
-| [08-p6-implementation.md](08-p6-implementation.md) | P6 in detail — reconstruction at every node, the head gate and the snapshot cache first, then branching UI, rewrite/reroll and sibling navigation. Audited three times before it opened; §2 is a staged plan with proof obligations, and P6.0 is under way on branch `p6` |
+| [07-p5-implementation.md](07-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Landed and merged; §0.5 is the close-out audit, and the decisions that need PLAYABLE are still marked open |
+| [08-p6-implementation.md](08-p6-implementation.md) | P6 in detail — reconstruction at every node, the head gate and the snapshot cache first, then branching UI, rewrite/reroll and sibling navigation. Audited three times before it opened; landed and merged, with §3 marking what the suite covers and what still needs a person |
 | [09-polish.md](09-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
 | [10-testing.md](10-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
 | [11-repo-and-releases.md](11-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
@@ -40,7 +40,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
 | [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
 | [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
-| [23-p6a-alpha-1.md](23-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed; the exit gate needs a person with Docker |
+| [23-p6a-alpha-1.md](23-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed and the phase closes on its merge; the exit gate is the Alpha 1 cut itself, which needs a person with Docker |
 
 ## How to read them
 
@@ -49,10 +49,13 @@ checklist of decisions that are cheap now and expensive later, and the
 [PLAYABLE checkpoint](01-work-plan.md) — the milestone that matters more than
 beta does, because it is where the design starts being tested by use.
 
-**The phase documents are written just ahead of the phase.** 03, 04, 13, 14 and
-15 are detailed because they are current or just finished; 05, 06, 07 and 08
-were skeletons and have been revised as their phases arrived; 18 through 22
-are skeletons and will be filled in as each phase approaches.
+**The phase documents are written just ahead of the phase, and then carry the
+record.** 03 through 08, 13 through 15 and 23 are the plans of phases that have
+landed, and each holds its stages struck through with what actually shipped
+against what was planned; 05 through 08 began as skeletons and were revised as
+their phases arrived; 18 through 22 are skeletons and will be filled in as each
+phase approaches — P7, the first of them, is the phase in front of us once
+Alpha 1 is cut.
 
 **23 is the one written neither ahead of its phase nor behind it**, which is a
 third case worth naming because the others are all compromises with distance.
@@ -63,7 +66,9 @@ that nothing in it has been slept on; the benefit is that its readiness audit is
 not a forecast — and its §0 found that the phase was about twice the size its own
 one-line scope implied, which is the kind of thing only an audit against the code
 turns up. That §0 is the shape to copy when a phase starts sooner than its
-document expected.
+document expected. It closed the way it opened, quickly: five stages in a day,
+the gate annotated the day after, and the twelve container steps left to a
+person, because there was no daemon on the machine that wrote it.
 
 **07 is the one written *half* ahead of its phase, and says so.** P5 sits behind
 PLAYABLE, which has not run — so it carries a readiness audit against the code,

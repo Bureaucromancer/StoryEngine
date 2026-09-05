@@ -1,10 +1,19 @@
 # 07 — P5 implementation plan
 
-**Status: plan, audited 2026-08-30 at `09ea758`, re-audited 2026-08-31 after
-P4's own audit closed, and re-audited again at `12a28d9` on the day the phase
-opened — see §0.4, which is the current one and which corrects §1.3, §1.7 and
-§1.8.** ~~Skeleton,
-restructured into two halves 2026-08-28.~~
+**Status: ~~plan~~ landed, and merged into `main` 2026-09-02 at `a27be5b`; the
+phase does not close, and §0.5 is why.** Every stage in §2 reads Landed. §0.5 is
+the close-out audit: the gate has never been walked, and it names what a walk
+would have met on the day — among them the retriever half unreachable through
+the product, because nothing in the client selects a lorebook for a session.
+That one is still true at P6A's close: neither the browser nor `pnpm seed`
+names a book or a treatment for the session it makes, so the session resolves
+none. The **[AWAITS PLAYABLE]** questions are still open, because
+PLAYABLE still has not run. Audited 2026-08-30 at `09ea758`, re-audited
+2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
+day the phase opened — see §0.4, which corrects §1.3, §1.7 and §1.8, and then
+§0.5. *(This status line was written 2026-09-05, at P6A's close; it had said*
+plan *through two merges.)* ~~Skeleton, restructured into two halves
+2026-08-28.~~
 
 **And it is deliberately half a revisit, which is the first thing to know about
 it.** This document has always said it *must* be revisited after PLAYABLE,
@@ -597,7 +606,7 @@ unexamined** — recorded here because the miss is as instructive as the find:
 **Four document-vs-code contradictions to settle before anyone walks**, because
 each is an argument waiting to happen mid-walk:
 
-1. **`tokenBudget: 0`.** [10 §5](10-schemas.md) and the schema both say
+1. **`tokenBudget: 0`.** [10 §5](../10-schemas.md) and the schema both say
    *0 = unlimited*; `shelf.ts:142` is a plain ceiling with no zero arm, so such a
    book refuses every entry with *"over the book's token budget of 0"*. The
    inverted reading is **pinned** by `shelf.test.ts:296`, so a doc-conformant fix
@@ -2259,7 +2268,7 @@ P5.3 is written so they do not hold the phase closed.
     empty tape, so the fixture has to be built to roll.
 12. ~~An entry conditioned on a channel that does not exist → visible warning,
     never fires, nothing blocks (§1.4).~~ **Unbuildable, and the scope never
-    moved.** No entry can be conditioned on a channel: [10 §5](10-schemas.md)
+    moved.** No entry can be conditioned on a channel: [10 §5](../10-schemas.md)
     lists `activationConditions` as *deliberately absent*, the importer discards
     it, and no `SkipReason` names a channel. §1.4 kept the predicate check and
     §4 defers only *"the rule vocabulary"*, so the deferral was taken in the code

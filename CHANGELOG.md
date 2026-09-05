@@ -58,6 +58,7 @@ newer one has touched
   workflow that publishes to a private registry. See
   [docs/deploy.md](docs/deploy.md) — starting with the fact that the package is
   private, so nothing pulls until you have logged in.
+- **A favicon** — the wordmark's initial on a typewriter key.
 
 ### Fixed
 
