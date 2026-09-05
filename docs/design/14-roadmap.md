@@ -487,6 +487,23 @@ test of the capability API being *narrow*. Device access must be something an
 extension has to be granted, never something it inherits by being installed. An
 attempt at this would find out.
 
+**Randomizers — outcomes and appearances.** *Outlined in [22](22-randomizers.md);
+wanted early, and first-party.*
+*Seam:* for plot, a `generate`-stage step that asks the cheap model for a few
+outcomes by kind, draws one with the RNG service under difficulty-derived
+weights, and hands the narrator a verdict; for appearance, a field assist that
+draws `VisualDescriptors` from an authored palette and has the model write the
+prose around them.
+*The trap:* the model weighting its own candidates. That is where the
+sycophancy went, and asking it *how likely is this* re-imports the failure the
+draw exists to remove. The model proposes and labels; the engine weighs and
+draws; the model writes to what was drawn — §4.2's principle, one sentence
+sharper.
+*Proves:* evaluate-before-narrate with a real consumer, a step that draws
+inside the boundary, structured output through `StepCallRequest.schema`, and
+whether rewrite and reroll keep their meanings when a draw is made over a
+model-written list ([22 §3.5](22-randomizers.md)).
+
 ### 4.4 First-party reference extensions: dice and poker
 
 **Two, with different jobs.** An earlier draft proposed one, and picked dice.

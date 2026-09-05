@@ -691,6 +691,24 @@ grounds that a mis-fired ending is unrecoverable in a way nothing else here is �
 but it wants real sessions to judge. Under-firing plus always-available manual
 completion is the position regardless. *[03 §7.3.3]*
 
+**C13. What the randomizers ask of the pipeline. — OPEN, three parts, and the
+first two get expensive after P7.** [22](22-randomizers.md) outlines a plot
+randomizer (an evaluate-before-narrate step that draws an outcome from
+model-proposed candidates) and an appearance randomizer (a field assist that
+draws descriptors from a palette before the model writes). Neither needs a new
+mechanism; each exposes a gap in an existing one. *(a)* A step's judgement call
+is re-run on rewrite, so a draw made over its output cannot replay — the
+rendition moment's *written once, replayed* rule ([03 §10.3]) wants to become a
+step-level contract ([22 §5.1]). *(b)* Draws outside a turn have nowhere to be
+recorded, because the assist path's record is provenance and provenance has no
+tape ([22 §5.2]) — a portable-schema addition, so it wants doing once. *(c)* A
+step's block is one of the two sources no preset slot can position, and an
+outcome verdict that lands at the top of the prompt is the one most likely to
+be softened ([22 §5.3]). Leaning: do *(a)* with P7's async-draw conversion,
+since the randomizer is the first production step that draws; do *(b)* whenever
+provenance is next touched; decide *(c)* with the dice extension, which needs
+the same slot. *[22 §5]*
+
 ---
 
 ## D. Deployment questions
