@@ -121,6 +121,7 @@ of its own.
 | Doc | What it covers |
 |---|---|
 | [07-tech-stack.md](07-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
+| [23-client-loading.md](23-client-loading.md) | Deferred client-loading options: expected bundle growth, route and tool boundaries, shared schemas, caching, and what to measure before acting |
 | [13-internal-contracts.md](13-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
 | [12-extensions.md](12-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 

@@ -328,6 +328,13 @@ list is built, not after.
 *Ends at:* a list where every item names its artifact and its check — and a
 count, so the phase's size is known before it starts rather than discovered.
 
+**One additional review input:** [23 — client loading](../23-client-loading.md)
+records the early bundle-size baseline and expects growth through the intervening
+phases. Its §7 proposes this audit as the point to measure arrival and navigation
+costs, then decide whether route/tool splitting and serving changes need a stage
+before broader distribution. It adds a review, not a pre-priced implementation
+commitment; observed loading problems can bring it forward.
+
 ### P11.1 — The reading view
 
 [05 §12](../05-ui-surfaces.md): any node rather than only the head, live rather

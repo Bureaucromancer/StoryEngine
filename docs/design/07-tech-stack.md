@@ -420,6 +420,13 @@ any public contract. Nothing outside the client package knows what it is. That
 resolves the open question from the earlier draft: the framework choice is
 ordinary, not architectural, *provided* the extension-UI decision holds.
 
+**Client loading as the application grows** has its own exploration in
+[23](23-client-loading.md). It assumes continued bundle growth through the next
+phases and compares route boundaries, optional tooling, shared schema costs and
+caching. Implementation is deferred; the preferred first experiment preserves
+this stack. Its §7 names the review trigger and the measurements owed before
+choosing budgets.
+
 ### 6.1 The styling layer, and the one word it turns on
 
 Tailwind v4, CSS-first: there is no `tailwind.config.js`, and the theme is an
