@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 StoryEngine contributors -->
+<!--
+  The favicon: a typewriter keycap carrying the wordmark's initial.
+
+  StoryEngine is branded by its wordmark, and the tab icon is the one place the
+  wordmark cannot go — at 16 pixels a word is a smudge. So the icon is a
+  fragment of the wordmark rather than a second logo: the S, on a keycap. The
+  key is the only hint of "engine" here, chosen over gears and books because a
+  favicon's slot is already a rounded square, which is also the shape of a key.
+  At 16 pixels the cap detail collapses into a plain tile with a darker bottom
+  edge, so it costs nothing where it cannot be seen.
+
+  Proportions were settled on a size ladder (16 through 128, on light and dark
+  tab strips), and each is load-bearing:
+
+  - The cap is mid-dark slate, never near-black. A slate-950 cap looked richest
+    at 128 and vanished at 16 on a dark tab strip, whose grey is nearly the same
+    value. One step lighter holds on both strips with no theme swap at all.
+  - The face is inset and sits high, so the band below it reads as the key's
+    depth. The S is centred on the FACE (y = 29.5), not the tile — a key's
+    legend sits on its face, and centring on the tile makes the S look as if it
+    slid down.
+  - The S is large and bold on purpose. At half the face height and semibold it
+    read as a speck at 16. Favicons are drawn for the smallest size and
+    tolerated at the largest.
+  - Palette is Tailwind slate only, like the rest of the client: side 800,
+    face 700, highlight 600, glyph 50.
+
+  The dark-scheme block inverts the cap for dark browser chrome. It is polish,
+  not a requirement: the light-scheme cap already holds on a dark strip, and
+  browsers that ignore media queries inside a favicon lose nothing. The inverted
+  cap must never become the default, because a pale tile disappears on a light
+  strip.
+
+  Known placeholder: the S is a <text> element in the system face, so it
+  renders in whatever sans-serif the viewer's OS has. The shipping glyph should
+  be a path drawn from the wordmark's typeface, once that face is chosen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    :root { --side:#1e293b; --face:#334155; --hi:#475569; --glyph:#f8fafc; }
+    @media (prefers-color-scheme: dark) {
+      :root { --side:#cbd5e1; --face:#f1f5f9; --hi:#ffffff; --glyph:#0f172a; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--hi)"/>
+      <stop offset="0.35" stop-color="var(--face)"/>
+      <stop offset="1" stop-color="var(--face)"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="var(--side)"/>
+  <rect x="8" y="6" width="48" height="45" rx="9" fill="url(#face)"/>
+  <text x="32" y="29.5" text-anchor="middle" dominant-baseline="central"
+        font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-weight="700" font-size="42"
+        fill="var(--glyph)">S</text>
+</svg>

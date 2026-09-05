@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StoryEngine</title>
+    <!-- SVG only: it scales to every slot the browser asks for and carries its
+         own dark-scheme variant. Safari ignores SVG favicons and shows the
+         default globe until a raster fallback exists; see public/favicon.svg. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
     <div id="root"></div>
