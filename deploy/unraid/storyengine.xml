@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<!--
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Copyright (C) 2026 StoryEngine contributors
+
+  The unraid template — docs/design/workplan/23-p6a-alpha-1.md §2, P6A.4.
+
+  **Committed, and submitted to nobody.** docs/design/04-server-multiuser-deployment.md
+  §5.3's [OPEN] on the Community Applications store closes here as a recorded
+  deferral, for §5.4's own reason: every package format is a recurring cost
+  rather than a one-time build, and a store listing adds a moderated presence
+  and a support thread to a project with one maintainer and no users.
+
+  It is written now because writing it is what proves the image is installable
+  rather than merely built — the volume, the port, the WebUI address and the
+  bind variable all have to be nameable, and a template is where you find out
+  they are not.
+
+  **The package is private**, so this will not pull until the unraid host has a
+  registry credential. That is said here, at the top of the description, rather
+  than left to fail at install: §5.3's own line is that a template which only
+  half-works is worse than none.
+-->
+<Container version="2">
+  <Name>StoryEngine</Name>
+  <Repository>ghcr.io/bureaucromancer/storyengine:0.1.0-alpha.1</Repository>
+  <Registry>https://ghcr.io/bureaucromancer/storyengine</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Bureaucromancer/StoryEngine/issues</Support>
+  <Project>https://github.com/Bureaucromancer/StoryEngine</Project>
+  <Overview>
+    Self-hosted LLM storytelling server.
+
+    PRIVATE IMAGE. This package is not public, so unraid must be logged in to
+    ghcr.io with a token that can read packages before this template will pull.
+    Without that the pull fails with a 404 that reads like a typo.
+
+    FIRST RUN. The container binds 0.0.0.0, because a container's own loopback
+    is unreachable however you map the port. That means the create-the-first-
+    admin screen is reachable from your LAN the moment it starts, so it asks for
+    a setup token — printed once to the container log. Open the log, copy the
+    token, then use the WebUI button.
+
+    DATA. Everything the install is — accounts, library, sessions, config — is
+    under /data. Back that up; nothing else needs backing up.
+
+    ALPHA. There is no compatibility promise between alpha builds. An older
+    build will refuse to open a data directory a newer one has written, rather
+    than migrating it.
+  </Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <!--
+    No icon element. The client has one since 893fd91 (packages/client/public/
+    favicon.svg, the wordmark's initial on a typewriter key), but unraid fetches
+    an Icon URL over HTTP and a raw URL into a private repository is a 404 — the
+    half-working template §5.3 refuses. It goes in with publication, which
+    docs/design/workplan/23-p6a-alpha-1.md §4 makes one decision rather than a
+    registry toggle.
+  -->
+  <ExtraParams></ExtraParams>
+  <PostArgs></PostArgs>
+  <DonateText></DonateText>
+  <DonateLink></DonateLink>
+
+  <Config
+    Name="WebUI Port"
+    Target="8080"
+    Default="8080"
+    Mode="tcp"
+    Description="The port the UI and the API are both served on. One process, one port."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">8080</Config>
+
+  <Config
+    Name="Data"
+    Target="/data"
+    Default="/mnt/user/appdata/storyengine"
+    Mode="rw"
+    Description="Accounts, library, sessions and config.json. The container runs as uid 1000, so this share must be writable by it."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/storyengine</Config>
+
+  <Config
+    Name="Bind address"
+    Target="SE_HOST"
+    Default="0.0.0.0"
+    Mode=""
+    Description="Where the server listens inside the container. 0.0.0.0 is correct here and is the same variable a bare-metal install would use — the image is not a different build. Setting it to 127.0.0.1 makes the container unreachable however you map the port."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">0.0.0.0</Config>
+</Container>

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 StoryEngine contributors
+#
+# Tier 1 is "the image plus a compose file"
+# (docs/design/04-server-multiuser-deployment.md §5.4), so this is inside the
+# deliverable rather than beside it — the image alone is not the artifact that
+# section names.
+#
+# **The package is private.** `docker login ghcr.io` first, with a token that can
+# read packages, or the pull fails with a 404 that reads like a typo. That is not
+# a temporary state: Alpha 1 is a build this project made for itself, and
+# publishing it is a decision to publish the repository at the same instant
+# (docs/design/workplan/23-p6a-alpha-1.md §4).
+#
+#   docker compose up -d
+#   docker compose logs storyengine     # the setup token is in here, once
+
+services:
+  storyengine:
+    image: ghcr.io/bureaucromancer/storyengine:0.1.0-alpha.1
+    # Immutable, deliberately. `latest` names nothing yet and this build does not
+    # move it — unraid's auto-update and watchtower both track exactly that
+    # alias, and an alpha is not something to hand an auto-updater (§1.6).
+    restart: unless-stopped
+    ports:
+      # The mapping is your explicit act. The container binds 0.0.0.0 because a
+      # container's own loopback is unreachable however you map it; changing the
+      # left-hand side to 127.0.0.1:8080 keeps it on this host.
+      - '8080:8080'
+    volumes:
+      # Everything the install is. A named volume rather than a bind mount by
+      # default: the container runs as uid 1000, and a bind-mounted host
+      # directory owned by root fails to write with an error about a path rather
+      # than about permissions. See docs/deploy.md if you want a bind mount.
+      - storyengine-data:/data
+    environment:
+      # Both of these are the documented variables, not container-only settings
+      # — the same names work on a bare-metal install
+      # (docs/design/13-internal-contracts.md §4).
+      #
+      # Uncomment when there is TLS in front of this. A Secure cookie is not sent
+      # back over plain HTTP, so turning it on without HTTPS makes signing in
+      # fail silently.
+      # SE_COOKIE_SECURE is not a variable: cookie hardening is a config-file
+      # key, because it is not needed before the config file can be read.
+      SE_PORT: '8080'
+
+volumes:
+  storyengine-data:

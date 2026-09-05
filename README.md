@@ -2,32 +2,72 @@
 
 A self-hosted, multi-user engine for character-driven interactive fiction.
 
-**Status: alpha.** The design is written down in
-[`docs/design/`](docs/design/); the code is through
-[P2B](docs/design/workplan/14-p2b-provider-configuration.md) — the storage spine, the
-derived index and its watcher, auth, the library API, a web client with a
-prototype actor editor and version history, **one turn end to end** as a
-resumable server-side job with a streamed reply, and the settings surface that
-configures an install, its accounts and its model connections.
+**Status: alpha, with the first tagged build about to be cut.** The design is
+written down in [`docs/design/`](docs/design/); the code is through
+[P6A](docs/design/workplan/23-p6a-alpha-1.md) — P1 to P6 of the
+[work plan](docs/design/workplan/01-work-plan.md) and the four lettered phases
+beside them, every one landed. What exists: the storage spine and a derived
+index that can be thrown away and rebuilt from it; accounts and sign-in; the
+library, with import from SillyTavern, Marinara and Aventuras; **the turn, end
+to end**, as a resumable server-side job with a streamed reply; the workbench
+that reads the record of it; lorebooks as documents to read and as retrieval
+that says why each entry fired or did not; the session as a tree you can
+branch, rewrite, reroll and walk; the settings surface for an install, its
+accounts and its model connections; and, since P6A, what a container needs — a
+server that can be told where to bind, serves its own client, guards its first
+admin with a token, and can say which commit it is.
 
-**The UI browses, plays and configures.** Sign in, browse all six kinds of
-library object, start a session and take a turn, and open Settings to change your
-own preferences or — as an admin — the install's configuration, its accounts and
-its model connections. Open an actor and edit it — with automatic
-version history behind a History control: every change snapshots the state it
-replaced, hand edits included, and any version can be restored, diffed, pinned
-or renamed. Name an actor on the library page to make one, and delete anything
-you own from its detail page — the folder moves to your trash rather than being
-erased. The other five kinds stay read-only for now, so one of those arrives by
-import or through the API ([`docs/api.md`](docs/api.md)) rather than from a
-blank page; creation follows each kind's editor.
+**Alpha 1 is that state, about to be frozen.** `0.1.0-alpha.1` is in the root
+`package.json` and in [`CHANGELOG.md`](CHANGELOG.md); the image, the compose
+file and the unraid template are written; the on-tag workflow waits for
+`v0.1.0-alpha.1`. None of it has run — the tag is not cut and no image has been
+built, because P6A was written on a machine without Docker. It is a build the
+project makes for itself, not a distribution: the repository and the registry
+package are private, and [releases §0.1](docs/design/workplan/11-repo-and-releases.md)
+says why that is the point rather than a stage on the way to something.
 
-The storage thesis this phase exists to prove does work end to end: create an
-actor through the API, watch the folder appear, hand-edit a lorebook on disk in
-a text editor, and see the change in the browser without a restart
+**The UI browses, plays, reads and configures.** Sign in and browse all six
+kinds of library object, or fill the library from a SillyTavern, Marinara or
+Aventuras directory and read the review of what resolved, what went to `compat`
+and what dangled. Start a session, take a turn, watch the reply stream. Branch
+from any earlier turn, rewrite or reroll a reply and move among the siblings it
+leaves, undo the newest turn, and search the lines you abandoned — every one of
+them is still there. Open the workbench beside Play to see what the turn was
+built from: every block with its source and reason, the budget's verdicts, the
+calls, the effects, which lore entries fired and which were skipped and why, and
+a diff between two turns. Read a lorebook as a document — browse it, search it,
+edit its entries and drag them into order. Open Settings to change your own
+preferences or, as an admin, the install's configuration, its accounts and its
+model connections.
+
+Actors and lorebooks have editors, with automatic version history behind a
+History control: every change snapshots the state it replaced, hand edits
+included, and any version can be restored, diffed, pinned or renamed. Name one
+on the library page to make it, and delete anything you own from its detail
+page — the folder moves to your trash rather than being erased. The other four
+kinds are read-only for now, so one of those arrives by import or through the
+API ([`docs/api.md`](docs/api.md)) rather than from a blank page; creation
+follows each kind's editor. One gap worth knowing before you go looking:
+**choosing which lorebooks a session uses has no UI yet.** A book is in play
+only if the session names it or the treatment the session names links it, and
+nothing in the browser sets either — nor does `pnpm seed` — so a session made
+either way resolves no books until the API sets them
+(`PUT /api/sessions/:id/lore`;
+[P5 §0.5](docs/design/workplan/07-p5-implementation.md)).
+
+The storage thesis does work end to end: create an actor through the API, watch
+the folder appear, hand-edit a lorebook on disk in a text editor, and see the
+change in the browser without a restart
 ([05 §4.1](docs/design/05-ui-surfaces.md)). And it survives a second writer:
 saving over an object that changed on disk is refused, and the editor offers to
 reload-and-reapply or save as a copy rather than guess.
+
+**What has not happened is PLAYABLE**
+([work plan §4.1](docs/design/workplan/01-work-plan.md)) — the checkpoint where
+one person sits down with an imported library and plays, and the design gets
+tested by use rather than completed on paper. Alpha 1 is being cut before it,
+under the rule [P6A §5](docs/design/workplan/23-p6a-alpha-1.md) sets: *it may
+be cut before PLAYABLE; it does not go public before it.*
 
 Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)
@@ -36,7 +76,10 @@ if you want to know why.
 ## Building it
 
 Alpha distribution is build-it-yourself ([releases §0](docs/design/workplan/11-repo-and-releases.md)).
-There are no release artifacts, channels or packages yet.
+There are no channels and no packages anyone else installs. The one artifact,
+Alpha 1's image, is private and for the project's own use; running one is
+[`docs/deploy.md`](docs/deploy.md)'s subject, and cutting one is at the end of
+that page.
 
 Requires **Node 26** and **pnpm 11**.
 
@@ -58,14 +101,14 @@ that rather than a thing of its own:
 
 | | Port | What it is | On a source change |
 |---|---|---|---|
-| Server | 8080 | The API, and nothing else | Restarts (`tsx watch`) |
+| Server | 8080 | The API, and in development nothing else | Restarts (`tsx watch`) |
 | Client | 5173 | Vite, proxying `/api` to 8080 | Hot module replacement |
 
 The proxy is what keeps the two same-origin, so the session cookie is sent
-normally and there is no CORS anywhere. Port 8080 serves no files — pointing a
-browser at it is not useful, but pointing `curl` at it is a first-class way to
-work ([`docs/api.md`](docs/api.md)) — and, alongside import, the way the five
-kinds that have no editor yet get made.
+normally and there is no CORS anywhere. In development port 8080 serves no
+files — pointing a browser at it is not useful, but pointing `curl` at it is a
+first-class way to work ([`docs/api.md`](docs/api.md)) — and, alongside import,
+the way the four kinds that have no editor yet get made.
 
 Either half runs on its own, which is the point of keeping them separate:
 
@@ -82,6 +125,29 @@ port the same way.
 Vite is usually ready first and logs a proxy error or two until the server
 binds. That is noise rather than failure. Started alone, the client comes up
 fine and reports that it cannot reach the server until one is there.
+
+### One process, one port
+
+```bash
+pnpm build
+SE_CLIENT_ROOT=packages/client/dist node packages/server/dist/main.js --data ./data
+```
+
+That is the shape the container runs ([`docs/deploy.md`](docs/deploy.md)), and
+since [P6A.1](docs/design/workplan/23-p6a-alpha-1.md) it runs here too: the
+server serves the built client from `server.clientRoot` and the API under
+`/api`, on one port, with no proxy between them. The key is unset by default,
+which means *serve nothing* — and set to a directory with no `index.html` in
+it, the server refuses to start rather than answering the API behind a blank
+page. Nothing under `/api` is ever the fallback: an unrouted address there
+answers JSON, whatever the client directory happens to contain.
+
+**Set the four bootstrap keys in the environment when there is no config file
+to set them in.** `SE_DATA_DIR`, `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT` are
+the keys needed before `config.json` can be read — it lives inside the data
+directory — and they are the only ones that take a variable
+([13 §4](docs/design/13-internal-contracts.md)). The file wins over the
+environment, because the file is what the settings page writes.
 
 ### Starting from a known install, and keeping the log
 
@@ -114,7 +180,15 @@ covers each package's *own* sources — editing `shared` or `sdk` needs a
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
 ([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Change it in
-**Settings → Install**, which is the surface every config key has.
+**Settings → Install**, which is the surface every config key has, or with
+`SE_HOST` before there is a file to change. **Bound beyond loopback with no
+admin yet, the server asks for a setup token** and prints it to its own console
+on the boot that mints it — `docker logs`, for a container. Only somebody who
+can read the console can claim the install, which is exactly who should be able
+to; once an admin exists the field is gone. And if there is TLS in front of it,
+`server.trustProxy` and `server.cookieSecure` are the two keys that say so —
+neither is derived from the bind, because a `Secure` cookie is not sent back
+over the plain HTTP a trusted LAN is allowed to use.
 
 [`config.example.json`](config.example.json) documents every key and is the other
 way in — but **it is not loadable as it stands.** It carries `//` comments, JSON
@@ -187,16 +261,19 @@ defaults.
   re-checks a binary pnpm has already linked, so `pnpm install` still runs no
   third-party code.
 
-### Why two commands and not one process
+### Why two commands in development, when the product is one process
 
-The split is temporary rather than principled, and it exists because the server
-does not serve the client's files yet ([`docs/api.md`](docs/api.md), *Not here
-yet*). The shipped product is meant to be one container, one volume and one
-port ([04 §5.3](docs/design/04-server-multiuser-deployment.md)) — so the server
-will eventually serve the built client, and the two ports become one.
+The split used to exist because the server could not serve the client's files.
+It can now, and the shipped product is one container, one volume and one port
+([04 §5.3](docs/design/04-server-multiuser-deployment.md)) — so the split is a
+development convenience rather than a gap: Vite's dev server is what gives hot
+module replacement, and `pnpm dev` not changing was one of
+[P6A](docs/design/workplan/23-p6a-alpha-1.md)'s exit-gate steps rather than an
+assumption.
 
-Keeping them apart until then keeps the API honest: nothing in the server knows
-the client exists, which is the same boundary the lint graph enforces in code.
+Keeping them apart in development also keeps the API honest: nothing in the
+server knows the client exists beyond a directory to serve, which is the same
+boundary the lint graph enforces in code.
 
 ## Scripts
 
@@ -205,7 +282,11 @@ the client exists, which is the same boundary the lint graph enforces in code.
 | `pnpm typecheck` | `tsc -b` across the project references, then the tooling |
 | `pnpm lint` | ESLint (including the boundary graph) and Stylelint |
 | `pnpm build` | Typecheck, emit the JSON Schemas, then the client bundle |
-| `pnpm test` | Vitest |
+| `pnpm build:identify` | Write `packages/server/build-info.json` — the version and commit a release build reports. `pnpm build` does not run it, on purpose: a build nobody released has no identity. Delete the file after a local experiment |
+| `pnpm test` | Vitest, every project |
+| `pnpm test:gate` | The P1 gate alone — rebuild-from-disk equals incremental — as the named CI step |
+| `pnpm test:fixture-pair` | The import fixture-pair project alone (`import/fixture-pair.test.ts`) |
+| `pnpm test:live` | The live provider tests, against the endpoint `.env` names; skipped without one |
 | `pnpm dev` | Both of the below, in parallel |
 | `pnpm dev:server` | The API on 8080, restarting on a change (`tsx watch`) |
 | `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
@@ -213,6 +294,7 @@ the client exists, which is the same boundary the lint graph enforces in code.
 | `pnpm seed` | A known library and a playable session, over HTTP. Idempotent |
 | `pnpm reset-data` | Removes the data directory, or removes nothing. Stop the server first |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
+| `pnpm format:check` | The same, checking rather than writing — what CI runs |
 
 Run `typecheck` before `lint` on a clean clone. The boundary rules classify an
 import by its *resolved* path, which runs through each package's built entry
@@ -226,9 +308,18 @@ packages/sdk/        the published extension and mode contract
 packages/server/
   src/storage/       the only place that touches the filesystem
   src/index-db/      the derived index and its watcher — delete it, lose nothing
-  src/auth/          accounts, scrypt, sessions
-  src/routes/        the HTTP surface
-packages/client/     React + Vite. Play, the library, settings, and the actor editor.
+  src/auth/          accounts, scrypt, sessions, the setup token
+  src/routes/        the HTTP surface, and the client when clientRoot is set
+  src/turns/         the turn as a job: assembly, the provider call, the record
+  src/sessions/      the tree — reconstruction, snapshots, undo
+  src/retrieval/     lore activation, budgets, and the report that says why
+  src/import/        the three sources, and the sweep over a directory
+  src/rng/           the RNG service, and the tape a rewrite replays
+packages/client/     React + Vite. Play, the library, the workbench, settings,
+                     and the actor and lorebook editors.
+deploy/unraid/       the unraid template — committed, submitted to nobody
+Dockerfile           Alpha 1's image; with compose.yaml beside it, Tier 1
+tools/               dev scripts, the build-identity writer, and release.test.ts
 tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
                      tested rather than trusted
 ```
@@ -246,10 +337,11 @@ fixture test asserting the enforcement actually fires:
   `sdk → shared`; `server → shared, sdk`. Never the other way.
 - **No direct `fs`** outside `packages/server/src/storage`, which keeps one
   audited path resolver the only door ([07 §9](docs/design/07-tech-stack.md)).
-- **No randomness** outside the RNG service — and since the service does not
-  exist until P2, nowhere at all bar two one-file exemptions, id generation and
-  cryptographic secrets, each argued where it is granted in `eslint.config.js`
-  ([07 §14.4](docs/design/07-tech-stack.md)).
+- **No randomness** outside the RNG service (`packages/server/src/rng/`, two
+  files wide, since P2.2) — every draw goes through it and lands on the turn's
+  tape, which is what makes a rewrite replay the same dice. Two one-file
+  exemptions, id generation and cryptographic secrets, each argued where it is
+  granted in `eslint.config.js` ([07 §14.4](docs/design/07-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
   classes ([07 §12.6](docs/design/07-tech-stack.md)).
 - **An SPDX header** on every source file.

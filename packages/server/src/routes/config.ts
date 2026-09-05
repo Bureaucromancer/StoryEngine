@@ -259,6 +259,21 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
        * *"so how do I restart it?"* is a worse answer than one that says.
        */
       canRestart: false,
+      /**
+       * **What build this is** — [P6A §1.5], and here rather than on a route of
+       * its own because this is already the *state of this install* answer the
+       * shell asks for on every navigation.
+       *
+       * `null` for a build nobody identified, which is every development run.
+       * Reported as an absence rather than as `0.0.0` or `unknown`, because a
+       * version string that is not a version is the thing a bug report then
+       * quotes back at you.
+       *
+       * The surface that renders it is [P11.6]'s About panel, which no document
+       * specifies yet ([05 §15.3] enumerates the admin panels and About is not
+       * among them). This is the value it will find waiting.
+       */
+      build: services.build,
     });
   });
 

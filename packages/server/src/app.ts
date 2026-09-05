@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { join, resolve } from 'node:path';
+
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
@@ -14,6 +17,7 @@ import { createValidator } from '@storyengine/shared';
 
 import { Accounts, type PublicAccount } from './auth/accounts.js';
 import { PrefsStore } from './auth/prefs.js';
+import { loadOrCreateSetupToken } from './auth/setup-token.js';
 import {
   CSRF_COOKIE,
   CSRF_HEADER_NAME,
@@ -23,7 +27,8 @@ import {
   readSession,
   SESSION_COOKIE,
 } from './auth/session.js';
-import { type Config, pendingRestart } from './config.js';
+import { readBuildInfo, type BuildInfo } from './build-info.js';
+import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
 import { rebuild } from './index-db/rebuild.js';
@@ -50,7 +55,8 @@ import type { JobContext } from './state/jobs.js';
 import { TurnStream } from './stream/bus.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { listDirectoryNames } from './storage/files.js';
+import { listDirectoryNames, readFileBytes } from './storage/files.js';
+import { stampDataDirectory } from './storage/stamp.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
@@ -138,6 +144,26 @@ export interface AppServices {
   maturation: Maturation;
   sessionKey: string;
   /**
+   * The first-run setup token, or null when nothing needs one — F10,
+   * [04 §5.1](../../../docs/design/04-server-multiuser-deployment.md),
+   * [P6A §1.4](../../../docs/design/workplan/23-p6a-alpha-1.md).
+   *
+   * **Null carries the decision**, which is why it is a nullable value rather
+   * than a token plus a boolean somewhere else: a token exists exactly when this
+   * process booted bound beyond loopback with no admin account, and the two
+   * places that read it — the check on setup and the advertisement on
+   * `auth/state` — ask the same question by asking whether it is here.
+   */
+  setupToken: string | null;
+  /**
+   * What build this is, or null for one nobody identified — [P6A §1.5].
+   *
+   * Null is every development run, and it is a state rather than a missing
+   * value: it is what the `notices` route reports, and it is what makes the
+   * data-directory stamp neither write nor refuse.
+   */
+  build: BuildInfo | null;
+  /**
    * Where `config.json` actually is.
    *
    * **Not derivable from the layout.** `main.ts` resolves it from `--config`,
@@ -195,6 +221,18 @@ export interface BuildAppOptions {
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
   /**
+   * Say what build this is, instead of reading the identity file — [P6A §1.5].
+   *
+   * A seam of the same kind as `providers` and `fetch` above, and it exists for
+   * a reason the others do not have: the identity is a property of *the
+   * artifact*, so no test can arrange one without writing into the package it is
+   * testing. Without this the data-directory stamp's wiring — refusing before
+   * anything opens — would be provable only by running a built server, and a
+   * guard that runs one line too late is exactly the sort of thing that then
+   * regresses in silence.
+   */
+  build?: BuildInfo | null;
+  /**
    * Where a connection becomes a provider.
    *
    * The one seam an end-to-end turn test needs, and it belongs here rather than
@@ -221,6 +259,17 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   assertModesRunnable();
 
   const layout = new Layout(options.config.dataDir);
+
+  /**
+   * **Before the index opens, which is the first thing that writes** — [P6A §1.7].
+   *
+   * The refusal has to happen before this process has touched anything, or it
+   * is not a refusal: `openIndex` creates and migrates, and a guard that ran
+   * afterwards would be reporting a directory it had already changed.
+   */
+  const build = options.build === undefined ? await readBuildInfo() : options.build;
+  await stampDataDirectory(layout, build);
+
   const index = await openIndex({ path: layout.indexFile });
 
   /**
@@ -235,7 +284,7 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
    * and none of it was guarded, so one failed build buried its own cause.
    */
   try {
-    return await assembleServices(options, layout, index);
+    return await assembleServices(options, layout, index, build);
   } catch (error) {
     index.close();
     throw error;
@@ -246,10 +295,14 @@ async function assembleServices(
   options: BuildAppOptions,
   layout: Layout,
   index: OpenedIndex,
+  // Threaded rather than read again here. It is one file and it cannot change
+  // under a running process, so a second read would be a second chance to
+  // disagree with the stamp that was already written from the first.
+  build: BuildInfo | null,
 ): Promise<AppServices> {
   const state = await openState({ path: layout.stateFile });
   try {
-    return await assembleWithState(options, layout, index, state);
+    return await assembleWithState(options, layout, index, state, build);
   } catch (error) {
     state.close();
     throw error;
@@ -261,6 +314,7 @@ async function assembleWithState(
   layout: Layout,
   index: OpenedIndex,
   state: OpenedState,
+  build: BuildInfo | null,
 ): Promise<AppServices> {
   const library: LibraryContext = {
     db: index.db,
@@ -391,7 +445,23 @@ async function assembleWithState(
     watcher,
     maturation,
     prefs: new PrefsStore(layout),
+    build,
     sessionKey: await loadOrCreateSessionKey(layout),
+    /**
+     * **Minted only in the window it is for.** A loopback install never gets
+     * one — [04 §5.1]'s claim window is closed by the bind itself — and an
+     * install that already has an admin never gets one either, because the
+     * thing a token protects has already happened.
+     *
+     * Read once at boot rather than per request. `server.host` is a `restart`
+     * key, so it cannot change under a running process; and an admin appearing
+     * mid-life does not need to un-mint anything, because both readers
+     * re-check `needsSetup()` themselves.
+     */
+    setupToken:
+      isLoopbackHost(config.server.host) || !(await accounts.needsSetup())
+        ? null
+        : await loadOrCreateSetupToken(layout),
     // Defaulted rather than required: every test builds services without a real
     // command line, and the layout's answer is right whenever nobody overrode it.
     fetch: options.fetch ?? globalThis.fetch,
@@ -690,6 +760,89 @@ export async function buildApp(
     },
     { prefix: '/api' },
   );
+
+  /**
+   * The client, from this process, on this port — [P6A §1.3].
+   *
+   * **Registered after the API and nothing about the API moved**, which is the
+   * whole reason this is a small change: every route in the server lives inside
+   * the one encapsulated plugin above at `{ prefix: '/api' }`, so the root
+   * namespace was empty and a static handler shadows nothing. The client needed
+   * no change either — `vite.config.ts` sets no `base`, so `index.html` names
+   * `/assets/…` absolutely, and every call in `api.ts` is already a relative
+   * `/api/…`. It was written for one origin from the start; only the server was
+   * not.
+   *
+   * **Unset means serve nothing**, and development stays two processes. The
+   * exit gate checks that rather than assuming it ([P6A §3] step 13).
+   *
+   * **The check before the register is not defensive tidiness.** Measured:
+   * `@fastify/static` with a root that is not there does not throw. It finds
+   * nothing and serves nothing, so a typo'd `clientRoot` would start a server
+   * that answers the API, serves no asset, and hands every page request to the
+   * fallback below, which then fails per-request on a file that was never
+   * there. That is a packaged build coming up and showing a blank page, which
+   * is the class of failure this stage exists to remove.
+   *
+   * `index.html` rather than the directory, because a directory that exists and
+   * holds no build is the same failure wearing a better disguise — an image
+   * whose build step silently produced nothing would pass a directory check.
+   */
+  const clientRoot = services.config.server.clientRoot;
+  if (clientRoot !== '') {
+    const root = resolve(clientRoot);
+    if ((await readFileBytes(join(root, 'index.html'))) === null) {
+      throw new Error(`server.clientRoot has no index.html in it: ${root}`);
+    }
+    await app.register(fastifyStatic, {
+      root,
+      /**
+       * **The `/api` namespace is the router's, never the filesystem's.**
+       *
+       * [P6A §0.3] names the SPA fallback as the place `isApi` has to be used,
+       * and that is necessary and not sufficient: a fallback only sees requests
+       * that matched no route, and a file at `<clientRoot>/api/nonsense` *is* a
+       * route. Measured before this line existed — `GET /api/nonsense` answered
+       * `200` with the file's bytes, past every guard below.
+       *
+       * Not a hypothetical about the client we ship, whose build is
+       * `index.html` and `assets/`: `clientRoot` is a path an operator sets, so
+       * what it happens to contain must not be able to decide what `/api`
+       * means. One predicate used twice — this refuses, the handler below
+       * answers.
+       */
+      allowedPath: (pathName) => !isApi(pathName),
+    });
+  }
+
+  /**
+   * Everything unrouted, and the one branch that matters.
+   *
+   * **`/api` is never the app shell.** An address under the prefix that matches
+   * no route answers JSON, because [the API doc](../../../docs/api.md) is a
+   * contract with clients that parse it — and HTML arriving where JSON is
+   * expected is a worse failure than the 404 that passage already argues for:
+   * the parse error names a syntax position in a document nobody wrote, and
+   * says nothing about the address being wrong.
+   *
+   * The body is this server's documented error shape rather than Fastify's
+   * default `{statusCode, error, message}`. The default was never the contract
+   * — it was what the framework happened to send while nothing had set a
+   * not-found handler — and a *packaged* build answering differently from a
+   * development one would be the worst of the three options.
+   *
+   * **Anything else is `index.html`**, which is what makes a bookmarked
+   * `/library/actors/…/edit` load. The accepted cost is that a request for an
+   * asset that is not there also answers the shell: a built client names its
+   * assets by content hash, so a miss means the browser is holding a stale
+   * `index.html`, and the shell it gets back is the newer one.
+   */
+  app.setNotFoundHandler((request, reply) => {
+    if (clientRoot === '' || isApi(request.url)) {
+      return reply.code(404).send({ error: 'not-found', message: 'No such route.' });
+    }
+    return reply.sendFile('index.html');
+  });
 
   return app;
 }

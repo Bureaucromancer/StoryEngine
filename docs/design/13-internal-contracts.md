@@ -490,7 +490,11 @@ behaviour.
 ```ts
 interface Config {
   dataDir: string
-  server: { host: string; port: number; trustProxy: boolean }
+  server: {
+    host: string; port: number; trustProxy: boolean
+    cookieSecure: boolean                    // [P6A §1.4]
+    clientRoot: string                       // [P6A §1.3]
+  }
   auth: { minPasswordLength: number }        // [04 §4.1]
   log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
@@ -519,6 +523,8 @@ interface Config {
 | `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([04 §5.1](04-server-multiuser-deployment.md)) |
 | `server.port` | `restart` | `8080` | |
 | `server.trustProxy` | `restart` | `false` | |
+| `server.cookieSecure` | `restart` | `false` | `Secure` on the session and CSRF cookies. Deliberately **not** derived from the bind: [04 §5.1](04-server-multiuser-deployment.md) supports plain HTTP on a trusted LAN, and a `Secure` cookie is not sent back over HTTP — so deriving it would lock that install out silently (F10, [P6A §1.4](workplan/23-p6a-alpha-1.md)) |
+| `server.clientRoot` | `restart` | `""` | Where the built client is, so one process serves the API and the UI on one port ([P6A §1.3](workplan/23-p6a-alpha-1.md)). Empty means serve nothing, which is what development wants — two processes, Vite proxying `/api`. `/api` is never the fallback: an unrouted address there answers JSON |
 | `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([04 §5.1](04-server-multiuser-deployment.md)). `0` means the empty string is a password |
 | `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/04-p2-implementation.md)) |
 | `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
@@ -547,6 +553,44 @@ restart" is wrong within two releases.
 ([04 §4.5](04-server-multiuser-deployment.md)), and config has nowhere to put a
 key — the same structural enforcement as the portable types
 ([00 §3.2](00-stance.md)).
+
+**Three keys also take an environment variable**
+([P6A §1.2](workplan/23-p6a-alpha-1.md)):
+
+| Variable | Key |
+|---|---|
+| `SE_DATA_DIR` | `dataDir` |
+| `SE_HOST` | `server.host` |
+| `SE_PORT` | `server.port` |
+| `SE_CLIENT_ROOT` | `server.clientRoot` |
+
+These and no others, because these are the keys that decide where the config
+file is, whether the process is reachable at all, and whether it serves
+anything — everything else can wait for the file it finds. The last of them was
+added at [P6A.4](workplan/23-p6a-alpha-1.md) for the reason the list exists: the
+config file lives *inside* the data directory, so a container starting on an
+empty volume has no file to be configured by. The list is
+[P10 §1.2](workplan/21-p10-implementation.md)'s rule made concrete: the
+container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
+that decided differently, because *a hidden difference between artifacts is a
+support burden shaped like a security feature*. The same variable tightens the
+bind from a container and loosens it on bare metal.
+
+**Precedence is defaults, then the environment, then the file** — and `--data`
+above all three. The file outranking a variable is the part worth stating: the
+file is what the settings page writes, so an operator who changed a value in the
+UI, restarted, and found a variable had quietly outranked it would be right to
+call that a bug. A variable set where the file speaks for the same key is
+reported as a warning at startup rather than ignored in silence.
+
+Two smaller rules, both of them about a container. **An empty value is an unset
+variable**, because `docker compose` forwards a host variable that does not
+exist as an empty string, and treating that as a value would turn *the operator
+did nothing* into a refusal to start. **And a bad value is refused by name**:
+validation is the same `validateConfigDocument` a file goes through — one answer
+to *would this start?* — but its issues are translated from JSON pointers back
+to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
+`/server/port`, which is in a file the operator never edited.
 
 ### 4.1 The log record
 

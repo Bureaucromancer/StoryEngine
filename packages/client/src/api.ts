@@ -51,6 +51,18 @@ export interface Account {
 
 export interface AuthState {
   setupRequired: boolean;
+  /**
+   * Whether creating the first admin needs the token from the server console
+   * (F10, [04 §5.1]).
+   *
+   * The client cannot work this out: it may be reaching a loopback server
+   * directly or an exposed one through a proxy, and those look identical from
+   * here. Required rather than optional for the same reason
+   * `minPasswordLength` is — client and server ship together, and a `?? false`
+   * at the use site would be a guess in the direction of *no token needed*,
+   * which is the one that makes an exposed install look broken.
+   */
+  setupTokenRequired: boolean;
   account: Account | null;
   /**
    * The shortest password this install accepts where one is *set*.
@@ -287,6 +299,8 @@ export interface Credentials {
 
 export interface SetupInput extends Credentials {
   displayName?: string;
+  /** The console token, when `AuthState.setupTokenRequired` says one is needed. */
+  setupToken?: string;
 }
 
 /** One entry of an object's version history (docs/api.md). */
@@ -968,6 +982,10 @@ export const adminApi = {
       ...(contentHash === undefined ? {} : { contentHash }),
     }),
 
-  notices: (): Promise<{ pendingRestart: string[]; canRestart: boolean }> =>
-    request('GET', '/api/admin/notices'),
+  notices: (): Promise<{
+    pendingRestart: string[];
+    canRestart: boolean;
+    /** What build the server is, or null for one nobody identified ([P6A §1.5]). */
+    build: { version: string; commit: string } | null;
+  }> => request('GET', '/api/admin/notices'),
 };

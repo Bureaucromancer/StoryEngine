@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, buildApp, buildServices, disposeServices } from './app.js';
+import type { BuildInfo } from './build-info.js';
 import { type Config, DEFAULT_CONFIG, loadConfig } from './config.js';
 import type { ProviderFactory } from './providers/factory.js';
 import { Layout } from './storage/layout.js';
@@ -98,6 +99,8 @@ export interface TestServerOptions {
   watch?: boolean;
   /** Anything else about the config — a level to hear, a retention to test. */
   config?: Partial<Config>;
+  /** Pretend to be a released build, for the data-directory stamp ([P6A §1.7]). */
+  build?: BuildInfo | null;
   /** Substitute the provider factory — how `FakeProvider` becomes the E2E backend. */
   providers?: ProviderFactory;
   /** Capture the log, so a test can assert on what a turn actually narrated about itself. */
@@ -159,6 +162,16 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     watch: options.watch ?? false,
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.providers === undefined ? {} : { providers: options.providers }),
+    /**
+     * **Defaulted to *no identity*, not to whatever is on disk** — [P6A §1.5].
+     *
+     * A developer who has run `pnpm build:identify` has an identity file in
+     * their working copy, and without this line the suite would behave one way
+     * on their machine and another in CI — stamping every temporary data
+     * directory in one and not the other. The tests that care pass one
+     * explicitly.
+     */
+    build: options.build ?? null,
   });
   const app = await buildApp(
     services,

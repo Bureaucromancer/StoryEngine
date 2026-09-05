@@ -31,9 +31,21 @@
     // machine. Set "0.0.0.0" when you want the rest of the house to reach it —
     // and know that you are doing it (docs/design/04 §5.1).
     //
-    // The container image binds 0.0.0.0 instead, because a container's
-    // 127.0.0.1 is its own loopback and would be unreachable no matter how you
-    // mapped the port. There, the `-p` flag is your explicit act instead.
+    // You can set it without this file at all: SE_HOST=0.0.0.0. Four keys take
+    // an environment variable — SE_DATA_DIR, SE_HOST, SE_PORT and
+    // SE_CLIENT_ROOT — and they are the ones needed before this file can be
+    // read at all, which is why they and not the rest. The order is defaults, then the environment, then this file, so
+    // a value written here wins over the variable: this file is what the
+    // settings page writes, and a setting you changed in the UI must not be
+    // silently outranked by something in your shell. The server logs a warning
+    // when a variable is set and this file speaks for the same key.
+    //
+    // That variable is how the container image binds 0.0.0.0, because a
+    // container's 127.0.0.1 is its own loopback and would be unreachable no
+    // matter how you mapped the port. There, the `-p` flag is your explicit act
+    // instead — and it is the same variable you would use here, not a different
+    // build, which is deliberate: a hidden difference between artifacts is a
+    // support burden shaped like a security feature.
     //
     // There is no HTTPS. On a LAN it cannot be done well without a real domain
     // or a private CA, and self-signed certificates teach people to click
@@ -45,7 +57,31 @@
 
     // restart — trust X-Forwarded-* headers. Only turn this on when something
     // you control is actually in front, or client addresses become spoofable.
-    "trustProxy": false
+    "trustProxy": false,
+
+    // restart — put Secure on the session and CSRF cookies. Turn this on when
+    // there is TLS in front of this server, and only then: a Secure cookie is
+    // not sent back over plain HTTP, so switching it on without HTTPS makes
+    // signing in fail with no error anywhere — the browser just declines.
+    //
+    // It is not derived from the bind address on purpose. Plain HTTP on a LAN
+    // you trust is a supported way to run this (docs/design/04 §5.1), and a
+    // rule that hardened the cookie whenever you bound 0.0.0.0 would lock out
+    // exactly that install.
+    "cookieSecure": false,
+
+    // restart — where the built web client is, so this one process serves both
+    // the API and the UI on one port. Empty means serve nothing, which is the
+    // default and what development wants: `pnpm dev` runs two processes, with
+    // Vite on its own port proxying /api back here.
+    //
+    // Set it to a directory holding index.html and its assets — the container
+    // image does, which is what makes the mapped port serve a UI rather than a
+    // 404. A relative path is resolved against the working directory. Anything
+    // under /api is still the API: an address there that matches no route
+    // answers JSON, never the app shell, because a client parsing JSON is
+    // better served by a 404 than by a page.
+    "clientRoot": ""
   },
 
   "auth": {

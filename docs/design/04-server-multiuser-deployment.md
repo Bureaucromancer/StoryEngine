@@ -756,6 +756,16 @@ Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §5.3's container default safe rather than merely
 unavoidable.
 
+**Built at [P6A.2](workplan/23-p6a-alpha-1.md), 2026-09-04.** A token generated
+once and stored beside the session key, minted only when this process booted
+bound beyond loopback with no admin; required by `POST /api/auth/setup` in that
+condition and compared in constant time; advertised as `setupTokenRequired` on
+`GET /api/auth/state` so the form can render a field rather than guess; printed
+to the console on the boot that mints it. Stored rather than per-boot, so a
+restart does not invalidate a token somebody has already copied out of
+`docker logs` — which is the window it is used in. The paragraph below is kept
+because it is the argument, and because *not half-built* is what it was for.
+
 *Not built, and deliberately not half-built.* P1 printed a freshly generated
 token on every non-loopback boot and stored it nowhere, so it was never checked
 — security theatre in the one place theatre is worst, since an operator who sees
@@ -780,6 +790,16 @@ premise, in the same words — the loopback default is what makes deferring it s
 user already runs, voids both justifications at one stroke. They ship together or
 not at all; splitting them leaves the survivor resting on a premise that no
 longer holds, which is worse than either alternative because it looks decided.
+
+**They did ship together, at [P6A.2](workplan/23-p6a-alpha-1.md).** `trustProxy`
+turned out to have become a config key already, at P2A, and to be wired into
+Fastify — so what that stage owed was `server.cookieSecure`, which is now the
+key that decides `Secure` on both cookies. **Deliberately not derived from the
+bind**, which is the rule this section's own no-HTTPS paragraph forces: a
+`Secure` cookie is not sent back over plain HTTP, so hardening it automatically
+on a non-loopback bind would lock out the trusted-LAN install described three
+bullets up, and lock it out silently, because the browser declines without
+telling anyone.
 
 **And the same console is the break-glass for a lost password.** `--reset-password
 <handle>` replaces an account's password and re-enables it if it was disabled,

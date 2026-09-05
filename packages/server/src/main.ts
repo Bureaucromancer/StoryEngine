@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
-import { loadConfig, type Config } from './config.js';
+import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -27,16 +27,34 @@ import { Layout } from './storage/layout.js';
  */
 
 async function main(): Promise<void> {
-  // The config path is derived from the data directory, and the data directory
-  // can only come from the config — so the bootstrap reads from the default
-  // location unless told otherwise. `--data` covers the container case without
-  // needing a config file at all.
+  /**
+   * The config path is derived from the data directory, and the data directory
+   * can only come from the config — so the bootstrap reads from the default
+   * location unless told otherwise. `--data` and `SE_DATA_DIR` are the two ways
+   * to tell it, and either covers the container case with no config file at all.
+   *
+   * **The environment is read before the config, because one of its keys says
+   * which config there is.** Everywhere downstream the environment is a layer
+   * *under* the file ([P6A §1.2]) — but the key naming the file's own directory
+   * cannot wait for the file to be found. That is not a special case so much as
+   * the shape `./data` always had: the location is settled first, and a
+   * `dataDir` inside whatever file that finds still wins for everything after.
+   *
+   * It also means a variable this process cannot parse stops it here, before
+   * the logger exists — the same place and the same way a malformed
+   * `config.json` does, and for the same reason.
+   */
+  const fromEnvironment = environmentDocument(process.env);
   const dataDirArgument = argumentValue('--data');
   const configPath = resolve(
-    argumentValue('--config') ?? new Layout(dataDirArgument ?? './data').configFile,
+    argumentValue('--config') ??
+      new Layout(dataDirArgument ?? environmentDataDir(fromEnvironment) ?? './data').configFile,
   );
 
-  const { config, fileFound, unknownKeys, document } = await loadConfig(configPath);
+  const { config, fileFound, unknownKeys, document, environment } = await loadConfig(
+    configPath,
+    fromEnvironment,
+  );
   if (dataDirArgument) config.dataDir = dataDirArgument;
 
   /**
@@ -90,6 +108,22 @@ async function main(): Promise<void> {
     // doing nothing and that is worth one line.
     app.log.warn({ unknownKeys }, 'Config: ignoring unrecognised keys');
   }
+  if (environment.applied.length > 0) {
+    // Said out loud because the bind address is the first thing anybody
+    // debugging reachability looks at, and a value with no file behind it is
+    // otherwise unattributable — this is the container's normal case.
+    app.log.info({ variables: environment.applied }, 'Config: taken from the environment');
+  }
+  if (environment.shadowed.length > 0) {
+    // **The confusing case, and the only one that earns a warning.** The
+    // variable is set, the file sets the same key, and the file wins ([P6A
+    // §1.2]). Silence here is an afternoon lost to a bind address that is doing
+    // exactly what it was told.
+    app.log.warn(
+      { variables: environment.shadowed, configPath },
+      'Config: the file sets these keys too, so the environment did not apply',
+    );
+  }
   if (captureDir !== undefined) {
     // `warn`, because it is a privacy-relevant mode: a cassette carries the
     // whole rendered prompt, which is the user's prose. The brief's advice is
@@ -103,7 +137,9 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.server.host, port: config.server.port });
 
-  const loopback = config.server.host === '127.0.0.1' || config.server.host === 'localhost';
+  // One definition of *is this exposed*, shared with the setup token's — two
+  // spellings of that question is a security bug rather than an inconsistency.
+  const loopback = isLoopbackHost(config.server.host);
   /**
    * **The API's address, said as the API's address.**
    *
@@ -119,6 +155,17 @@ async function main(): Promise<void> {
     {
       api: `http://${config.server.host}:${String(config.server.port)}`,
       dataRoot: services.layout.dataRoot,
+      /**
+       * **What build this is** — [P6A §1.5]. On the listening line because that
+       * is the line a person reads first and the one `docker logs` shows
+       * without scrolling, and because the question it answers — *which commit
+       * is this?* — is asked about a running server rather than about a file.
+       *
+       * `null` for a build nobody identified. Reported rather than omitted, so
+       * the absence is a fact in the log rather than a field somebody assumes
+       * their log shipper dropped.
+       */
+      build: services.build,
     },
     'StoryEngine listening',
   );
@@ -147,19 +194,23 @@ async function main(): Promise<void> {
         'No accounts yet. Open this address to create the first admin.',
       );
     } else {
-      // **The claim window.** Bound beyond loopback with no admin, anyone who
-      // can reach the port can claim the install
+      // **The claim window, and what now closes it.** Bound beyond loopback
+      // with no admin, anyone who can reach the port could claim the install
       // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)).
       //
-      // The token that is supposed to close it is **not printed here** (F10).
-      // It used to be — freshly generated on every boot, stored nowhere, and
-      // checked by nothing, which is the worst version: an operator who reads
-      // "setup token" in a console reasonably concludes something is enforcing
-      // it. The warning is true; the token was not. It lands with the container
-      // image that needs it, at P10.
+      // The token is printed here again, and this time something checks it
+      // (F10, [P6A.2]). It used to be printed and stored nowhere, which is the
+      // worst version — an operator who reads "setup token" in a console
+      // reasonably concludes something is enforcing it — so P2.0 removed the
+      // print rather than half-building the check. The print comes back with
+      // the check, not before it.
+      //
+      // **The console is the channel, deliberately**: only somebody with host
+      // access reads it, which is exactly the audience allowed to claim an
+      // install. In a container that is `docker logs`.
       app.log.warn(
-        { host: config.server.host },
-        'Bound beyond loopback with no admin account yet — anyone who can reach this port can claim this install',
+        { host: config.server.host, setupToken: services.setupToken },
+        'Bound beyond loopback with no admin account yet — creating the first account needs this setup token',
       );
     }
   }
@@ -253,6 +304,18 @@ try {
   // Before the logger exists, and addressed to whoever typed the command.
   console.error(error.message);
   process.exit(1);
+}
+
+/**
+ * `SE_DATA_DIR`, narrowed out of the environment document.
+ *
+ * The document is validated before it is returned, so this value is a string
+ * whenever it is present — but it arrives typed `unknown`, and asserting that
+ * here would be the one place in this file that trusted a cast over a check.
+ */
+function environmentDataDir(document: Record<string, unknown>): string | undefined {
+  const value = document['dataDir'];
+  return typeof value === 'string' ? value : undefined;
 }
 
 /**

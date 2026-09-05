@@ -12,8 +12,8 @@
 # interesting case is "green on one, red on the other", and cancelling the green
 # leg hides which half is which.
 #
-# Still absent, still deliberately: the nightly and on-tag tiers, the
-# dependency-licence scan and the forward-port check. There are no release
+# Still absent, still deliberately: the nightly tier, the dependency-licence scan
+# and the forward-port check. The on-tag tier is `release.yml` since P6A.4. There are no release
 # branches to forward-port between yet, and no provider adapters to conform-test.
 # The rebuild-equals-incremental property test joins this file as a *named* step
 # when P2.0 writes it (F11) — named, because a gate a `test.skip` can retire is

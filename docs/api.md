@@ -1,13 +1,25 @@
 # The HTTP API
 
-**Status: as built at P2.5.** This describes what exists, not what is
-planned — where the two differ, this file is right and the design notes record
-intent ([docs/README.md](README.md)).
+**Status: as built, and kept so.** Written at P2.5 and revised with every phase
+since — last at [P6A](design/workplan/23-p6a-alpha-1.md), for the setup token,
+the build identity and the `/api` boundary. This describes what exists, not what
+is planned — where the two differ, this file is right and the design notes
+record intent ([docs/README.md](README.md)).
 
 Everything is under `/api`. Responses are JSON. The client is the only consumer
 today, but nothing here is client-specific: `curl` is a first-class way to drive
 it, and the P1 exit gate ([P1 §3](design/workplan/03-p1-implementation.md)) is written in
 terms of it.
+
+**The prefix is a boundary, not a convention.** Since
+[P6A.1](design/workplan/23-p6a-alpha-1.md) the same process can also serve the
+web client, so an address outside `/api` may answer HTML — but an address
+*under* it never does. One that matches no route is
+`404 {"error":"not-found"}` like any other JSON error, because a client that
+parses this API is worse served by a page than by a 404. Whether the UI is
+served at all is one config key, `server.clientRoot`
+([13 §4](design/13-internal-contracts.md)); in development it is unset and the
+client is a second process.
 
 ---
 
@@ -72,7 +84,12 @@ where they are doing it.
 ### `GET /api/auth/state`
 
 ```json
-{ "setupRequired": true, "account": null, "minPasswordLength": 8 }
+{
+  "setupRequired": true,
+  "setupTokenRequired": true,
+  "account": null,
+  "minPasswordLength": 8
+}
 ```
 
 `account` is the public account shape once signed in — never `passwordHash` or
@@ -82,6 +99,7 @@ added later cannot leak by default.
 ```json
 {
   "setupRequired": false,
+  "setupTokenRequired": false,
   "minPasswordLength": 8,
   "account": {
     "handle": "ned",
@@ -111,6 +129,15 @@ the settings surface groups them apart and says the setting will apply when the
 feature does, rather than presenting three switches as though they were equally
 live.
 
+**`setupTokenRequired` says whether creating the first admin needs the token
+from the server's console** (F10, [04 §5.1](design/04-server-multiuser-deployment.md)).
+It is true exactly when setup is still needed *and* this process is bound beyond
+loopback. A client cannot work that out for itself — it may be reaching a
+loopback server directly or an exposed one through a proxy — and both guesses
+fail visibly: a token box on a laptop is baffling, and no box on an exposed
+install makes it look broken. It narrows nothing that this same response does not
+already say, and the token itself never leaves the console.
+
 **`minPasswordLength` is `auth.minPasswordLength`**, the shortest password this
 install accepts where one is *set*. It is here rather than on the admin config
 route because the setup form needs it before any account exists, and that route
@@ -121,9 +148,21 @@ string is a valid password.
 
 ### `POST /api/auth/setup`
 
-First run only. `{ handle, password, displayName? }` → `201 { account }`, and
-signs you in. `409` once an admin exists. A password shorter than
-`minPasswordLength` is `400 invalid`, naming `/password` in `issues`.
+First run only. `{ handle, password, displayName?, setupToken? }` →
+`201 { account }`, and signs you in. `409` once an admin exists. A password
+shorter than `minPasswordLength` is `400 invalid`, naming `/password` in
+`issues`.
+
+**`setupToken` is required when `setupTokenRequired` is true** and ignored
+otherwise — a wrong one, or none, is
+`403 {"error":"invalid-setup-token"}`. Absent and wrong are the same answer for
+the reason login gives one answer for three failures. The token is written to
+the server's console on the boot that mints it and to nowhere else, which is the
+point: only somebody with host access can read it, and that is exactly the
+audience entitled to claim an unclaimed install. It is checked before the
+password rule and after nothing, except that an install which already has an
+admin answers `409 already-setup` instead — the honest reason, rather than a
+token refusal about a route that no longer applies.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
 digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
@@ -1528,7 +1567,13 @@ and waits with the rest of that half.
 
 ### `GET /api/admin/notices`
 
-`{ "pendingRestart": ["server.port"], "canRestart": false }`.
+```json
+{
+  "pendingRestart": ["server.port"],
+  "canRestart": false,
+  "build": { "version": "0.1.0-alpha.1", "commit": "a54afcc…" }
+}
+```
 
 Its own route because the restart banner is on **every** page rather than on the
 settings page ([04 §6.3](design/04-server-multiuser-deployment.md)) — the person
@@ -1538,6 +1583,17 @@ Computed per request and stored nowhere, which is what makes it self-healing:
 change a value, change it back, and the list empties. It is also why every
 administrator sees the same list — one process, one answer, not a per-session
 note.
+
+**`build` is what this build is**, or `null` for one nobody identified — which
+is every development run and anything not produced by a release
+([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Written into the artifact at
+build time rather than read from the environment, so a container cannot claim to
+be something it is not. `null` rather than `0.0.0` or `"unknown"`: a version
+string that is not a version is the thing a bug report quotes back at you. The
+surface that renders it is [P11.6]'s About panel, which no document specifies
+yet; this is the value waiting for it. It is on **this** route rather than a new
+one because this is already the *state of this install* answer, and the shell
+asks for it on every navigation.
 
 `canRestart` is `false` and says so rather than being absent. **The server does
 not restart itself**: under no supervisor a restart control leaves the
@@ -1558,7 +1614,8 @@ I restart it?"* is a worse answer than one that says.
 | 403 | `csrf` | Missing or mismatched `x-csrf-token` |
 | 403 | `read-only` | A system-library object |
 | 403 | `forbidden` | A signed-in non-admin on `/api/admin` |
-| 404 | `not-found` / `unknown-kind` | No such object, or no such kind |
+| 403 | `invalid-setup-token` | Creating the first admin on an install bound beyond loopback, with the console token missing or wrong |
+| 404 | `not-found` / `unknown-kind` | No such object, or no such kind — and an address under `/api` that matches no route at all, which answers JSON rather than the client's app shell |
 | 409 | `busy` | The session already has a turn in flight. Carries the active `job` |
 | 409 | `finished` | That turn is already over, so there is nothing to cancel |
 | 412 | `stale-head` | The session moved on since this was composed. Carries the current `head` |
@@ -1583,8 +1640,17 @@ I restart it?"* is a worse answer than one that says.
 
 ## Not here yet
 
-No workbench (P3), ~~no import (P4),~~ and no static file serving: the client runs
-on Vite's dev server and talks to this over `/api`.
+~~No workbench (P3),~~ ~~no import (P4),~~ ~~and no static file serving~~: in
+development the client runs on Vite's dev server and talks to this over `/api`.
+
+*Three clauses, three phases, and only the setting survives. The workbench
+shipped at P3 as a reader over the turn record and needed no route of its own.
+Import finished at P4.4 and P4.5 — both halves the paragraph below still calls
+missing — and the directory form previews what it would do before it writes.
+Static serving arrived at [P6A.1](design/workplan/23-p6a-alpha-1.md) behind
+`server.clientRoot`, unset in development, so the sentence stays true where it
+was written and is false in a packaged build, where one process serves both
+halves.*
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
 is documented under Sessions above. The provider settings surface was listed

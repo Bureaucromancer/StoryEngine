@@ -1,6 +1,27 @@
 # 23 — P6A implementation plan: Alpha 1
 
-**Status: plan, written at its phase and audited 2026-09-03 at `a6f78c3`.**
+**Status: ~~plan~~ ~~in progress~~ ~~built, unwalked~~ landed; the phase closes
+on its merge into `main`, and the exit gate is the Alpha 1 cut, which waits on a
+person with Docker.** All five stages in §2 are landed on branch `p6a` at
+`90b282c`, and the full gate is green there: typecheck, lint, format, the suite
+twice (2581 tests, 2 skipped), `test:gate` and `test:fixture-pair`. The merge is
+the close, as it was for P5 and P6 — `--no-ff`, so the stage commits this
+document cites by hash stay reachable from `main`. What closed is everything a
+checkout can close. What did not is §3, which is manual by design: twelve of its
+thirteen steps need a Docker daemon, an unraid host and a second machine to sign
+in from, and **no image has been built**, because there was no daemon on the
+machine that wrote it. §3 is annotated step by step with what the suite proves
+and what only the container can, so that whoever walks it starts from the record
+rather than from the list. *(Status written 2026-09-05, at the close.)*
+
+Opened 2026-09-04 on branch `p6a` at
+`a54afcc`, main's tip after this document's own merge. The audit below stands as
+written and needed no repeat: `git diff a6f78c3..a54afcc -- packages/server
+packages/shared config.example.json` is empty, so every line number and every
+claim about the code in §0 still resolves. P6A.0 first, per §2 — the stages are
+prerequisites of each other rather than parallel work.
+
+Written at its phase and audited 2026-09-03 at `a6f78c3`.
 Unusually for these documents there is no half-revisit, no skeleton and no
 **[AWAITS]** marker. P6 merged the morning this was written, the phase starts
 now, and every precondition it depends on is checkable today rather than on the
@@ -93,6 +114,13 @@ instead… There, the `-p` flag is your explicit act instead."* `main.ts:141` an
 the first of them is in the first file a new operator opens. This phase is what
 makes them true.
 
+**Corrected at P6A.0, 2026-09-04:** two of the three, not all three. The
+`config.example.json` and `config.ts` comments are the bind claim and are now
+true. `main.ts:141` says *"in a packaged build they are the same origin"*, which
+is the **serving** claim rather than the bind one — equally false today, and made
+true by §0.3's stage rather than this one. Recorded rather than quietly widened,
+because the stage that owns a false sentence is the stage that makes it true.
+
 **The mechanism is constrained, not free.** [P10 §1.2](21-p10-implementation.md)
 already ruled out the obvious shortcut — the image shipping a different baked
 default — as *"a hidden difference between artifacts"*, and requires **one
@@ -182,19 +210,30 @@ gate that is already met:
 ### 0.6 Readiness — what does not exist and has to be invented
 
 - **No `.dockerignore`.** Without one, `data/`, `captures/`, every `node_modules`
-  and the whole git history go to the daemon on every build.
+  and the whole git history go to the daemon on every build. *Written at
+  [P6A.4], and `tools/release.test.ts` reads it: `data/`, `captures/`, the local
+  secrets and a local `build-info.json` are asserted excluded, because two of
+  the stage's eight mutations were exactly those lines.*
 - **No version anywhere.** All five `package.json` files are `0.0.0`, no route
   reports a build identifier, and there is no build-time define. The only git tag
   in the repository is `p1`, a bare phase marker — which means the on-tag CI
-  trigger must filter `tags: ['v*']` or it fires on phase tags.
+  trigger must filter `tags: ['v*']` or it fires on phase tags. *`0.1.0-alpha.1`
+  in the root `package.json` since [P6A.3], which is the one place a human edits
+  it; the four workspace packages stay `0.0.0`, and nothing reads them. The
+  trigger is filtered, and the filter has a test.*
 - **No CHANGELOG.** [releases §7](11-repo-and-releases.md) requires an entry per
-  release tag.
+  release tag. *Written at [P6A.3]; the `0.1.0-alpha.1` entry is in it, marked
+  unreleased until the tag is cut.*
 - **No data-directory stamp.** Nothing records which build wrote a data
   directory, and nothing refuses to open one it does not understand.
+  *`state/build.json` since [P6A.3], and the refusal with it.*
 - **The image's own shape is an open question the corpus already flagged.**
   [P10 §5](21-p10-implementation.md) records *"what the container image actually
   is"* as unsettled and sends it to [07](../07-tech-stack.md), which does not
-  answer it. This document is where it gets answered.
+  answer it. This document is where it gets answered. *Answered at [P6A.4]:
+  `node:26-slim`, pnpm from corepack, `pnpm deploy --legacy --prod` as the
+  prune, `/data` as the volume, a non-root user, and `compose.yaml` beside it,
+  because Tier 1 is the pair.*
 
 ---
 
@@ -364,55 +403,352 @@ Reachable, then visible, then safe, then identified, then released. Each stage
 ends at something demonstrable, and the first four are all prerequisites of the
 fifth rather than parallel work.
 
-### P6A.0 — Reachable: the environment layer
+### ~~P6A.0 — Reachable: the environment layer~~ Landed
 
-§1.2's overrides and precedence, the documented variable, and the three false
-comments at `config.example.json:34`, `main.ts:141` and `config.ts:50` made true
-in the same commit that makes them true.
+**Three variables, and the table is the whole surface.** `CONFIG_ENVIRONMENT` in
+`config.ts` maps `SE_DATA_DIR`, `SE_HOST` and `SE_PORT` onto `dataDir`,
+`server.host` and `server.port`. `environmentDocument(env)` turns whatever is
+set into a **sparse document** rather than a `Config`, which is what makes the
+layering work at all: the file is then merged on top of it exactly as it is
+merged on top of the defaults, and nothing the environment did not mention
+becomes an assertion. `loadConfig(path, environment)` does the merge and reports
+which variables applied and which the file shadowed; `main.ts` composes the two
+and logs both lists.
 
-*Ends at:* a server bound to `0.0.0.0` by an environment variable alone, with no
-config file present.
+**Precedence is enforced by argument order in one expression** —
+`mergeDefaults(environment, parsed)` — rather than by a rule written down
+somewhere and obeyed. The one exception is `SE_DATA_DIR`, which is read *before*
+the file because it decides which file there is; that is not a special case so
+much as the shape `./data` always had, and the record is that a `dataDir` inside
+whatever file it finds still wins downstream.
 
-### P6A.1 — The client, served
+**Two of the three comments were the same claim; the third was not.** §0.2 says
+`config.example.json:34`, `main.ts:141` and `config.ts:50` all assert the
+container binds `0.0.0.0`. The first and third do, and both are now true and say
+how. `main.ts:141` says something else — *"in a packaged build they are the same
+origin"* — which is about the client being served, not about the bind, and is
+made true by **P6A.1** rather than by this stage. Left alone deliberately: a
+comment edited to describe a mechanism that does not exist yet is the defect this
+stage was fixing.
 
-§1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
-including [13 §4](../13-internal-contracts.md)'s table, and the SPA fallback
-branching on `isApi`.
+**Four decisions worth having on the record, each with a test.** An empty value
+is an unset variable, because `docker compose` forwards a host variable it has
+not got as an empty string and refusing that would turn *the operator did
+nothing* into a failure to start. A bad value is refused **by the name that was
+typed**: validation is the same `validateConfigDocument` a file goes through —
+one answer to *would this start?* — with the JSON pointers translated back, so
+`SE_PORT=99999` reports `SE_PORT` rather than sending somebody to a file they
+never edited. `ConfigLoadResult.document` stays the **file's** document, because
+the settings write round-trips through it and an environment value reaching it
+would be written into the file on the next save. And `loadConfig`'s environment
+argument defaults to *none* rather than to `process.env`, so a test that loads a
+config does not depend on the machine it runs on — the convenience fails open
+where the argument fails closed.
 
-*Ends at:* one process on one port serving both halves — and `pnpm dev`
-unchanged, two processes, Vite proxying as before.
+**The variable table is in [13 §4](../13-internal-contracts.md) and a test parses
+it**, the same way the tier table has been checked since P2A. That is the
+requirement rather than a courtesy: [P10 §1.2](21-p10-implementation.md) asks for
+*one documented environment variable* precisely so that the image is not a build
+that behaves differently, and an undocumented variable would satisfy the code and
+fail the rule.
 
-### P6A.2 — Safe: both halves of F10
+**Thirteen mutations, thirteen red**, including two on `main.ts` and one on the
+shipped documentation. The stage's *ends at* is proved in two halves and neither
+half is sufficient alone: `config.test.ts` asserts the resolved `server.host` is
+`0.0.0.0` with no file anywhere, and `main.test.ts` spawns the real entry point
+and asserts the `listening` line reports the address the variables named. That
+second one binds `localhost` rather than `0.0.0.0` — a wildcard bind in a unit
+suite is a Windows firewall prompt and a CI hazard, and `localhost` is provably
+not the `127.0.0.1` default, which is the property the test needs. The literal
+`0.0.0.0` in a container is [§3](#3-verification--the-p6a-exit-gate) step 3.
 
-§1.4's stored-and-checked token with its `state` advertisement and its client
-field, and the cookie `secure`/`trustProxy` config. Both gated on a non-loopback
-bind.
+*The stage as it was written:*
 
-*Ends at:* a non-loopback server that refuses every route but the two
-`survivesSetupGate` allows, and accepts the first admin only with the token from
-its own log.
+> §1.2's overrides and precedence, the documented variable, and the three false
+> comments at `config.example.json:34`, `main.ts:141` and `config.ts:50` made
+> true in the same commit that makes them true.
+>
+> *Ends at:* a server bound to `0.0.0.0` by an environment variable alone, with
+> no config file present.
 
-### P6A.3 — Identified: version, commit, stamp, changelog
+### ~~P6A.1 — The client, served~~ Landed
 
-§1.5's build-time embed reported by the running server, §1.7's data-directory
-stamp, and the CHANGELOG with the entry convention
-[releases §7](11-repo-and-releases.md) requires.
+**§0.3 was right about the easy half, and wrong about one thing that mattered.**
+The root namespace really was empty, there really was no `setNotFoundHandler`
+anywhere, and the client really needed no change — `vite.config.ts` sets no
+`base`, so the built `index.html` names `/assets/…` absolutely and every call in
+`api.ts` is already a relative `/api/…`. The five-place edit landed as described,
+including [13 §4](../13-internal-contracts.md)'s markdown table, and
+`config.test.ts` was the thing that would have caught it if it had not.
 
-*Ends at:* a running server that names its own commit, and an older build that
-declines a newer volume.
+**Where §0.3 was wrong: `isApi` in the fallback is necessary and not
+sufficient.** A not-found handler only sees requests that matched no route — and
+a file at `<clientRoot>/api/nonsense` *is* a route once the static plugin is
+looking at that directory. Measured before the fix: `GET /api/nonsense` answered
+`200` with the file's bytes, past the branch §0.3 asks for. The guard that
+actually holds the namespace is `@fastify/static`'s `allowedPath`, refusing
+anything `isApi` claims; the fallback's branch is what then produces the JSON.
+One predicate, used at both points. `clientRoot` is a path an operator sets, so
+what it happens to contain must not be able to decide what `/api` means.
 
-### P6A.4 — Released: image, compose, template, workflow
+**`wildcard: false` was in the first draft and is not in the last.** It was
+there to make unmatched paths reach the fallback, and a mutation that flipped it
+to `true` killed no test. Measured: both settings fall through to the fallback,
+both serve every asset, and both let the shadowing above happen. It was a
+plausible-sounding option justified by a comment nothing could check, so it is
+gone and the plugin's default stands.
 
-The `.dockerignore` that does not exist; a multi-stage build on a Node ≥26.4.0
-base with corepack pnpm 11.18.0 (`.npmrc` is `engine-strict=true`, so a lower
-base fails hard rather than warning); the `workspace:*` prune story; the `/data`
-volume and the non-root user; `compose.yaml`, because
-[04 §5.4](../04-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
-compose file"* and compose is therefore inside the deliverable rather than beside
-it; the unraid template; and the on-tag workflow filtered to `v*`, publishing to
-a **private** GHCR package.
+**A missing build is refused at startup**, because the plugin is not: measured,
+`@fastify/static` pointed at a directory that is not there does not throw — it
+finds nothing, serves nothing, and the server comes up answering the API behind
+a blank page. `buildApp` checks for `index.html` and refuses with the path in the
+message. The directory-exists check that suggests itself first is weaker: a build
+step that silently produced nothing leaves the directory.
 
-*Ends at:* the demo.
+**The API's 404 body changed, deliberately and everywhere.** An unrouted `/api`
+address used to get Fastify's `{statusCode, error, message}` — the framework's
+default, which nothing had ever chosen, and which is not the `{error, message}`
+shape [docs/api.md](../../api.md) documents. It is `404 {"error":"not-found"}`
+now, in development and in a packaged build alike, and the API doc says so.
+
+**One dependency, argued in [07 §7](../07-tech-stack.md) rather than noticed in a
+lockfile**, per that section's own convention. `@fastify/static` is MIT, pinned,
+first-party to Fastify, and the surface depended on is `root`, `allowedPath` and
+`reply.sendFile`. Sixteen transitive packages, which is the largest addition so
+far and is written down rather than glossed.
+
+**A finding one level out, from a mutation that killed nothing.** Changing the
+schema's `default` for a key made no test fail, because `DEFAULT_CONFIG` is a
+separate hand-written literal and the literal is the only one ever read. Every
+default in this codebase was written twice with nothing checking they agreed —
+the fourth table in `config.test.ts`'s family, and the one nobody had noticed was
+a table. There is a test now, over all twenty-three keys.
+
+Nine mutations, nine red. Not covered here and named rather than implied: that
+`pnpm dev` still runs two processes with Vite's proxy is [§3](#3-verification--the-p6a-exit-gate)
+step 13, a person's check — what the suite proves is the server half of it, that
+the default is *serve nothing*. And the real built client loading from the real
+server is [§3](#3-verification--the-p6a-exit-gate) step 4; it was checked by hand
+at this stage, against `pnpm build`'s output on a bound port, and the setup screen
+rendered from one origin with no console error.
+
+*The stage as it was written:*
+
+> §1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
+> including [13 §4](../13-internal-contracts.md)'s table, and the SPA fallback
+> branching on `isApi`.
+>
+> *Ends at:* one process on one port serving both halves — and `pnpm dev`
+> unchanged, two processes, Vite proxying as before.
+
+### ~~P6A.2 — Safe: both halves of F10~~ Landed
+
+**The token, as §1.4 specified it.** `auth/setup-token.ts` mirrors
+`loadOrCreateSessionKey`; `AppServices.setupToken` is a string when this process
+booted bound beyond loopback with no admin and `null` otherwise, so the two
+readers ask *is this install exposed and unclaimed* by asking whether it is
+there. `POST /api/auth/setup` refuses without it —
+`403 invalid-setup-token`, absent and wrong being one answer — `GET
+/api/auth/state` advertises `setupTokenRequired`, the setup form renders a field
+when it is told to, and `main.ts` prints the token on the boot that mints it.
+Compared with `secretsMatch`, which is constant-time and length-safe.
+
+**Stored, not per-boot, and that is a decision this plan did not make for us.**
+The window a token is used in is the window a container might restart in —
+somebody is reading its log — so a token regenerated on each boot would be wrong
+in exactly the case it exists for. It is also what P1 did, which is part of why
+nothing could check it.
+
+**One definition of *loopback*, and the old one was wrong twice.** `main.ts`
+carried `host === '127.0.0.1' || host === 'localhost'` and nothing else did.
+Under it `127.0.0.2` and `::1` read as exposed — an install nobody can reach
+demanding a token — and the wildcard `::` read as exposed correctly only by
+accident. It is `isLoopbackHost` in `config.ts` now, used by the mint, the check
+and the startup line, because two spellings of *is this exposed* is a security
+bug rather than an inconsistency.
+
+**The twin turned out to be half-done already.** §1.4 asks for cookie `secure`
+*and* `trustProxy` to become config; `trustProxy` had already become a config key
+at P2A and is already wired into `Fastify({ … })`. So what this stage owed was
+`server.cookieSecure`, and [04 §5.1](../04-server-multiuser-deployment.md) and
+[P2 §2.11](04-p2-implementation.md) now say so rather than leaving a reader to
+find one of the two missing.
+
+**And it is deliberately not derived from the bind**, which is the one place the
+obvious rule is wrong. *Secure whenever exposed* sounds right and would lock out
+the trusted-LAN install [04 §5.1] explicitly supports: a `Secure` cookie is not
+sent back over plain HTTP, so signing in would fail with no error anywhere,
+because the browser declines silently. It is the operator's statement that TLS
+is in front — the same thing `trustProxy` beside it is.
+
+**The five-place edit was caught by the tests rather than by memory**, which is
+the mechanism [01 §2.3](01-work-plan.md) asks for working: the key landed in the
+schema, the tiers and `DEFAULT_CONFIG`, the suite went red on
+`config.example.json` and [13 §4](../13-internal-contracts.md)'s table, and named
+both.
+
+Twelve mutations, twelve red, across the server and the client. Not covered here
+and named rather than implied: gate steps 5 and 6 are a person against a real
+container, and what the suite proves is the same claims against a config-bound
+server — `server.host` is a config value, so an exposed install is one line
+rather than a socket, which is why a feature gated on being exposed leaves every
+`inject`-driven test in the suite untouched.
+
+*The stage as it was written:*
+
+> §1.4's stored-and-checked token with its `state` advertisement and its client
+> field, and the cookie `secure`/`trustProxy` config. Both gated on a
+> non-loopback bind.
+>
+> *Ends at:* a non-loopback server that refuses every route but the two
+> `survivesSetupGate` allows, and accepts the first admin only with the token
+> from its own log.
+
+### ~~P6A.3 — Identified: version, commit, stamp, changelog~~ Landed
+
+**The identity is a file the release build writes, and `pnpm build` does not
+write it.** `tools/write-build-info.mjs` puts `{version, commit}` into
+`packages/server/build-info.json` from the root `package.json` and `git
+rev-parse`, refusing a dirty tree unless told otherwise — a build identified by
+a commit it does not match is worse than one with no identity, because the whole
+promise of this phase is a build you can go back to and you cannot go back to a
+working tree. `readBuildInfo` resolves it from the **package root**, which is
+the one path that works both as `src/build-info.ts` under `tsx` and as
+`dist/build-info.js` after a build.
+
+**That `pnpm build` does not run it is the decision the rest rests on.** If it
+did, every developer would have an identified build carrying their own commit,
+and the stamp below would start refusing directories over versions nobody
+released. So a build nobody released has no identity, and *no identity* is a
+state the code reports rather than a value it invents: `null` on the route and
+in the log, not `0.0.0` and not `"unknown"`, because a version string that is not
+a version is the thing a bug report then quotes back at you.
+
+**Reported on `GET /api/admin/notices` and on the startup line.** The route
+because it is already the *state of this install* answer the shell asks for on
+every navigation; the log line because that is what `docker logs` shows without
+scrolling, and *which commit is this* is a question asked about a running server.
+
+**The stamp refuses, and refuses before anything opens.** `state/build.json`
+records the build that last opened the directory, and an older one will not open
+it. The ordering is a hand-written semver comparator, which is defensible only
+because it can say **`null` for a version it cannot place** and the caller has a
+safe answer for that — refuse, and print both strings. `alpha.10` against
+`alpha.2` is the case a string compare gets backwards and the case that will
+actually arise, so it is tested rather than assumed.
+
+Placement is the part a unit test cannot see: `openIndex` creates and migrates,
+so a guard one line later would be refusing a directory it had already changed.
+`BuildAppOptions.build` exists for that — a seam of the same kind as `providers`
+and `fetch`, and it exists because the identity is a property of *the artifact*,
+so no test can arrange one without writing into the package it is testing. The
+test asserts no index file exists after the refusal; moving the call is a
+mutation that fails it.
+
+**The version is `0.1.0-alpha.1` in the root `package.json`**, which is where a
+human edits it, and [§1.6](#16-the-tag-scheme-and-why-latest-does-not-move)'s tag
+is `v` plus that string. The CHANGELOG entry names the same version, so the three
+agree or the release is wrong in a way somebody notices.
+
+Ten mutations, ten red. And checked against real processes where no test reaches:
+`pnpm build:identify` then the entry point spawned twice against one directory —
+the listening line carried
+`"build":{"version":"0.1.0-alpha.1","commit":"ee4a28f…"}`, the stamp appeared on
+disk, and a second run pretending to be `0.0.9` exited with *was written by a
+newer build*. That is this stage's *ends at*, both halves, before the container
+that [§3](#3-verification--the-p6a-exit-gate) step 8 will ask it of.
+
+*The stage as it was written:*
+
+> §1.5's build-time embed reported by the running server, §1.7's data-directory
+> stamp, and the CHANGELOG with the entry convention
+> [releases §7](11-repo-and-releases.md) requires.
+>
+> *Ends at:* a running server that names its own commit, and an older build that
+> declines a newer volume.
+
+### ~~P6A.4 — Released: image, compose, template, workflow~~ Written, unbuilt
+
+**Every file this stage owes exists**, and one thing this stage owes cannot be
+done from here: **there is no Docker on this machine, so the image has never been
+built.** That is the honest state and it is the first line of this record rather
+than a footnote — [§3](#3-verification--the-p6a-exit-gate) step 1 is a person
+with a daemon, and steps 3 through 12 follow it. Nothing below claims otherwise.
+
+**What is verified, and it is more than the file list suggests.** The two things
+most likely to be wrong in a Dockerfile are the workspace prune and the runtime
+command, and both were run outside a container:
+
+- `pnpm --filter @storyengine/server --legacy deploy --prod` produces a
+  self-contained 51 MB tree with `dist`, `package.json`, `build-info.json` and a
+  `node_modules` holding `@storyengine/shared` and `@storyengine/sdk` as real
+  directories. `--legacy` is required — pnpm 10 and later refuse the
+  non-injected form — and that is a measurement, not a reading of the docs.
+- That tree was then run exactly as the runtime stage will run it: `node
+  dist/main.js`, no config file, an empty data directory, and only the four `SE_`
+  variables. It served the shell at `/` (200, `text/html`), the hashed asset
+  (200, `application/javascript`), `GET /api/auth/state` (200, JSON), and it
+  logged `"build":{"version":"0.1.0-alpha.1","commit":"…"}`.
+
+**A trap worth recording:** `pnpm deploy` leaves the workspace's recorded install
+state pointing at a production install, so the next `pnpm build` tries
+`pnpm install --production` and — with no TTY — aborts rather than asking. A
+plain `pnpm install` restores it. In the image that never matters, because the
+deploy is the last thing the build stage does; on a developer's machine it
+matters immediately.
+
+**`SE_CLIENT_ROOT` is new, and finding it is what writing the image was for.**
+[§1.2] fixed the environment layer's keys before [§1.3] invented `clientRoot`, so
+a container had no way to say where the client was — the config file lives
+*inside* the data directory, which on a first run is an empty volume. It is a
+fifth entry in `CONFIG_ENVIRONMENT` and a row in
+[13 §4](../13-internal-contracts.md)'s table, which `config.test.ts` enforces.
+
+**Two checks made mechanical rather than remembered.** `write-build-info.mjs`
+gained `--expect-version`, so a tag that disagrees with the root `package.json`
+stops the image build instead of shipping a version nobody released; and
+`tools/release.test.ts` — a new vitest project, because the subject is the
+repository rather than any package — compares that version against the CHANGELOG
+entry, `compose.yaml`'s image tag and the unraid template's `Repository`. The
+workflow could never have caught the last two.
+
+**`slim` rather than `alpine`**, deliberately paying a few tens of megabytes:
+this server formats numbers and dates against a user's locale ([04 §4.2]), and a
+musl base with a trimmed ICU shows up as one wrong separator in one language
+rather than as a build failure. Nothing needs a native compiler — SQLite is
+`node:sqlite` — so the usual reason for alpine does not apply.
+
+**The unraid template lost its icon before it gained anything.** The first draft
+pointed `<Icon>` at `packages/client/public/favicon.svg`; the client ships no
+`public/` directory and names no favicon, so that was a template with a URL that
+404s — [04 §5.3]'s *"a template that only half-works is worse than none"*,
+committed. It has no icon element and a comment saying when to add one.
+
+*Overtaken the same evening, and it changes nothing yet.* `893fd91` on `main`
+gave the client `public/favicon.svg` — the wordmark's initial on a typewriter
+key — six hours after this record said there was none. The template still has
+no `<Icon>`, for the reason that survives the favicon: unraid fetches the icon
+over HTTP, and a raw URL into a private repository is the same 404 the first
+draft had. The comment in the template says so now. It goes in with
+publication, which §4 makes one decision rather than a toggle.
+
+Eight mutations, eight red: a compose tag off by one alpha, the template's, an
+unfiltered release trigger, `contents: write`, a `.dockerignore` that lets a
+developer's identity file into the image, one that lets `data/` in, a `0.0.0`
+version, and a missing `SE_CLIENT_ROOT`.
+
+*The stage as it was written:*
+>
+> The `.dockerignore` that does not exist; a multi-stage build on a Node ≥26.4.0
+> base with corepack pnpm 11.18.0 (`.npmrc` is `engine-strict=true`, so a lower
+> base fails hard rather than warning); the `workspace:*` prune story; the `/data`
+> volume and the non-root user; `compose.yaml`, because
+> [04 §5.4](../04-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
+> compose file"* and compose is therefore inside the deliverable rather than beside
+> it; the unraid template; and the on-tag workflow filtered to `v*`, publishing to
+> a **private** GHCR package.
+>
+> *Ends at:* the demo.
 
 #### The unraid template, specifically
 
@@ -444,33 +780,90 @@ Manual, numbered, and run against a build from a clean checkout at the tag — n
 against the working tree, because a gate that passes on the developer's machine
 state is testing the wrong thing.
 
+*Annotated at the close, 2026-09-05, in the shape [P6 §3](08-p6-implementation.md)
+uses: under each step, what the suite already proves and what only the walk can.
+Nothing here is ticked. The suite drives the app through `fastify.inject` and a
+config-bound host — never a socket, never a container — so what it proves is
+the mechanism, and every step below is a step because the mechanism inside a
+container is the thing nobody has yet seen. The tag does not exist and no image
+has been built.*
+
 1. **Tag and build.** `v0.1.0-alpha.1` exists; the on-tag workflow ran; a second
    build from the same tag produces an image that behaves identically.
+   **Nothing covered.** What a checkout can pin, `tools/release.test.ts` pins:
+   the version agrees across `package.json`, the CHANGELOG, `compose.yaml` and
+   the template, and the build context excludes `data/` and a local
+   `build-info.json`. The tag itself is the walk's first act.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
+   **Half covered**, and the half matters: `release.test.ts` asserts the
+   `tags: ['v*']` line is in `release.yml`, and a mutation that removed it went
+   red — but red there is a test reading a file, not a push that fires nothing.
+   The push is the walk.
 3. **Fresh container, no volume.** Comes up reachable on the mapped port with no
    config file anywhere, having taken its bind from the documented variable.
+   **Mechanism covered at P6A.0**: `config.test.ts` resolves `server.host` to
+   `0.0.0.0` from `SE_HOST` with no file anywhere, and `main.test.ts` spawns the
+   real entry point and reads the address off its `listening` line. The literal
+   `0.0.0.0` from inside a container is the walk.
 4. **The UI is served.** The mapped port serves the client, not a 404, and an
    unrouted `/api/nonsense` still answers JSON rather than `index.html`.
+   **Server half covered at P6A.1** in `routes/client.test.ts`, including the
+   `allowedPath` guard that holds `/api` even when the client directory holds a
+   file at that address; the built client against the built server was checked
+   by hand at that stage, on a bound port, with the setup screen rendered from
+   one origin. The mapped port is the walk.
 5. **Refusal before setup.** Every route except `/api/auth/setup` and
    `/api/auth/state` refuses, from a non-loopback bind.
+   **Covered in two halves.** The gate that leaves only two routes answering
+   before an admin exists has been tested since P1 (`survivesSetupGate`), and
+   P6A.2's `routes/setup-token.test.ts` proves the token is minted only on a
+   host `isLoopbackHost` reads as exposed, and never on loopback. The two
+   halves meeting inside a container is the walk.
 6. **The token is required and checked.** Setup with no token fails; setup with a
    wrong token fails; setup with the token from `docker logs` succeeds.
+   **Covered at P6A.2** in the same file: absent, wrong and right, and the token
+   surviving a restart — stored, so a container restarting while somebody reads
+   its log does not invalidate the one they copied. Reading it out of
+   `docker logs` is the walk.
 7. **A turn, from another machine.** Sign in from a host that is not the
    container's host and take a turn end to end.
+   **Nothing covered.** Two machines and a model that is not ours — the clause
+   that has kept three earlier gates open ([P2C](15-p2c-first-real-run.md)).
 8. **Identity.** The running server reports a version and commit matching the
    tag.
+   **Mechanism covered at P6A.3** in `build-info.test.ts`, and checked against
+   real processes — `pnpm build:identify`, then the entry point's `listening`
+   line carrying the version and commit. That they match *the tag* is the
+   workflow's `--expect-version`, and the workflow has not run.
 9. **Restart with the volume.** Stop, start again against the same volume;
    accounts, library and sessions are intact.
+   **Nothing covered here.** The storage tier's own suite survives a reopen; a
+   container restarting against a named volume owned by its non-root user is
+   the walk.
 10. **The stamp refuses.** A build older than the volume's stamp declines to open
     it, with a message that says why.
+    **Covered at P6A.3** in `build-info.test.ts` — `alpha.10` ordering above
+    `alpha.2`, both versions in the message, the newer stamp left untouched, and
+    the refusal landing before the index opens — and checked by hand with a
+    second process pretending to be `0.0.9`.
 11. **The template installs.** On unraid, with a registry credential configured,
     the template pulls, maps `/data`, and its WebUI button opens the UI.
+    **Nothing covered** beyond `release.test.ts`'s check that the template names
+    the same tag as everything else. An unraid host is the walk.
 12. **The package is private.** An unauthenticated `docker pull` fails. This is a
     gate step rather than an assumption, because the exposure decision is the one
     thing in this phase that is invisible from inside the repository.
+    **Nothing covered, and nothing can be** from inside the repository — which
+    is why it is a step. `release.test.ts` proves only that the workflow asks
+    for `packages: write` and not `contents: write`.
 13. **Development is unchanged.** `pnpm dev` still runs two processes with Vite's
     proxy, and `pnpm test`, `pnpm typecheck` and `pnpm lint` are clean.
+    **Half covered.** The clean half is the gate this close ran at `90b282c`:
+    typecheck, lint, format, the suite, `test:gate` and `test:fixture-pair`, all
+    green, and `routes/client.test.ts` proves the default is *serve nothing*.
+    That `pnpm dev` still runs two processes is a person's, and the one step
+    here that needs no daemon.
 
 ---
 
@@ -523,3 +916,9 @@ So the rule this document sets is the weaker, true one, rather than a date:
 
 Which is the same rule §4 states from the other side, and the reason both are
 written down.
+
+*At the close, both halves of that sentence are still ahead: Alpha 1 is not cut
+and PLAYABLE has not run. The rule is unchanged, and the order it allows is the
+order the next step takes — the tag first, from a machine with a daemon, then
+the gate above, then PLAYABLE on the build it produced, which is the case this
+section made for cutting it first.*

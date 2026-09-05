@@ -586,8 +586,12 @@ by-field and *As stored* halves of it already claimed as polish at
 [09 §1–§2](09-polish.md). P3 is the workbench and does not claim this
 ([05 §4](05-p3-implementation.md) says so explicitly); the earlier "P3/P11"
 here was a home that had not agreed to it. **Cookie `secure`/`trustProxy`
-hardening** (F10): home **P10** with deployment; the loopback default
+hardening** (F10): ~~home **P10** with deployment~~; the loopback default
 ([04 §5.1](../04-server-multiuser-deployment.md)) is what makes deferral safe.
+*Landed at [P6A.2](23-p6a-alpha-1.md) instead, because the deferral was
+scheduled against that default rather than against a phase number, and P6A is
+the phase that ships an image binding `0.0.0.0`. `trustProxy` had already
+arrived as a config key at P2A; what P6A.2 owed was `server.cookieSecure`.*
 **Restart-notice UI** (F8's second half): home **P10** with the admin surface.
 *Landed one phase out instead, at
 [P2A](13-p2a-configuration-surface.md) — and P2A found that the notice as built

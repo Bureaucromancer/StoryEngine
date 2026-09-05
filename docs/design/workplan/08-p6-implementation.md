@@ -1,6 +1,13 @@
 # 08 — P6 implementation plan
 
-**Status: ~~skeleton~~ ~~startable~~ in progress.** Opened 2026-09-02 on branch
+**Status: ~~skeleton~~ ~~startable~~ ~~in progress~~ landed, and merged into
+`main` 2026-09-03 at `a6f78c3`; the exit gate is unwalked.** Every stage in §2
+reads Landed. §3 marks steps 2 through 14 as covered by tests written with the
+stages that satisfy them; what still wants a person against HEAD is step 1, the
+wall-clock half of 14, and the demo that defines done — and PLAYABLE, which §5
+names as the gate on §1.1, §1.2 and §1.8, has not run. *(Written 2026-09-05, at
+P6A's close, because this line still said* in progress *two days after the
+merge.)* Opened 2026-09-02 on branch
 `p6` at `cb19ab5`, main's tip after the P5 merge, with §0.1a as the opening
 audit: nothing it cites has moved — the engine diff since `347815e` is one
 comment in `turns/preview.ts` — so a fourth audit would have re-read a day-old

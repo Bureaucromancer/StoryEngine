@@ -329,7 +329,10 @@ tier above; what stays here is the same property at a corpus size that would
 make the per-PR tier slow. Small budget every PR, large budget nightly.*
 
 **On tag** — reproducible build, artifact publish, changelog
-([11 §4](11-repo-and-releases.md)).
+([11 §4](11-repo-and-releases.md)). *Built at [P6A.4](23-p6a-alpha-1.md) as
+`release.yml`, filtered to `v*`: the image to a private package, the tag checked
+against the root `package.json`, the CHANGELOG checked for the entry. Unrun
+until the first tag, which is Alpha 1's.*
 
 Two project-specific automations worth having beyond the usual:
 

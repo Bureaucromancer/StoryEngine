@@ -189,6 +189,7 @@ describe('the folder half, against the permission', () => {
   function withFileAccess(fileAccess: string): void {
     vi.spyOn(api, 'authState').mockResolvedValue({
       setupRequired: false,
+      setupTokenRequired: false,
       minPasswordLength: 8,
       account: {
         handle: 'ned',

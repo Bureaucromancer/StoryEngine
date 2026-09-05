@@ -257,9 +257,14 @@ loopback — plus verifying the whole first-run path again against the artifact
 this phase inherits rather than one it built.
 
 ~~*Ends at:* `docker run`, a token in `docker logs`, an admin created, a turn
-taken — from a machine that is not the host.~~ That gate was met at
-[P6A §3](23-p6a-alpha-1.md). *Ends at:* somebody on the LAN reaching the install
-by name rather than by address.
+taken — from a machine that is not the host.~~ That gate became
+[P6A §3](23-p6a-alpha-1.md)'s steps 3 through 7 — **and it has not been met.**
+This paragraph said *met* before the phase ran; corrected 2026-09-05 at P6A's
+close, which shipped every file the image needs and built no image, because
+there was no daemon on the machine that wrote it. It is walked when Alpha 1 is
+cut, by a person, and this stage's re-verification then runs against a build
+that has already passed it once. *Ends at:* somebody on the LAN reaching the
+install by name rather than by address.
 
 **And the stage is now much smaller than its neighbours**, which changes §5's
 reading of this phase: the *"two phases wearing one number"* argument was about

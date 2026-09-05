@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * The packaging artefacts agree about what version this is — [P6A.4],
+ * [P6A §1.6](../docs/design/workplan/23-p6a-alpha-1.md),
+ * [releases §7](../docs/design/workplan/11-repo-and-releases.md).
+ *
+ * **Four files name a version and nothing compared them.** The root
+ * `package.json` is the source; the CHANGELOG entry, `compose.yaml`'s image tag
+ * and the unraid template's `Repository` all repeat it. The release workflow
+ * already refuses a *tag* that disagrees with `package.json`, and
+ * `write-build-info.mjs` is where that check lives — but a compose file left at
+ * the previous alpha is invisible to it, and the person it misleads is the one
+ * following the deploy page to run the thing.
+ *
+ * This is the same drift class `config.test.ts` guards for config keys, and it
+ * is guarded the same way: parse the shipped artefact, compare, name the file
+ * that is wrong.
+ *
+ * **A regex rather than a YAML and an XML parser**, deliberately: two
+ * dependencies to check two strings, and the thing under test is the string. If
+ * a pattern stops matching, the assertion that the match was found fails first
+ * — so this cannot quietly agree about nothing.
+ */
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (path: string): string => readFileSync(join(root, path), 'utf8');
+
+const { version } = JSON.parse(read('package.json')) as { version: string };
+
+describe('the version this build claims', () => {
+  it('is a release, not the workspace default', () => {
+    // `write-build-info.mjs` refuses `0.0.0`, and this is the same claim one
+    // step earlier: a version nobody set is not something to tag.
+    expect(version).not.toBe('0.0.0');
+    expect(version).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+  });
+
+  it('has a changelog entry', () => {
+    // [releases §7]: every release tag needs one, because
+    // [04 §7] makes *what am I running* a user-facing question.
+    expect(read('CHANGELOG.md')).toContain(`## ${version}`);
+  });
+
+  it('is the image tag the compose file pulls', () => {
+    const tag = /image:\s*ghcr\.io\/[\w.-]+\/storyengine:(\S+)/.exec(read('compose.yaml'));
+    expect(tag, 'no image line matched in compose.yaml').not.toBeNull();
+    expect(tag?.[1]).toBe(version);
+  });
+
+  it('is the image tag the unraid template pulls', () => {
+    const xml = read('deploy/unraid/storyengine.xml');
+    const repository = /<Repository>ghcr\.io\/[\w.-]+\/storyengine:(\S+)<\/Repository>/.exec(xml);
+    expect(repository, 'no Repository element matched in the template').not.toBeNull();
+    expect(repository?.[1]).toBe(version);
+  });
+});
+
+/**
+ * Two claims about the release trigger that are cheap to check and expensive to
+ * discover — [P6A §3](../docs/design/workplan/23-p6a-alpha-1.md) steps 2 and 12.
+ */
+describe('the release workflow', () => {
+  const workflow = read('.github/workflows/release.yml');
+
+  it('fires on `v*` and nothing else', () => {
+    // The only tag in this repository is `p1`, a bare phase marker, and phase
+    // tags are a habit here — an unfiltered trigger would try to cut a release
+    // from the next one.
+    expect(workflow).toContain("tags: ['v*']");
+  });
+
+  it('asks for no more permission than publishing needs', () => {
+    /**
+     * **The block, not the file.** The first version of this read the whole
+     * workflow and failed on the sentence in its own comment explaining why
+     * `contents` is read-only — a test matching prose about the thing rather
+     * than the thing, which would equally have passed a file that granted the
+     * write and never mentioned it.
+     */
+    const block = /\npermissions:\n((?:[ ].*\n|#.*\n)*)/.exec(workflow);
+    expect(block, 'no permissions block matched').not.toBeNull();
+    const granted = (block?.[1] ?? '')
+      .split('\n')
+      .filter((line) => /^\s+\w+:/.test(line))
+      .map((line) => line.trim());
+
+    // Nothing in that file creates a release, edits a tag or pushes a commit,
+    // and a token that could is one something else eventually uses.
+    expect(granted).toContain('packages: write');
+    expect(granted).toContain('contents: read');
+    expect(granted).not.toContain('contents: write');
+  });
+});
+
+/**
+ * The build context excludes what must not reach an image — [P6A.4].
+ *
+ * Two of these are about size and one is not. A developer's `build-info.json`
+ * arriving in the context would claim the image is a build it is not, which is
+ * the single lie [§1.5] exists to prevent; `data/` is the user's and is
+ * canonical ([02 §5]).
+ */
+describe('the docker build context', () => {
+  const ignored = read('.dockerignore');
+
+  it('excludes the user data and the local secrets', () => {
+    expect(ignored).toMatch(/^data\/$/m);
+    expect(ignored).toMatch(/^config\.json$/m);
+    expect(ignored).toMatch(/^\.env$/m);
+    expect(ignored).toMatch(/^captures\/$/m);
+  });
+
+  it('excludes a local build identity, so the image writes its own', () => {
+    expect(ignored).toMatch(/^packages\/server\/build-info\.json$/m);
+  });
+});

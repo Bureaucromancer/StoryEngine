@@ -211,6 +211,31 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'session.key');
   }
 
+  /**
+   * The first-run setup token ([04 §5.1], F10).
+   *
+   * Beside the session key and operational for the same reason, with one of its
+   * own: it is written when the bind is exposed and no admin exists, and a
+   * restart must not invalidate a token somebody has already copied out of a
+   * container's log. Regenerating per boot is what P1 did, and is why nothing
+   * could check it.
+   */
+  get setupTokenFile(): string {
+    return resolveWithin(this.stateRoot, 'setup.token');
+  }
+
+  /**
+   * Which build last opened this data directory ([P6A §1.7]).
+   *
+   * Operational by the same test as the two above: it is not derived from
+   * anything, and losing it would not surprise a user so much as remove a guard
+   * they never knew was there. In `state/` rather than at the data root because
+   * it is about the process that opened the directory, not about its contents.
+   */
+  get buildStampFile(): string {
+    return resolveWithin(this.stateRoot, 'build.json');
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }

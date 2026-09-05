@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 StoryEngine contributors
+#
+# The on-tag tier — docs/design/workplan/10-testing.md §6, and the half of
+# docs/design/workplan/11-repo-and-releases.md §8's open question that P6A moved.
+# `ci.yml` says this file is "still absent, still deliberately"; it is absent no
+# longer, and the nightly tier still is.
+#
+# **Filtered to `v*`, and that filter is load-bearing.** The only tag in this
+# repository is `p1`, a bare phase marker
+# (docs/design/workplan/23-p6a-alpha-1.md §0.6), and phase tags are a habit this
+# project already has. An unfiltered trigger would try to cut a release from the
+# next one. Gate step 2 checks exactly that by pushing a non-`v` tag and watching
+# nothing happen.
+#
+# **It publishes to a private package**, which is not a temporary state. Alpha 1
+# is a build this project made for itself; the moment the image goes public the
+# repository must go with it, because AGPL §13's source link has to resolve for
+# whoever is running it (docs/design/04-server-multiuser-deployment.md §7). §4 of
+# the phase plan names that as one decision rather than two, so that it cannot
+# happen by way of a registry visibility toggle.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  # The one write this needs. Not `contents: write`: nothing here creates a
+  # release, edits a tag or pushes a commit, and a token that could is a token
+  # that will eventually be used by something else in this file.
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # **The tag decides the version, and the build refuses if the tree
+      # disagrees.** `write-build-info.mjs --expect-version` compares this
+      # against the root package.json, so tagging `v0.1.0-alpha.2` on a tree that
+      # still says `alpha.1` stops here rather than shipping an image reporting a
+      # version nobody released.
+      - name: The image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            COMMIT=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+          # Lowercased, because a registry path must be and the owner is not.
+          # Only the immutable tag: `latest` names nothing yet and this does not
+          # move it — unraid's auto-update and watchtower both track that alias,
+          # and an alpha is not something to hand an auto-updater
+          # (docs/design/workplan/23-p6a-alpha-1.md §1.6).
+          tags: ghcr.io/${{ github.repository_owner }}/storyengine:${{ github.ref_name }}
+          # Cache through the registry rather than the runner: an on-tag build is
+          # rare enough that a runner cache is always cold, and the layers that
+          # matter are `pnpm install` and `pnpm build`.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A tag with no changelog entry is a release nobody can read
+      # (docs/design/workplan/11-repo-and-releases.md §7). Checked after the
+      # image so a missing entry does not hide a build failure, and before
+      # anything else could depend on the tag being good.
+      - name: The tag has a changelog entry
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "^## ${version}" CHANGELOG.md || {
+            echo "CHANGELOG.md has no '## ${version}' entry." >&2
+            exit 1
+          }

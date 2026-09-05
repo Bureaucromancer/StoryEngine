@@ -251,6 +251,9 @@ broken teaches people to ignore it, which is worse than not offering one.
 
 **Squash-merge into `main`.** One commit per feature or bugfix.
 
+*Not what the phase merges have done — §7's last bullet records the deviation
+rather than hiding it.*
+
 The practical argument here is the forward-port in §3: a single clean commit is
 far easier to cherry-pick between `main` and a release line than a merge bubble
 of fifteen work-in-progress commits. The convention and the maintenance workflow
@@ -287,6 +290,14 @@ protecting from merge volume rather than from individual mistakes.
 - **Every release tag needs a changelog entry**, because the About surface links
   to it and because §13 makes "what am I running" a user-facing question rather
   than a maintainer one.
+- **Recorded at P6A's close, because five phases had already done it:** the
+  phase branches are bare `p3`, `p4`, `p5`, `p6` and `p6a` rather than
+  `feature/<slug>`, and each was merged with `--no-ff` as a true merge commit
+  whose subject carries a colon subtitle — not §5's squash. The reason is worth
+  keeping: the phase documents cite stage commits by hash, and a squash would
+  leave every one of those citations pointing at nothing reachable from `main`.
+  Whether §5 changes or the practice does is open; until CI enforces a name,
+  this bullet is the one place the deviation is written down.
 
 ---
 
