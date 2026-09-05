@@ -68,7 +68,7 @@ if (typeof version !== 'string' || version === '0.0.0') {
 /**
  * **`--expect-version` makes the three-way agreement mechanical.** The tag, the
  * root `package.json` and the changelog entry all name one version, and the
- * failure mode is tagging `v0.1.0-alpha.2` against a tree that still says
+ * failure mode is tagging `v1.0.0-alpha.2` against a tree that still says
  * `alpha.1` — an image that reports a version nobody released, discovered by
  * whoever tries to reproduce it. The release workflow passes the tag here, so
  * that mistake stops the build instead of shipping.

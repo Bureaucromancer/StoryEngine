@@ -12,12 +12,12 @@ Versions are [semantic](https://semver.org), with the caveat
 story**. Package and card schema versions are independent of the application's
 ([02 §7](docs/design/02-data-model.md)).
 
-Each build also has a name — _Alpha 1.0_, _v1.0 beta 1_ — derived from the
-string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-releases.md)
+Each build also has a name — _1.0-alpha 1_, _1.0-beta 1_, _1.0_ — derived from
+the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-releases.md)
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
-## 0.1.0-alpha.1 — Alpha 1.0 — unreleased
+## 1.0.0-alpha.1 — 1.0-alpha 1 — unreleased
 
 **The first build you can go back to.** Until now the only record of a working
 state was the commit graph, which makes _the version where lorebooks worked
@@ -69,3 +69,9 @@ newer one has touched
 
 - Comments in `config.example.json`, `config.ts` and `main.ts` described a
   container that could not have worked. They describe one that can.
+- The release workflow tagged the image `v<version>` while `compose.yaml` and
+  the unraid template pull `<version>`, and it handed the registry the
+  repository owner in the case GitHub reports it, which a registry path
+  refuses. It strips the `v` and lowercases the owner now, and
+  `tools/release.test.ts` holds it to both. Found before the first tag rather
+  than by it.

@@ -1571,7 +1571,7 @@ and waits with the rest of that half.
 {
   "pendingRestart": ["server.port"],
   "canRestart": false,
-  "build": { "version": "0.1.0-alpha.1", "commit": "a54afcc…" }
+  "build": { "version": "1.0.0-alpha.1", "commit": "a54afcc…" }
 }
 ```
 

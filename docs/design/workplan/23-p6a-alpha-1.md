@@ -218,12 +218,14 @@ gate that is already met:
   reports a build identifier, and there is no build-time define. The only git tag
   in the repository is `p1`, a bare phase marker — which means the on-tag CI
   trigger must filter `tags: ['v*']` or it fires on phase tags. *`0.1.0-alpha.1`
-  in the root `package.json` since [P6A.3], which is the one place a human edits
-  it; the four workspace packages stay `0.0.0`, and nothing reads them. The
-  trigger is filtered, and the filter has a test.*
+  in the root `package.json` since [P6A.3], `1.0.0-alpha.1` since the close
+  (§1.6) — which is the one place a human edits it; the four workspace packages
+  stay `0.0.0`, and nothing reads them. The trigger is filtered, and the filter
+  has a test.*
 - **No CHANGELOG.** [releases §7](11-repo-and-releases.md) requires an entry per
-  release tag. *Written at [P6A.3]; the `0.1.0-alpha.1` entry is in it, marked
-  unreleased until the tag is cut.*
+  release tag. *Written at [P6A.3]; the entry is in it — headed `0.1.0-alpha.1`
+  then, `1.0.0-alpha.1` since the close — marked unreleased until the tag is
+  cut.*
 - **No data-directory stamp.** Nothing records which build wrote a data
   directory, and nothing refuses to open one it does not understand.
   *`state/build.json` since [P6A.3], and the refusal with it.*
@@ -332,18 +334,25 @@ already exists.
 
 ### 1.6 The tag scheme, and why `latest` does not move
 
-**`v0.1.0-alpha.1`.** Prefixed `v` because the on-tag trigger has to filter
-`tags: ['v*']` to avoid firing on `p1`; `0.1.0` because
+**~~`v0.1.0-alpha.1`~~ `v1.0.0-alpha.1`.** Prefixed `v` because the on-tag
+trigger has to filter `tags: ['v*']` to avoid firing on `p1`; ~~`0.1.0` because
 [releases §7](11-repo-and-releases.md) already concedes that pre-1.0 semver
-*"means little"* and the data formats carry the real compatibility story;
+*"means little"* and the data formats carry the real compatibility story~~
+`1.0.0` because every prerelease is named after the release it leads to;
 `-alpha.1` because it sorts correctly and increments without argument.
 
-*At the close the string stands, and it now belongs to a naming scheme:
-[releases §7.1](11-repo-and-releases.md), recorded 2026-09-05, calls this build
-Alpha 1.0 and says how every later one is named. Whether an alpha should carry
-`1.0.0-alpha.N` instead of this `0.1.0` is [releases §8](11-repo-and-releases.md)'s
-to settle before the tag is pushed — the question is cheap now and not after,
-because a tag cannot be renamed.*
+*Renamed at the close, 2026-09-05, before the tag existed.* The stages were
+built and recorded under `0.1.0`, and [releases §7.1](11-repo-and-releases.md)
+— the naming scheme, recorded the same day — made the cost of that visible: it
+left the alpha as the one series whose name could not be derived from its
+string by the rule every other build follows, and made `0.1.0` a constant that
+meant nothing. So this build is *1.0-alpha 1*, the first prerelease of 1.0, and
+[releases §8](11-repo-and-releases.md) keeps the question as it was put. Every
+file that names the version was renamed in one commit and
+`tools/release.test.ts` is what proves they agree; the stage records below keep
+`0.1.0-alpha.1` where they quote what a process printed, because that is what
+it printed. The same commit fixed two things in the workflow that no build had
+yet reached — the P6A.4 record says what.
 
 **No release branch.** [releases §2](11-repo-and-releases.md) makes release
 branches per minor line, and cutting one here would switch on
@@ -652,10 +661,11 @@ so no test can arrange one without writing into the package it is testing. The
 test asserts no index file exists after the refusal; moving the call is a
 mutation that fails it.
 
-**The version is `0.1.0-alpha.1` in the root `package.json`**, which is where a
-human edits it, and [§1.6](#16-the-tag-scheme-and-why-latest-does-not-move)'s tag
-is `v` plus that string. The CHANGELOG entry names the same version, so the three
-agree or the release is wrong in a way somebody notices.
+**The version is `0.1.0-alpha.1` in the root `package.json`** *(`1.0.0-alpha.1`
+since the close — [§1.6](#16-the-tag-scheme-and-why-latest-does-not-move))*,
+which is where a human edits it, and §1.6's tag is `v` plus that string. The
+CHANGELOG entry names the same version, so the three agree or the release is
+wrong in a way somebody notices.
 
 Ten mutations, ten red. And checked against real processes where no test reaches:
 `pnpm build:identify` then the entry point spawned twice against one directory —
@@ -739,6 +749,23 @@ over HTTP, and a raw URL into a private repository is the same 404 the first
 draft had. The comment in the template says so now. It goes in with
 publication, which §4 makes one decision rather than a toggle.
 
+*Two defects in the workflow, found at the close by reading it beside the
+compose file, and fixed before any tag could meet them.* `release.yml` tagged
+the image with `github.ref_name`, which is the tag **with** its `v` —
+`storyengine:v1.0.0-alpha.1` — while `compose.yaml` and the template pull
+`storyengine:1.0.0-alpha.1`, and `tools/release.test.ts` held the two files to
+the bare version. So the test *enforced* the mismatch rather than catching it:
+the first thing [docs/deploy.md](../../deploy.md) says to run would have pulled
+a tag nobody pushed, and failed with the 404 that page warns reads like a typo.
+And the image path used `github.repository_owner` under a comment saying
+*lowercased*, which that expression does not do; a registry path must be, and
+a push would have been refused. Both are one step now — the version with its
+`v` stripped, the owner lowercased — used by the build-arg and the image tag,
+and `release.test.ts` asserts the strip, the lowercase, and that `ref_name` is
+not the tag. What this says about the stage is worth keeping: eight mutations
+proved the files agreed with each other, and none could prove they agreed with
+a registry, because no daemon ever asked one.
+
 Eight mutations, eight red: a compose tag off by one alpha, the template's, an
 unfiltered release trigger, `contents: write`, a `.dockerignore` that lets a
 developer's identity file into the image, one that lets `data/` in, a `0.0.0`
@@ -795,12 +822,15 @@ the mechanism, and every step below is a step because the mechanism inside a
 container is the thing nobody has yet seen. The tag does not exist and no image
 has been built.*
 
-1. **Tag and build.** `v0.1.0-alpha.1` exists; the on-tag workflow ran; a second
-   build from the same tag produces an image that behaves identically.
+1. **Tag and build.** ~~`v0.1.0-alpha.1`~~ `v1.0.0-alpha.1` exists (§1.6); the
+   on-tag workflow ran; a second build from the same tag produces an image that
+   behaves identically.
    **Nothing covered.** What a checkout can pin, `tools/release.test.ts` pins:
    the version agrees across `package.json`, the CHANGELOG, `compose.yaml` and
-   the template, and the build context excludes `data/` and a local
-   `build-info.json`. The tag itself is the walk's first act.
+   the template; the workflow tags the image with that same string and a
+   lowercased owner, so what it pushes is what the compose file pulls; and the
+   build context excludes `data/` and a local `build-info.json`. The tag itself
+   is the walk's first act.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
    **Half covered**, and the half matters: `release.test.ts` asserts the

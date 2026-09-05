@@ -23,7 +23,7 @@
 -->
 <Container version="2">
   <Name>StoryEngine</Name>
-  <Repository>ghcr.io/bureaucromancer/storyengine:0.1.0-alpha.1</Repository>
+  <Repository>ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.1</Repository>
   <Registry>https://ghcr.io/bureaucromancer/storyengine</Registry>
   <Network>bridge</Network>
   <Shell>sh</Shell>

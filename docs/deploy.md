@@ -125,7 +125,7 @@ to a project with one maintainer and no users yet.
 1. Bump `version` in the root `package.json`.
 2. Give it a `CHANGELOG.md` entry, and replace **unreleased** with the date.
    The heading opens with the bare version, then the build's name, then the
-   date — `## 0.1.0-alpha.1 — Alpha 1.0 — 2026-…` — because the workflow looks
+   date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
    for the version at the start of the line. The names, and how they follow
    from the string, are [releases §7.1](design/workplan/11-repo-and-releases.md)'s.
 3. Commit, then tag `v<version>` and push the tag.

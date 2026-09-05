@@ -14,7 +14,7 @@
 # Build it with the two arguments the release workflow passes:
 #
 #   docker build --build-arg COMMIT=$(git rev-parse HEAD) \
-#                --build-arg VERSION=v0.1.0-alpha.1 -t storyengine .
+#                --build-arg VERSION=1.0.0-alpha.1 -t storyengine .
 
 ARG NODE_VERSION=26
 

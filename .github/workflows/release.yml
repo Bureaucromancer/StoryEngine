@@ -51,9 +51,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # **Two things the tag and the repository do not say in the form the
+      # registry wants**, computed once and used below. `github.ref_name` is the
+      # tag with its `v` — `v1.0.0-alpha.1` — and the `v` exists for the
+      # trigger's filter above, not for the image: `compose.yaml` and the unraid
+      # template pull `storyengine:1.0.0-alpha.1`, and `tools/release.test.ts`
+      # holds them to the bare version, so the image is tagged with the `v`
+      # stripped or the first thing docs/deploy.md says to run pulls a tag
+      # nobody pushed. And a registry path must be lowercase while
+      # `github.repository_owner` keeps the owner's case; the first draft of
+      # this file said "lowercased" beside an expression that did not, which the
+      # push would have refused. Found at P6A's close by reading the two files
+      # together (docs/design/workplan/23-p6a-alpha-1.md, the P6A.4 record).
+      - name: The version and the owner, as the registry wants them
+        id: names
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       # **The tag decides the version, and the build refuses if the tree
       # disagrees.** `write-build-info.mjs --expect-version` compares this
-      # against the root package.json, so tagging `v0.1.0-alpha.2` on a tree that
+      # against the root package.json, so tagging `v1.0.0-alpha.2` on a tree that
       # still says `alpha.1` stops here rather than shipping an image reporting a
       # version nobody released.
       - name: The image
@@ -63,13 +81,12 @@ jobs:
           push: true
           build-args: |
             COMMIT=${{ github.sha }}
-            VERSION=${{ github.ref_name }}
-          # Lowercased, because a registry path must be and the owner is not.
+            VERSION=${{ steps.names.outputs.version }}
           # Only the immutable tag: `latest` names nothing yet and this does not
           # move it — unraid's auto-update and watchtower both track that alias,
           # and an alpha is not something to hand an auto-updater
           # (docs/design/workplan/23-p6a-alpha-1.md §1.6).
-          tags: ghcr.io/${{ github.repository_owner }}/storyengine:${{ github.ref_name }}
+          tags: ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}
           # Cache through the registry rather than the runner: an on-tag build is
           # rare enough that a runner cache is always cold, and the layers that
           # matter are `pnpm install` and `pnpm build`.

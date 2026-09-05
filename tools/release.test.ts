@@ -97,6 +97,27 @@ describe('the release workflow', () => {
     expect(granted).toContain('contents: read');
     expect(granted).not.toContain('contents: write');
   });
+
+  it('tags the image with the bare version, which is what the compose file pulls', () => {
+    // `github.ref_name` is the tag, `v` included. compose.yaml and the template
+    // pull the version without it and the tests above hold them to it, so the
+    // workflow has to strip the `v` before the string becomes an image tag — or
+    // the first thing the deploy page says to run pulls a tag nobody pushed.
+    // The first version of the workflow tagged with `ref_name`, and the tests
+    // above enforced the mismatch rather than catching it.
+    expect(workflow).toMatch(/echo "version=\$\{GITHUB_REF_NAME#v\}" >> "\$GITHUB_OUTPUT"/);
+    expect(workflow).toMatch(/storyengine:\$\{\{ steps\.names\.outputs\.version \}\}/);
+    expect(workflow).not.toMatch(/storyengine:\$\{\{ github\.ref_name \}\}/);
+  });
+
+  it('lowercases the owner, because a registry path must be', () => {
+    // `github.repository_owner` keeps the owner's case, and this one is not
+    // lowercase. A comment saying "lowercased" beside it was the whole of the
+    // lowercasing until this test.
+    expect(workflow).toMatch(/echo "owner=\$\{GITHUB_REPOSITORY_OWNER,,\}" >> "\$GITHUB_OUTPUT"/);
+    expect(workflow).toMatch(/ghcr\.io\/\$\{\{ steps\.names\.outputs\.owner \}\}\/storyengine:/);
+    expect(workflow).not.toMatch(/ghcr\.io\/\$\{\{ github\.repository_owner \}\}/);
+  });
 });
 
 /**

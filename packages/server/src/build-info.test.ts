@@ -87,7 +87,7 @@ describe('version precedence', () => {
   });
 
   it('puts a hotfix above the build it patches and below the next one', () => {
-    // [releases §7.1]: a dot release is a hotfix in every series, so v1.0 beta 1.1
+    // [releases §7.1]: a dot release is a hotfix in every series, so 1.0-beta 1.1
     // sits between beta 1 and beta 2. The stamp ([P6A §1.7]) has to read it the
     // same way, or a hotfix build would refuse the directory its own predecessor
     // wrote — and this is the specification's longer-set-outranks rule, which is

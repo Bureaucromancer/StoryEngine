@@ -17,7 +17,7 @@
 
 services:
   storyengine:
-    image: ghcr.io/bureaucromancer/storyengine:0.1.0-alpha.1
+    image: ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.1
     # Immutable, deliberately. `latest` names nothing yet and this build does not
     # move it — unraid's auto-update and watchtower both track exactly that
     # alias, and an alpha is not something to hand an auto-updater (§1.6).
