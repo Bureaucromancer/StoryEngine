@@ -86,6 +86,21 @@ describe('version precedence', () => {
     expect(compareVersions('0.1.0-alpha', '0.1.0-beta')).toBeLessThan(0);
   });
 
+  it('puts a hotfix above the build it patches and below the next one', () => {
+    // [releases §7.1]: a dot release is a hotfix in every series, so v1.0 beta 1.1
+    // sits between beta 1 and beta 2. The stamp ([P6A §1.7]) has to read it the
+    // same way, or a hotfix build would refuse the directory its own predecessor
+    // wrote — and this is the specification's longer-set-outranks rule, which is
+    // the one a hand-written comparator most plausibly gets backwards.
+    // Both directions, because the stamp asks it both ways: the hotfix opening
+    // its predecessor's directory, and the predecessor refusing the hotfix's.
+    expect(compareVersions('1.0.0-beta.1.1', '1.0.0-beta.1')).toBeGreaterThan(0);
+    expect(compareVersions('1.0.0-beta.1', '1.0.0-beta.1.1')).toBeLessThan(0);
+    expect(compareVersions('1.0.0-beta.1.1', '1.0.0-beta.2')).toBeLessThan(0);
+    expect(compareVersions('0.1.0-alpha.1.1', '0.1.0-alpha.1')).toBeGreaterThan(0);
+    expect(compareVersions('1.0.0-alpha.2', '1.0.0-beta.1')).toBeLessThan(0);
+  });
+
   it('ignores build metadata, which the specification says carries no precedence', () => {
     expect(compareVersions('0.1.0+build.5', '0.1.0')).toBe(0);
   });

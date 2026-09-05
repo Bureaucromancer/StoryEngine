@@ -880,12 +880,17 @@ than disappearing:
   runtime already forces it.
 - **The console setup token (§5.1) covers the rest** — `docker logs` is exactly
   the host-access-only channel it assumes. This image is also the token's first
-  real consumer, which is why §5.1 homes it at P10 rather than deferring it
+  real consumer, which is why §5.1 ~~homes it at P10~~ homed it at the image
+  rather than at a date — and the image came at
+  [P6A](workplan/23-p6a-alpha-1.md), so the token came with it
+  ([P6A.2](workplan/23-p6a-alpha-1.md)) rather than being deferred
   indefinitely.
 
 This should be a single, documented environment variable rather than a hidden
 build difference, so that a bare-metal user can opt into the same behaviour and
-a container user can tighten it.
+a container user can tighten it. *It is: `SE_HOST`, since
+[P6A.0](workplan/23-p6a-alpha-1.md), and [13 §4](13-internal-contracts.md)
+carries the table of the four variables that exist.*
 
 **Ship an unraid Community Applications template as a first-class artifact.**
 Unraid is a large share of this audience, and a good template — port mapping,

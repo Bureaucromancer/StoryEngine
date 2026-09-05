@@ -338,6 +338,13 @@ already exists.
 *"means little"* and the data formats carry the real compatibility story;
 `-alpha.1` because it sorts correctly and increments without argument.
 
+*At the close the string stands, and it now belongs to a naming scheme:
+[releases §7.1](11-repo-and-releases.md), recorded 2026-09-05, calls this build
+Alpha 1.0 and says how every later one is named. Whether an alpha should carry
+`1.0.0-alpha.N` instead of this `0.1.0` is [releases §8](11-repo-and-releases.md)'s
+to settle before the tag is pushed — the question is cheap now and not after,
+because a tag cannot be renamed.*
+
 **No release branch.** [releases §2](11-repo-and-releases.md) makes release
 branches per minor line, and cutting one here would switch on
 [releases §3](11-repo-and-releases.md)'s forward-port obligation for a line

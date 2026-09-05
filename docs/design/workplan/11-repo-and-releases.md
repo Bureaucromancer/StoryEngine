@@ -286,7 +286,8 @@ protecting from merge volume rather than from individual mistakes.
 - **Semantic versioning**, with the caveat that pre-1.0 it means little and the
   data formats are the thing that actually needs a compatibility story — package
   and card schema versions are independent of the app version
-  ([02 §7](../02-data-model.md)).
+  ([02 §7](../02-data-model.md)). The string is what the machinery reads; what
+  a person calls a build is §7.1.
 - **Every release tag needs a changelog entry**, because the About surface links
   to it and because §13 makes "what am I running" a user-facing question rather
   than a maintainer one.
@@ -298,6 +299,68 @@ protecting from merge volume rather than from individual mistakes.
   leave every one of those citations pointing at nothing reachable from `main`.
   Whether §5 changes or the practice does is open; until CI enforces a name,
   this bullet is the one place the deviation is written down.
+
+### 7.1 How a build is named — recorded 2026-09-05, before the first tag exists
+
+*Stated at P6A's close and written down ahead of `v0.1.0-alpha.1`, because a
+tag cannot be renamed and this is the last moment the scheme is free to change.
+The one part of it that is still open is in §8.*
+
+**Every build has a string and a name, and the string is the one the machinery
+reads.** The string is semver: the tag is `v` plus it, `write-build-info.mjs`
+refuses a tag that disagrees with the root `package.json`, `release.test.ts`
+holds `compose.yaml`, the unraid template and the CHANGELOG entry to the same
+string, and the data-directory stamp ([P6A §1.7](23-p6a-alpha-1.md)) orders two
+builds by it. The name is **derived from the string and typed nowhere on its
+own** — four places carried the version before anything compared them, and a
+fifth that could not be derived would be a fifth to disagree.
+
+| Series | Names | Strings |
+|---|---|---|
+| **Alpha** — each a feature-stable state of the tree, frozen | *Alpha 1.0*, *Alpha 2.0*, …; *Alpha 1.1* would be a hotfix on Alpha 1.0 | `0.1.0-alpha.1`, `0.1.0-alpha.2`, …; `0.1.0-alpha.1.1` |
+| **Beta** — the release's own numbering starts here, at feature-complete (§0) | *v1.0 beta 1*, *v1.0 beta 1.1* (a hotfix on beta 1), *v1.0 beta 2*, … | `1.0.0-beta.1`, `1.0.0-beta.1.1`, `1.0.0-beta.2` |
+| **Release** | *v1.0*; *v1.0.1* for a patch on `release/1.0` (§2, §3) | `1.0.0`, `1.0.1` |
+| **The next series** | *v2.0 beta 1*, and — if one is ever cut — *v2.0 alpha 1* | `2.0.0-beta.1`, `2.0.0-alpha.1` |
+
+**A dot release is a hotfix, in every series.** *Alpha 1.1*, *v1.0 beta 1.1*,
+*v1.0.1*: a fix on a build that exists, never a place to park a feature, which
+is §0's rule about point releases said again for the prereleases. None is
+expected during alpha, and the branch model has no home for one: a prerelease
+is a tag on `main` ([P6A §1.6](23-p6a-alpha-1.md)), so an alpha hotfix would
+need a branch cut from that tag, and §1 lists no such branch. It is added when
+the first one is needed rather than before. A beta hotfix has a home already if
+`release/1.0` is cut at beta 1 — the freeze-not-release answer §8 leans toward.
+
+**Why the betas carry the release's name.** The committed versions
+([01 §0](01-work-plan.md)) are one surface or tier each — 1.0 Play, 2.0 Write,
+3.0 World, 4.0 Campaign, 5.0 the authoring tier — so the major number moves
+faster than the word usually implies, and *v2.0 beta 1* says which of those it
+is feature-complete to where a bare *beta 7* would not. The alphas before 1.0
+do not carry it, because 1.0's own numbering is defined to start at
+feature-complete; §8 asks whether the string underneath should anyway.
+
+**The semver underneath needs no rule of its own for any of this.** Prerelease
+identifiers compare field by field, numerically when both are numeric, and a
+longer set outranks a shorter one it extends — so `beta.1 < beta.1.1 < beta.2 <
+1.0.0` and `alpha.2 < beta.1` fall out of the specification. `compareVersions`
+in `packages/server/src/build-info.ts` implements exactly that, and its test
+names the hotfix shape so that a stamp written by *beta 1* opens under
+*beta 1.1* and not the other way round. The `v` on the tag is for the
+workflow's `v*` filter, which exists because `p1` is a tag too.
+
+**Rendering, so the name is derivable:** drop the patch when it is zero
+(`1.0.0` is *v1.0*, `1.0.1` stays *v1.0.1*), spell the prerelease with a space
+(`-beta.1` is *beta 1*), and keep a hotfix's second field as a dot (`-beta.1.1`
+is *beta 1.1*). The alphas are the exception twice over: the name shows a `.0`
+the betas drop (*Alpha 1.0*, *beta 1*), and while the string is `0.1.0-alpha.N`
+the name reads the prerelease fields alone and ignores the `0.1.0` in front of
+them. Both are recorded as stated; the second is §8's question.
+
+**In the CHANGELOG** the heading opens with the bare string, because
+`release.yml` and `release.test.ts` both look for `## <version>` at the start
+of a line; the name and the date follow after dashes —
+`## 0.1.0-alpha.1 — Alpha 1.0 — unreleased` today, the date in place of
+*unreleased* once the tag is cut.
 
 ---
 
@@ -321,3 +384,25 @@ protecting from merge volume rather than from individual mistakes.
 - **[OPEN]** Whether release branches are cut at feature freeze or at release.
   Freeze allows stabilisation without blocking `main`, which is the usual reason
   to want them, and is probably right.
+- **[OPEN]** Which string carries an alpha — to settle before `v0.1.0-alpha.1`
+  is pushed, because a tag cannot be renamed and every other cost is nil today.
+  §7.1 records what the tree holds: `0.1.0-alpha.N`, chosen at
+  [P6A §1.6](23-p6a-alpha-1.md) because pre-1.0 semver *"means little"*. Three
+  things follow from that choice that the naming makes visible: the `0.1.0` is
+  a constant that means nothing; the alpha is the one series whose name is not
+  derivable by §7.1's general rule; and alphas get two rules where betas have
+  one — `0.1.0-alpha.N` before 1.0, `2.0.0-alpha.N` after it. **The
+  recommendation is `1.0.0-alpha.N`, hotfix `1.0.0-alpha.N.M`:** one rule for
+  every series, the string saying which release it is an alpha of — which is
+  what the name wants for betas and *"just maybe"* for alphas — the whole line
+  to 1.0 ordering under one major, and *Alpha 1.0* remaining the name while
+  1.0 is the only release there is, since a prerelease of `1.0.0` claims
+  nothing about feature-completeness; it says *before 1.0*, which is what an
+  alpha is. The cost is five strings — `package.json`, the CHANGELOG heading,
+  `compose.yaml`, the template and [P6A §1.6](23-p6a-alpha-1.md) — and no data
+  directory anywhere carries a stamp yet. After the tag the cost is a
+  `v0.1.0-alpha.1` that stays the odd one out for as long as the repository
+  exists. The other coherent mapping is `0.N.M` with no prerelease identifier —
+  *Alpha 1.0* literally `0.1.0`, *Alpha 1.1* `0.1.1` — which matches the names
+  as stated exactly and makes a running build report a string with *alpha*
+  nowhere in it.

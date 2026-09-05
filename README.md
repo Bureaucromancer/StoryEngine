@@ -337,11 +337,11 @@ fixture test asserting the enforcement actually fires:
   `sdk → shared`; `server → shared, sdk`. Never the other way.
 - **No direct `fs`** outside `packages/server/src/storage`, which keeps one
   audited path resolver the only door ([07 §9](docs/design/07-tech-stack.md)).
-- **No randomness** outside the RNG service (`packages/server/src/rng/`, two
-  files wide, since P2.2) — every draw goes through it and lands on the turn's
-  tape, which is what makes a rewrite replay the same dice. Two one-file
-  exemptions, id generation and cryptographic secrets, each argued where it is
-  granted in `eslint.config.js` ([07 §14.4](docs/design/07-tech-stack.md)).
+- **No randomness** outside the RNG service (`packages/server/src/rng/`, since
+  P2.2) — every draw goes through it and lands on the turn's tape, which is
+  what makes a rewrite replay the same dice. Two one-file exemptions, id
+  generation and cryptographic secrets, each argued where it is granted in
+  `eslint.config.js` ([07 §14.4](docs/design/07-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
   classes ([07 §12.6](docs/design/07-tech-stack.md)).
 - **An SPDX header** on every source file.

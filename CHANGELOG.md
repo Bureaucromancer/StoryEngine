@@ -12,7 +12,12 @@ Versions are [semantic](https://semver.org), with the caveat
 story**. Package and card schema versions are independent of the application's
 ([02 §7](docs/design/02-data-model.md)).
 
-## 0.1.0-alpha.1 — unreleased
+Each build also has a name — _Alpha 1.0_, _v1.0 beta 1_ — derived from the
+string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-releases.md)
+and never written without it. A heading here opens with the string, because the
+release workflow reads it there, and carries the name and the date after it.
+
+## 0.1.0-alpha.1 — Alpha 1.0 — unreleased
 
 **The first build you can go back to.** Until now the only record of a working
 state was the commit graph, which makes _the version where lorebooks worked
