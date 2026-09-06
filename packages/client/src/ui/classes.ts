@@ -137,25 +137,66 @@ export const page = {
   tooling: 'mx-auto w-full max-w-4xl px-6 py-8',
   reading: 'mx-auto w-full max-w-reading px-6 py-8',
   /**
-   * The row a page's primary action sits in, held against the bottom of the
+   * The row a surface's critical controls sit in — the way back up, the
+   * primary action, and the destructive one — held against the bottom of the
    * scrollport for as long as there is page left below it.
+   *
+   * **It began as the editors' Save row** ([05 §11.6]) and became the strip
+   * every surface keeps its critical controls in: the editors' *Back to*,
+   * Save, History and Delete; the read page's *Back to the library*, Edit and
+   * Delete; and the action row of every form on the settings page. One recipe
+   * rather than three, because the argument is the same each time — a control
+   * reachable only by scrolling past everything it is about is a control that
+   * teaches people not to use it — and a second spelling would be a second
+   * bar for the eye to learn.
    *
    * **`-mx-6 px-6` is not a margin the call site chose**, which is why it is
    * here with the columns rather than there with the layout. It is exactly the
    * column's own `px-6`, cancelled and re-applied, so that the bar reaches both
    * edges of the column while what is in it stays on the column's text line.
    * The two are one decision — change a column's padding and this is wrong —
-   * and that is the same ground the `mx-auto` above stands on.
+   * and that is the same ground the `mx-auto` above stands on. It follows
+   * that the element holding it must itself span the column: a settings form
+   * that used to be `max-w-md` now constrains its fields in a block of that
+   * width and leaves the form, and so the bar, at the column's.
    *
    * `bg-surface` is opacity rather than decoration: the bar floats over the
    * form, and a transparent one renders two lines of text in the same pixels.
+   * `flex-wrap` because the strip now holds five things, and a narrow column
+   * must fold it rather than push its last control off the edge.
    *
    * It sticks within **whichever element holds it**, against `<main>`, which is
    * the scroll container ([P3.−1]). So it goes last inside the thing it should
    * stay in front of — in the editors, the form: it releases only over the
    * panels below, which is the part of the page a person reads rather than
-   * edits.
+   * edits. On the read page it goes last in the column, because there the
+   * whole page is the object the controls are about.
    */
   actions:
-    'sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t border-line bg-surface px-6 py-3',
+    'sticky bottom-0 z-10 -mx-6 flex flex-wrap items-center gap-3 border-t border-line bg-surface px-6 py-3',
+} as const;
+
+/**
+ * The same strip, held inside a card — the settings page's *Add someone*, its
+ * connection form and its first-run offer, each a form in a bordered box
+ * narrower than the column.
+ *
+ * A card is `p-4` (`Panel`'s recipe, spelled inline by those three because a
+ * `Panel` is a `div` and they are forms), so this is `page.actions` with the
+ * card's padding cancelled and re-applied in place of the column's. **The
+ * bottom padding is cancelled too**, so the strip sits on the card's own edge
+ * with corners that follow the card's: a rule floating a padding's height
+ * above the border would read as a mistake in the state the strip spends most
+ * of its time in, which is released. The negative margin does not stop the
+ * pin — sticky constrains the *margin* box to the card, so the border box may
+ * reach the card's padding edge and no further, which is exactly the edge it
+ * should rest on.
+ *
+ * Checked in a browser rather than by test, because jsdom computes no layout:
+ * pinned, the strip's bottom is the scrollport's; released, it is the card's
+ * padding edge.
+ */
+export const panel = {
+  actions:
+    'sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-3 rounded-b-panel border-t border-line bg-surface px-4 py-3',
 } as const;

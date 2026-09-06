@@ -7,6 +7,7 @@ import { ApiError } from '../api.js';
 import { useAuthState, useChangePassword, useMe, useUpdateMe } from '../queries.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { Button } from '../ui/Button.js';
+import { page } from '../ui/classes.js';
 import { SecretField } from '../ui/SecretField.js';
 
 /**
@@ -107,8 +108,18 @@ export function UserSettings(): JSX.Element {
         You
       </h2>
 
+      {/*
+       * **The form spans the column and its fields do not**, on every form on
+       * this page. The action row is `page.actions` — the strip the editors
+       * hold their Save in, now held here for the same reason
+       * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)) — and its
+       * recipe reaches the column's edges by cancelling the column's own
+       * padding, which only works from an element as wide as the column. So
+       * `max-w-md` moved from the form to a block around the fields, and the
+       * form is left at the width the strip needs.
+       */}
       <form
-        className="flex max-w-md flex-col gap-4"
+        className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
           update.mutate({
@@ -117,20 +128,22 @@ export function UserSettings(): JSX.Element {
           });
         }}
       >
-        <Field
-          label="Display name"
-          value={nameValue}
-          onChange={setDisplayName}
-          hint="What other people in this install see."
-        />
-        <SelectField
-          label="Language and formats"
-          value={localeValue}
-          options={LOCALES}
-          onChange={setLocale}
-          hint="Sets how dates and numbers are written, and the language of notifications the server sends while the app is closed."
-        />
-        <div className="flex items-center gap-3">
+        <div className="flex max-w-md flex-col gap-4">
+          <Field
+            label="Display name"
+            value={nameValue}
+            onChange={setDisplayName}
+            hint="What other people in this install see."
+          />
+          <SelectField
+            label="Language and formats"
+            value={localeValue}
+            options={LOCALES}
+            onChange={setLocale}
+            hint="Sets how dates and numbers are written, and the language of notifications the server sends while the app is closed."
+          />
+        </div>
+        <div className={page.actions}>
           <Button type="submit" variant="primary" size="compact">
             Save
           </Button>
@@ -148,7 +161,7 @@ export function UserSettings(): JSX.Element {
       </form>
 
       <form
-        className="flex max-w-md flex-col gap-4"
+        className="flex flex-col gap-4"
         aria-labelledby="password"
         onSubmit={(event) => {
           event.preventDefault();
@@ -169,22 +182,41 @@ export function UserSettings(): JSX.Element {
           );
         }}
       >
-        <h3 id="password" className="text-subsection text-ink">
-          Password
-        </h3>
-        <SecretField
-          label="Current password"
-          value={current}
-          onChange={setCurrent}
-          autoComplete="current-password"
-        />
-        <SecretField
-          label="New password"
-          value={next}
-          onChange={setNext}
-          autoComplete="new-password"
-        />
-        <div className="flex items-center gap-3">
+        <div className="flex max-w-md flex-col gap-4">
+          <h3 id="password" className="text-subsection text-ink">
+            Password
+          </h3>
+          <SecretField
+            label="Current password"
+            value={current}
+            onChange={setCurrent}
+            autoComplete="current-password"
+          />
+          <SecretField
+            label="New password"
+            value={next}
+            onChange={setNext}
+            autoComplete="new-password"
+          />
+          {/**
+           * **Sessions elsewhere are not ended**, and saying so is the honest
+           * thing rather than the tidy one.
+           *
+           * Sessions are signed stateless cookies with no denylist ([04 §4.1]),
+           * so nothing here can revoke one — and a form that quietly implied
+           * otherwise would leave somebody believing they had shut out whoever
+           * they changed the password because of.
+           *
+           * Above the action row rather than below it, now that the row is a
+           * strip held to the foot of the form: what a click does not do is
+           * read before the click, and nothing sits under the strip.
+           */}
+          <p className="text-xs text-ink-faint">
+            Changing your password does not sign out other browsers you are already signed in on.
+            Those sessions last until they expire.
+          </p>
+        </div>
+        <div className={page.actions}>
           <Button type="submit" variant="primary" size="compact">
             Change password
           </Button>
@@ -199,19 +231,6 @@ export function UserSettings(): JSX.Element {
             </p>
           )}
         </div>
-        {/**
-         * **Sessions elsewhere are not ended**, and saying so is the honest
-         * thing rather than the tidy one.
-         *
-         * Sessions are signed stateless cookies with no denylist ([04 §4.1]),
-         * so nothing here can revoke one — and a form that quietly implied
-         * otherwise would leave somebody believing they had shut out whoever
-         * they changed the password because of.
-         */}
-        <p className="text-xs text-ink-faint">
-          Changing your password does not sign out other browsers you are already signed in on.
-          Those sessions last until they expire.
-        </p>
       </form>
     </section>
   );

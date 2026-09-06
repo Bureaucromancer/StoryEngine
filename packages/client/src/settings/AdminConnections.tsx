@@ -23,6 +23,7 @@ import {
 } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 
 /**
@@ -408,37 +409,46 @@ function ConnectionForm({
         </div>
       </details>
 
-      {conflict === null ? null : (
-        <Alert tone="warning" role="alert">
-          <p>
-            The connection file changed on disk since this page loaded. Saving now would overwrite
-            that edit.
-          </p>
-          {/**
-           * Two offers, and the acknowledgement stays set for both — the shape
-           * the config form arrived at after P2A's gate found that a 412 with
-           * only one way out is a wedge rather than a refusal.
-           */}
-          <div className="mt-2 flex gap-2">
-            <Button
-              type="button"
-              size="compact"
-              onClick={() => {
-                setLabel(conflict.label);
-                setBaseUrl(conflict.baseUrl ?? '');
-                setModelText(conflict.models.join(', '));
-              }}
-            >
-              Load what is on disk
-            </Button>
-            <Button type="submit" size="compact">
-              Overwrite with mine
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      <div className="flex items-center gap-3">
+      {/*
+       * The action row is held against the bottom of the scrollport, inside
+       * this card — `panel.actions` is the editors' strip with the card's
+       * padding in place of the column's ([05 §11.6]). **The conflict lives
+       * inside the strip**, as a full-width line above the buttons, and that
+       * is a consequence rather than a flourish: with the strip pinned, the
+       * foot of the form is below the fold, and a refusal rendered there would
+       * arrive out of sight of the Save that provoked it — the silent 412 this
+       * file already fixed once, reintroduced by layout.
+       */}
+      <div className={panel.actions}>
+        {conflict === null ? null : (
+          <Alert tone="warning" role="alert" className="basis-full">
+            <p>
+              The connection file changed on disk since this page loaded. Saving now would overwrite
+              that edit.
+            </p>
+            {/**
+             * Two offers, and the acknowledgement stays set for both — the shape
+             * the config form arrived at after P2A's gate found that a 412 with
+             * only one way out is a wedge rather than a refusal.
+             */}
+            <div className="mt-2 flex gap-2">
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  setLabel(conflict.label);
+                  setBaseUrl(conflict.baseUrl ?? '');
+                  setModelText(conflict.models.join(', '));
+                }}
+              >
+                Load what is on disk
+              </Button>
+              <Button type="submit" size="compact">
+                Overwrite with mine
+              </Button>
+            </div>
+          </Alert>
+        )}
         <Button type="submit" variant="primary" size="compact">
           Save
         </Button>
@@ -526,7 +536,7 @@ function FirstRunDefaults({
       </p>
       <SelectField label="The good one" value={hi} options={options} onChange={setHi} />
       <SelectField label="The cheap one" value={lo} options={options} onChange={setLo} />
-      <div className="flex items-center gap-3">
+      <div className={panel.actions}>
         <Button type="submit" variant="primary" size="compact">
           Use these
         </Button>

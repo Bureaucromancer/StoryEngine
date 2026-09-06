@@ -749,3 +749,22 @@ describe('leaving an editor with unsaved changes', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });
+
+/**
+ * The critical-controls strip's wiring, for this editor
+ * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)). The delete control is
+ * one shared component and its behaviour — the trash, the hash, the guard it
+ * must step past — is proved in the actor editor's test; what two editors can
+ * differ on silently is whether each mounts it, and whether the way back moved
+ * into the strip with it. So this asserts the wiring and nothing more.
+ */
+describe('the critical controls in the lorebook editor', () => {
+  it('offers Delete and the way back beside Save', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Back to the lorebook' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+  });
+});

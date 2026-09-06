@@ -17,12 +17,13 @@ import {
 import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
 import { AsStored } from '../library/AsStored.js';
+import { DeleteObject } from '../library/DeleteObject.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { page, table } from '../ui/classes.js';
+import { link, page, table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
@@ -313,17 +314,6 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   return (
     <>
-      <p className="mb-4">
-        <Link
-          to="/library/$kind/$id"
-          params={{ kind: 'lorebooks', id: base.id }}
-          search={{}}
-          className="text-sm text-ink-subtle underline hover:text-ink"
-        >
-          Back to the lorebook
-        </Link>
-      </p>
-
       <header className="mb-6">
         <h1 className="text-title text-ink">{nameOf(draft)}</h1>
         <p className="text-sm text-ink-subtle">
@@ -491,22 +481,44 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
          * Last inside the `<form>`, which is what makes the pin last: a sticky
          * element is held only within the element that holds it, and the form
          * is everything on this page that Save is about.
+         *
+         * The way back and Delete share the strip with Save, for the reason
+         * Save is in it: they are the controls that matter, and the page being
+         * scrolled to an entry three hundred rows down is no reason for either
+         * to be off screen. Delete moves the *book* — the whole file, as
+         * saved — where *Remove this entry* above edits the draft; the strip's
+         * question says so while there are edits nothing has written.
          */}
         <div className={page.actions}>
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'lorebooks', id: base.id }}
+            search={{}}
+            className={link.back}
+          >
+            Back to the lorebook
+          </Link>
           <Button type="submit" disabled={!changed || save.isPending} variant="primary">
             Save
           </Button>
           {changed ? null : <span className="text-sm text-ink-faint">No changes to save.</span>}
-          <Button
-            type="button"
-            className="ms-auto"
-            aria-expanded={historyOpen}
-            onClick={() => {
-              setHistoryOpen((open) => !open);
-            }}
-          >
-            History
-          </Button>
+          <span className="ms-auto flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              aria-expanded={historyOpen}
+              onClick={() => {
+                setHistoryOpen((open) => !open);
+              }}
+            >
+              History
+            </Button>
+            <DeleteObject
+              kind="lorebooks"
+              id={base.id}
+              contentHash={base.contentHash}
+              unsaved={changed}
+            />
+          </span>
         </div>
       </form>
 

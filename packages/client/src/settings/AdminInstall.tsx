@@ -7,6 +7,7 @@ import { ApiError } from '../api.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { page } from '../ui/classes.js';
 import { useAdminConfig, useWriteConfig } from '../queries.js';
 
 /**
@@ -103,8 +104,16 @@ export function AdminInstall(): JSX.Element {
         will notice if you do.
       </p>
 
+      {/*
+       * The fields in a `max-w-md` block and the form at the column's width,
+       * because the action row below is the strip the editors hold their Save
+       * in ([05 §11.6]) and its recipe needs the column's edges —
+       * `UserSettings` has the longer note. This is the form the strip was
+       * most owed on this page: a screen and a half of keys with Save at the
+       * foot of them is the editor's failure at a smaller scale.
+       */}
       <form
-        className="flex max-w-md flex-col gap-4"
+        className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
           setConflict(null);
@@ -144,34 +153,83 @@ export function AdminInstall(): JSX.Element {
           );
         }}
       >
-        {paths.map((path) => (
-          <ConfigControl
-            key={path}
-            path={path}
-            value={valueAt(config, path)}
-            tier={view.data.tiers[path] ?? 'restart'}
-            bound={view.data.bounds[path] ?? {}}
-            choices={view.data.choices[path]}
-            readOnly={READ_ONLY.has(path)}
-            onChange={(next) => {
-              change(path, next);
-            }}
-          />
-        ))}
+        <div className="flex max-w-md flex-col gap-4">
+          {paths.map((path) => (
+            <ConfigControl
+              key={path}
+              path={path}
+              value={valueAt(config, path)}
+              tier={view.data.tiers[path] ?? 'restart'}
+              bound={view.data.bounds[path] ?? {}}
+              choices={view.data.choices[path]}
+              readOnly={READ_ONLY.has(path)}
+              onChange={(next) => {
+                change(path, next);
+              }}
+            />
+          ))}
 
-        {unread.length > 0 ? (
-          /**
-           * **The group that stops a control ever doing nothing silently.**
-           *
-           * A tier says what a key is *for*; `appliers` says whether anything
-           * reads it yet, and the two are allowed to disagree ([P2A §2.5]).
-           * Without this the form would tell somebody a change had taken when
-           * it had only been stored.
-           */
-          <p className="text-xs text-ink-faint">{unreadNotice(unread)}</p>
-        ) : null}
+          {unread.length > 0 ? (
+            /**
+             * **The group that stops a control ever doing nothing silently.**
+             *
+             * A tier says what a key is *for*; `appliers` says whether anything
+             * reads it yet, and the two are allowed to disagree ([P2A §2.5]).
+             * Without this the form would tell somebody a change had taken when
+             * it had only been stored.
+             */
+            <p className="text-xs text-ink-faint">{unreadNotice(unread)}</p>
+          ) : null}
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className={page.actions}>
+          {/**
+           * **The conflict is inside the strip**, on a line of its own above
+           * the buttons, and that is a consequence of holding the strip rather
+           * than a flourish. Pinned, the strip covers the foot of the form,
+           * which is where this block used to render — so a 412 answered from
+           * a pinned Save would have arrived below the fold, out of sight of
+           * the click that provoked it. That is the silent refusal [01 §2.2]
+           * forbids and this form has already been caught in once, put back
+           * by layout.
+           */}
+          {conflict === null ? null : (
+            <Alert tone="warning" role="alert" className="basis-full">
+              <p>
+                The file changed on disk since this page loaded. Saving now would overwrite that
+                edit.
+              </p>
+              {/**
+               * **Two offers, and the acknowledgement stays set for both.**
+               *
+               * Whichever the admin picks, the next save presents `contentHash` —
+               * the form saying *I have seen what is on disk*. The difference
+               * between them is only which values travel beside it, which is why
+               * pressing Save without choosing is refused again rather than
+               * silently picking one.
+               */}
+              <div className="mt-2 flex gap-2">
+                <Button
+                  type="button"
+                  size="compact"
+                  onClick={() => {
+                    setDraft(conflict.document);
+                  }}
+                >
+                  Load what is on disk
+                </Button>
+                <Button
+                  type="button"
+                  size="compact"
+                  onClick={() => {
+                    setDraft(config);
+                  }}
+                >
+                  Overwrite with mine
+                </Button>
+              </div>
+            </Alert>
+          )}
           <Button type="submit" variant="primary" size="compact">
             Save
           </Button>
@@ -187,7 +245,7 @@ export function AdminInstall(): JSX.Element {
            * as it had before, which is the failure mode [01 §2.2] is about.
            *
            * **`conflict === null` is load-bearing rather than tidiness.** The
-           * conflict block below is already `role="alert"`, and a second one
+           * conflict block above is already `role="alert"`, and a second one
            * beside it makes `findByRole('alert')` ambiguous — the settings test
            * throws on it. It also reads correctly: a conflict already explains
            * itself and offers two recoveries, so a second paragraph would be
@@ -199,43 +257,6 @@ export function AdminInstall(): JSX.Element {
             </p>
           ) : null}
         </div>
-
-        {conflict === null ? null : (
-          <Alert tone="warning" role="alert">
-            <p>
-              The file changed on disk since this page loaded. Saving now would overwrite that edit.
-            </p>
-            {/**
-             * **Two offers, and the acknowledgement stays set for both.**
-             *
-             * Whichever the admin picks, the next save presents `contentHash` —
-             * the form saying *I have seen what is on disk*. The difference
-             * between them is only which values travel beside it, which is why
-             * pressing Save without choosing is refused again rather than
-             * silently picking one.
-             */}
-            <div className="mt-2 flex gap-2">
-              <Button
-                type="button"
-                size="compact"
-                onClick={() => {
-                  setDraft(conflict.document);
-                }}
-              >
-                Load what is on disk
-              </Button>
-              <Button
-                type="button"
-                size="compact"
-                onClick={() => {
-                  setDraft(config);
-                }}
-              >
-                Overwrite with mine
-              </Button>
-            </div>
-          </Alert>
-        )}
       </form>
     </section>
   );

@@ -167,6 +167,14 @@ describe('deleting a library object', () => {
     expect(deleteObject).not.toHaveBeenCalled();
   });
 
+  /**
+   * The destination and nothing more. The control is shared with the editors
+   * since it moved into the critical-controls strip, and it carries
+   * `ignoreBlocker` for their sake — an unsaved-changes guard has nothing to
+   * defend once the object is in the trash. This page mounts no blocker, so
+   * the flag's effect is proved where one exists (`ActorEditorPage.test.tsx`)
+   * and not pinned here, where it would be a claim about nothing.
+   */
   it('goes back to the library once it is gone', async () => {
     renderPage();
     const user = await askToDelete();
@@ -174,7 +182,7 @@ describe('deleting a library object', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
     await vi.waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith({ to: '/library' });
+      expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ to: '/library' }));
     });
   });
 
@@ -197,6 +205,27 @@ describe('deleting a library object', () => {
       'The object has changed since it was read.',
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The critical controls moved from the header to a strip held at the foot of
+ * the page ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)), and the way
+ * back went with them — which turned it from the thing the page opened with
+ * into a thing every branch of the loader has to render on its own. The
+ * branch most likely to lose it is the one nobody walks on purpose: the object
+ * that is not there. Reddened by dropping `<Controls />` from the error branch.
+ */
+describe('the way back', () => {
+  it('is offered even when there is no object to show', async () => {
+    readObject.mockRejectedValue(new ApiError(404, 'not-found', 'No such object.'));
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'There is no such object in your library.',
+    );
+    expect(screen.getByRole('link', { name: 'Back to the library' })).toBeTruthy();
   });
 });
 

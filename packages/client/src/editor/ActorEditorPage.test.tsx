@@ -99,6 +99,7 @@ function makeLibrary() {
   let stored = structuredClone(ACTOR);
   let revision = 0;
   const updates: UpdateAttempt[] = [];
+  const removals: { id: unknown; presented: string }[] = [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
 
@@ -157,6 +158,20 @@ function makeLibrary() {
       updates.push({ presented: contentHash, returned: hash() });
       return Promise.resolve({ contentHash: hash(), object: structuredClone(stored) });
     },
+
+    /**
+     * What the fake was asked to move to the trash, with the hash the client
+     * presented — the same thing `updates` records for a write, because a
+     * delete on a moved file is refused by the same rule and for the same
+     * reason. Accepted without checking the hash: the refusal path is the
+     * detail page's test to prove, and this file's claim is about what the
+     * editor sends and where it goes afterwards.
+     */
+    removals,
+    deleteObject(_kind: unknown, id: unknown, contentHash: string): Promise<undefined> {
+      removals.push({ id, presented: contentHash });
+      return Promise.resolve(undefined);
+    },
   };
 }
 
@@ -193,6 +208,8 @@ vi.mock('../api.js', async (importOriginal) => {
         object: Record<string, unknown>,
         contentHash: string,
       ) => server.updateObject(kind, id, object, contentHash),
+      deleteObject: (kind: unknown, id: unknown, contentHash: string) =>
+        server.deleteObject(kind, id, contentHash),
     },
   };
 });
@@ -443,6 +460,41 @@ describe('leaving the actor editor with unsaved changes', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
     });
+  });
+});
+
+/**
+ * Delete from the editor — the third control in the critical-controls strip
+ * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)), and the one exit
+ * the unsaved-changes guard must not stand in front of. The draft it would
+ * offer to keep is of a file that is now in the trash; *Keep editing* would
+ * keep it, in a form whose next Save the server refuses.
+ *
+ * The falsifying mutation is dropping `ignoreBlocker` from the navigation in
+ * `library/DeleteObject.tsx`: the dialog opens over the delete, the address
+ * never moves, and both closing assertions fail. The hash assertion falls to a
+ * different mutation — presenting anything but the editor's base — and is here
+ * because a delete on a moved file is refused by the same rule as a write.
+ */
+describe('deleting the actor from its editor', () => {
+  it('moves it to the trash with the hash the editor holds, and leaves without asking about the draft', async () => {
+    renderApp();
+    await openTheEditor();
+
+    // A draft, so that a guard which did run would have something to guard.
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), ', the fixer');
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    // The question says what the trash will not hold, because the surface
+    // knows there are edits nothing has written.
+    expect(screen.getByText('Move to trash? Unsaved edits are not kept.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/library');
+    });
+    expect(server.removals).toEqual([{ id: ACTOR_ID, presented: 'sha256:revision-0' }]);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });
 

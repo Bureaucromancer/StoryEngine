@@ -14,6 +14,7 @@ import {
   useUpdateAccount,
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 
 /**
@@ -289,7 +290,14 @@ function NewAccount(): JSX.Element {
           setRole(value as 'admin' | 'user');
         }}
       />
-      <div className="flex items-center gap-3">
+      {/*
+       * Held against the bottom of the scrollport inside this card, like every
+       * action row on the settings page — `panel.actions` is the editors'
+       * strip with the card's padding in place of the column's ([05 §11.6]).
+       * Short as this form is, a strip on one form and a plain row on the next
+       * would be two things to learn for one job.
+       */}
+      <div className={panel.actions}>
         <Button type="submit" variant="primary" size="compact">
           Create
         </Button>
