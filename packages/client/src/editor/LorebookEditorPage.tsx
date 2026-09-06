@@ -651,6 +651,25 @@ function GateNote({ book, entry }: { book: Lorebook; entry: LoreEntry }): JSX.El
 const nudge =
   'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';
 
+/**
+ * Which edge of the row at `at` a row dragged from `from` lands on.
+ *
+ * Dropping on a row above puts the entry in front of it; dropping on one below
+ * puts it behind — the rule every list with this gesture uses, and the only one
+ * where the row ends up where the pointer left it. It is decided by where the
+ * drag *came from* and not by where in the row the pointer is: a row one line
+ * tall has no room for two targets, and an edge that flipped as the pointer
+ * crossed the middle would be a decision made by a tremor.
+ *
+ * One function for the drop and for the line drawn before it, so the two cannot
+ * disagree: a change to this comparison moves the line and the drop together,
+ * and the tests are written against the line because the line is the promise
+ * the drop then has to keep.
+ */
+function landing(from: number, at: number): 'before' | 'after' {
+  return from > at ? 'before' : 'after';
+}
+
 function EntryList(props: {
   book: Lorebook;
   entries: LoreEntry[];
@@ -661,6 +680,19 @@ function EntryList(props: {
 }): JSX.Element {
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<string | null>(null);
+  /**
+   * The row the pointer is over while a drag is in progress — where the line
+   * that says *you would land here* is drawn. Set by the row's `dragover`,
+   * because that is the event that decides whether a drop is allowed, so the
+   * line appears exactly where `preventDefault` is called and nowhere else.
+   * Cleared when the drag drops or ends, when the pointer is over the row
+   * being dragged (nothing can land there, so nothing is promised), and when
+   * it leaves the list. A primitive rather than a field beside `dragging`,
+   * because `dragover` fires every few dozen milliseconds and setting the
+   * same id again must cost nothing — which a state object would have to be
+   * guarded to manage, in a list that can be two hundred rows long.
+   */
+  const [over, setOver] = useState<string | null>(null);
   const [moved, setMoved] = useState('');
   const held = useRef<HTMLUListElement>(null);
 
@@ -695,6 +727,9 @@ function EntryList(props: {
     return at < 0 ? null : (full[at + 1]?.id ?? null);
   }
 
+  /** The dragged row's place among the visible rows, or -1 while nothing is dragged. */
+  const from = visible.findIndex((entry) => entry.id === dragging);
+
   function move(entry: LoreEntry, beforeId: string | null, to: number): void {
     props.onMove(entry.id, beforeId);
     // Announced rather than only shown, because the thing that changed is a
@@ -722,13 +757,38 @@ function EntryList(props: {
       ) : visible.length === 0 ? (
         <Note>No entry here is named that.</Note>
       ) : (
-        <ul ref={held} className="flex max-h-80 flex-col overflow-y-auto">
+        <ul
+          ref={held}
+          className="flex max-h-80 flex-col overflow-y-auto"
+          onDragLeave={(event) => {
+            /**
+             * The list's `dragleave` fires for every row the pointer leaves,
+             * including on its way into the next one, so clearing on each
+             * would clear on every move. `relatedTarget` is where the pointer
+             * is going: still inside the list means the next row's `dragover`
+             * is about to move the line, so it is left alone; outside, or
+             * nowhere (out of the window), means it comes down.
+             *
+             * Chromium and WebKit leave `relatedTarget` null on drag events —
+             * open bugs in both trackers — so there the check reduces to
+             * clearing on every leave. That does not blink: a leave and the
+             * next row's `dragover` are fired in one task, both are continuous
+             * events, and React renders the pair as one update, so the line
+             * goes from row to row with no frame between. Firefox sets it, and
+             * the test asserts the contract rather than the batching.
+             */
+            const into = event.relatedTarget;
+            if (into instanceof Node && event.currentTarget.contains(into)) return;
+            setOver(null);
+          }}
+        >
           {visible.map((entry, at) => {
             const before = saved.get(entry.id);
             const unsaved = before === undefined || before !== JSON.stringify(entry);
             const current = entry.id === props.selectedId;
             const previous = visible[at - 1];
             const next = visible[at + 1];
+            const drop = over === entry.id ? landing(from, at) : undefined;
             return (
               <li
                 key={entry.id}
@@ -747,32 +807,66 @@ function EntryList(props: {
                 }}
                 onDragEnd={() => {
                   setDragging(null);
+                  setOver(null);
                 }}
                 onDragOver={(event) => {
+                  if (dragging === null) return;
+                  // Over the row being dragged nothing can land, so nothing is
+                  // promised: the line a neighbour was showing comes down
+                  // rather than staying to say a drop here would go there.
+                  if (dragging === entry.id) {
+                    setOver(null);
+                    return;
+                  }
                   // Without this the drop never fires: the default action for a
                   // dragover is *refuse the drop*.
-                  if (dragging !== null && dragging !== entry.id) event.preventDefault();
+                  event.preventDefault();
+                  setOver(entry.id);
                 }}
                 onDrop={(event) => {
                   event.preventDefault();
-                  const from = visible.findIndex((candidate) => candidate.id === dragging);
                   const source = visible[from];
                   setDragging(null);
+                  setOver(null);
                   if (source === undefined || from === at) return;
-                  /**
-                   * Dropping on a row above puts the entry in front of it;
-                   * dropping on one below puts it behind — which is the same
-                   * rule every list with this gesture uses, and the only one
-                   * where the row ends up where the pointer left it.
-                   */
-                  move(source, from > at ? entry.id : after(entry.id), at);
+                  // The edge is `landing`'s — the same answer the line gave.
+                  move(source, landing(from, at) === 'before' ? entry.id : after(entry.id), at);
                 }}
+                data-drop={drop}
                 className={
                   dragging === entry.id
-                    ? 'flex items-baseline gap-1 opacity-50'
-                    : 'group/entry flex items-baseline gap-1'
+                    ? 'relative flex items-baseline gap-1 opacity-50'
+                    : 'group/entry relative flex items-baseline gap-1'
                 }
               >
+                {/*
+                 * The line: two pixels of `accent` along the edge the entry
+                 * would land on. Absolutely positioned so it takes no space —
+                 * a border would grow the row and shift every row below it as
+                 * the line moved — and inside the row rather than astride its
+                 * edge, because the list clips: a line hung a pixel above the
+                 * first row would lose its top half whenever the list is
+                 * scrolled to the top, which is where the first row is, and
+                 * one hung below the last would add a pixel of scrollable
+                 * overflow only while it showed. It sits in the button's own
+                 * padding, never over text. Paint only: `aria-hidden`,
+                 * because the live region says the outcome and the buttons are
+                 * the screen reader's path; and `pointer-events-none`, so the
+                 * thing drawn under the pointer never becomes the thing under
+                 * the pointer. `data-drop` on the row is the fact this renders
+                 * from and the fact a test can read, since jsdom cannot see
+                 * two pixels.
+                 */}
+                {drop === undefined ? null : (
+                  <span
+                    aria-hidden="true"
+                    className={
+                      drop === 'before'
+                        ? 'pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-accent'
+                        : 'pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-accent'
+                    }
+                  />
+                )}
                 <button
                   type="button"
                   aria-current={current ? 'true' : undefined}

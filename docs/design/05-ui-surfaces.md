@@ -1624,6 +1624,19 @@ move is expressed as *place this entry before that one* rather than as an index:
 a position among visible rows is not a position in the array, while the entry a
 row lands in front of is the same fact in both.
 
+**Where a dragged row will land is shown before it is let go**: a line along
+the top of the row it would go in front of, or along the bottom of the one it
+would go behind. Which edge is decided by where the drag came from — a row
+dragged down lands behind the row it is dropped on, a row dragged up lands in
+front of it — because that is the one rule under which the row ends up where
+the pointer left it; a row one line tall has no room for two targets, and an
+edge that flipped as the pointer crossed the middle would be a decision made by
+a tremor. The line and the drop are one computation, so the line cannot promise
+an edge the drop then declines. It takes no space, so the rows hold still while
+it moves between them, and it is not in the accessibility tree: a pointer drag
+is not the screen reader's path, the buttons are, and the outcome of either is
+announced.
+
 **An entry export is a lorebook.** Same `storyengine.lorebook/1`
 ([10 §5](10-schemas.md)) with `entries` holding the selection — no fragment
 schema, nothing new to version, and the file opens in anything that reads a

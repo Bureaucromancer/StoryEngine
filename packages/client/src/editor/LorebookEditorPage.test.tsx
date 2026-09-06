@@ -529,6 +529,35 @@ describe('reordering entries', () => {
       .map((button) => button.querySelector('span')?.textContent ?? '');
   }
 
+  /**
+   * The rows carrying the landing line, by name and edge — read from
+   * `data-drop`, which is the fact the line is drawn from. jsdom paints
+   * nothing, so a two-pixel rule cannot be seen here; what can be seen is
+   * which row claims which edge, and that claim is the drop's own rule, so
+   * every assertion on it is also an assertion about where a drop would go.
+   * The name is read from the row's first button rather than its first span,
+   * because the line, when it shows, is the row's first child.
+   */
+  function marked(): [string, string][] {
+    return screen
+      .getAllByRole('listitem')
+      .filter((row) => row.dataset['drop'] !== undefined)
+      .map((row) => [
+        within(row).getAllByRole('button')[0]?.querySelector('span')?.textContent ?? '',
+        row.dataset['drop'] ?? '',
+      ]);
+  }
+
+  /** The two rows in whatever order the previous test left them — never Harbour first by assumption. */
+  function twoRows(): [HTMLElement, HTMLElement] {
+    const [top, bottom] = screen.getAllByRole('listitem');
+    if (top === undefined || bottom === undefined) throw new Error('expected two rows');
+    return [top, bottom];
+  }
+
+  /** jsdom has no `DataTransfer`; the drop test below says why the stub is not a convenience. */
+  const stub = () => ({ effectAllowed: '', setData: vi.fn(), getData: () => '' });
+
   it('moves an entry down with the keyboard, and saves the new order', async () => {
     const client = renderApp();
     await openEditor();
@@ -612,6 +641,115 @@ describe('reordering entries', () => {
      */
 
     expect(shown()).toEqual([order[1] ?? '', order[0] ?? '']);
+  });
+
+  /**
+   * **Where the row will land is shown before it is let go** — [05 §11.2c].
+   * The line and the drop are one computation (`landing`), so these tests
+   * are also the drop rule's tests from the other side: flipping the
+   * comparison reddens the first two, and the drop test above with them.
+   *
+   * The `preventDefault` in `dragOver` stays uncovered here for the reason
+   * the drop test gives: jsdom implements no drag-and-drop protocol, so a
+   * refused drop and an allowed one look the same to it.
+   */
+  it('draws the line under the row a drag from above would land behind', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    // Nothing is promised until the pointer is over a row.
+    expect(marked()).toEqual([]);
+
+    fireEvent.dragOver(bottom, { dataTransfer });
+    expect(marked()).toEqual([[shown()[1] ?? '', 'after']]);
+  });
+
+  it('draws it over the row a drag from below would land in front of', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(bottom, { dataTransfer });
+    fireEvent.dragOver(top, { dataTransfer });
+    expect(marked()).toEqual([[shown()[0] ?? '', 'before']]);
+  });
+
+  /**
+   * Reddened by dropping the source-row branch of `dragOver`: the neighbour's
+   * line then stays up while a drop on the dragged row itself does nothing,
+   * which is a promise the drop declines.
+   */
+  it('promises nothing over the row being dragged, and takes down what it promised elsewhere', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.dragOver(top, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down on drop', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.drop(bottom, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down when the drag ends anywhere else', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.dragEnd(top, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down when the pointer leaves the list, and not when it crosses into another row', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const list = top.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+
+    /**
+     * A `MouseEvent` rather than `fireEvent.dragLeave`, because jsdom has no
+     * `DragEvent`: Testing Library falls back to a plain `Event`, whose
+     * constructor drops `relatedTarget` on the floor, so the handler would see
+     * `undefined` — which reads as *outside*, and would pass the clearing half
+     * of this test for the wrong reason while failing the other half.
+     * `MouseEvent` carries it, and the handler reads nothing a mouse event
+     * lacks.
+     */
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: top }));
+    expect(marked()).toHaveLength(1);
+
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: document.body }));
+    expect(marked()).toEqual([]);
+
+    // Out of the window — and, in Chromium and WebKit, every leave.
+    fireEvent.dragOver(bottom, { dataTransfer });
+    expect(marked()).toHaveLength(1);
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: null }));
+    expect(marked()).toEqual([]);
   });
 
   it('leaves `order` alone, because dragging is not injection order', async () => {
