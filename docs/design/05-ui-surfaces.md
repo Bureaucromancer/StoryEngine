@@ -1842,7 +1842,12 @@ trash will not have them. The same row is held on every form on the settings
 page, where the install's configuration is a screen and a half of keys with
 Save at the foot of it — the editor's failure at a smaller scale — and a
 refusal such a form has to show is shown *inside* the row, since with the row
-pinned the foot of the form is exactly the part that is out of sight.
+pinned the foot of the form is exactly the part that is out of sight. What a
+control did is said where the control is, for the same reason: *Saved.*, a
+restored version, a reapplied draft and a refused write all appear in the row
+beside the Save that caused them, because with the row pinned halfway down a
+long form the top of the page — where the editors used to say it — is as far
+out of sight as the foot.
 
 **Leaving with unsaved changes is confirmed, never silent.** Every other
 surface is one click away in the header, and the draft is gone the moment the

@@ -499,6 +499,32 @@ describe('deleting the actor from its editor', () => {
 });
 
 /**
+ * What a save says is said where Save is
+ * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)). The notice used to
+ * render above the form, which with the strip pinned halfway down a long card
+ * is as far out of sight as the foot of the page. jsdom cannot see a strip
+ * pin, so the claim is asserted as structure: the status stands inside the
+ * form Save belongs to, which is where the strip is and where nothing above
+ * the form can be. Reddened by rendering the notice above the form again.
+ */
+describe('what a save says', () => {
+  it('says Saved. inside the strip, beside the Save that caused it', async () => {
+    renderApp();
+    await openTheEditor();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), ', the fixer');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const status = await screen.findByText('Saved.');
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.closest('form')).not.toBeNull();
+    expect(status.closest('form')).toBe(
+      screen.getByRole('button', { name: 'Save' }).closest('form'),
+    );
+  });
+});
+
+/**
  * [polish §2]'s editor pane, discharged at [P3.3]: the fold shows the *saved*
  * object and says so, because showing unsaved form state as "as stored" would
  * be a lie in the one place a user came for the truth. The falsifying

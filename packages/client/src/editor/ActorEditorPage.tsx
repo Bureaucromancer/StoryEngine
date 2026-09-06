@@ -236,25 +236,6 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
         </div>
       </header>
 
-      {notice !== null ? (
-        <p
-          role="status"
-          className="mb-4 rounded-md border border-line-strong bg-surface-sunken p-3 text-sm"
-        >
-          {notice}
-        </p>
-      ) : null}
-
-      {/* Every 412 used to be filtered here, on the assumption the dialog had
-          it — but the dialog only opens when the body carried `current`, so a
-          412 without one vanished entirely. Filter only what the dialog owns. */}
-      {save.isError &&
-      !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-        <Alert tone="error" role="alert" className="mb-4">
-          {save.error.message}
-        </Alert>
-      ) : null}
-
       <form
         className="flex flex-col gap-4"
         onSubmit={(event) => {
@@ -475,7 +456,39 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           >
             Save
           </Button>
-          {!changed ? <span className="text-sm text-ink-faint">No changes to save.</span> : null}
+          {/*
+           * What the last control did, said where the control is. *Saved.*, a
+           * restored version, a reapplied draft and a refused write used to
+           * render above the form — which, with the strip pinned halfway down
+           * a long form, is as far out of sight as the foot of the page. The
+           * slot takes the remaining width, with a floor of ten rem: at the
+           * column's width a long sentence wraps in place rather than folding
+           * the strip onto a second line, and on a narrow column the buttons
+           * fold under it rather than squeezing it to a word a line. The
+           * notice stands in for *No changes to save.* while it shows: after
+           * a save both are true, and the second says nothing the first did
+           * not.
+           *
+           * Every 412 used to be filtered out of the error, on the assumption
+           * the dialog had it — but the dialog only opens when the body
+           * carried `current`, so a 412 without one vanished entirely. Only
+           * what the dialog owns is filtered.
+           */}
+          <span className="flex min-w-0 grow basis-40 flex-wrap items-center gap-3 text-sm">
+            {save.isError &&
+            !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
+              <span role="alert" className="text-danger-ink">
+                {save.error.message}
+              </span>
+            ) : null}
+            {notice !== null ? (
+              <span role="status" className="text-ink-subtle">
+                {notice}
+              </span>
+            ) : changed ? null : (
+              <span className="text-ink-faint">No changes to save.</span>
+            )}
+          </span>
           <span className="ms-auto flex flex-wrap items-center gap-3">
             <Button
               type="button"

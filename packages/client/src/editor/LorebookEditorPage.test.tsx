@@ -767,4 +767,24 @@ describe('the critical controls in the lorebook editor', () => {
     expect(screen.getByRole('link', { name: 'Back to the lorebook' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
   });
+
+  /**
+   * And what a save says is said there too ([05 §11.6]) — asserted as
+   * structure, since jsdom cannot see a strip pin: the status stands inside
+   * the form Save belongs to, where nothing rendered above the form can be.
+   * The actor editor's test says why; this one says this editor does it.
+   */
+  it('says Saved. inside the strip, beside the Save that caused it', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), ' Cranes.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const status = await screen.findByText('Saved.');
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.closest('form')).toBe(
+      screen.getByRole('button', { name: 'Save' }).closest('form'),
+    );
+  });
 });
