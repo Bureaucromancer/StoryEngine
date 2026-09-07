@@ -11,9 +11,10 @@ that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
 each carrying its own record of what shipped.
 
 **Phase: alpha, with Alpha 1 — the first tagged build, private and for the
-project's own use — about to be cut** ([P6A](workplan/23-p6a-alpha-1.md)). See
-the [root README](../../README.md) for what actually runs today, and
-[`CHANGELOG.md`](../../CHANGELOG.md) for what that build will say it is.
+project's own use — cut 2026-09-06 as `v1.0.0-alpha.1`**
+([P6A](workplan/23-p6a-alpha-1.md)). See the [root README](../../README.md) for
+what actually runs today, and [`CHANGELOG.md`](../../CHANGELOG.md) for what
+that build says it is.
 
 **[work plan §0](workplan/01-work-plan.md) is the only place the version cut is
 stated.** It is not restated here, deliberately: this block used to carry a copy

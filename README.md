@@ -21,11 +21,13 @@ admin with a token, and can say which commit it is.
 named *1.0-alpha 1* — the first prerelease of 1.0, under the scheme
 [releases §7.1](docs/design/workplan/11-repo-and-releases.md) records — in the
 root `package.json`, in [`CHANGELOG.md`](CHANGELOG.md) and on the tag
-`v1.0.0-alpha.1`. No image exists yet: the tag's first run of the on-tag
-workflow stopped at the Dockerfile before building anything, because the base
-image no longer ships corepack and nothing had run that file before a daemon
-did. The fix is on `main`, and [P6A §3](docs/design/workplan/23-p6a-alpha-1.md)
-step 1 records where the tag stands. It is a build the
+`v1.0.0-alpha.1`, from which the on-tag workflow built the image on its second
+run: the first stopped at the Dockerfile, because the base image no longer
+ships corepack and nothing had run that file before a daemon did, and the tag
+moved to the fix. The image is private, so nothing pulls it without a login
+([`docs/deploy.md`](docs/deploy.md)). What has not happened is the walk —
+[P6A §3](docs/design/workplan/23-p6a-alpha-1.md) steps 3 through 12, which
+need a machine with Docker and an unraid host. It is a build the
 project makes for itself, not a distribution: the repository and the registry
 package are private, and [releases §0.1](docs/design/workplan/11-repo-and-releases.md)
 says why that is the point rather than a stage on the way to something.

@@ -17,7 +17,10 @@ pnpm workspace, Node ≥ 26, ESM throughout (imports use `.js` suffixes).
   `package.json`, `CHANGELOG.md`, `compose.yaml` and the unraid template)
 - `Dockerfile`, `compose.yaml`, `deploy/unraid/` — Alpha 1's image and its two
   wrappers; `docs/deploy.md` is how a built one runs. Private registry, no
-  `latest`; the image has never been built here (no Docker on this machine)
+  `latest`; `release.yml` builds the image on a `v*` tag (first success
+  `v1.0.0-alpha.1`, 2026-09-06), and it has never been built on this machine
+  (no Docker). The base ships no corepack: pnpm is installed with npm, pinned
+  to `packageManager` by `tools/release.test.ts`
 - `data/` — runtime data, canonical and gitignored; never the repository's
 
 ## Commands

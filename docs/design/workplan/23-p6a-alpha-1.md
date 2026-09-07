@@ -14,6 +14,12 @@ machine that wrote it. §3 is annotated step by step with what the suite proves
 and what only the container can, so that whoever walks it starts from the record
 rather than from the list. *(Status written 2026-09-05, at the close.)*
 
+*Alpha 1 was cut 2026-09-06: the tag `v1.0.0-alpha.1`, on `8dcd155` after one
+move — its first commit's Dockerfile asked for corepack, which the base no
+longer ships (§3 step 1) — and the image the second run built and pushed to the
+private package. Step 1 of §3 is walked in part; 3 through 12 still wait on a
+person with Docker and an unraid host.*
+
 Opened 2026-09-04 on branch `p6a` at
 `a54afcc`, main's tip after this document's own merge. The audit below stands as
 written and needed no repeat: `git diff a6f78c3..a54afcc -- packages/server
@@ -832,8 +838,10 @@ uses: under each step, what the suite already proves and what only the walk can.
 Nothing here is ticked. The suite drives the app through `fastify.inject` and a
 config-bound host — never a socket, never a container — so what it proves is
 the mechanism, and every step below is a step because the mechanism inside a
-container is the thing nobody has yet seen. The tag does not exist and no image
-has been built.*
+container is the thing nobody has yet seen. ~~The tag does not exist and no
+image has been built.~~ The tag exists and an image was built from it on
+2026-09-06, on the second run — step 1 says how; steps 3 through 12 are still
+the walk.*
 
 1. **Tag and build.** ~~`v0.1.0-alpha.1`~~ `v1.0.0-alpha.1` exists (§1.6); the
    on-tag workflow ran; a second build from the same tag produces an image that
@@ -854,6 +862,15 @@ has been built.*
    commit before that fix, so the step is not met: either the tag moves to the
    fix — nothing was built from it and nobody pulled anything — or
    `v1.0.0-alpha.2` is cut on it, and that is Ned's to say.
+   **Moved, on Ned's say-so, to `8dcd155` the same night** — deleted on the
+   remote, re-tagged on the fix, pushed again — and the second run
+   (34081463393) built the image and pushed
+   `ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.1` in two minutes. So the
+   tag exists and the workflow ran; *a second build from the same tag behaves
+   identically* is still the walk. The move is the one time this repository
+   has moved a `v*` tag, and the reason it was allowed is the reason
+   [releases §2](11-repo-and-releases.md) makes them immutable: a tag answers
+   *what precisely is the user running*, and nobody had run anything.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
    **Half covered**, and the half matters: `release.test.ts` asserts the

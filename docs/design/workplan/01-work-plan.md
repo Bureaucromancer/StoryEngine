@@ -1012,10 +1012,12 @@ that most wants a known-good baseline to measure against.
 `docker logs`, create an admin, play a session — with the working tree in any
 state at all, and the running build able to name the commit it came from.
 
-*Built: all five stages landed on branch `p6a`, and the phase closes on its
-merge. No image has been built — there was no Docker on the machine that wrote
-it — so the demonstration above is the next thing, and a person's;
-[23 §3](23-p6a-alpha-1.md) says what the suite already proves of it.*
+*Built and merged (`3ab6a62`), and Alpha 1 cut 2026-09-06: the tag
+`v1.0.0-alpha.1`, and the image the on-tag workflow built from it on its second
+run — the first found that the base no longer ships corepack. The
+demonstration above is still a person's: pull, token, admin, a session, from a
+machine with Docker; [23 §3](23-p6a-alpha-1.md) says what the suite and the
+workflow have proved of it.*
 
 ### P7 — Modes and channels
 
