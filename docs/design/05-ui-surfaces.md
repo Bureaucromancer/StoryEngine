@@ -1635,7 +1635,10 @@ a tremor. The line and the drop are one computation, so the line cannot promise
 an edge the drop then declines. It takes no space, so the rows hold still while
 it moves between them, and it is not in the accessibility tree: a pointer drag
 is not the screen reader's path, the buttons are, and the outcome of either is
-announced.
+announced. And the list scrolls itself while a drag hovers near its top or
+bottom edge, faster the nearer the pointer leans into it, because the browser's
+own drag scrolls the page and not a list inside it, and a book two hundred
+entries tall is one the pointer could not otherwise cross with a row in hand.
 
 **An entry export is a lorebook.** Same `storyengine.lorebook/1`
 ([10 §5](10-schemas.md)) with `entries` holding the selection — no fragment

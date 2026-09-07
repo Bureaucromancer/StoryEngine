@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import {
   entriesGoverned,
@@ -670,6 +670,40 @@ function landing(from: number, at: number): 'before' | 'after' {
   return from > at ? 'before' : 'after';
 }
 
+/**
+ * How near the list's top or bottom edge a hovering drag has to be before the
+ * list scrolls itself, in pixels, and the most it moves per frame once there.
+ *
+ * The browser's own drag scrolls the page and not a list inside it — Firefox
+ * never scrolls an inner box, and where Chromium does it is a courtesy this
+ * list cannot rely on — so a book two hundred entries tall was one the pointer
+ * could not cross with a row in hand. Forty pixels is a row and a half: enough
+ * to find without aiming, small enough that the middle of the list holds
+ * still. Twelve pixels a frame at the very edge, easing to one at the zone's
+ * inner limit, so leaning harder into the edge is faster and hovering just
+ * inside it is a crawl a person can stop on a row.
+ */
+const SCROLL_EDGE = 40;
+const SCROLL_STEP = 12;
+
+/**
+ * How far the list should move this frame for a pointer at `y`, given the
+ * list's box: negative is up, positive is down, zero is *hold still*. Nearer
+ * the edge is faster, and the nearer edge wins where a short list's two zones
+ * overlap — though a list that short has nothing to scroll.
+ */
+function scrollVelocity(y: number, box: { top: number; bottom: number }): number {
+  const fromTop = y - box.top;
+  const fromBottom = box.bottom - y;
+  if (fromTop < SCROLL_EDGE && fromTop <= fromBottom) {
+    return -Math.ceil(SCROLL_STEP * (1 - Math.max(fromTop, 0) / SCROLL_EDGE));
+  }
+  if (fromBottom < SCROLL_EDGE) {
+    return Math.ceil(SCROLL_STEP * (1 - Math.max(fromBottom, 0) / SCROLL_EDGE));
+  }
+  return 0;
+}
+
 function EntryList(props: {
   book: Lorebook;
   entries: LoreEntry[];
@@ -695,6 +729,43 @@ function EntryList(props: {
   const [over, setOver] = useState<string | null>(null);
   const [moved, setMoved] = useState('');
   const held = useRef<HTMLUListElement>(null);
+
+  /**
+   * The self-scroll, while a drag hovers near an edge: how far to move per
+   * frame, and the frame that will move it. Refs rather than state, because a
+   * value that changes on every `dragover` and is read on every frame must not
+   * render two hundred rows to do either. The loop schedules itself only while
+   * the velocity is non-zero, so a pointer that comes back to the middle lets
+   * it run out on the next frame rather than leaving a timer ticking; a drop,
+   * a `dragend` or a pointer leaving the list stop it at once.
+   */
+  const velocity = useRef(0);
+  const frame = useRef<number | null>(null);
+
+  const stopScrolling = useCallback((): void => {
+    velocity.current = 0;
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+  }, []);
+  // A list that unmounts mid-drag must not leave a frame scheduled against it.
+  useEffect(() => stopScrolling, [stopScrolling]);
+
+  function scrollTowards(next: number): void {
+    velocity.current = next;
+    if (next === 0 || frame.current !== null) return;
+    const tick = (): void => {
+      const list = held.current;
+      if (list === null || velocity.current === 0) {
+        frame.current = null;
+        return;
+      }
+      list.scrollTop += velocity.current;
+      frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  }
 
   const saved = new Map(
     entryList(props.base).map((entry) => [entry.id, JSON.stringify(entry)] as const),
@@ -760,6 +831,14 @@ function EntryList(props: {
         <ul
           ref={held}
           className="flex max-h-80 flex-col overflow-y-auto"
+          onDragOver={(event) => {
+            // Only a drag of one of these rows scrolls the list: a file dragged
+            // in from the desktop is not going anywhere in it.
+            if (dragging === null) return;
+            scrollTowards(
+              scrollVelocity(event.clientY, event.currentTarget.getBoundingClientRect()),
+            );
+          }}
           onDragLeave={(event) => {
             /**
              * The list's `dragleave` fires for every row the pointer leaves,
@@ -779,6 +858,9 @@ function EntryList(props: {
              */
             const into = event.relatedTarget;
             if (into instanceof Node && event.currentTarget.contains(into)) return;
+            // And the scroll with it: a pointer that has left the list is not
+            // asking it to move.
+            stopScrolling();
             setOver(null);
           }}
         >
@@ -808,6 +890,7 @@ function EntryList(props: {
                 onDragEnd={() => {
                   setDragging(null);
                   setOver(null);
+                  stopScrolling();
                 }}
                 onDragOver={(event) => {
                   if (dragging === null) return;
@@ -828,6 +911,7 @@ function EntryList(props: {
                   const source = visible[from];
                   setDragging(null);
                   setOver(null);
+                  stopScrolling();
                   if (source === undefined || from === at) return;
                   // The edge is `landing`'s — the same answer the line gave.
                   move(source, landing(from, at) === 'before' ? entry.id : after(entry.id), at);

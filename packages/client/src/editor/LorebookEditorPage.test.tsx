@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { newLoreEntry, newLorebook, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
@@ -766,6 +766,160 @@ describe('reordering entries', () => {
     expect([...server.stored().entries.map((each) => each.order)].sort()).toEqual(
       [...before].sort(),
     );
+  });
+});
+
+/**
+ * **The list scrolls itself while a drag hovers near its edge** — [05 §11.2c].
+ *
+ * jsdom lays nothing out and schedules no frames, so both halves are supplied:
+ * the list's box is pinned to a known rectangle, and the animation frame is a
+ * queue these tests drain by hand. What is then asserted is the arithmetic and
+ * the loop — which way, how fast, and when it stops — against `scrollTop`,
+ * which jsdom keeps as a plain number. That a browser fires `dragover` on a
+ * stationary pointer, which is what keeps the loop fed, is the browser's
+ * contract and not this file's.
+ */
+describe('scrolling the list while a drag hovers near its edge', () => {
+  /** Three hundred and twenty pixels tall, from 100 to 420 — the list's `max-h-80`. */
+  const BOX = {
+    top: 100,
+    bottom: 420,
+    left: 0,
+    right: 300,
+    x: 0,
+    y: 100,
+    width: 300,
+    height: 320,
+    toJSON: () => ({}),
+  };
+  let frames: FrameRequestCallback[] = [];
+
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback): number => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Runs every frame queued so far, once — a frame that re-queues itself runs next time. */
+  function runFrames(): void {
+    for (const callback of frames.splice(0)) callback(0);
+  }
+
+  /** The editor open with the list's box pinned, and a drag of the top row in progress. */
+  async function dragInProgress(): Promise<{
+    list: HTMLElement;
+    top: HTMLElement;
+    bottom: HTMLElement;
+  }> {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = screen.getAllByRole('listitem');
+    if (top === undefined || bottom === undefined) throw new Error('expected two rows');
+    const list = top.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    list.getBoundingClientRect = () => BOX;
+    fireEvent.dragStart(top, {
+      dataTransfer: { effectAllowed: '', setData: vi.fn(), getData: () => '' },
+    });
+    return { list, top, bottom };
+  }
+
+  /**
+   * A `MouseEvent` rather than `fireEvent.dragOver`, for the reason the leave
+   * test above gives: jsdom has no `DragEvent`, and the plain `Event` Testing
+   * Library falls back to drops `clientY` on the floor.
+   */
+  function hover(row: HTMLElement, clientY: number): void {
+    fireEvent(row, new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY }));
+  }
+
+  it('scrolls down near the bottom edge, and faster the nearer the pointer leans into it', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    // Twenty pixels from the bottom, halfway into the zone: half speed, six a frame.
+    hover(bottom, 400);
+    runFrames();
+    runFrames();
+    expect(list.scrollTop).toBe(12);
+
+    // One pixel from it: twelve a frame.
+    hover(bottom, 419);
+    runFrames();
+    expect(list.scrollTop).toBe(24);
+  });
+
+  it('scrolls up near the top edge', async () => {
+    const { list, top } = await dragInProgress();
+    list.scrollTop = 200;
+
+    // Five pixels from the top: eleven a frame, upward.
+    hover(top, 105);
+    runFrames();
+    expect(list.scrollTop).toBe(189);
+  });
+
+  it('holds still in the middle, and runs out once the pointer comes back to it', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    hover(bottom, 260);
+    expect(frames).toHaveLength(0);
+
+    hover(bottom, 400);
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+
+    // The frame already queued runs, finds nothing to do, and queues no other.
+    hover(bottom, 260);
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('stops when the drag ends', async () => {
+    const { list, top, bottom } = await dragInProgress();
+
+    hover(bottom, 400);
+    runFrames();
+    fireEvent.dragEnd(top);
+
+    // The frame the browser would have cancelled is still in this queue; run,
+    // it must find nothing to do.
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+  });
+
+  it('stops when the pointer leaves the list', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    hover(bottom, 400);
+    runFrames();
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: document.body }));
+
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+  });
+
+  it('does not scroll for a drag that is not one of its rows', async () => {
+    renderApp();
+    await openEditor();
+    const [, bottom] = screen.getAllByRole('listitem');
+    if (bottom === undefined) throw new Error('expected two rows');
+    const list = bottom.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    list.getBoundingClientRect = () => BOX;
+
+    // No dragstart on any row: whatever is being dragged is not one of them.
+    hover(bottom, 400);
+    expect(frames).toHaveLength(0);
+    expect(list.scrollTop).toBe(0);
   });
 });
 
