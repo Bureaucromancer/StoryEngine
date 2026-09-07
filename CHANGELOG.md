@@ -17,7 +17,7 @@ the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
-## 1.0.0-alpha.2 — 1.0-alpha 2 — unreleased
+## 1.0.0-alpha.2 — 1.0-alpha 2 — 2026-09-07
 
 What the first install of Alpha 1 found, on unraid, and what it asked for.
 

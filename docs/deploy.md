@@ -152,7 +152,11 @@ contents of `state/setup.token` under the appdata folder.
 
 ## Cutting a release
 
-1. Bump `version` in the root `package.json`.
+1. Bump `version` in the root `package.json`, and the image tag in
+   `compose.yaml` with it. Those are the two places a version is typed; the
+   unraid template needs nothing, because it follows `testing`.
+   `tools/release.test.ts` fails on either one missed, which is how this step
+   is enforced rather than remembered.
 2. Give it a `CHANGELOG.md` entry, and replace **unreleased** with the date.
    The heading opens with the bare version, then the build's name, then the
    date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
