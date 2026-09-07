@@ -35,7 +35,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [15-p2c-first-real-run.md](15-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
 | [16-p2c-log.md](16-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
 | [17-p2c-brief.md](17-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
-| [18-p7-implementation.md](18-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase |
+| [18-p7-implementation.md](18-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase. §0.1 is the readiness audit: the phase in front of us, with PLAYABLE the only thing before it |
 | [19-p8-implementation.md](19-p8-implementation.md) | P8 skeleton — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. Waits on three phases rather than on time |
 | [20-p9-implementation.md](20-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
 | [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |

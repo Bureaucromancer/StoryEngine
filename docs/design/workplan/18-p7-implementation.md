@@ -1,10 +1,14 @@
 # 18 — P7 implementation plan
 
-**Status: skeleton.** Drafted 2026-08-29, with P3 landed and
-[P4](06-p4-implementation.md) planned but not started — so this is a document
-written four phases ahead of its phase, and §0 says what that kind of document
-is honestly for. Format follows [03](03-p1-implementation.md); the citation
-convention is [P4](06-p4-implementation.md)'s — **`10 §N`** is
+**Status: ~~skeleton~~ skeleton, audited 2026-09-07 at `5602ded` — and this is
+now the phase in front of us.** Drafted 2026-08-29, with P3 landed and
+[P4](06-p4-implementation.md) planned but not started, so it was written four
+phases ahead of its phase and §0 says what that kind of document is honestly
+for. Four have landed since — P4, P5, P6 and P6A, the last of them cutting
+Alpha 1 — so §0.1 is the readiness audit that starts turning this into a plan,
+and the distance §0 apologises for is down to **one checkpoint**: PLAYABLE,
+which still has not run. Format follows [03](03-p1-implementation.md); the
+citation convention is [P4](06-p4-implementation.md)'s — **`10 §N`** is
 [10-schemas](../10-schemas.md), **`testing §N`** is [10-testing](10-testing.md),
 **`survey §N`** is [01-source-survey](../01-source-survey.md).
 
@@ -60,6 +64,105 @@ The revisit is not optional here. P7 follows PLAYABLE
 whether the record and the budgeter are right; whatever it finds lands in the
 contract this phase makes public.
 
+### 0.1 Readiness — audited 2026-09-07, at `5602ded`
+
+*Run against the code rather than against this document, which is the only way
+a readiness note is worth anything ([01 §2.3](01-work-plan.md)'s mechanism, and
+[P6 §0.1a](08-p6-implementation.md)'s worked example). Four phases have landed
+since the draft. Most of what §1 claims is still exactly true, one claim has
+half-expired, and two deferrals had been made to this phase that nothing here
+had collected.*
+
+**What still holds, checked one by one.** §1.1 entirely: `packages/modes/` does
+not exist, `eslint.rules.js` still says so in as many words, and
+`packages/sdk/src/index.ts` still re-exports `shared` and nothing else — so the
+move is still a move and the rule still has no subject. What grew is the thing
+being moved: `packages/server/src/modes/` is now `contract.ts`, `types.ts`,
+`registry.ts` and `scene/`, four files rather than two. §1.4: `ChannelDefinition`
+in `sessions/channels.ts` is still *"deliberately short of the documented
+type"* — no `schema`, no `init`, no `migrate` — and the pacing dial is still
+`InitPolicy`'s only real consumer. §1.7: **no span type exists anywhere in
+`packages/shared`**, so the obligation is unmet and still free, which is the
+best state it could be in. §1.9 exactly: `resolveRole` declares `stepOverride`
+and `sessionOverride` and the only references to either are its own — two
+layers plumbed and still never passed. And the `structuredClone` assertions
+§1.3 leans on are still in `turns/steps.test.ts`.
+
+**The claim that half-expired, and it is §1.2's third divergence.** That
+section says *nothing at P2 draws inside a step — so the conversion is free
+now and expensive after P7 ships steps that do*. **P5.6 shipped a draw inside a
+step.** `retrieve` runs in the `call` closure the runner hands each step
+(`turns/runner.ts:520`) and draws synchronously in `retrieval/activate.ts:535`,
+`rng.at('lore.probability', …).chance(…)`; the runner's own comment says it
+plainly — *only a step may propose an effect and this is inside a step's
+`call`*.
+
+*The precision matters, because it decides whether the lean survives.* The
+drawing code is the **engine's**, on the engine's side of the `call` seam, and
+no *mode* step body draws: a step asks for a call and the engine retrieves. So
+the conversion is still cheap, and the lean — do it in the first stage — still
+stands. What has narrowed is the reason it is safe: from *nothing draws inside
+a step* to *nothing that would cross the boundary draws*. **The revisit should
+re-price §1.2 against §1.3 rather than against the old sentence**, because if
+the hop lands then `call` is a host API and `retrieve` stays engine-side, which
+is an argument in the lean's favour that the document did not have when it was
+written.
+
+**Two deferrals to this phase that §1.10 did not collect, both in
+`modes/registry.ts` and both in its own docstrings.** §0's first job, found by
+reading the file the move in §1.1 is about:
+
+1. **Dynamic registration is P7's, and deliberately unbuilt.** `BUILT_IN_MODES`
+   is a frozen record and a lookup, *"deliberately **not** a `registerMode`
+   API… a registry that could be written to now would be a shape that phase has
+   to live with, built before anything could exercise it."* That is P7.0's, with
+   the boundary.
+2. **A missing mode earns a visible warning on the session, here.** A session
+   naming a mode this build does not know resolves to the default and logs the
+   substitution ([00 §3.3](../00-stance.md)'s *still somebody's story*), and the
+   registry names **P7 — where a mode can genuinely be missing rather than
+   merely unknown** — as where that becomes something a person sees. Neither §1
+   nor §2 mentions it; it belongs with P7.0 or P7.9.
+
+**And one deferral that arrived after this document was written:**
+[06 C14](../06-open-questions.md), opened 2026-09-06 by the guided-redo work.
+Does guidance belong on the turn record, and if so as a field on `Turn` or read
+back from the block table — to be decided together with
+[05 §10](../05-ui-surfaces.md)'s one-click refill, which is the same question
+from the composer's side. It touches the shipped preset and the record, both of
+which P7.9 grows, so it lands in this phase unless somebody moves it
+deliberately.
+
+**What P6 bought this phase, stated as a subtraction the way
+[P6 §5](08-p6-implementation.md) states its own.** §1.6 argues party belongs in
+a channel because channels have three properties fields cannot — they
+reconstruct at a node, they appear as effects, they branch correctly. **All
+three are now built and property-tested**, not argued: reconstruction is
+proved equal to replay-from-zero at every node, warm and cold. And P5.5 settled
+the persisted key — `SessionFile.channels` is keyed by
+`channelKey(channelId, scopeKey)` — so a scoped party or presence channel
+inherits the shape rather than migrating it. The move is cheaper than the
+section assumed.
+
+**What Alpha 1 changed, which is small and worth one sentence.**
+[01 P6A](01-work-plan.md)'s reason for cutting it before this phase was that P7
+is the largest phase and the one that most wants a known-good baseline to
+measure against; that baseline now exists as a tag, an image and a data
+directory that refuses an older build ([P6A §1.7](23-p6a-alpha-1.md)) — which
+is worth having in the phase that changes channel shapes under live sessions
+([03 §4.2](../03-modes-and-turn-pipeline.md)).
+
+**The obstacle in front of the checkpoint, which is nobody's stage and belongs
+to whoever runs it.** §5's third bullet says the revisit's first job is to read
+what PLAYABLE and P2C found. PLAYABLE has not run, and
+[07 §0.5](07-p5-implementation.md) named the reason it would stall on the day:
+**nothing in the client and nothing in `pnpm seed` names a lorebook or a
+treatment for the session it makes**, and `PUT /api/sessions/:id/lore` — still
+the only route that does — has no caller in `packages/client`. Re-checked
+today; still true. P7's own demo needs a session somebody can play as much as
+PLAYABLE does, so this is worth clearing before either, and it is a small piece
+of P5's document half rather than a stage of this phase.
+
 ---
 
 ## 1. Decisions this plan has to make
@@ -95,8 +198,11 @@ guessing:
   is the better shape and should survive; the boundary document should adopt it.
 - **`StepHost.rng` is a live `Rng` with synchronous methods, and cannot cross a
   worker hop.** `HostApi.random` is async throughout. This one touches every
-  step that draws, and nothing at P2 draws inside a step — so the conversion is
-  free *now* and expensive after P7 ships steps that do.
+  step that draws, and ~~nothing at P2 draws inside a step~~ — so the conversion
+  is free *now* and expensive after P7 ships steps that do. *Half-expired at
+  P5.6: the retriever draws inside a step's `call`, engine-side of that seam
+  and never from a mode's own body, so the lean survives and its reason has
+  narrowed. §0.1 has the trace.*
 
 **Lean: do the async conversion in the first stage, before any new step is
 written.** The cost is a signature; the alternative is converting steps written
@@ -152,9 +258,12 @@ else:
 [03 §8](../03-modes-and-turn-pipeline.md) moved party membership, `control` and
 narrator selection into channels for the three properties fields cannot have:
 they reconstruct at a node, they appear as effects in the record, and they branch
-correctly. `se.party` is on [P2 §5](04-p2-implementation.md)'s deferral list by
-name. Two constraints that must not be lost in the move: **membership is keyed
-by `TurnId`, never by ordinal** ([09 §3](../09-branching.md)), and **presence is
+correctly. *All three stopped being arguments at P6, which built and
+property-tested every one of them, and P5.5 settled the persisted key — so this
+move now inherits a shape rather than proposing one (§0.1).* `se.party` is on
+[P2 §5](04-p2-implementation.md)'s deferral list by name. Two constraints that
+must not be lost in the move: **membership is keyed by `TurnId`, never by
+ordinal** ([09 §3](../09-branching.md)), and **presence is
 not party membership** — two concepts, two channels, one panel
 ([05 §13.2](../05-ui-surfaces.md)).
 
@@ -286,7 +395,10 @@ signature, §1.1's promise was false and that is the finding.
 ### P7.1 — Channels as a general mechanism
 
 Modes declare channels and the registry is built from declarations rather than
-from a built-in set of one ([13 §1.3](../13-internal-contracts.md)). `schema`,
+from a built-in set of ~~one~~ two ([13 §1.3](../13-internal-contracts.md)) —
+P5 put `se.lore.timing` beside the clock, and both are `engine-computed`, so
+the declarative path still has no `model-proposed` or `user-only` subject until
+this stage builds one. `schema`,
 §1.4's `init`, author-declared channels
 ([03 §4.1](../03-modes-and-turn-pipeline.md)), the migration posture from
 [06 B7](../06-open-questions.md), hidden visibility with a reveal affordance, and
@@ -501,6 +613,9 @@ skeleton:
 
 - **Whether the worker hop lands here** (§1.3). A performance question with no
   measurements yet, and PLAYABLE plus P5's retriever are what produce them.
+  *P5's retriever exists now and draws inside a step, which §0.1 argues is an
+  argument for the hop rather than against it — the measurements still wait on
+  PLAYABLE.*
 - **Whether two modes is enough of a test** (§1.8). The document already
   suspects not and names the assistant as the available third — but the
   assistant is P11's, so the honest options are *accept a weaker test at P7* or
@@ -508,4 +623,7 @@ skeleton:
 - **What PLAYABLE and P2C did to the record.** P7 follows PLAYABLE by three
   phases, and whatever the record turns out to have got wrong lands in the
   middle of this phase's channel and effect work. The revisit's first job is to
-  re-read [16](16-p2c-log.md) rather than this document.
+  re-read [16](16-p2c-log.md) rather than this document. *Still the wait, and
+  now the only one: three of the four phases between the draft and here have
+  landed, and PLAYABLE has not run. §0.1 names the one small thing standing in
+  its way — no surface, anywhere, chooses a session's lorebooks.*
