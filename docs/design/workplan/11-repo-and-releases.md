@@ -211,14 +211,23 @@ Three channels:
 | **testing** | a chosen commit on `main` | **a human decided `main` is in a good state** | manual testing of unreleased work |
 | **nightly** | `main` HEAD | schedule only | seeing today's state; may be broken |
 
-**An alpha build occupies none of these rows**, which is worth saying because the
-table invites the assumption that anything published must land somewhere.
-[P6A](23-p6a-alpha-1.md) publishes under an **immutable tag and moves no alias**:
-`latest` still names nothing, and it stays that way until a release is actually
-cut. The reason is concrete rather than tidy — `updates.channel` already ships as
-a closed union defaulting to `latest`, and both unraid's auto-update and
-watchtower track exactly that alias, so moving it is how an alpha turns into an
-unattended upgrade for everyone who ever installs one.
+**An alpha build occupies one of these rows since alpha.2 — `testing`.**
+[P6A](23-p6a-alpha-1.md) published Alpha 1 under an immutable tag and moved no
+alias; on 2026-09-07 the maintainer's own unraid install asked for a channel it
+could follow, and the `testing` row is exactly what a tagged alpha is: *a chosen
+commit on `main`* — a prerelease is a tag on `main`
+([P6A §1.6](23-p6a-alpha-1.md)) — *gated on a human deciding*, which a tag is.
+So every `v*` tag also pushes the image as `:testing`, the unraid template
+follows that tag, and `compose.yaml` stays pinned to the version — the build
+you can go back to. **`latest` still names nothing**, and it stays that way
+until a release is actually cut. The reason is concrete rather than tidy —
+`updates.channel` already ships as a closed union defaulting to `latest`, and
+both unraid's auto-update and watchtower track exactly that alias, so moving it
+is how an alpha turns into an unattended upgrade for everyone who ever installs
+one. `updates.channel` itself is unchanged by the channel existing: it
+configures P11's in-app update *check*, and which channel an install *pulls* is
+a property of the thing pulling — the template's tag, watchtower, compose — and
+not of the server.
 
 **`testing` and `nightly` are not the same channel at different frequencies**,
 and most projects blur them. `nightly` is unattended and carries no claim.
@@ -397,7 +406,10 @@ of a line; the name and the date follow after dashes —
   what P6A settles is only that a build may exist before beta (§0.1), not that
   one may be published to an audience. What remains genuinely open is therefore
   narrower than it was: not whether artifacts may exist during alpha, but when
-  the project takes on people tracking one.
+  the project takes on people tracking one. **`testing` exists since alpha.2**
+  (§4), moved by every `v*` tag for the project's own installs — the package
+  is still private, so the *reaching beta* half still governs publishing a
+  channel to an audience, and `nightly` is still open.
 - **[OPEN]** How long a release line is maintained. "Forever" for the *branch*
   is cheap; "forever" for *fixes* is not, and the two are easy to conflate in
   users' expectations. A stated support window — current minor plus one — costs

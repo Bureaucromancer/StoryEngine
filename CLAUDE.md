@@ -16,8 +16,10 @@ pnpm workspace, Node ≥ 26, ESM throughout (imports use `.js` suffixes).
   `release.test.ts` (the `release` vitest project: the version agrees across
   `package.json`, `CHANGELOG.md`, `compose.yaml` and the unraid template)
 - `Dockerfile`, `compose.yaml`, `deploy/unraid/` — Alpha 1's image and its two
-  wrappers; `docs/deploy.md` is how a built one runs. Private registry, no
-  `latest`; `release.yml` builds the image on a `v*` tag (first success
+  wrappers; `docs/deploy.md` is how a built one runs. Private registry; every
+  `v*` tag also moves the `testing` channel tag, which the unraid template
+  follows, and `latest` never moves; `release.yml` builds the image on a `v*`
+  tag (first success
   `v1.0.0-alpha.1`, 2026-09-06), and it has never been built on this machine
   (no Docker). The base ships no corepack: pnpm is installed with npm, pinned
   to `packageManager` by `tools/release.test.ts`

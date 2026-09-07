@@ -54,11 +54,15 @@ describe('the version this build claims', () => {
     expect(tag?.[1]).toBe(version);
   });
 
-  it('is the image tag the unraid template pulls', () => {
+  it('is not what the unraid template pulls — that follows the testing channel', () => {
+    // The template is the install that wants to be offered the next alpha, so
+    // it tracks the channel every tag moves ([releases §4]); compose above is
+    // the build you can go back to, so it stays pinned. Pinning the template
+    // to the version, or pointing it at `latest`, fails here.
     const xml = read('deploy/unraid/storyengine.xml');
     const repository = /<Repository>ghcr\.io\/[\w.-]+\/storyengine:(\S+)<\/Repository>/.exec(xml);
     expect(repository, 'no Repository element matched in the template').not.toBeNull();
-    expect(repository?.[1]).toBe(version);
+    expect(repository?.[1]).toBe('testing');
   });
 });
 
@@ -98,15 +102,29 @@ describe('the release workflow', () => {
     expect(granted).not.toContain('contents: write');
   });
 
-  it('tags the image with the bare version, which is what the compose file pulls', () => {
-    // `github.ref_name` is the tag, `v` included. compose.yaml and the template
-    // pull the version without it and the tests above hold them to it, so the
-    // workflow has to strip the `v` before the string becomes an image tag — or
-    // the first thing the deploy page says to run pulls a tag nobody pushed.
-    // The first version of the workflow tagged with `ref_name`, and the tests
-    // above enforced the mismatch rather than catching it.
+  it('pushes exactly two tags: the bare version, and the testing channel', () => {
+    // `github.ref_name` is the tag, `v` included. compose.yaml pulls the version
+    // without it and the test above holds it to that, so the workflow strips
+    // the `v` before the string becomes an image tag — the first version of the
+    // workflow tagged with `ref_name`, and the tests enforced the mismatch
+    // rather than catching it. And `testing` is the channel [releases §4]
+    // defines as a chosen commit on main, gated on a human deciding: a tag on
+    // main is that decision, so every tagged alpha moves it, and the unraid
+    // template follows it. Exactly these two, in this order — a `latest` line,
+    // a missing `testing`, or `ref_name` each fail here.
     expect(workflow).toMatch(/echo "version=\$\{GITHUB_REF_NAME#v\}" >> "\$GITHUB_OUTPUT"/);
-    expect(workflow).toMatch(/storyengine:\$\{\{ steps\.names\.outputs\.version \}\}/);
+    // Whole lines, not non-space runs: the expressions carry spaces inside
+    // their braces, and a `\S+` here matched nothing on the real file.
+    const block = /\n[ \t]+tags: \|\n((?:[ \t]+ghcr\.io\/[^\n]+\n)+)/.exec(workflow);
+    expect(block, 'no tags block matched').not.toBeNull();
+    const tags = (block?.[1] ?? '')
+      .trim()
+      .split('\n')
+      .map((line) => line.trim());
+    expect(tags).toEqual([
+      'ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}',
+      'ghcr.io/${{ steps.names.outputs.owner }}/storyengine:testing',
+    ]);
     expect(workflow).not.toMatch(/storyengine:\$\{\{ github\.ref_name \}\}/);
   });
 

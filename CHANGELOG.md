@@ -32,6 +32,11 @@ What the first install of Alpha 1 found, on unraid, and what it asked for.
   file are held to it.
 - **`GET /api/auth/state` carries `build`**, so the pages before sign-in can
   say what they are; the admin notices route keeps its copy.
+- **A `testing` channel.** Every tagged build is also pushed as
+  `storyengine:testing`, and the unraid template follows it, so unraid's update
+  check offers each alpha; `compose.yaml` stays pinned to the version. `latest`
+  still names nothing
+  ([releases §4](docs/design/workplan/11-repo-and-releases.md)).
 
 ### Fixed
 

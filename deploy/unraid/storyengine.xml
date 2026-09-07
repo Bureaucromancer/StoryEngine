@@ -23,7 +23,7 @@
 -->
 <Container version="2">
   <Name>StoryEngine</Name>
-  <Repository>ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.1</Repository>
+  <Repository>ghcr.io/bureaucromancer/storyengine:testing</Repository>
   <Registry>https://ghcr.io/bureaucromancer/storyengine</Registry>
   <Network>bridge</Network>
   <Shell>sh</Shell>
@@ -36,6 +36,11 @@
     PRIVATE IMAGE. This package is not public, so unraid must be logged in to
     ghcr.io with a token that can read packages before this template will pull.
     Without that the pull fails with a 404 that reads like a typo.
+
+    CHANNEL. This template follows the testing channel: every tagged alpha
+    moves it, so unraid's update check offers each one. To stay on one build,
+    change the repository tag to that build's version, such as
+    ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.2. There is no latest.
 
     FIRST RUN. The container binds 0.0.0.0, because a container's own loopback
     is unreachable however you map the port. That means the create-the-first-

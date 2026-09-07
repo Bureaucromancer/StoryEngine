@@ -381,6 +381,10 @@ track exactly that alias. Publishing under the immutable tag only means the
 channel still names nothing, which is what
 [releases §0](11-repo-and-releases.md) says alpha should be.
 
+*Since alpha.2 the `testing` alias does move, with every tag
+([releases §4](11-repo-and-releases.md)) — the maintainer's own decision after
+the first unraid install wanted a channel to follow; `latest` still does not.*
+
 ### 1.7 A data-directory stamp, and nothing more
 
 Write the build identity into the data directory on first open, and refuse to

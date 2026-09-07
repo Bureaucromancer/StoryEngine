@@ -82,11 +82,20 @@ jobs:
           build-args: |
             COMMIT=${{ github.sha }}
             VERSION=${{ steps.names.outputs.version }}
-          # Only the immutable tag: `latest` names nothing yet and this does not
-          # move it — unraid's auto-update and watchtower both track that alias,
-          # and an alpha is not something to hand an auto-updater
+          # **Two tags: the immutable version, and `testing`.** The version tag
+          # is the build you can go back to; `testing` is the channel
+          # docs/design/workplan/11-repo-and-releases.md §4 defines as *a chosen
+          # commit on main, gated on a human deciding* — and a tag on main is
+          # that decision, so every tagged alpha moves it (decided 2026-09-07,
+          # as of 1.0.0-alpha.2, after the first unraid install asked for a
+          # channel it could follow). The unraid template follows `testing`;
+          # compose.yaml pins the version. `latest` still moves nowhere: unraid's
+          # auto-update and watchtower both track that alias, `updates.channel`
+          # defaults to it, and an alpha is not something to hand an auto-updater
           # (docs/design/workplan/23-p6a-alpha-1.md §1.6).
-          tags: ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}
+          tags: |
+            ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}
+            ghcr.io/${{ steps.names.outputs.owner }}/storyengine:testing
           # Cache through the registry rather than the runner: an on-tag build is
           # rare enough that a runner cache is always cold, and the layers that
           # matter are `pnpm install` and `pnpm build`.

@@ -112,6 +112,19 @@ promise between alpha builds — [13](design/13-internal-contracts.md) licenses 
 storage tier to change without migration for as long as nothing leaves the
 install, and nothing does ([P6A §1.7](design/workplan/23-p6a-alpha-1.md)).
 
+## Channels
+
+Every tagged build is pushed under two tags: its version, which never moves,
+and `testing`, which every tagged alpha moves
+([releases §4](design/workplan/11-repo-and-releases.md) — *a chosen commit on
+main, gated on a human deciding*, which a tag on main is). The unraid template
+follows `testing`, so unraid's update check offers each new alpha;
+`compose.yaml` pins the version, because it is the build you can go back to. To
+follow the channel from compose, change the tag to `testing`; to hold unraid on
+one build, change the template's repository tag to that build's version. There
+is no `latest`: unraid's auto-update and watchtower track that alias, and an
+alpha is not something to hand an auto-updater.
+
 ## unraid
 
 `deploy/unraid/storyengine.xml` is a template you can drop into
@@ -145,7 +158,7 @@ contents of `state/setup.token` under the appdata folder.
    date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
    for the version at the start of the line. The names, and how they follow
    from the string, are [releases §7.1](design/workplan/11-repo-and-releases.md)'s.
-3. Commit, then tag `v<version>` and push the tag.
+3. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
 
 `.github/workflows/release.yml` fires on `v*` — filtered, because the only other
 tag in this repository is `p1` and phase tags are a habit here. It builds the

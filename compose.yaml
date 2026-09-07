@@ -13,14 +13,18 @@
 # (docs/design/workplan/23-p6a-alpha-1.md §4).
 #
 #   docker compose up -d
-#   docker compose logs storyengine     # the setup token is in here, once
+#   docker compose logs storyengine     # the setup token, on every start until
+#                                       # an admin exists; also state/setup.token
 
 services:
   storyengine:
     image: ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.1
-    # Immutable, deliberately. `latest` names nothing yet and this build does not
-    # move it — unraid's auto-update and watchtower both track exactly that
-    # alias, and an alpha is not something to hand an auto-updater (§1.6).
+    # Pinned, deliberately: this file is the build you can go back to. The
+    # `testing` channel follows every tagged alpha (releases §4) — change the
+    # tag to `testing` to follow it, as the unraid template does. `latest` names
+    # nothing yet and no build moves it — unraid's auto-update and watchtower
+    # both track exactly that alias, and an alpha is not something to hand an
+    # auto-updater (§1.6).
     restart: unless-stopped
     ports:
       # The mapping is your explicit act. The container binds 0.0.0.0 because a

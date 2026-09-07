@@ -82,8 +82,9 @@ if you want to know why.
 ## Building it
 
 Alpha distribution is build-it-yourself ([releases §0](docs/design/workplan/11-repo-and-releases.md)).
-There are no channels and no packages anyone else installs. The one artifact,
-Alpha 1's image, is private and for the project's own use; running one is
+There is one channel, `testing`, which every tagged alpha moves and the unraid
+template follows; no `latest`, and no packages anyone else installs. The one
+artifact, the image, is private and for the project's own use; running one is
 [`docs/deploy.md`](docs/deploy.md)'s subject, and cutting one is at the end of
 that page.
 
