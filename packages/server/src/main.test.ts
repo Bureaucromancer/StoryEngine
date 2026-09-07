@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -336,6 +336,46 @@ describe('the config-file line', () => {
     // effect, and the file outranking it ([P6A §1.2]) is invisible otherwise.
     expect(line['level']).toBe(40);
     expect(line['variables']).toEqual(['SE_HOST']);
+  });
+
+  /**
+   * **Where a first-run install is told to go, in each of the two
+   * arrangements** — and they are two, which is what the line got wrong.
+   *
+   * A packaged build serves its own client ([P6A.1]), so its address is the
+   * one to open; a development run does not, so Vite's is. Between P6A.1 and
+   * this test the answer was Vite's either way, which sent anybody running a
+   * built server on loopback to a port with nothing behind it — found by
+   * running one, the day after Alpha 1 was cut. Both cases are asserted,
+   * because a fix that answered the API's address unconditionally would break
+   * the development half and no test would have said so.
+   */
+  it('sends a packaged build to its own address, since it serves the client', async () => {
+    const clientRoot = join(dataDir, 'client');
+    await mkdir(clientRoot, { recursive: true });
+    // `buildApp` refuses a client root with no `index.html` in it, so the
+    // fixture is a build rather than an empty directory.
+    await writeFile(join(clientRoot, 'index.html'), '<!doctype html>\n');
+    const port = await freePort();
+
+    const line = await startupLine(['--data', dataDir], 'No accounts yet', {
+      SE_HOST: 'localhost',
+      SE_PORT: String(port),
+      SE_CLIENT_ROOT: clientRoot,
+    });
+
+    expect(line['open']).toBe(`http://localhost:${String(port)}`);
+  });
+
+  it('sends a development run to the client’s own port, which is a different process', async () => {
+    const port = await freePort();
+
+    const line = await startupLine(['--data', dataDir], 'No accounts yet', {
+      SE_HOST: 'localhost',
+      SE_PORT: String(port),
+    });
+
+    expect(line['open']).toBe('http://localhost:5173');
   });
 });
 

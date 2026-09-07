@@ -355,12 +355,24 @@ function environmentDataDir(document: Record<string, unknown>): string | undefin
 /**
  * Where a person should point a browser.
  *
- * In development the client is served by Vite on its own port and proxies
- * `/api` back here, so the API's address serves nothing a person wants. There is
- * no packaged build yet — when there is, this collapses to the API's address and
- * the environment variable goes.
+ * **Two arrangements, and the config says which one this is.** With
+ * `server.clientRoot` set, this process serves the client itself and the
+ * address to open is its own ([P6A §1.3]) — one process, one port, no proxy.
+ * Unset is development: the client is Vite's, on its own port, proxying `/api`
+ * back here, so this process's address serves nothing a person wants.
+ *
+ * ~~There is no packaged build yet — when there is, this collapses to the API's
+ * address and the environment variable goes.~~ **The packaged build arrived at
+ * [P6A.1] and this function did not notice**, so a bare-metal install serving
+ * its own client on loopback was told to open port 5173, where nothing is
+ * listening. Found by running one on 2026-09-07, the day after Alpha 1 was cut.
+ * The variable stays, because development still needs it — what was wrong was
+ * answering as though development were the only arrangement.
  */
 function clientAddress(config: Config): string {
+  if (config.server.clientRoot !== '') {
+    return `http://${config.server.host}:${String(config.server.port)}`;
+  }
   const port = process.env['SE_CLIENT_PORT'] ?? '5173';
   return `http://${config.server.host}:${port}`;
 }

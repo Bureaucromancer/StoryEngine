@@ -139,3 +139,7 @@ newer one has touched
   shipping at 25, so the first run of the release workflow failed at that line
   before building anything. It installs pnpm with npm now, at the version
   `package.json` pins, and `tools/release.test.ts` holds the two to one number.
+- **A build serving its own client on loopback said to open Vite's port**,
+  where nothing is listening. The first-run line asks the config which of the
+  two arrangements this is now: with `server.clientRoot` set it names this
+  server's own address, and without it the development client's, as before.
