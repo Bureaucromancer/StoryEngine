@@ -17,7 +17,7 @@ the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
-## 1.0.0-alpha.1 — 1.0-alpha 1 — unreleased
+## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-09-06
 
 **The first build you can go back to.** Until now the only record of a working
 state was the commit graph, which makes _the version where lorebooks worked
@@ -71,6 +71,23 @@ newer one has touched
   a rewrite names its tape; the record carries the attempt as its own advisory
   block, naming the turn, and it never enters history. With the field empty,
   both buttons do exactly what they did.
+- **Every critical control stays in reach.** The editors' held Save row is now
+  a strip every surface keeps its critical controls in, held against the
+  bottom of the scrollport: the way back, Save or Edit, History and Delete on
+  the editors and the read page, and the action row of every form on the
+  settings page — so no control is reachable only by scrolling past everything
+  it is about. Delete is reachable from the editors for the first time, and
+  moves the file as saved. On the settings page a form the server refuses as
+  stale is answered inside the strip rather than below the fold it covers.
+- **What a save says is said where Save is.** _Saved._, a restored version, a
+  reapplied draft and any write the server refused short of a conflict render
+  in the strip beside Save, rather than at the top of a page the strip has
+  scrolled out of sight.
+- **A dragged entry says where it will land.** In the lorebook editor a row
+  shows a line along the edge the dragged entry will go in front of or behind,
+  by the same computation the drop uses, and the list scrolls itself while the
+  drag leans on its top or bottom edge — which the browser's own drag would not
+  do for a list inside a page.
 
 ### Fixed
 
