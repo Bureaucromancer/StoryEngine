@@ -1,0 +1,499 @@
+# 24 — P6B implementation plan: the close-out, and the first real play
+
+**Status: plan, opened 2026-09-07 at `7b6a0d9`**, main's tip after Alpha 2 was
+cut. Written the day it opens, like [P6A](23-p6a-alpha-1.md) and for the same
+reason: every precondition is checkable today rather than on the day, because
+two audits have already checked them.
+
+**P6B delivers one thing, and the rest is what that thing needs:** *PLAYABLE,
+actually run.* [01 §4.1](01-work-plan.md) scheduled it at the end of P4 and
+called it the milestone that matters most. P5, P6 and P6A have landed since. It
+has still not happened, and this document exists because the reason it has not
+is now known, small, and written down twice.
+
+**The demo that defines done:** *a person sits down with an imported library,
+plays for several sittings, and the four hypotheses in
+[01 §4.1](01-work-plan.md) come back answered — with every finding in
+[25](25-playable-log.md) and every finding given a home.*
+
+**Citation convention** follows [P6A](23-p6a-alpha-1.md): **`releases §N`** is
+[11-repo-and-releases](11-repo-and-releases.md), **`testing §N`** is
+[10-testing](10-testing.md), bare numbers are design documents one level up.
+Code paths are relative to `packages/<pkg>/src`.
+
+---
+
+## 0. What this phase is, and the correction it opens with
+
+**It is not new work.** It is the checkpoint three phases of construction were
+supposed to be built on, plus the smallest set of repairs that make its findings
+trustworthy. Every stage below is either *the thing that was already owed* or
+*evidence repair*, and
+[§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross) is the bar that
+keeps it that way.
+
+**The one-sentence history.** [01 §4.1](01-work-plan.md) says *at the end of P4,
+stop and play with it*, and calls skipping it
+*"the single most expensive economy available in this plan"*
+([01 §7](01-work-plan.md)). Nobody stopped. P5 built the retriever, P6 built the
+tree, P6A cut a release. The checkpoint is now three phases overdue and the
+phase in front of it — [P7](18-p7-implementation.md) — is the one that
+publishes the mode contract as an SDK.
+
+### 0.1 Readiness — why it has not run, audited 2026-09-07 at `7b6a0d9`
+
+**Two independent audits name the same obstacle, twelve weeks apart in document
+time and five days apart in real time.** [P5 §0.5](07-p5-implementation.md)
+(2026-09-02) calls it *"the single largest thing between this phase and an
+honest close"*; [P7 §0.1](18-p7-implementation.md) (2026-09-07) re-checked it
+and found it unchanged. It is this:
+
+**Nothing anywhere chooses a session's lorebooks.**
+
+- `client/src/api.ts:638-640` — `createSession` sends `{ name }` and nothing
+  else, though `POST /api/sessions` has accepted `treatment` and `lore` since
+  P5.6 (`routes/sessions.ts:84-112`).
+- `PUT /api/sessions/:id/lore` (`routes/sessions.ts:429-442`) exists, writes
+  both fields, and **has no caller in `packages/client`**. Its only callers are
+  tests.
+- `tools/seed.mjs:164` builds a treatment with a lorebook link twenty lines
+  earlier and then creates its session naming neither.
+
+So `pnpm seed` produces a session that resolves **zero books**, and a session
+made in the browser cannot resolve any at all. `resolveLore`
+(`turns/lore.ts:200-206`) reads the named treatment's links and the session's
+own list; with both empty, `retrieve` returns nothing, and the workbench's lore
+report renders nothing at all (`workbench/turn/LoreReportView.tsx:102`) — by a
+deliberate rule that a session using no book should not be told about a
+subsystem it is not using.
+
+**Which makes the checkpoint's own subject untestable.** Two of the four
+hypotheses [01 §4.1](01-work-plan.md) lists — *one budgeter over everything is
+comprehensible* and *inclusion reasons are a product feature* — are about
+retrieval under pressure. There is nothing to put under pressure. The fourth is
+the one 01 calls likeliest to be wrong and cheapest to fix here.
+
+**And one defect would make a hypothesis come back wrong rather than absent**,
+which is worse. See
+[§1.4](#14-the-single-lore-slot-is-a-decision-about-the-preset).
+
+### 0.2 What is *not* blocking, checked rather than assumed
+
+Worth recording, because a readiness note that only lists faults invites
+over-scoping:
+
+- **The provider boundary is wired.** This checkout has two configured
+  connections under `data/system/connections`, a `data/system/bindings.json`,
+  and three sessions with recorded turns. [P4 §0](06-p4-implementation.md)'s
+  *"PLAYABLE does not happen against a stub"* was written when that was not
+  true; it is stale. What never happened is the *capture* half —
+  [§1.6](#16-what-p2c14s-status-actually-is).
+- **The admin path to a working turn is complete.** `AdminConnections.tsx` does
+  provider, key, models, and the two first-run default bindings, and its claim
+  of *fresh install → one key → a turn, with no text editor* holds for an
+  admin.
+- **P5's document half is reachable.** `LorebookView.tsx` reads, searches,
+  filters and folds; `LorebookEditorPage.tsx` edits entries, reorders by drag
+  and by keyboard, gates folders, and saves against a content hash. The gap is
+  entirely the *selection* half: a fully editable book no session can be pointed
+  at.
+- **A known-good baseline exists.** Alpha 2 is tagged, built and installable,
+  and the data-directory stamp refuses an older build against a newer volume
+  ([P6A §1.7](23-p6a-alpha-1.md)). Playing against a build that can name itself
+  is what makes a finding attributable.
+
+### 0.3 The bar for pre-work, and the line it must not cross
+
+Taken verbatim in spirit from [P2C §1](15-p2c-first-real-run.md), which is this
+phase's precedent in every respect:
+
+> An item is pre-work only if leaving it undone would make the phase's own
+> findings wrong — by hiding a failure, by making one unfindable afterwards, or
+> by producing a finding that is really about the missing thing.
+
+And its guard, which matters more here than it did there, because this phase
+sits next to the largest one in the plan:
+
+> **Pre-work repairs the evidence; it does not build features.**
+
+That is the whole reason the cast panel is out of scope
+([§4](#4-out-of-scope-deliberately)) while the lore panel is in: one is a
+feature P7 already owns and intends to reshape, the other is the instrument the
+checkpoint reads.
+
+---
+
+## 1. Decisions this plan has to make
+
+### 1.1 Selection lands on the create form and a mid-session panel
+
+**Not a session-settings surface.** That is [P7.2](18-p7-implementation.md)'s
+stage, and [P7 §1.6](18-p7-implementation.md) turns `cast` from a field into a
+channel — so a settings page built now would be built against a shape P7
+replaces, which is exactly the placeholder [01 §2.2](01-work-plan.md) forbids.
+
+**The create form, because the server is already there.** `POST /api/sessions`
+takes `name`, `mode`, `preset`, `cast`, `treatment` and `lore`
+(`routes/sessions.ts:84-112`), and the preset is `structuredClone`d at creation.
+So the cheapest complete fix adds fields to a form that exists and sends what
+the route already accepts. No new route, no new surface, no new address.
+
+**And a mid-session panel, because a play session is long.** The realisation
+*this book should have been attached* arrives mid-session, and starting again
+costs the thread. `PUT /api/sessions/:id/lore` is already the route; the panel
+is a disclosure above the transcript. Without it the create form is a
+one-shot decision made before anybody knows what they want, which is the
+condition that produces *findings about the missing thing* rather than findings.
+
+**What it does not touch:** cast (P7.2's, and seed sets one), and changing a
+preset after creation — there is no route for that, and adding one is a P7
+question about what a session's preset *is*.
+
+### 1.2 P5's close-out is inside this phase
+
+[P5 §0.5](07-p5-implementation.md) is a close-out audit that concludes the phase
+does not close: *"§3 has never been walked, and walking it today would fail."*
+Five gate steps cannot be passed as written, one fails its own amendment, there
+are two live defects and two more the audit itself missed.
+
+**It belongs here rather than beside here**, for one reason: it is the same
+subsystem. P5's gate is about whether the retriever is legible and honest;
+PLAYABLE's third and fourth hypotheses are about whether the budgeter and the
+inclusion reasons are. Walking one and then playing against the other is two
+passes over one thing, and the second would find what the first should have.
+
+§0.5 prices its own remedy at *"about a day's work"* apart from one
+person-blocked item, and that estimate is the one this phase adopts.
+
+### 1.3 The four contradictions, settled before anybody walks
+
+[P5 §0.5](07-p5-implementation.md) names four document-versus-code
+contradictions, *"each an argument waiting to happen mid-walk"*. A walk that has
+to settle one mid-stride is a walk that edits the gate until it passes, which is
+the failure the gate's own provenance note warns about.
+
+1. **`tokenBudget: 0`.** [10 §5](../10-schemas.md) and the schema say
+   *0 = unlimited*; `shelf.ts:142` is a plain ceiling with no zero arm, so such
+   a book refuses every entry with *over the book's token budget of 0*. **The
+   inverted reading is pinned by `shelf.test.ts:296`**, so the doc-conformant fix
+   reddens a test — which is the point, and the test changes with the decision.
+   The sibling field is already right: `match.ts:137` says *"zero-as-unlimited is
+   the format's convention and not ours to improve"*, and the importer clamps
+   `entryLimit` while leaving `tokenBudget` alone. **Settle toward the
+   documents**: zero means unlimited, in both fields, spelled once.
+2. **Step 12's ownership.** [§1.4 of P5](07-p5-implementation.md) and
+   [01 §195](01-work-plan.md) assign channel-conditioned entries to P5; the
+   schema lists `activationConditions` as *deliberately absent* and the importer
+   discards it. Three documents disagree about whether a feature exists. **The
+   code is right and the documents are wrong** — the deferral was taken and
+   neither section followed. Amend the step to say so and move the capability to
+   where the rule vocabulary lives ([01 §0.6](01-work-plan.md)'s 5.0).
+3. **Step 11's ownership.** P5 says it is P3's edit-and-re-run gesture; P3
+   disclaims it; [P6 §3](08-p6-implementation.md) step 3 has since absorbed the
+   reproduction half. **Already resolved in P6's favour** — record it in P5's
+   step rather than leaving the contradiction addressed in only one direction.
+4. **Step 6's stated means.** It says the step is satisfied by *"the handful of
+   explicitly-permissive real books the corpus policy already keeps in the
+   repository"*, and the repository keeps none. **Person-blocked with lead time**
+   — see [§1.5](#15-what-is-person-blocked-and-stays-that-way).
+
+### 1.4 The single lore slot is a decision about the preset
+
+**This is the defect that would make a hypothesis come back *wrong*.**
+
+`modes/scene/preset.ts` declares exactly one `of: 'lore'` slot, at
+`phase: 'before'`. `assembly/collect.ts:549-553` places a lore block into a slot
+only when the placement and the phase agree — an `after` placement needs an
+`after` slot. SillyTavern positions 1, 2, 3, 5 and 6 all import as `after_char`
+(`retrieval/blocks.ts:66-72`).
+
+So an imported entry at any of those positions **activates, is charged against
+the book's `tokenBudget` and `entryLimit` in `shelve`, and then matches no slot
+and vanishes** — and `unplaced` covers only named outlets
+(`retrieval/blocks.ts:144-145`), so the lore report still counts it kept. **The
+first imported SillyTavern book silently loses the majority of its entries after
+they have spent the budget.**
+
+A hand-made book is fine: `factories.ts:172` defaults to `before_char`. Which is
+why no test and no hand-driven session has ever seen it, and why PLAYABLE — the
+first time a *real imported library* meets the budgeter — is exactly where it
+would bite.
+
+**It is a decision, not a patch.** The preset needs a second lore slot at
+`phase: 'after'`, and where that sits relative to history and the input is a
+prompt-shape choice with a token-order consequence. **Lean: a second slot
+immediately after the history splice**, mirroring the source engines' own
+placement, with the priority argued in the preset beside the existing one. And
+whatever is decided, **an entry that activates and lands nowhere must be
+reported** rather than dropped silently — that is the same *no silent refusal*
+line [01 §2.2](01-work-plan.md) draws, and it is the half that protects the next
+version of this bug.
+
+### 1.5 `scanDepth`, the recursion haystack, and what is person-blocked
+
+**`scanDepth` truncates the recursion haystack, and a placement setting decides
+what feeds it.** The recursive pass replaces the messages with the activated
+entries' content (`activate.ts:298-315`) and that array goes through the ordinary
+window (`match.ts:145-146`). On a default book (`scanDepth: 2`) **only the first
+two activated entries' content is ever scanned**. Worse, the feed inherits
+`inScanOrder`, so raising an entry's `order` — a *placement* setting, under a
+banner with nothing to do with recursion — silently removes its text from the
+haystack, and the skip reported is `no-match`, which `activate.ts:493-499`
+argues at length is the wrong thing to tell an author whose keys were fine.
+`match.ts:131`'s *"`scanDepth` counts messages and nothing else"* is false in a
+recursive pass.
+
+No test sees it: every recursion test is a chain of width one.
+
+**Decision, per §0.5's framing:** exempt the recursive haystack from `scanDepth`
+— it is not a conversation window and the comment already says so — or cap it
+deliberately and report the cut as its own skip reason. **Lean: exempt, and give
+recursion its own depth limit**, which already exists and is honoured
+(`preventRecursion`, step 9 of P5's gate, met). A width-N recursion test lands
+with it.
+
+#### What is person-blocked and stays that way
+
+**Step 6 needs real permissively-licensed books**, and acquiring them has lead
+time. §0.5 says recording it as person-blocked is fine and pretending is not.
+This phase records it. It does not hold the gate open on it, because the step
+asks whether a book *reads as a document*, and a synthesised book of three
+hundred entries answers the layout half — which
+[P5 §1.6](07-p5-implementation.md) already settled for step 1.
+
+### 1.6 What P2C.1–.4's status actually is
+
+[P4 §0](06-p4-implementation.md) says *"P2C.1–P2C.4 still have not run"* and
+*"PLAYABLE does not happen against a stub"*. **Half of that is now stale and
+half is exactly true**, and the phase should say which is which rather than
+inherit an obligation it has already met or claim one it has not.
+
+- **Stale:** the boundary has been crossed. Two connections are configured,
+  three sessions carry recorded turns, and Alpha 1 and 2 were built and
+  installed. Turns have been taken against a real endpoint.
+- **True:** no exchange was ever captured or promoted. There is no `captures/`,
+  no `packages/server/src/providers/fixtures/`, and no `.env` on this machine,
+  so `pnpm test:live` has never run here and
+  [P2C §2.2](15-p2c-first-real-run.md)'s *"every real call becomes a fixture,
+  and that is the phase's best output"* never happened.
+
+**Decision: capture during P6B.2 rather than staging a separate pass.** The
+machinery exists — `pnpm dev:logged` records cassettes into `captures/` and
+`openai-compatible.live.test.ts` is the promotion pattern. A play session
+against a real endpoint *is* the corpus P2C wanted, and recording it costs a
+flag. What this phase does not do is re-run P2C's scripted list; that phase's
+findings log holds fourteen entries from its smoke run and its triage section is
+still empty, which is [P6B.3](#p6b3--triage)'s to notice, not to redo.
+
+### 1.7 The log, and the rule that keeps it honest
+
+[P5 §0.3](07-p5-implementation.md) wrote observation prompts for the run-up to
+this checkpoint and [§0.4](07-p5-implementation.md) then recorded that
+*"§0.3's instruction has no receptacle"*. [25](25-playable-log.md) is the
+receptacle, in [16](16-p2c-log.md)'s shape and record format.
+
+Two rules, both [16](16-p2c-log.md)'s and both load-bearing:
+
+- **`expected` before `observed`, written before investigating.** What a person
+  thought would happen is not reconstructible once they know what did.
+- **The file is not a queue.** Nothing is fixed *because* it is written there;
+  [P6B.3](#p6b3--triage) decides where each finding goes, and it decides at
+  triage rather than at the moment of annoyance, because afterwards every
+  finding argues for its own importance.
+
+---
+
+## 2. Stages
+
+Repair the instrument, close the phase that built it, then use it. The first two
+are prerequisites of the third; the fourth is what makes the third count.
+
+### P6B.0 — Selection, and the failures nobody sees
+
+§1.1's create-form fields and mid-session panel; `pnpm seed` naming the
+treatment it builds; and the play page rendering a failed submission.
+
+That last one is ten lines and it is not cosmetic: `play/reducer.ts:163,272`
+classifies every failure into `state.error`, and `PlayPage.tsx` never reads it —
+`StreamStatus` (`:723`) takes `status` alone. A `409 busy`, a `412 stale-head`,
+an unbound role: **all silent on screen today**. Without it every finding in
+P6B.2 is ambiguous between *the app failed* and *I did it wrong*, which is
+[§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross)'s *hiding a
+failure* exactly.
+
+*Ends at:* `pnpm reset-data && pnpm seed`, then a session started in the browser
+naming a treatment and a book, a turn taken, and the workbench's lore report
+showing entries that fired with their reasons. **Nobody has ever been able to do
+that.**
+
+### P6B.1 — P5's close-out
+
+§1.3's four contradictions settled; §1.4's slot decision and the
+activated-but-unplaced report; §1.5's recursion decision with a width-N test;
+the destructive migration given the test its own doctrine demands
+(`state/migrations.ts` `STEPS[3]` drops a table while
+`state/migrations.test.ts:12-14` says none may — and deleting the
+`insert into import_item_new … select` leaves the whole suite green while every
+upgrading install loses every import review); and the one owed test, the
+`orphan-fts` assertion after an in-place rebuild.
+
+Then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and **a
+person walks all eighteen against HEAD**.
+
+*Ends at:* P5's gate walked, with each step's outcome recorded rather than
+ticked, and 07's status line saying either that the phase closes or precisely
+what still holds it open.
+
+### P6B.2 — Play
+
+The checkpoint. Unscripted, against a real imported library, over several
+sittings — [01 §4.1](01-work-plan.md)'s *stop and play with it*, and
+[P2C.3](15-p2c-first-real-run.md)'s distinction: a scripted pass answers whether
+a turn works, and this answers whether forty do.
+
+**What to watch for**, and it is written down because a session that watches for
+nothing produces a memory rather than a finding:
+
+- **The four hypotheses** ([01 §4.1](01-work-plan.md)) — is the record legible;
+  does hand-editing a card mid-session take; is one budgeter comprehensible
+  under pressure; do inclusion reasons explain anything. The fourth is the one
+  01 calls likeliest to be wrong.
+- **P5's four held-open questions** ([P5 §1.11](07-p5-implementation.md), with
+  observation prompts already written at [§0.3](07-p5-implementation.md)): the
+  trim order, whether the per-book budget tier earns its keep, whether recursion
+  depth needs a surface, and whether the keyword tester is the diagnostic or a
+  consolation.
+- **P6's two** ([P6 §5](08-p6-implementation.md)): which reply an edit changes,
+  and whether the sibling affordance is enough to find a line abandoned twenty
+  turns ago.
+
+Provider exchanges are recorded (`pnpm dev:logged`) so the session leaves a
+corpus behind — §1.6.
+
+*Ends at:* six answered questions and a full log.
+
+### P6B.3 — Triage
+
+[P2C §2.5](15-p2c-first-real-run.md)'s five destinations, decided in advance
+because afterwards every finding argues for its own importance: **stops the
+phase / fixed inside it / a gate correction / polish / P7 or the roadmap.**
+Nothing is allowed to have no home.
+
+Plus one piece of inherited bookkeeping: [16](16-p2c-log.md) holds fourteen
+findings from P2C.0's smoke run under an empty *Triage* heading. They get homes
+too, or a recorded reason why not.
+
+*Ends at:* an empty log, six questions answered or re-deferred with reasons, and
+[P7 §0.1](18-p7-implementation.md) given the follow-up it asks for.
+
+---
+
+## 3. Verification — the P6B exit gate
+
+1. **Selection round-trips.** A session created in the browser naming a
+   treatment and two books resolves all of them; the workbench's lore report
+   names each and says why it was scanned (`by: treatment` versus `by: session`).
+2. **Selection is changeable mid-session.** Attach a book on turn ten; the next
+   turn scans it, and the context meter and lore report both follow.
+3. **`pnpm seed` produces a playable install.** Reset, seed, take one turn, and
+   an entry fires — with no hand-editing and no API call.
+4. **A refused submission is visible.** Force a `412 stale-head` (two tabs) and
+   an unbound role; each says something on screen.
+5. **An imported SillyTavern book keeps its entries.** Import one, play against
+   it, and every entry that activates either lands in the prompt or is reported
+   as unplaced. **Nothing activates, spends budget and disappears.**
+6. **Recursion is not silently truncated.** A width-three recursion chain
+   activates all three; raising an entry's `order` does not remove its text from
+   the haystack.
+7. **The migration test fails when the copy is deleted.** The mutation
+   `state/migrations.ts` invites is red.
+8. **P5's eighteen steps, walked against HEAD by a person**, each recorded.
+9. **The four hypotheses are answered in writing**, including any answered
+   *no* — 02 §5 contemplates falsification as project-altering, and a *no* here
+   is the phase's most valuable possible output.
+10. **The log is empty**, because everything in it has a home.
+
+**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+configuration that has no surface.** This phase is that line being paid off for
+the retriever, three phases late.
+
+---
+
+## 4. Out of scope, deliberately
+
+**The cast panel and any session-settings surface.**
+[P7.2](18-p7-implementation.md) owns them and [P7 §1.6](18-p7-implementation.md)
+turns `cast` into a channel. Seed sets a cast; the create form does not need to.
+
+**Changing a preset after creation.** No route exists, and adding one is a
+question about what a session's preset *is* — copied at creation today
+([P4 §1.9](06-p4-implementation.md)), which P7's surface revisits.
+
+**The permissive book corpus** — person-blocked with lead time (§1.5).
+
+**Re-running P2C's scripted list.** §1.6: capture during play instead.
+
+**Anything PLAYABLE finds.** The checkpoint's output is a list with homes, not a
+phase that fixes everything it saw. [P6B.3](#p6b3--triage) routes; the routing
+is the deliverable.
+
+---
+
+## 5. What not to report
+
+*The brief-substitute, and the longest section [P2C's](17-p2c-brief.md) has for
+a reason: a wrong "do not report" sends somebody past a real bug, and a wrong
+"this is broken" spends a sitting of a short phase.*
+
+These are known, deliberate, and owned elsewhere. Noticing them again costs the
+log its signal:
+
+- **No treatment editor, and no way to make one in the browser.** Actors and
+  lorebooks have editors; the other four kinds arrive by import or the API
+  (`library/fields.ts`). Creation follows each kind's editor, and that is P7's
+  and P11's.
+- **No session housekeeping.** No rename, archive or delete in the UI, though
+  the routes exist.
+- **No way to change a session's mode or preset after creation** (§4).
+- **No per-user connection surface.** A non-admin cannot configure their own
+  provider; only an admin can, and that is P10's.
+- **No branch tree visualiser.** Siblings are a count and two arrows, and
+  whether that is *enough* is one of the questions being asked
+  ([P6 §1.2](08-p6-implementation.md)) — so report the judgement, not the
+  absence.
+- **No About surface beyond the version block**, no AGPL §13 source link:
+  P10's and P11's.
+- **The workbench is a reader.** It holds no state and offers no force-fire;
+  that is deliberate ([P3](05-p3-implementation.md)).
+
+**Report anyway, always:** anything that made you consult the source instead of
+the screen. That is [P2C.1](15-p2c-first-real-run.md)'s signal and it is the one
+a second pass cannot produce, because a second pass is made by somebody who
+already knows.
+
+---
+
+## 6. The honest size
+
+**P6B.0 is one to two days**, and it is the whole reason the phase exists: a
+widened type, a widened api call, form fields, one panel, three lines of seed,
+and ten lines of error rendering. No new routes.
+
+**P6B.1 is three to four days.** §0.5 prices its own list at about a day; the
+two decisions (§1.4's slot, §1.5's recursion) are cheap to write and want care
+to argue, the migration and `orphan-fts` tests are small, and the walk itself is
+eighteen steps against a running install.
+
+**P6B.2 is sittings, not days**, and it is the one part that cannot be
+compressed by working harder. [P2C §2.4](15-p2c-first-real-run.md)'s box
+applies — a manual phase with no end stops when somebody gets bored, which
+correlates with nothing.
+
+**P6B.3 is half a day** and is the stage most likely to be skipped. It is also
+the one that decides whether the other three were work or entertainment.
+
+**The largest risk is that P6B.2 finds something structural**, and that is the
+entire point. [02 §5](02-triage.md) contemplates PLAYABLE falsifying the core
+hypotheses as project-altering rather than as an in-flight patch — which is the
+argument for running it before [P7](18-p7-implementation.md) publishes the
+contract, rather than during.

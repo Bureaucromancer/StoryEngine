@@ -931,7 +931,11 @@ rather than during P4.3.
 *Built and merged, and the import previews what it would do before it writes
 ([P4 §7](06-p4-implementation.md)). Nobody stopped: PLAYABLE has not run, and a
 private Alpha 1 is being cut first, under the rule
-[P6A §5](23-p6a-alpha-1.md) sets.*
+[P6A §5](23-p6a-alpha-1.md) sets. **Three phases later it has a phase of its
+own** — [P6B](24-p6b-playable.md), opened 2026-09-07, because the reason nobody
+could stop turned out to be a missing surface rather than a missing intention:
+nothing anywhere chooses a session's lorebooks, so the checkpoint's own subject
+could not be put under pressure.*
 
 ### P5 — Lorebooks and retrieval
 
@@ -1017,7 +1021,42 @@ state at all, and the running build able to name the commit it came from.
 run — the first found that the base no longer ships corepack. The
 demonstration above is still a person's: pull, token, admin, a session, from a
 machine with Docker; [23 §3](23-p6a-alpha-1.md) says what the suite and the
-workflow have proved of it.*
+workflow have proved of it. Alpha 2 followed on 2026-09-07.*
+
+### P6B — The close-out, and the first real play
+
+**Expanded into a working plan: [24](24-p6b-playable.md)**, with
+[25](25-playable-log.md) as the findings log [P5 §0.4](07-p5-implementation.md)
+noticed had never been created.
+
+**This is PLAYABLE (§4.1), three phases late, plus the smallest set of repairs
+that make its findings trustworthy.** Not new work: the checkpoint P1–P4 were
+supposed to be tested by, and the close-out of the phase that built the
+subsystem it tests.
+
+**Why it did not happen on time, which is the finding that shaped the phase.**
+Two audits five days apart — [P5 §0.5](07-p5-implementation.md) and
+[P7 §0.1](18-p7-implementation.md) — name one obstacle: **nothing anywhere
+chooses a session's lorebooks.** `POST /api/sessions` has accepted a treatment
+and a book list since P5.6 and the client sends neither; `PUT
+/api/sessions/:id/lore` has no caller outside tests; `pnpm seed` builds a
+treatment with a book and then names neither. So a session resolves nothing, and
+two of §4.1's four hypotheses — the budgeter under pressure, and whether
+inclusion reasons explain anything — have had nothing to be about.
+
+**P5's gate comes with it**, because it is the same subsystem: that gate has
+never been walked, [P5 §0.5](07-p5-implementation.md) says walking it today
+would fail, and walking it separately would find what playing should have.
+
+**Why before P7 and not during:** [P7 §5](18-p7-implementation.md) says
+whatever the record got wrong *"lands in the middle of this phase's channel and
+effect work"* — the phase that publishes the contract as an SDK — and no
+document describes a recovery from that. §7 calls skipping this checkpoint the
+single most expensive economy available in this plan.
+
+**Demonstrable:** reset, seed, start a session naming a treatment and a book,
+take a turn, and read in the workbench which entries fired and why. Nobody has
+ever been able to do that.
 
 ### P7 — Modes and channels
 
