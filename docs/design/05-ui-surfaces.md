@@ -2302,9 +2302,19 @@ Available to every account, admin or not.
   avoids. And there is no Save button here at all: the choice applies as you
   make it, because a control whose entire feedback is the page changing colour
   should not ask you to confirm what you can already see.
+- **About: what build this is** — the name (*1.0-alpha 2*), the version string
+  and the commit, at the top of the page and for every account, because the
+  data is `auth/state`'s rather than the admin route's
+  ([P6A §1.5](workplan/23-p6a-alpha-1.md); built at alpha.2, ahead of P11.6,
+  after the first install could not name the build it was running). The same
+  name ends every page, login and setup included. The update badge
+  ([04 §6.5](04-server-multiuser-deployment.md)) and the licence boundary
+  ([04 §7](04-server-multiuser-deployment.md)) join this block when they ship;
+  the Source link does not — see the next bullet.
 - **What is deliberately not here:** the Source link. It is required to be
   visible to every logged-in user without hunting
-  ([04 §7](04-server-multiuser-deployment.md)), which a settings page is not.
+  ([04 §7](04-server-multiuser-deployment.md)), which a settings page is not —
+  the footer that names the build on every page is where it goes.
 
 ### 15.2 The admin half: accounts
 

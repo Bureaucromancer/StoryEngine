@@ -4,6 +4,7 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, type JSX } from 'react';
 
+import { BuildFooter } from './about/BuildFooter.js';
 import { useAuthState, useLogout, useNotices, usePatchPrefs, usePrefs } from './queries.js';
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
@@ -153,6 +154,13 @@ export function Shell(): JSX.Element {
         </main>
         {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
       </div>
+      {/* Last in the column and outside `<main>`, for the banner's reason: a
+          footer that scrolls away with the page is a footer on some pages. The
+          dock row above is `min-h-0 flex-1`, so it yields the footer its
+          height — and the footer must sit inside the `h-dvh` column, or the
+          document would scroll again ([P3.−1]). Under the dock as a whole, so
+          an open Workbench does not cover it. */}
+      <BuildFooter build={auth.data?.build} />
     </div>
   );
 }

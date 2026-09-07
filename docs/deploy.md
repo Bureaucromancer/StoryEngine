@@ -96,8 +96,10 @@ and `server.cookieSecure` in `config.json` — both default to off, and
 
 ## What this build is
 
-The running server reports its version and commit on the startup line and on
-`GET /api/admin/notices`:
+The running server reports its version and commit on the startup line, on
+`GET /api/auth/state` and `GET /api/admin/notices`, and in the UI — the footer
+on every page names the build (*1.0-alpha 2*), and the About block at the top
+of Settings adds the string and the commit:
 
 ```bash
 docker compose logs storyengine | head -n 5

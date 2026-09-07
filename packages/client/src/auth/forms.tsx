@@ -55,7 +55,11 @@ function passwordRule(minimum: number): string {
 
 function Panel(props: { title: string; children: ReactNode }): JSX.Element {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center p-6">
+    // The height is the frame's (`App.tsx`), which holds the build line under
+    // the page since alpha.2: this takes the rest of that column rather than
+    // the viewport. `w-full`, because a flex item with auto inline margins is
+    // content-sized where a block is not, and `max-w-sm` needs a width to cap.
+    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center p-6">
       <h1 className="mb-6 text-center text-title text-ink">{props.title}</h1>
       {props.children}
     </main>

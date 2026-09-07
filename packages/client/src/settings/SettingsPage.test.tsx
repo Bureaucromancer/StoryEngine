@@ -121,11 +121,18 @@ beforeEach(() => {
   readRoles.mockResolvedValue({ roles: [] });
 });
 
-function renderPage(role: 'admin' | 'user', minPasswordLength = 8) {
+const ALPHA = { version: '1.0.0-alpha.2', commit: '7573e8a0' };
+
+function renderPage(
+  role: 'admin' | 'user',
+  minPasswordLength = 8,
+  build: { version: string; commit: string } | null = ALPHA,
+) {
   authState.mockResolvedValue({
     setupRequired: false,
     account: account(role),
     minPasswordLength,
+    build,
   });
   readMe.mockResolvedValue({ account: account(role) });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -161,6 +168,10 @@ describe('for a non-admin', () => {
     // there being one conditional rather than one per section.
     expect(listConnections).not.toHaveBeenCalled();
     expect(readRoles).not.toHaveBeenCalled();
+    // And the build on the page came from the auth state, not from the admin
+    // notices route — the one way a version for everyone could have broken
+    // this claim.
+    expect(notices).not.toHaveBeenCalled();
   });
 });
 
@@ -175,6 +186,36 @@ describe('for an admin', () => {
     await waitFor(() => {
       expect(readConfig).toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * The About block — [P6A §1.5], alpha.2: the version, prominently, for every
+ * account. It reads `auth/state` rather than the admin route, which is what
+ * keeps the non-admin's *asks for nothing* claim above true with a version on
+ * the page.
+ */
+describe('the build', () => {
+  it('is named first, for a user, with the string and the commit beneath', async () => {
+    renderPage('user');
+
+    expect(await screen.findByRole('heading', { name: 'StoryEngine 1.0-alpha 2' })).toBeTruthy();
+    expect(screen.getByText('1.0.0-alpha.2')).toBeTruthy();
+    expect(screen.getByText(ALPHA.commit)).toBeTruthy();
+    // First after the page title: prominence was the ask.
+    const headings = screen.getAllByRole('heading');
+    expect(headings[0]?.textContent).toBe('Settings');
+    expect(headings[1]?.textContent).toBe('StoryEngine 1.0-alpha 2');
+  });
+
+  it('says so when nothing identified the build', async () => {
+    renderPage('user', 8, null);
+
+    expect(
+      await screen.findByRole('heading', { name: 'StoryEngine development build' }),
+    ).toBeTruthy();
+    expect(screen.getByText(/Nothing identified this build/)).toBeTruthy();
+    expect(screen.queryByText('1.0.0-alpha.2')).toBeNull();
   });
 });
 

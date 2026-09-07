@@ -88,7 +88,8 @@ where they are doing it.
   "setupRequired": true,
   "setupTokenRequired": true,
   "account": null,
-  "minPasswordLength": 8
+  "minPasswordLength": 8,
+  "build": { "version": "1.0.0-alpha.2", "commit": "7573e8a…" }
 }
 ```
 
@@ -113,7 +114,8 @@ added later cannot leak by default.
       "enableExtensions": false
     },
     "createdAt": 1786800000000
-  }
+  },
+  "build": null
 }
 ```
 
@@ -137,6 +139,20 @@ loopback server directly or an exposed one through a proxy — and both guesses
 fail visibly: a token box on a laptop is baffling, and no box on an exposed
 install makes it look broken. It narrows nothing that this same response does not
 already say, and the token itself never leaves the console.
+
+**`build` is what this build is**, or `null` for one nobody identified — every
+development run ([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Here as well as
+on the admin notices route, since alpha.2, because the UI says it on every page:
+the footer under login and setup as much as under the library, and the About
+block at the top of Settings, for every account. Unauthenticated on purpose, and
+it narrows nothing: this response already says whether the install is
+unclaimed, the login page is served to anyone who can reach the port, and a
+version is a fact about the software rather than about anybody's data. It is
+also user-facing by design — [04 §7](design/04-server-multiuser-deployment.md)
+makes *what am I running* a question the running version answers for everyone
+who interacts with the server. The name a person reads (*1.0-alpha 2*) is
+derived from the string by [releases §7.1](design/workplan/11-repo-and-releases.md)'s
+rule; the response carries the string.
 
 **`minPasswordLength` is `auth.minPasswordLength`**, the shortest password this
 install accepts where one is *set*. It is here rather than on the admin config
@@ -1605,11 +1621,12 @@ is every development run and anything not produced by a release
 ([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Written into the artifact at
 build time rather than read from the environment, so a container cannot claim to
 be something it is not. `null` rather than `0.0.0` or `"unknown"`: a version
-string that is not a version is the thing a bug report quotes back at you. The
-surface that renders it is [P11.6]'s About panel, which no document specifies
-yet; this is the value waiting for it. It is on **this** route rather than a new
-one because this is already the *state of this install* answer, and the shell
-asks for it on every navigation.
+string that is not a version is the thing a bug report quotes back at you. Since
+alpha.2 the UI renders it — the footer on every page and the About block at the
+top of Settings — from `GET /api/auth/state`, which carries the same value for
+everyone; the About surface those grow into is [P11.6]'s. This copy stays on
+**this** route because this is already the *state of this install* answer the
+admin shell asks for on every navigation.
 
 `canRestart` is `false` and says so rather than being absent. **The server does
 not restart itself**: under no supervisor a restart control leaves the

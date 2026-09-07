@@ -19,7 +19,19 @@ release workflow reads it there, and carries the name and the date after it.
 
 ## 1.0.0-alpha.2 — 1.0-alpha 2 — unreleased
 
-What the first install of Alpha 1 found, on unraid, in the order it found it.
+What the first install of Alpha 1 found, on unraid, and what it asked for.
+
+### Added
+
+- **The version, visibly.** Every page ends with the build's name —
+  _1.0-alpha 2_ — login and setup included, and Settings opens with an About
+  block: the name, the version string and the commit, for every account. A
+  development run says so instead of inventing a version. The name is derived
+  from the string by [releases §7.1](docs/design/workplan/11-repo-and-releases.md)'s
+  rule, which is code now, in `@storyengine/shared`, and the headings in this
+  file are held to it.
+- **`GET /api/auth/state` carries `build`**, so the pages before sign-in can
+  say what they are; the admin notices route keeps its copy.
 
 ### Fixed
 

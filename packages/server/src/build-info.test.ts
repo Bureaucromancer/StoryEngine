@@ -216,6 +216,25 @@ describe('a released build against a data directory', () => {
     }
   });
 
+  /**
+   * **The login page's data, and the footer under it.** Alpha 1's first
+   * install could not name the build it was running from inside the app, so
+   * the auth state carries the identity to every page — before sign-in too,
+   * which is why there is no `setUpAdmin` here.
+   */
+  it('reports itself on the auth state before anyone has signed in', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'se-build-'));
+    const app = await makeTestServer({ dataDir, build: ALPHA_1 });
+    try {
+      const state = await app.request({ method: 'GET', url: '/api/auth/state' });
+
+      expect(state.body.build).toEqual(ALPHA_1);
+    } finally {
+      await app.dispose().catch(() => undefined);
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it('says nothing where there is nothing to say', async () => {
     const app = await makeTestServer();
     try {
@@ -225,6 +244,11 @@ describe('a released build against a data directory', () => {
       // `null`, not `0.0.0` or `unknown` — a version string that is not a
       // version is the thing a bug report then quotes back at you.
       expect(notices.body.build).toBeNull();
+      // And the same absence on the auth state — present, so that an omitted
+      // field cannot be mistaken for a build nobody identified.
+      const state = await app.request({ method: 'GET', url: '/api/auth/state' });
+      expect(state.body).toHaveProperty('build');
+      expect(state.body.build).toBeNull();
     } finally {
       await app.dispose().catch(() => undefined);
     }

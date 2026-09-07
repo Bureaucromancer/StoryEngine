@@ -49,6 +49,16 @@ export interface Account {
   createdAt: number;
 }
 
+/**
+ * What build the server is — the version string and the commit it was built
+ * from ([P6A §1.5]). The name a person reads is derived from the string by
+ * `versionName` in `@storyengine/shared`, never carried beside it.
+ */
+export interface BuildInfo {
+  version: string;
+  commit: string;
+}
+
 export interface AuthState {
   setupRequired: boolean;
   /**
@@ -72,6 +82,16 @@ export interface AuthState {
    * hardcoded 8, which is the thing reading it from the server removes.
    */
   minPasswordLength: number;
+  /**
+   * What build the server is, or `null` for one nobody identified — every
+   * development run ([P6A §1.5]). On the auth state rather than only on the
+   * admin notices route because every page shows it, login and setup included.
+   * Required rather than optional for the reason `minPasswordLength` is: client
+   * and server ship together. The footer and the About block tolerate
+   * `undefined` because the state may not have loaded yet, not because a server
+   * might omit it.
+   */
+  build: BuildInfo | null;
 }
 
 /** The object envelope every library read returns (docs/api.md). */
@@ -993,7 +1013,7 @@ export const adminApi = {
   notices: (): Promise<{
     pendingRestart: string[];
     canRestart: boolean;
-    /** What build the server is, or null for one nobody identified ([P6A §1.5]). */
-    build: { version: string; commit: string } | null;
+    /** The same build the auth state carries — the admin shell's copy of it. */
+    build: BuildInfo | null;
   }> => request('GET', '/api/admin/notices'),
 };

@@ -191,6 +191,7 @@ describe('the folder half, against the permission', () => {
       setupRequired: false,
       setupTokenRequired: false,
       minPasswordLength: 8,
+      build: null,
       account: {
         handle: 'ned',
         displayName: 'Ned',

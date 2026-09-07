@@ -3,6 +3,7 @@
 
 import type { JSX } from 'react';
 
+import { AboutBuild } from '../about/AboutBuild.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
 import { AdminAccounts } from './AdminAccounts.js';
@@ -43,6 +44,11 @@ export function SettingsPage(): JSX.Element {
     // chose ([05 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-10`}>
       <h1 className="text-title text-ink">Settings</h1>
+
+      {/* First, because prominence was the ask; for everyone, because the data
+          is `auth/state`'s rather than the admin route's — so *absent is
+          absent* below is untouched by a version on the page. */}
+      <AboutBuild build={auth.data?.build} />
 
       <UserSettings />
 

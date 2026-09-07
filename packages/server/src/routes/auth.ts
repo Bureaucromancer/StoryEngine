@@ -117,6 +117,23 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
        * by some distance.
        */
       minPasswordLength: services.config.auth.minPasswordLength,
+      /**
+       * **What build this is, so every page can say so** — the footer on every
+       * page and the About block at the top of Settings, since alpha.2.
+       *
+       * Unauthenticated on purpose, and it narrows nothing: this response
+       * already says whether the install is unclaimed, the login page is served
+       * to anyone who can reach the port, and a version is a fact about the
+       * software rather than about anybody's data — the same audience can read
+       * the client bundle. It is also user-facing by design: [04 §7] makes
+       * *what am I running* a question the running version answers for
+       * everyone who interacts with the server, and this route is that everyone.
+       *
+       * `null` for a build nobody identified, exactly as on the notices route
+       * and for the same reason: a version string that is not a version is what
+       * a bug report quotes back.
+       */
+      build: services.build,
     };
   });
 

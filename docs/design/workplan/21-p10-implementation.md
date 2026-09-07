@@ -321,10 +321,13 @@ a grid of accounts is a shape that invites the extra tile.
 ### P10.5 — About, the source link, and the embedded version
 
 [04 §7](../04-server-multiuser-deployment.md)'s licence obligations that are
-actually features: the running version and commit embedded in the build — **no
+actually features: the running version and commit embedded in the build — ~~**no
 build embeds one today**, which [04 §6.5](../04-server-multiuser-deployment.md)
-names as this phase's to fix — and the §13 source link. If §1.7 moved the update
-check here, its badge lands on this surface rather than in a notification class.
+names as this phase's to fix~~ embedded at [P6A §1.5](23-p6a-alpha-1.md) and
+shown since alpha.2, as the footer on every page and the About block at the top
+of Settings ([05 §15.1](../05-ui-surfaces.md)) — and the §13 source link, which
+is what is left here. If §1.7 moved the update check here, its badge lands on
+that About block rather than in a notification class.
 
 *Ends at:* the demo.
 

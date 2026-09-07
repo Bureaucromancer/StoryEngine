@@ -338,6 +338,12 @@ among them, so a public Alpha 1 would have had to invent that specification unde
 deadline. It stays where it is planned, and P6A hands it a version string that
 already exists.
 
+*Half of it since alpha.2:* the version has a surface — the footer on every
+page and an About block at the top of Settings, fed by `GET /api/auth/state`
+and specified at [05 §15.1](../05-ui-surfaces.md) — because Alpha 1's first
+install could not name the build it was running from inside the app. The §13
+link is still not built, and §4's condition is unchanged.
+
 **The condition that changes this** is publication, and it is written into §4.
 
 ### 1.6 The tag scheme, and why `latest` does not move

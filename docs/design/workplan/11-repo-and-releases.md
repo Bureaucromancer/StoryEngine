@@ -372,7 +372,10 @@ template pull, and the workflow strips it before tagging.
 when it is zero (`1.0.0` is *1.0*, `1.0.1` stays *1.0.1*), keep the hyphen and
 put a space where the dot before the number was (`-beta.1` is *-beta 1*), and
 keep a hotfix's second field as a dot (`-beta.1.1` is *-beta 1.1*). Read the
-other way, every name yields its string.
+other way, every name yields its string. The rule is code since alpha.2 —
+`versionName` in `packages/shared/src/version.ts` — and `version.test.ts`
+reads the table above as its contract, so a row added here that the rule does
+not produce fails the suite.
 
 **In the CHANGELOG** the heading opens with the bare string, because
 `release.yml` and `release.test.ts` both look for `## <version>` at the start

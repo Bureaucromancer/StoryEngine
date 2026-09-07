@@ -269,9 +269,11 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
        * version string that is not a version is the thing a bug report then
        * quotes back at you.
        *
-       * The surface that renders it is [P11.6]'s About panel, which no document
-       * specifies yet ([05 §15.3] enumerates the admin panels and About is not
-       * among them). This is the value it will find waiting.
+       * Rendered since alpha.2 by the footer on every page and the About block
+       * at the top of Settings ([05 §15.1]), from `GET /api/auth/state`, which
+       * carries the same value for everyone. This copy stays because this route
+       * is the admin shell's *state of this install* answer; the About surface
+       * those grow into is [P11.6]'s.
        */
       build: services.build,
     });

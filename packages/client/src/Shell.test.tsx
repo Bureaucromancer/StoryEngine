@@ -94,8 +94,19 @@ beforeEach(() => {
   });
 });
 
-function renderShell(role: 'admin' | 'user') {
-  authState.mockResolvedValue({ setupRequired: false, account: account(role) });
+const ALPHA = { version: '1.0.0-alpha.2', commit: '7573e8a0' };
+
+/**
+ * `build` is left out unless a test passes one, on purpose: the shape the
+ * older tests mock is *the state before the server has said what it is*, and
+ * the footer's answer to that is nothing.
+ */
+function renderShell(role: 'admin' | 'user', build?: { version: string; commit: string } | null) {
+  authState.mockResolvedValue({
+    setupRequired: false,
+    account: account(role),
+    ...(build === undefined ? {} : { build }),
+  });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
@@ -265,5 +276,40 @@ describe('the workbench opener', () => {
 
     await userEvent.click(opener);
     expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': null });
+  });
+});
+
+/**
+ * The build line — [P6A §1.5], alpha.2. On every page, so it lives in the shell
+ * beside the banner and for the banner's reason; below the dock row and outside
+ * `<main>`, so it neither scrolls away nor becomes a second scroller.
+ */
+describe('the build line', () => {
+  it('names the build under the page, outside the scroller', async () => {
+    renderShell('user', ALPHA);
+
+    const footer = await screen.findByRole('contentinfo');
+    expect(footer.textContent).toContain('StoryEngine 1.0-alpha 2');
+    const main = screen.getByRole('main');
+    expect(main.contains(footer)).toBe(false);
+    // After the dock row, as the column's last child: the row is `flex-1` and
+    // yields the footer its height, which a footer placed before it would not
+    // get — and a footer inside the row would sit beside the dock, not under it.
+    expect(main.parentElement?.nextElementSibling).toBe(footer);
+    expect(footer.nextElementSibling).toBeNull();
+  });
+
+  it('calls a development build one, rather than inventing a version', async () => {
+    renderShell('user', null);
+
+    const footer = await screen.findByRole('contentinfo');
+    expect(footer.textContent).toContain('development build');
+  });
+
+  it('says nothing until the server has said what it is', async () => {
+    renderShell('user');
+    await screen.findByText('Ned');
+
+    expect(screen.queryByRole('contentinfo')).toBeNull();
   });
 });

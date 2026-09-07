@@ -43,6 +43,10 @@ export * from './mentions.js';
 // server-side: a browser cannot bound a catastrophic pattern, so it declines to
 // run one rather than hanging the tab.
 export * from './matching.js';
+// The name a person calls a build, from the string the machinery reads —
+// [releases §7.1]'s rule as code, so the footer derives it rather than typing
+// it, and a CHANGELOG heading can be held to the same rule.
+export * from './version.js';
 export * from './schema/common.js';
 export * from './schema/hook.js';
 export * from './schema/actor.js';

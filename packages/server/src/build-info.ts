@@ -24,6 +24,11 @@ import { readFileBytes } from './storage/files.js';
  * specification no document has written yet — [05 §15.3] enumerates the admin
  * panels and About is not among them — so what this stage ships is the string,
  * and the surface arrives later to a value that already exists.
+ *
+ * It arrived at alpha.2, in part: the footer on every page and the About block
+ * on the user half of Settings ([05 §15.1]) render this value from
+ * `GET /api/auth/state`, after the first install of Alpha 1 could not name the
+ * build it was running. The §13 link is still [P11.6]'s.
  */
 
 export interface BuildInfo {
