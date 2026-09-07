@@ -308,23 +308,55 @@ Two rules, both [16](16-p2c-log.md)'s and both load-bearing:
 Repair the instrument, close the phase that built it, then use it. The first two
 are prerequisites of the third; the fourth is what makes the third count.
 
-### P6B.0 — Selection, and the failures nobody sees
+### ~~P6B.0 — Selection, and the failures nobody sees~~ Landed
 
-§1.1's create-form fields and mid-session panel; `pnpm seed` naming the
-treatment it builds; and the play page rendering a failed submission.
+**Three places, because a session is configured at two moments and read at a
+third.** The create form (`play/SessionsPage.tsx`) sends `treatment`, `lore` and
+`preset`; the play page carries a disclosure (`play/LorePanel.tsx`) that shows
+what is attached and changes it through the PUT; and `tools/seed.mjs` names the
+treatment it builds. **The preset is on the create form specifically** and
+nowhere else, because it is the one field with no second chance — a session
+copies it at creation and no route changes it after, so a session started
+without one is on the built-in default forever.
 
-That last one is ten lines and it is not cosmetic: `play/reducer.ts:163,272`
-classifies every failure into `state.error`, and `PlayPage.tsx` never reads it —
-`StreamStatus` (`:723`) takes `status` alone. A `409 busy`, a `412 stale-head`,
-an unbound role: **all silent on screen today**. Without it every finding in
-P6B.2 is ambiguous between *the app failed* and *I did it wrong*, which is
-[§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross)'s *hiding a
-failure* exactly.
+**Not the cast**, per §1.1, and worth restating because it was the tempting
+addition: the same form could have grown one in four lines, and
+[P7 §1.6](18-p7-implementation.md) turns `cast` from a field into a channel.
 
-*Ends at:* `pnpm reset-data && pnpm seed`, then a session started in the browser
-naming a treatment and a book, a turn taken, and the workbench's lore report
-showing entries that fired with their reasons. **Nobody has ever been able to do
-that.**
+**The other half was failures nobody could see**, and it is the half
+[§0.3](#03-the-bar-for-pre-work-and-the-line-it-must-not-cross) most directly
+asks for. Every mutation on the play page could fail and none rendered anything;
+the page now shows the most recent, by `submittedAt` rather than declaration
+order so a stale failure cannot outrank a fresh one. And `onFatal` has always
+been handed a failure class that `PlayAction` had nowhere to put, so every fatal
+stream close produced one sentence whatever had happened — the class travels
+now, and the line names it.
+
+**Eight mutations, eight red, and one of them is the finding worth keeping.**
+Mutating `createSession`'s request body left *both* page tests green, because
+they mock that function and assert what the page passes to it: the body itself
+had no test, which is this stage's own defect one layer down — a thing built,
+reachable, and unchecked at the seam. The bodies are asserted against a stubbed
+`fetch` now.
+
+**Checked against a real server rather than only in jsdom**, which is what the
+*ends at* asks for and what no test can give: a scratch install, `pnpm seed`,
+and the seeded session's file on disk carrying its treatment; then in a browser
+the panel read that treatment back, took a tick on Rain City, and the save
+landed in `session.json` beside it while the summary changed from *no
+lorebooks* to *one lorebook*. **The turn itself is not covered** — this install
+had no connection bound, and the context meter said so honestly — so the last
+clause of the *ends at* below belongs to [P6B.2](#p6b2--play).
+
+*The stage as it was written:*
+
+> §1.1's create-form fields and mid-session panel; `pnpm seed` naming the
+> treatment it builds; and the play page rendering a failed submission.
+>
+> *Ends at:* `pnpm reset-data && pnpm seed`, then a session started in the
+> browser naming a treatment and a book, a turn taken, and the workbench's lore
+> report showing entries that fired with their reasons. **Nobody has ever been
+> able to do that.**
 
 ### P6B.1 — P5's close-out
 

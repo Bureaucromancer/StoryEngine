@@ -42,6 +42,8 @@ const moveHead = vi.fn();
 const undoTurn = vi.fn();
 const createBranchRef = vi.fn();
 const previewTurn = vi.fn();
+const setSessionLore = vi.fn();
+const listLibrary = vi.fn();
 const patchPrefs = vi.fn();
 let prefsStore: Record<string, unknown> = {};
 
@@ -69,8 +71,13 @@ vi.mock('../api.js', async (importOriginal) => {
     // under the spread, so without them the page issues real fetches into
     // jsdom.
     previewTurn: (...a: unknown[]) => previewTurn(...a) as unknown,
+    // Since [P6B.0] the page carries the lore disclosure, which reads the
+    // library for its options and writes the session's selection. Real here
+    // would be two fetches into jsdom on every test in the file.
+    setSessionLore: (...a: unknown[]) => setSessionLore(...a) as unknown,
     api: {
       ...actual.api,
+      listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
       authState: () => Promise.resolve({ setupRequired: false, account: null }),
       readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
       patchPrefs: (patch: Record<string, unknown>) => {
@@ -156,6 +163,8 @@ beforeEach(() => {
   undoTurn.mockResolvedValue({ session: SESSION });
   createBranchRef.mockResolvedValue({ session: SESSION });
   previewTurn.mockResolvedValue(previewOf(100));
+  setSessionLore.mockResolvedValue({ session: SESSION });
+  listLibrary.mockResolvedValue({ objects: [] });
 });
 
 function renderPage() {
@@ -264,6 +273,47 @@ describe('the stream', () => {
       handlers.onFatal('internal');
     });
     expect(screen.getByRole('alert')).toBeTruthy();
+  });
+
+  /**
+   * **And says which failure** — [P6B.0].
+   *
+   * `onFatal` has always been handed a class and the reducer had nowhere to
+   * put it, so a turn that failed because a role was unbound and one that
+   * failed because the server restarted produced the same sentence. The class
+   * is the first thing a bug report needs, and this checkpoint is the first
+   * time anybody will be reading these.
+   */
+  it('names the class the stream failed with', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onFatal('unbound');
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain('unbound');
+  });
+
+  /**
+   * **A refused submission says so** — [P6B.0].
+   *
+   * Every mutation on this page could fail and none of them rendered anything:
+   * a `409 busy`, a `412 stale-head` from a second tab, an expired session.
+   * The only feedback was a turn that did not appear, which during a play
+   * session is indistinguishable from the model being slow.
+   */
+  it('says why a submission was refused', async () => {
+    submitTurn.mockRejectedValue(new Error('The session already has a turn in flight.'));
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.type(screen.getByLabelText('What do you do?'), 'I wait.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('already has a turn in flight');
+    });
   });
 
   /**
