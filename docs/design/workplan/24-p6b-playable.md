@@ -285,7 +285,44 @@ flag. What this phase does not do is re-run P2C's scripted list; that phase's
 findings log holds fourteen entries from its smoke run and its triage section is
 still empty, which is [P6B.3](#p6b3--triage)'s to notice, not to redo.
 
-### 1.7 The log, and the rule that keeps it honest
+### 1.7 What a sweep of the work plan found, and what this phase absorbs
+
+*Added 2026-09-07, after §0.1's audit was widened from "why can PLAYABLE not
+run" to "what else was made and never discharged".*
+[26](26-manual-ledger.md) is the ledger it produced and the place the answer
+lives; this section is only the part that lands **here**, because it is cheap
+and because this phase is already in the files.
+
+**Four things this phase absorbs**, none of them a feature:
+
+1. **F22's leftover gets an owner.** The rebuild/watcher divergence over a
+   refused path is assigned in [P2 §782](04-p2-implementation.md) to **`P2.7`,
+   a stage that does not exist** — P2 has P2.0 through P2.6. It was moved off a
+   closed stage precisely so it would not become nobody's, and became nobody's
+   by the other route. [P6B.1](#p6b1--p5s-close-out) is already opening the
+   index and storage code for the `orphan-fts` assertion and the migration test,
+   so it takes this with them.
+2. **Five phase documents still say `plan`.** 03 (P1), 04 (P2), 05 (P3), 06 (P4)
+   and 14 (P2B) all landed and none of their status lines says so; 15 (P2C) has
+   no status line at all and is half-run. The same defect
+   [P6A](23-p6a-alpha-1.md)'s close fixed for 07 and 08, in five more places,
+   and it costs a paragraph each.
+3. **[16](16-p2c-log.md)'s triage table is empty** under fourteen findings, and
+   that phase's own rule is that it does not end while the table is shorter than
+   the list. [P6B.3](#p6b3--triage) already says it takes them.
+4. **[12 §1](12-p2-manual-gate.md)'s anchor reads 1186 tests**, two phases
+   stale. Left alone deliberately — an anchor records when a gate was walked and
+   moving it would claim a walk nobody made — but [26 §1](26-manual-ledger.md)
+   re-anchors beside it, which is the honest repair.
+
+**And what it explicitly does not absorb**, so that the choice is visible rather
+than silent: the permissive corpus (person-blocked, and §3 step 6 records it as
+such), the four smaller P2-era defects in
+[12 §3.6](12-p2-manual-gate.md), and the five should-be-tests in
+[12 §4](12-p2-manual-gate.md). Each has a row and an owner in
+[26 §4](26-manual-ledger.md), which is what makes deferring them a decision.
+
+### 1.8 The log, and the rule that keeps it honest
 
 [P5 §0.3](07-p5-implementation.md) wrote observation prompts for the run-up to
 this checkpoint and [§0.4](07-p5-implementation.md) then recorded that
@@ -369,6 +406,13 @@ the destructive migration given the test its own doctrine demands
 upgrading install loses every import review); and the one owed test, the
 `orphan-fts` assertion after an in-place rebuild.
 
+**Plus the two things §1.7's sweep puts here.** **F22's leftover** — the
+rebuild/watcher divergence over a refused path, and the test that asserts it —
+because the code is the code this stage is already opening and its stated owner
+is a stage that was never created. And **the five stale status lines**, which
+are minutes each and are the difference between a corpus that records what
+happened and one that records what was planned.
+
 Then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and **a
 person walks all eighteen against HEAD**.
 
@@ -415,8 +459,15 @@ Plus one piece of inherited bookkeeping: [16](16-p2c-log.md) holds fourteen
 findings from P2C.0's smoke run under an empty *Triage* heading. They get homes
 too, or a recorded reason why not.
 
-*Ends at:* an empty log, six questions answered or re-deferred with reasons, and
-[P7 §0.1](18-p7-implementation.md) given the follow-up it asks for.
+**And the ledger is updated rather than left to go stale** —
+[26 §1](26-manual-ledger.md) gains P5's and PLAYABLE's rows in their walked
+state, and anything this phase defers gains a row with a name beside it in §4.
+That is the file's own standing rule, and this is the first phase that closes
+under it.
+
+*Ends at:* an empty log, six questions answered or re-deferred with reasons,
+[26](26-manual-ledger.md) current, and [P7 §0.1](18-p7-implementation.md) given
+the follow-up it asks for.
 
 ---
 

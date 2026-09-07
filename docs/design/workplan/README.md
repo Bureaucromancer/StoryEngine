@@ -43,6 +43,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [23-p6a-alpha-1.md](23-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
 | [24-p6b-playable.md](24-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
 | [25-playable-log.md](25-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](07-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
+| [26-manual-ledger.md](26-manual-ledger.md) | What a person still owes, counted in one place: every gate's walk state, the passes that remain after P6B, and every deferral with an owner beside it. [12](12-p2-manual-gate.md) does this for P2–P2B and stops; this is the rest |
 
 ## How to read them
 
@@ -66,6 +67,13 @@ and 25 — with the same record format and the same rule: appended to as things
 happen, emptied by the phase's triage, and never a queue. 17 is 15's tester's
 brief; 24 carries its own *what not to report* section instead, because the same
 person is playing.
+
+**12 and 26 are the pair that counts what the machine cannot check.** 12 does it
+for P2, P2A and P2B and stops where it was written; 26 is the sweep that found
+what had accumulated behind it — **five phase gates unwalked and one obligation
+owned by a stage that does not exist** — and it carries the rule the corpus was
+missing: a gate is walked, or it is deferred with an owner and a reason, and
+there is no third state. A phase that closes updates it.
 
 **23 is the one written neither ahead of its phase nor behind it**, which is a
 third case worth naming because the others are all compromises with distance.
