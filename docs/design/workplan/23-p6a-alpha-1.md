@@ -574,7 +574,9 @@ readers ask *is this install exposed and unclaimed* by asking whether it is
 there. `POST /api/auth/setup` refuses without it —
 `403 invalid-setup-token`, absent and wrong being one answer — `GET
 /api/auth/state` advertises `setupTokenRequired`, the setup form renders a field
-when it is told to, and `main.ts` prints the token on the boot that mints it.
+when it is told to, and `main.ts` prints the token ~~on the boot that mints it~~
+on every boot in that condition — which is what it always did, and what a
+container unraid recreates on every template change needs (§3 step 6).
 Compared with `secretsMatch`, which is constant-time and length-safe.
 
 **Stored, not per-boot, and that is a decision this plan did not make for us.**
@@ -903,6 +905,14 @@ the walk.*
    surviving a restart — stored, so a container restarting while somebody reads
    its log does not invalidate the one they copied. Reading it out of
    `docker logs` is the walk.
+   **Walked 2026-09-07 on unraid, and the token was not found in the log.**
+   Whether the line was absent or missed is not yet known — the line is written
+   on every start in that condition, not once as the template and the deploy
+   page said, and nothing in the suite ever proved the value reaches the
+   output, because the suite binds nothing beyond loopback. What changed: the
+   line ends with the token rather than carrying it only as a field, and names
+   the file it is kept in, `state/setup.token`, which host access reads when
+   the log is gone. The next start is the rest of this step.
 7. **A turn, from another machine.** Sign in from a host that is not the
    container's host and take a turn end to end.
    **Nothing covered.** Two machines and a model that is not ours — the clause
@@ -928,6 +938,17 @@ the walk.*
     the template pulls, maps `/data`, and its WebUI button opens the UI.
     **Nothing covered** beyond `release.test.ts`'s check that the template names
     the same tag as everything else. An unraid host is the walk.
+    **Walked in part 2026-09-07, by Ned.** The template pulled the private
+    package with a credential, and the container started — into an `EACCES`
+    stack trace out of `mkdir /data/state`, because Docker had created the
+    appdata folder for `/data` as root and the process runs as uid 1000. Fixed
+    on the host by making the folder writable, which the template's Data field
+    and the deploy page now say to do with one `chown`; and the server refuses
+    in one line that names the directory, the uid and the fix, with the probe
+    tested under a path that cannot be made and, on POSIX, one that cannot be
+    written. The container list shows no icon, as the comment in the template
+    said it would. The WebUI button and the map of `/data` after the fix are
+    the rest of the step.
 12. **The package is private.** An unauthenticated `docker pull` fails. This is a
     gate step rather than an assumption, because the exposure decision is the one
     thing in this phase that is invisible from inside the repository.

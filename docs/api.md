@@ -157,8 +157,9 @@ shorter than `minPasswordLength` is `400 invalid`, naming `/password` in
 otherwise — a wrong one, or none, is
 `403 {"error":"invalid-setup-token"}`. Absent and wrong are the same answer for
 the reason login gives one answer for three failures. The token is written to
-the server's console on the boot that mints it and to nowhere else, which is the
-point: only somebody with host access can read it, and that is exactly the
+the server's console on every start until an admin exists, and kept at
+`state/setup.token` in the data directory, and nowhere else — which is the
+point: only somebody with host access can read either, and that is exactly the
 audience entitled to claim an unclaimed install. It is checked before the
 password rule and after nothing, except that an install which already has an
 admin answers `409 already-setup` instead — the honest reason, rather than a

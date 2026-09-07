@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { appendFile, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, appendFile, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /**
@@ -105,6 +106,66 @@ export async function listEntryNames(path: string): Promise<string[]> {
 
 export async function ensureDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
+}
+
+/**
+ * A directory this process can write into, or the reason it cannot.
+ *
+ * **Alpha 1's first install found the shape of this failure**
+ * ([P6A §3](../../../../docs/design/workplan/23-p6a-alpha-1.md) step 11): Docker
+ * creates a missing bind-mount source as root, the container runs as uid 1000,
+ * and the first write — `mkdir /data/state`, from the stamp — died as an
+ * `EACCES` stack trace with the fix nowhere in it. `mkdir -p` alone is not the
+ * check, because it returns quietly on a directory that exists and cannot be
+ * written; the `access` after it is what asks the question.
+ *
+ * Errors are thrown as the filesystem raised them, `code` and all, so that
+ * {@link describeUnusableDataDirectory} can say which of two different things
+ * went wrong — a path that cannot be made, or one that cannot be written.
+ */
+export async function ensureWritableDirectory(path: string): Promise<void> {
+  await mkdir(path, { recursive: true });
+  await access(path, constants.W_OK);
+}
+
+/** Who this process runs as, where the platform can say — undefined on Windows. */
+export interface ProcessIdentity {
+  uid: number | undefined;
+  gid: number | undefined;
+}
+
+/**
+ * The one line an operator reads when the data directory cannot be used.
+ *
+ * Two shapes, because they have two fixes. A permission error names the user
+ * this process runs as and the `chown` that gives it the directory — the
+ * container case, where the answer is on the host and not in the image.
+ * Anything else names the path and the code and leaves the guessing to the
+ * person, who can see the disk and this process cannot.
+ */
+export function describeUnusableDataDirectory(
+  error: unknown,
+  dataRoot: string,
+  identity: ProcessIdentity,
+): string {
+  const { code, syscall, path } = (error ?? {}) as NodeJS.ErrnoException;
+  const what = `${code ?? 'error'} on ${syscall ?? 'access'} ${path ?? dataRoot}`;
+  if (code === 'EACCES' || code === 'EPERM') {
+    const user = identity.uid === undefined ? 'this process' : `uid ${String(identity.uid)}`;
+    const owner =
+      identity.uid === undefined
+        ? '<uid>:<gid>'
+        : `${String(identity.uid)}:${String(identity.gid ?? identity.uid)}`;
+    return (
+      `The data directory ${dataRoot} is not writable by ${user}: ${what}.\n` +
+      `If it is a bind-mounted host directory, make it writable by that user — on the host, once: ` +
+      `chown -R ${owner} <directory> — then start again. See docs/deploy.md, "The volume".`
+    );
+  }
+  return (
+    `The data directory ${dataRoot} cannot be created or written: ${what}.\n` +
+    'Check the path: --data, SE_DATA_DIR, or dataDir in config.json.'
+  );
 }
 
 /**

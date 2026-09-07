@@ -761,7 +761,8 @@ once and stored beside the session key, minted only when this process booted
 bound beyond loopback with no admin; required by `POST /api/auth/setup` in that
 condition and compared in constant time; advertised as `setupTokenRequired` on
 `GET /api/auth/state` so the form can render a field rather than guess; printed
-to the console on the boot that mints it. Stored rather than per-boot, so a
+to the console on every boot in that condition, and kept at `state/setup.token`
+for the host to read when the log is gone. Stored rather than per-boot, so a
 restart does not invalidate a token somebody has already copied out of
 `docker logs` — which is the window it is used in. The paragraph below is kept
 because it is the argument, and because *not half-built* is what it was for.

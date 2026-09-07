@@ -40,11 +40,16 @@
     FIRST RUN. The container binds 0.0.0.0, because a container's own loopback
     is unreachable however you map the port. That means the create-the-first-
     admin screen is reachable from your LAN the moment it starts, so it asks for
-    a setup token — printed once to the container log. Open the log, copy the
-    token, then use the WebUI button.
+    a setup token. It is in the container log on every start until the first
+    admin exists, on the line that says "needs this setup token", and it is
+    also the contents of state/setup.token in the data folder. Copy it, then
+    use the WebUI button.
 
     DATA. Everything the install is — accounts, library, sessions, config — is
-    under /data. Back that up; nothing else needs backing up.
+    under /data. Back that up; nothing else needs backing up. The container
+    runs as uid 1000, not as root: if Docker created the appdata folder it is
+    root-owned and the server refuses to start, saying so. Run
+    chown -R 1000:1000 /mnt/user/appdata/storyengine once, on the host.
 
     ALPHA. There is no compatibility promise between alpha builds. An older
     build will refuse to open a data directory a newer one has written, rather
@@ -58,7 +63,8 @@
     an Icon URL over HTTP and a raw URL into a private repository is a 404 — the
     half-working template §5.3 refuses. It goes in with publication, which
     docs/design/workplan/23-p6a-alpha-1.md §4 makes one decision rather than a
-    registry toggle.
+    registry toggle. Confirmed by the first install, 2026-09-07: the container
+    list shows no icon, and the operator agreed that is the right absence.
   -->
   <ExtraParams></ExtraParams>
   <PostArgs></PostArgs>
@@ -81,7 +87,7 @@
     Target="/data"
     Default="/mnt/user/appdata/storyengine"
     Mode="rw"
-    Description="Accounts, library, sessions and config.json. The container runs as uid 1000, so this share must be writable by it."
+    Description="Accounts, library, sessions and config.json. The container runs as uid 1000, so this folder must be writable by it — if Docker created it, it is root-owned: run chown -R 1000:1000 /mnt/user/appdata/storyengine once on the host."
     Type="Path"
     Display="always"
     Required="true"

@@ -41,9 +41,11 @@ your network the moment the container starts, so **it asks for a setup token**:
 docker compose logs storyengine | grep 'setup token'
 ```
 
-The token is printed once, on the boot that mints it, and stored in the volume —
-a restart does not invalidate one you have already copied out. It is required
-only until an administrator exists; after that the field is gone.
+The line is written on every start until an administrator exists, and it ends
+with the token. The token is also kept in the volume, at `state/setup.token`,
+so a container recreated while you were reading its log has not lost it: read
+the file, or start it again and read the line. It is required only until an
+administrator exists; after that the field is gone and the file is inert.
 
 The console is the channel on purpose. Only somebody with host access reads it,
 and that is exactly the audience entitled to claim an unclaimed install
@@ -56,9 +58,11 @@ Everything the install is — accounts, library, sessions, `config.json` — is 
 to back up.
 
 `compose.yaml` uses a named volume because the container runs as uid 1000 and a
-**bind-mounted host directory owned by root fails to write**, with an error about
-a path rather than about permissions. If you want a bind mount, make the
-directory writable by that uid first:
+**bind-mounted host directory owned by root fails to write**. Docker creates a
+missing bind-mount source as root, and Alpha 1's first install met that as an
+`EACCES` stack trace out of `mkdir /data/state`; the server now refuses in one
+line that names the directory, the uid it runs as and the fix. If you want a
+bind mount, make the directory writable by that uid first — once, on the host:
 
 ```bash
 mkdir -p /srv/storyengine && chown 1000:1000 /srv/storyengine
@@ -117,6 +121,16 @@ It is **submitted to no store**. Every package format is a recurring cost rather
 than a one-time build ([04 §5.4](design/04-server-multiuser-deployment.md)), and
 a Community Applications listing adds a moderated presence and a support thread
 to a project with one maintainer and no users yet.
+
+**What the first install found, 2026-09-07.** The appdata folder Docker created
+for `/data` was root-owned, so the first start failed the way the volume
+section above describes; `chown -R 1000:1000 /mnt/user/appdata/storyengine` on
+the host fixes it, and the template's Data field says so now. The container
+list shows no icon, as the template's comment predicts: unraid fetches the icon
+over HTTP and the repository is private. And the setup token was not found in
+the log on the first try — the line is written on every start until an admin
+exists, it carries the token in its text now, and the token is also the
+contents of `state/setup.token` under the appdata folder.
 
 ---
 

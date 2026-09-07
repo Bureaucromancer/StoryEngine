@@ -339,6 +339,33 @@ describe('the config-file line', () => {
   });
 });
 
+/**
+ * **A data directory the process cannot use is refused in one line** — what
+ * Alpha 1's first install met as an `EACCES` stack trace out of
+ * `mkdir /data/state` ([P6A §3](../../../docs/design/workplan/23-p6a-alpha-1.md)
+ * step 11). Driven as a child because the subject is what a person sees when
+ * the server does not start: the sentence, the exit code, and no listening line.
+ *
+ * A path under a file, because it cannot be made on any platform by anyone —
+ * the permission case needs mode bits Windows does not have, and
+ * `ensureWritableDirectory`'s own test covers it where they exist.
+ */
+describe('an unusable data directory', () => {
+  it('is refused with the sentence, not a stack trace', async () => {
+    await writeFile(join(dataDir, 'afile'), 'x');
+
+    const result = await run(['--data', join(dataDir, 'afile', 'data')]);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('The data directory');
+    expect(result.stderr).toContain('cannot be created or written');
+    expect(result.stderr).toContain('ENOTDIR');
+    expect(result.stderr).not.toContain('at async');
+    expect(result.stdout).not.toContain('listening');
+    expect(result.timedOut).toBe(false);
+  });
+});
+
 /** A port the OS has just confirmed is free, for the one test that binds one. */
 async function freePort(): Promise<number> {
   const probe = createServer();

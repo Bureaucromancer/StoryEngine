@@ -17,6 +17,25 @@ the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.2 — 1.0-alpha 2 — unreleased
+
+What the first install of Alpha 1 found, on unraid, in the order it found it.
+
+### Fixed
+
+- **A data directory the process cannot write is refused in one line**, naming
+  the directory, the user the process runs as and the fix, instead of an
+  `EACCES` stack trace out of `mkdir /data/state`. Docker creates a missing
+  bind-mount source as root and the container runs as uid 1000; the unraid
+  template's Data field and [docs/deploy.md](docs/deploy.md) say so now and
+  give the one-time `chown`.
+- **The setup token is easier to find.** The log line that carries it is
+  written on every start until the first admin exists — it always was, though
+  the template and the deploy page said _once_ — and it now ends with the token
+  itself rather than carrying it only as a field, and names the file it is kept
+  in: `state/setup.token` in the data directory, which host access can read
+  when the log is gone.
+
 ## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-09-06
 
 **The first build you can go back to.** Until now the only record of a working

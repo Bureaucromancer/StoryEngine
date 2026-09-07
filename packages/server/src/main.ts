@@ -7,6 +7,7 @@ import { buildApp, buildServices, disposeServices } from './app.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
+import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -74,6 +75,27 @@ async function main(): Promise<void> {
   if (resetHandle !== undefined) {
     await resetPassword(resetHandle, new Layout(config.dataDir));
     return;
+  }
+
+  /**
+   * **Can this process write where it is about to write?** Asked before anything
+   * opens, and answered in one line if not, because the first install of Alpha 1
+   * met the alternative: a bind-mounted `/data` that Docker had created as root,
+   * a process running as uid 1000, and an `EACCES` stack trace out of the
+   * stamp's `mkdir` with the fix nowhere in it ([P6A §3] step 11). Before the
+   * logger exists, so it is a `UsageError` — addressed to whoever started the
+   * server, like a flag with no value.
+   */
+  const layout = new Layout(config.dataDir);
+  try {
+    await ensureWritableDirectory(layout.dataRoot);
+  } catch (error) {
+    throw new UsageError(
+      describeUnusableDataDirectory(error, layout.dataRoot, {
+        uid: process.getuid?.(),
+        gid: process.getgid?.(),
+      }),
+    );
   }
 
   // The path travels with the config, so the settings route writes back to the
@@ -208,9 +230,21 @@ async function main(): Promise<void> {
       // **The console is the channel, deliberately**: only somebody with host
       // access reads it, which is exactly the audience allowed to claim an
       // install. In a container that is `docker logs`.
+      //
+      // **On every start in this condition, not once**, and the token is in
+      // the sentence as well as in a field. The first install of Alpha 1 did
+      // not find it ([P6A §3] step 6): unraid recreates a container on every
+      // change to its template, the template said the token was printed once,
+      // and a person reading a wall of JSON for a line about a token does not
+      // read its fields. The file it is kept in is named for the same reason —
+      // a log can be gone; the volume is not.
       app.log.warn(
-        { host: config.server.host, setupToken: services.setupToken },
-        'Bound beyond loopback with no admin account yet — creating the first account needs this setup token',
+        {
+          host: config.server.host,
+          setupToken: services.setupToken,
+          setupTokenFile: services.layout.setupTokenFile,
+        },
+        `Bound beyond loopback with no admin account yet — creating the first account needs this setup token: ${String(services.setupToken)}`,
       );
     }
   }

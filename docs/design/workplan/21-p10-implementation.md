@@ -256,6 +256,16 @@ shipped.
 loopback — plus verifying the whole first-run path again against the artifact
 this phase inherits rather than one it built.
 
+*One question for that re-verification, from Alpha 1's first install
+(2026-09-07, [P6A §3](23-p6a-alpha-1.md) step 11):* Docker creates a missing
+bind-mount source as root, the image runs as uid 1000, and the first start on
+unraid died on `mkdir /data/state`. Alpha 1 answers with a one-time `chown` on
+the host, said in the template and refused in one line by the server. The
+convention unraid users expect is the other answer — a container that starts
+as root, takes ownership of its volume and drops to `PUID`/`PGID` — and it
+costs the non-root user P6A.4 chose. Which of the two this phase ships is its
+to decide against a second install, not the first.
+
 ~~*Ends at:* `docker run`, a token in `docker logs`, an admin created, a turn
 taken — from a machine that is not the host.~~ That gate became
 [P6A §3](23-p6a-alpha-1.md)'s steps 3 through 7 — **and it has not been met.**

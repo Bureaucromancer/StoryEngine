@@ -189,9 +189,10 @@ who can reach the port can claim the install, so LAN exposure is an explicit act
 **Settings → Install**, which is the surface every config key has, or with
 `SE_HOST` before there is a file to change. **Bound beyond loopback with no
 admin yet, the server asks for a setup token** and prints it to its own console
-on the boot that mints it — `docker logs`, for a container. Only somebody who
-can read the console can claim the install, which is exactly who should be able
-to; once an admin exists the field is gone. And if there is TLS in front of it,
+on every start until an admin exists — `docker logs`, for a container — and
+keeps it at `state/setup.token` in the data directory. Only somebody who can
+read the console or the directory can claim the install, which is exactly who
+should be able to; once an admin exists the field is gone. And if there is TLS in front of it,
 `server.trustProxy` and `server.cookieSecure` are the two keys that say so —
 neither is derived from the bind, because a `Secure` cookie is not sent back
 over the plain HTTP a trusted LAN is allowed to use.
