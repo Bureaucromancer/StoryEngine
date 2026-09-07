@@ -1633,6 +1633,22 @@ move is expressed as *place this entry before that one* rather than as an index:
 a position among visible rows is not a position in the array, while the entry a
 row lands in front of is the same fact in both.
 
+**Where a dragged row will land is shown before it is let go**: a line along
+the top of the row it would go in front of, or along the bottom of the one it
+would go behind. Which edge is decided by where the drag came from — a row
+dragged down lands behind the row it is dropped on, a row dragged up lands in
+front of it — because that is the one rule under which the row ends up where
+the pointer left it; a row one line tall has no room for two targets, and an
+edge that flipped as the pointer crossed the middle would be a decision made by
+a tremor. The line and the drop are one computation, so the line cannot promise
+an edge the drop then declines. It takes no space, so the rows hold still while
+it moves between them, and it is not in the accessibility tree: a pointer drag
+is not the screen reader's path, the buttons are, and the outcome of either is
+announced. And the list scrolls itself while a drag hovers near its top or
+bottom edge, faster the nearer the pointer leans into it, because the browser's
+own drag scrolls the page and not a list inside it, and a book two hundred
+entries tall is one the pointer could not otherwise cross with a row in hand.
+
 **An entry export is a lorebook.** Same `storyengine.lorebook/1`
 ([10 §5](10-schemas.md)) with `entries` holding the selection — no fragment
 schema, nothing new to version, and the file opens in anything that reads a
@@ -1837,6 +1853,26 @@ Save reachable only by scrolling past all of it is an editor that teaches
 people to leave work unsaved. It is held within the **form**, which is the
 extent it is about: it releases over the panels below, which are the part of
 the page a person reads rather than edits.
+
+**The held row is where every critical control lives, not only Save.** The
+argument does not stop at the save button. The way back up and Delete are the
+other two controls that matter on the surface, and where the page happens to
+be scrolled is no better a reason for either of them to be out of reach — so
+the row carries them, in both modes. In the editor it is *Back to the actor*,
+Save, History and Delete; on the read page, which has no form, it is *Back to
+the library*, Edit and Delete, held for the whole page because the whole page
+is the object. Delete from the editor moves the file **as saved**, and the
+row's question says so while there are edits nothing has written, because the
+trash will not have them. The same row is held on every form on the settings
+page, where the install's configuration is a screen and a half of keys with
+Save at the foot of it — the editor's failure at a smaller scale — and a
+refusal such a form has to show is shown *inside* the row, since with the row
+pinned the foot of the form is exactly the part that is out of sight. What a
+control did is said where the control is, for the same reason: *Saved.*, a
+restored version, a reapplied draft and a refused write all appear in the row
+beside the Save that caused them, because with the row pinned halfway down a
+long form the top of the page — where the editors used to say it — is as far
+out of sight as the foot.
 
 **Leaving with unsaved changes is confirmed, never silent.** Every other
 surface is one click away in the header, and the draft is gone the moment the

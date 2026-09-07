@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import {
   entriesGoverned,
@@ -17,12 +17,13 @@ import {
 import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
 import { AsStored } from '../library/AsStored.js';
+import { DeleteObject } from '../library/DeleteObject.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { page, table } from '../ui/classes.js';
+import { link, page, table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import {
@@ -313,39 +314,12 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   return (
     <>
-      <p className="mb-4">
-        <Link
-          to="/library/$kind/$id"
-          params={{ kind: 'lorebooks', id: base.id }}
-          search={{}}
-          className="text-sm text-ink-subtle underline hover:text-ink"
-        >
-          Back to the lorebook
-        </Link>
-      </p>
-
       <header className="mb-6">
         <h1 className="text-title text-ink">{nameOf(draft)}</h1>
         <p className="text-sm text-ink-subtle">
           {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
         </p>
       </header>
-
-      {notice !== null ? (
-        <p
-          role="status"
-          className="mb-4 rounded-md border border-line-strong bg-surface-sunken p-3 text-sm"
-        >
-          {notice}
-        </p>
-      ) : null}
-
-      {save.isError &&
-      !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-        <Alert tone="error" role="alert" className="mb-4">
-          {save.error.message}
-        </Alert>
-      ) : null}
 
       <form
         className="flex flex-col gap-8"
@@ -491,22 +465,76 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
          * Last inside the `<form>`, which is what makes the pin last: a sticky
          * element is held only within the element that holds it, and the form
          * is everything on this page that Save is about.
+         *
+         * The way back and Delete share the strip with Save, for the reason
+         * Save is in it: they are the controls that matter, and the page being
+         * scrolled to an entry three hundred rows down is no reason for either
+         * to be off screen. Delete moves the *book* — the whole file, as
+         * saved — where *Remove this entry* above edits the draft; the strip's
+         * question says so while there are edits nothing has written.
          */}
         <div className={page.actions}>
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'lorebooks', id: base.id }}
+            search={{}}
+            className={link.back}
+          >
+            Back to the lorebook
+          </Link>
           <Button type="submit" disabled={!changed || save.isPending} variant="primary">
             Save
           </Button>
-          {changed ? null : <span className="text-sm text-ink-faint">No changes to save.</span>}
-          <Button
-            type="button"
-            className="ms-auto"
-            aria-expanded={historyOpen}
-            onClick={() => {
-              setHistoryOpen((open) => !open);
-            }}
-          >
-            History
-          </Button>
+          {/*
+           * What the last control did, said where the control is. *Saved.*, a
+           * restored version, a reapplied draft and a refused write used to
+           * render above the form — which, with the strip pinned halfway down
+           * a long form, is as far out of sight as the foot of the page. The
+           * slot takes the remaining width, with a floor of ten rem: at the
+           * column's width a long sentence wraps in place rather than folding
+           * the strip onto a second line, and on a narrow column the buttons
+           * fold under it rather than squeezing it to a word a line. The
+           * notice stands in for *No changes to save.* while it shows: after
+           * a save both are true, and the second says nothing the first did
+           * not.
+           *
+           * Every 412 used to be filtered out of the error, on the assumption
+           * the dialog had it — but the dialog only opens when the body
+           * carried `current`, so a 412 without one vanished entirely. Only
+           * what the dialog owns is filtered.
+           */}
+          <span className="flex min-w-0 grow basis-40 flex-wrap items-center gap-3 text-sm">
+            {save.isError &&
+            !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
+              <span role="alert" className="text-danger-ink">
+                {save.error.message}
+              </span>
+            ) : null}
+            {notice !== null ? (
+              <span role="status" className="text-ink-subtle">
+                {notice}
+              </span>
+            ) : changed ? null : (
+              <span className="text-ink-faint">No changes to save.</span>
+            )}
+          </span>
+          <span className="ms-auto flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              aria-expanded={historyOpen}
+              onClick={() => {
+                setHistoryOpen((open) => !open);
+              }}
+            >
+              History
+            </Button>
+            <DeleteObject
+              kind="lorebooks"
+              id={base.id}
+              contentHash={base.contentHash}
+              unsaved={changed}
+            />
+          </span>
         </div>
       </form>
 
@@ -623,6 +651,59 @@ function GateNote({ book, entry }: { book: Lorebook; entry: LoreEntry }): JSX.El
 const nudge =
   'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';
 
+/**
+ * Which edge of the row at `at` a row dragged from `from` lands on.
+ *
+ * Dropping on a row above puts the entry in front of it; dropping on one below
+ * puts it behind — the rule every list with this gesture uses, and the only one
+ * where the row ends up where the pointer left it. It is decided by where the
+ * drag *came from* and not by where in the row the pointer is: a row one line
+ * tall has no room for two targets, and an edge that flipped as the pointer
+ * crossed the middle would be a decision made by a tremor.
+ *
+ * One function for the drop and for the line drawn before it, so the two cannot
+ * disagree: a change to this comparison moves the line and the drop together,
+ * and the tests are written against the line because the line is the promise
+ * the drop then has to keep.
+ */
+function landing(from: number, at: number): 'before' | 'after' {
+  return from > at ? 'before' : 'after';
+}
+
+/**
+ * How near the list's top or bottom edge a hovering drag has to be before the
+ * list scrolls itself, in pixels, and the most it moves per frame once there.
+ *
+ * The browser's own drag scrolls the page and not a list inside it — Firefox
+ * never scrolls an inner box, and where Chromium does it is a courtesy this
+ * list cannot rely on — so a book two hundred entries tall was one the pointer
+ * could not cross with a row in hand. Forty pixels is a row and a half: enough
+ * to find without aiming, small enough that the middle of the list holds
+ * still. Twelve pixels a frame at the very edge, easing to one at the zone's
+ * inner limit, so leaning harder into the edge is faster and hovering just
+ * inside it is a crawl a person can stop on a row.
+ */
+const SCROLL_EDGE = 40;
+const SCROLL_STEP = 12;
+
+/**
+ * How far the list should move this frame for a pointer at `y`, given the
+ * list's box: negative is up, positive is down, zero is *hold still*. Nearer
+ * the edge is faster, and the nearer edge wins where a short list's two zones
+ * overlap — though a list that short has nothing to scroll.
+ */
+function scrollVelocity(y: number, box: { top: number; bottom: number }): number {
+  const fromTop = y - box.top;
+  const fromBottom = box.bottom - y;
+  if (fromTop < SCROLL_EDGE && fromTop <= fromBottom) {
+    return -Math.ceil(SCROLL_STEP * (1 - Math.max(fromTop, 0) / SCROLL_EDGE));
+  }
+  if (fromBottom < SCROLL_EDGE) {
+    return Math.ceil(SCROLL_STEP * (1 - Math.max(fromBottom, 0) / SCROLL_EDGE));
+  }
+  return 0;
+}
+
 function EntryList(props: {
   book: Lorebook;
   entries: LoreEntry[];
@@ -633,8 +714,58 @@ function EntryList(props: {
 }): JSX.Element {
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<string | null>(null);
+  /**
+   * The row the pointer is over while a drag is in progress — where the line
+   * that says *you would land here* is drawn. Set by the row's `dragover`,
+   * because that is the event that decides whether a drop is allowed, so the
+   * line appears exactly where `preventDefault` is called and nowhere else.
+   * Cleared when the drag drops or ends, when the pointer is over the row
+   * being dragged (nothing can land there, so nothing is promised), and when
+   * it leaves the list. A primitive rather than a field beside `dragging`,
+   * because `dragover` fires every few dozen milliseconds and setting the
+   * same id again must cost nothing — which a state object would have to be
+   * guarded to manage, in a list that can be two hundred rows long.
+   */
+  const [over, setOver] = useState<string | null>(null);
   const [moved, setMoved] = useState('');
   const held = useRef<HTMLUListElement>(null);
+
+  /**
+   * The self-scroll, while a drag hovers near an edge: how far to move per
+   * frame, and the frame that will move it. Refs rather than state, because a
+   * value that changes on every `dragover` and is read on every frame must not
+   * render two hundred rows to do either. The loop schedules itself only while
+   * the velocity is non-zero, so a pointer that comes back to the middle lets
+   * it run out on the next frame rather than leaving a timer ticking; a drop,
+   * a `dragend` or a pointer leaving the list stop it at once.
+   */
+  const velocity = useRef(0);
+  const frame = useRef<number | null>(null);
+
+  const stopScrolling = useCallback((): void => {
+    velocity.current = 0;
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+  }, []);
+  // A list that unmounts mid-drag must not leave a frame scheduled against it.
+  useEffect(() => stopScrolling, [stopScrolling]);
+
+  function scrollTowards(next: number): void {
+    velocity.current = next;
+    if (next === 0 || frame.current !== null) return;
+    const tick = (): void => {
+      const list = held.current;
+      if (list === null || velocity.current === 0) {
+        frame.current = null;
+        return;
+      }
+      list.scrollTop += velocity.current;
+      frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  }
 
   const saved = new Map(
     entryList(props.base).map((entry) => [entry.id, JSON.stringify(entry)] as const),
@@ -667,6 +798,9 @@ function EntryList(props: {
     return at < 0 ? null : (full[at + 1]?.id ?? null);
   }
 
+  /** The dragged row's place among the visible rows, or -1 while nothing is dragged. */
+  const from = visible.findIndex((entry) => entry.id === dragging);
+
   function move(entry: LoreEntry, beforeId: string | null, to: number): void {
     props.onMove(entry.id, beforeId);
     // Announced rather than only shown, because the thing that changed is a
@@ -694,13 +828,49 @@ function EntryList(props: {
       ) : visible.length === 0 ? (
         <Note>No entry here is named that.</Note>
       ) : (
-        <ul ref={held} className="flex max-h-80 flex-col overflow-y-auto">
+        <ul
+          ref={held}
+          className="flex max-h-80 flex-col overflow-y-auto"
+          onDragOver={(event) => {
+            // Only a drag of one of these rows scrolls the list: a file dragged
+            // in from the desktop is not going anywhere in it.
+            if (dragging === null) return;
+            scrollTowards(
+              scrollVelocity(event.clientY, event.currentTarget.getBoundingClientRect()),
+            );
+          }}
+          onDragLeave={(event) => {
+            /**
+             * The list's `dragleave` fires for every row the pointer leaves,
+             * including on its way into the next one, so clearing on each
+             * would clear on every move. `relatedTarget` is where the pointer
+             * is going: still inside the list means the next row's `dragover`
+             * is about to move the line, so it is left alone; outside, or
+             * nowhere (out of the window), means it comes down.
+             *
+             * Chromium and WebKit leave `relatedTarget` null on drag events —
+             * open bugs in both trackers — so there the check reduces to
+             * clearing on every leave. That does not blink: a leave and the
+             * next row's `dragover` are fired in one task, both are continuous
+             * events, and React renders the pair as one update, so the line
+             * goes from row to row with no frame between. Firefox sets it, and
+             * the test asserts the contract rather than the batching.
+             */
+            const into = event.relatedTarget;
+            if (into instanceof Node && event.currentTarget.contains(into)) return;
+            // And the scroll with it: a pointer that has left the list is not
+            // asking it to move.
+            stopScrolling();
+            setOver(null);
+          }}
+        >
           {visible.map((entry, at) => {
             const before = saved.get(entry.id);
             const unsaved = before === undefined || before !== JSON.stringify(entry);
             const current = entry.id === props.selectedId;
             const previous = visible[at - 1];
             const next = visible[at + 1];
+            const drop = over === entry.id ? landing(from, at) : undefined;
             return (
               <li
                 key={entry.id}
@@ -719,32 +889,68 @@ function EntryList(props: {
                 }}
                 onDragEnd={() => {
                   setDragging(null);
+                  setOver(null);
+                  stopScrolling();
                 }}
                 onDragOver={(event) => {
+                  if (dragging === null) return;
+                  // Over the row being dragged nothing can land, so nothing is
+                  // promised: the line a neighbour was showing comes down
+                  // rather than staying to say a drop here would go there.
+                  if (dragging === entry.id) {
+                    setOver(null);
+                    return;
+                  }
                   // Without this the drop never fires: the default action for a
                   // dragover is *refuse the drop*.
-                  if (dragging !== null && dragging !== entry.id) event.preventDefault();
+                  event.preventDefault();
+                  setOver(entry.id);
                 }}
                 onDrop={(event) => {
                   event.preventDefault();
-                  const from = visible.findIndex((candidate) => candidate.id === dragging);
                   const source = visible[from];
                   setDragging(null);
+                  setOver(null);
+                  stopScrolling();
                   if (source === undefined || from === at) return;
-                  /**
-                   * Dropping on a row above puts the entry in front of it;
-                   * dropping on one below puts it behind — which is the same
-                   * rule every list with this gesture uses, and the only one
-                   * where the row ends up where the pointer left it.
-                   */
-                  move(source, from > at ? entry.id : after(entry.id), at);
+                  // The edge is `landing`'s — the same answer the line gave.
+                  move(source, landing(from, at) === 'before' ? entry.id : after(entry.id), at);
                 }}
+                data-drop={drop}
                 className={
                   dragging === entry.id
-                    ? 'flex items-baseline gap-1 opacity-50'
-                    : 'group/entry flex items-baseline gap-1'
+                    ? 'relative flex items-baseline gap-1 opacity-50'
+                    : 'group/entry relative flex items-baseline gap-1'
                 }
               >
+                {/*
+                 * The line: two pixels of `accent` along the edge the entry
+                 * would land on. Absolutely positioned so it takes no space —
+                 * a border would grow the row and shift every row below it as
+                 * the line moved — and inside the row rather than astride its
+                 * edge, because the list clips: a line hung a pixel above the
+                 * first row would lose its top half whenever the list is
+                 * scrolled to the top, which is where the first row is, and
+                 * one hung below the last would add a pixel of scrollable
+                 * overflow only while it showed. It sits in the button's own
+                 * padding, never over text. Paint only: `aria-hidden`,
+                 * because the live region says the outcome and the buttons are
+                 * the screen reader's path; and `pointer-events-none`, so the
+                 * thing drawn under the pointer never becomes the thing under
+                 * the pointer. `data-drop` on the row is the fact this renders
+                 * from and the fact a test can read, since jsdom cannot see
+                 * two pixels.
+                 */}
+                {drop === undefined ? null : (
+                  <span
+                    aria-hidden="true"
+                    className={
+                      drop === 'before'
+                        ? 'pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-accent'
+                        : 'pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-accent'
+                    }
+                  />
+                )}
                 <button
                   type="button"
                   aria-current={current ? 'true' : undefined}

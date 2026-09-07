@@ -19,11 +19,12 @@ import {
 } from './form.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { page } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
 import { AsStored } from '../library/AsStored.js';
+import { DeleteObject } from '../library/DeleteObject.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
@@ -219,16 +220,6 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   return (
     <>
-      <p className="mb-4">
-        <Link
-          to="/library/$kind/$id"
-          params={{ kind: 'actors', id: base.id }}
-          className="text-sm text-ink-subtle underline hover:text-ink"
-        >
-          Back to the actor
-        </Link>
-      </p>
-
       <header className="mb-6 flex items-center gap-4">
         {/* Shown, never replaced here — the card's pixels are the portrait as
             intended, and replacing them is not this stage's business. */}
@@ -244,25 +235,6 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           </p>
         </div>
       </header>
-
-      {notice !== null ? (
-        <p
-          role="status"
-          className="mb-4 rounded-md border border-line-strong bg-surface-sunken p-3 text-sm"
-        >
-          {notice}
-        </p>
-      ) : null}
-
-      {/* Every 412 used to be filtered here, on the assumption the dialog had
-          it — but the dialog only opens when the body carried `current`, so a
-          412 without one vanished entirely. Filter only what the dialog owns. */}
-      {save.isError &&
-      !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
-        <Alert tone="error" role="alert" className="mb-4">
-          {save.error.message}
-        </Alert>
-      ) : null}
 
       <form
         className="flex flex-col gap-4"
@@ -461,11 +433,22 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           </div>
         </section>
 
-        {/* Held against the bottom of the scrollport — [05 §11.6], and the
-            recipe in `ui/classes.ts` carries the why. Last inside the `<form>`,
-            because that is the extent a sticky element is held within and the
-            form is everything Save is about. */}
+        {/* The critical controls, held against the bottom of the scrollport —
+            [05 §11.6], and the recipe in `ui/classes.ts` carries the why. Last
+            inside the `<form>`, because that is the extent a sticky element is
+            held within and the form is everything Save is about. The way back
+            and Delete share the strip with Save: they are the controls that
+            matter, and where the page happens to be scrolled is not a reason
+            for any of them to be out of reach. Delete moves the actor as
+            saved, and says so while there are edits nothing has written. */}
         <div className={page.actions}>
+          <Link
+            to="/library/$kind/$id"
+            params={{ kind: 'actors', id: base.id }}
+            className={link.back}
+          >
+            Back to the actor
+          </Link>
           <Button
             type="submit"
             disabled={!changed || save.isPending || form.name.trim() === ''}
@@ -473,17 +456,56 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           >
             Save
           </Button>
-          {!changed ? <span className="text-sm text-ink-faint">No changes to save.</span> : null}
-          <Button
-            type="button"
-            className="ms-auto"
-            aria-expanded={historyOpen}
-            onClick={() => {
-              setHistoryOpen((open) => !open);
-            }}
-          >
-            History
-          </Button>
+          {/*
+           * What the last control did, said where the control is. *Saved.*, a
+           * restored version, a reapplied draft and a refused write used to
+           * render above the form — which, with the strip pinned halfway down
+           * a long form, is as far out of sight as the foot of the page. The
+           * slot takes the remaining width, with a floor of ten rem: at the
+           * column's width a long sentence wraps in place rather than folding
+           * the strip onto a second line, and on a narrow column the buttons
+           * fold under it rather than squeezing it to a word a line. The
+           * notice stands in for *No changes to save.* while it shows: after
+           * a save both are true, and the second says nothing the first did
+           * not.
+           *
+           * Every 412 used to be filtered out of the error, on the assumption
+           * the dialog had it — but the dialog only opens when the body
+           * carried `current`, so a 412 without one vanished entirely. Only
+           * what the dialog owns is filtered.
+           */}
+          <span className="flex min-w-0 grow basis-40 flex-wrap items-center gap-3 text-sm">
+            {save.isError &&
+            !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
+              <span role="alert" className="text-danger-ink">
+                {save.error.message}
+              </span>
+            ) : null}
+            {notice !== null ? (
+              <span role="status" className="text-ink-subtle">
+                {notice}
+              </span>
+            ) : changed ? null : (
+              <span className="text-ink-faint">No changes to save.</span>
+            )}
+          </span>
+          <span className="ms-auto flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              aria-expanded={historyOpen}
+              onClick={() => {
+                setHistoryOpen((open) => !open);
+              }}
+            >
+              History
+            </Button>
+            <DeleteObject
+              kind="actors"
+              id={base.id}
+              contentHash={base.contentHash}
+              unsaved={changed}
+            />
+          </span>
         </div>
       </form>
 

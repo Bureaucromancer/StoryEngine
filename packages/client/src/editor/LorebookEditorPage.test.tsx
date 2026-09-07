@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { newLoreEntry, newLorebook, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
@@ -529,6 +529,35 @@ describe('reordering entries', () => {
       .map((button) => button.querySelector('span')?.textContent ?? '');
   }
 
+  /**
+   * The rows carrying the landing line, by name and edge — read from
+   * `data-drop`, which is the fact the line is drawn from. jsdom paints
+   * nothing, so a two-pixel rule cannot be seen here; what can be seen is
+   * which row claims which edge, and that claim is the drop's own rule, so
+   * every assertion on it is also an assertion about where a drop would go.
+   * The name is read from the row's first button rather than its first span,
+   * because the line, when it shows, is the row's first child.
+   */
+  function marked(): [string, string][] {
+    return screen
+      .getAllByRole('listitem')
+      .filter((row) => row.dataset['drop'] !== undefined)
+      .map((row) => [
+        within(row).getAllByRole('button')[0]?.querySelector('span')?.textContent ?? '',
+        row.dataset['drop'] ?? '',
+      ]);
+  }
+
+  /** The two rows in whatever order the previous test left them — never Harbour first by assumption. */
+  function twoRows(): [HTMLElement, HTMLElement] {
+    const [top, bottom] = screen.getAllByRole('listitem');
+    if (top === undefined || bottom === undefined) throw new Error('expected two rows');
+    return [top, bottom];
+  }
+
+  /** jsdom has no `DataTransfer`; the drop test below says why the stub is not a convenience. */
+  const stub = () => ({ effectAllowed: '', setData: vi.fn(), getData: () => '' });
+
   it('moves an entry down with the keyboard, and saves the new order', async () => {
     const client = renderApp();
     await openEditor();
@@ -614,6 +643,115 @@ describe('reordering entries', () => {
     expect(shown()).toEqual([order[1] ?? '', order[0] ?? '']);
   });
 
+  /**
+   * **Where the row will land is shown before it is let go** — [05 §11.2c].
+   * The line and the drop are one computation (`landing`), so these tests
+   * are also the drop rule's tests from the other side: flipping the
+   * comparison reddens the first two, and the drop test above with them.
+   *
+   * The `preventDefault` in `dragOver` stays uncovered here for the reason
+   * the drop test gives: jsdom implements no drag-and-drop protocol, so a
+   * refused drop and an allowed one look the same to it.
+   */
+  it('draws the line under the row a drag from above would land behind', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    // Nothing is promised until the pointer is over a row.
+    expect(marked()).toEqual([]);
+
+    fireEvent.dragOver(bottom, { dataTransfer });
+    expect(marked()).toEqual([[shown()[1] ?? '', 'after']]);
+  });
+
+  it('draws it over the row a drag from below would land in front of', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(bottom, { dataTransfer });
+    fireEvent.dragOver(top, { dataTransfer });
+    expect(marked()).toEqual([[shown()[0] ?? '', 'before']]);
+  });
+
+  /**
+   * Reddened by dropping the source-row branch of `dragOver`: the neighbour's
+   * line then stays up while a drop on the dragged row itself does nothing,
+   * which is a promise the drop declines.
+   */
+  it('promises nothing over the row being dragged, and takes down what it promised elsewhere', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.dragOver(top, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down on drop', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.drop(bottom, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down when the drag ends anywhere else', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+    fireEvent.dragEnd(top, { dataTransfer });
+    expect(marked()).toEqual([]);
+  });
+
+  it('takes the line down when the pointer leaves the list, and not when it crosses into another row', async () => {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = twoRows();
+    const list = top.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    const dataTransfer = stub();
+
+    fireEvent.dragStart(top, { dataTransfer });
+    fireEvent.dragOver(bottom, { dataTransfer });
+
+    /**
+     * A `MouseEvent` rather than `fireEvent.dragLeave`, because jsdom has no
+     * `DragEvent`: Testing Library falls back to a plain `Event`, whose
+     * constructor drops `relatedTarget` on the floor, so the handler would see
+     * `undefined` — which reads as *outside*, and would pass the clearing half
+     * of this test for the wrong reason while failing the other half.
+     * `MouseEvent` carries it, and the handler reads nothing a mouse event
+     * lacks.
+     */
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: top }));
+    expect(marked()).toHaveLength(1);
+
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: document.body }));
+    expect(marked()).toEqual([]);
+
+    // Out of the window — and, in Chromium and WebKit, every leave.
+    fireEvent.dragOver(bottom, { dataTransfer });
+    expect(marked()).toHaveLength(1);
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: null }));
+    expect(marked()).toEqual([]);
+  });
+
   it('leaves `order` alone, because dragging is not injection order', async () => {
     const client = renderApp();
     await openEditor();
@@ -628,6 +766,160 @@ describe('reordering entries', () => {
     expect([...server.stored().entries.map((each) => each.order)].sort()).toEqual(
       [...before].sort(),
     );
+  });
+});
+
+/**
+ * **The list scrolls itself while a drag hovers near its edge** — [05 §11.2c].
+ *
+ * jsdom lays nothing out and schedules no frames, so both halves are supplied:
+ * the list's box is pinned to a known rectangle, and the animation frame is a
+ * queue these tests drain by hand. What is then asserted is the arithmetic and
+ * the loop — which way, how fast, and when it stops — against `scrollTop`,
+ * which jsdom keeps as a plain number. That a browser fires `dragover` on a
+ * stationary pointer, which is what keeps the loop fed, is the browser's
+ * contract and not this file's.
+ */
+describe('scrolling the list while a drag hovers near its edge', () => {
+  /** Three hundred and twenty pixels tall, from 100 to 420 — the list's `max-h-80`. */
+  const BOX = {
+    top: 100,
+    bottom: 420,
+    left: 0,
+    right: 300,
+    x: 0,
+    y: 100,
+    width: 300,
+    height: 320,
+    toJSON: () => ({}),
+  };
+  let frames: FrameRequestCallback[] = [];
+
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback): number => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Runs every frame queued so far, once — a frame that re-queues itself runs next time. */
+  function runFrames(): void {
+    for (const callback of frames.splice(0)) callback(0);
+  }
+
+  /** The editor open with the list's box pinned, and a drag of the top row in progress. */
+  async function dragInProgress(): Promise<{
+    list: HTMLElement;
+    top: HTMLElement;
+    bottom: HTMLElement;
+  }> {
+    renderApp();
+    await openEditor();
+    const [top, bottom] = screen.getAllByRole('listitem');
+    if (top === undefined || bottom === undefined) throw new Error('expected two rows');
+    const list = top.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    list.getBoundingClientRect = () => BOX;
+    fireEvent.dragStart(top, {
+      dataTransfer: { effectAllowed: '', setData: vi.fn(), getData: () => '' },
+    });
+    return { list, top, bottom };
+  }
+
+  /**
+   * A `MouseEvent` rather than `fireEvent.dragOver`, for the reason the leave
+   * test above gives: jsdom has no `DragEvent`, and the plain `Event` Testing
+   * Library falls back to drops `clientY` on the floor.
+   */
+  function hover(row: HTMLElement, clientY: number): void {
+    fireEvent(row, new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY }));
+  }
+
+  it('scrolls down near the bottom edge, and faster the nearer the pointer leans into it', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    // Twenty pixels from the bottom, halfway into the zone: half speed, six a frame.
+    hover(bottom, 400);
+    runFrames();
+    runFrames();
+    expect(list.scrollTop).toBe(12);
+
+    // One pixel from it: twelve a frame.
+    hover(bottom, 419);
+    runFrames();
+    expect(list.scrollTop).toBe(24);
+  });
+
+  it('scrolls up near the top edge', async () => {
+    const { list, top } = await dragInProgress();
+    list.scrollTop = 200;
+
+    // Five pixels from the top: eleven a frame, upward.
+    hover(top, 105);
+    runFrames();
+    expect(list.scrollTop).toBe(189);
+  });
+
+  it('holds still in the middle, and runs out once the pointer comes back to it', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    hover(bottom, 260);
+    expect(frames).toHaveLength(0);
+
+    hover(bottom, 400);
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+
+    // The frame already queued runs, finds nothing to do, and queues no other.
+    hover(bottom, 260);
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('stops when the drag ends', async () => {
+    const { list, top, bottom } = await dragInProgress();
+
+    hover(bottom, 400);
+    runFrames();
+    fireEvent.dragEnd(top);
+
+    // The frame the browser would have cancelled is still in this queue; run,
+    // it must find nothing to do.
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+  });
+
+  it('stops when the pointer leaves the list', async () => {
+    const { list, bottom } = await dragInProgress();
+
+    hover(bottom, 400);
+    runFrames();
+    fireEvent(list, new MouseEvent('dragleave', { bubbles: true, relatedTarget: document.body }));
+
+    runFrames();
+    expect(list.scrollTop).toBe(6);
+  });
+
+  it('does not scroll for a drag that is not one of its rows', async () => {
+    renderApp();
+    await openEditor();
+    const [, bottom] = screen.getAllByRole('listitem');
+    if (bottom === undefined) throw new Error('expected two rows');
+    const list = bottom.closest('ul');
+    if (list === null) throw new Error('expected the rows to be in a list');
+    list.getBoundingClientRect = () => BOX;
+
+    // No dragstart on any row: whatever is being dragged is not one of them.
+    hover(bottom, 400);
+    expect(frames).toHaveLength(0);
+    expect(list.scrollTop).toBe(0);
   });
 });
 
@@ -747,5 +1039,44 @@ describe('leaving an editor with unsaved changes', () => {
       expect(screen.getByRole('textbox', { name: 'Name' })).toHaveProperty('value', 'Bridge');
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+});
+
+/**
+ * The critical-controls strip's wiring, for this editor
+ * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)). The delete control is
+ * one shared component and its behaviour — the trash, the hash, the guard it
+ * must step past — is proved in the actor editor's test; what two editors can
+ * differ on silently is whether each mounts it, and whether the way back moved
+ * into the strip with it. So this asserts the wiring and nothing more.
+ */
+describe('the critical controls in the lorebook editor', () => {
+  it('offers Delete and the way back beside Save', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Back to the lorebook' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+  });
+
+  /**
+   * And what a save says is said there too ([05 §11.6]) — asserted as
+   * structure, since jsdom cannot see a strip pin: the status stands inside
+   * the form Save belongs to, where nothing rendered above the form can be.
+   * The actor editor's test says why; this one says this editor does it.
+   */
+  it('says Saved. inside the strip, beside the Save that caused it', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), ' Cranes.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const status = await screen.findByText('Saved.');
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.closest('form')).toBe(
+      screen.getByRole('button', { name: 'Save' }).closest('form'),
+    );
   });
 });

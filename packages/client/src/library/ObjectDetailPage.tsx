@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useQueryClient } from '@tanstack/react-query';
-import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX, type ReactNode } from 'react';
+import { getRouteApi, Link } from '@tanstack/react-router';
+import { type JSX, type ReactNode } from 'react';
 
 import type { Lorebook } from '@storyengine/shared';
 
 import {
-  api,
   ApiError,
   isLibraryKind,
   type LibraryKind,
@@ -24,6 +22,7 @@ import { MetadataRow } from '../ui/MetadataRow.js';
 import { SectionTitle } from '../ui/Text.js';
 import { AsStored } from './AsStored.js';
 import { ByField } from './ByField.js';
+import { DeleteObject } from './DeleteObject.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
@@ -48,10 +47,10 @@ export function ObjectDetailPage(): JSX.Element {
       // The page's own column ([P3.−1] — `ui/classes.ts` has the why), on
       // both branches, so a bad address is laid out like a good one.
       <div className={page.tooling}>
-        <BackLink />
         <p role="alert" className="text-danger-ink">
           This address does not name a known kind of library object.
         </p>
+        <Controls />
       </div>
     );
   }
@@ -82,8 +81,8 @@ function ObjectDetail(props: {
   if (query.isPending) {
     return (
       <>
-        <BackLink />
         <p className="text-ink-subtle">Loading…</p>
+        <Controls />
       </>
     );
   }
@@ -92,10 +91,10 @@ function ObjectDetail(props: {
     const missing = query.error instanceof ApiError && query.error.status === 404;
     return (
       <>
-        <BackLink />
         <p role="alert" className="text-danger-ink">
           {missing ? 'There is no such object in your library.' : query.error.message}
         </p>
+        <Controls />
       </>
     );
   }
@@ -140,25 +139,10 @@ function ObjectView(props: {
 
   return (
     <>
-      <BackLink />
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}
-        {/*
-         * The kind gate comes from the same place the fields do
-         * ([polish §1](../../../../docs/design/workplan/09-polish.md)), and it
-         * carries the address with it: this branch used to name `actors`
-         * twice — once in the condition and once in the route — so widening
-         * one without the other would have opened a lorebook in the actor
-         * editor.
-         */}
-        {editorRoute !== null && mutable(object) ? (
-          <Link to={editorRoute} params={{ id: object.id }} className={`ms-auto ${link.action}`}>
-            Edit
-          </Link>
-        ) : null}
-        {mutable(object) ? <DeleteButton object={object} kind={kind} /> : null}
       </header>
 
       {object.shadowed ? (
@@ -208,6 +192,30 @@ function ObjectView(props: {
       </dl>
 
       <AsStored value={object.object} />
+
+      <Controls>
+        {/*
+         * The kind gate comes from the same place the fields do
+         * ([polish §1](../../../../docs/design/workplan/09-polish.md)), and it
+         * carries the address with it: this branch used to name `actors`
+         * twice — once in the condition and once in the route — so widening
+         * one without the other would have opened a lorebook in the actor
+         * editor.
+         */}
+        {editorRoute !== null && mutable(object) ? (
+          <Link to={editorRoute} params={{ id: object.id }} className={link.action}>
+            Edit
+          </Link>
+        ) : null}
+        {mutable(object) ? (
+          <DeleteObject
+            kind={kind}
+            id={object.id}
+            contentHash={object.contentHash}
+            className="ms-auto"
+          />
+        ) : null}
+      </Controls>
     </>
   );
 }
@@ -277,7 +285,7 @@ function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): J
       importNotes={notes.data?.notes ?? []}
       /**
        * **Offered only where the object can actually be written**, through the
-       * same `mutable` predicate the header's Edit and Delete go through — a
+       * same `mutable` predicate the strip's Edit and Delete go through — a
        * system book and a shadowed copy are both readable and neither is
        * writable, and an *Edit* on the losing copy of a duplicated id would open
        * the editor over the winner (F19 with the stakes raised).
@@ -304,101 +312,31 @@ function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): J
   );
 }
 
-function BackLink(): JSX.Element {
+/**
+ * The page's critical controls, held against the bottom of the scrollport
+ * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md) — the read page's half
+ * of it): the way up, then Edit and Delete when the object can be written.
+ *
+ * **Last in the column, and the column is what holds it**, where the editors
+ * hold theirs inside the form. There the strip releases over the panels a
+ * person reads rather than edits; here the whole page is the object the
+ * controls are about, so there is nothing for it to release over. The way up
+ * used to be the first thing on the page, and moving it here is what
+ * *included in the element* costs: a reader who tabs through a long book now
+ * meets the controls after it. What is bought is that they are on screen
+ * wherever the page is scrolled, which is the whole point of holding them.
+ *
+ * Every branch of the loader renders it. A page still loading, or one refusing
+ * an address, still has a way up, and the way up is the one control the
+ * branches share.
+ */
+function Controls(props: { children?: ReactNode }): JSX.Element {
   return (
-    <p className="mb-4">
-      <Link to="/library" search={{}} className="text-sm text-ink-subtle underline hover:text-ink">
+    <div className={page.actions}>
+      <Link to="/library" search={{}} className={link.back}>
         Back to the library
       </Link>
-    </p>
-  );
-}
-
-/**
- * **Delete, which the server has been able to do since P1 and no surface could
- * reach** ([P4 §1.4]).
- *
- * The import review's whole posture — commit immediately, report loudly, no
- * staging area — rests on a bad import being reversible. That was true on disk
- * and false in the app: the trash window and the version history existed, and
- * nothing here could remove an object, so *undo* meant opening a file manager.
- * This is the cost of the posture, paid rather than hand-waved.
- *
- * Two-step rather than a modal, because a modal for a reversible action is
- * ceremony — and this one *is* reversible: the folder moves to trash and the
- * retention window is what makes the second thought possible
- * ([02 §10.2](../../../../docs/design/02-data-model.md)).
- */
-function DeleteButton(props: { object: LibraryObject; kind: LibraryKind }): JSX.Element {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const remove = async (): Promise<void> => {
-    setError(null);
-    try {
-      await api.deleteObject(props.kind, props.object.id, props.object.contentHash);
-      // The list is now wrong in a way it cannot detect. `resetQueries` rather
-      // than `removeQueries`: a destroyed entry does not notify its observers
-      // ([P3.5]).
-      await queryClient.resetQueries({ queryKey: ['library'] });
-      await navigate({ to: '/library' });
-    } catch (cause) {
-      // A 412 here means somebody edited it while this page was open, which is
-      // exactly when a delete should stop and say so.
-      setError(cause instanceof Error ? cause.message : 'It could not be deleted.');
-      setConfirming(false);
-    }
-  };
-
-  return (
-    <span className="ms-auto flex items-center gap-3 text-sm">
-      {/*
-       * **The message lives outside both branches, and that is a fix.** It used
-       * to render only inside the confirming row — but the `catch` above calls
-       * `setConfirming(false)`, so the branch that would have shown it had just
-       * been replaced by the one that would not. A refused delete rendered
-       * nothing at all: the 412 the comment in `remove` calls *exactly when a
-       * delete should stop and say so* stopped, silently, and read as a click
-       * that did not register. Announced, because it appears in reaction to
-       * something the user just did.
-       */}
-      {error !== null ? (
-        <span role="alert" className="text-danger-ink">
-          {error}
-        </span>
-      ) : null}
-      {confirming ? (
-        <>
-          <span className="text-ink-subtle">Move to trash?</span>
-          <button type="button" onClick={() => void remove()} className={link.action}>
-            Delete
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setConfirming(false);
-            }}
-            className={link.action}
-          >
-            Cancel
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            // Clearing here rather than on the next attempt: a stale message
-            // beside a fresh question is worse than no message.
-            setError(null);
-            setConfirming(true);
-          }}
-          className={link.action}
-        >
-          Delete
-        </button>
-      )}
-    </span>
+      {props.children}
+    </div>
   );
 }
