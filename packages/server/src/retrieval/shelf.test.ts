@@ -294,19 +294,45 @@ describe('shelve', () => {
      * not at all by the absence of a row.
      */
     it('accounts for a book whose every entry was refused', () => {
-      const book = bookOf({ id: 'starved', tokenBudget: 0 });
+      // A budget of one token rather than zero: zero is the format's
+      // *unlimited* ([10 §5]), and using it here was how the inverted reading
+      // came to be pinned by a test — [P5 §0.5]'s first contradiction, settled
+      // at [P6B.1]. One token refuses everything just as thoroughly and says
+      // what it means.
+      const book = bookOf({ id: 'starved', tokenBudget: 1 });
       const result = shelve({ activated: [firing('One', {}, { book })], latestMessage: '' });
 
       expect(result.kept).toEqual([]);
       expect(result.books).toEqual([
         {
           bookId: 'starved',
-          tokenBudget: 0,
+          tokenBudget: 1,
           tokensSpent: 0,
           entryLimit: 100,
           entriesKept: 0,
         },
       ]);
+    });
+
+    /**
+     * **Zero is unlimited** — [10 §5] and the schema both say so, and
+     * `shelf.ts` read it as a ceiling of nothing until [P6B.1], so a book
+     * carrying the convention refused every entry and blamed a budget.
+     *
+     * The books that carry it were written elsewhere — the importer leaves the
+     * field unclamped where it clamps `entryLimit` — so this is the reading an
+     * imported book depends on.
+     */
+    it('reads a token budget of zero as unlimited, the way the format means it', () => {
+      const book = bookOf({ id: 'open', tokenBudget: 0 });
+      const result = shelve({
+        activated: [firing('One', {}, { book }), firing('Two', {}, { book })],
+        latestMessage: '',
+      });
+
+      expect(result.kept).toHaveLength(2);
+      expect(result.refused).toEqual([]);
+      expect(result.books[0]?.tokensSpent).toBeGreaterThan(0);
     });
 
     it('reports nothing at all when nothing activated', () => {

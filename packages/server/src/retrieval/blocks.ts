@@ -108,25 +108,49 @@ export interface LoreBlock {
 }
 
 /**
- * An activation that survived the inner budget and had nowhere to go, because
- * it named an outlet no preset slot positions.
+ * An activation that survived the inner budget and had nowhere to go.
  *
  * **Its own report rather than a silent drop.** This is the failure mode
- * outlets add to the system: an entry that fires perfectly, passes every
- * budget, and then does not appear — and the cause is a name mismatch between
- * two objects that were probably written by two different people. Without this
- * the only symptom is absence.
+ * placement adds to the system: an entry that fires perfectly, passes every
+ * budget, and then does not appear — and the cause is a mismatch between two
+ * objects that were probably written by two different people. Without this the
+ * only symptom is absence.
+ *
+ * **Two shapes, and the second was missing until [P6B.1]** — which is how the
+ * defect below survived two phases: the outlet case was reported and looked
+ * like the whole story, and the commoner case was not reported at all.
  */
-export interface Unplaced {
-  activation: Activation;
-  outletName: string;
-}
+export type Unplaced =
+  | { activation: Activation; kind: 'outlet'; outletName: string }
+  /**
+   * **The phase itself has no slot** — [P6B.1].
+   *
+   * Added because the outlet case was the only one reported and it was not the
+   * only one that happens. `placementOf` maps SillyTavern's `after_char` to
+   * `{ at: 'after' }`, `collect.ts` fills an `after` placement only from a slot
+   * whose `phase` is `after`, and the shipped preset had exactly one lore slot,
+   * at `before`. So an imported entry at that position **activated, was charged
+   * against the book's `tokenBudget` and `entryLimit`, matched no slot, and
+   * disappeared** — while the report still counted it kept. ST positions 1, 2,
+   * 3, 5 and 6 all import as `after_char`, so the first imported book lost most
+   * of its entries after they had spent the budget ([P5 §0.5]).
+   *
+   * The shipped preset gained the slot in the same stage. This arm is for every
+   * preset that has not: an imported one, or one somebody wrote, where the
+   * honest answer is *your preset has nowhere to put this* rather than silence.
+   */
+  | { activation: Activation; kind: 'phase'; phase: 'before' | 'after' };
 
 export interface BlocksInput {
   kept: readonly Shelved[];
   latestMessage: string;
   /** Outlet names the preset positions. Anything else is {@link Unplaced}. */
   outlets: ReadonlySet<string>;
+  /**
+   * Which lore phases the preset has a slot for. A placement whose phase is
+   * missing is {@link Unplaced} rather than dropped — see the type.
+   */
+  phases: ReadonlySet<'before' | 'after'>;
   /**
    * The lore slot's own priority, from the preset. Each block takes it,
    * adjusted by trim rank — see {@link priorityFor}.
@@ -142,7 +166,19 @@ export function loreBlocks(input: BlocksInput): { blocks: LoreBlock[]; unplaced:
     const { activation } = shelved;
     const placement = placementOf(activation.entry);
     if (placement.at === 'outlet' && !input.outlets.has(placement.name)) {
-      unplaced.push({ activation, outletName: placement.name });
+      unplaced.push({ activation, kind: 'outlet', outletName: placement.name });
+      continue;
+    }
+    /**
+     * `in-history` is deliberately not checked: it goes in the splice rather
+     * than into a slot, and `collectCandidates` is the only thing that can put
+     * it there — so there is no slot for it to be missing.
+     */
+    if (
+      (placement.at === 'before' || placement.at === 'after') &&
+      !input.phases.has(placement.at)
+    ) {
+      unplaced.push({ activation, kind: 'phase', phase: placement.at });
       continue;
     }
 
@@ -242,7 +278,13 @@ export function refusalsFor(
       // because nothing was going to send it. Reporting an estimate here would
       // read as *this cost you tokens*, which is the opposite of what happened.
       tokens: 0,
-      rule: `no preset slot positions the outlet “${one.outletName}”`,
+      // Each names the setting to change, which is why they are sentences: an
+      // outlet mismatch is two strings that should match, and a missing phase
+      // is a preset with nowhere to put a position the entry chose.
+      rule:
+        one.kind === 'outlet'
+          ? `no preset slot positions the outlet “${one.outletName}”`
+          : `this preset has no slot for lore placed ${one.phase} the character`,
     })),
   ];
 }

@@ -19,22 +19,21 @@ import { LoreReportView } from './LoreReportView.js';
  * different repair for each of sixteen reasons.
  */
 
-function report(over: Partial<LoreReport> = {}): LoreReport {
+function bookRow(over: Partial<LoreReport['books'][number]> = {}): LoreReport['books'][number] {
   return {
-    ...NO_LORE_REPORT,
-    books: [
-      {
-        bookId: 'b1',
-        bookName: 'Rain City',
-        by: 'session',
-        tokenBudget: 2048,
-        tokensSpent: 41,
-        entryLimit: 100,
-        entriesKept: 1,
-      },
-    ],
+    bookId: 'b1',
+    bookName: 'Rain City',
+    by: 'session',
+    tokenBudget: 2048,
+    tokensSpent: 41,
+    entryLimit: 100,
+    entriesKept: 1,
     ...over,
   };
+}
+
+function report(over: Partial<LoreReport> = {}): LoreReport {
+  return { ...NO_LORE_REPORT, books: [bookRow()], ...over };
 }
 
 function skip(over: Partial<LoreSkipRow> = {}): LoreSkipRow {
@@ -197,5 +196,27 @@ describe('the sources nothing supplied', () => {
     render(<LoreReportView lore={report({ unknownSources: ['the-moon'] })} />);
 
     expect(screen.getByText('the-moon')).toBeTruthy();
+  });
+});
+
+/**
+ * The budget column, and the one value it could not render — [P6B.1].
+ *
+ * Zero means unlimited ([10 §5], and the schema annotates it), so the pair that
+ * reads correctly for every other book read *41 / 0* on precisely the books
+ * that had no limit. The retriever's own reading was settled in the same stage;
+ * this is the half a person sees.
+ */
+describe('a book with no token limit', () => {
+  it('says so, rather than dividing by a limit of nothing', () => {
+    render(<LoreReportView lore={report({ books: [bookRow({ tokenBudget: 0 })] })} />);
+
+    expect(screen.getByText('41 / no limit')).toBeTruthy();
+  });
+
+  it('still shows the allowance where there is one', () => {
+    render(<LoreReportView lore={report()} />);
+
+    expect(screen.getByText('41 / 2,048')).toBeTruthy();
   });
 });
