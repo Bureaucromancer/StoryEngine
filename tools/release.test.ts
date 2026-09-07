@@ -142,3 +142,29 @@ describe('the docker build context', () => {
     expect(ignored).toMatch(/^packages\/server\/build-info\.json$/m);
   });
 });
+
+/**
+ * The image's build stage gets pnpm the way the workspace pins it — [P6A.4],
+ * and the first run of the release workflow (2026-09-06, `v1.0.0-alpha.1`).
+ *
+ * That run failed at `corepack enable` with exit 127: Node 25 stopped shipping
+ * corepack, so the `node:26-slim` base has no such command, and the Dockerfile
+ * had never been run by a daemon before a tag ran it. pnpm is installed with
+ * npm now, and this holds the version it installs to the one `packageManager`
+ * names — the same one-source-of-truth check the version tests above make,
+ * for the other number a release build carries.
+ */
+describe("the image's build stage", () => {
+  const dockerfile = read('Dockerfile');
+  const { packageManager } = JSON.parse(read('package.json')) as { packageManager: string };
+
+  it('installs the pnpm the workspace pins, with npm', () => {
+    expect(packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/);
+    expect(dockerfile).toContain(`RUN npm install -g ${packageManager}`);
+  });
+
+  it('does not ask for corepack, which the base image no longer has', () => {
+    // Comments stripped first: the one above the install line says why not.
+    expect(dockerfile.replace(/^#.*$/gm, '')).not.toMatch(/corepack/);
+  });
+});

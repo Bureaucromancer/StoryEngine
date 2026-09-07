@@ -17,13 +17,15 @@ accounts and its model connections; and, since P6A, what a container needs — a
 server that can be told where to bind, serves its own client, guards its first
 admin with a token, and can say which commit it is.
 
-**Alpha 1 is that state, about to be frozen.** Its version is `1.0.0-alpha.1`,
+**Alpha 1 is that state, tagged 2026-09-06.** Its version is `1.0.0-alpha.1`,
 named *1.0-alpha 1* — the first prerelease of 1.0, under the scheme
 [releases §7.1](docs/design/workplan/11-repo-and-releases.md) records — in the
-root `package.json` and in [`CHANGELOG.md`](CHANGELOG.md); the image, the
-compose file and the unraid template are written; the on-tag workflow waits for
-`v1.0.0-alpha.1`. None of it has run — the tag is not cut and no image has been
-built, because P6A was written on a machine without Docker. It is a build the
+root `package.json`, in [`CHANGELOG.md`](CHANGELOG.md) and on the tag
+`v1.0.0-alpha.1`. No image exists yet: the tag's first run of the on-tag
+workflow stopped at the Dockerfile before building anything, because the base
+image no longer ships corepack and nothing had run that file before a daemon
+did. The fix is on `main`, and [P6A §3](docs/design/workplan/23-p6a-alpha-1.md)
+step 1 records where the tag stands. It is a build the
 project makes for itself, not a distribution: the repository and the registry
 package are private, and [releases §0.1](docs/design/workplan/11-repo-and-releases.md)
 says why that is the point rather than a stage on the way to something.

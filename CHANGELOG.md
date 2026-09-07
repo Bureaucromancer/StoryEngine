@@ -99,3 +99,7 @@ newer one has touched
   refuses. It strips the `v` and lowercases the owner now, and
   `tools/release.test.ts` holds it to both. Found before the first tag rather
   than by it.
+- The image's build stage asked for pnpm through corepack, which Node stopped
+  shipping at 25, so the first run of the release workflow failed at that line
+  before building anything. It installs pnpm with npm now, at the version
+  `package.json` pins, and `tools/release.test.ts` holds the two to one number.

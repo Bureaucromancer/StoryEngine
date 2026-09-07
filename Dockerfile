@@ -29,10 +29,16 @@ ARG NODE_VERSION=26
 # reach for alpine does not apply.
 FROM node:${NODE_VERSION}-slim AS build
 
-# pnpm from corepack, at the version `packageManager` in package.json pins. The
-# plan's own words: `.npmrc` is `engine-strict=true`, so a base older than the
-# `engines.node` floor fails hard here rather than warning and continuing.
-RUN corepack enable
+# pnpm installed with npm, at the version `packageManager` in package.json pins,
+# and `tools/release.test.ts` holds the two to one number. Not corepack: the
+# plan said corepack, the first run of the release workflow (2026-09-06, tag
+# v1.0.0-alpha.1) failed here with exit 127, and the reason is that Node 25
+# stopped shipping corepack in its distribution — so `node:26-slim` has no
+# such command, and nothing had run this file before a daemon did. The plan's
+# other words still hold: `.npmrc` is `engine-strict=true`, so a base older
+# than the `engines.node` floor fails hard at `pnpm install` rather than warning
+# and continuing.
+RUN npm install -g pnpm@11.18.0
 
 # **`CI=true`, and it is not decoration.** pnpm asks before removing a modules
 # directory and aborts when there is no TTY — measured, as

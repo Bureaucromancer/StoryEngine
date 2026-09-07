@@ -233,9 +233,11 @@ gate that is already met:
   [P10 §5](21-p10-implementation.md) records *"what the container image actually
   is"* as unsettled and sends it to [07](../07-tech-stack.md), which does not
   answer it. This document is where it gets answered. *Answered at [P6A.4]:
-  `node:26-slim`, pnpm from corepack, `pnpm deploy --legacy --prod` as the
-  prune, `/data` as the volume, a non-root user, and `compose.yaml` beside it,
-  because Tier 1 is the pair.*
+  `node:26-slim`, pnpm ~~from corepack~~ installed with npm at the version
+  `packageManager` pins — the first run of the workflow found that Node 25 had
+  stopped shipping corepack — `pnpm deploy --legacy --prod` as the prune,
+  `/data` as the volume, a non-root user, and `compose.yaml` beside it, because
+  Tier 1 is the pair.*
 
 ---
 
@@ -766,6 +768,17 @@ not the tag. What this says about the stage is worth keeping: eight mutations
 proved the files agreed with each other, and none could prove they agreed with
 a registry, because no daemon ever asked one.
 
+*And a third, found by the daemon itself, the first time one ran this file.*
+The first push of `v1.0.0-alpha.1` (2026-09-06, run 34080892876) failed at
+`corepack enable` with exit 127. Node 25 stopped shipping corepack, so
+`node:26-slim` has no such command; the stage record above says *pnpm from
+corepack* because that was true of the Node the plan was written against and
+nothing had run the line since. pnpm is installed with npm now, at the version
+`packageManager` pins, and `release.test.ts` holds the Dockerfile to that
+number. The lesson is the two above, one step further out: every mutation in
+this stage proved the files agreed with each other and with the plan, and the
+first thing that could disagree with the *world* did.
+
 Eight mutations, eight red: a compose tag off by one alpha, the template's, an
 unfiltered release trigger, `contents: write`, a `.dockerignore` that lets a
 developer's identity file into the image, one that lets `data/` in, a `0.0.0`
@@ -831,6 +844,16 @@ has been built.*
    lowercased owner, so what it pushes is what the compose file pulls; and the
    build context excludes `data/` and a local `build-info.json`. The tag itself
    is the walk's first act.
+   **Walked 2026-09-06, and it failed where nothing could have told it to
+   pass.** The tag exists, on `f9318ef`. The workflow ran — run 34080892876 —
+   and stopped at the Dockerfile's `corepack enable`, exit 127, before any
+   image existed: Node 25 stopped shipping corepack, so the base has no such
+   command, and this file had never met a daemon. Fixed on `main` by
+   installing pnpm with npm at the version `packageManager` pins, with
+   `release.test.ts` holding the two together. What the tag points at is the
+   commit before that fix, so the step is not met: either the tag moves to the
+   fix — nothing was built from it and nobody pulled anything — or
+   `v1.0.0-alpha.2` is cut on it, and that is Ned's to say.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
    **Half covered**, and the half matters: `release.test.ts` asserts the
