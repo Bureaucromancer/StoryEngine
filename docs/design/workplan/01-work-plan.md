@@ -192,7 +192,7 @@ substantially the job of *unifying* three mini-vocabularies that all ship inside
 
 | Dialect | Ships | Scope, and the guard already written against it |
 |---|---|---|
-| Lorebook `activationConditions` and `schedule`, unified as channel predicates ([02 §3.3](../02-data-model.md)) | P5 | The minimal comparison set. *"Anything richer waits for the rule vocabulary and must not leak in here early"* ([P5 §1.4](07-p5-implementation.md)). |
+| Lorebook `activationConditions` and `schedule`, unified as channel predicates ([02 §3.3](../02-data-model.md)) | ~~P5~~ **P7** | The minimal comparison set. *"Anything richer waits for the rule vocabulary and must not leak in here early"* ([P5 §1.4](07-p5-implementation.md)). **Moved 2026-09-07 at [P6B.1](24-p6b-playable.md):** P5 decided in the code not to build it — the schema lists `activationConditions` as deliberately absent and the importer discards it — and no document followed, so this cell read P5 for a thing P5 had declined. A predicate needs a channel to be about, and channels become a contract at P7. |
 | `StepCondition` | P7 | A small closed set — a cadence, a stage flag, an explicit arm. *"Deliberately not an expression language… the tempting move once rules arrive is to let steps take rule predicates, and that quietly makes an internal shape depend on a portable one"* ([03 §6](../03-modes-and-turn-pipeline.md)). |
 | `PlotHook.involves`, `notBefore`, `blockedBy` | P7 | Mechanical filters that need no vocabulary at all, and carry most authored hooks (§0.4). |
 

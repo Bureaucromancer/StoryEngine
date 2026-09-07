@@ -1,8 +1,21 @@
 # 05 — P3 implementation plan
 
-**Status: rewritten against the panel; audited for readiness 2026-08-26, at
-`ba5ff4a`, and the outstanding P2 record items adopted into P3.0 the same
-day.** Drafted during P1 as a skeleton, revised once against the turn record
+**Status: ~~rewritten against the panel~~ landed**, merged into `main`
+2026-08-29 at `780a6dd`. *Audited for readiness 2026-08-26, at `ba5ff4a`, with
+the outstanding P2 record items adopted into P3.0 the same day.*
+
+**Fifteen gate steps and no record of a walk.** Step 12 — *somebody who did
+not build the turn explains it from the panel* — is PLAYABLE’s fourth
+hypothesis wearing a step number, which is why
+[26 §3.3](26-manual-ledger.md) sequences it immediately after
+[P6B.2](24-p6b-playable.md) rather than as a pass of its own.
+
+*(This status line was written 2026-09-07 at
+[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+still describing themselves as plans. It had said **plan** since before the
+phase shipped, which is how a corpus comes to record what was intended
+rather than what happened.)*
+ Drafted during P1 as a skeleton, revised once against the turn record
 as built, rewritten here because [05 §3](../05-ui-surfaces.md) changed the
 workbench's shape underneath it — and then audited three days later, because
 the P2C.0 closeout moved the record underneath §3. The audit's findings are

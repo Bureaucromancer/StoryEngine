@@ -33,7 +33,10 @@ on the day is a pass that does not happen.
 ## 1. Where every gate stands
 
 *Anchored 2026-09-07 at `bded9f7`: 2669 tests, 180 files, green, plus
-`test:gate` and `test:fixture-pair`. [12 §1](12-p2-manual-gate.md)'s own anchor
+`test:gate` and `test:fixture-pair`. **Re-anchored the same day at `39f9ee1`
+(branch `p6b`): 2687 tests, 181 files** — eighteen of them written by
+[P6B.1](24-p6b-playable.md) over code that six phases of green had not
+questioned, which is the number this file's opening claim is about. [12 §1](12-p2-manual-gate.md)'s own anchor
 reads 1186 and is two phases stale — noted rather than edited, because that
 document's anchor is a record of when it was walked and moving it would be a
 claim nobody made.*
@@ -45,7 +48,7 @@ claim nobody made.*
 | **P2C** | 4 stages | P2C.0 only | **P2C.1–.4 never ran** | The boundary has since been crossed by ordinary use; what was never done is *capture*. [P6B §1.6](24-p6b-playable.md) folds it into the play. |
 | **P3** | 15 | most | **no record of a walk** | Step 12 — *somebody who did not build the turn explains it from the panel* — is PLAYABLE's fourth hypothesis wearing a step number. §3.3. |
 | **P4** | 15 | most | **no record of a walk** | Step 1 wants a real imported library. Person-blocked with lead time. §3.4. |
-| **P5** | 18 | partly | **never walked, and §0.5 says a walk today would fail** | [P6B.1](24-p6b-playable.md) — inside that phase, not after it. |
+| **P5** | 18 | partly | **never walked; the reasons a walk would have failed are fixed** | [P6B.1](24-p6b-playable.md) prepared it — six defects fixed, four contradictions settled, steps 6/8/11/12 amended. The walk itself is outstanding and is a person's. |
 | **P6** | 14 | steps 2–14 | **unwalked** | Step 1, the wall-clock half of 14, and the demo. §3.2. |
 | **P6A** | 13 | 1, 2, 13 partly | **steps 3–12 unwalked** | A Docker daemon, an unraid host, a second machine. §3.1. Partly walked 2026-09-07 by the first install. |
 | **PLAYABLE** | the four hypotheses | none, by definition | **never run** | [P6B.2](24-p6b-playable.md). |
@@ -238,6 +241,32 @@ migration test; or write it into [P11](22-p11-implementation.md)'s audit as a
 known defect with a test to write. **The recommendation is P6B.1**, because the
 work is in the same file and the alternative is a fifth year of the same
 sentence.
+
+**Taken, and closed 2026-09-07 at `0e228ec` — and it was not the small thing
+the sentence made it sound.** Opening the code found a *live divergence* rather
+than an unreconciled asymmetry: a rebuild refused a folder whose name this build
+will not resolve and counted a silent skip, while the watcher never applied the
+rule at all and **indexed a row pointing at a file no read in this build can
+open** — every read goes back through the same builder, which throws. Indexing
+it was worse than not indexing it.
+
+**Neither the P1 gate nor any unit test could have caught it, and the two
+reasons are why it lasted six phases.** The gate compares what got indexed, and
+the disagreement was about something that did not: it lived in a table the
+comparison never read. And the folder names in question cannot be created on the
+machine this repository is developed on, so a test that made one would be a test
+that never ran here — the seam is the layout instead, which refuses one ordinary
+slug on demand.
+
+Both producers now ask the same function, the refusal is recorded rather than
+counted, a rebuild clears that table like every other stale belief it must not
+preserve, and the snapshot reads it — **an absence has to be in the comparison
+or it is not compared.**
+
+*The general lesson, since this section exists to have produced one:* the
+sentence was six phases old and read like bookkeeping. It was a defect. **A
+deferral nobody collects is not merely lost; it stops being read, and what it
+says stops being checked.**
 
 ---
 

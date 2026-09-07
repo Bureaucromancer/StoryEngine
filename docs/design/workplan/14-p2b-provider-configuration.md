@@ -1,7 +1,19 @@
 # 14 — P2B implementation plan
 
-**Status: plan, reviewed against [P2A](13-p2a-configuration-surface.md) as
-built.** Written alongside P2A and expanded as far as reading the code allowed;
+**Status: ~~plan~~ landed**, in `main` since 2026-08-22 at `6041c8c`, with the
+gate’s closing method written down at `423d9e0`. *Reviewed against
+[P2A](13-p2a-configuration-surface.md) as built.*
+
+**Eleven gate steps, nine automated, walked as far as automation goes.** The
+rest is [12 §2](12-p2-manual-gate.md)’s list, counted at
+[26 §3.5](26-manual-ledger.md).
+
+*(This status line was written 2026-09-07 at
+[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+still describing themselves as plans. It had said **plan** since before the
+phase shipped, which is how a corpus comes to record what was intended
+rather than what happened.)*
+ Written alongside P2A and expanded as far as reading the code allowed;
 §6 was a checklist of what P2A had to settle and is now the answer sheet, §6.1
 carries two things P2A created that this plan did not anticipate, and §6.2
 records what re-reading the code confirmed — every finding in §1 held. Format

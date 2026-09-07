@@ -395,30 +395,96 @@ clause of the *ends at* below belongs to [P6B.2](#p6b2--play).
 > report showing entries that fired with their reasons. **Nobody has ever been
 > able to do that.**
 
-### P6B.1 — P5's close-out
+### P6B.1 — P5's close-out — *prepared; the walk is the one part a person does*
 
-§1.3's four contradictions settled; §1.4's slot decision and the
-activated-but-unplaced report; §1.5's recursion decision with a width-N test;
-the destructive migration given the test its own doctrine demands
-(`state/migrations.ts` `STEPS[3]` drops a table while
-`state/migrations.test.ts:12-14` says none may — and deleting the
-`insert into import_item_new … select` leaves the whole suite green while every
-upgrading install loses every import review); and the one owed test, the
-`orphan-fts` assertion after an in-place rebuild.
+**Everything this stage could do without a person is done, and the stage does
+not close on it.** The *ends at* below asks for eighteen steps walked against
+HEAD, and that is not a thing a suite can hand over. What follows is what the
+walker inherits, so that the walk is a walk and not a second investigation.
 
-**Plus the two things §1.7's sweep puts here.** **F22's leftover** — the
-rebuild/watcher divergence over a refused path, and the test that asserts it —
-because the code is the code this stage is already opening and its stated owner
-is a stage that was never created. And **the five stale status lines**, which
-are minutes each and are the difference between a corpus that records what
-happened and one that records what was planned.
+**Four defects, each of which was silent and each of which now has a test that
+reddens without it** (`a6d3eb4`, `0e228ec`, `39f9ee1`):
 
-Then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and **a
-person walks all eighteen against HEAD**.
+- **`tokenBudget: 0` is unlimited**, as the schema and [10 §5](../10-schemas.md)
+  always said. The inverted reading was pinned by a test, which is why §1.3
+  named that test in advance: a test can pin a defect, and one that does is
+  evidence about the day it was written.
+- **Lore has two phases.** `SCENE_PRESET` gained `se.lore.after`, placed
+  immediately after `se.lore` in source order rather than after the history
+  splice — `after` is SillyTavern's `after_char`, which precedes the
+  conversation, and the plan's lean read it as *after everything*. Entries that
+  used to activate, spend the book's budget and vanish unreported now land; and
+  an unplaced phase is *reported*, which the discriminated `Unplaced` is for.
+- **A recursive pass is not a conversation window.** The feed is its own field,
+  unsliced, reported as `entry` rather than `message`. §1.5's decision, taken
+  the first way it offered: `scanDepth` counts messages, and recursion keeps the
+  bound it always had.
+- **The destructive migration has the test its own doctrine demands**, written
+  at the version the step leaves *from*, asserting every column rather than a
+  count.
 
-*Ends at:* P5's gate walked, with each step's outcome recorded rather than
-ticked, and 07's status line saying either that the phase closes or precisely
-what still holds it open.
+**Plus the two the sweep put here.** The owed `orphan-fts` assertion. And
+**F22's leftover, which turned out to be a live divergence rather than a
+comment**: a folder whose name this build refuses was skipped silently by a
+rebuild and *indexed* by the watcher, whose row pointed at a file no read in
+this build can open. The gate could not have caught it in either direction,
+because `snapshot` compared what got indexed and the disagreement was about
+what did not. Both producers now ask the same function, the refusal is a
+`file_error` row rather than a number nobody stored, and the snapshot reads that
+table. Its stated owner was `P2.7`, a stage that was never created — which is
+the dangling owner [26 §4.1](26-manual-ledger.md) opened on.
+
+**And step 8's two plumbing complaints, which were cheap and would otherwise
+have failed the walk for a reason the walker could not act on.** `Activation`
+carries the sticky count, `reasonFor` spends it, and the effect list prints
+`scopeKey` so four entries writing one scoped channel are four rows. The third
+complaint — `delay` has no trace in the turn record — is a design gap and the
+step now asks it as one rather than as something to hunt for.
+
+**The five stale status lines are rewritten**, and [15](15-p2c-first-real-run.md)
+had none at all, which is worse than a stale one: a reader had to reconstruct
+from the stage records that four fifths of P2C never ran.
+
+**What the walker inherits, and what is already decided so nothing is argued
+mid-walk.** Steps 6, 8, 11 and 12 are amended. Step 6 is **person-blocked** and
+that is its outcome — the book is supplied by the walker or the step is
+deferred, and it is counted with [P4 §3](06-p4-implementation.md) step 1 at
+[26 §3.4](26-manual-ledger.md), which wants the same book. Step 11's
+reproduction half is **P6's** and there is no replay entry point to look for.
+Step 12 is **P7's**: [01 §195](01-work-plan.md)'s row moved,
+[P5 §1.4](07-p5-implementation.md) is corrected, and
+[P7 §0.1](18-p7-implementation.md) carries it — so a walker records it deferred
+with an owner rather than failed, because a failed step is a defect and a
+deferred one is a plan.
+
+*Still to do, and only a person can:* walk all eighteen against HEAD, recording
+each outcome rather than ticking it, then write 07's status line — which now has
+a precise answer available to it either way.
+
+*The stage as it was written:*
+
+> §1.3's four contradictions settled; §1.4's slot decision and the
+> activated-but-unplaced report; §1.5's recursion decision with a width-N test;
+> the destructive migration given the test its own doctrine demands
+> (`state/migrations.ts` `STEPS[3]` drops a table while
+> `state/migrations.test.ts:12-14` says none may — and deleting the
+> `insert into import_item_new … select` leaves the whole suite green while every
+> upgrading install loses every import review); and the one owed test, the
+> `orphan-fts` assertion after an in-place rebuild.
+>
+> **Plus the two things §1.7's sweep puts here.** **F22's leftover** — the
+> rebuild/watcher divergence over a refused path, and the test that asserts it —
+> because the code is the code this stage is already opening and its stated owner
+> is a stage that was never created. And **the five stale status lines**, which
+> are minutes each and are the difference between a corpus that records what
+> happened and one that records what was planned.
+>
+> Then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and **a
+> person walks all eighteen against HEAD**.
+>
+> *Ends at:* P5's gate walked, with each step's outcome recorded rather than
+> ticked, and 07's status line saying either that the phase closes or precisely
+> what still holds it open.
 
 ### P6B.2 — Play
 

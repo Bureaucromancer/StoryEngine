@@ -124,6 +124,22 @@ reading the file the move in §1.1 is about:
    merely unknown** — as where that becomes something a person sees. Neither §1
    nor §2 mentions it; it belongs with P7.0 or P7.9.
 
+**And a third, handed over on 2026-09-07 by
+[P6B.1](24-p6b-playable.md), which is where P5's contradictions were settled.**
+**Lorebook `activationConditions` and `schedule`, unified as channel
+predicates** — the minimal comparison set, not 5.0's rule vocabulary.
+[01 §195](01-work-plan.md) had it as P5's; P5 decided in the code not to build
+it and no document followed, so the roadmap read P5 for four months for a thing
+P5 had declined. The decision was right and only the record was wrong: a
+predicate needs a channel to be about, and this is the phase where channels stop
+being a handful of engine-owned names and become a contract. The design is
+written already at [P5 §1.4](07-p5-implementation.md), including the posture for
+an entry naming a channel that does not exist — a **visible warning that never
+fires**, which is [P5 §3](07-p5-implementation.md)'s gate step 12 and comes with
+it. *Do not credit `unknownSources` against that step:* it is the identical
+posture for scan *sources*, but such an entry keeps scanning its other haystacks
+and can still fire, so it fails the *never fires* clause.
+
 **And one deferral that arrived after this document was written:**
 [06 C14](../06-open-questions.md), opened 2026-09-06 by the guided-redo work.
 Does guidance belong on the turn record, and if so as a field on `Turn` or read
