@@ -46,7 +46,7 @@ What the first install of Alpha 1 found, on unraid, and what it asked for.
   the template and the deploy page said _once_ — and it now ends with the token
   itself rather than carrying it only as a field, and names the file it is kept
   in: `state/setup.token` in the data directory, which host access can read
-  when the log is gone.
+  when the log is gone. The setup form says so too, under the token field.
 
 ## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-09-06
 

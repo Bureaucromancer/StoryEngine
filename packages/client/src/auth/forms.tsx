@@ -276,9 +276,18 @@ export function SetupForm(props: {
               maxLength={512}
               required
             />
+            {/*
+             * The person at this screen is the one whose log may be gone —
+             * unraid recreates the container on every template edit, and the
+             * first install found the token by opening the file, not the log
+             * ([P6A §3] step 6). The file is the copy that survives, so the
+             * form names it. One text node with the path in plain text: the
+             * sentence has to exist whole, and a test has to read it whole.
+             */}
             <p className="mt-1 text-xs text-ink-faint">
               This install is reachable from the network, so creating the first account needs the
-              token printed in the server&rsquo;s log.
+              setup token. It is printed in the server&rsquo;s log on every start until an account
+              exists, and kept at state/setup.token in the data directory.
             </p>
           </div>
         ) : null}

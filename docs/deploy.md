@@ -44,8 +44,9 @@ docker compose logs storyengine | grep 'setup token'
 The line is written on every start until an administrator exists, and it ends
 with the token. The token is also kept in the volume, at `state/setup.token`,
 so a container recreated while you were reading its log has not lost it: read
-the file, or start it again and read the line. It is required only until an
-administrator exists; after that the field is gone and the file is inert.
+the file, or start it again and read the line. The setup form says so too,
+under the token field. It is required only until an administrator exists;
+after that the field is gone and the file is inert.
 
 The console is the channel on purpose. Only somebody with host access reads it,
 and that is exactly the audience entitled to claim an unclaimed install

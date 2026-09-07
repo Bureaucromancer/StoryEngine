@@ -84,9 +84,12 @@ describe('the setup token field', () => {
     renderForm(<SetupForm minPasswordLength={8} tokenRequired={false} />);
 
     expect(screen.queryByLabelText('Setup token')).toBeNull();
+    // And so is the sentence about where the token lives: a laptop install has
+    // no token file, and a note about one would be the baffling half back.
+    expect(screen.queryByText(/setup\.token/)).toBeNull();
   });
 
-  it('is present and required when it does', () => {
+  it('is present and required when it does, and says where the token is kept', () => {
     renderForm(<SetupForm minPasswordLength={8} tokenRequired />);
 
     const field = screen.getByLabelText('Setup token');
@@ -94,6 +97,11 @@ describe('the setup token field', () => {
     // Not masked: it is pasted once out of a server console, and hiding it only
     // makes the paste harder to check.
     expect(field.getAttribute('type')).not.toBe('password');
+    // The file, not only the log: the first install found it there after the
+    // container had been recreated ([P6A §3] step 6). Matched as one element's
+    // own text, which is what keeps the sentence whole rather than split around
+    // a `<code>`.
+    expect(screen.getByText(/kept at state\/setup\.token in the data directory/)).toBeTruthy();
   });
 
   it('sends what was typed into it', async () => {
