@@ -512,7 +512,41 @@ export function snapshot(db: DatabaseSync): string[] {
     ),
     ...orphans.map((row) => ['orphan-fts', row.path, row.name, row.body].join(' | ')),
     ...loreLines(db),
+    ...errorLines(db),
   ];
+}
+
+/**
+ * The files neither producer could read, held to the same answer — [P6B.1].
+ *
+ * **The gate compared what got indexed and never what did not**, which is how
+ * F22's divergence survived: a rebuild refused a folder named `con` and the
+ * watcher indexed it, and the two snapshots agreed anyway, because the only
+ * row either side could disagree about lived in a table this function did not
+ * read. An absence has to be in the comparison or it is not compared.
+ *
+ * `seen_at` is left out on purpose. It is a clock reading, and the two
+ * producers meet the same file at different moments by construction — asserting
+ * on it would fail for the one reason that means nothing.
+ */
+function errorLines(db: DatabaseSync): string[] {
+  const rows = asRows<{
+    path: string;
+    owner: string;
+    schema_id: string;
+    slug: string;
+    reason: string;
+  }>(
+    db
+      .prepare(
+        `select path, owner, schema_id, slug, reason
+           from file_error order by path`,
+      )
+      .all(),
+  );
+  return rows.map((row) =>
+    ['file-error', row.path, row.owner, row.schema_id, row.slug, row.reason].join(' | '),
+  );
 }
 
 /**

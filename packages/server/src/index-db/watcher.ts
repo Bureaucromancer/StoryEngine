@@ -12,8 +12,8 @@ import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { appendLine, statFile, unlinkFile } from '../storage/files.js';
 import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
-import { isContained } from '../storage/paths.js';
-import { ingestFile, matureTombstones, removeFile } from './ingest.js';
+import { isContained, PathEscapeError } from '../storage/paths.js';
+import { ingestFile, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
 import { findByPath } from './query.js';
 
 /**
@@ -71,7 +71,14 @@ export interface WatcherOptions {
 const PROBE_PREFIX = '.watcher-probe-';
 
 export interface WatchEvent {
-  type: 'indexed' | 'removed' | 'suppressed' | 'ignored';
+  /**
+   * `ignored` is *not an object path*; `refused` is an object path this build
+   * will not resolve — the folder is named `con`, or ends in a space. The two
+   * were one outcome until [P6B.1], which is part of why the second went
+   * unnoticed for so long: nothing distinguished a file that was none of our
+   * business from a file we could see and could not open.
+   */
+  type: 'indexed' | 'removed' | 'suppressed' | 'ignored' | 'refused';
   path: string;
   moved?: boolean;
 }
@@ -247,6 +254,36 @@ export class LibraryWatcher {
     const parsed = this.#layout.parseObjectPath(path);
     if (!parsed) {
       this.#onChange({ type: 'ignored', path });
+      return;
+    }
+
+    /**
+     * **The name rule, applied on the way in — F22, settled at [P6B.1].**
+     *
+     * `parseObjectPath` is the inverse of `objectFile` and was never its
+     * mirror: it takes the slug apart without asking whether the slug is one
+     * this build would put back together. So a folder named `con` was indexed
+     * here and skipped by a rebuild, and the row the watcher wrote pointed at a
+     * file that no read could open — every one of them goes back through
+     * `objectFile`, which throws. Indexing it was worse than not indexing it.
+     *
+     * Asked by *calling the builder* rather than by re-testing the name, since
+     * a second copy of a rule is a rule that eventually disagrees with itself.
+     */
+    try {
+      this.#layout.objectFile(parsed.owner, parsed.schemaId, parsed.slug);
+    } catch (error) {
+      if (!(error instanceof PathEscapeError)) throw error;
+      recordUnusableName(
+        this.#db,
+        this.#layout,
+        parsed.owner,
+        parsed.schemaId,
+        parsed.slug,
+        error,
+        Date.now(),
+      );
+      this.#onChange({ type: 'refused', path });
       return;
     }
 

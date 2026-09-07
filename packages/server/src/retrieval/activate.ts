@@ -312,7 +312,15 @@ export function activate(context: ScanContext): ScanResult {
        * warnings about sources that were supplied.
        */
       haystack = {
-        messages: feeding,
+        /**
+         * **`recursed`, not `messages`** — [P6B.1]. Handed in as `messages`
+         * this was sliced by `scanDepth`, so a default book scanned only the
+         * first two fed entries and an entry's `order` silently decided which
+         * two. The field exists so the type says which text is a conversation
+         * window and which is not, rather than a flag somebody has to remember.
+         */
+        messages: [],
+        recursed: feeding,
         ...(context.input.sources === undefined ? {} : { sources: context.input.sources }),
       };
       depth = next;

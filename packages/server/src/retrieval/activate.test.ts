@@ -296,6 +296,38 @@ describe('activate', () => {
       );
     });
 
+    /**
+     * **A chain of width three, which is what no recursion test had** —
+     * [P6B.1], and the reason the defect below survived two phases.
+     *
+     * The recursive pass fed the activated entries' content in as `messages`,
+     * and `haystacksFor` sliced *that* by `scanDepth`. A default book scans two
+     * messages, so on any pass that activated three entries **only the first
+     * two fed anything into the next one** — silently, forever, with the entry
+     * that never fired reported `no-match` as though its keys were wrong.
+     *
+     * Every existing recursion test was a chain of width one, so the slice
+     * never had a second element to drop and the whole thing was invisible
+     * ([P5 §0.5]). This is that width, at the default depth.
+     */
+    it('feeds every entry that activated into the next pass, not the first scanDepth of them', () => {
+      // Three entries fire together at depth zero, and the third names the one
+      // that only recursion can reach. `scanDepth` is the default 2.
+      const one = entryOf('One', { keys: ['start'], content: 'Nothing to see.' });
+      const two = entryOf('Two', { keys: ['start'], content: 'Also nothing.' });
+      const three = entryOf('Three', { keys: ['start'], content: 'It happened at Marrow Wharf.' });
+      const target = entryOf('Marrow Wharf', { keys: ['marrow wharf'] });
+
+      const result = scan([bookOf('B', [one, two, three, target], recursive)], ['start']);
+
+      expect(firedNames(result).sort()).toEqual(['Marrow Wharf', 'One', 'Three', 'Two']);
+      const found = result.activated.find((each) => each.entry.name === 'Marrow Wharf');
+      expect(found?.by).toBe('recursive');
+      // And the hit says where it happened: another entry's text, not the
+      // conversation, which is what the surfaces show.
+      expect(found?.hit?.source).toBe('entry');
+    });
+
     it('does not recurse when the book has the switch off', () => {
       const first = entryOf('The Ferryman', { keys: ['ferryman'], content: 'Marrow Wharf.' });
       const second = entryOf('Marrow Wharf', { keys: ['marrow wharf'] });

@@ -657,6 +657,22 @@ describe('a rebuild forgets what the disk no longer has', () => {
       const lore = snapshot(library.db).filter((line) => line.startsWith('lore'));
       expect(lore).not.toHaveLength(0);
       expect(lore.filter((line) => line.includes('elsewhere'))).toEqual([]);
+
+      /**
+       * **And no orphaned search row survives it** — [P6B.1], closing the one
+       * delete [P5 §0.4]'s amendment left uncovered.
+       *
+       * That amendment set the bar at *this step is met only when deleting one
+       * of the five `DELETE`s **fails** it*, and for `delete from object_fts`
+       * it did not: an `object_fts` row whose object row is gone is tagged
+       * `orphan-fts` by the snapshot, and that line begins with neither
+       * `object` nor `lore` — so both assertions above stayed green while a
+       * stale search row survived a rebuild, and every other test in the suite
+       * did too ([P5 §0.5]). Production impact was nil, because the line was
+       * present and correct; what was missing was anything that would notice
+       * if it stopped being.
+       */
+      expect(snapshot(library.db).filter((line) => line.startsWith('orphan-fts'))).toEqual([]);
     } finally {
       await library.dispose();
     }
