@@ -66,6 +66,11 @@ type BlockSource =
    *  `giveGuidance`, a Narrative Director push — and the workbench should be
    *  able to say which without three sources to keep in step. */
   | { kind: "guidance"; producer: "user" | "rule" | "step" }
+  /** The previous attempt a guided redo showed the model ([03 §5.1]). `turnId`
+   *  is the sibling whose output was shown — what makes *which attempt* a
+   *  question the record answers; null only when a preset emits the slot over
+   *  nothing, the claim `persona`'s nulls make. */
+  | { kind: "attempt"; turnId: TurnId | null }
   /** What the player just did. Not `history`: history is turns that happened,
    *  and this is the one that is happening. */
   | { kind: "input" }
@@ -88,6 +93,15 @@ definition — but the only source it could have claimed was `step`, one of the
 two `SlotSource` excludes. So a preset could not position the one block that
 section says it positions. Found when the first real producer needed a source to
 declare.
+
+**`attempt` was added on `main` after P6A, and it is the first slot whose
+content is another turn's output.** That is why it carries a `turnId` the way
+`history` does and the advisory marker the way `guidance` does, and why it is a
+slot of its own rather than a fourth producer of `guidance`: the block table has
+to say which attempt the instruction was about, and a producer field cannot
+name a turn. The same route as guidance in every other respect — the runner
+collects it, no step is handed it, and the firewall refuses it from anything
+that is not prose.
 
 The identifiers (`actorId`, `entryId`, `stepId`) are what make a block's
 provenance clickable in the workbench — *which* lore entry, not just "a lore

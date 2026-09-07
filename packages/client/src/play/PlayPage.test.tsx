@@ -759,6 +759,135 @@ describe('the two gestures', () => {
     });
     expect((box as HTMLInputElement).value).toBe('I was still writing this.');
   });
+
+  /**
+   * Either gesture may carry an instruction — [03 §5.1], [09 §7]. What these
+   * pin is the pairing rule: `guidance` and `redoOf` travel together or not at
+   * all, and a plain gesture's body is exactly what it was.
+   */
+  describe('with guidance', () => {
+    const NOTE = 'Make it rain harder.';
+
+    /** Renders two turns, opens the second one's field and types the note. */
+    async function openAndType(): Promise<void> {
+      readTranscript.mockResolvedValue({ turns: [TURN, ROLLED] });
+      renderPage();
+      await screen.findByText('He does not look up.');
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo with guidance' })[1]!);
+      await userEvent.type(screen.getByRole('textbox', { name: 'What should change?' }), NOTE);
+    }
+
+    it('redoes with the note, naming the attempt it is about', async () => {
+      await openAndType();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            text: 'I ask about the ferryman.',
+            parentTurnId: 'turn-1',
+            rewriteOf: 'turn-2',
+            // The attempt the note refers to — sent with the note, never
+            // without it.
+            redoOf: 'turn-2',
+            guidance: NOTE,
+          }),
+        );
+      });
+    });
+
+    it('rerolls with the note, still without the tape', async () => {
+      await openAndType();
+      await userEvent.click(screen.getByRole('button', { name: 'Reroll' }));
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({ parentTurnId: 'turn-1', redoOf: 'turn-2', guidance: NOTE }),
+        );
+      });
+      expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('rewriteOf');
+    });
+
+    it('submits the default gesture on Enter', async () => {
+      await openAndType();
+      await userEvent.keyboard('{Enter}');
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({ rewriteOf: 'turn-2', redoOf: 'turn-2', guidance: NOTE }),
+        );
+      });
+    });
+
+    it('sends neither field when the note is open but empty', async () => {
+      readTranscript.mockResolvedValue({ turns: [TURN, ROLLED] });
+      renderPage();
+      await screen.findByText('He does not look up.');
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo with guidance' })[1]!);
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalled();
+      });
+      // A plain redo, exactly: sending `redoOf` on its own would show the
+      // model a reply with no instruction about it.
+      expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('guidance');
+      expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('redoOf');
+    });
+
+    it('closes the field once a gesture has spent it', async () => {
+      await openAndType();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalled();
+      });
+      // One-shot, like the composer's box: the note went with the gesture, and
+      // the field does not stay open offering to send it again. It cannot be
+      // reopened here to read the note back — the turn is running and the
+      // toggle is disabled with everything else — which is why the next test
+      // reads it back through a close and a reopen instead.
+      expect(screen.queryByRole('textbox', { name: 'What should change?' })).toBeNull();
+    });
+
+    it('discards a note when the field is closed, so a hidden note cannot ride along', async () => {
+      await openAndType();
+      const toggle = (): Promise<void> =>
+        userEvent.click(screen.getAllByRole('button', { name: 'Redo with guidance' })[1]!);
+
+      await toggle();
+      expect(screen.queryByRole('textbox', { name: 'What should change?' })).toBeNull();
+      // Reopened, it is empty: closing forgot the note rather than hiding it.
+      await toggle();
+      expect(
+        screen.getByRole<HTMLInputElement>('textbox', { name: 'What should change?' }).value,
+      ).toBe('');
+
+      // And a plain Redo after closing sends the plain body.
+      await toggle();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalled();
+      });
+      expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('guidance');
+      expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('redoOf');
+    });
+
+    it('offers the field only on a turn that can be redone', async () => {
+      // A turn with no input is not one a person wrote, so there is nothing
+      // to attempt again — the same gate Redo itself sits behind. Built
+      // without the key rather than with an undefined one, which
+      // `exactOptionalPropertyTypes` correctly refuses.
+      const divergence: TurnRecord = { ...ROLLED };
+      delete divergence.input;
+      readTranscript.mockResolvedValue({ turns: [TURN, divergence] });
+      renderPage();
+      await screen.findByText('He does not look up.');
+
+      expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
+    });
+  });
 });
 
 /**

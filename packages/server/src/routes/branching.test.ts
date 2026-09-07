@@ -85,7 +85,12 @@ async function takeTurn(
   key: string,
   headTurnId: string | null,
   text: string,
-  branchFrom?: { parentTurnId?: string | null; rewriteOf?: string },
+  branchFrom?: {
+    parentTurnId?: string | null;
+    rewriteOf?: string;
+    redoOf?: string;
+    guidance?: string;
+  },
 ): Promise<{ status: number; body: any }> {
   const accepted = await server.request({
     method: 'POST',
@@ -540,5 +545,186 @@ describe('rewrite replays the draws, and reroll does not', () => {
     expect(refused.status).toBe(404);
     expect(refused.body.error).toBe('no-such-turn');
     expect((await turnsOnDisk(sessionId)).size).toBe(0);
+  });
+
+  /**
+   * Either may carry an instruction — [03 §5.1], [09 §7]. A guided redo names
+   * the attempt it is redoing (`redoOf`) so the model is shown it beside the
+   * instruction; the words half and the draws half are independent, which is
+   * what the last two tests pin.
+   *
+   * Scripted with distinct outputs, because a redo's *input* is the original's
+   * and only the outputs can tell the attempt apart from the history.
+   */
+  describe('and either may carry an instruction — a guided redo', () => {
+    const FIRST = 'First: he did not look up.';
+    const SECOND = 'Second: he looked up.';
+
+    function attemptBlocksOf(turn: Turn): { turnId: string | null; text: string }[] {
+      return (turn.request?.calls ?? [])
+        .flatMap((call) => call.blocks ?? [])
+        .flatMap((block) =>
+          block.source.kind === 'attempt'
+            ? [{ turnId: block.source.turnId, text: block.text }]
+            : [],
+        );
+    }
+
+    function sentTo(index: number): string {
+      return (provider.requests[index]?.messages ?? [])
+        .map((message) => message.content)
+        .join('\n');
+    }
+
+    it('carries the attempt it was told about, on the record and on the wire', async () => {
+      provider.setScript([{ text: FIRST }, { text: SECOND }]);
+      const sessionId = await rollingSession();
+      const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+      const firstId = first.body.turnId as string;
+      const original = await turnOnDisk(sessionId, firstId);
+      expect(original.output?.text).toBe(FIRST);
+
+      const guided = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+        parentTurnId: original.parentTurnId,
+        rewriteOf: firstId,
+        redoOf: firstId,
+        guidance: 'Make him look up.',
+      });
+      expect(guided.status).toBe(202);
+      const redo = await turnOnDisk(sessionId, guided.body.turnId as string);
+
+      // A sibling, rewriting: the tape replays as before, because the
+      // instruction and the attempt are advisory blocks and touch no draw.
+      expect(redo.parentTurnId).toBe(original.parentTurnId);
+      expect(redo.tape.length).toBeGreaterThan(0);
+      expect(redo.tape.every((draw) => draw.replayed)).toBe(true);
+
+      // **On the record**: one attempt block, naming the turn, advisory,
+      // wrapped rather than bare. The falsifying mutations are forgetting the
+      // runner's spread (no block), reading the wrong turn (wrong id), and
+      // dropping the wrapper (bare prose as a system message).
+      const blocks = (redo.request?.calls ?? []).flatMap((call) => call.blocks ?? []);
+      const attempt = blocks.filter((block) => block.source.kind === 'attempt');
+      expect(attempt).toHaveLength(1);
+      expect(attempt[0]?.source).toEqual({ kind: 'attempt', turnId: firstId });
+      expect(attempt[0]?.id).toBe('se.attempt');
+      expect(attempt[0]?.advisory).toBe(true);
+      expect(attempt[0]?.included).toBe(true);
+      expect(attempt[0]?.role).toBe('system');
+      expect(attempt[0]?.text).toContain(FIRST);
+      expect(attempt[0]?.text).not.toBe(FIRST);
+      // And the instruction beside it, in its own block.
+      expect(blocks.find((block) => block.source.kind === 'guidance')?.text).toBe(
+        'Make him look up.',
+      );
+
+      // **On the wire**: the provider was handed the attempt, attributed to
+      // its block — by block id, since a merged message still says which
+      // blocks it came from.
+      expect(
+        provider.requests[1]?.messages.some((message) => message.fromBlocks.includes('se.attempt')),
+      ).toBe(true);
+      expect(sentTo(1)).toContain(FIRST);
+    });
+
+    it('keeps the attempt out of the history the next turn assembles from', async () => {
+      provider.setScript([{ text: FIRST }, { text: SECOND }, { text: 'Third: he left.' }]);
+      const sessionId = await rollingSession();
+      const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+      const original = await turnOnDisk(sessionId, first.body.turnId as string);
+
+      const guided = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+        parentTurnId: original.parentTurnId,
+        redoOf: original.id,
+        guidance: 'Make him look up.',
+      });
+      const redoId = guided.body.turnId as string;
+
+      // A child of the redo, on the line it made — the head followed it.
+      const next = await takeTurn(sessionId, 'k3', redoId, 'I wait.');
+      const child = await turnOnDisk(sessionId, next.body.turnId as string);
+
+      expect(attemptBlocksOf(child)).toEqual([]);
+      const corpus = JSON.stringify(
+        (child.request?.calls ?? []).flatMap((call) => call.blocks ?? []),
+      );
+      // The redo itself is in the history — the guard against a vacuous pass —
+      // and neither the attempt it was shown nor the wrapper's framing is.
+      expect(corpus).toContain(SECOND);
+      expect(corpus).not.toContain(FIRST);
+      expect(corpus).not.toContain('previous attempt');
+      expect(sentTo(2)).toContain(SECOND);
+      expect(sentTo(2)).not.toContain(FIRST);
+    });
+
+    it('shows nothing on a plain redo, and the record says the slot was empty', async () => {
+      provider.setScript([{ text: FIRST }, { text: SECOND }]);
+      const sessionId = await rollingSession();
+      const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+      const original = await turnOnDisk(sessionId, first.body.turnId as string);
+
+      const plain = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+        parentTurnId: original.parentTurnId,
+        rewriteOf: original.id,
+      });
+      const redo = await turnOnDisk(sessionId, plain.body.turnId as string);
+
+      // A plain redo is *same setup, different words* ([07 §14.6]): the model
+      // is not shown a reply it might then avoid or copy. The route inventing
+      // `redoOf` from `rewriteOf` is the mutation, and it fills the slot.
+      expect(attemptBlocksOf(redo)).toEqual([]);
+      expect(sentTo(1)).not.toContain(FIRST);
+      expect(redo.request?.calls[0]?.notFilled).toContainEqual({
+        blockId: 'se.attempt',
+        source: 'attempt',
+        reason: 'empty-source',
+      });
+    });
+
+    it('draws fresh on a guided reroll, which is redoOf without rewriteOf', async () => {
+      provider.setScript([{ text: FIRST }, { text: SECOND }]);
+      const sessionId = await rollingSession();
+      const first = await takeTurn(sessionId, 'k1', null, `I ask about the ${KEY}.`);
+      const original = await turnOnDisk(sessionId, first.body.turnId as string);
+      expect(original.tape.length).toBeGreaterThan(0);
+
+      const guided = await takeTurn(sessionId, 'k2', null, `I ask about the ${KEY}.`, {
+        parentTurnId: original.parentTurnId,
+        redoOf: original.id,
+        guidance: 'Not him.',
+      });
+      const reroll = await turnOnDisk(sessionId, guided.body.turnId as string);
+
+      // The words half must not smuggle in the draws half: deriving the tape
+      // from `redoOf` is the mutation.
+      expect(reroll.tape.length).toBeGreaterThan(0);
+      expect(reroll.tape.every((draw) => !draw.replayed)).toBe(true);
+      expect(attemptBlocksOf(reroll).map((block) => block.turnId)).toEqual([original.id]);
+    });
+
+    it('refuses to show an attempt that is not in this session', async () => {
+      const sessionId = await rollingSession();
+      const elsewhere = await createSession('Another city');
+      const theirs = await takeTurn(elsewhere, 'k1', null, 'Elsewhere entirely.');
+
+      const refused = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${sessionId}/turns`,
+        payload: {
+          idempotencyKey: 'k2',
+          headTurnId: null,
+          redoOf: theirs.body.turnId as string,
+          guidance: 'Again, but here.',
+          input: { text: 'I ask again.' },
+        },
+      });
+
+      // The words are read from this server's record, and only from this
+      // session's — the same boundary the tape has. Skipping the read is the
+      // mutation: the turn would then run with an empty attempt and a 202.
+      expect(refused.status).toBe(404);
+      expect(refused.body.error).toBe('no-such-turn');
+      expect((await turnsOnDisk(sessionId)).size).toBe(0);
+    });
   });
 });

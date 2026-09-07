@@ -1416,6 +1416,15 @@ UI notes:
   "she fails the check" into the box should be able to see that this text
   reached the narrator and not the resolver — otherwise the guarantee in
   [03 §5.2](03-modes-and-turn-pipeline.md) is invisible and nobody trusts it.
+- **A redo has its own field, on the turn.** *Redo with guidance* reveals a
+  one-line field under the message; what is typed there goes with whichever of
+  Redo and Reroll is pressed next, together with that attempt's words for the
+  model to change ([03 §5.1](03-modes-and-turn-pipeline.md),
+  [09 §7](09-branching.md)). Same rules as the box: one-shot, cleared when the
+  gesture fires, and forgotten when the field is closed, so a note typed and
+  then hidden cannot ride along with a later plain Redo. It is not the refill
+  above — a redo's instruction is about *this* attempt, a fresh thing to say —
+  so that **[OPEN]** stands as written.
 
 ### 10.1 The hook panel, which is the same slot from the other side
 

@@ -75,6 +75,39 @@ describe('the default preset is a real portable object', () => {
     expect(guidance?.advisory).toBe(true);
   });
 
+  it('positions the previous attempt after the guidance, advisory, and ranked below it', () => {
+    // [03 §5.1]'s second advisory slot, the one a guided redo fills. Three
+    // claims, each with its own falsifying mutation.
+    const blocks = SCENE_PRESET.blocks;
+    const at = (of: string): number =>
+      blocks.findIndex((block) => block.kind === 'slot' && block.source.of === of);
+    const attempt = blocks[at('attempt')];
+    expect(attempt?.kind).toBe('slot');
+    if (attempt?.kind !== 'slot') return;
+
+    // Advisory in the pack, as guidance is, so an author sees the claim.
+    expect(attempt.advisory).toBe(true);
+    expect(attempt.omitWhenEmpty).toBe(true);
+    expect(attempt.role).toBe('system');
+
+    // **A wrapper, and one that frames.** Bare, the slot is a system message
+    // holding prose the model itself wrote, with nothing to say it is a
+    // discarded draft — dropping the wrapper is the mutation this catches.
+    expect(attempt.wrapper).toContain('{{content}}');
+    expect(attempt.wrapper?.replace('{{content}}', '').trim().length).toBeGreaterThan(0);
+
+    // **Directly after the guidance.** `render` merges adjacent same-role
+    // blocks and the guidance slot has no wrapper, so the other order would
+    // hand a provider the instruction as the last line of the attempt's prose.
+    expect(at('attempt')).toBe(at('guidance') + 1);
+
+    // **Below the instruction in the order of sacrifice**, as a relationship
+    // rather than a number: a squeezed redo drops the reply it is discarding
+    // before the instruction about it.
+    const priorityOf = (of: string): number | undefined => blocks[at(of)]?.priority;
+    expect(priorityOf('attempt')).toBeLessThan(priorityOf('guidance') ?? 0);
+  });
+
   it('positions the player action, and nothing else is a user-role block', () => {
     const user = SCENE_PRESET.blocks.filter((block) => block.role === 'user');
     expect(user).toHaveLength(1);

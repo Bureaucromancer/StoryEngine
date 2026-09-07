@@ -1340,6 +1340,12 @@ type SlotSource =
   /** The guidance slot. [03 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
   | { of: "guidance" }
+  /** The previous attempt a guided redo shows the model — the second advisory
+   *  slot, [03 §5.1]. Filled from the server's record of the turn a submission
+   *  names; which turn is recorded on the block. Forced advisory like
+   *  `guidance`, and the one slot that wants a `wrapper`, since bare it is an
+   *  unlabelled system message of prose the model itself wrote. */
+  | { of: "attempt" }
   /** The player's current action — not `history`, which is turns that already
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }

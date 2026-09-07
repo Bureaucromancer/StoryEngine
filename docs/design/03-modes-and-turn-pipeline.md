@@ -434,14 +434,35 @@ not concatenated into the user's turn.
 persist. Standing instructions are a different feature with a different home —
 Marinara's Author's Notes, injected every turn. Conflating the two produces
 accumulating meta-instruction, which is the failure the box exists to prevent.
-It is recorded in the turn record (so a rewrite replays it,
-[07 §14.5](07-tech-stack.md)) but does not enter the message history that later
-turns assemble from.
+It is recorded in the turn record ~~(so a rewrite replays it,
+[07 §14.5](07-tech-stack.md))~~ but does not enter the message history that
+later turns assemble from. *(Struck 2026-09-06: as built, the record keeps
+guidance only as an assembled block with its wrapper applied, and a plain redo
+resends the turn's words and not its instruction — so a rewrite does **not**
+replay it. Whether it should, and what the record would need, is
+[06 C14](06-open-questions.md).)*
 
 **One slot, several producers.** The same block can be filled by the user's box,
 by an authored rule's `giveGuidance` effect ([08 §3](08-infinite-worlds.md)), or
 by a step such as a Narrative Director push. Treating them as one slot means the
 rule below applies to all of them without three separate arguments.
+
+**A second advisory slot: the previous attempt — DECIDED.** A redo may carry
+an instruction ([09 §7](09-branching.md)), and "make it rain harder" needs an
+*it*: on a guided redo the model is shown the sibling it is redoing, beside the
+instruction saying what to change. That is a slot of its own rather than a
+fourth producer of this one — the content is prose the model wrote, not an
+instruction, and the record has to say *which* attempt was shown — so it has
+its own `SlotSource` and `BlockSource` arm, `attempt`, carrying the turn id
+([10 §8.2](10-schemas.md), [13 §1.1](13-internal-contracts.md)). Everything
+else about it is this section again: positioned by the preset, with a wrapper
+that says what it is; advisory, forced by the collector rather than left to the
+author, and refused by §5.2's firewall; one-shot; recorded in the turn record
+as a block and never entering the history later turns assemble from. What
+fills it is the server's own record — the submission names a turn, as it does
+for the tape ([07 §14.5](07-tech-stack.md)) — so the model is shown what was
+written and not what a client says was. A plain redo sends nothing here, and
+its prompt is exactly what it was.
 
 ### 5.2 Guidance is advisory, and must not reach systematic outcomes
 
@@ -457,6 +478,11 @@ Concretely, guidance is excluded from:
   ([08 §3](08-infinite-worlds.md));
 - any **engine-computed** channel update ([§4](#4-channels-the-extensibility-mechanism-that-matters));
 - extraction/classification steps whose output is applied as channel effects.
+
+The previous attempt of a guided redo ([§5.1](#51-the-guidance-slot)) carries
+the same marker and sits behind the same refusals, for a sharper reason than
+the instruction does: it is the model's own discarded reply, and an extractor
+that saw it would record the events of a reply nobody kept as having happened.
 
 The fuzzy-condition case is the sharp one and the reason this needs stating
 rather than assuming. Those *are* model calls. If guidance were in their context,

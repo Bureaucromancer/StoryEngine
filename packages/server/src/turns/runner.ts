@@ -63,6 +63,19 @@ export interface TurnPayload {
   /** The guidance box. Its own field, never concatenated into the action ([03 §5.1]). */
   guidance?: string;
   /**
+   * The attempt a guided redo is redoing — its words, to show — [03 §5.1],
+   * [09 §7]. The other half of a redo: `replay` below says *whose draws*, this
+   * says *whose words*, and the two are independent on the wire because a
+   * guided reroll wants the second without the first.
+   *
+   * Read from the server's own record by the route, for the reason the tape
+   * is. It reaches the prompt only as a candidate the runner collects, marked
+   * advisory — never through `StepInput`, which withholds it as it withholds
+   * guidance, and never onto the draft turn, which is what keeps a discarded
+   * reply out of the history every later turn assembles from.
+   */
+  attempt?: { turnId: string; text: string };
+  /**
    * A previous turn's draws, to replay — **rewrite**, [07 §14.5], [P6.2].
    *
    * Present means *same mechanical outcome, different prose*: the roll that
@@ -528,6 +541,7 @@ export class TurnRunner {
                 carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
                 ...(payload.input === undefined ? {} : { input: payload.input }),
                 ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
+                ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
               });
 
               const outcome = await performCall(

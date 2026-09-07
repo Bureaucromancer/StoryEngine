@@ -133,7 +133,10 @@ const LoreBody = Type.Object(
  * sent*, so the preview's inputs cannot drift from the submission's. What it
  * deliberately lacks is the half about *committing*: no `idempotencyKey`,
  * because nothing is reserved, and no `headTurnId`, because nothing is
- * committed against one.
+ * committed against one. Nor the two fields that make a submission a redo —
+ * `rewriteOf` and `redoOf` — which do describe what would be sent, and are
+ * absent because a redo is submitted from a turn's controls rather than
+ * composed: the gestures submit, they do not preview.
  */
 const PreviewBody = Type.Object(
   {
@@ -183,6 +186,25 @@ const SubmitBody = Type.Object(
      * a reroll, which is also every ordinary turn.
      */
     rewriteOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * Show this turn's words to the model as the previous attempt — the other
+     * half of a redo, [03 §5.1], [09 §7].
+     *
+     * A turn id rather than the text, for the reason `rewriteOf` is a turn id
+     * rather than a tape: the words are read from this server's record, so the
+     * model is shown what was written and not what a client says was. Absent
+     * is every plain redo and every ordinary turn, whose prompt is exactly
+     * what it was before this field existed.
+     *
+     * Independent of `rewriteOf`, because they answer different questions —
+     * *whose draws* and *whose words*. A guided rewrite names both with one
+     * id; a guided reroll names this one alone. Usually sent with `guidance`,
+     * which is the instruction the attempt gives an *it* to, but the schema
+     * does not couple them: an attempt shown without an instruction is a
+     * legitimate, if blunt, request. Not required to be a sibling — see the
+     * handler.
+     */
+    redoOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     input: Type.Object({
       text: Type.String({ maxLength: 100_000 }),
       actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -782,6 +804,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         headTurnId: string | null;
         parentTurnId?: string | null;
         rewriteOf?: string;
+        redoOf?: string;
         input: { text: string; actorId?: string | null; kind?: string };
         guidance?: string;
       };
@@ -807,6 +830,42 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
         replay = rewritten.tape;
+      }
+
+      /**
+       * The attempt a guided redo shows the model, read from the record for
+       * the same reason — [03 §5.1], [09 §7]. A guided rewrite names one turn
+       * twice, once for its draws and once for its words, and the second read
+       * is an index hit; sharing the first would save less than it costs in
+       * hoisting.
+       *
+       * **Not required to be a sibling, and that is a decision.** `rewriteOf`
+       * asks nothing beyond *in this session* either; the client sends
+       * `redoOf: turn.id` beside `parentTurnId: turn.parentTurnId`, so the
+       * attempt is a sibling by construction; and the record carries the id,
+       * so a third-party client's odder choice is visible in the block table
+       * rather than refused at the door. A check would also need the head for
+       * a submission that left `parentTurnId` out, which is a session read
+       * `submitTurn` is about to make under the lock.
+       *
+       * A failed attempt may have no output. Its text is then empty, the
+       * shipped slot omits it, the guidance still travels, and the record's
+       * `notFilled` says the slot was empty — which is the truth.
+       */
+      let attempt: { turnId: string; text: string } | undefined;
+      if (body.redoOf !== undefined) {
+        const previous = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.redoOf,
+        );
+        if (previous === null) {
+          return reply
+            .code(404)
+            .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
+        }
+        attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
       }
 
       const outcome = await submitTurn(services.jobs, {
@@ -869,13 +928,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body, replay));
+            services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body, replay));
+          services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -990,10 +1049,20 @@ function payloadOf(
     input: { text: string; actorId?: string | null; kind?: string };
     guidance?: string;
   },
-  replay?: Tape,
+  /**
+   * What the route read off the record on the submission's behalf — the tape
+   * a rewrite replays and the attempt a guided redo shows. An object rather
+   * than two optional positionals, because `payloadOf(body, undefined,
+   * attempt)` is the call somebody would eventually write.
+   */
+  fromRecord: {
+    replay?: Tape | undefined;
+    attempt?: { turnId: string; text: string } | undefined;
+  },
 ): {
   input: { actorId: string | null; kind: string; text: string; raw: string };
   guidance?: string;
+  attempt?: { turnId: string; text: string };
   replay?: Tape;
 } {
   return {
@@ -1006,7 +1075,8 @@ function payloadOf(
       raw: body.input.text,
     },
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
-    ...(replay === undefined ? {} : { replay }),
+    ...(fromRecord.attempt === undefined ? {} : { attempt: fromRecord.attempt }),
+    ...(fromRecord.replay === undefined ? {} : { replay: fromRecord.replay }),
   };
 }
 

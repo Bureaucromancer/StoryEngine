@@ -64,6 +64,13 @@ newer one has touched
   [docs/deploy.md](docs/deploy.md) — starting with the fact that the package is
   private, so nothing pulls until you have logged in.
 - **A favicon** — the wordmark's initial on a typewriter key.
+- **Redo with guidance.** A turn's Redo and Reroll can carry an instruction
+  saying what to change, typed into a field the turn reveals, and the model is
+  then shown the attempt it is redoing beside it — so "make it rain harder"
+  has an *it*. On the wire the submission names the attempt (`redoOf`) the way
+  a rewrite names its tape; the record carries the attempt as its own advisory
+  block, naming the turn, and it never enters history. With the field empty,
+  both buttons do exactly what they did.
 
 ### Fixed
 

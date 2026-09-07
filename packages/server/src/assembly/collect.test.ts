@@ -84,6 +84,87 @@ function actorWith(name: string, body: string): Actor {
   };
 }
 
+describe('the previous attempt is the second advisory slot', () => {
+  // [03 §5.1]: a guided redo shows the model the attempt it is redoing. Tested
+  // under the same rule as guidance — a preset declaring `advisory: false` —
+  // because the shipped preset sets it true and would falsify nothing.
+  const ATTEMPT = { turnId: 't-first', text: 'He did not look up.' };
+
+  it('fills the text, applies the wrapper, and names the turn it came from', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.attempt',
+            source: { of: 'attempt' },
+            wrapper: 'Previously:\n\n{{content}}',
+          }),
+        ]),
+        attempt: ATTEMPT,
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe('Previously:\n\nHe did not look up.');
+    // The id is what makes *which attempt* answerable from the record; the
+    // falsifying mutation is stamping null unconditionally, or reading the
+    // guidance text into this slot.
+    expect(candidates[0]?.source).toEqual({ kind: 'attempt', turnId: 't-first' });
+  });
+
+  it('marks it advisory even when the preset says not to, and the effects call refuses it', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({ kind: 'slot', id: 'se.attempt', source: { of: 'attempt' }, advisory: false }),
+        ]),
+        attempt: ATTEMPT,
+      }),
+    );
+
+    expect(candidates[0]?.advisory).toBe(true);
+    // Dropping `'attempt'` from `emit()`'s forced union is the mutation: the
+    // block would then walk the model's own discarded reply into an extractor.
+    expect(() => assemble({ candidates, policy: GENEROUS, purpose: 'effects' })).toThrow(
+      /Advisory block/,
+    );
+  });
+
+  it('records an empty slot as empty-source when there is no attempt to show', () => {
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([block({ kind: 'slot', id: 'se.attempt', source: { of: 'attempt' } })]),
+      }),
+    );
+
+    expect(candidates).toHaveLength(0);
+    // `unknown-slot` is what a missing `emptyReason` arm reads — which would
+    // tell an author their preset names a slot this build has not heard of.
+    expect(notFilled).toEqual([
+      { blockId: 'se.attempt', source: 'attempt', reason: 'empty-source' },
+    ]);
+  });
+
+  it('records null for the turn when a preset emits the slot over nothing', () => {
+    // The persona claim, one slot over: the author asked for the block, and
+    // there was no attempt.
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([
+          block({
+            kind: 'slot',
+            id: 'se.attempt',
+            source: { of: 'attempt' },
+            omitWhenEmpty: false,
+          }),
+        ]),
+      }),
+    );
+    expect(candidates[0]?.source).toEqual({ kind: 'attempt', turnId: null });
+  });
+});
+
 describe('the advisory firewall is structural, not an author preference', () => {
   it('marks a guidance slot advisory even when the preset says not to', () => {
     // **The mechanism the whole rule rests on.** `assemble` keys its refusal on

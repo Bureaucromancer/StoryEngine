@@ -190,6 +190,14 @@ describe('submitting a turn', () => {
     const bad = await submit({ mode: 'scene' });
     expect(bad.status).toBe(400);
   });
+
+  it('rejects an empty redoOf, which names no turn', async () => {
+    // `minLength: 1`, as `rewriteOf` has: an empty id is a malformed request
+    // rather than a turn that is not there, and it should not reach the read
+    // that would answer 404.
+    const bad = await submit({ redoOf: '' });
+    expect(bad.status).toBe(400);
+  });
 });
 
 describe('the stream', () => {
@@ -588,8 +596,9 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 13 since the writing-samples slot ([10 §3.1]).
-    expect(created.body.session.preset.blocks).toHaveLength(13);
+    // gains a block — 14 since the previous-attempt slot ([03 §5.1]), 13 from
+    // the writing-samples slot ([10 §3.1]) before it.
+    expect(created.body.session.preset.blocks).toHaveLength(14);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 

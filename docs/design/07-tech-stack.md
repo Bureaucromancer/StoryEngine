@@ -931,6 +931,15 @@ from being save-scumming by accident: fail a check, swipe, succeed. Both
 operations are legitimate — the point is that the user should be choosing, not
 discovering.
 
+**Either may carry an instruction.** A redo can say what to change, and then
+the model is shown the attempt it is redoing beside the instruction
+([03 §5.1](03-modes-and-turn-pipeline.md), [09 §7](09-branching.md)). The tape
+half and the words half are independent on the wire — `rewriteOf` names whose
+draws, `redoOf` names whose words — so a guided rewrite names one turn twice
+and a guided reroll names it once. Neither block touches a draw: "not that
+sentence" and "not that outcome" stay different requests, each now sayable
+with a reason.
+
 ### 14.6 What the tape covers, and how it is keyed
 
 **Everything drawn during the turn**, not only the obvious dice: engine-computed
@@ -940,6 +949,11 @@ entry activation (Marinara's per-entry `probability`,
 reproduces the same assembled context as well as the same outcome, which gives
 the honest and predictable definition: *same setup, same result, different
 words*.
+
+A *guided* rewrite ([§14.5](#145-rewrite-and-reroll--decided)) adds two
+advisory blocks to that context — the instruction and the attempt it refers to
+— and nothing to the tape, so it is *same result, different words, for a
+stated reason*. The plain gesture is unchanged, and stays the default.
 
 **Not covered: the model's own sampling.** That belongs to the provider, and it
 is precisely the source of the new prose. A consequence worth stating plainly —

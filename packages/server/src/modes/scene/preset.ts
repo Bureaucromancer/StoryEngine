@@ -8,8 +8,12 @@ import type { Preset } from '@storyengine/shared';
  *
  * **A literal value, not `newPreset()` plus mutation**, and that is not style:
  * the factory mints a fresh `uuidv7()` and stamps `now()`, and this object is
- * copied into every session and snapshotted by a golden test. A new id or
- * timestamp per process makes both non-reproducible.
+ * copied into every session and pinned, field by field where it matters, in
+ * `mode.test.ts`. A new id or timestamp per process makes both
+ * non-reproducible. (This said *snapshotted by a golden test* for six phases
+ * and there has never been one — the repo's only inline snapshot is
+ * `assemble.test.ts`'s, over hand-built candidates — so it now names the test
+ * that exists.)
  *
  * **A code constant rather than a file seeded into `system/library/presets/`.**
  * [P2 §2.4] says the mode relocates behind the SDK unchanged, and a mode that
@@ -262,6 +266,54 @@ export const SCENE_PRESET: Preset = {
       source: {
         of: 'guidance',
       },
+    },
+    /**
+     * The previous attempt a guided redo shows the model — [03 §5.1], [09 §7].
+     *
+     * **The first shipped block with a `wrapper`, and it needs one.** Bare,
+     * the slot is a system message holding prose the model itself wrote, with
+     * nothing to say what it is; the wrapper is the sentence that makes it a
+     * discarded draft rather than a continuation. It is written to stand on
+     * its own, because the schema does not couple `redoOf` to `guidance` and
+     * an attempt can arrive without an instruction.
+     *
+     * **After `se.guidance`, not before it.** `render` merges adjacent
+     * same-role blocks with a blank line and the guidance slot has no wrapper,
+     * so attempt-then-guidance would hand a provider *…the attempt's last
+     * paragraph* followed by *Keep it short.* — the instruction reading as the
+     * last line of the prose it is about. This way round the wrapper's framing
+     * sentence is the seam between the two.
+     *
+     * **Priority 50**, which is a position in the order of sacrifice rather
+     * than a number: under pressure the attempt goes after every actor detail
+     * section (30–40), the lore (25), the samples (20) and the whole history
+     * run (10..29), and before the treatment (60), the persona (70) and the
+     * instruction it exists to serve (80). A squeezed redo that forgot who the
+     * character was but remembered the reply it is discarding would have the
+     * order backwards, which is what 75 would have done. `mode.test.ts` pins
+     * the relationship to guidance and leaves the number free.
+     *
+     * Advisory in the pack as well as forced by the collector — an author
+     * reading the preset should see the claim, not just inherit it.
+     */
+    {
+      id: 'se.attempt',
+      label: 'previous attempt',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 50,
+      appliesTo: [],
+      advisory: true,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'attempt',
+      },
+      wrapper:
+        'This is the previous attempt at this turn. The player asked for a different one — do not repeat it.\n\n{{content}}',
     },
     {
       id: 'se.input',

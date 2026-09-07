@@ -20,6 +20,8 @@ import type { BlockSource } from '@storyengine/shared';
  *   a label until one does.
  * - **history** names a turn, not a library object; its address arrives with
  *   the compare view (P3.6).
+ * - **attempt** names a turn too — the sibling a guided redo showed the model
+ *   ([03 §5.1]) — and gets its address with history's, for the same reason.
  * - **samples** names a sample inside whichever object carried it. The actor
  *   carrier links, for the reason `actor` does — it is a library object with a
  *   page. Treatment and Lorebook get a label until those pages exist.
@@ -62,6 +64,7 @@ const SOURCE_LABELS: Record<string, string> = {
   setting: 'Setting',
   goal: 'Goal',
   guidance: 'Guidance',
+  attempt: 'Previous attempt',
   input: 'Action',
   preset: 'Preset',
   step: 'Step',

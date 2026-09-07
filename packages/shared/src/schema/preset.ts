@@ -185,6 +185,28 @@ export const SlotSource = Type.Union(
      */
     Type.Object({ of: Type.Literal('guidance') }),
     /**
+     * The previous attempt — the second advisory slot, [03 §5.1], [09 §7].
+     *
+     * On a *guided* redo the model is shown the sibling it is redoing, beside
+     * the instruction saying what to change: "make it rain harder" needs an
+     * *it*. What fills the slot is that sibling's `output.text`, read from the
+     * server's own record and never from the wire — the posture the tape takes
+     * ([07 §14.5]), so a client cannot show the model words the record does
+     * not hold. Which sibling is recorded on the emitted block, as the producer
+     * is for `guidance`.
+     *
+     * Advisory for a sharper reason than the instruction is: the text is the
+     * model's own discarded reply, and an extractor that saw it would record
+     * the events of a reply nobody kept as having happened. The collector
+     * forces the marker exactly as it does for `guidance`, so a preset that
+     * clears it changes nothing.
+     *
+     * Added rather than substituted, so every preset written before it keeps
+     * meaning what it meant, and an older build's collector skips the arm it
+     * has not heard of rather than refusing the file.
+     */
+    Type.Object({ of: Type.Literal('attempt') }),
+    /**
      * What the player just did. **Not `history`**, which is turns that already
      * happened — this is the one that is happening, and every preset decides
      * where it sits relative to the lore and the instructions.

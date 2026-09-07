@@ -186,7 +186,7 @@ async function readNewestTurn(): Promise<{
       purpose: string;
       blocks: {
         id: string;
-        source: { kind: string; producer?: string };
+        source: { kind: string; producer?: string; turnId?: string | null };
         reason: string;
         role: string;
         text: string;
@@ -448,7 +448,11 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
     ],
   };
 
-  async function runBothKinds(): Promise<void> {
+  async function runBothKinds(
+    payload: { guidance?: string; attempt?: { turnId: string; text: string } } = {
+      guidance: GUIDANCE,
+    },
+  ): Promise<void> {
     borrowedRunner = new TurnRunner({
       commit: server.services.commit,
       bus: server.services.bus,
@@ -475,7 +479,7 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
 
     borrowedRunner.start(outcome.job, {
       input: { actorId: null, kind: 'do', text: INPUT, raw: INPUT },
-      guidance: GUIDANCE,
+      ...payload,
     });
     await borrowedRunner.settle();
   }
@@ -553,5 +557,34 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
     // record the invariant reads: advisory blocks appear only beside calls
     // whose every member is prose.
     expect(record.request.calls.map((call) => call.purpose)).toEqual(['prose']);
+  });
+
+  /**
+   * The second advisory slot, under the same pair — [03 §5.1]. Run **without
+   * guidance**, because with both blocks present a refusal could be either's,
+   * and this is the claim that the attempt alone is enough to be refused.
+   */
+  it('refuses the previous attempt from the effects call and hands it to the prose call', async () => {
+    const ATTEMPT = 'She had opened the door once already.';
+    await runBothKinds({ attempt: { turnId: 'the-first-try', text: ATTEMPT } });
+    const record = await readNewestTurn();
+
+    // One request: the refusal is a throw in `assemble()`, not a filter.
+    expect(provider.requests).toHaveLength(1);
+    expect(
+      provider.requests[0]?.messages.some((message) => message.fromBlocks.includes('se.attempt')),
+    ).toBe(true);
+    expect(sentText(provider.requests[0])).toContain(ATTEMPT);
+
+    // Refused by name, and the turn survived it.
+    expect(record.steps[1]?.error?.reason).toBe('advisory-leak');
+    expect(record.request.calls.map((call) => call.purpose)).toEqual(['prose']);
+
+    // On the record: advisory, and naming the attempt it showed.
+    const attempt = record.request.calls
+      .flatMap((call) => call.blocks)
+      .find((block) => block.source.kind === 'attempt');
+    expect(attempt?.advisory).toBe(true);
+    expect(attempt?.source).toEqual({ kind: 'attempt', turnId: 'the-first-try' });
   });
 });

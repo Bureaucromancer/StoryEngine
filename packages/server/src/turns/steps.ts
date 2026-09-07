@@ -144,7 +144,8 @@ export function callPurposeFor(step: StepDefinition): CallPurpose {
  * `assemble` would admit it: the refusal keys on `Candidate.advisory`, not on
  * where the words came from. Guidance therefore reaches the prompt only as a
  * candidate the *runner* collects, marked advisory, and never passes through a
- * step at all.
+ * step at all. The previous attempt a guided redo shows the model
+ * ([03 §5.1]) is withheld for the same reason, and by the same route.
  *
  * Serialisable both ways, because [01 §2] makes the step contract async and
  * serialisable a day-one item — the boundary P7 moves to a worker is this one,

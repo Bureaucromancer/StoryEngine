@@ -709,6 +709,22 @@ since the randomizer is the first production step that draws; do *(b)* whenever
 provenance is next touched; decide *(c)* with the dice extension, which needs
 the same slot. *[22 §5]*
 
+**C14. Does guidance belong on the turn record? — OPEN.** [03 §5.1] said a
+rewrite replays the guidance of the turn it redoes, and the build does not:
+`Turn` ([02 §8]) has no field for it, the record keeps it only as an assembled
+block with its wrapper already applied, and the client's redo resends the
+turn's words and not its instruction. The sentence is struck, and the gap is
+recorded here rather than closed because it is two questions dressed as one.
+*(a)* Should a plain redo carry the original's instruction at all? It was
+one-shot, written for an attempt now being discarded, and half the time the
+redo is *because* of what it produced. *(b)* If so, where does the text live —
+a `guidance` field on `Turn`, which is free-to-move tier and cheap, or a read
+back from the block table, which is lossy once a wrapper has touched it. Decide
+together with [05 §10]'s one-click refill, which is the same question from the
+composer's side: guidance outliving the turn it was typed for. The guided redo
+([09 §7]) does not wait on this — its instruction is new, and its record says
+what was asked. *[03 §5.1, 05 §10, 09 §7]*
+
 ---
 
 ## D. Deployment questions

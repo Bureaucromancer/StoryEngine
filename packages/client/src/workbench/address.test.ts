@@ -39,6 +39,8 @@ const EVERY_ARM: BlockSource[] = [
   { kind: 'treatment', part: 'framing' },
   { kind: 'goal', goalId: 'g-1' },
   { kind: 'guidance', producer: 'user' },
+  { kind: 'attempt', turnId: 't-0' },
+  { kind: 'attempt', turnId: null },
   { kind: 'input' },
   { kind: 'preset', blockId: 'b-1' },
   { kind: 'step', stepId: 's-1' },

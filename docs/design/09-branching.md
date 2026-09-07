@@ -251,7 +251,9 @@ What this buys, beyond one mechanism instead of two:
   writing — or draw fresh — *reroll*: new outcome. Without the distinction,
   swiping past a failed check is save-scumming by accident. Both siblings are
   ordinary nodes either way; the difference is only which draws they inherited,
-  and the turn record says which.
+  and the turn record says which. Either may carry an instruction about the
+  attempt it replaces ([§7](#7-edges-worth-naming)), and the record says that
+  too: which sibling was shown, and what was asked.
 
 The cost is UI, not storage. A long session accumulates many unnamed siblings,
 so the history view must default to the selected path and surface siblings as an
@@ -290,6 +292,18 @@ obviously distinct and both are one operation:
 Both should be offered explicitly. Guessing will be wrong half the time, and the
 earlier `forkTurnIndex ± 1` framing made them look like the same thing with an
 off-by-one, which they are not.
+
+**Redo may carry an instruction — DECIDED.** *Redo this* is often *redo this,
+but change X*, and a redo that cannot say so sends the user back to typing the
+instruction into their action, which is the habit the guidance box exists to
+end ([03 §5.1](03-modes-and-turn-pipeline.md)). So the per-turn controls carry
+a field for it, and what is typed there rides with whichever of rewrite and
+reroll is pressed next — a modifier on the gesture, not a third gesture,
+because "not that sentence" and "not that outcome" are still different
+requests ([07 §14.5](07-tech-stack.md)). With an instruction the model is also
+shown the attempt it is about: a sibling is an ordinary node with a full
+record, so the redo's record says which attempt was shown and what was asked,
+and the attempt itself is never history. Empty, the field changes nothing.
 
 **Branching within a multi-message turn.** Under `per-actor` dispatch
 ([03 §3](03-modes-and-turn-pipeline.md)) one turn produces several messages. A

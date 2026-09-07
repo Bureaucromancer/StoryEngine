@@ -130,7 +130,9 @@ export async function previewAssembly(
    * reproduce. The one case where a tape would belong here is a preview *of a
    * rewrite* — showing the outcome the rewrite will actually get rather than a
    * fresh roll of it — and nothing offers one, because the gestures submit
-   * rather than preview.
+   * rather than preview. A guided redo's previous attempt ([03 §5.1]) is
+   * absent here for the same reason: it belongs to a redo, and a redo is
+   * submitted, not previewed.
    */
   const lore = retrieve({
     lore: inputs.lore,

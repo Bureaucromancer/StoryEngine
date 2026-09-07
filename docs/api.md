@@ -807,7 +807,8 @@ would grow with the transcript and say nothing.
 
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
-  rewriteOf?: string, input: { text, actorId?, kind? }, guidance? }
+  rewriteOf?: string, redoOf?: string, input: { text, actorId?, kind? },
+  guidance? }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -842,6 +843,20 @@ Rewrite is the default of the two gestures, which is what stops swiping past a
 failed check from being save-scumming by accident. A turn that consumed no
 draws has nothing to reroll, and the surface must not offer it one
 ([07 §14.6]).
+
+**`redoOf` is the other half of a redo**
+([03 §5.1](design/03-modes-and-turn-pipeline.md), [09 §7](design/09-branching.md)).
+It names a turn whose words the model is shown as *the previous attempt* — the
+one this submission is redoing — so an instruction in `guidance` has something
+to refer to: "make it rain harder" needs an *it*. The words come from this
+server's record, never from the body, for the reason the tape does; a turn from
+another session is `404 no-such-turn`. `rewriteOf` and `redoOf` answer
+different questions — *whose draws* and *whose words* — and are independent: a
+guided rewrite names one turn in both, a guided reroll names it in `redoOf`
+alone, and a plain redo names it in neither and gets the prompt it always got.
+The named turn is not required to be a sibling of the one being written; the
+client always sends one, and the record carries the id either way. Usually sent
+with `guidance`; the schema does not couple them.
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot

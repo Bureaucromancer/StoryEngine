@@ -43,6 +43,18 @@ export interface CollectContext {
   input?: { text: string };
   guidance?: string;
   /**
+   * The attempt a guided redo is redoing — its output, and which turn it was
+   * ([03 §5.1], [09 §7]).
+   *
+   * **Handed in by the runner, never by a step**, for the reason `StepInput`
+   * withholds guidance: a step handed the text could re-emit it as an ordinary
+   * candidate and `assemble` would admit it, because the refusal keys on the
+   * candidate's flag and not on where the words came from. The route reads the
+   * text off the record the way it reads the tape, so what the model is shown
+   * is what was written, not what a client says was.
+   */
+  attempt?: { turnId: string; text: string };
+  /**
    * What the retriever activated and the per-book budget kept — [P5.6].
    *
    * **Handed in, not computed here**, which is the same rule the cast follows
@@ -173,7 +185,7 @@ function sourceKindOf(block: PresetBlock): string {
 /**
  * Why `fill()` came back empty, computed from the block rather than threaded
  * through it — the reasons are structural per source kind, and keeping
- * `fill()`'s signature simple keeps its eleven arms readable.
+ * `fill()`'s signature simple keeps its twelve arms readable.
  */
 function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReason {
   if (block.kind === 'text') return 'empty-source';
@@ -229,6 +241,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
     case 'actor':
     case 'history':
     case 'guidance':
+    case 'attempt':
     case 'input':
       return 'empty-source';
     default:
@@ -431,6 +444,25 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        */
       return emit(block, context.guidance ?? '', { kind: 'guidance', producer: 'user' }, undefined);
 
+    case 'attempt':
+      /**
+       * The previous attempt a guided redo shows the model — [03 §5.1],
+       * [09 §7]. Advisory is forced in `emit` for this slot as it is for
+       * guidance, and the reason is sharper here: the text is the model's own
+       * discarded reply, and an extractor that saw it would record the events
+       * of a reply nobody kept as having happened.
+       *
+       * The turn id travels on the source so the record can say *which*
+       * attempt the instruction was about; null is the `persona` claim — the
+       * author asked for the block and there was no attempt to fill it.
+       */
+      return emit(
+        block,
+        context.attempt?.text ?? '',
+        { kind: 'attempt', turnId: context.attempt?.turnId ?? null },
+        undefined,
+      );
+
     case 'input':
       /**
        * **Required is forced too**, and `PresetBlock` has no `required` field at
@@ -597,8 +629,13 @@ function emit(
 
   // The union, not the special case: an author- or import-declared advisory
   // block is advisory too, or the firewall only covers the one slot somebody
-  // remembered.
-  const advisory = block.advisory || (block.kind === 'slot' && block.source.of === 'guidance');
+  // remembered. Two slots are forced rather than one since the previous
+  // attempt joined guidance ([03 §5.1]): both carry words that may shape prose
+  // and must never reach a verdict, and a preset clearing the flag on either
+  // changes nothing.
+  const advisory =
+    block.advisory ||
+    (block.kind === 'slot' && (block.source.of === 'guidance' || block.source.of === 'attempt'));
   const required = block.kind === 'slot' && block.source.of === 'input';
 
   return [

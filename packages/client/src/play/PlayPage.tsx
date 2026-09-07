@@ -122,9 +122,25 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
    * were reading — is what the sibling affordance provides visibly, which
    * Marinara did not have. This is a lean pending PLAYABLE, and [08 §1.8] is
    * where it is argued.
+   *
+   * **A redo may carry an instruction, and then it carries the attempt too**
+   * ([03 §5.1], [09 §7]). `guidance` and `redoOf` travel together or not at
+   * all: an instruction with nothing to refer to and an attempt with no
+   * instruction are each a different feature from *this again, but change
+   * X*. With neither, the body is exactly what it was before the field
+   * existed — a plain redo stays *same setup, different words* ([07 §14.6]),
+   * and the model is not shown a reply it might then avoid or copy.
    */
   const redo = useMutation({
-    mutationFn: ({ turn, rewrite }: { turn: TurnRecord; rewrite: boolean }) =>
+    mutationFn: ({
+      turn,
+      rewrite,
+      guidance,
+    }: {
+      turn: TurnRecord;
+      rewrite: boolean;
+      guidance?: string;
+    }) =>
       submitTurn({
         sessionId,
         idempotencyKey: uuidv7(),
@@ -132,6 +148,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         text: turn.input?.text ?? '',
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
+        ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
@@ -306,8 +323,14 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
               undo.isPending ||
               name.isPending
             }
-            onRedo={(subject, rewrite) => {
-              redo.mutate({ turn: subject, rewrite });
+            onRedo={(subject, rewrite, guidance) => {
+              // Spread, not passed: `exactOptionalPropertyTypes` refuses an
+              // explicit `undefined` where the field may simply be absent.
+              redo.mutate({
+                turn: subject,
+                rewrite,
+                ...(guidance === undefined ? {} : { guidance }),
+              });
             }}
             onContinueFrom={(subject) => {
               continueFrom.mutate(subject);
@@ -411,6 +434,16 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
  *
  * Rewrite is the default of the two because the other way round makes swiping
  * past a failed check save-scumming by accident.
+ *
+ * **Either gesture may carry an instruction** ([03 §5.1], [09 §7]). *Redo with
+ * guidance* reveals a field under the turn; what is typed there rides with
+ * whichever of the two buttons is pressed next, together with this turn's own
+ * words as the attempt the instruction is about. It modifies the gesture
+ * rather than being a third one — "not that sentence" and "not that outcome"
+ * stay different requests, each now sayable with a reason — and with the
+ * field empty or closed the body is exactly the plain gesture's. The field is
+ * one-shot like the composer's box, and closing it forgets it, so a note typed
+ * and then hidden cannot ride along with a later plain Redo.
  */
 function TurnView({
   turn,
@@ -425,7 +458,7 @@ function TurnView({
   turn: TurnRecord;
   siblings: string[];
   busy: boolean;
-  onRedo: (turn: TurnRecord, rewrite: boolean) => void;
+  onRedo: (turn: TurnRecord, rewrite: boolean, guidance?: string) => void;
   onContinueFrom: (turn: TurnRecord) => void;
   onUndo: (turn: TurnRecord) => void;
   onGoToSibling: (turnId: string) => void;
@@ -436,6 +469,23 @@ function TurnView({
   // attempt again.
   const rerunnable = turn.input !== undefined;
   const rolled = turn.tape.length > 0;
+
+  // The instruction for a guided redo, and whether its field is open. Local to
+  // the turn: it is about *this* attempt, and it is forgotten the moment a
+  // gesture spends it or the field closes.
+  const [guiding, setGuiding] = useState(false);
+  const [note, setNote] = useState('');
+
+  const redoWith = (rewrite: boolean): void => {
+    const trimmed = note.trim();
+    onRedo(turn, rewrite, guiding && trimmed.length > 0 ? trimmed : undefined);
+    // Optimistic, as the naming form below is: the gesture has been asked for,
+    // and a field still holding the note would offer to send it twice. The
+    // note goes with the field — the toggle clears it again on the way back
+    // in, so this is the state staying honest rather than a second guard.
+    setGuiding(false);
+    setNote('');
+  };
 
   return (
     <li className="group/turn flex flex-col gap-1">
@@ -460,7 +510,7 @@ function TurnView({
             type="button"
             disabled={busy}
             onClick={() => {
-              onRedo(turn, true);
+              redoWith(true);
             }}
           >
             Redo
@@ -471,10 +521,26 @@ function TurnView({
             type="button"
             disabled={busy}
             onClick={() => {
-              onRedo(turn, false);
+              redoWith(false);
             }}
           >
             Reroll
+          </Button>
+        ) : null}
+        {rerunnable ? (
+          <Button
+            type="button"
+            disabled={busy}
+            aria-expanded={guiding}
+            onClick={() => {
+              // Closing forgets the note. A hidden field still holding one
+              // would turn the next plain Redo into a guided one nobody asked
+              // for.
+              setGuiding(!guiding);
+              setNote('');
+            }}
+          >
+            Redo with guidance
           </Button>
         ) : null}
         <Button
@@ -500,6 +566,36 @@ function TurnView({
           Undo
         </Button>
       </div>
+
+      {/* Outside the row above, which fades unless hovered or focused: a field
+          that vanished when the pointer left it would be a field nobody could
+          read back. The <li> is the group, so focus in here keeps the two
+          buttons visible while the note is typed. Enter is the default
+          gesture, rewrite, as the form's only submit — the buttons stay the
+          buttons. */}
+      {guiding ? (
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            redoWith(true);
+          }}
+        >
+          <label className="flex-1">
+            <span className="sr-only">What should change?</span>
+            <input
+              className={control}
+              value={note}
+              disabled={busy}
+              autoFocus
+              placeholder="What should change?"
+              onChange={(event) => {
+                setNote(event.target.value);
+              }}
+            />
+          </label>
+        </form>
+      ) : null}
 
       <SiblingStrip
         turn={turn}

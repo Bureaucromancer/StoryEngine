@@ -695,6 +695,13 @@ export interface SubmitTurn {
    * A turn id, not a tape: the server reads the draws from its own record.
    */
   rewriteOf?: string;
+  /**
+   * Show this turn's words to the model as the previous attempt — the other
+   * half of a redo, [03 §5.1]. A turn id, not the text: the server reads the
+   * words from its own record. Sent with `guidance` or not at all, which is
+   * the play surface's rule rather than the server's.
+   */
+  redoOf?: string;
 }
 
 export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cursor: string }> {
@@ -709,6 +716,7 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     // requests — see `SubmitTurn.parentTurnId`.
     ...('parentTurnId' in submission ? { parentTurnId: submission.parentTurnId } : {}),
     ...(submission.rewriteOf === undefined ? {} : { rewriteOf: submission.rewriteOf }),
+    ...(submission.redoOf === undefined ? {} : { redoOf: submission.redoOf }),
   });
 }
 

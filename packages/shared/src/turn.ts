@@ -176,6 +176,21 @@ export type BlockSource =
    * push — and the workbench should say which.
    */
   | { kind: 'guidance'; producer: 'user' | 'rule' | 'step' }
+  /**
+   * The previous attempt a guided redo showed the model — [03 §5.1], [09 §7].
+   *
+   * `turnId` names the sibling whose output was shown, which is what makes
+   * *what did the instruction refer to* answerable from the record rather than
+   * from memory: the block table can say which attempt, and the compare view
+   * can put the two side by side. The first slot whose content is another
+   * turn's output, so it carries an identity the way `history` does and the
+   * advisory marker the way `guidance` does.
+   *
+   * Null only when a preset emits the slot over nothing (`omitWhenEmpty:
+   * false`) — the claim `persona`'s nulls make, and for the same reason: the
+   * block exists because the author asked for it, and there was no attempt.
+   */
+  | { kind: 'attempt'; turnId: string | null }
   /** What the player just did — the turn that is happening, not history. */
   | { kind: 'input' }
   // The two a slot can never name, because no preset positions them.
