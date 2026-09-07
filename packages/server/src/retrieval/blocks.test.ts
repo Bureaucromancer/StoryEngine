@@ -102,6 +102,28 @@ describe('reasonFor', () => {
   });
 
   /**
+   * **[P5 §3] step 8, and the number was always there** — [05 §11] asks the
+   * block list for *"sticky, 2 messages remaining"*, and until [P6B.1] the
+   * count lived in `ScanResult.timing` and never travelled with the
+   * activation. Two entries one turn and four turns from dropping out read
+   * identically, on the surface whose stated job is answering *what is about
+   * to fall out of context*.
+   */
+  it('counts down a sticky window, and says when it is the last turn', () => {
+    const held = (stickyRemaining: number): string =>
+      reasonFor(firing(entryOf('One'), { by: 'sticky', hit: null, stickyRemaining }));
+
+    expect(held(2)).toContain('2 messages remaining');
+    // Singular, because a reason is a sentence a person reads and not a
+    // template with a number in it.
+    expect(held(1)).toContain('1 message remaining');
+    // Zero is a value rather than an absence: the window closes after this
+    // turn, which is the one moment the count alone could not say.
+    expect(held(0)).toContain('this is its last');
+    expect(held(0)).not.toContain('0 message');
+  });
+
+  /**
    * The distinction a reader most wants: *the player said this* against *another
    * entry said this*. Both are keyword hits, and collapsing them would leave
    * somebody looking through the conversation for a word that was never in it.

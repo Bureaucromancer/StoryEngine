@@ -4,6 +4,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ChannelEffect } from '@storyengine/shared';
+
 import {
   ACTOR_ID,
   cancelledTurn,
@@ -48,6 +50,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const { TurnSubject } = await import('./TurnSubject.js');
 const { PreviewSubject } = await import('./PreviewSubject.js');
+const { EffectList } = await import('./EffectList.js');
 
 describe('the block table', () => {
   it('keeps a dropped block as a faded row with the responsible rule', () => {
@@ -131,6 +134,54 @@ describe('the not-filled slots', () => {
 });
 
 describe('the effects', () => {
+  /**
+   * **Two entries, one channel** — [P5 §3] step 8, fixed at [P6B.1].
+   *
+   * `se.lore.timing` is scoped per entry, so a turn holding four sticky
+   * entries writes the same channel id four times. The list printed the id
+   * alone, which made the one surface carrying the numbers the one surface
+   * that could not say whose numbers they were.
+   *
+   * Built here rather than in the shared fixture because the claim is about
+   * two effects that differ in exactly one field, and a fixture that carried
+   * them would be answering the question in advance.
+   */
+  it('tells two effects on one scoped channel apart', () => {
+    const scoped = (id: string, entry: string): ChannelEffect => ({
+      id,
+      turnId: 't-10',
+      channelId: 'se.lore.timing',
+      scopeKey: entry,
+      op: { type: 'set', path: '/' },
+      before: { sticky: 3 },
+      after: { sticky: 2 },
+      proposedBy: { kind: 'engine' },
+      applied: true,
+      rejectedReason: null,
+      supersedes: null,
+      channelVersion: 1,
+      // `scope` is session-versus-escaped and has nothing to do with the
+      // channel's per-entry scoping, which `scopeKey` carries. Easy to
+      // misread, and the compiler catches it.
+      scope: 'session',
+    });
+
+    render(
+      <EffectList effects={[scoped('fx-a', 'entry-ferryman'), scoped('fx-b', 'entry-rain')]} />,
+    );
+
+    const effects = screen.getByRole('region', { name: 'Effects' });
+    expect(within(effects).getByText('se.lore.timing[entry-ferryman]')).toBeTruthy();
+    expect(within(effects).getByText('se.lore.timing[entry-rain]')).toBeTruthy();
+  });
+
+  /** An unscoped channel still reads as the plain name it is. */
+  it('leaves an unscoped channel alone', () => {
+    render(<TurnSubject turn={richTurn()} locale={undefined} />);
+
+    const effects = screen.getByRole('region', { name: 'Effects' });
+    expect(within(effects).getAllByText('se.clock').length).toBe(2);
+  });
   it('renders all three outcomes: applied, refused with its policy, superseded with its link', () => {
     render(<TurnSubject turn={richTurn()} locale={undefined} />);
 

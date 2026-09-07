@@ -91,8 +91,20 @@ export function reasonFor(activation: Activation): string {
   switch (activation.by) {
     case 'constant':
       return 'always on';
-    case 'sticky':
-      return 'still active from an earlier turn';
+    case 'sticky': {
+      /**
+       * **With the count, which [05 §11] specifies and [P5 §3] step 8 asks
+       * for.** Until [P6B.1] this said only that the entry was held, so two
+       * sticky entries one turn and four turns from dropping out read
+       * identically — and *what is about to fall out of context* is the
+       * question the workbench exists to answer.
+       */
+      const left = activation.stickyRemaining;
+      if (left === undefined) return 'still active from an earlier turn';
+      return left === 0
+        ? 'still active from an earlier turn, and this is its last'
+        : `still active from an earlier turn, ${String(left)} message${left === 1 ? '' : 's'} remaining`;
+    }
     case 'recursive':
       return activation.hit === null
         ? 'named by another entry'

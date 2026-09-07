@@ -41,7 +41,20 @@ export function EffectList({ effects }: { effects: ChannelEffect[] }): JSX.Eleme
           {effects.map((effect) => (
             <li key={effect.id} className="flex flex-col gap-0.5">
               <span className="flex flex-wrap items-center gap-2">
-                <code className="text-xs">{effect.channelId}</code>
+                {/*
+                  The scope key travels with the id, because without it a
+                  per-entry channel is illegible: every sticky lore entry in a
+                  turn writes `se.lore.timing`, and until [P6B.1] the list
+                  showed that name four times over with nothing to tell the
+                  four apart — [P5 §3] step 8. Rendered as `id[key]` rather
+                  than as a second column, so an unscoped channel still reads
+                  as the plain name it is.
+                */}
+                <code className="text-xs">
+                  {effect.scopeKey === null
+                    ? effect.channelId
+                    : `${effect.channelId}[${effect.scopeKey}]`}
+                </code>
                 <Badge tone={effect.applied ? 'neutral' : 'danger'}>
                   {effect.applied ? 'Applied' : 'Rejected'}
                 </Badge>

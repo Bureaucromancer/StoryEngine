@@ -104,6 +104,23 @@ export interface Activation {
   hit: KeyHit | null;
   /** Zero is the scan over the conversation; one and up are recursive passes. */
   depth: number;
+  /**
+   * Turns of stickiness left **after** this one, on an activation that is here
+   * because a window is still open — [P5 §3] step 8, filled at [P6B.1].
+   *
+   * [05 §11](../../../../docs/design/05-ui-surfaces.md) asks the block list for
+   * *"sticky, 2 messages remaining"*, and the number existed the whole time in
+   * `ScanResult.timing`; it simply never travelled with the activation, so the
+   * one surface that could have shown it had nothing to show. Zero is a real
+   * value here and means *this is the window closing*, which is why it is set
+   * rather than omitted at zero.
+   *
+   * Absent on every other activation, because on those it would be a promise
+   * about the future rather than a report: an entry that fired on a keyword
+   * with `sticky: 3` will be held for three turns only if nothing between now
+   * and then disables it.
+   */
+  stickyRemaining?: number;
 }
 
 export interface Skipped {
@@ -358,6 +375,18 @@ export function activate(context: ScanContext): ScanResult {
       });
       timing[entry.id] = advanceTiming(entry, held, verdict);
     }
+  }
+
+  /**
+   * The counters, attached to the activations that report them.
+   *
+   * After the loop above and not inside it: an activation is pushed while the
+   * scan is still running, and the number a person wants is the one that
+   * survives the whole turn.
+   */
+  for (const one of activated) {
+    if (one.by !== 'sticky') continue;
+    one.stickyRemaining = timing[one.entry.id]?.sticky ?? 0;
   }
 
   return { activated, skipped, refused, unknownSources: [...unknown], timing };
