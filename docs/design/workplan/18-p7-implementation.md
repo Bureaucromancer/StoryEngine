@@ -127,7 +127,7 @@ reading the file the move in §1.1 is about:
 **And a third, handed over on 2026-09-07 by
 [P6B.1](24-p6b-playable.md), which is where P5's contradictions were settled.**
 **Lorebook `activationConditions` and `schedule`, unified as channel
-predicates** — the minimal comparison set, not 5.0's rule vocabulary.
+predicates** — the minimal comparison set, not 6.0's rule vocabulary.
 [01 §195](01-work-plan.md) had it as P5's; P5 decided in the code not to build
 it and no document followed, so the roadmap read P5 for four months for a thing
 P5 had declined. The decision was right and only the record was wrong: a

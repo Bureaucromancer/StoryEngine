@@ -651,7 +651,7 @@ how they ended is the same failure at one remove.
    P5 had decided not to build. **It is P7's**, which is the phase that makes
    channels a contract rather than a handful of engine-owned names — that row and
    §1.4 now say so, and [P7 §0.1](18-p7-implementation.md) carries it as
-   inherited. *Anything richer still waits for 5.0's rule vocabulary; what moved
+   inherited. *Anything richer still waits for 6.0's rule vocabulary; what moved
    is the minimal comparison set, not the vocabulary.*
 3. **Settled in P6's favour, which is where it had already gone.** P3 disclaims
    rewrite and reroll explicitly, so the reproduction half of step 11 was never
