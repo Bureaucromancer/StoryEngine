@@ -90,7 +90,125 @@ twenty turns ago.
 Findings go under it in the order they happened, not in order of importance —
 the order they happened is data, and reordering by importance discards it.*
 
-<!-- The first session's heading goes here. Nothing has been played yet. -->
+### 2026-09-08 — the pre-P6 walk, sittings A–D — [27](27-pre-p6-walk.md)
+
+*Not [P6B.2](24-p6b-playable.md)'s play. These are the observations from a
+scripted gate walk, kept here because [27 §5](27-pre-p6-walk.md) puts both in one
+log: they are the same evidence gathered on different days, and splitting them
+would make the triage read two files and reconcile them.*
+
+**Six findings. The requests they came wrapped in are graded and placed in
+[28](28-walkthrough-refinements.md); what follows is only what was seen.**
+
+#### F-01 — the connection list is thin at the point you need a second model
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  hosted, real key
+session   n/a — settings surface, reached from B9
+expected  having configured one connection, configuring a second against the
+          same provider would be a short path
+observed  every field is retyped, including the key; there is no duplicate, no
+          reorder, and nothing relates two connections that share a provider
+snapshot  none
+```
+
+**B9's own check passed** — both halves of the 412 work. This is what was noticed
+while standing on that screen, and it is kept separate from the step's result on
+purpose. Graded at [28](28-walkthrough-refinements.md) R2, where the diagnosis
+changes: the data model already separates provider from model, and the thing
+actually blocking *use a second model* is a role-binding editor.
+
+#### F-02 — nothing happens between Send and the first token
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  hosted, real key
+session   every turn taken in sittings A–D
+expected  pressing Send would visibly do something
+observed  the button does not change, no live region fires, and the composer
+          clears — so the only feedback is the disappearance of your own text
+snapshot  none
+```
+
+**This is a recorded, deliberately-accepted condition, not a regression.**
+[17 §](17-p2c-brief.md) says it almost word for word: *"There is no progress, no
+step display and no spinner."* What is new is that a person walked into it and
+called it *painful*, which is the evidence that brief was waiting for.
+
+#### F-03 — a turn in flight is invisible unless the workbench is open
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  hosted, real key
+session   as F-02
+expected  the transcript would say a turn was running
+observed  it does not; the only surface that knows is the panel, which is closed
+          by default
+snapshot  none
+```
+
+[05 §9](../05-ui-surfaces.md) specifies this almost verbatim — *a collapsed line
+while things go well* — and P3.5 built it only inside the panel.
+
+#### F-04 — the workbench drag handle has never had a height
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  n/a
+session   n/a — sitting D, alongside D1 and D2
+expected  the panel could be resized by dragging its edge, which is what
+          [05 §3](../05-ui-surfaces.md) specifies and what P3.1a built
+observed  the pointer finds nothing to grab. `Workbench.tsx:221` carries
+          `inset-block-0`, which is not a Tailwind utility, so no rule is
+          emitted and an absolutely-positioned element with no block inset is
+          zero pixels tall. Only the keyboard half has ever worked.
+snapshot  none
+```
+
+**The most valuable finding of the walk, and it indicts three things rather than
+one.** Already fixed at `71ff7f1` on `feat/tagging_and_search`, together with a
+test that reads the built stylesheet — the gate this bug class has never had.
+[P3 §](05-p3-implementation.md)'s stage record claims a browser walk that cannot
+have happened, and [27](27-pre-p6-walk.md)'s D2 tests that a size *persists*,
+never that it can be *set*. See [28 §2.1](28-walkthrough-refinements.md).
+
+#### F-05 — the workbench cannot be pointed at a turn the head has passed
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  hosted, real key
+session   sitting D, over a session with several turns
+expected  opening the panel on an earlier turn would show that turn
+observed  it shows the head. Reaching an earlier turn means moving the head —
+          *continue from here* — which changes the story to inspect it
+snapshot  none
+```
+
+[05 §444](../05-ui-surfaces.md) says the panel shows any turn *"current or
+historical"*. The reader for it exists (`useTurn`) with one caller, and P3.6
+landed without the per-turn affordance it was assigned.
+
+#### F-06 — *continue from here* is not predictable, and that is an answer
+
+```
+build     1.0.0-alpha.3 (c126cba)
+endpoint  hosted, real key
+session   sitting D
+expected  per [P6 §1.8](08-p6-implementation.md)'s lean, a count and two arrows
+          would be enough to work with a branched session
+observed  it is not obvious what continuing from an already-answered turn will
+          do before you do it, and nothing marks a turn that already has a
+          continuation
+snapshot  none
+```
+
+**A judgement, and the one this checkpoint most wanted.** [P6 §1.8](08-p6-implementation.md)
+deferred exactly this question to PLAYABLE and said so twice. It is
+[P6B.3](24-p6b-playable.md)'s to route, and it answers rather than asks.
+
+---
+
 
 ---
 

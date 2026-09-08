@@ -172,7 +172,7 @@ and a walk that may not have happened is the one thing this sheet must never
 assert. They are blanks on purpose.
 
 **B9 passed its stated check and produced a refinement anyway** — the 412
-behaves, and the connection surface around it is thin. That is [F-02] and it is
+behaves, and the connection surface around it is thin. That is [F-01] and it is
 not a half-failure of B9; the sheet keeps the two apart on purpose.
 
 *The sitting as it was written:*
@@ -246,7 +246,7 @@ no D item asked for.** P3 built a drag handle for the panel and
 It has been **zero pixels tall since P3** — `inset-block-0` is not a Tailwind
 utility, Tailwind emits nothing for a name it does not know, and an
 absolutely-positioned element with no block inset has no height. Only the
-keyboard half of that control has ever worked. See [F-05].
+keyboard half of that control has ever worked. See [F-04].
 
 *That is a gate correction as much as a finding:* D2 asks that the panel come
 back **the same size**, and it does — because the size is stored and the only
@@ -402,6 +402,11 @@ Listed so the count is honest. **Nobody walks these.**
 days, and splitting them would make the triage read two files and reconcile
 them.
 
+**Findings from a sitting that arrive as *requests* are graded at
+[28](28-walkthrough-refinements.md)** rather than here — what a person saw is a
+finding, and what they asked for is a proposal, and the two go stale at
+different rates.
+
 **Nothing is fixed because it is written there.** That is the log's own standing
 rule and the reason it stays honest: a finding that has to justify a fix before
 it can be recorded is a finding that does not get recorded.
@@ -432,7 +437,7 @@ When one closes, three things happen and the third is the one that gets skipped:
 | **P1** | — | — (AUTO) | — | **Yes** |
 | **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | **A, B (less B2/B6/B8), C** — [12 §2.1](12-p2-manual-gate.md) entire, §2.2 against one endpoint, §2.3 in part and all of §2.4 | |
 | **P2C** | 4 stages | A9 (.1), A–D (.2), G (.3), §5 (.4) | **P2C.1**, on 2026-09-08 | |
-| **P3** | 15 | D | **steps 1–10**, 2026-09-08, plus one gate correction ([F-05]: the drag handle has never had a height) | |
+| **P3** | 15 | D | **steps 1–10**, 2026-09-08, plus one gate correction ([F-04]: the drag handle has never had a height) | |
 | **P4** | 15 | E | | |
 | **P5** | 18 | F | | |
 
