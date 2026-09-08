@@ -568,7 +568,7 @@ line is a checklist item here rather than a formality.
 
 ## 4. Out of scope, deliberately
 
-The authored-rule vocabulary and its evaluator (5.0, the authoring tier — [01 §0.6](01-work-plan.md)
+The authored-rule vocabulary and its evaluator (6.0, the authoring tier — [01 §0.6](01-work-plan.md)
 — and the tempting move once steps exist is to let `StepCondition` take rule
 predicates, which [03 §6](../03-modes-and-turn-pipeline.md) warns against by
 name); Campaign and Messages ([01 §5](01-work-plan.md) — committed, not

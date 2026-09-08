@@ -34,11 +34,11 @@ direction rather than a feature.
 
 **§2, §2c.1 and §2c.3 are stubs pointing at committed releases.** Each was a
 feature-list entry until it turned out to be constitutive of a release rather
-than adjacent to one — the story bible to World ([19](19-world.md)), the
-Character Studio and lorebook extraction to the authoring tier
-([20](20-authoring.md)). The stubs stay because the section numbers are cited
-elsewhere and because *why something left this list* is the most useful thing
-this document can record about it.
+than adjacent to one — the story bible to World ([19](19-world.md)), lorebook
+extraction to the authoring tier ([20](20-authoring.md)), and the Character
+Studio to a release of its own ([24](24-character-studio.md)). The stubs stay
+because the section numbers are cited elsewhere and because *why something left
+this list* is the most useful thing this document can record about it.
 
 §4 is likely to graduate into user-facing documentation once the SDK exists.
 
@@ -173,15 +173,21 @@ pleasant later feature into a migration.
 
 ## 2. Character Studio — moved
 
-**The Character Studio ships with the authoring tier at 5.0
-([20 §4](20-authoring.md)).**
+**The Character Studio is a committed release of its own at 3.0
+([24](24-character-studio.md)).**
 
-It was a High-tier entry here until the tier acquired a release. What moved it
-is the shape it shares with lorebook extraction and authored rules: each turns
-something you played into something you can author with, and the Studio is that
-move for an actor's visual identity. Its four obligations on 1.0 — typed media
+It was a High-tier entry here until the authoring tier acquired a release, and it
+went there on the shape it shares with lorebook extraction and authored rules:
+each turns something you played into something you can author with, and the
+Studio is that move for an actor's visual identity.
+
+**It moved a second time when that shape turned out not to be a dependency.**
+Nothing in the tier gated it and nothing it needs waits for the corpus that holds
+the tier back, so it now carries a release number rather than a tier membership
+([24 §1.2](24-character-studio.md)). Its four obligations on 1.0 — typed media
 roles, structured descriptors, per-media generation provenance, and crop as a
-stored rectangle — are unchanged and now live at [20 §5](20-authoring.md).
+stored rectangle — are unchanged through both moves and now live at
+[24 §5](24-character-studio.md).
 
 ---
 
@@ -189,7 +195,7 @@ stored rectangle — are unchanged and now live at [20 §5](20-authoring.md).
 
 **Tier: High.** This section has been hollowed out by two promotions and is kept
 for the one entry left in it: **§2c.2, continuity checking**. §2c.1's story bible
-went to World at 3.0 and §2c.3's extraction went to the authoring tier at 5.0 —
+went to World at 4.0 and §2c.3's extraction went to the authoring tier at 6.0 —
 both because they turned out to be constitutive of a release rather than adjacent
 to one.
 
@@ -200,7 +206,7 @@ correctable*.
 
 ### 2c.1 The story bible — moved
 
-**The story bible is no longer here. It ships with World at 3.0
+**The story bible is no longer here. It ships with World at 4.0
 ([19 §4](19-world.md)).**
 
 It was defined as *what a session has established*, and [19 §1](19-world.md)
@@ -256,7 +262,7 @@ genre's most common complaint.
 
 ### 2c.3 Lorebook extraction — moved
 
-**Extraction ships with the authoring tier at 5.0
+**Extraction ships with the authoring tier at 6.0
 ([20 §3](20-authoring.md)).** *Play a session, keep the world* turned out to be
 the clearest single statement of what that release is for, which made it the
 wrong thing to leave on a list with no release attached.
@@ -369,11 +375,11 @@ Before anything else, work out which tier the idea belongs to
 - **Authored rules** — declarative conditions and effects over channels, shipped
   as data inside a package. No installation, no code review, no AGPL obligation
   ([triage §1.2](workplan/02-triage.md)), works for anyone who imports the package.
-  **Arrives at 5.0, the authoring tier**
+  **Arrives at 6.0, the authoring tier**
   ([work plan §0.6](workplan/01-work-plan.md)). That is a considerably longer
   wait than the 2.0 this once promised, and the reason is the one that defers the
   tier at all: the vocabulary is to be designed against a corpus of real authored
-  worlds, and Campaign at 4.0 is what produces one. Until then everything below
+  worlds, and Campaign at 5.0 is what produces one. Until then everything below
   that would have been rules is a code extension — which is worth knowing before
   starting, and is also the best available evidence for what the vocabulary
   should eventually contain. **If you are reading this because you want to write

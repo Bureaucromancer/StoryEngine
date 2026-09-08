@@ -440,7 +440,7 @@ no surface for changing it; a book's scope is visible only in *As stored*.
 ## C. Mode and pipeline questions
 
 **C1. Names. — RESOLVED: Messages, Scene, Freeform, Campaign — four modes, no
-Adventure grouping.** Freeform ships at 1.0 and Campaign at 4.0
+Adventure grouping.** Freeform ships at 1.0 and Campaign at 5.0
 ([work plan §0](workplan/01-work-plan.md)); Messages is specified and unscheduled
 ([14 §3.4](14-roadmap.md)).
 
@@ -508,7 +508,7 @@ built: what rule conditions really need to express, and whether a template
 language stretches to them comfortably. Deferring the pick costs nothing as long
 as the single-language constraint holds. *[03 §5, 07]*
 
-**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 5.0, the authoring
+**C7. Authored rule vocabulary. — RE-SCOPED: deferred to 6.0, the authoring
 tier** ([work plan §0.6](workplan/01-work-plan.md)).
 The direction is unchanged — take Infinite Worlds' conditions and effects close
 to wholesale ([08 §3](08-infinite-worlds.md)) — but the vocabulary, its evaluator
@@ -610,7 +610,7 @@ fire an arrival for someone the session recorded dead — the severe failure the
 check exists for, reintroduced by the feature meant to use it.
 
 Two consequences that had to be designed rather than discovered. **Firing writes
-no effect**, because `onFire` waits for the rule tier at 5.0 (C7) and
+no effect**, because `onFire` waits for the rule tier at 6.0 (C7) and
 `se.presence` is model-proposed, so the
 arrival is narrated and state follows the story — which means the narrator can
 decline, so the firing is **provisional until the arrival is confirmed** or the

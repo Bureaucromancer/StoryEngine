@@ -225,6 +225,16 @@ as three modes of one surface — sits on the feature list rather than in a rele
 Play mode and no longer is, and because a surface count that ignored it would be
 stale on arrival.
 
+**And one committed release has to decide what shape it is.** The Character
+Studio ships at 3.0 ([24](24-character-studio.md)), and whether it is a panel in
+the actor editor, a mode of an existing surface, or a surface of its own is
+undecided — three answers with three different navigation costs, laid out in
+[24 §6](24-character-studio.md). **This section is where that gets answered, and
+it has to be answered before 3.0's scope is checkable**: a panel and a
+top-level place of its own are not the same release. It is named here rather
+than left in 24 because it is a surface argument, and surface arguments are
+settled here.
+
 **The count is a fact about what ships, not a principle**, and it is worth saying
 so here rather than letting a number be cited later as a rule. Nothing about the
 demotion below changes: a reader is still not a surface.

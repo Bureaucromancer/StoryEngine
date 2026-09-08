@@ -246,7 +246,7 @@ interface ChannelDefinition {
   /** **Shipped at P2.6**, with the first channel definition — [03 §4.1] names
    *  accepting a package id as something 1.0 owes from that first definition,
    *  because widening it afterwards is a migration over every stored channel. */
-  owner: ModeId | ExtensionId | PackageId   // package: [03 §4.1], 5.0
+  owner: ModeId | ExtensionId | PackageId   // package: [03 §4.1], 6.0
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
   scope: "session" | "actor" | "entry"
@@ -809,7 +809,7 @@ per token would make this the wrong trade.
 |---|---|
 | Preset internals beyond [10 §8](10-schemas.md) | Portable; 13 owns it |
 | `InitPolicy`, `WidgetSpec` | Want the mode contract built first |
-| Rule vocabulary (`Predicate`, `Effect`) | 5.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
+| Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
 | The SSE wire format | [04 §3.3](04-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
 | Extension `HostApi` | [12 §4](12-extensions.md) owns it |
 

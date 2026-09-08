@@ -538,7 +538,10 @@ hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
 tune against — and §1.7 is explicit that a backdrop is the most plausible excuse
 for crossing that line and still does not cross it); the Character Studio
-([20 §4](../20-authoring.md)); any model-quality evaluation of generated images
+([24](../24-character-studio.md)) — which is now a committed release at 3.0 and
+therefore the nearest post-1.0 consumer of everything this phase builds, rather
+than a member of the authoring tier at 6.0; any model-quality evaluation of
+generated images
 ([testing §4.3](10-testing.md) — do not build quality evals, and an image eval is
 the most tempting version of the mistake).
 

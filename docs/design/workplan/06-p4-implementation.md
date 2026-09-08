@@ -853,7 +853,7 @@ Scope fence, drawn deliberately tight:
   look.
 - **What stays open, stated so this is not misread**: [06 C6]'s remaining
   question is which language serves *rule conditions* (deferred with the rule
-  vocabulary to 5.0 anyway), and [triage §6.1]'s `[OPEN]` on authoring-side
+  vocabulary to 6.0 anyway), and [triage §6.1]'s `[OPEN]` on authoring-side
   macro syntax stays open. P4 settles Liquid **for block templating**, which
   three documents already chose; it does not decide the other two.
 - **Deferred with a name**: Aventuras' `contentHash`/`baselineHash` dual-hash
@@ -1597,16 +1597,16 @@ listed because this plan schedules the write-back it already owes.
 
 **6.1 Which language serves rule conditions.** [06 C6] is partly settled — one
 language, definitely; which one, open — and the rule vocabulary itself is
-deferred to 5.0. P4 proceeds on the settled half (Liquid for block templating,
+deferred to 6.0. P4 proceeds on the settled half (Liquid for block templating,
 chosen in three documents) and deliberately does not close C6; §1.6's scope
 fence says so in place.
 
 **Deferring rules further does not defer this decision, it extends it.**
 [08 §6](../08-infinite-worlds.md) wants one language for templates *and*
 conditions; picking Liquid here commits the template half now and leaves the
-condition half running on that commitment for four releases.
+condition half running on that commitment for five releases.
 [01 §0.6](01-work-plan.md) records the revisit this owes: whether Liquid still
-looks right for conditions after four releases of using it for templates.
+looks right for conditions after five releases of using it for templates.
 
 **6.2 Whether Provenance grows structured import fields.** Today
 `source: 'import'` + `originalFilename` carry the identity, and §1.3's dedupe

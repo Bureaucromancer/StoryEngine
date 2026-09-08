@@ -463,10 +463,11 @@ gets removed.
 
 ## 4. Out of scope, deliberately
 
-The branch tree visualiser ([14 §1](../14-roadmap.md)); the Character Studio
-([20 §4](../20-authoring.md)); the file browser
+The branch tree visualiser ([14 §1](../14-roadmap.md)); the file browser
 ([06 D3](../06-open-questions.md)) and Tailscale
-([06 D1](../06-open-questions.md)), all four on the feature list; the prologue
+([06 D1](../06-open-questions.md)), all three on the feature list; the Character
+Studio ([24](../24-character-studio.md)), which is a committed release at 3.0
+rather than a feature-list entry; the prologue
 packages that unblock once export lands ([06 B10](../06-open-questions.md));
 chapterisation and embeddings ([14 §3](../14-roadmap.md),
 [06 E2](../06-open-questions.md)); quality evals of any kind

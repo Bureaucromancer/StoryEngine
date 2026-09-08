@@ -644,7 +644,7 @@ the degraded case.
 
 **Firing an introduction hook writes nothing by itself, and cannot.** It is
 tempting to have it add the character to the cast directly, and that is an
-`onFire` effect — the vocabulary deferred to the 5.0 authoring tier ([06 C7](06-open-questions.md)).
+`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([06 C7](06-open-questions.md)).
 The available path is the one [03 §5.2](03-modes-and-turn-pipeline.md) already
 blesses: the hook contributes guidance, the narrator writes the arrival, and
 presence follows the story like any other model-proposed change. Saying so
@@ -898,7 +898,7 @@ A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([20 §4](20-authoring.md), 5.0).
+prerequisite for the Character Studio ([24](24-character-studio.md), 3.0).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
