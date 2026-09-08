@@ -4,18 +4,21 @@
 a first-class activity**. Authored rules are its mechanism; they are not its
 product.
 
-**Scheduled for 5.0** ([work plan §0.6](workplan/01-work-plan.md)). It carries
+**Scheduled for 6.0** ([work plan §0.6](workplan/01-work-plan.md)). It carries
 the number 20 because 00–19 were taken when it was written; like
 [17](17-write-mode.md) and [19](19-world.md) it is a design note that arrived
 after the original run.
 
-Two of its three parts began life in [14](14-roadmap.md) — the Character Studio
-as §2 and lorebook extraction as §2c.3 — and moved here when the tier acquired a
-release, because the feature list holds no release commitments
-([14](14-roadmap.md) header). The third, the authored-rule vocabulary, is
-designed in [03 §4.1](03-modes-and-turn-pipeline.md) and
-[08 §3](08-infinite-worlds.md) and is not restated here; §2 says only what this
-release adds to it.
+One of its two parts began life in [14](14-roadmap.md) — lorebook extraction as
+§2c.3 — and moved here when the tier acquired a release, because the feature list
+holds no release commitments ([14](14-roadmap.md) header). The other, the
+authored-rule vocabulary, is designed in
+[03 §4.1](03-modes-and-turn-pipeline.md) and [08 §3](08-infinite-worlds.md) and
+is not restated here; §2 says only what this release adds to it.
+
+**A third part arrived the same way and left again.** The Character Studio is a
+release of its own at 3.0 ([24](24-character-studio.md)); §4 is the stub, and it
+stays because *why something left* is worth more than a silent deletion.
 
 > **Play a session, keep the world.**
 
@@ -23,7 +26,7 @@ release adds to it.
 
 ## 1. Why this is a tier rather than a language release
 
-The obvious framing is *5.0 ships authored rules*. That framing is wrong, and
+The obvious framing is *6.0 ships authored rules*. That framing is wrong, and
 the reason is worth writing down because it will look like scope creep
 otherwise.
 
@@ -39,17 +42,23 @@ something to design against. *You can now author what you have been playing* is
 that sentence, and it makes rules the part that makes the rest work rather than
 the point of the exercise.
 
-**The three parts share a shape**, which is the test for whether something
-belongs here:
+**Both parts share a shape**, which is the test for whether something belongs
+here:
 
 | Part | Turns this played thing… | …into this authored thing |
 |---|---|---|
 | **Authored rules** (§2) | channel state you watched change | a rule that changes it |
 | **Lorebook extraction** (§3) | a session's established facts | a lorebook |
-| **The Character Studio** (§4) | an actor you played | a reusable visual identity |
 
 Anything that does not fit that column pair belongs on the feature list instead,
 and §6 names the two nearest misses.
+
+**The Character Studio fits the column pair and is still not here** (§4), which
+is the sharpest thing this test has been shown to get wrong. Fitting the shape
+earned it attention; it did not earn it a place in the queue, because a shape is
+not a dependency. **The test says what belongs together, not what has to wait
+together**, and reading it as a schedule is the mistake to avoid the next time
+something fits.
 
 ## 2. Authored rules — what this release adds
 
@@ -82,17 +91,17 @@ Three seams touch, and all three are additive:
 | `Goal.completion: { kind: "mechanical" }` | A third variant beside `narrative` and `manual`. **The one that genuinely wants the vocabulary** — and the reason is instructive: a `Goal` lives on **Setup**, which is portable *authored* content, so a quest's completion condition belongs to whoever wrote the game rather than to the mode running it. Campaign's code cannot supply what is not Campaign's to say. |
 | Author-declarable channels | The `owner`-accepts-a-package-id widening lands at 1.0 ([03 §4.1](03-modes-and-turn-pipeline.md)). Only the surface that lets an author *define* a channel waits. |
 
-**So Campaign at 4.0 is what produces the corpus this release is designed
+**So Campaign at 5.0 is what produces the corpus this release is designed
 against, not what consumes the result.** What a rules-less Campaign cannot do is
 let somebody else author one: every authored quest completes narratively or
 manually, and a shipped Package can declare a Corruption channel without stating
 a rule about it. That is a real hole and it is a hole in the *authoring* story,
-which is why it is patched here rather than at 4.0.
+which is why it is patched here rather than at 5.0.
 
 ### 2.2 The vocabulary is a unification, not a greenfield design
 
 By the time this lands, **three minimal predicate dialects will have been running
-separately for four releases** ([work plan §0.3](workplan/01-work-plan.md)):
+separately for five releases** ([work plan §0.3](workplan/01-work-plan.md)):
 lorebook activation conditions (P5), `StepCondition` (P7), and the plot-hook
 filters (P7). Each is deliberately small and each carries a written guard against
 growing.
@@ -111,9 +120,9 @@ one evaluator to sandbox. **Liquid is already chosen for block templating** and
 P4 proceeds on it, deliberately leaving the other half of
 [06 C6](06-open-questions.md) open ([P4 §6.1](workplan/06-p4-implementation.md)).
 
-Deferring rules to 5.0 did not defer that choice; it extended how long the
+Deferring rules to 6.0 did not defer that choice; it extended how long the
 project runs on a half-made one. So the question this release opens with is
-whether Liquid still looks right for *conditions* after four releases of using
+whether Liquid still looks right for *conditions* after five releases of using
 it for templates — and **"no" is an answer worth having**, not an inconvenience.
 The single-language constraint is the thing to preserve; Liquid is the current
 candidate for satisfying it, not the constraint itself.
@@ -128,7 +137,7 @@ the things decided.
 
 It is the natural output of the story bible ([19 §4](19-world.md)): once the
 bible exists, *"make this a lorebook"* is a selection and a write rather than a
-new mechanism. That dependency is also why it cannot land before 3.0.
+new mechanism. That dependency is also why it cannot land before 4.0.
 
 Both existing halves set the pattern this must follow: **offered, never
 automatic, and reviewed before it lands.** Marinara's own conclusion about
@@ -141,96 +150,41 @@ wrote lore entries would be the mention-resolution failure
 the sources handle badly: worlds currently have to be authored before they can
 be played in, when in practice they are discovered while playing.
 
-## 4. The Character Studio
+## 4. The Character Studio — moved
 
-The actor card carries embedded media with typed roles and structured visual
-descriptors from 1.0 ([02 §5.2.2](02-data-model.md)). The Studio is the surface
-that makes that capability worth having.
+**The Character Studio is a release of its own at 3.0**
+([24](24-character-studio.md)).
 
-### 4.1 The problem it addresses
+It was a member of this tier, and it is the member that did not share the tier's
+gate. What holds §2 and §3 back is a corpus of real authored worlds that only a
+release of Campaign produces ([06 C7](06-open-questions.md)); every one of the
+Studio's preconditions lands at 1.0, so nothing here held it and nothing it
+needed waited for the corpus.
 
-A Tavern-style card describes a character in prose and carries one picture. That
-is enough for text roleplay and nowhere near enough to hand a character to an
-image or video pipeline and get *the same person* back twice. Visual consistency
-is the unsolved problem in this space, and everything the field has converged on
-— reference images, multi-view sheets, structured descriptor tags, style
-anchors, seed pinning, per-character adapters — needs somewhere to live.
+It was also always the least settled member — the only piece whose *surface*
+question was open, and a release is a bad place to discover a navigation
+argument. That reads differently now: inside a tier an unsettled surface question
+is a member that might have to be dropped late, and as a release of its own it is
+the first question the release has to answer
+([24 §6](24-character-studio.md), [05 §2](05-ui-surfaces.md)).
 
-The Studio's premise: **extend the card from a description of a character into a
-usable visual identity**, so a card can drive a generation pipeline and produce a
-stable likeness. That is a meaningful extension of what a character card *is*,
-and it is the reason the format work is 1.0 while the tooling is not.
-
-### 4.2 What it is
-
-An editing surface for an actor's visual identity, sitting beside the text
-editor rather than inside it:
-
-- **Reference set curation.** Choose, generate, crop and label the canonical
-  likeness images. Multi-angle where the pipeline can use it.
-- **Descriptor authoring**, structured (`VisualDescriptors`) with the prose
-  appearance derivable from it or maintained alongside — the two must not drift
-  silently, which is a real design question, not a detail.
-- **Expression and pose sets**, generated from the references and kept
-  consistent with them, feeding sprite display in Scene mode as a side effect.
-- **Style anchoring.** Style is a property of the *production*, not the person —
-  the same character rendered in ink wash and in photoreal is still that
-  character. So style exemplars are a separate media role and separately
-  selectable, and Marinara's `image-style-profile` is the nearest prior art.
-- **A test bench.** Generate a few images against the current identity and see
-  whether it holds. Without this the Studio is a form; with it, it is a tool.
-
-### 4.3 Why the format is 1.0 and the tooling is not
-
-Two reasons. It is genuinely large — a curation UI, a generation pipeline, and a
-consistency evaluation loop are three features. And it is the area where the
-underlying technology moves fastest, so specifying the tooling early against
-2026 techniques would be designing for the wrong thing.
-
-The format is different: typed media roles and structured descriptors are cheap,
-stable, and unpleasant to retrofit. Hence the split, and §5 is the half that
-lands early.
-
-### 4.4 This is the least settled member of the tier
-
-**Its surface question is open and should be re-argued at the revisit rather
-than assumed.** Whether the Studio is a panel, a mode of an existing surface, or
-something the Write reframing absorbs is undecided — and a release is a bad
-place to discover a navigation argument
-([05 §2](05-ui-surfaces.md) is where that gets settled).
-
-What earns it a provisional place is §1's shared shape: extraction turns a
-played session into a lorebook, and the Studio turns a played actor into a
-reusable one. If the surface argument pulls it elsewhere, the tier loses a
-member and keeps its point.
-
-### 4.5 Non-goals
-
-- **Not a model training surface.** If per-character adapters become the
-  standard answer, the Studio should *reference* one, not train it.
-- **Not an image editor.** Crop and label, not paint.
-- **Not required.** A text-only actor with no media stays completely valid, and
-  nothing in the Studio may become a precondition for using a card.
+**The stub stays because *why something left* is the most useful thing a document
+can record about it** — the same reason [14](14-roadmap.md) keeps its own — and
+because the tier's argument is easier to read with the piece that left still
+visible in it. §1's shared shape is real; the Studio is the proof that a shared
+shape is not a shared dependency.
 
 ## 5. What this obliges 1.0 to do
 
 The standing test. Everything here is small, none of it is a feature at 1.0, and
 all of it is a precondition.
 
-**For the Character Studio** — four, and the first is the one that is not
-recoverable:
-
-- **Typed media roles**, not a flat image list ([02 §5.2.2](02-data-model.md)).
-  The single most important one, because guessing which image is the canonical
-  likeness is not recoverable later.
-- **Structured `VisualDescriptors`** on the profile ([02 §2.1](02-data-model.md)).
-  Fields now, or prose parsing later.
-- **Per-media generation provenance**, reusing `GeneratedFieldProvenance`
-  ([05 §11.2](05-ui-surfaces.md)) — which model, which prompt, which seed. A
-  reference image whose seed was not recorded cannot be regenerated
-  consistently, which defeats the purpose.
-- **Crop as a stored rectangle** rather than a destructive edit
-  ([02 §5.2.1](02-data-model.md)).
+**For the Character Studio** — four, and they went with it to
+[24 §5](24-character-studio.md): typed media roles, structured
+`VisualDescriptors`, per-media generation provenance, and crop as a stored
+rectangle. All four are unchanged by the move; they are 1.0's obligations to 3.0
+now rather than to this release, and the first is still the one that is not
+recoverable.
 
 **For authored rules** — two, both already stated in
 [03 §4.1](03-modes-and-turn-pipeline.md) and repeated here because this is the
@@ -262,13 +216,13 @@ wanted soon and gated on nothing.
   finish a session and immediately author a lorebook by hand, the loop is real
   and this release is late. If nobody does, *play a session, keep the world* was
   a pitch nobody wanted, and extraction is the member to cut.
-- **Count the operators the three dialects grew** (§2.2). Near zero across four
+- **Count the operators the three dialects grew** (§2.2). Near zero across five
   releases means the guards held and the unification is small — but it also
   means nothing pushed on them, and a vocabulary designed against dialects
   nobody strained is a vocabulary designed against imagination after all. That
   would be the signal to wait again rather than to ship.
 - **Watch whether Campaign authors ask for rules.** The premise of putting this
-  a release behind Campaign is that 4.0 produces authors who then want to say
+  a release behind Campaign is that 5.0 produces authors who then want to say
   something they cannot. If the requests never arrive, the tier is ours rather
   than theirs, and [14 §4](14-roadmap.md)'s posture — hope somebody else builds
   it — was the right one all along.

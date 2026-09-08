@@ -6,7 +6,7 @@ a shared treatment baseline, with the stylistic particulars still varying per
 session. *"The Rain City campaign"*, holding six sessions that know about each
 other.
 
-**Scheduled for 3.0** ([work plan §0](workplan/01-work-plan.md)). It carries the
+**Scheduled for 4.0** ([work plan §0](workplan/01-work-plan.md)). It carries the
 number 19 because 00–18 were taken when it was written; like
 [15](15-account-gallery.md) and [17](17-write-mode.md) it is a design note that
 arrived after the original run rather than a new tier of document.
@@ -51,7 +51,7 @@ entire value is in what *accrues*. A Setup that has been used twice is unchanged
 a World that has been played twice is a different object from the one that was
 created.
 
-It is also why 3.0 is the right release rather than an earlier one
+It is also why 4.0 is the right release rather than an earlier one
 ([work plan §0](workplan/01-work-plan.md)): a continuity container designed
 before any continuities exist is designed against a guess, and the shape of the
 guess would be the shape of the feature.
@@ -66,7 +66,7 @@ Three things follow, and each is a constraint worth holding:
 
 - **No new library panel, and no seventh kind in [10](10-schemas.md).** The
   release check in [work plan §0.2](workplan/01-work-plan.md) states this as a
-  commitment: *World at 3.0 must add no portable kind at all.*
+  commitment: *World at 4.0 must add no portable kind at all.*
 - **It stays out of the export surface**, which is right — a continuity is about
   *your* play, and the material underneath it already travels as a Package
   ([10 §9.1](10-schemas.md)). Someone who wants to share "the Rain City setting"
@@ -89,7 +89,7 @@ belong together — is not information anyone else can use.
 Who exists and what is known about them, what state the channels hold, which lore
 entries have fired and when, which goals were completed and where.
 
-It ships with World at 3.0 rather than separately, because **a continuity
+It ships with World at 4.0 rather than separately, because **a continuity
 container with no way to see what the continuity contains is half a feature.**
 §1 defines a World partly *as* the bible widened across sessions; building the
 container without the view would be shipping the definition's subject without
@@ -225,7 +225,7 @@ world as a whole" — which coexists with a capital-W kind without real ambiguit
 
 Portable schemas cannot be cleaned up later without a version bump
 ([10 §2](10-schemas.md)), so **any new use of the word in a portable structure
-between now and 3.0 should be refused.**
+between now and 4.0 should be refused.**
 
 ## 7. Non-goals
 

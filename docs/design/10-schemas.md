@@ -260,7 +260,8 @@ and Treatment; the full argument is [18](18-writing-samples.md).
 The rest of this design describes style: `tone.styleNotes` says "terse,
 hardboiled", `se.voice` is register and verbal tics and is explicit that it is
 not what somebody sounds like. This is the field that *demonstrates* it — a
-passage from the setting, pasted whole. The precedent is [20 §5](20-authoring.md),
+passage from the setting, pasted whole. The precedent is
+[24 §3](24-character-studio.md),
 which already separated a style exemplar from a likeness for pictures on the
 grounds that style is a property of the production rather than of the person.
 
@@ -317,7 +318,7 @@ interface Actor {
   /** Prose written *as* this person, offered as an exemplar — §3.1.
    *  Top-level rather than under `profile`, and beside `openings`: the profile
    *  is what somebody is like, while a sample demonstrates how they are
-   *  written, which [20 §5](20-authoring.md) classes as production. */
+   *  written, which [24 §3](24-character-studio.md) classes as production. */
   writingSamples?: WritingSample[]
   lore: Ref[]                      // linked lorebooks, not embedded
 
@@ -702,7 +703,7 @@ work: a Treatment of Rain City does not describe Rain City.
 > The second reason was mechanical: `Setting` was one case-fold from the
 > configuration surface, and the collision was already on disk — the kind's
 > library folder was `settings/` while the app's config screen was Settings.
-> **`World` is now reserved** for the 3.0 continuity container over sessions
+> **`World` is now reserved** for the 4.0 continuity container over sessions
 > ([19](19-world.md)) and is deliberately not spent on a library label.
 
 ```ts
@@ -852,7 +853,7 @@ interface Entrance {
 
 **Fully stable, because the rule-typed fields are gone.** An earlier draft
 carried `requires?: Predicate[]` and `onFire?: Effect[]` with ⚠ warnings, since
-both belonged to the authored-rule vocabulary. That vocabulary is now 5.0
+both belonged to the authored-rule vocabulary. That vocabulary is now 6.0
 ([work plan §0.4](workplan/01-work-plan.md)), and rather than ship a `/1` schema with two fields
 typed against something unwritten, they are removed.
 
@@ -1116,7 +1117,7 @@ interface Goal {
   visibility: "player" | "hidden"
 
   /** "mechanical" — completion computed from channel state — waits on the
-   *  authored-rule vocabulary and arrives as a third variant at 5.0
+   *  authored-rule vocabulary and arrives as a third variant at 6.0
    *  ([work plan §0.4](workplan/01-work-plan.md)). Adding a variant is additive. */
   completion:
     | { kind: "narrative" }        // an evaluation step judges it
@@ -1132,7 +1133,7 @@ interface Goal {
 
 **Both completion kinds are stable**, because the one that depended on the rule
 vocabulary is not here yet. Campaign is where mechanical completion actually
-earns its place — a quest whose state is real data — but Campaign at 4.0 does not
+earns its place — a quest whose state is real data — but Campaign at 5.0 does not
 *supply* it: a `Goal` lives on Setup, which is authored content, so the condition
 belongs to the author rather than to the mode. The vocabulary therefore lands a
 release later with the rest of the authoring tier
@@ -1825,7 +1826,7 @@ the diff.
 |---|---|
 | **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [13](13-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
 | **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [13 §1.3](13-internal-contracts.md). |
-| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 5.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
+| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
 

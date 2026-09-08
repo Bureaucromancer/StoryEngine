@@ -376,7 +376,7 @@ version that actually answers the complaint.
 
 ### 4.5 `visual` is the source and the prose is derived
 
-[20 §4.2](20-authoring.md) leaves open which of `visual` and `se.appearance` is
+[24 §3](24-character-studio.md) leaves open which of `visual` and `se.appearance` is
 authoritative and says only that they must not drift silently. **For a
 generated actor this addon settles it: the descriptors are drawn first and the
 prose is written from them.** That is a position on the open question, offered
@@ -399,7 +399,7 @@ and one affordance:
 
 Revert and Accept-as-is apply unchanged. *Never auto-generate* and *never
 block on the model* ([05 §11.5](05-ui-surfaces.md)) apply unchanged. And the
-Studio's test bench ([20 §4.2](20-authoring.md)) is where a draw is checked —
+Studio's test bench ([24 §3](24-character-studio.md)) is where a draw is checked —
 generate against the drawn identity and see whether the image model held it —
 which is the first concrete consumer the test bench has been given.
 
@@ -408,7 +408,7 @@ which is the first concrete consumer the test bench has been given.
 Image models collapse too. Two characters with different descriptors can still
 render as the same face because the model has one face for *woman, thirties,
 serious*. The randomizer moves the distribution of *inputs*; reference images
-and the rest of [20 §4](20-authoring.md) are what move the distribution of
+and the rest of [24](24-character-studio.md) are what move the distribution of
 outputs, and this addon is a complement to that work rather than a substitute.
 It is the cheap part, which is why it can come first.
 

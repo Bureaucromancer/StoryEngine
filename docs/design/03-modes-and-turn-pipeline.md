@@ -18,7 +18,7 @@ piece is worth arguing about at length before writing code, it is §2 and §4.
 **Freeform** is the Aventuras shape — do/say/think/story input, chapters,
 world-state classification, branching, light or no mechanics. **Campaign** is
 the Marinara RPG shape — party, sheets, combat, dice, map, clock. Freeform ships
-at 1.0 and Campaign at 4.0 ([work plan §0](workplan/01-work-plan.md)).
+at 1.0 and Campaign at 5.0 ([work plan §0](workplan/01-work-plan.md)).
 
 **Modes belong to surfaces, and the grouping that used to sit above these two is
 gone.** An earlier draft named a single mode **Adventure** carrying two presets,
@@ -230,7 +230,7 @@ variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
-**Scope: the tier is committed; the vocabulary is 5.0, the authoring tier**
+**Scope: the tier is committed; the vocabulary is 6.0, the authoring tier**
 ([work plan §0.4](workplan/01-work-plan.md), [§0.6](workplan/01-work-plan.md)).
 Channels and engine-computed effects ship at 1.0 and are where the power actually
 is. What waits is the predicate/effect vocabulary, its evaluator and its
@@ -806,7 +806,7 @@ Consequences worth stating:
 
 **Modes belong to surfaces** (§1, [05 §2](05-ui-surfaces.md)). The Play surface
 holds three of them across two releases — **Scene and Freeform at 1.0**,
-**Campaign at 4.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
+**Campaign at 5.0** ([work plan §0](workplan/01-work-plan.md)) — plus the
 assistant (§7.4), which is not a chat mode but is built out of the same parts.
 
 **Messages is specified here and is not scheduled.** It was a 2.0 mode until the
@@ -877,7 +877,7 @@ Design notes:
   feature; branching is a session-level capability from
   [02 §8](02-data-model.md) available in every mode.
 
-### 7.3 Freeform **1.0**, Campaign **4.0**
+### 7.3 Freeform **1.0**, Campaign **5.0**
 
 Two Play modes over one contract, specified together because their design is one
 argument (§1).
@@ -1002,8 +1002,8 @@ Schema in [10 §7.1](10-schemas.md). The shape in brief: a short always-injected
 `statement`, an optional fuller `detail` for steps, a `visibility` that makes
 hidden goals the GM's arc through the same mechanism as hidden channels, and a
 `completion` that is narrative or manual. Mechanical completion — computed from
-channel state — needs the authored-rule vocabulary and arrives with it at 5.0
-([work plan §0.6](workplan/01-work-plan.md)). Campaign at 4.0 is where mechanical
+channel state — needs the authored-rule vocabulary and arrives with it at 6.0
+([work plan §0.6](workplan/01-work-plan.md)). Campaign at 5.0 is where mechanical
 completion *earns* its place, but it is not what supplies it: a `Goal` sits on
 Setup, which is authored content, so the condition belongs to whoever wrote the
 game rather than to the mode running it.
@@ -1533,8 +1533,9 @@ kind the pipeline already makes. Four fragments:
 - **the moment** — one line saying what is in this picture, written by a model
   reading the turn's output text (below);
 - present actors' `VisualDescriptors` and their `reference` media
-  ([10 §3](10-schemas.md)) — this is what the Character Studio's payload exists
-  to feed, and the reason typed media roles are a 1.0 obligation;
+  ([10 §3](10-schemas.md)) — this is what the Character Studio's payload
+  ([24](24-character-studio.md)) exists to feed, and the reason typed media roles
+  are a 1.0 obligation;
 - channel state — location, time of day, weather, whatever a mode tracks;
 - the treatment's `tone` and any style profile.
 

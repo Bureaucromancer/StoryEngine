@@ -17,20 +17,23 @@ what is deferred rather than forgotten.
 | **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
 | **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
-| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — World ([01 §0](01-work-plan.md), [19](../19-world.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
-| **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — Campaign and the RPG channel library ([01 §0](01-work-plan.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
-| **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — the authoring tier ([01 §0.6](01-work-plan.md)). | And so on. The pattern does not change again. |
+| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — the Character Studio ([01 §0](01-work-plan.md), [24](../24-character-studio.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
+| **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — World ([01 §0](01-work-plan.md), [19](../19-world.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
+| **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — Campaign and the RPG channel library ([01 §0](01-work-plan.md)). | 5.0 work continues on `main` while `release/4.0` takes fixes. |
+| **6.0 beta → 6.0** | The same gate again, against the 6.0 scope — the authoring tier ([01 §0.6](01-work-plan.md)). | And so on. The pattern does not change again. |
 
 **1.0 is a real release, not a staging post.** It ships the Play surface with two
 modes — Scene and Freeform — chosen as the ones this project has opinions about,
-with Write, World and Campaign held for later series ([01 §0](01-work-plan.md)).
+with Write, the Character Studio, World and Campaign held for later series
+([01 §0](01-work-plan.md)).
 The release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.
 
 **The gate definition does not change as the series go up.** *Feature complete
 to the 2.0 spec* is checkable against [17](../17-write-mode.md) exactly as the
 first one is checkable against the 1.0 design notes, and *to the 3.0 spec*
-against [19](../19-world.md) after it. The branch model needs nothing new either:
+against [24](../24-character-studio.md) after it. The branch model needs nothing
+new either:
 §2 already makes release branches per **minor line**, so each major is one more
 line rather than a new pattern. **There is no `1.x` line and never was** — a
 point release is a patch on the release branch, not a place to park deferred
@@ -358,7 +361,8 @@ cut at beta 1, which is the freeze-not-release answer §8 leans toward.
 
 **Why every prerelease carries the release's name.** The committed versions
 ([01 §0](01-work-plan.md)) are one surface or tier each — 1.0 Play, 2.0 Write,
-3.0 World, 4.0 Campaign, 5.0 the authoring tier — so the major number moves
+3.0 the Character Studio, 4.0 World, 5.0 Campaign, 6.0 the authoring tier — so
+the major number moves
 faster than the word usually implies, and *2.0-beta 1* says which of those it
 is feature-complete to where a bare *beta 7* would not. The alphas carry it for
 the same reason and for one more: a prerelease of `1.0.0` claims nothing about

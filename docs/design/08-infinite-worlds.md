@@ -81,12 +81,12 @@ author *declare a variable* but not *state a rule about it*. Declaring
 "Corruption: 0–100, purple, pinned" is a fraction of the way to "when corruption
 reaches 50, change the objective and swap in a different instruction block".
 
-**Scheduled for 5.0, the authoring tier** ([work plan §0.6](workplan/01-work-plan.md)) — and this document
+**Scheduled for 6.0, the authoring tier** ([work plan §0.6](workplan/01-work-plan.md)) — and this document
 is the reason why, in both directions. It makes the case for the tier, and it
 also records that IW ran on triggers and tracked items for years before adding
 PawScript (§6), designing that language against a corpus of real authored worlds.
 Building the vocabulary first, with no corpus, would be taking IW's destination
-without its route. Campaign at 4.0 is what produces the corpus; this tier is a
+without its route. Campaign at 5.0 is what produces the corpus; this tier is a
 release behind it for exactly that reason, and not because Campaign needs it. What 1.0 keeps is the room: `owner` accepting a package id,
 and one application path for all effects
 ([03 §4.1](03-modes-and-turn-pipeline.md)).
@@ -361,7 +361,7 @@ thing that comes from retrofitting.
 
 | Change | Where | Size |
 |---|---|---|
-| Add authored rules as a third extensibility tier — **5.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
+| Add authored rules as a third extensibility tier — **6.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
 | "Packages may ship rules, never code" resolves A2 | [06 A2](06-open-questions.md) | Clarification |
 | Channels declarable by authors, not only modes | [03 §4](03-modes-and-turn-pipeline.md) | Moderate |
 | Steps may suspend for player input | [03 §6](03-modes-and-turn-pipeline.md) | Moderate — new C5 |

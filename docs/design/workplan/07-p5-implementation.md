@@ -701,7 +701,7 @@ lean is: implement the predicate check against whatever channels the session
 has, and an entry conditioned on an undeclared channel is a **visible warning
 and never fires** — the dangling posture, already specified. The predicate
 *vocabulary* stays the minimal comparison set; anything richer waits for the
-5.0 rule vocabulary and must not leak in here early
+6.0 rule vocabulary and must not leak in here early
 ([03 §6](../03-modes-and-turn-pipeline.md)'s warning about `StepCondition`
 applies).
 
@@ -2365,7 +2365,7 @@ built have no surface, and the first is the phase's largest open item:
 Semantic/embedding retrieval ([05 §14.3](../05-ui-surfaces.md) — keyword is the
 1.0 position; embeddings moved to the derived index and nothing populates
 them); entry state values beyond timing — quests, dispositions, relationship
-levels live in channels that arrive with modes (P7) and 5.0; the rule
+levels live in channels that arrive with modes (P7) and 6.0; the rule
 vocabulary (§1.4's line); the full lorebook editor with galleries, assist and
 entry-level import and export ([05 §11.2c](../05-ui-surfaces.md)) (P11; media
 schema shipped in P1.1 and stays schema-only); cross-session memory
