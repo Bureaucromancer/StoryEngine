@@ -21,6 +21,7 @@ import {
   readSession,
   readTranscript,
   readTurn,
+  renameSession,
   setSessionLore,
   type Account,
   type AccountPatch,
@@ -537,6 +538,32 @@ export function useSetSessionLore(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Renaming a session — [02 §8].
+ *
+ * A hook rather than two inline mutations for the reason `useSession`'s own
+ * docstring gives: two components spelling the same cache key by hand is how a
+ * cache splits, and this one has two callers from the day it lands — the list,
+ * and the play heading.
+ *
+ * **`previewKey` is deliberately not reset.** A session name reaches no
+ * assembled prompt, so unlike `useSetSessionLore` there is nothing here that
+ * could change what the next turn would send. Both list and detail are
+ * invalidated, because the name is denormalised into the list rows.
+ */
+export function useRenameSession(
+  sessionId: string,
+): UseMutationResult<{ session: SessionSummary }, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => renameSession(sessionId, name),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 }

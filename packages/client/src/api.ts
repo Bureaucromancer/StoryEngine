@@ -698,7 +698,14 @@ export interface SessionSummary {
  * the session then owns.
  */
 export interface NewSession {
-  name: string;
+  /**
+   * Optional, because Start no longer demands one — [02 §8].
+   *
+   * A session is id-addressed and nothing resolves one by name, so starting
+   * unnamed freezes nothing and the name can arrive whenever its owner knows
+   * what it is. `sessionLabel` is what renders the gap in the meantime.
+   */
+  name?: string;
   treatment?: string;
   lore?: string[];
   preset?: string;
@@ -720,11 +727,32 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
   // an empty list would be a session that has decided to retrieve nothing,
   // which is a different claim from one that was never asked.
   return request('POST', '/api/sessions', {
-    name: input.name,
+    // A name that is absent and one that is blank mean the same thing, so only
+    // one of them is sent. The route would store `''` for either — this keeps
+    // the wire honest about the fact that nothing was chosen.
+    ...(input.name === undefined || input.name.trim() === '' ? {} : { name: input.name }),
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
     ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
   });
+}
+
+/**
+ * Renames a session — [02 §8].
+ *
+ * The same `PATCH` that archives, because a session name is an ordinary
+ * property: nothing resolves a session by it, so this is one JSON write and one
+ * index row, with no report to read and no second question to answer. Compare
+ * `renameTag`, which is a `POST` to a verb precisely because it is not that.
+ *
+ * An empty name is a legitimate value — it is the state a session may have
+ * started in — so this does not refuse one.
+ */
+export function renameSession(
+  sessionId: string,
+  name: string,
+): Promise<{ session: SessionSummary }> {
+  return request('PATCH', `/api/sessions/${encodeURIComponent(sessionId)}`, { name });
 }
 
 /**

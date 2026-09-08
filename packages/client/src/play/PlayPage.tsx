@@ -29,6 +29,8 @@ import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { LorePanel } from './LorePanel.js';
+import { RenameSession } from './RenameSession.js';
+import { sessionLabel } from './session-label.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 
@@ -322,7 +324,21 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     // the story surface, and the reading measure is the token's one designed
     // use ([05 §1.2]).
     <div className={`${page.reading} flex h-full flex-col gap-4`}>
-      <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
+      <div className="flex items-center gap-2">
+        {/*
+          Two cases kept apart on purpose. `?? 'Session'` used to cover both and
+          only caught `undefined`, so an empty name went straight through it and
+          the heading rendered blank — and collapsing them the other way would
+          have the not-yet-loaded frame assert the session is untitled when
+          nobody yet knows whether it is.
+        */}
+        <h1 className="text-section text-ink">
+          {session.data === undefined ? 'Session' : sessionLabel(session.data.session.name)}
+        </h1>
+        {session.data === undefined ? null : (
+          <RenameSession sessionId={sessionId} name={session.data.session.name} />
+        )}
+      </div>
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about

@@ -12,6 +12,8 @@ import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link, page } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
+import { RenameSession } from './RenameSession.js';
+import { sessionLabel } from './session-label.js';
 
 /**
  * The list of sessions, and the control that makes a new one.
@@ -56,7 +58,7 @@ export function SessionsPage(): React.JSX.Element {
   const create = useMutation({
     mutationFn: () =>
       createSession({
-        name,
+        ...(name.trim() === '' ? {} : { name }),
         ...(treatment === '' ? {} : { treatment }),
         ...(preset === '' ? {} : { preset }),
         ...(lore.length === 0 ? {} : { lore }),
@@ -83,16 +85,27 @@ export function SessionsPage(): React.JSX.Element {
         className="flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
-          if (name.trim().length > 0) create.mutate();
+          /**
+           * **Start just starts.**
+           *
+           * This was `if (name.trim().length > 0) create.mutate()`, so pressing
+           * Start with an empty box did nothing at all — not refused, not
+           * prevented, just silently ignored, which is the one shape
+           * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md) was written against. The
+           * resolution is removing the requirement rather than adding a
+           * refusal: a session is id-addressed, so an unnamed one freezes
+           * nothing, and the name can arrive later through `RenameSession`.
+           */
+          create.mutate();
         }}
       >
         <div className="flex gap-2">
           <label className="flex-1">
-            <span className="sr-only">Name for the new session</span>
+            <span className="sr-only">Name for the new session, if you have one</span>
             <input
               className="w-full rounded-control border border-line-strong bg-surface p-2 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-focus"
               value={name}
-              placeholder="A new session"
+              placeholder="Name it now, or later"
               onChange={(event) => {
                 setName(event.target.value);
               }}
@@ -158,10 +171,17 @@ export function SessionsPage(): React.JSX.Element {
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">
         {(sessions.data?.sessions ?? []).map((session) => (
-          <li key={session.id}>
+          <li key={session.id} className="flex items-center gap-2">
+            {/*
+              Through `sessionLabel`, which fixes a bug that predates unnamed
+              sessions being reachable from here: a session whose name is `''`
+              — one hand-edit away, since `session.json` is meant to be edited
+              — rendered a link with no accessible name and nothing to click.
+            */}
             <Link to="/play/$sessionId" params={{ sessionId: session.id }} className={link.object}>
-              {session.name}
+              {sessionLabel(session.name)}
             </Link>
+            <RenameSession sessionId={session.id} name={session.name} />
           </li>
         ))}
       </ul>
