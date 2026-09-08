@@ -318,6 +318,20 @@ export class Layout {
     return resolveWithin(this.userRoot(handle), 'prefs.json');
   }
 
+  /**
+   * `users/<handle>/tags.json` — the tag registry ([25 §4](../../../../docs/design/25-tagging.md)).
+   *
+   * Beside `prefs.json` and deliberately not inside it. The preferences file
+   * carries a decision that it is a bag the server does not validate, and the
+   * whole return on that decision is that a preference the client stops using
+   * rots quietly instead of needing a migration. This document has a schema and
+   * is validated on the way out, which is exactly what does not belong in the
+   * bag — so B13 is upheld here rather than amended.
+   */
+  tagsFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'tags.json');
+  }
+
   userRoot(handle: string): string {
     assertValidHandle(handle);
     return resolveWithin(this.usersRoot, handle);

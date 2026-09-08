@@ -621,6 +621,86 @@ so any other kind is `404`.
 
 ---
 
+## Tags
+
+The tag registry — [25](design/25-tagging.md). One document per account, at
+`users/<handle>/tags.json`.
+
+**The registry decorates tag names; it does not own them.** An object may carry
+a tag the registry has never heard of, and that tag renders, filters and gates
+lore exactly as a registered one does — it simply has no colour and no place in
+the manual order. Nothing here validates a tag against the registry, nothing
+refuses a name it has not seen, and no route rejects an object because of what
+is or is not in this document.
+
+**The verb split is the safety property.** `DELETE /api/tags/:id` removes an
+*entry* and touches no object: the tag survives on everything carrying it. Any
+operation that would rewrite the user's files is a `POST` with a verb in the
+path, and none of those exists yet.
+
+A tag entry is:
+
+```jsonc
+{
+  "id": "01930f...", // stable across renames
+  "name": "noir",
+  "swatch": "rose", // a palette name, or null for the neutral chip
+  "sortOrder": 0, // manual order, dense within a registry
+  "folder": "none", // "none" | "open" | "closed"
+  "hidden": false, // hidden from an object's inline chip strip, and nowhere else
+  "createdAt": "2026-09-08T10:00:00Z"
+}
+```
+
+`swatch` and `folder` are **documented open strings, not closed sets**
+([10 §8.2](design/10-schemas.md)'s rule). A value this build does not recognise
+renders neutral, or reads as `none`, and is stored back unchanged rather than
+blanked — a newer build wrote it.
+
+### `GET /api/tags`
+
+`{ tags }`, in stored order.
+
+**No counts.** `GET /api/library` already ships every object's body, so how many
+objects carry a tag is one pass over data the client is holding; a second answer
+computed here would eventually disagree with the first.
+
+### `POST /api/tags`
+
+`{ name, swatch?, folder?, hidden? }` → `201` with the whole list.
+
+`409` when the name is an existing tag in any case, and the message names the
+spelling that exists — *noir is already a tag* is unhelpful to somebody who has
+just typed `Noir` and can see no `noir`.
+
+### `PATCH /api/tags/:id`
+
+`{ swatch?, folder?, hidden? }` → the whole list.
+
+**`name` is not accepted here**, and its absence is deliberate. Renaming is not a
+property edit: an entry's `actorTagFilter` naming the old spelling stops matching
+([25 §1](design/25-tagging.md)), so a rename can change which lore fires and owes
+an answer about the gates it found. A `name` in this body is `400` with the field
+named, rather than being applied as if it were a colour.
+
+### `DELETE /api/tags/:id`
+
+Removes the entry. **Objects are untouched** — the tag goes on being carried,
+filtered and gated on, and reappears in the manager as a tag in use with no
+entry. Losing a registry row must never lose data.
+
+### `PUT /api/tags/order`
+
+`{ ids }` → the whole list, renumbered densely from zero.
+
+The whole order, not a patch of positions: two reorders in flight are two whole
+answers and the later one wins, where two position patches could produce an order
+neither client asked for. Ids the registry does not know are ignored rather than
+refused, so a stale tab reordering a list somebody has since pruned is not an
+error page.
+
+---
+
 ## Version history
 
 Every write that changes something snapshots the state it replaced, automatically
