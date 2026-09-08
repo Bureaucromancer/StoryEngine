@@ -2,18 +2,26 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useId, useState, type JSX } from 'react';
+import { useId, useMemo, useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { useAuthState, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
+import { useAuthState, useLibrary, usePatchPrefs, usePrefs, useTags } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
-import { emptyMessage, panelFor, panelNameBadges, searchText, type PanelColumn } from './panels.js';
+import {
+  emptyMessage,
+  panelFor,
+  panelNameBadges,
+  searchText,
+  tagsOf,
+  type PanelColumn,
+} from './panels.js';
 import { matches } from './search.js';
+import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -249,6 +257,34 @@ function ObjectTable(props: {
   const searchId = useId();
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  /**
+   * The tag filter — [25 §5](../../../../docs/design/25-tagging.md).
+   *
+   * Beside the search rather than in the panel's `filters`, because tags are on
+   * every kind while scope, enabled and source are the lorebook's. The
+   * single-select the Lorebooks panel used to declare is gone: two tag controls
+   * on one shelf would be two answers to one question.
+   */
+  const [tagFilters, setTagFilters] = useState<TagFilters>(new Map());
+  const registry = useTags();
+  /**
+   * Tags the registry says to keep off cards — [25 §5].
+   *
+   * Case-folded, because that is how a tag is compared everywhere else. **Only
+   * the inline chip strip reads this.** The filter bar below still offers them,
+   * the search still matches them, and the manager still lists them — a flag
+   * that also hid a tag from the bar would be a second, invisible filter state,
+   * and would make objects unreachable without saying so.
+   */
+  const hiddenTags = useMemo(
+    () =>
+      new Set(
+        (registry.data?.tags ?? [])
+          .filter((tag) => tag.hidden)
+          .map((tag) => tag.name.toLowerCase()),
+      ),
+    [registry.data],
+  );
   const sort = panel.sorts.find((candidate) => candidate.id === sortId);
 
   if (props.objects.length === 0) {
@@ -278,6 +314,7 @@ function ObjectTable(props: {
   const matching = props.objects.filter(
     (object) =>
       matches(searchText(object), query) &&
+      passesTagFilters(tagsOf(object), tagFilters) &&
       panel.filters.every((filter) => {
         const value = chosen[filter.id] ?? '';
         return value === '' || filter.matches(object, value);
@@ -345,6 +382,13 @@ function ObjectTable(props: {
        * to be the component a cross-library one would use, and the way to be
        * that is to be the one text control this client already has.
        */}
+      <TagFilterBar
+        names={tagNames(props.objects)}
+        registry={registry.data}
+        filters={tagFilters}
+        onChange={setTagFilters}
+      />
+
       {searching ? (
         <div id={searchId} className="mb-4">
           <Field
@@ -397,6 +441,7 @@ function ObjectTable(props: {
                 kind={props.kind}
                 columns={panel.columns}
                 locale={locale}
+                hidden={hiddenTags}
               />
             ))}
           </tbody>
@@ -411,6 +456,8 @@ function ObjectRow(props: {
   kind: LibraryKind | undefined;
   columns: PanelColumn[];
   locale: string | undefined;
+  /** Tag names to keep out of an inline chip strip — see `hiddenTags`. */
+  hidden: ReadonlySet<string>;
 }): JSX.Element {
   const kind = kindOfSchema(props.object.schema);
   return (
@@ -448,9 +495,28 @@ function ObjectRow(props: {
             column.numeric === true ? table.cellNumeric : `${table.cell} text-sm text-ink-subtle`
           }
         >
-          {column.cell(props.object, props.locale)}
+          {column.cell(props.object, props.locale, props.hidden)}
         </td>
       ))}
     </tr>
   );
+}
+
+/**
+ * Every tag name on this shelf, in the spelling first seen, deduplicated
+ * case-insensitively.
+ *
+ * The bar offers what the shelf actually carries — the rule the single-select
+ * tag filter stated before it: *a tag filter offering tags nobody has used is a
+ * list of dead ends*, and one missing a tag somebody added yesterday is worse.
+ */
+function tagNames(objects: readonly LibraryObject[]): string[] {
+  const seen = new Map<string, string>();
+  for (const object of objects) {
+    for (const tag of tagsOf(object)) {
+      const key = tag.toLowerCase();
+      if (!seen.has(key)) seen.set(key, tag);
+    }
+  }
+  return [...seen.values()];
 }

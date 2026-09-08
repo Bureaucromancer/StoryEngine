@@ -289,3 +289,40 @@ describe('making a tag', () => {
     expect(createTag).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * **Prune is a registry operation, not a library one.** An entry with a count of
+ * zero is by definition carried by nothing, so removing it touches no object —
+ * which is why it needs no confirmation about data, only about the entries.
+ *
+ * The counts come from the caller, and they have to be over the *whole* library
+ * rather than a filtered shelf: pruning against a narrowed view would delete
+ * entries for tags that are in use somewhere the view could not see.
+ */
+describe('prune', () => {
+  it('removes the entries nothing carries, and only those', async () => {
+    open(
+      [
+        entry({ id: 'a', name: 'noir' }),
+        entry({ id: 'b', name: 'city' }),
+        entry({ id: 'c', name: 'ronin' }),
+      ],
+      [['noir', 2]],
+    );
+    await rowFor('noir');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Prune 2 unused' }));
+
+    expect(deleteTag.mock.calls.map((call) => call[0]).sort()).toEqual(['b', 'c']);
+  });
+
+  it('says there is nothing to do rather than offering a dead control', async () => {
+    open([entry({ id: 'a', name: 'noir' })], [['noir', 1]]);
+    await rowFor('noir');
+
+    expect(screen.getByRole('button', { name: 'Nothing to prune' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+});

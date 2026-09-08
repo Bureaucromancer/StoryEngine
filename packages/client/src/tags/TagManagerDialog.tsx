@@ -95,6 +95,18 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- counts is a prop map, stable per render
   }, [tags, sort, props.counts]);
 
+  /**
+   * Registry entries nothing carries — what Prune removes, and nothing else.
+   *
+   * Reads the counts map directly rather than through `countOf`, which is
+   * redeclared on every render and would make the memo recompute every time
+   * anyway. The lookup is the same one, spelled where the dependency can see it.
+   */
+  const unused = useMemo(
+    () => tags.filter((tag) => (props.counts.get(tag.name.toLowerCase()) ?? 0) === 0),
+    [tags, props.counts],
+  );
+
   /** Tags the library carries that the registry has never heard of. */
   const unregistered = useMemo(() => {
     const known = new Set(tags.map((tag) => tag.name.toLowerCase()));
@@ -274,7 +286,25 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         </Button>
       </form>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/*
+         * **Prune removes entries nothing carries, and only those.** It is a
+         * registry operation, not a library one: no object is touched, because
+         * an entry with a count of zero is by definition on nothing. The count
+         * comes from the shelf the caller handed in, so a tag used only by
+         * something this view cannot see would be wrongly pruned — which is why
+         * the caller passes counts over the *whole* library rather than the
+         * filtered shelf.
+         */}
+        <Button
+          type="button"
+          disabled={write.isPending || unused.length === 0}
+          onClick={() => {
+            for (const tag of unused) write.mutate({ kind: 'delete', id: tag.id });
+          }}
+        >
+          {pruneLabel(unused.length)}
+        </Button>
         <Button type="button" onClick={props.onDismiss}>
           Done
         </Button>
@@ -467,6 +497,11 @@ function SwatchButton(props: {
  * two failures have one cause, which is usually the sign the label was wrong
  * rather than the test.
  */
+/** The whole phrase, including the count, rather than a word plus a number. */
+function pruneLabel(count: number): string {
+  return count === 0 ? 'Nothing to prune' : `Prune ${String(count)} unused`;
+}
+
 function adoptLabel(name: string): string {
   return `Add ${name}`;
 }

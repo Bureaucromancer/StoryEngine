@@ -35,7 +35,16 @@ export interface PanelColumn {
   /** Stable, and never the header: nothing branches on a displayed string. */
   id: string;
   header: string;
-  cell: (object: LibraryObject, locale: string | undefined) => ReactNode;
+  /**
+   * `hidden` is the case-folded names the registry says to keep off cards.
+   * Passed rather than looked up, because a column that fetched the registry
+   * would be a column that could be pending.
+   */
+  cell: (
+    object: LibraryObject,
+    locale: string | undefined,
+    hidden?: ReadonlySet<string>,
+  ) => ReactNode;
   /** A count. Right-aligned and tabular, so a column of them compares by eye. */
   numeric?: boolean;
 }
@@ -95,7 +104,7 @@ function entryCount(object: LibraryObject): number {
   return Array.isArray(entries) ? entries.length : 0;
 }
 
-function tagsOf(object: LibraryObject): string[] {
+export function tagsOf(object: LibraryObject): string[] {
   const tags = field(object, 'tags');
   return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
 }
@@ -227,7 +236,21 @@ const LOREBOOKS: KindPanel = {
       numeric: true,
       cell: (object, locale) => formatCount(entryCount(object), locale),
     },
-    { id: 'tags', header: 'Tags', cell: (object) => tagsOf(object).join(', ') },
+    {
+      id: 'tags',
+      header: 'Tags',
+      /**
+       * **Hidden tags are not drawn here, and nowhere else is affected** —
+       * [25 §5](../../../../docs/design/25-tagging.md). The flag exists to quiet
+       * bookkeeping tags (`imported-2026-08`, `wip`) that are worth filtering
+       * by and not worth reading on every row. A flag that also hid them from
+       * the filter bar would be a second, invisible filter state.
+       */
+      cell: (object, _locale, hidden) =>
+        tagsOf(object)
+          .filter((tag) => !(hidden ?? new Set<string>()).has(tag.toLowerCase()))
+          .join(', '),
+    },
     { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
     {
       id: 'updated',
@@ -250,15 +273,6 @@ const LOREBOOKS: KindPanel = {
     { id: 'entries', label: 'Entry count', compare: (a, b) => entryCount(b) - entryCount(a) },
   ],
   filters: [
-    {
-      id: 'tag',
-      label: 'Tag',
-      // From the shelf, sorted, deduplicated — a tag filter offering tags
-      // nobody has used is a list of dead ends.
-      optionsFor: (objects) =>
-        [...new Set(objects.flatMap(tagsOf))].sort().map((tag) => [tag, tag] as const),
-      matches: (object, value) => tagsOf(object).includes(value),
-    },
     {
       id: 'scope',
       label: 'Scope',

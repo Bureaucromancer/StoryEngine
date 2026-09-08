@@ -531,16 +531,18 @@ describe('the Lorebooks panel', () => {
       });
     }
 
-    it('narrows by a tag, and offers only tags the shelf actually uses', async () => {
+    /**
+     * **Tags moved out of this panel** — [25 §5](../../../../docs/design/25-tagging.md).
+     * They are on every kind while scope, enabled and source are the lorebook's,
+     * so the single-select this block used to drive is now a three-state chip
+     * bar on the page. Its own tests are in `tags/TagFilterBar.test.tsx`; what
+     * is left here is that this panel no longer offers a second answer to the
+     * same question.
+     */
+    it('no longer offers a tag control of its own', async () => {
       await shelved();
 
-      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
-        (node) => node.textContent,
-      );
-      expect(options).toEqual(['Any', 'city', 'noir']);
-
-      choose('Tag', 'noir');
-      expect(names()).toEqual(['Ardent']);
+      expect(screen.queryByLabelText('Tag')).toBeNull();
     });
 
     it('narrows by scope', async () => {
@@ -569,12 +571,12 @@ describe('the Lorebooks panel', () => {
      */
     it('keeps every filter offering the whole shelf’s values', async () => {
       await shelved();
-      choose('Tag', 'noir');
+      choose('Enabled', 'off');
 
-      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+      const options = [...screen.getByLabelText('Scope').querySelectorAll('option')].map(
         (node) => node.textContent,
       );
-      expect(options).toEqual(['Any', 'city', 'noir']);
+      expect(options).toEqual(['Any', 'Global', 'Linked']);
     });
 
     /**
@@ -584,7 +586,7 @@ describe('the Lorebooks panel', () => {
      */
     it('says the filters are the reason, rather than telling you to import', async () => {
       await shelved();
-      choose('Tag', 'noir');
+      choose('Scope', 'linked');
       choose('Enabled', 'off');
 
       expect(names()).toEqual([]);
