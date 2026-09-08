@@ -1,8 +1,19 @@
 # 03 — P1 implementation plan
 
-**Status: plan.** Expands [01 P1](01-work-plan.md) into something that can be
-worked from. The first document here that describes *code to write* rather than a
-design to argue with.
+**Status: ~~plan~~ landed**, merged into `main` 2026-08-16 at `a9a05a0`.
+Expands [01 P1](01-work-plan.md) into something that can be worked from — the
+first document here that describes *code to write* rather than a design to
+argue with.
+
+**Its gate is the one gate that owes nothing.** P1 exits through the CI step
+that still runs on every push, which is why it is the single row in
+[26 §1](26-manual-ledger.md) with no person named beside it.
+
+*(This status line was written 2026-09-07 at
+[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+still describing themselves as plans. It had said **plan** since before the
+phase shipped, which is how a corpus comes to record what was intended
+rather than what happened.)*
 
 **P1 delivers:** repo shape, the portable schemas, files on disk, the derived
 index, login, library CRUD, a library list, and a prototype actor editor.

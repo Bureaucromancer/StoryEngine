@@ -2,12 +2,14 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
   ACTOR_SCHEMA,
   LOREBOOK_SCHEMA,
   schemaIdOf,
+  type PortableSchemaId,
   validate,
   type LoreEntry,
 } from '@storyengine/shared';
@@ -15,6 +17,7 @@ import {
 import { requireCodecFor } from '../storage/card/index.js';
 import { fileExists, readFileBytes, statFile } from '../storage/files.js';
 import type { Layout, LibraryOwner, ParsedObjectPath } from '../storage/layout.js';
+import type { PathEscapeError } from '../storage/paths.js';
 import { inTransaction } from '../storage/transaction.js';
 
 /**
@@ -70,8 +73,17 @@ export type IngestOutcome =
   | { kind: 'indexed'; row: ObjectRow; moved: boolean }
   | { kind: 'skipped'; reason: 'not-an-object' | 'unreadable' | 'invalid'; path: string };
 
-/** Why a file that *is* in an object's place could not be read as one — F20. */
-export type FileErrorReason = 'unparsable' | 'wrong-kind' | 'schema';
+/**
+ * Why a file that *is* in an object's place could not be read as one — F20.
+ *
+ * `unusable-name` is the odd one: it is about the *folder*, not the file. Its
+ * name is one this build refuses to resolve — a reserved device name, a
+ * trailing space — so no path into it can be built and the object inside it can
+ * never be opened by anything. F22 skipped such a folder silently; [P6B.1] gave
+ * it a row, because an object that is absent for a reason is not the same thing
+ * as an object that is absent.
+ */
+export type FileErrorReason = 'unparsable' | 'wrong-kind' | 'schema' | 'unusable-name';
 
 export interface FileError {
   path: string;
@@ -280,6 +292,54 @@ function recordInvalid(
 /** Clears the error for a path — the file was fixed, or it is gone. */
 export function clearFileError(db: DatabaseSync, path: string): void {
   db.prepare('delete from file_error where path = ?').run(path);
+}
+
+/**
+ * Records a *folder* whose name this build will not resolve — F22, settled at
+ * [P6B.1].
+ *
+ * **Both producers call this one function, and that is the point.** A rebuild
+ * enumerates slugs with `readdir` and asks the layout to build a path; the
+ * watcher is handed a path and parses it back. The two met the same folder and
+ * disagreed: `rebuild` refused it and counted a silent skip, while the watcher
+ * never applied the name rule at all and indexed a row whose file no other code
+ * in this build can open — every read goes back through `objectFile`, which
+ * throws. `rebuild.ts` recorded the divergence in a comment and assigned it to
+ * `P2.7`, a stage that was never created.
+ *
+ * The key is the object *folder*, computed here from `(owner, kind, slug)` so
+ * that a caller holding a file path and a caller holding a slug cannot key the
+ * same failure two ways. The file inside is not named because it cannot be
+ * reached to know whether it exists.
+ */
+export function recordUnusableName(
+  db: DatabaseSync,
+  layout: Layout,
+  owner: LibraryOwner,
+  schemaId: PortableSchemaId,
+  slug: string,
+  error: PathEscapeError,
+  now: number,
+): void {
+  // `kindRoot` is audited and `slug` came from one `readdir` entry or one path
+  // segment, so it holds no separator: a plain join cannot escape, and the
+  // audited resolver is exactly what refused this name a moment ago.
+  const folder = join(layout.kindRoot(owner, schemaId), slug);
+  db.prepare(
+    `insert into file_error (path, owner, schema_id, slug, reason, detail, seen_at)
+       values (?, ?, ?, ?, ?, ?, ?)
+       on conflict(path) do update set reason = excluded.reason,
+                                       detail = excluded.detail,
+                                       seen_at = excluded.seen_at`,
+  ).run(
+    folder,
+    ownerKey(owner),
+    schemaId,
+    slug,
+    'unusable-name',
+    error.message.slice(0, 2000),
+    now,
+  );
 }
 
 /** Every file that could not be read, for the owners a caller may see. */

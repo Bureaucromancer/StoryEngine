@@ -140,7 +140,9 @@ async function main() {
     lore: [{ id: lorebook, name: 'Rain City' }],
   });
 
-  await ensure('treatments', 'a-wet-week', {
+  // Captured now, because the session below names it — before [P6B.0] this
+  // return was discarded and the treatment was built for nothing.
+  const treatment = await ensure('treatments', 'a-wet-week', {
     ...newTreatment('A wet week'),
     blurb: 'A quiet mystery in a town that is running out of money.',
     lore: [{ ref: { id: lorebook, name: 'Rain City' }, required: true }],
@@ -161,12 +163,29 @@ async function main() {
   if (named !== undefined) {
     console.log('  A wet week — already there');
   } else {
-    const created = await call('POST', '/api/sessions', { name: 'A wet week' });
+    /**
+     * **Named, so the seeded session actually retrieves** — [P6B.0].
+     *
+     * This built a treatment with a lorebook link forty lines above and then
+     * created its session naming neither, so `pnpm seed` produced a session
+     * that resolved zero books — the defect [P5 §0.5] calls the single largest
+     * thing between that phase and an honest close, and the reason PLAYABLE
+     * could not run. The route has accepted both fields since P5.6.
+     *
+     * The treatment carries the book, so naming the treatment is enough and
+     * naming both would be the same book twice — `resolveLore` dedupes by
+     * resolved path, but a seed that demonstrates the shape should demonstrate
+     * the one a person would use.
+     */
+    const created = await call('POST', '/api/sessions', {
+      name: 'A wet week',
+      treatment,
+    });
     await call('PUT', `/api/sessions/${created.session.id}/cast`, {
       persona: null,
       actors: [actor],
     });
-    console.log('  A wet week — created, with Mara in the cast');
+    console.log('  A wet week — created, with Mara in the cast and Rain City in play');
   }
 
   console.log('\nSeeded. A turn still needs a connection and a binding — see Settings.');

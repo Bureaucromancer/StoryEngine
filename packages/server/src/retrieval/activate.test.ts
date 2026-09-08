@@ -153,6 +153,48 @@ describe('activate', () => {
       expect(result.activated[0]?.hit).toBeNull();
     });
 
+    /**
+     * **The count travels with the activation** — [P5 §3] step 8, filled at
+     * [P6B.1].
+     *
+     * It is the post-turn figure and not the held one, which is the whole
+     * distinction: with two turns held and this turn spending one, *one*
+     * message remains, and a reader looking at the block list is asking how
+     * much longer this entry stays rather than how long it had.
+     */
+    it('carries how many turns a sticky window has left', () => {
+      const entry = entryOf('The Ferryman', { keys: ['ferryman'], sticky: 3 });
+      const result = scan([bookOf('Rain City', [entry])], ['a quiet evening'], {
+        timing: { [entry.id]: { sticky: 2, cooldown: 0, fired: 1 } },
+      });
+
+      expect(result.activated[0]?.stickyRemaining).toBe(1);
+      expect(result.timing[entry.id]?.sticky).toBe(1);
+    });
+
+    /** The last turn of a window reports zero rather than nothing. */
+    it('reports a closing window as zero remaining', () => {
+      const entry = entryOf('The Ferryman', { keys: ['ferryman'], sticky: 3 });
+      const result = scan([bookOf('Rain City', [entry])], ['a quiet evening'], {
+        timing: { [entry.id]: { sticky: 1, cooldown: 0, fired: 1 } },
+      });
+
+      expect(result.activated[0]?.stickyRemaining).toBe(0);
+    });
+
+    /**
+     * An entry that fired on its keyword is *not* given a count, even though
+     * one could be computed: it would be a forecast rather than a report, and
+     * the block list is a record of this turn.
+     */
+    it('leaves the count off an entry that fired on its own keyword', () => {
+      const entry = entryOf('The Ferryman', { keys: ['ferryman'], sticky: 3 });
+      const result = scan([bookOf('Rain City', [entry])], ['the ferryman']);
+
+      expect(result.activated[0]?.by).toBe('keyword');
+      expect(result.activated[0]?.stickyRemaining).toBeUndefined();
+    });
+
     it('holds a delayed entry back until the conversation is long enough', () => {
       const entry = entryOf('The Ferryman', { keys: ['ferryman'], delay: 10 });
       const result = scan([bookOf('Rain City', [entry])], ['the ferryman'], { messagesSoFar: 4 });
@@ -294,6 +336,38 @@ describe('activate', () => {
       expect(result.activated.find((one) => one.entry.name === 'Marrow Wharf')?.by).toBe(
         'recursive',
       );
+    });
+
+    /**
+     * **A chain of width three, which is what no recursion test had** —
+     * [P6B.1], and the reason the defect below survived two phases.
+     *
+     * The recursive pass fed the activated entries' content in as `messages`,
+     * and `haystacksFor` sliced *that* by `scanDepth`. A default book scans two
+     * messages, so on any pass that activated three entries **only the first
+     * two fed anything into the next one** — silently, forever, with the entry
+     * that never fired reported `no-match` as though its keys were wrong.
+     *
+     * Every existing recursion test was a chain of width one, so the slice
+     * never had a second element to drop and the whole thing was invisible
+     * ([P5 §0.5]). This is that width, at the default depth.
+     */
+    it('feeds every entry that activated into the next pass, not the first scanDepth of them', () => {
+      // Three entries fire together at depth zero, and the third names the one
+      // that only recursion can reach. `scanDepth` is the default 2.
+      const one = entryOf('One', { keys: ['start'], content: 'Nothing to see.' });
+      const two = entryOf('Two', { keys: ['start'], content: 'Also nothing.' });
+      const three = entryOf('Three', { keys: ['start'], content: 'It happened at Marrow Wharf.' });
+      const target = entryOf('Marrow Wharf', { keys: ['marrow wharf'] });
+
+      const result = scan([bookOf('B', [one, two, three, target], recursive)], ['start']);
+
+      expect(firedNames(result).sort()).toEqual(['Marrow Wharf', 'One', 'Three', 'Two']);
+      const found = result.activated.find((each) => each.entry.name === 'Marrow Wharf');
+      expect(found?.by).toBe('recursive');
+      // And the hit says where it happened: another entry's text, not the
+      // conversation, which is what the surfaces show.
+      expect(found?.hit?.source).toBe('entry');
     });
 
     it('does not recurse when the book has the switch off', () => {

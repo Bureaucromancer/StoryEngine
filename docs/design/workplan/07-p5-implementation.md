@@ -5,10 +5,25 @@ phase does not close, and §0.5 is why.** Every stage in §2 reads Landed. §0.5
 the close-out audit: the gate has never been walked, and it names what a walk
 would have met on the day — among them the retriever half unreachable through
 the product, because nothing in the client selects a lorebook for a session.
-That one is still true at P6A's close: neither the browser nor `pnpm seed`
+~~That one is still true at P6A's close: neither the browser nor `pnpm seed`
 names a book or a treatment for the session it makes, so the session resolves
-none. The **[AWAITS PLAYABLE]** questions are still open, because
-PLAYABLE still has not run. Audited 2026-08-30 at `09ea758`, re-audited
+none.~~ **Fixed at [P6B.0](24-p6b-playable.md), 2026-09-07** — the create form
+and a mid-session panel send the selection, `pnpm seed` names the treatment it
+builds, and the whole path was checked against a real server rather than only in
+jsdom. The **[AWAITS PLAYABLE]** questions are still open, because PLAYABLE
+still has not run.
+
+**What holds this phase open, as of 2026-09-07, is now exactly two things and
+they are both a person's.** [P6B.1](24-p6b-playable.md) discharged §0.5's list:
+six silent defects fixed with tests that redden without them, the four
+contradictions settled and recorded, and steps 6, 8, 11 and 12 amended to ask
+what is actually being asked. What is left is **the walk itself** — eighteen
+steps against HEAD, with each outcome recorded rather than ticked — and **the
+four [AWAITS PLAYABLE] questions**, which want [P6B.2](24-p6b-playable.md). Two
+of the eighteen already have their answers written down: step 6 is
+person-blocked on a corpus with lead time ([26 §3.4](26-manual-ledger.md)), and
+step 12 is deferred to P7 with the row moved and the receiving document told.
+Neither is a failure and neither is a blank. Audited 2026-08-30 at `09ea758`, re-audited
 2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
 day the phase opened — see §0.4, which corrects §1.3, §1.7 and §1.8, and then
 §0.5. *(This status line was written 2026-09-05, at P6A's close; it had said*
@@ -618,6 +633,38 @@ each is an argument waiting to happen mid-walk:
 3. **Step 11's ownership** (this document says P3's gesture; P3 says P6's).
 4. **Step 6's stated means** (above).
 
+**All four settled at [P6B.1](24-p6b-playable.md), 2026-09-07.** Recorded here
+rather than only in the steps, because a list of open arguments that never says
+how they ended is the same failure at one remove.
+
+1. **Settled for the documents, against the code.** `shelf.ts` now reads zero as
+   unlimited, matching [10 §5](../10-schemas.md), the schema and its own sibling
+   field. `shelf.test.ts` changed with it, which was the point of naming the
+   pinning test in advance: a test can pin a defect, and one that does is
+   evidence about the day it was written rather than about the design.
+2. **Settled for the code, against the documents — and the deferral finally has
+   an owner.** No entry can be conditioned on a channel, and that is correct:
+   `activationConditions` is *deliberately absent* from the schema, and a
+   predicate over a channel is unbuildable in a phase where nearly no channels
+   exist. What was wrong is that the deferral was taken in the code and no
+   document followed, so [01 §195](01-work-plan.md) still read **P5** for a thing
+   P5 had decided not to build. **It is P7's**, which is the phase that makes
+   channels a contract rather than a handful of engine-owned names — that row and
+   §1.4 now say so, and [P7 §0.1](18-p7-implementation.md) carries it as
+   inherited. *Anything richer still waits for 6.0's rule vocabulary; what moved
+   is the minimal comparison set, not the vocabulary.*
+3. **Settled in P6's favour, which is where it had already gone.** P3 disclaims
+   rewrite and reroll explicitly, so the reproduction half of step 11 was never
+   P5's to execute and never P3's to have provided. [P6 §3](08-p6-implementation.md)
+   step 3 carries it, with the fixture constraint P5 could not have known. The
+   contradiction was only ever between two documents; no code was wrong.
+4. **Settled as person-blocked, which is a resolution and not a dodge.** The
+   permissively-licensed corpus this step was said to be met by does not exist in
+   the repository — `import/fixtures/` holds three synthesised files and one of
+   them says so. The walker supplies the book. It is counted at
+   [26 §3.4](26-manual-ledger.md) beside [P4 §3](06-p4-implementation.md) step 1,
+   which wants the same thing, and the same false claim is corrected there.
+
 **What would have to happen, in the order that costs least.** Settle the four
 contradictions; fix the two live defects rather than discovering them as gate
 failures; write the three cheap tests the gate leans on and does not have
@@ -704,6 +751,18 @@ and never fires** — the dangling posture, already specified. The predicate
 6.0 rule vocabulary and must not leak in here early
 ([03 §6](../03-modes-and-turn-pipeline.md)'s warning about `StepCondition`
 applies).
+
+**Not built, and the section is corrected rather than left as a lean —
+[P6B.1](24-p6b-playable.md), 2026-09-07, settling §0.5's second contradiction.**
+The lean was taken the other way in the code and nothing said so: the schema
+lists `activationConditions` as *deliberately absent*, the importer discards it,
+no `SkipReason` names a channel, and gate step 12 asks for a posture no entry
+can reach. The decision itself is right — a predicate needs a channel to be
+about, and this phase has almost none — so what is corrected is the record, not
+the code. **The minimal comparison set is P7's**, with the channels it
+predicates over; [01 §195](01-work-plan.md) says so now, and
+[P7 §0.1](18-p7-implementation.md) carries it as inherited. The paragraph above
+stands as the design for whoever builds it.
 
 ### 1.5 Scan sources and mention resolution
 
@@ -2235,6 +2294,16 @@ with lead time; it still does not need the private corpus, and the same false
 claim wants correcting at [P4 §1057](06-p4-implementation.md). **Only [16 §6]'s falsification counts need that**, and
 P5.3 is written so they do not hold the phase closed.
 
+**Amended at [P6B.1](24-p6b-playable.md), 2026-09-07 — step 6 is recorded
+person-blocked, and that is its outcome rather than a note beside a blank.**
+A walker does not fail it, skip it or fake it with a fixture: the step wants
+a book somebody else organised, the repository has none and cannot make one,
+and the honest entry is *deferred, owner named, reason given*. It waits at
+[26 §3.4](26-manual-ledger.md) with [P4 §3](06-p4-implementation.md) step 1,
+which wants the same book — one arrangement answers both, which is the
+argument for counting them in one place rather than letting each phase's
+revisit rediscover its own.
+
 ### The retriever half
 
 7. An imported ST lorebook fires on its keywords in a real session — entries
@@ -2251,6 +2320,27 @@ P5.3 is written so they do not hold the phase closed.
    *And `delay` is a third case rather than a third of the same case:* it has no
    counter by design, so its only trace would be a skip reason, and skip reasons
    reach the preview but never the turn record.
+
+   **Amended at [P6B.1](24-p6b-playable.md), 2026-09-07. Two of the three
+   complaints are fixed; the third is a design gap and is now asked as one.**
+   `Activation` carries `stickyRemaining`, the post-turn figure, and
+   `reasonFor` spends it — *"still active from an earlier turn, 2 messages
+   remaining"*, and *"and this is its last"* at zero, which is the one state a
+   count alone cannot express. The effect list prints `scopeKey` beside the
+   channel id, so four sticky entries writing `se.lore.timing` in one turn are
+   four distinguishable rows rather than the same name four times. Neither had
+   any test before this; both have one now, each proved by the mutation that
+   reddens it.
+
+   **What a walker is actually asked, then:** that a sticky entry counts down
+   in the block list and says when its window closes; that cooldown and
+   ephemeral are legible in the turn record through their effects, now that the
+   effects can be told apart; and that **`delay` is not**, which the walker
+   records rather than hunts for. Its only trace is a skip reason, skip reasons
+   live in the preview, and the preview is gone by the time the record exists.
+   Giving `delay` a place in the record changes what a turn record holds —
+   [05 §11](../05-ui-surfaces.md)'s question rather than a plumbing job — and it
+   is deferred to whoever next opens that surface.
 9. Recursion: an activated entry's text activates another; `preventRecursion`
    et al. honoured; no runaway at the book's depth limit.
 10. Budget pressure: a book over its `tokenBudget` drops entries in the
@@ -2266,6 +2356,13 @@ P5.3 is written so they do not hold the phase closed.
     It is carried by [P6 §3](08-p6-implementation.md) step 3, which already names
     the fixture constraint P5 could not have known: an ordinary turn commits an
     empty tape, so the fixture has to be built to roll.
+
+    **Settled at [P6B.1](24-p6b-playable.md), 2026-09-07 — §0.5's third
+    contradiction, and no code was ever wrong.** It was two documents
+    disagreeing: this one called reproduction P3's gesture, and P3 disclaims
+    rewrite and reroll in as many words. **A walker marks the keying half met
+    and the reproduction half P6's**, and does not go looking for a replay entry
+    point, because none exists to find.
 12. ~~An entry conditioned on a channel that does not exist → visible warning,
     never fires, nothing blocks (§1.4).~~ **Unbuildable, and the scope never
     moved.** No entry can be conditioned on a channel: [10 §5](../10-schemas.md)
@@ -2278,6 +2375,16 @@ P5.3 is written so they do not hold the phase closed.
     `unknownSources` here* — it is the identical visible-warning posture for scan
     *sources*, but such an entry keeps scanning its other haystacks and can still
     fire, so it fails the *never fires* clause.
+
+    **Settled at [P6B.1](24-p6b-playable.md), 2026-09-07 — §0.5's second
+    contradiction, and the deferral finally has an owner.** The step named the
+    phase that ships channel predicates without naming which one, which is the
+    state this project's ledger exists to make impossible. **It is P7's**:
+    [01 §195](01-work-plan.md)'s row moved, §1.4 above is corrected, and
+    [P7 §0.1](18-p7-implementation.md) carries it as inherited work with this
+    step attached. **A walker records step 12 deferred with an owner, not
+    failed** — the distinction matters, because a failed step is a defect and a
+    deferred one is a plan, and P5 declined to build this deliberately.
 13. The keyword tester answers "why does this entry never fire" without playing
     a turn — **and where the answer is a gate or a disabled book rather than a
     match, it agrees with what the document half already showed.** Disagreement

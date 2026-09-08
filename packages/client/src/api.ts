@@ -668,6 +668,40 @@ export interface SessionSummary {
   updatedAt: string;
   headTurnId: string | null;
   archivedAt?: string;
+  /**
+   * What this session retrieves from — [P6B.0].
+   *
+   * Widened here rather than left to the route, which is the decision the note
+   * above says belongs to the surface that needs one: the lore panel needs to
+   * show what is attached before it can change it, and the read route has been
+   * returning the whole session file all along. Optional because a session
+   * made before either field existed has neither, and `treatment` is nullable
+   * because clearing it is a value rather than an absence.
+   *
+   * **`preset` is deliberately not claimed.** The create route takes a preset
+   * *id* and stores a structural copy ([P4 §1.9]), so what comes back is not
+   * what went out, and a field that changed shape between write and read is
+   * the kind of thing a surface should be made to ask for explicitly.
+   */
+  treatment?: string | null;
+  lore?: string[];
+  mode?: string;
+}
+
+/**
+ * What a new session may be given — [P6B.0], and every field of it has been
+ * accepted by `POST /api/sessions` since P5.6 while the client sent `name`
+ * alone. That gap is why no session ever resolved a lorebook and why PLAYABLE
+ * could not run ([P6B §0.1]).
+ *
+ * `preset` is an id here: the route copies it at creation, and the copy is what
+ * the session then owns.
+ */
+export interface NewSession {
+  name: string;
+  treatment?: string;
+  lore?: string[];
+  preset?: string;
 }
 
 export interface ActiveJob {
@@ -681,8 +715,32 @@ export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
   return request('GET', '/api/sessions');
 }
 
-export function createSession(name: string): Promise<{ session: SessionSummary }> {
-  return request('POST', '/api/sessions', { name });
+export function createSession(input: NewSession): Promise<{ session: SessionSummary }> {
+  // Only what was chosen: the route's optional fields mean *unset*, and sending
+  // an empty list would be a session that has decided to retrieve nothing,
+  // which is a different claim from one that was never asked.
+  return request('POST', '/api/sessions', {
+    name: input.name,
+    ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
+    ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
+    ...(input.preset === undefined ? {} : { preset: input.preset }),
+  });
+}
+
+/**
+ * Point a session at a treatment and a set of books — [P6B.0].
+ *
+ * **Both fields replace rather than merge**, which is the route's shape
+ * (`LoreBody`) and the right one for a control that shows what is attached: a
+ * panel that submits what it displays cannot drift from what is stored. Ids are
+ * not validated server-side, deliberately, so a book deleted out from under a
+ * session dangles rather than blocking it.
+ */
+export function setSessionLore(
+  sessionId: string,
+  selection: { treatment: string | null; lore: string[] },
+): Promise<{ session: SessionSummary }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/lore`, selection);
 }
 
 export function readSession(

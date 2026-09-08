@@ -197,6 +197,52 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
+     * Lore the entry asked to place *after* the character — [P6B.1], and the
+     * defect [P5 §0.5] found: **this preset had one lore slot and lore has two
+     * phases.**
+     *
+     * `placementOf` maps SillyTavern's `after_char` to `{ at: 'after' }` and
+     * `collect.ts` fills an `after` placement only from an `after` slot, so
+     * every entry at that position activated, was charged against its book's
+     * `tokenBudget` and `entryLimit`, matched nothing, and was dropped without
+     * a word — while the lore report still counted it kept. **ST positions 1,
+     * 2, 3, 5 and 6 all import as `after_char`**, so the first imported book
+     * lost the majority of its entries after they had spent the budget. A
+     * hand-made book never showed it: `newLoreEntry` defaults to `before_char`.
+     *
+     * **Here rather than after the history splice.** The phase name is ST's
+     * `after_char` — *after the character definitions* — and in that format both
+     * phases sit before the conversation; only positions 2 through 6 go into
+     * the chat, and those import as `at_depth` and reach the splice by another
+     * road entirely. [P6B §1.4]'s lean said after the splice and was reasoning
+     * from the English word rather than from `placementOf`; corrected here,
+     * where the mapping is.
+     *
+     * Immediately after its sibling, so the two ST positions keep the order
+     * their own format gives them. The priority is positional rather than
+     * operative: lore blocks take the *first* enabled lore slot's priority
+     * (`lorePriorityOf`), adjusted per block by trim rank, so this number ranks
+     * nothing on its own and matches its sibling to say so.
+     */
+    {
+      id: 'se.lore.after',
+      label: 'lore (after)',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 25,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'lore',
+        phase: 'after',
+      },
+    },
+    /**
      * Writing samples — [10 §3.1].
      *
      * **Priority 20 puts it between history's floor and lore**, and the

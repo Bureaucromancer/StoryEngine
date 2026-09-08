@@ -41,6 +41,10 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [21-p10-implementation.md](21-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
 | [22-p11-implementation.md](22-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
 | [23-p6a-alpha-1.md](23-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
+| [24-p6b-playable.md](24-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
+| [25-playable-log.md](25-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](07-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
+| [26-manual-ledger.md](26-manual-ledger.md) | What a person still owes, counted in one place: every gate's walk state, the passes that remain after P6B, and every deferral with an owner beside it. [12](12-p2-manual-gate.md) does this for P2–P2B and stops; this is the rest |
+| [27-pre-p6-walk.md](27-pre-p6-walk.md) | The working sheet for every gate before P6 — eighty-eight items across eight sittings, sequenced so one fresh install answers four gates at once, with a result written beside each. [26](26-manual-ledger.md) counts what is owed; this is what a person does |
 
 ## How to read them
 
@@ -54,8 +58,23 @@ record.** 03 through 08, 13 through 15 and 23 are the plans of phases that have
 landed, and each holds its stages struck through with what actually shipped
 against what was planned; 05 through 08 began as skeletons and were revised as
 their phases arrived; 18 through 22 are skeletons and will be filled in as each
-phase approaches — P7, the first of them, is the phase in front of us once
-Alpha 1 is cut.
+phase approaches. **24 is the phase in front of us** — PLAYABLE, three phases
+overdue, which [P7 §0.1](18-p7-implementation.md) found blocking its own demo as
+much as the checkpoint's; P7 follows it.
+
+**Two phases are manual, and both carry a log.** 15 and 24 are the phases whose
+deliverable is *what a person saw*, so each has a findings log beside it — 16
+and 25 — with the same record format and the same rule: appended to as things
+happen, emptied by the phase's triage, and never a queue. 17 is 15's tester's
+brief; 24 carries its own *what not to report* section instead, because the same
+person is playing.
+
+**12 and 26 are the pair that counts what the machine cannot check.** 12 does it
+for P2, P2A and P2B and stops where it was written; 26 is the sweep that found
+what had accumulated behind it — **five phase gates unwalked and one obligation
+owned by a stage that does not exist** — and it carries the rule the corpus was
+missing: a gate is walked, or it is deferred with an owner and a reason, and
+there is no third state. A phase that closes updates it.
 
 **23 is the one written neither ahead of its phase nor behind it**, which is a
 third case worth naming because the others are all compromises with distance.

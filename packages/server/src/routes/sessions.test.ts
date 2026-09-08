@@ -596,9 +596,10 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 14 since the previous-attempt slot ([03 §5.1]), 13 from
-    // the writing-samples slot ([10 §3.1]) before it.
-    expect(created.body.session.preset.blocks).toHaveLength(14);
+    // gains a block — 15 since the second lore slot ([P6B.1], the phase every
+    // `after_char` entry was being dropped for), 14 from the previous-attempt
+    // slot ([03 §5.1]), 13 from the writing-samples slot ([10 §3.1]) before it.
+    expect(created.body.session.preset.blocks).toHaveLength(15);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 

@@ -84,6 +84,55 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * **The one step that drops a table, and nothing watched it carry its rows
+   * over** — [P5 §0.5]'s critic finding, tested at [P6B.1].
+   *
+   * `STEPS[3]` does the create-copy-drop-rename dance SQLite needs to remove a
+   * primary key, so it *does* drop a table while this file's doctrine says none
+   * may. The doctrine test above cannot see it: it compares the tables of a **v1**
+   * store, and a v1 store has no `import_item` to observe being dropped.
+   *
+   * So **deleting the `insert into import_item_new … select` left the entire
+   * suite green** while every upgrading install silently lost every import
+   * review and note it had ever recorded — which is exactly the data
+   * [P4 §3](../../../../docs/design/workplan/06-p4-implementation.md)'s gate
+   * step 16 is walked against, and exactly what a walk on a fresh store would
+   * never notice.
+   *
+   * Written at the version the step leaves *from*, because that is the only
+   * place the rows can exist to be carried.
+   */
+  it('carries every import item across the step that rebuilds its table', () => {
+    const db = storeAtVersion(3);
+    db.prepare(
+      `insert into import_job (id, account, root, source, status, created_at, updated_at)
+       values ('import-1', 'ned', '/somewhere/SillyTavern/data', 'sillytavern', 'done', 1, 1)`,
+    ).run();
+    db.prepare(
+      `insert into import_item (job_id, seq, source, disposition, object_id, notes)
+       values ('import-1', 0, 'characters/Vera.png', 'created', 'obj-1', '{"lost":["depth"]}')`,
+    ).run();
+
+    expect(migrateState(db)).toEqual({ from: 3, to: STATE_SCHEMA_VERSION });
+
+    const rows = db
+      .prepare(`select source, disposition, object_id, notes from import_item`)
+      .all() as { source: string; disposition: string; object_id: string; notes: string }[];
+    // Every column, not a count: a copy that dropped `notes` would pass a count
+    // and lose the half of the review a person actually reads.
+    expect(rows).toEqual([
+      {
+        source: 'characters/Vera.png',
+        disposition: 'created',
+        object_id: 'obj-1',
+        notes: '{"lost":["depth"]}',
+      },
+    ]);
+
+    db.close();
+  });
+
   it('is a no-op on a store already at the current version', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
 

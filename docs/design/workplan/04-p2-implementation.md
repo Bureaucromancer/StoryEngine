@@ -1,6 +1,19 @@
 # 04 — P2 implementation plan
 
-**Status: plan.** Expanded from the skeleton at the P2 revisit, after P1
+**Status: ~~plan~~ landed**, merged into `main` 2026-08-22 at `6041c8c`.
+
+**Its gate is twenty steps, eight of them automated, and it was walked as far
+as automation goes.** What is left needs a real provider, a real browser and
+both platforms; the list is [12 §2](12-p2-manual-gate.md)’s, and it is counted at
+[26 §3.5](26-manual-ledger.md).
+
+*(This status line was written 2026-09-07 at
+[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+still describing themselves as plans. It had said **plan** since before the
+phase shipped, which is how a corpus comes to record what was intended
+rather than what happened.)*
+
+Expanded from the skeleton at the P2 revisit, after P1
 completed and after a code audit of what P1 actually built. Two things changed
 since the skeleton: the leans are now argued decisions, and the plan opens with
 a repair stage — §1 records why. Format follows [03](03-p1-implementation.md).

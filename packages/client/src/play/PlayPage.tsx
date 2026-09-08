@@ -24,9 +24,11 @@ import {
   useSession,
   useTranscript,
 } from '../queries.js';
+import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { GuidanceBox } from './GuidanceBox.js';
+import { LorePanel } from './LorePanel.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 
@@ -214,6 +216,18 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   });
 
   /**
+   * The most recent failure among this page's controls — [P6B.0].
+   *
+   * `submittedAt` rather than declaration order, because the one worth showing
+   * is the one that just happened: an undo that failed ten minutes ago must not
+   * outrank the send that failed a second ago. A mutation clears its own error
+   * on its next attempt, so this empties by being used.
+   */
+  const failure = [send, redo, continueFrom, undo, name, goToSibling]
+    .filter((one) => one.isError)
+    .sort((a, b) => b.submittedAt - a.submittedAt)[0]?.error;
+
+  /**
    * The meter's question, asked on every pause — [P3.4].
    *
    * `running` is in the dependencies rather than only in the guard, so the
@@ -310,6 +324,11 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     <div className={`${page.reading} flex h-full flex-col gap-4`}>
       <h1 className="text-section text-ink">{session.data?.session.name ?? 'Session'}</h1>
 
+      {/* What this session retrieves from — [P6B.0]. Above the transcript and
+          closed by default: it is a fact about the session rather than about
+          any turn, and the story column is the surface. */}
+      <LorePanel sessionId={sessionId} />
+
       <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
@@ -357,7 +376,22 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
         ) : null}
       </ol>
 
-      <StreamStatus status={state.status} />
+      <StreamStatus status={state.status} error={state.error} />
+
+      {/* **A refused action says so** — [P6B.0].
+       *
+       * Every mutation on this page could fail and none of them said anything:
+       * a `409 busy`, a `412 stale-head` from a second tab, an unbound role, an
+       * expired session. The reducer has classified stream failures into
+       * `state.error` since P2 and nothing read it, and the submit path had no
+       * error branch at all — so the only feedback a person ever got was a turn
+       * that did not appear.
+       *
+       * The most recent failure rather than all of them: these are one row of
+       * controls over one session, a person takes one action at a time, and a
+       * stack of stale messages from earlier attempts is its own confusion.
+       * Each clears when its own control is used again. */}
+      {failure === undefined ? null : <AlertNote role="alert">{failure.message}</AlertNote>}
 
       <form
         className="flex flex-col gap-2"
@@ -720,7 +754,26 @@ function SiblingStrip({
  * a client that showed an error there would be wrong, since the cursor makes
  * the resume lossless.
  */
-function StreamStatus({ status }: { status: string }): React.JSX.Element | null {
+/**
+ * What a failed stream says — and since [P6B.0], *which* failure.
+ *
+ * The reducer classifies every error frame (`classOf`) and the class was going
+ * nowhere: a turn that failed because a role was unbound and one that failed
+ * because the server restarted produced the same sentence. The class is the
+ * first thing a bug report needs and the first thing a person can act on.
+ */
+function streamFailureLine(error: string | null): string {
+  if (error === null) return 'The connection failed. Reload to try again.';
+  return `The turn failed (${error}). Reload to try again.`;
+}
+
+function StreamStatus({
+  status,
+  error,
+}: {
+  status: string;
+  error: string | null;
+}): React.JSX.Element | null {
   if (status === 'reconnecting') {
     return (
       <p role="status" className="text-sm text-ink-subtle">
@@ -731,7 +784,7 @@ function StreamStatus({ status }: { status: string }): React.JSX.Element | null 
   if (status === 'failed') {
     return (
       <p role="alert" className="text-sm text-warn-ink">
-        The connection failed. Reload to try again.
+        {streamFailureLine(error)}
       </p>
     );
   }
