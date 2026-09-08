@@ -846,8 +846,21 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name, mode?, preset?, cast? }` → `201 { session }`, and a list. **`archived`
-is the string `"true"`, not a boolean** — see the note under the turn routes.
+`{ name?, mode?, preset?, cast?, treatment?, lore? }` → `201 { session }`, and a
+list. **`archived` is the string `"true"`, not a boolean** — see the note under
+the turn routes.
+
+**`name` is optional, and an empty one means the same as none**: both store
+`""`, which clients render as *Untitled session*. A session is id-addressed —
+its folder is the uuidv7 and nothing resolves a session by name — so starting
+one unnamed freezes nothing, which is why this route can be relaxed where the
+library's create routes could not. It is trimmed here, but `session.json` is
+hand-editable, so a client must still expect a blank. Rename with `PATCH` below.
+
+`treatment` and `lore` have been accepted since P5.6 and this line never said
+so. Both are links rather than copies, and neither is validated: an id that
+resolves to nothing is a session with no books, not a rejected request
+([00 §3.3](design/00-stance.md)).
 
 `cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
 Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
@@ -920,10 +933,27 @@ confirming an id exists elsewhere would leak the one fact that separation keeps.
 
 ### `PATCH /api/sessions/:sessionId` · `DELETE /api/sessions/:sessionId`
 
-`{ archived: boolean }` toggles archive — hidden from the default list, fully
-intact, restorable, never swept. `DELETE` answers `204` and **moves the folder
-to the user's trash** rather than erasing it ([02 §10.3](design/02-data-model.md)); a
-session's turns are its history, and deletion is a move.
+`{ archived?: boolean, name?: string }` → `200 { session }`. At least one field
+is required; `{}` is a `400`, so a patch that asks for nothing is refused rather
+than answered with a 200 that did nothing.
+
+`archived` toggles archive — hidden from the default list, fully intact,
+restorable, never swept. `name` renames, and `""` un-names, which is the state
+a session may have started in.
+
+**A rename is one write and answers with no report**, which is why it lives here
+rather than behind a verb. Compare
+[`POST /api/tags/:id/rename`](#post-apitagsidrename): a tag rename reaches the
+user's object files and changes which lore fires, because a lore entry's
+`actorTagFilter` holds author-written *names* compared exactly — so it has to
+report what it found and offer a second action. A session name matches nothing
+and is denormalised into exactly one index row, so it is an ordinary property
+edit and `PATCH` is what an ordinary property edit is. The same file already
+renames a branch ref through `PATCH …/refs/:refId`.
+
+`DELETE` answers `204` and **moves the folder to the user's trash** rather than
+erasing it ([02 §10.3](design/02-data-model.md)); a session's turns are its history, and
+deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 

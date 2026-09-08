@@ -1204,7 +1204,7 @@ not a variant of Setup.
 
 ```ts
 interface Session {
-  id, title, createdAt, updatedAt
+  id, name, createdAt, updatedAt
   // No owner or visibility field: the session lives under its owner's
   // directory, and there is nobody to share it with. [04 §4.3]
   participants: UserId[]          // length 1 at 1.0 — see [04 §8]
@@ -1236,6 +1236,15 @@ interface Session {
   branchRefs: BranchRef[]         // names bookmarking nodes; swipes need no record
 }
 ```
+
+**The field shipped as `name`, and it is optional to fill in.** This sketch said
+`title` and nothing ever recorded the rename; the shape actually on disk is
+`SessionFile` in `packages/server/src/sessions/types.ts`. A session may be started
+without a name and renamed at any time — it is id-addressed, so unlike a library
+object nothing is derived from the name and frozen — and an unnamed one stores
+`""`, which clients render as *Untitled session* ([06 E13](06-open-questions.md)).
+The rest of this block is older than the implementation in other ways too:
+`participants`, `origin` and `localActors` are not on `SessionFile`.
 
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 treatment later must not affect this session.
