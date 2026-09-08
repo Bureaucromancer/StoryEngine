@@ -218,7 +218,7 @@ function ResizeHandle(props: {
       aria-valuemin={MIN_SIZE}
       aria-valuemax={MAX_SIZE}
       aria-valuenow={width}
-      className="absolute -start-1 inset-block-0 w-2 cursor-col-resize touch-none hover:bg-line focus-visible:outline-2 focus-visible:outline-focus"
+      className="absolute -start-1 inset-y-0 w-2 cursor-col-resize touch-none hover:bg-line focus-visible:outline-2 focus-visible:outline-focus"
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         drag.current = {
