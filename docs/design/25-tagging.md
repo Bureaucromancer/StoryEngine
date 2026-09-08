@@ -99,10 +99,26 @@ that is what is on disk.
 **An object with no `tagIds` predates the registry.** That is why the field is
 optional while `tags` is required — here, unlike in
 [10 §2](10-schemas.md)'s usual argument, absent and empty genuinely differ:
-absent means *not yet adopted*, empty means *no tags*. Adoption resolves names to
-entries on first read, minting entries for names it has not seen, and persists on
-the next write. It must be idempotent and must never mint two entries for one
-name.
+absent means *not yet adopted*, empty means *no tags*.
+
+**Adoption is one deliberate pass that somebody asks for**, not something that
+happens on a read or accumulates on writes. It walks the library once, mints an
+entry for every name in use that has none, and stamps the ids alongside the
+names. Two properties are load-bearing rather than tidy: it is **idempotent**, so
+a partial run is simply repeated and nobody is punished for pressing it twice;
+and it **never mints two entries for one name**, case-folded, or the vocabulary
+it produces would be worse than the one it replaced.
+
+Why a button and not a migration on startup: it is a write across the whole
+library, every object it touches gains a history entry, and a server that did
+that on first boot after an upgrade would be rewriting a person's files without
+being asked. The cost is paid once and visibly, and afterwards every rename is a
+single write to one small file.
+
+Until it runs, nothing is broken and nothing is faster — an un-adopted object
+works exactly as it always did, from its names, and simply cannot benefit from a
+rename, because nothing connects the name it holds to the registry row that
+changed.
 
 ## 4. Where the document lives
 
