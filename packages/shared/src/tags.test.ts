@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest';
 import {
   findTag,
   folderOf,
+  isAdopted,
   newTagRegistry,
   normaliseTagName,
   readTagRegistry,
+  resolveTagNames,
   sameTag,
   TAG_REGISTRY_SCHEMA,
   tagById,
@@ -200,5 +202,59 @@ describe('looking a tag up', () => {
   it('answers null for a tag it does not know', () => {
     expect(findTag(registry, 'napoleonic')).toBeNull();
     expect(tagById(registry, 'nope')).toBeNull();
+  });
+});
+
+/**
+ * Resolution — [25 §3](../../../docs/design/25-tagging.md), and the rule that
+ * lets a name copy lag safely behind a rename.
+ *
+ * Every case here is a way the two arrays can disagree, because that is the
+ * whole risk of carrying identity and readability in two fields.
+ */
+describe('resolving an object tag names', () => {
+  const registry = readTagRegistry({
+    tags: [entry({ id: 'a', name: 'Noir' }), entry({ id: 'b', name: 'City' })],
+  });
+
+  /**
+   * The state every object is in until it is adopted. Its names are the truth,
+   * which is what lets an un-adopted library go on working exactly as it did.
+   */
+  it('leaves an unadopted object alone', () => {
+    expect(resolveTagNames(['noir', 'city'], undefined, registry)).toEqual(['noir', 'city']);
+    expect(isAdopted(undefined)).toBe(false);
+  });
+
+  it('tells an empty adoption apart from no adoption', () => {
+    expect(isAdopted([])).toBe(true);
+    expect(resolveTagNames([], [], registry)).toEqual([]);
+  });
+
+  /** The point of the whole arrangement: a rename reaches the object with no write. */
+  it('answers with the registry name, not the stored one', () => {
+    expect(resolveTagNames(['noir', 'city'], ['a', 'b'], registry)).toEqual(['Noir', 'City']);
+  });
+
+  /**
+   * Invariant 4. An entry somebody deleted must not take the tag with it, so
+   * the name sitting beside the id is the fallback.
+   */
+  it('falls back to the stored name for an id the registry has lost', () => {
+    expect(resolveTagNames(['noir', 'ronin'], ['a', 'gone'], registry)).toEqual(['Noir', 'ronin']);
+  });
+
+  /**
+   * A hand edit to one array and not the other. The readable copy wins: it is
+   * what a person was looking at, and guessing at an alignment that is visibly
+   * broken is how a tag silently becomes a different tag.
+   */
+  it('prefers the readable copy when the two arrays disagree in length', () => {
+    expect(resolveTagNames(['noir', 'city'], ['a'], registry)).toEqual(['noir', 'city']);
+    expect(resolveTagNames(['noir'], ['a', 'b'], registry)).toEqual(['noir']);
+  });
+
+  it('drops a position that resolves to nothing at all', () => {
+    expect(resolveTagNames(['', 'city'], ['gone', 'b'], registry)).toEqual(['City']);
   });
 });

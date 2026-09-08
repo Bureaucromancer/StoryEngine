@@ -791,6 +791,13 @@
         "type": "string"
       }
     },
+    "tagIds": {
+      "type": "array",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      }
+    },
     "provenance": {
       "title": "Provenance",
       "description": "Where an object came from and who made it.",

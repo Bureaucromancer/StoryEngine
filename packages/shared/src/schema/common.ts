@@ -77,6 +77,30 @@ export const LoreLink = Type.Object(
 );
 export type LoreLink = Static<typeof LoreLink>;
 
+/**
+ * The registry entries an object's tags point at — [25 §3](../../../../docs/design/25-tagging.md).
+ *
+ * **`tags` stays the readable copy and this is what identity runs on.** Both
+ * exist because tag *names* are load-bearing in the engine: an entry's
+ * `actorTagFilter` compares them exactly, and retrieval folds them into the text
+ * lore keys are matched against. Replacing them with identifiers would stop
+ * every imported gate matching, silently. So the file carries names for the
+ * engine and for anybody reading it, and ids so a rename is one write rather
+ * than a rewrite of everything the tag is on.
+ *
+ * **Used as `Type.Optional(TagIdList)`, and the absence means something `tags`
+ * cannot say.** Elsewhere here an absent list and an empty one are deliberately
+ * the same thing — see `EmbeddedMedia.tags` — but these differ: **absent means
+ * this object predates the registry and has not been adopted**, empty means it
+ * has no tags. Adoption happens on write, so an object nobody has saved since
+ * the registry arrived goes on working from its names.
+ *
+ * Optional also keeps the addition additive: an older build ignores the field
+ * and still reads correct tags, which is what makes it safe to add without a
+ * version bump on five published schemas.
+ */
+export const TagIdList = Type.Array(Type.String({ minLength: 1 }));
+
 export const Provenance = Type.Object(
   {
     source: Type.Union(

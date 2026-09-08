@@ -233,3 +233,50 @@ function readTagEntry(value: unknown): TagEntry | null {
 export function folderOf(tag: TagEntry): TagFolder {
   return tag.folder === 'open' || tag.folder === 'closed' ? tag.folder : 'none';
 }
+
+/**
+ * The names an object's tags actually have, now — [25 §3](../../../docs/design/25-tagging.md).
+ *
+ * **`tagIds` and `tags` are parallel arrays, written together and index-aligned.**
+ * That is what lets a dangling id — an entry somebody deleted — fall back to the
+ * name sitting beside it rather than vanishing, which is invariant 4: losing a
+ * registry row must never lose data.
+ *
+ * Three cases, and each has a reason rather than a default:
+ *
+ * - **No `tagIds` at all**: the object predates the registry and has not been
+ *   adopted. Its names are the truth and are returned unchanged, which is why
+ *   an un-adopted library goes on working exactly as it did.
+ * - **Lengths disagree**: somebody hand-edited one array and not the other. The
+ *   *readable* copy wins, because it is the one a person was looking at, and
+ *   guessing at an alignment that is visibly broken is how a tag silently
+ *   becomes a different tag.
+ * - **Aligned**: each id resolves through the registry, falling back to its
+ *   own stored name.
+ */
+export function resolveTagNames(
+  tags: readonly string[],
+  tagIds: readonly string[] | undefined,
+  registry: TagList,
+): string[] {
+  if (tagIds === undefined) return [...tags];
+  if (tagIds.length !== tags.length) return [...tags];
+
+  const names: string[] = [];
+  for (const [index, id] of tagIds.entries()) {
+    const name = tagById(registry, id)?.name ?? tags[index] ?? '';
+    if (name !== '') names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Whether this object has been adopted — [25 §3].
+ *
+ * A question rather than a truthiness check, because the answer for an empty
+ * array is *yes, and it has no tags*, which is exactly what `tagIds === []`
+ * means and exactly what a `?.length` test would get wrong.
+ */
+export function isAdopted(tagIds: readonly string[] | undefined): boolean {
+  return tagIds !== undefined;
+}
