@@ -10,10 +10,12 @@ import { makeTestServer, routesUnder, setUpAdmin, type TestServer } from '../tes
  *
  * The subject is the **verb split** ([25 §2], invariant 4). A `DELETE` here
  * removes a registry entry and nothing else; the objects carrying that tag are
- * untouched and go on filtering and gating lore, having lost a colour. Anything
- * that would rewrite the user's files is a `POST` with a verb in the path and
- * does not exist yet. A route that quietly acquired the destructive meaning
- * would pass every other test in the suite.
+ * untouched and go on filtering and gating lore, having lost a colour. The two
+ * operations that do reach the user's files are `POST`s with a verb in the path,
+ * tested in `tags/adopt.test.ts` where what lands on disk is the subject.
+ *
+ * A route that quietly acquired the destructive meaning would pass every other
+ * test in the suite, which is why the surface below is enumerated.
  */
 
 let server: TestServer;
@@ -238,6 +240,8 @@ describe('the tag surface', () => {
         'GET /api/tags',
         'PATCH /api/tags/:id',
         'POST /api/tags',
+        'POST /api/tags/:id/rename',
+        'POST /api/tags/adopt',
         'PUT /api/tags/order',
       ].sort(),
     );

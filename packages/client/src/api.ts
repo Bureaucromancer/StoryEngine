@@ -410,6 +410,25 @@ export const api = {
   orderTags: (ids: string[]): Promise<{ tags: TagEntry[] }> =>
     request('PUT', '/api/tags/order', { ids }),
 
+  /**
+   * One registry write, and an answer about the lore gates naming the old
+   * spelling — [25 §1](../../../docs/design/25-tagging.md). `rewriteGates` is
+   * off unless asked, because both answers are defensible.
+   */
+  renameTag: (
+    id: string,
+    body: { to: string; rewriteGates?: boolean },
+  ): Promise<{ tags: TagEntry[]; gatesFound: { book: string; entry: string }[] }> =>
+    request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
+
+  /** The one deliberate write across the library, after which renaming is free. */
+  adoptTags: (): Promise<{
+    tags: TagEntry[];
+    adopted: unknown[];
+    minted: string[];
+    skipped: { name: string; reason: string }[];
+  }> => request('POST', '/api/tags/adopt'),
+
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
   /** A shallow merge; `null` deletes. The response is the whole document. */

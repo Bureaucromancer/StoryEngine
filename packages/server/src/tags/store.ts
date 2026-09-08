@@ -54,6 +54,31 @@ interface TagsFile {
   tags: TagEntry[];
 }
 
+/**
+ * The registry, or an empty one — the read half, as a free function.
+ *
+ * **Separate from the store because reading needs nothing the store owns.** The
+ * class exists for its write queue, and a reader that had to construct one
+ * would be building a critical section it never enters. The turn assembly reads
+ * the registry once per turn and holds a `Layout` and nothing else, which is
+ * exactly this signature.
+ *
+ * **An unreadable file reads as empty**, repaired by the next write — the
+ * asymmetry `prefs.ts` argues against `accounts.json`, and the same one: a
+ * broken accounts file means the server cannot tell who anyone is, and a broken
+ * tag file means the chips are grey.
+ */
+export async function readRegistry(layout: Layout, handle: string): Promise<TagRegistry> {
+  const bytes = await readFileBytes(layout.tagsFile(handle));
+  if (bytes === null) return newTagRegistry();
+
+  try {
+    return readTagRegistry(JSON.parse(new TextDecoder().decode(bytes)));
+  } catch {
+    return newTagRegistry();
+  }
+}
+
 export class TagStore {
   readonly #layout: Layout;
   /**
@@ -77,14 +102,7 @@ export class TagStore {
    * broken tag file means somebody's chips are grey.
    */
   async read(handle: string): Promise<TagRegistry> {
-    const bytes = await readFileBytes(this.#layout.tagsFile(handle));
-    if (bytes === null) return newTagRegistry();
-
-    try {
-      return readTagRegistry(JSON.parse(new TextDecoder().decode(bytes)));
-    } catch {
-      return newTagRegistry();
-    }
+    return readRegistry(this.#layout, handle);
   }
 
   /**

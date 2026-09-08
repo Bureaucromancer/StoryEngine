@@ -23,9 +23,11 @@ import { TAG_SWATCH_STYLES, tagClassFor } from '../ui/tag-colors.js';
  * opinions about, and the way to give one an opinion is a button rather than a
  * migration.
  *
- * **Renaming is not here yet.** It is the operation [25 §1] says can change
- * which lore fires, so it arrives with the propagation that answers for the
- * gates it found — not as a text box that quietly writes a different name.
+ * **Renaming asks about lore before it happens.** It is the operation [25 §1]
+ * says can change which lore fires, because an entry's `actorTagFilter` holds
+ * author-written names and activation compares them exactly. So the surface
+ * finds the gates first, says how many, and only rewrites them if told to —
+ * both answers are defensible, and choosing one silently is what §1 forbids.
  *
  * **Ordering is manual, and the drag is the second half.** The nudge buttons are
  * the real implementation and the drag is a convenience over the same reducer,
@@ -69,6 +71,11 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
 
   const [sort, setSort] = useState<TagSortMode>('manual');
   const [newName, setNewName] = useState('');
+  /** The tag being renamed, and what to. `null` is nobody. */
+  const [renaming, setRenaming] = useState<{ id: string; from: string; to: string } | null>(null);
+  /** What the last rename reported, so the offer to fix the gates has a subject. */
+  const [gates, setGates] = useState<{ book: string; entry: string }[]>([]);
+  const [lastRenamed, setLastRenamed] = useState<{ id: string; to: string } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
@@ -154,6 +161,32 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         </Alert>
       ) : null}
 
+      {/*
+       * **[25 §1]'s answer, shown rather than acted on.** A gate naming the old
+       * spelling stops matching, and activation says nothing when it does — so
+       * the count is reported and the rewrite is a separate, deliberate press.
+       */}
+      {gates.length === 0 ? null : (
+        <Alert tone="warning" role="status">
+          <p className="mb-2">{gatesPrompt(gates.length)}</p>
+          <Button
+            type="button"
+            disabled={write.isPending || lastRenamed === null}
+            onClick={() => {
+              if (lastRenamed === null) return;
+              write.mutate({
+                kind: 'rename',
+                id: lastRenamed.id,
+                to: lastRenamed.to,
+                rewriteGates: true,
+              });
+            }}
+          >
+            Update them to the new name
+          </Button>
+        </Alert>
+      )}
+
       {registry.isPending ? <p className="text-ink-subtle">Loading the tags…</p> : null}
 
       {/*
@@ -227,6 +260,9 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
                 onPatch={(patch) => {
                   write.mutate({ kind: 'patch', id: tag.id, patch });
                 }}
+                onRename={() => {
+                  setRenaming({ id: tag.id, from: tag.name, to: tag.name });
+                }}
                 onDelete={() => {
                   write.mutate({ kind: 'delete', id: tag.id });
                 }}
@@ -234,6 +270,57 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
             ))}
           </tbody>
         </table>
+      )}
+
+      {renaming === null ? null : (
+        <Alert tone="warning" role="status">
+          <p className="mb-2">{renamePrompt(renaming.from)}</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1">
+              <Field
+                label="New name"
+                value={renaming.to}
+                onChange={(to) => {
+                  setRenaming({ ...renaming, to });
+                }}
+                required
+              />
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={write.isPending || renaming.to.trim() === ''}
+              onClick={() => {
+                write.mutate(
+                  {
+                    kind: 'rename',
+                    id: renaming.id,
+                    to: renaming.to.trim(),
+                    // Reported first; rewriting is a second, separate press.
+                    rewriteGates: false,
+                  },
+                  {
+                    onSuccess: (result) => {
+                      setGates(result.gatesFound ?? []);
+                      setLastRenamed({ id: renaming.id, to: renaming.to.trim() });
+                      setRenaming(null);
+                    },
+                  },
+                );
+              }}
+            >
+              Rename
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setRenaming(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </Alert>
       )}
 
       {unregistered.length === 0 ? null : (
@@ -296,15 +383,36 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
          * the caller passes counts over the *whole* library rather than the
          * filtered shelf.
          */}
-        <Button
-          type="button"
-          disabled={write.isPending || unused.length === 0}
-          onClick={() => {
-            for (const tag of unused) write.mutate({ kind: 'delete', id: tag.id });
-          }}
-        >
-          {pruneLabel(unused.length)}
-        </Button>
+        <span className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            disabled={write.isPending || unused.length === 0}
+            onClick={() => {
+              for (const tag of unused) write.mutate({ kind: 'delete', id: tag.id });
+            }}
+          >
+            {pruneLabel(unused.length)}
+          </Button>
+          {/*
+           * **The one deliberate write across the library** — [25 §3]. Until it
+           * runs, a rename reaches nothing: an object with no ids works from its
+           * own names and has no connection to the row that changed. Afterwards
+           * every rename is one registry write.
+           *
+           * A button rather than something the server does on startup, because
+           * every object it touches gains a history entry and rewriting a
+           * person's files is not a thing to do unasked.
+           */}
+          <Button
+            type="button"
+            disabled={write.isPending}
+            onClick={() => {
+              write.mutate({ kind: 'adopt' });
+            }}
+          >
+            Link tags to the library
+          </Button>
+        </span>
         <Button type="button" onClick={props.onDismiss}>
           Done
         </Button>
@@ -325,6 +433,7 @@ interface TagRowProps {
   onDrop: () => void;
   onNudge: (to: number) => void;
   onPatch: (patch: { swatch?: string | null; folder?: string; hidden?: boolean }) => void;
+  onRename: () => void;
   onDelete: () => void;
 }
 
@@ -441,9 +550,19 @@ function TagRow(props: TagRowProps): JSX.Element {
       <td className={table.cellNumeric}>{props.count}</td>
 
       <td className={table.cell}>
-        <Button type="button" size="tiny" onClick={props.onDelete}>
-          Remove
-        </Button>
+        <span className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="tiny"
+            aria-label={renameLabel(props.tag.name)}
+            onClick={props.onRename}
+          >
+            Rename
+          </Button>
+          <Button type="button" size="tiny" onClick={props.onDelete}>
+            Remove
+          </Button>
+        </span>
       </td>
     </tr>
   );
@@ -500,6 +619,24 @@ function SwatchButton(props: {
 /** The whole phrase, including the count, rather than a word plus a number. */
 function pruneLabel(count: number): string {
   return count === 0 ? 'Nothing to prune' : `Prune ${String(count)} unused`;
+}
+
+function renameLabel(name: string): string {
+  return `Rename ${name}`;
+}
+
+function renamePrompt(from: string): string {
+  return `Renaming ${from}. Everything carrying it will be called the new name.`;
+}
+
+/**
+ * The whole sentence per case, rather than a number dropped into a fragment —
+ * the discipline the password rule states, for the same reason.
+ */
+function gatesPrompt(count: number): string {
+  return count === 1
+    ? 'One lore entry gates on the old name and will stop matching. Its book is otherwise untouched.'
+    : `${String(count)} lore entries gate on the old name and will stop matching. Their books are otherwise untouched.`;
 }
 
 function adoptLabel(name: string): string {

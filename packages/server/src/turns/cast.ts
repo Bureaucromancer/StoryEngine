@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { ACTOR_SCHEMA, type Actor, validate } from '@storyengine/shared';
+import { ACTOR_SCHEMA, type Actor, type TagList, validate } from '@storyengine/shared';
+
+import { resolveObjectTags } from '../tags/resolve.js';
 
 import { read } from '../library.js';
 import type { LibraryContext } from '../library.js';
@@ -38,6 +40,17 @@ export function resolveCast(
   library: LibraryContext,
   handle: string,
   cast: { persona?: unknown; actors?: unknown } | null | undefined,
+  /**
+   * The tag registry, so an actor reaches the engine under the names its tags
+   * have *now* — [25 §3](../../../../docs/design/25-tagging.md).
+   *
+   * Passed rather than read here, because this function is synchronous and the
+   * registry is a file. `gatherAssemblyInputs` already awaits several per-turn
+   * reads and one more costs nothing. It matters because activation compares
+   * tag names exactly and case-sensitively: an actor arriving under a stale
+   * name is a lore gate that silently stops firing.
+   */
+  registry: TagList,
 ): { persona: CastMember | null; actors: CastMember[] } {
   /**
    * **Shape-guarded, because this is handed whatever is in the file.**
@@ -51,15 +64,20 @@ export function resolveCast(
   const persona = typeof cast.persona === 'string' ? cast.persona : null;
 
   return {
-    persona: persona === null ? null : oneActor(library, handle, persona),
+    persona: persona === null ? null : oneActor(library, handle, persona, registry),
     actors: actors
       .filter((id): id is string => typeof id === 'string')
-      .map((id) => oneActor(library, handle, id))
+      .map((id) => oneActor(library, handle, id, registry))
       .filter((member): member is CastMember => member !== null),
   };
 }
 
-function oneActor(library: LibraryContext, handle: string, id: string): CastMember | null {
+function oneActor(
+  library: LibraryContext,
+  handle: string,
+  id: string,
+  registry: TagList,
+): CastMember | null {
   try {
     const row = read(library, handle, id, ACTOR_SCHEMA);
     // Validated rather than cast: a hand-edited actor that no longer matches its
@@ -67,7 +85,7 @@ function oneActor(library: LibraryContext, handle: string, id: string): CastMemb
     // rides along instead of being discarded one line from where the record
     // needs it ([P3.0]).
     return validate(row.body).valid
-      ? { actor: row.body as Actor, contentHash: row.contentHash }
+      ? { actor: resolveObjectTags(row.body as Actor, registry), contentHash: row.contentHash }
       : null;
   } catch {
     // Not found, or not this account's. Both mean the same thing here.

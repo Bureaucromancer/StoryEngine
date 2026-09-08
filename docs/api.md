@@ -689,6 +689,43 @@ Removes the entry. **Objects are untouched** — the tag goes on being carried,
 filtered and gated on, and reappears in the manager as a tag in use with no
 entry. Losing a registry row must never lose data.
 
+### `POST /api/tags/:id/rename`
+
+`{ to, rewriteGates? }` → the whole list, plus what it found.
+
+**One registry write.** An adopted object references the entry, so changing the
+entry changes what every carrier is called without touching a single object file
+— which is the whole reason `tagIds` exists.
+
+**And one question.** A lore entry's `actorTagFilter` holds author-written tag
+*names*, and activation compares them exactly and case-sensitively
+([25 §1](design/25-tagging.md)), so a rename that ignored them would silently
+change which lore fires. Gates naming the old spelling are reported in
+`gatesFound` **always**, and rewritten only when `rewriteGates` is true. Both
+answers are defensible — an author who wrote a gate on *noir* may have meant that
+tag, or may have meant that word — so the server reports and lets somebody
+decide.
+
+`409` when the new name is another tag: merging is a different operation with a
+different answer about what happens to the objects.
+
+### `POST /api/tags/adopt`
+
+→ the whole list, plus `{ adopted, minted, skipped, unchanged }`.
+
+**One deliberate write across the library**, after which renaming is free. It
+mints a registry entry for every tag name in use that has none, then stamps
+`tagIds` alongside each object's `tags`, index-aligned.
+
+A route somebody presses rather than a migration on startup: every object it
+touches gains a history entry, and a server that did that on first boot after an
+upgrade would be rewriting a person's files without being asked.
+
+**Idempotent.** A second run mints nothing and writes nothing, so a partial first
+run is simply repeated. System-library objects cannot be written and are reported
+in `skipped` rather than swallowed — a tag used only by the system library is
+still in use.
+
 ### `PUT /api/tags/order`
 
 `{ ids }` → the whole list, renumbered densely from zero.

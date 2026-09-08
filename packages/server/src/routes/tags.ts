@@ -7,6 +7,8 @@ import type { FastifyInstance } from 'fastify';
 import { normaliseTagName, sameTag, uuidv7, type TagEntry } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
+import { adoptLibraryTags } from '../tags/adopt.js';
+import { renameTag } from '../tags/rename.js';
 import { TagsError } from '../tags/store.js';
 
 /**
@@ -16,14 +18,12 @@ import { TagsError } from '../tags/store.js';
  * routes. `DELETE /tags/:id` removes a *registry entry* and touches nothing
  * else: the objects carrying that tag keep carrying it, and it goes on
  * filtering and gating lore exactly as before, having lost only its colour and
- * its place in the order ([25 §2] invariant 4). Anything that would rewrite the
- * user's files is a `POST` with a verb in the path — and those arrive with the
- * bulk operations, not here.
+ * its place in the order ([25 §2] invariant 4). Anything that reaches the user's
+ * files is a `POST` with a verb in the path — `/adopt` and `/:id/rename`.
  *
- * That is why deleting is safe enough to need no confirmation from this layer,
- * and why *detaching* will need one. Expressing the difference in the URL rather
- * than in a flag means a client cannot reach the destructive one by forgetting
- * to send something.
+ * That is why deleting is safe enough to need no confirmation from this layer.
+ * Expressing the difference in the URL rather than in a flag means a client
+ * cannot reach a destructive operation by forgetting to send something.
  */
 
 const TagBody = Type.Object(
@@ -61,6 +61,22 @@ const OrderBody = Type.Object(
 );
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }) });
+
+const RenameBody = Type.Object(
+  {
+    to: Type.String({ minLength: 1, maxLength: 64 }),
+    /**
+     * Whether to rewrite the lore gates that name the old spelling.
+     *
+     * **Off by default, and asked rather than assumed.** Both answers are
+     * defensible — an author who wrote a gate on *noir* may have meant that tag,
+     * or may have meant that word — so the surface reports what it found and
+     * lets somebody decide ([25 §1]).
+     */
+    rewriteGates: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
 
 /** The store's vocabulary, in the one the rest of the API speaks. */
 function status(code: TagsError['code']): number {
@@ -187,6 +203,71 @@ export function registerTagRoutes(app: FastifyInstance, services: AppServices): 
       }
       throw error;
     }
+  });
+
+  /**
+   * **Renaming, which is one registry write and one question.**
+   *
+   * The write is O(1): an adopted object references the entry, so changing the
+   * entry changes what every carrier is called without touching an object file.
+   * The question is [25 §1]'s — a lore entry's `actorTagFilter` holds author-
+   * written *names*, and activation compares them exactly, so a rename that
+   * ignored them would silently change which lore fires. Gates are reported
+   * always and rewritten only when asked.
+   *
+   * A `POST` with a verb in the path rather than a `PATCH`, because this is the
+   * one tag operation that can reach the user's files.
+   */
+  app.post(
+    '/tags/:id/rename',
+    { schema: { params: IdParams, body: RenameBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { id } = request.params as { id: string };
+      const { to, rewriteGates } = request.body as { to: string; rewriteGates?: boolean };
+
+      try {
+        const report = await renameTag(
+          services.library,
+          services.tags,
+          account.handle,
+          id,
+          to,
+          rewriteGates ?? false,
+        );
+        const registry = await services.tags.read(account.handle);
+        return await reply.send({ tags: registry.tags, ...report });
+      } catch (error) {
+        if (error instanceof TagsError) {
+          return await reply
+            .code(status(error.code))
+            .send({ error: error.code, message: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * **Adoption — one deliberate write across the library**, after which renaming
+   * is free ([25 §3]).
+   *
+   * A route somebody presses rather than a migration on startup. Every object it
+   * touches gains a history entry, and a server that did that on first boot
+   * after an upgrade would be rewriting a person's files without being asked.
+   *
+   * Idempotent: a second run mints nothing and writes nothing, so a partial
+   * first run is simply repeated.
+   */
+  app.post('/tags/adopt', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+
+    const report = await adoptLibraryTags(services.library, services.tags, account.handle);
+    const registry = await services.tags.read(account.handle);
+    return reply.send({ tags: registry.tags, ...report });
   });
 
   /**

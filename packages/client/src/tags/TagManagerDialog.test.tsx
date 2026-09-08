@@ -27,6 +27,8 @@ const createTag = vi.fn();
 const patchTag = vi.fn();
 const deleteTag = vi.fn();
 const orderTags = vi.fn();
+const renameTag = vi.fn();
+const adoptTags = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -39,6 +41,8 @@ vi.mock('../api.js', async (importOriginal) => {
       patchTag: (...args: unknown[]) => patchTag(...args) as unknown,
       deleteTag: (...args: unknown[]) => deleteTag(...args) as unknown,
       orderTags: (...args: unknown[]) => orderTags(...args) as unknown,
+      renameTag: (...args: unknown[]) => renameTag(...args) as unknown,
+      adoptTags: (...args: unknown[]) => adoptTags(...args) as unknown,
     },
   };
 });
@@ -83,6 +87,8 @@ beforeEach(() => {
   patchTag.mockResolvedValue({ tags: [] });
   deleteTag.mockResolvedValue({ tags: [] });
   orderTags.mockResolvedValue({ tags: [] });
+  renameTag.mockResolvedValue({ tags: [], gatesFound: [] });
+  adoptTags.mockResolvedValue({ tags: [], adopted: [], minted: [], skipped: [], unchanged: 0 });
 });
 
 describe('the list', () => {
@@ -324,5 +330,94 @@ describe('prune', () => {
       'disabled',
       true,
     );
+  });
+});
+
+/**
+ * Renaming, and the question it has to ask first — [25 §1].
+ *
+ * A lore entry's `actorTagFilter` holds author-written names and activation
+ * compares them exactly, so a rename can stop lore firing with nothing anywhere
+ * saying so. The surface reports what it found; rewriting is a second press.
+ */
+describe('renaming', () => {
+  it('sends the new name without touching the lore gates', async () => {
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+    const row = await rowFor('noir');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
+    const box = screen.getByRole('textbox', { name: 'New name' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Noir Fiction');
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+
+    expect(renameTag).toHaveBeenCalledWith('tag-1', {
+      to: 'Noir Fiction',
+      rewriteGates: false,
+    });
+  });
+
+  it('reports the gates it found rather than acting on them', async () => {
+    renameTag.mockResolvedValue({
+      tags: [],
+      gatesFound: [{ book: 'Ardent', entry: 'Harbour' }],
+    });
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+    const row = await rowFor('noir');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+
+    expect(await screen.findByText(/One lore entry gates on the old name/)).toBeTruthy();
+  });
+
+  it('rewrites them only on a second, deliberate press', async () => {
+    renameTag.mockResolvedValue({
+      tags: [],
+      gatesFound: [{ book: 'Ardent', entry: 'Harbour' }],
+    });
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+    const row = await rowFor('noir');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
+    const box = screen.getByRole('textbox', { name: 'New name' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Noir Fiction');
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+
+    await userEvent.click(await screen.findByRole('button', { name: /Update them/ }));
+
+    expect(renameTag).toHaveBeenLastCalledWith('tag-1', {
+      to: 'Noir Fiction',
+      rewriteGates: true,
+    });
+  });
+
+  it('will not send an empty name', async () => {
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+    const row = await rowFor('noir');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'New name' }));
+
+    expect(screen.getByRole('button', { name: 'Rename' })).toHaveProperty('disabled', true);
+  });
+});
+
+/**
+ * **The one deliberate write across the library** — [25 §3]. Until it runs a
+ * rename reaches nothing, because an object with no ids works from its own
+ * names and has no connection to the row that changed.
+ */
+describe('linking tags to the library', () => {
+  it('asks the server to adopt, rather than doing it on open', async () => {
+    open([entry({ name: 'noir' })], [['noir', 1]]);
+    await rowFor('noir');
+
+    expect(adoptTags).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Link tags to the library' }));
+
+    expect(adoptTags).toHaveBeenCalledTimes(1);
   });
 });

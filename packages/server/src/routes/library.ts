@@ -4,9 +4,15 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
-import { isKnownSchema, LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared';
+import {
+  isKnownSchema,
+  LIBRARY_DIRECTORIES,
+  type PortableSchemaId,
+  type TagList,
+} from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
+import { resolveObjectTags } from '../tags/resolve.js';
 import type { IndexedObject } from '../index-db/query.js';
 import {
   amendVersion,
@@ -134,7 +140,10 @@ const WriteBody = Type.Object(
  * the badge needs a second channel beyond colour
  * ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
  */
-function present(row: IndexedObject): Record<string, unknown> {
+/**
+ * @param registry resolves tag names, or `null` to answer with the file's own.
+ */
+function present(row: IndexedObject, registry: TagList | null): Record<string, unknown> {
   return {
     id: row.id,
     schema: row.schemaId,
@@ -143,7 +152,13 @@ function present(row: IndexedObject): Record<string, unknown> {
     source: row.owner === 'system' ? 'system' : 'user',
     contentHash: row.contentHash,
     shadowed: row.shadowed,
-    object: row.body,
+    /**
+     * **Tag names resolved on the way out** — [25 §3]. A rename is one write to
+     * the registry and touches no object, so a carrier's stored `tags` still say
+     * the old thing until it is next saved. This is the boundary that makes that
+     * safe: nothing downstream sees the stale name.
+     */
+    object: registry === null ? row.body : resolveObjectTags(row.body, registry),
   };
 }
 
@@ -151,7 +166,10 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   app.get('/library', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
-    return reply.send({ objects: list(services.library, account.handle).map(present) });
+    const registry = await services.tags.read(account.handle);
+    return reply.send({
+      objects: list(services.library, account.handle).map((row) => present(row, registry)),
+    });
   });
 
   /**
@@ -179,8 +197,11 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     const schemaId = schemaFor(request.params as { kind: string }, reply);
     if (!schemaId) return;
 
+    const registry = await services.tags.read(account.handle);
     return reply.send({
-      objects: list(services.library, account.handle, schemaId).map(present),
+      objects: list(services.library, account.handle, schemaId).map((row) =>
+        present(row, registry),
+      ),
     });
   });
 
@@ -248,7 +269,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
             ? undefined
             : { slug: query.slug, source: query.source ?? 'user' },
         );
-        return await reply.header('etag', row.contentHash).send(present(row));
+        const registry = await services.tags.read(account.handle);
+        return await reply.header('etag', row.contentHash).send(present(row, registry));
       } catch (error) {
         respondToLibraryError(error, reply);
         return;
@@ -641,7 +663,14 @@ function respondToLibraryError(error: unknown, reply: FastifyReply): void {
       void reply.code(412).send({
         error: 'stale',
         message: error.message,
-        current: error.current ? present(error.current) : null,
+        /**
+         * **Unresolved, deliberately.** The conflict dialog's subject is the
+         * file as another writer left it, so its tags are that file's own names
+         * rather than what the registry would call them today. It is also
+         * self-correcting: `tagIds` is what identity runs on, so a stale name
+         * merged back in displays correctly on the next read.
+         */
+        current: error.current ? present(error.current, null) : null,
       });
       return;
     case 'read-only':

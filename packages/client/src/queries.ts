@@ -378,9 +378,24 @@ export type TagWrite =
       patch: { swatch?: string | null; folder?: string; hidden?: boolean };
     }
   | { kind: 'delete'; id: string }
-  | { kind: 'order'; ids: string[] };
+  | { kind: 'order'; ids: string[] }
+  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean }
+  | { kind: 'adopt' };
 
-export function useWriteTags(): UseMutationResult<{ tags: TagEntry[] }, Error, TagWrite> {
+/**
+ * What a registry write answers with.
+ *
+ * The whole list always; `gatesFound` only from a rename, which is the one
+ * operation with something else to report ([25 §1]). Optional rather than a
+ * union per verb, because every caller reads `tags` and exactly one reads the
+ * rest.
+ */
+export interface TagWriteResult {
+  tags: TagEntry[];
+  gatesFound?: { book: string; entry: string }[];
+}
+
+export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrite> {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (write: TagWrite) => {
@@ -392,12 +407,25 @@ export function useWriteTags(): UseMutationResult<{ tags: TagEntry[] }, Error, T
       }
       if (write.kind === 'patch') return api.patchTag(write.id, write.patch);
       if (write.kind === 'delete') return api.deleteTag(write.id);
+      if (write.kind === 'rename') {
+        return api.renameTag(write.id, { to: write.to, rewriteGates: write.rewriteGates });
+      }
+      if (write.kind === 'adopt') return api.adoptTags();
       return api.orderTags(write.ids);
     },
-    onSuccess: (result) => {
+    onSuccess: (result, write) => {
       // Seeded from the answer rather than invalidated: the server just sent
       // the whole document, so a refetch would ask for what is already here.
-      client.setQueryData(['tags'], result);
+      client.setQueryData(['tags'], { tags: result.tags });
+      /**
+       * **The two writes that reach the library invalidate it.** A rename
+       * changes what every carrier is *called* without touching any of them, so
+       * nothing would refetch on its own and the shelf would go on showing the
+       * old name until something else happened to reload it.
+       */
+      if (write.kind === 'rename' || write.kind === 'adopt') {
+        void client.invalidateQueries({ queryKey: ['library'] });
+      }
     },
   });
 }
