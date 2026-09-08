@@ -44,6 +44,7 @@ Design documents keep their numbers — `[02 §5]`, `[13 §1]`.
 | [24-p6b-playable.md](24-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
 | [25-playable-log.md](25-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](07-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
 | [26-manual-ledger.md](26-manual-ledger.md) | What a person still owes, counted in one place: every gate's walk state, the passes that remain after P6B, and every deferral with an owner beside it. [12](12-p2-manual-gate.md) does this for P2–P2B and stops; this is the rest |
+| [27-pre-p6-walk.md](27-pre-p6-walk.md) | The working sheet for every gate before P6 — eighty-eight items across eight sittings, sequenced so one fresh install answers four gates at once, with a result written beside each. [26](26-manual-ledger.md) counts what is owed; this is what a person does |
 
 ## How to read them
 

@@ -23,6 +23,12 @@ each one wants something arranged in advance — a machine, a household member, 
 corpus with lead time — and a manual pass that discovers its own prerequisites
 on the day is a pass that does not happen.
 
+**And the sheet a person actually walks from is [27](27-pre-p6-walk.md)**, opened
+2026-09-07 — every pre-P6 gate condensed into eight sittings with a result beside
+each item, because this document counts and does not sequence. The two go stale
+differently, which is why they are two: a ledger is true until a phase closes,
+and a walk sheet is true for an afternoon.
+
 **The rule this file exists to enforce**, and the only one it adds:
 
 > **A gate is walked, or it is deferred with an owner and a reason. There is no
