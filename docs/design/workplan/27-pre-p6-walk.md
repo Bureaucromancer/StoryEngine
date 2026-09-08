@@ -2,6 +2,8 @@
 
 **Status: open, and filled in as it is walked.** Opened 2026-09-07 at `854fe64`,
 on branch `p6b`, after [P6B.1](24-p6b-playable.md) prepared P5's gate.
+**Sitting A walked 2026-09-08 — nine of nine PASS**, on a `pnpm dev` install on
+Windows. B onward move to a Docker install, which is why 1.0-alpha 3 exists.
 
 **This is the working sheet [26](26-manual-ledger.md) implies and deliberately
 is not.** That document counts what is owed; this one is what a person actually
@@ -83,7 +85,7 @@ Nothing here is walkable on the day it is thought of.
 | # | What | Wanted by | State |
 |---|---|---|---|
 | **R1** | **A real library somebody else made** — a SillyTavern data directory or a Marinara data root, permissively licensed or your own. The repository has none: `import/fixtures/` holds three synthesised files and one of them says so. | E1, E2, F1, F6 | **Not to hand.** [26 §3.4](26-manual-ledger.md). |
-| **R2** | **A hosted endpoint with a real key.** | B1, C1 | — |
+| **R2** | **A hosted endpoint with a real key.** | B1, C1 | **To hand** — used at A3 on 2026-09-08. |
 | **R3** | **A local runtime** (Ollama, LM Studio, llama.cpp) with one model. | B2, B8, G | — |
 | **R4** | **A non-author for forty-five minutes**, with the README and a URL and nothing else. | A9 | See §3.A's note — this one has partly expired and cannot be recovered by trying harder. |
 | **R5** | **A second machine on the network**, to sign in from. | B6 | — |
@@ -105,7 +107,27 @@ existed since P4 with **no cassette ever promoted**.
 
 ---
 
-### A — Fresh install, first contact — *about an hour*
+### ~~A — Fresh install, first contact~~ Walked 2026-09-08 — *nine of nine PASS*
+
+**A clean sweep, and the first thing this project has ever walked end to end.**
+It clears [12 §2.1](12-p2-manual-gate.md) entirely — the eight-item sequence
+that three separate gates each ask for in their own words — and
+[P2C.1](15-p2c-first-real-run.md), the first-contact stage that had never run.
+
+**A8 passed with nothing written in the *what did you have to guess* column**,
+which is the answer [01 §4.1](01-work-plan.md)’s fourth hypothesis wanted and
+the one it calls likeliest to be wrong. Worth saying plainly rather than
+ticking: the hypothesis survived its first contact with a real turn. It has not
+yet met a long one, which is [G](#g--the-long-pass--hours-unscripted-and-it-is-also-p6b2)
+and is where P3 step 12 expects it to get harder.
+
+*Walked against a `pnpm dev` install on Windows.* The same nine run again on
+Docker as the first half of [B](#b--the-scripted-session-against-both-endpoints--about-two-hours),
+because a container is a different install and A1’s *open the address the
+server prints* is exactly the line that was wrong on the first unraid install
+([P6A §3](23-p6a-alpha-1.md)).
+
+*The sitting as it was written:*
 
 ```bash
 pnpm reset-data && pnpm build && pnpm dev
@@ -116,15 +138,15 @@ that is destroyed by having already looked.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **A9** | **Write down, before opening the browser, what you expect each screen to do.** Then walk A1–A8 and treat every divergence as a finding. Where you looked first, what you expected a control to do before clicking, and every point at which you consulted the source instead of the screen — that last one is the signal. | [P2C.1](15-p2c-first-real-run.md) | |
-| **A1** | Open the address the server prints — the **client's**, not the API's. Create the first admin. Reload; sign out and back in. | [12 §2.1.1](12-p2-manual-gate.md), P2B 1 | |
-| **A2** | **Settings → Administration.** The account list should say *1 person has no usable connection and cannot send a message…*. Read it as a stranger would; it is the one piece of copy whose whole job is to be understood by somebody stuck. | [12 §2.1.2](12-p2-manual-gate.md), [12 §2.4](12-p2-manual-gate.md), P2A 1 & 7 | |
-| **A3** | Add a connection with a real key. The model list fetches as an assist and saves without it; a **refused key** says so in its own sentence rather than reading as an unreachable endpoint. | [12 §2.1.3](12-p2-manual-gate.md) | |
-| **A4** | The two-picker default-binding form appears on its own after the first connection saves. Answer it. | [12 §2.1.4](12-p2-manual-gate.md) | |
-| **A5** | Back to the account list: the dead-end count goes to zero **after the binding, not after the connection** — the count asks whether `prose` resolves, through the turn's own resolver. | [12 §2.1.5](12-p2-manual-gate.md) | |
-| **A6** | Start a session, send a message, watch the reply stream. | [12 §2.1.6](12-p2-manual-gate.md), P2 9 | |
-| **A7** | Send another and **reload the page while it is streaming.** The finished turn should be there. | [12 §2.1.7](12-p2-manual-gate.md), P2 9 | |
-| **A8** | Open *Turn record* and read it. **Could you tell from this alone why the turn came out the way it did?** Write down what you had to guess. | [12 §2.1.8](12-p2-manual-gate.md), [12 §2.4](12-p2-manual-gate.md) | |
+| **A9** | **Write down, before opening the browser, what you expect each screen to do.** Then walk A1–A8 and treat every divergence as a finding. Where you looked first, what you expected a control to do before clicking, and every point at which you consulted the source instead of the screen — that last one is the signal. | [P2C.1](15-p2c-first-real-run.md) | PASS |
+| **A1** | Open the address the server prints — the **client's**, not the API's. Create the first admin. Reload; sign out and back in. | [12 §2.1.1](12-p2-manual-gate.md), P2B 1 | PASS |
+| **A2** | **Settings → Administration.** The account list should say *1 person has no usable connection and cannot send a message…*. Read it as a stranger would; it is the one piece of copy whose whole job is to be understood by somebody stuck. | [12 §2.1.2](12-p2-manual-gate.md), [12 §2.4](12-p2-manual-gate.md), P2A 1 & 7 | PASS |
+| **A3** | Add a connection with a real key. The model list fetches as an assist and saves without it; a **refused key** says so in its own sentence rather than reading as an unreachable endpoint. | [12 §2.1.3](12-p2-manual-gate.md) | PASS |
+| **A4** | The two-picker default-binding form appears on its own after the first connection saves. Answer it. | [12 §2.1.4](12-p2-manual-gate.md) | PASS |
+| **A5** | Back to the account list: the dead-end count goes to zero **after the binding, not after the connection** — the count asks whether `prose` resolves, through the turn's own resolver. | [12 §2.1.5](12-p2-manual-gate.md) | PASS |
+| **A6** | Start a session, send a message, watch the reply stream. | [12 §2.1.6](12-p2-manual-gate.md), P2 9 | PASS |
+| **A7** | Send another and **reload the page while it is streaming.** The finished turn should be there. | [12 §2.1.7](12-p2-manual-gate.md), P2 9 | PASS |
+| **A8** | Open *Turn record* and read it. **Could you tell from this alone why the turn came out the way it did?** Write down what you had to guess. | [12 §2.1.8](12-p2-manual-gate.md), [12 §2.4](12-p2-manual-gate.md) | PASS |
 
 > **A9 has partly expired, and the sheet should say so rather than pretend.**
 > [P2C.1](15-p2c-first-real-run.md) calls the stranger's view *perishable* and
@@ -353,11 +375,13 @@ When one closes, three things happen and the third is the one that gets skipped:
    [P2C.4](15-p2c-first-real-run.md)'s claim, made from the one walk this project
    has actually completed.
 
-| Gate | Steps | Sittings that cover it | Closed |
-|---|---|---|---|
-| **P1** | — | — (AUTO) | **Yes** |
-| **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | |
-| **P2C** | 4 stages | A9 (.1), A–D (.2), G (.3), §5 (.4) | |
-| **P3** | 15 | D | |
-| **P4** | 15 | E | |
-| **P5** | 18 | F | |
+| Gate | Steps | Sittings that cover it | Walked so far | Closed |
+|---|---|---|---|---|
+| **P1** | — | — (AUTO) | — | **Yes** |
+| **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | **A** — which is [12 §2.1](12-p2-manual-gate.md) entire, and the step each of the three gates states in its own words | |
+| **P2C** | 4 stages | A9 (.1), A–D (.2), G (.3), §5 (.4) | **P2C.1**, on 2026-09-08 | |
+| **P3** | 15 | D | | |
+| **P4** | 15 | E | | |
+| **P5** | 18 | F | | |
+
+*Sittings walked: **A** (2026-09-08, nine of nine PASS). B–H outstanding.*
