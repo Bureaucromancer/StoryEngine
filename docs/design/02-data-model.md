@@ -111,8 +111,9 @@ type ActorRole = "persona" | "narrator"   // extensible
   persona for a session, the flag just controls what the picker shows first.
 - **NPCs are a tag, not a role or a type.** Per the requirement: once an NPC is
   more than a single session's context, it is a short actor card tagged `npc`.
-  Nothing in the engine branches on that tag; it drives library filtering and
-  editor defaults (a smaller form).
+  Nothing in the engine branches on `npc` by name; it drives library filtering
+  and editor defaults (a smaller form). An *author* may gate lore on it, or on
+  any other tag, through `LoreEntry.actorTagFilter` — [25 §1](25-tagging.md).
 - **Narrator/GM cards are the same thing too.** Marinara's
   `GameGmMode: "standalone" | "character"` becomes: the narrator slot either
   holds an actor with `roles: ["narrator"]` or holds nothing, in which case the
@@ -453,10 +454,14 @@ for a diagram, `gallery` for pictures without a claim. `tags` are arbitrary and
 authorial: *winter*, *aerial*, *before the fire*, *by Mireille*.
 
 **Same division the actor already makes** (§2.2): `ActorRole` is closed and read
-by the engine, `tags` are open and nothing branches on them. A gallery of forty
-images needs finer notation than any role vocabulary should try to carry, and
-every attempt to express that *through* roles ends with a union nobody can choose
-from.
+by the engine, `tags` are open and the engine has no built-in meaning for any of
+them. On an actor that is a weaker claim than it sounds — an author may point a
+lore gate at a tag ([25 §1](25-tagging.md)) — while on media nothing reads them
+at all.
+
+A gallery of forty images needs finer notation than any role vocabulary should
+try to carry, and every attempt to express that *through* roles ends with a union
+nobody can choose from.
 
 #### Why now, given nothing consumes it
 
