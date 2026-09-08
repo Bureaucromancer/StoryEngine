@@ -23,6 +23,7 @@ import { link, page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
+import { TagInput } from '../tags/TagInput.js';
 import { AsStored } from '../library/AsStored.js';
 import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { DeleteObject } from '../library/DeleteObject.js';
@@ -399,15 +400,13 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           rows={3}
           hint="One per line. Also the default keyword set for lore matching."
         />
-        <Field
+        <TagInput
           label="Tags"
-          value={form.tagsText}
-          onChange={(tagsText) => {
-            patchForm({ tagsText });
+          values={form.tags}
+          onChange={(tags) => {
+            patchForm({ tags });
           }}
-          multiline
-          rows={3}
-          hint="One per line."
+          hint="Type to search what the library already uses, or to make a new one. Never sent to the model."
         />
         <Field
           label="Traits"

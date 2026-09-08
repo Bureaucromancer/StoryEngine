@@ -101,7 +101,7 @@ describe('the form round trip', () => {
   it('detects a real edit', () => {
     const base = actorWithUnknowns();
     const form = formFromActor(base);
-    form.tagsText = 'noir\nfixer';
+    form.tags = ['noir', 'fixer'];
     expect(formChanges(base, form)).toBe(true);
 
     const built = applyForm(base, form);
@@ -138,14 +138,14 @@ describe('reapplyEdits — the reload-and-reapply merge', () => {
 
     // My edit: the tags. Their edit, meanwhile: the appearance section.
     const edited = structuredClone(pristine);
-    edited.tagsText = 'noir\nfixer';
+    edited.tags = ['noir', 'fixer'];
     const theirs = structuredClone(original);
     (theirs as unknown as { profile: { sections: { body: string }[] } }).profile.sections[1]!.body =
       'Rain-soaked coat.';
     const fresh = formFromActor(theirs);
 
     const merged = reapplyEdits(pristine, edited, fresh);
-    expect(merged.tagsText).toBe('noir\nfixer');
+    expect(merged.tags).toEqual(['noir', 'fixer']);
     expect(merged.sections[1]!.body).toBe('Rain-soaked coat.');
   });
 

@@ -46,7 +46,19 @@ export interface ActorForm {
   pronouns: string;
   /** One entry per line in the editor; empty lines dropped on apply. */
   aliasesText: string;
-  tagsText: string;
+  /**
+   * **A list, where every other text field here is text** — [25](../../../../docs/design/25-tagging.md).
+   *
+   * The other three are strings because a textarea's *text is the state and the
+   * array is derived*: splitting on every keystroke eats the newline somebody
+   * just typed, which is the trap `EntryFields` spells out at length. A
+   * tokenizer has no such buffer — the half-typed term lives inside the field
+   * and the committed value is always a clean array — so keeping this as text
+   * would mean round-tripping every chip through `splitLines`/`joinLines`,
+   * whose trim-and-drop-empties behaviour is right for a textarea and means
+   * nothing here.
+   */
+  tags: string[];
   traitsText: string;
   sections: SectionForm[];
   /** Unlike sections, this list can grow and shrink — see `applyForm`. */
@@ -121,7 +133,7 @@ export function formFromActor(object: Record<string, unknown>): ActorForm {
     name: actor.name,
     pronouns: actor.pronouns ?? '',
     aliasesText: joinLines(actor.aliases),
-    tagsText: joinLines(actor.tags),
+    tags: [...actor.tags],
     traitsText: joinLines(actor.profile.traits),
     sections: actor.profile.sections.map((section) => ({
       id: section.id,
@@ -156,7 +168,7 @@ export function applyForm(base: Record<string, unknown>, form: ActorForm): Recor
   actor.name = form.name;
   actor.pronouns = form.pronouns.trim() === '' ? null : form.pronouns.trim();
   actor.aliases = splitLines(form.aliasesText);
-  actor.tags = splitLines(form.tagsText);
+  actor.tags = [...form.tags];
   actor.profile.traits = splitLines(form.traitsText);
   actor.profile.sections = actor.profile.sections.map((section) => {
     const edited = form.sections.find((candidate) => candidate.id === section.id);
@@ -234,7 +246,7 @@ export function stampUpdated(object: Record<string, unknown>): Record<string, un
  * function is the fix.
  */
 export function reapplyEdits(pristine: ActorForm, edited: ActorForm, fresh: ActorForm): ActorForm {
-  const scalar = <K extends 'name' | 'pronouns' | 'aliasesText' | 'tagsText' | 'traitsText'>(
+  const scalar = <K extends 'name' | 'pronouns' | 'aliasesText' | 'traitsText'>(
     key: K,
   ): ActorForm[K] => (edited[key] !== pristine[key] ? edited[key] : fresh[key]);
 
@@ -242,7 +254,20 @@ export function reapplyEdits(pristine: ActorForm, edited: ActorForm, fresh: Acto
     name: scalar('name'),
     pronouns: scalar('pronouns'),
     aliasesText: scalar('aliasesText'),
-    tagsText: scalar('tagsText'),
+    /**
+     * **The list arm, which is `samples`' below and for its reason.**
+     *
+     * Tags left the `scalar` union when they stopped being a string, and the
+     * change is not only mechanical: a reference comparison would have been
+     * unequal on every render, so the merge would have silently always taken
+     * the user's side. Asking the one question a list *can* answer — did this
+     * user touch tags at all — takes one side whole, which is coarse in the
+     * safe direction.
+     *
+     * It is also strictly better than the string was. The old comparison was on
+     * *spelling*, so a tag renamed underneath an open form read as an edit.
+     */
+    tags: JSON.stringify(edited.tags) === JSON.stringify(pristine.tags) ? fresh.tags : edited.tags,
     traitsText: scalar('traitsText'),
     sections: fresh.sections.map((section) => {
       const before = pristine.sections.find((candidate) => candidate.id === section.id);
