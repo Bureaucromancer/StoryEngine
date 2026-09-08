@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useRef, useState, type JSX } from 'react';
 
 import { uuidv7 } from '@storyengine/shared';
 
@@ -24,6 +24,7 @@ import { Dialog } from '../ui/Dialog.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
 import { AsStored } from '../library/AsStored.js';
+import { isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { DeleteObject } from '../library/DeleteObject.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { UnsavedChangesGuard } from './UnsavedChanges.js';
@@ -122,6 +123,21 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
   const [conflict, setConflict] = useState<LibraryObject | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /**
+   * Why the last Save did not write — [05 §11.1a].
+   *
+   * Separate from `notice`, which is `role="status"`: a refusal is not a
+   * progress report and has to interrupt. Cleared by the next edit, like the
+   * notice, because the thing it is complaining about is the thing being edited.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /**
+   * The form, so a refusal can put the cursor where the answer goes. Queried
+   * rather than held per field: `Field` owns its own control id, and the first
+   * `aria-invalid` inside the form is by construction the first field a reader
+   * would have reached anyway.
+   */
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -131,13 +147,37 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   const changed = formChanges(base.object, form);
 
+  /**
+   * The required fields this form is not currently answering — [05 §11.1a].
+   *
+   * Derived on every render rather than computed at submit, because the same
+   * answer drives the field's own error and the refusal in the strip, and two
+   * spellings of *is this empty* is how they end up disagreeing.
+   */
+  const missing = missingRequired('actors', { name: form.name });
+
   function patchForm(patch: Partial<ActorForm>): void {
     setForm((previous) => ({ ...previous, ...patch }));
     setNotice(null);
+    setRefusal(null);
   }
 
   function handleSave(): void {
     if (!changed) return;
+    /**
+     * **Refused here rather than prevented by a disabled button** — [05 §11.1a]
+     * and [work plan §2.2]. The button that cannot be pressed is the one that
+     * teaches nothing about why, so Save stays live and this says what is
+     * wrong, beside the Save that caused it ([05 §11.6]), with the cursor moved
+     * to the field that has to answer.
+     */
+    if (missing.length > 0) {
+      setNotice(null);
+      setRefusal(refusalFor(missing, { name: 'Name' }));
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
+    setRefusal(null);
     // `updatedAt` is stamped only on a real change — stamping a no-op save
     // would itself be a change, and would defeat the server's no-op rule.
     const object = stampUpdated(applyForm(base.object, form));
@@ -237,6 +277,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       </header>
 
       <form
+        ref={formRef}
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -249,7 +290,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onChange={(name) => {
             patchForm({ name });
           }}
-          error={form.name.trim() === '' ? 'An actor needs a name.' : null}
+          required={isRequiredField('actors', 'name')}
+          error={missing.includes('name') ? 'An actor needs a name.' : null}
         />
         <Field
           label="Pronouns"
@@ -449,11 +491,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           >
             Back to the actor
           </Link>
-          <Button
-            type="submit"
-            disabled={!changed || save.isPending || form.name.trim() === ''}
-            variant="primary"
-          >
+          <Button type="submit" disabled={!changed || save.isPending} variant="primary">
             Save
           </Button>
           {/*
@@ -479,6 +517,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
               <span role="alert" className="text-danger-ink">
                 {save.error.message}
+              </span>
+            ) : null}
+            {refusal !== null ? (
+              <span role="alert" className="text-danger-ink">
+                {refusal}
               </span>
             ) : null}
             {notice !== null ? (

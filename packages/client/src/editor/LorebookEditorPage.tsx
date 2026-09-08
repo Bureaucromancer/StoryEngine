@@ -18,6 +18,7 @@ import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
 import { AsStored } from '../library/AsStored.js';
 import { DeleteObject } from '../library/DeleteObject.js';
+import { isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
@@ -193,6 +194,14 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
+  /**
+   * Why the last Save did not write — [05 §11.1a]. `role="alert"` where
+   * `notice` is `role="status"`, because a refusal interrupts and a progress
+   * report does not.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /** The form, so a refusal can put the cursor where the answer goes. */
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -203,11 +212,21 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   const book = draft as unknown as Lorebook;
   const changed = bookChanges(base.object, draft);
+  /**
+   * The required fields this book is not answering — [05 §11.1a].
+   *
+   * This editor had no such check at all: the book's name could be emptied and
+   * saved, and the shelf would then carry a row with nothing in its link. The
+   * actor editor beside it has refused an empty name since P1.5, which is the
+   * asymmetry §11.1a exists to end.
+   */
+  const missing = missingRequired('lorebooks', { name: nameOf(draft) });
   const selected = search.entry === undefined ? undefined : entryOf(draft, search.entry);
 
   function edit(next: Draft): void {
     setDraft(next);
     setNotice(null);
+    setRefusal(null);
   }
 
   /** Selecting an entry is an address, so it goes through the router. */
@@ -222,6 +241,17 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
 
   function handleSave(): void {
     if (!changed) return;
+    /**
+     * **Refused rather than prevented** — [05 §11.1a]. Save stays live and this
+     * says what is wrong, beside the Save that caused it ([05 §11.6]).
+     */
+    if (missing.length > 0) {
+      setNotice(null);
+      setRefusal(refusalFor(missing, { name: 'Book name' }));
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
+    setRefusal(null);
     /**
      * **Sent unstamped**, unlike the actor editor beside this one. The server
      * stamps `provenance.updatedAt` itself on any real change, and it decides
@@ -322,6 +352,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       </header>
 
       <form
+        ref={formRef}
         className="flex flex-col gap-8"
         onSubmit={(event) => {
           event.preventDefault();
@@ -340,6 +371,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onChange={(name) => {
             edit({ ...draft, name });
           }}
+          required={isRequiredField('lorebooks', 'name')}
+          error={missing.includes('name') ? 'A lorebook needs a name.' : null}
           hint="What the library shelf calls it. Renaming does not move the file."
         />
 
@@ -508,6 +541,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             !(save.error instanceof ApiError && save.error.status === 412 && save.error.current) ? (
               <span role="alert" className="text-danger-ink">
                 {save.error.message}
+              </span>
+            ) : null}
+            {refusal !== null ? (
+              <span role="alert" className="text-danger-ink">
+                {refusal}
               </span>
             ) : null}
             {notice !== null ? (

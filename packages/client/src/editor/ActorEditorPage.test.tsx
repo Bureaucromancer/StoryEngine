@@ -544,3 +544,64 @@ describe("the editor's as-stored pane", () => {
     expect(within(pane).getByText(/what a reload would find/)).toBeTruthy();
   });
 });
+
+/**
+ * A save that cannot proceed is **refused, not prevented** —
+ * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * This editor used to disable Save while the name was empty, which meant the
+ * submit never fired and there was nowhere for the refusal to be said. The
+ * button is live now and the write is turned away instead, which is the shape
+ * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) asks for:
+ * a control that cannot work teaches nothing about why.
+ *
+ * Four claims, each failing on its own — the button is pressable, no write left
+ * the client, the refusal stands inside the form Save belongs to (the strip,
+ * which jsdom cannot see pinned), and the cursor is on the field that has to
+ * answer. The last is the one a mutation removes most quietly.
+ */
+describe('a save with a required field empty', () => {
+  it('is refused rather than prevented, and says so beside the Save that caused it', async () => {
+    renderApp();
+    await openTheEditor();
+
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    await userEvent.clear(name);
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    await userEvent.click(save);
+
+    // Nothing was presented to the server at all — not a rejected write, no
+    // write.
+    expect(server.updates).toEqual([]);
+
+    const refusal = await screen.findByText('Name cannot be empty.');
+    expect(refusal.getAttribute('role')).toBe('alert');
+    expect(refusal.closest('form')).toBe(save.closest('form'));
+
+    expect(document.activeElement).toBe(name);
+  });
+
+  it('marks the field required, and stops once it is answered', async () => {
+    renderApp();
+    await openTheEditor();
+
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    expect(name.getAttribute('aria-required')).toBe('true');
+
+    await userEvent.clear(name);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(server.updates).toEqual([]);
+
+    // Typing clears the refusal rather than leaving it standing over an
+    // answered field.
+    await userEvent.type(name, 'Vera Kohl');
+    expect(screen.queryByText('Name cannot be empty.')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    expect(server.stored()['name']).toBe('Vera Kohl');
+  });
+});

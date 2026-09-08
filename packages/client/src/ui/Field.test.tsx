@@ -127,3 +127,61 @@ describe('ids', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+/**
+ * Required-ness, marked twice for two readers — [05 §11.1a].
+ *
+ * The pair is the point, and each half fails differently if it goes missing: a
+ * glyph alone is invisible to a screen reader, and `aria-required` alone is
+ * invisible to everyone else. The third assertion is the one that is easy to
+ * get wrong on the way to the first two — a glyph left readable makes every
+ * required field announce its own name with *asterisk* on the end.
+ */
+describe('a required field', () => {
+  it('announces itself required', () => {
+    render(<Field label="Name" value="" onChange={vi.fn()} required />);
+
+    expect(screen.getByRole('textbox', { name: 'Name' }).getAttribute('aria-required')).toBe(
+      'true',
+    );
+  });
+
+  it('carries a visible mark', () => {
+    render(<Field label="Name" value="" onChange={vi.fn()} required />);
+
+    expect(screen.getByText('*')).toBeDefined();
+  });
+
+  it('keeps the mark out of the accessible name', () => {
+    render(<Field label="Name" value="" onChange={vi.fn()} required />);
+
+    // `getByRole` resolves the name the way a screen reader does, so a mark
+    // that is not `aria-hidden` shows up here as "Name *".
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBeDefined();
+  });
+
+  it('says nothing at all when the field is optional', () => {
+    render(<Field label="Pronouns" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByRole('textbox', { name: 'Pronouns' }).hasAttribute('aria-required')).toBe(
+      false,
+    );
+    expect(screen.queryByText('*')).toBeNull();
+  });
+
+  it('reaches the multiline control, which is a different element', () => {
+    render(<Field label="Content" value="" onChange={vi.fn()} required multiline />);
+
+    expect(screen.getByRole('textbox', { name: 'Content' }).getAttribute('aria-required')).toBe(
+      'true',
+    );
+  });
+
+  it('reaches a number field, which shares the shape and had to share the prop', () => {
+    render(<NumberField label="Budget" value="" onChange={vi.fn()} required />);
+
+    expect(screen.getByRole('spinbutton', { name: 'Budget' }).getAttribute('aria-required')).toBe(
+      'true',
+    );
+  });
+});

@@ -1551,10 +1551,13 @@ set very small — [10 §6.1a](10-schemas.md) makes the same point from the othe
 side, that a required field with no good answer is what makes an author distrust
 the form. A name, and little else.
 
-**Marked, not merely enforced.** The marker is visible and carried in the
-accessible name, so it reaches somebody who cannot see it. It lives in the label
-row, where the assist slot already sits, because that row is the one part of a
-field that is always rendered whatever the control underneath it is.
+**Marked, not merely enforced**, and marked twice over: a glyph beside the label
+for a reader who can see it, and the control announcing itself required for a
+reader who cannot. Not the same mark spelled twice — the glyph is hidden from
+assistive technology and the state is carried as `aria-required`, so nobody is
+read the word "asterisk" and nobody hears "required" twice. It lives in the
+label row, where the assist slot already sits, because that row is the one part
+of a field that is always rendered whatever the control underneath it is.
 
 **A save that cannot proceed is refused, not prevented**, and the distinction is
 the whole of this paragraph. A disabled Save is a control that does nothing and

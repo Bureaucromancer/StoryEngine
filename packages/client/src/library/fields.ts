@@ -130,6 +130,29 @@ const NEW_OBJECTS: Record<
   lorebooks: { noun: 'lorebook', make: (name) => newLorebook(name) },
 };
 
+/**
+ * The fields a person has to fill in before this kind can be saved —
+ * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * **A curated set rather than a reading of the schema**, and that is the part
+ * worth writing down, because the schema is right there and the rest of this
+ * module derives from it at runtime. JSON Schema's `required` means *the
+ * property is present*, not *somebody filled it in*: an actor's only optional
+ * property is `writingSamples`, so marking from it would mark nearly every
+ * field, which tells a reader no more than marking none would. Nor is there a
+ * floor underneath — no portable schema constrains a string's length except an
+ * id, so `name: ""` validates and stores. This is a client convention with
+ * nothing beneath it, which is §11.1a's whole argument for keeping it small.
+ *
+ * Typed against `EditorKind` for the reason the two tables above are: a kind
+ * that grows an editor and no row here fails to typecheck, rather than quietly
+ * requiring nothing of anybody.
+ */
+const REQUIRED_FIELDS: Record<EditorKind, readonly string[]> = {
+  actors: ['name'],
+  lorebooks: ['name'],
+};
+
 /** Where this kind is edited, or null when it has no editor yet. */
 export function editorRouteFor(kind: LibraryKind): EditorRoute | null {
   return Object.hasOwn(EDITOR_ROUTES, kind) ? EDITOR_ROUTES[kind as EditorKind] : null;
@@ -140,6 +163,51 @@ export function newObjectFor(
   kind: LibraryKind,
 ): { noun: string; make: (name: string) => Record<string, unknown> } | null {
   return Object.hasOwn(NEW_OBJECTS, kind) ? NEW_OBJECTS[kind as EditorKind] : null;
+}
+
+/**
+ * The fields this kind refuses to be saved without, in the order a refusal
+ * should visit them. Empty for a kind with no editor, which is the honest
+ * answer rather than a throw: nothing can require a field nothing can edit.
+ */
+export function requiredFieldsFor(kind: LibraryKind): readonly string[] {
+  return Object.hasOwn(REQUIRED_FIELDS, kind) ? REQUIRED_FIELDS[kind as EditorKind] : [];
+}
+
+/** Whether this one field is among them — what a field asks to mark itself. */
+export function isRequiredField(kind: LibraryKind, key: string): boolean {
+  return requiredFieldsFor(kind).includes(key);
+}
+
+/**
+ * Which of them are blank, given what the editor currently holds.
+ *
+ * The editor supplies the values because it is the only thing that knows how
+ * its form maps onto the object's fields — but *which* fields are asked about
+ * comes from the table, so a second required field is one row rather than one
+ * row and a forgotten condition.
+ */
+export function missingRequired(
+  kind: LibraryKind,
+  values: Readonly<Record<string, string>>,
+): readonly string[] {
+  return requiredFieldsFor(kind).filter((key) => (values[key] ?? '').trim() === '');
+}
+
+/**
+ * The sentence a refused save says, naming what still has to be answered.
+ *
+ * Labels come from the caller because they are the caller's: the editor already
+ * spells "Book name" over a field whose property is `name`, and a refusal that
+ * said *name* would be naming the JSON at somebody reading a form.
+ */
+export function refusalFor(
+  missing: readonly string[],
+  labels: Readonly<Record<string, string>>,
+): string {
+  const named = missing.map((key) => labels[key] ?? key);
+  if (named.length === 1) return `${named[0] ?? ''} cannot be empty.`;
+  return `These cannot be empty: ${named.join(', ')}.`;
 }
 
 /** The same question where only the answer matters — the create control asks it. */
