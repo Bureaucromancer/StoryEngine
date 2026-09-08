@@ -6,7 +6,9 @@ import { useId, useMemo, useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useAuthState, useLibrary, usePatchPrefs, usePrefs, useTags } from '../queries.js';
+import { formatCount } from '../format.js';
 import { Button } from '../ui/Button.js';
+import { TagChip } from '../ui/TagChip.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
@@ -21,6 +23,7 @@ import {
   type PanelColumn,
 } from './panels.js';
 import { matches } from './search.js';
+import { folderRows, insideClosedFolder } from '../tags/folders.js';
 import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
 
 /**
@@ -311,10 +314,25 @@ function ObjectTable(props: {
    * scope list quietly loses the values it no longer offers, so unpicking is
    * the only way back to a shelf you could see a moment ago.
    */
+  /**
+   * The folders on this shelf, and which of them the list is standing in —
+   * [25 §5](../../../../docs/design/25-tagging.md).
+   *
+   * Counted before any narrowing, because a folder row is a way *in*: one that
+   * disappeared as soon as a search excluded its members would be a door that
+   * vanishes when you reach for it.
+   */
+  const folders = folderRows(
+    registry.data?.tags ?? [],
+    props.objects.map((object) => tagsOf(object)),
+    tagFilters,
+  );
+
   const matching = props.objects.filter(
     (object) =>
       matches(searchText(object), query) &&
       passesTagFilters(tagsOf(object), tagFilters) &&
+      !insideClosedFolder(tagsOf(object), registry.data?.tags ?? [], tagFilters) &&
       panel.filters.every((filter) => {
         const value = chosen[filter.id] ?? '';
         return value === '' || filter.matches(object, value);
@@ -434,6 +452,35 @@ function ObjectTable(props: {
             </tr>
           </thead>
           <tbody>
+            {folders.map((folder) => (
+              <tr key={`folder:${folder.tag.id}`} className={table.row}>
+                <td className={table.cell} colSpan={panel.columns.length + 1}>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-sm text-ink"
+                    aria-label={folderLabel(folder.tag.name, folder.open)}
+                    onClick={() => {
+                      /**
+                       * **Entering a folder is applying its filter** — [25 §5].
+                       * Not a second navigation model: the shelf already has a
+                       * filter, and this is another control that drives it, so
+                       * the chip in the bar is both the indicator and the way
+                       * back out.
+                       */
+                      const key = folder.tag.name.toLowerCase();
+                      const updated = new Map(tagFilters);
+                      if (folder.open) updated.delete(key);
+                      else updated.set(key, 'selected');
+                      setTagFilters(updated);
+                    }}
+                  >
+                    <span aria-hidden="true">{folder.open ? '▾' : '▸'}</span>
+                    <TagChip name={folder.tag.name} swatch={folder.tag.swatch} />
+                    <span className="text-ink-subtle">{formatCount(folder.count, locale)}</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
             {shown.map((object) => (
               <ObjectRow
                 key={`${object.source}:${object.id}:${object.slug}`}
@@ -519,4 +566,12 @@ function tagNames(objects: readonly LibraryObject[]): string[] {
     }
   }
   return [...seen.values()];
+}
+
+/**
+ * The folder row's whole phrase, built here rather than in the JSX — a sentence
+ * split across children is what the assembly rule reports.
+ */
+function folderLabel(name: string, open: boolean): string {
+  return open ? `Leave the ${name} folder` : `Open the ${name} folder`;
 }
