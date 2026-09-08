@@ -334,7 +334,7 @@ could not be derived would be a fifth to disagree.
 | Build | Name | String | Tag |
 |---|---|---|---|
 | The first alpha of 1.0 — the build [P6A](23-p6a-alpha-1.md) calls Alpha 1 | *1.0-alpha 1* | `1.0.0-alpha.1` | `v1.0.0-alpha.1` |
-| The next alpha | *1.0-alpha 2* | `1.0.0-alpha.2` | `v1.0.0-alpha.2` |
+| The alphas after it, one sequence | *1.0-alpha 2* | `1.0.0-alpha.2` | `v1.0.0-alpha.2` |
 | The first beta — feature-complete to the 1.0 spec (§0) | *1.0-beta 1* | `1.0.0-beta.1` | `v1.0.0-beta.1` |
 | A hotfix on that beta | *1.0-beta 1.1* | `1.0.0-beta.1.1` | `v1.0.0-beta.1.1` |
 | The release | *1.0* | `1.0.0` | `v1.0.0` |

@@ -17,6 +17,67 @@ the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.3 — 1.0-alpha 3 — 2026-09-08
+
+The build that makes the retrieval half reachable. Alpha 1 and 2 shipped a
+lorebook system nothing could switch on: a session accepted `treatment` and
+`lore` over the API and no surface ever sent them, so every session resolved
+**zero books** and the whole of P5 was unreachable from the product. That is
+what this release is for.
+
+### Added
+
+- **A session can be told what to read.** The create form carries a treatment,
+  a lorebook multi-select and a preset — the preset there specifically, because
+  it is the one field with no second chance: a session copies it at creation and
+  no route changes it after. A **mid-session lore panel** changes the selection
+  through `PUT /api/sessions/:id/lore`, so a book you realise you need forty
+  turns in does not cost the session.
+- **Lore has two placement phases.** SillyTavern positions 1, 2, 3, 5 and 6 all
+  import as `after_char`, and the shipped preset had one slot, at
+  `before`. Such an entry activated, spent the book's token and entry budget,
+  matched no slot and **vanished unreported** while the lore report still counted
+  it kept. The first imported ST book silently lost most of its entries. There is
+  a second slot now, and an entry whose phase has no slot is **reported** rather
+  than dropped in silence.
+- **A sticky entry says how much longer it stays** — *"still active from an
+  earlier turn, 2 messages remaining"*, and *"and this is its last"* when the
+  window closes, which is the one state a count alone cannot express. The effects
+  list prints the scope key beside the channel id, so four entries writing
+  `se.lore.timing` in one turn are four rows you can tell apart rather than the
+  same name four times.
+- **A failed turn submission says so.** Every mutation on the play page could
+  fail and none rendered anything: a busy session, a stale head, an unbound role
+  were all silent. The most recent failure is shown, by when it was submitted, so
+  a stale one cannot outrank a fresh one.
+
+### Fixed
+
+- **A per-book `tokenBudget` of `0` means unlimited**, which is what the
+  schema and the format's own convention always said. It was a plain ceiling, so
+  such a book refused every entry with *"over the book's token budget of 0"*.
+- **Recursion scans every entry that fired, not the first two.** The recursive
+  pass was being truncated by `scanDepth` — a setting that counts *messages* —
+  so on a default book only two activated entries' text was ever re-scanned, and
+  raising an entry's `order`, which is a placement setting, silently removed its
+  text from the scan. The entry that then failed to fire was told *no match*,
+  which was not true.
+- **A library folder this build cannot open is recorded rather than half-indexed.**
+  A hand-made folder with a name that is unopenable on Windows — `con`, or a
+  trailing space — was skipped in silence by a rebuild and *indexed* by the live
+  watcher, which wrote a row pointing at a file nothing in the build can read.
+  Both now agree, and the folder appears as a named file error instead of
+  disappearing.
+
+### Known
+
+- **The pre-P6 walk is in progress, not finished.** Sitting A — a fresh install
+  through to a streamed turn and its record — is walked and passed; B through H
+  are outstanding
+  ([27](docs/design/workplan/27-pre-p6-walk.md)). This image exists so the rest
+  of that walk happens against a container rather than a dev server.
+- **No compatibility promise between alpha builds**, unchanged from Alpha 2.
+
 ## 1.0.0-alpha.2 — 1.0-alpha 2 — 2026-09-07
 
 What the first install of Alpha 1 found, on unraid, and what it asked for.
