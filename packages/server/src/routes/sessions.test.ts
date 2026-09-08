@@ -123,6 +123,96 @@ describe('the session surface', () => {
     expect(withArchived.body.sessions).toHaveLength(1);
   });
 
+  /**
+   * A session need not be named — [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+   *
+   * Nothing resolves a session by name and no folder is derived from one, so a
+   * name freezes nothing at creation and demanding one bought only a form to
+   * fill in first. The API draws no distinction between an absent name and an
+   * empty one, which is why both of the first two cases land in the same place.
+   */
+  it('starts without a name, and stores the empty string', async () => {
+    const bare = await server.request({ method: 'POST', url: '/api/sessions', payload: {} });
+    expect(bare.status).toBe(201);
+    expect(bare.body.session.name).toBe('');
+
+    // Trimmed at the route, so a name of three spaces cannot produce a list
+    // entry that renders as an invisible link.
+    const spaces = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: '   ' },
+    });
+    expect(spaces.body.session.name).toBe('');
+
+    // Both are real sessions, listed beside the named one from `standUp`.
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(listed.body.sessions).toHaveLength(3);
+  });
+
+  /** `maxLength` survived the field becoming optional. */
+  it('still refuses a name longer than the schema allows', async () => {
+    const long = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'x'.repeat(201) },
+    });
+    expect(long.status).toBe(400);
+  });
+
+  /**
+   * Renaming through the same `PATCH` that archives — [02 §8].
+   *
+   * The follow-up `GET` is the half that matters: a handler could build a
+   * correct response body without the write ever reaching disk, and only a
+   * second request through a different route proves it did.
+   */
+  it('renames a session, and un-names it again', async () => {
+    const renamed = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${sessionId}`,
+      payload: { name: 'Rain City, after the fire' },
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.session.name).toBe('Rain City, after the fire');
+
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(listed.body.sessions.map((each: { name: string }) => each.name)).toEqual([
+      'Rain City, after the fire',
+    ]);
+
+    // Clearing it is allowed, because it is the state a session may start in.
+    // A rule that let you never name a session but never un-name one would be
+    // arbitrary in a way somebody would have to discover.
+    const cleared = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${sessionId}`,
+      payload: { name: '' },
+    });
+    expect(cleared.body.session.name).toBe('');
+  });
+
+  /**
+   * `archived` had to relax from required to optional for a rename to be
+   * expressible, which is what makes an empty body expressible too.
+   * `minProperties` is what keeps that from being a 200 that did nothing.
+   */
+  it('refuses a patch that asks for nothing, and one that asks for something unknown', async () => {
+    const empty = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${sessionId}`,
+      payload: {},
+    });
+    expect(empty.status).toBe(400);
+
+    const unknown = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${sessionId}`,
+      payload: { headTurnId: 'turn-1' },
+    });
+    expect(unknown.status).toBe(400);
+  });
+
   it("answers 404 for another account's session, not 403", async () => {
     // The path is the owner ([04 §4.3]): confirming the id exists elsewhere
     // would leak the one fact the separation keeps.
