@@ -131,6 +131,20 @@ const NEW_OBJECTS: Record<
 };
 
 /**
+ * Where a new one of each kind is *written*, before it exists —
+ * [polish §10](../../../../docs/design/workplan/09-polish.md).
+ *
+ * A second table rather than a suffix on `EDITOR_ROUTES`, because these two
+ * addresses do different things: one opens a file, and one opens a form over
+ * nothing. Typed against the same key set, so a kind cannot acquire an editor
+ * without acquiring a way in.
+ */
+const NEW_ROUTES = {
+  actors: '/library/actors/new',
+  lorebooks: '/library/lorebooks/new',
+} as const satisfies Record<EditorKind, string>;
+
+/**
  * The fields a person has to fill in before this kind can be saved —
  * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
  *
@@ -152,6 +166,28 @@ const REQUIRED_FIELDS: Record<EditorKind, readonly string[]> = {
   actors: ['name'],
   lorebooks: ['name'],
 };
+
+/** Where a new one is written, or null when this kind has no editor yet. */
+export function newRouteFor(kind: LibraryKind): NewRoute | null {
+  return Object.hasOwn(NEW_ROUTES, kind) ? NEW_ROUTES[kind as EditorKind] : null;
+}
+
+/**
+ * The blank object a new one starts as — the shared factory's, never a literal.
+ *
+ * Total rather than nullable, because the caller is an editor that knows which
+ * kind it is: `newRouteFor` above is the nullable question, asked by the
+ * library, and by the time one of these routes has matched the answer is no
+ * longer in doubt.
+ *
+ * The name is empty on purpose. It is the one field the editor will refuse to
+ * save without ([05 §11.1a]), and a placeholder here would be a name somebody
+ * did not choose — which, because the folder is slugged from it once and then
+ * frozen ([02 §5.2]), would be a name they could never take back.
+ */
+export function blankFor(kind: EditorKind): Record<string, unknown> {
+  return NEW_OBJECTS[kind].make('');
+}
 
 /** Where this kind is edited, or null when it has no editor yet. */
 export function editorRouteFor(kind: LibraryKind): EditorRoute | null {
@@ -215,7 +251,8 @@ export function kindHasEditor(kind: LibraryKind): boolean {
   return editorRouteFor(kind) !== null;
 }
 
-type EditorKind = keyof typeof EDITOR_ROUTES;
+export type EditorKind = keyof typeof EDITOR_ROUTES;
+export type NewRoute = (typeof NEW_ROUTES)[EditorKind];
 type EditorRoute = (typeof EDITOR_ROUTES)[EditorKind];
 
 /** A JSON Schema node, or undefined for anything that is not one. */

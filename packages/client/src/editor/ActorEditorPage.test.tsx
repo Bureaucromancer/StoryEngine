@@ -7,7 +7,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { newActor } from '@storyengine/shared';
+import { CONVENTIONAL_SECTION_IDS, newActor } from '@storyengine/shared';
 
 import { ApiError, type Account, type LibraryObject } from '../api.js';
 
@@ -63,6 +63,9 @@ import { ApiError, type Account, type LibraryObject } from '../api.js';
  */
 const ACTOR_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
 
+/** The id the fake server files a *new* actor under — never the client's. */
+const SERVER_ID = '01b11111-2222-7333-8444-555566667777';
+
 /** The shape on disk, from the shared factory, so the form's guard passes for real reasons. */
 const ACTOR: Record<string, unknown> = {
   ...(newActor('Vera Solano') as unknown as Record<string, unknown>),
@@ -100,6 +103,7 @@ function makeLibrary() {
   let revision = 0;
   const updates: UpdateAttempt[] = [];
   const removals: { id: unknown; presented: string }[] = [];
+  const creates: { kind: unknown; object: Record<string, unknown> }[] = [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
 
@@ -172,6 +176,23 @@ function makeLibrary() {
       removals.push({ id, presented: contentHash });
       return Promise.resolve(undefined);
     },
+
+    /**
+     * What the fake was asked to file, and the id it chose.
+     *
+     * **It answers a different id than it was posted**, which production does
+     * not: `create()` echoes what it was given. Only a fake that disagrees can
+     * tell whether the page routed on the server's answer or on the id it
+     * minted itself, and that is the whole claim.
+     */
+    creates,
+    createObject(
+      kind: unknown,
+      object: Record<string, unknown>,
+    ): Promise<{ id: string; slug: string; contentHash: string }> {
+      creates.push({ kind, object: structuredClone(object) });
+      return Promise.resolve({ id: SERVER_ID, slug: 'vera-kohl', contentHash: hash() });
+    },
   };
 }
 
@@ -210,6 +231,8 @@ vi.mock('../api.js', async (importOriginal) => {
       ) => server.updateObject(kind, id, object, contentHash),
       deleteObject: (kind: unknown, id: unknown, contentHash: string) =>
         server.deleteObject(kind, id, contentHash),
+      createObject: (kind: unknown, object: Record<string, unknown>) =>
+        server.createObject(kind, object),
     },
   };
 });
@@ -603,5 +626,86 @@ describe('a save with a required field empty', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved.');
     expect(server.stored()['name']).toBe('Vera Kohl');
+  });
+});
+
+/**
+ * A new actor, which does not exist until it is saved — [polish §10].
+ *
+ * These three claims used to live in
+ * [LibraryPage.test.tsx](../library/LibraryPage.test.tsx), against a control
+ * that collected a name and posted an object. The control is a button now and
+ * the create happens here, so the claims moved with it rather than being
+ * dropped: the object posted is the **factory's**, the id routed on is the
+ * **server's**, and a nameless actor is **refused** — which is the same refusal
+ * the list used to make, in the place [05 §11.1a] says it belongs.
+ *
+ * The fourth claim is the one the old flow could not make at all: opening the
+ * page writes nothing.
+ */
+describe('a new actor', () => {
+  async function openNew(): Promise<void> {
+    await act(async () => {
+      await router.navigate({ to: '/library/actors/new' });
+    });
+    await screen.findByRole('textbox', { name: 'Name' });
+  }
+
+  it('writes nothing until it is saved', async () => {
+    renderApp();
+    await openNew();
+
+    expect(server.creates).toEqual([]);
+    // No file, so nothing that reads one: no history, no delete, no
+    // *as stored* over an object that is not stored.
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('refuses a nameless actor rather than filing one', async () => {
+    renderApp();
+    await openNew();
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    // Live, so the refusal has somewhere to happen — the old control's button
+    // was disabled here and said nothing.
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    await userEvent.click(save);
+
+    expect(server.creates).toEqual([]);
+    expect(await screen.findByText('Name cannot be empty.')).toBeDefined();
+  });
+
+  /**
+   * **The four conventional sections, not the name.** A name-and-schema check
+   * would pass over a page that hand-built a minimal literal, and that literal
+   * is the failure worth catching: [10 §4] requires all four on a new actor,
+   * `newActor` is the one place they come from, and an actor made in the
+   * browser has to be the object one made with `curl` is.
+   */
+  it('files what the factory built, and lands at the id the server chose', async () => {
+    renderApp();
+    await openNew();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Vera Kohl');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(server.creates).toHaveLength(1);
+    });
+
+    const filed = server.creates[0];
+    expect(filed?.kind).toBe('actors');
+    expect(filed?.object['name']).toBe('Vera Kohl');
+    const profile = filed?.object['profile'] as { sections: { id: string }[] };
+    expect(profile.sections.map((section) => section.id).sort()).toEqual(
+      Object.values(CONVENTIONAL_SECTION_IDS).toSorted(),
+    );
+
+    // The server's id, not the one minted in the browser.
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/library/actors/${SERVER_ID}/edit`);
+    });
   });
 });

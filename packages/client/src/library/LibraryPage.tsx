@@ -5,13 +5,12 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { useAuthState, useCreateObject, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import { useAuthState, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { control, link, page, table } from '../ui/classes.js';
+import { link, page, table } from '../ui/classes.js';
 import { SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
-import { editorRouteFor, newObjectFor } from './fields.js';
+import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
 import { emptyMessage, panelFor, panelNameBadges, type PanelColumn } from './panels.js';
 
@@ -102,7 +101,8 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
   // split: a panel is a kind, so its create control has no choice to make.
   const kind = props.kind ?? 'actors';
   const blank = newObjectFor(kind);
-  if (blank !== null) return <NewObjectForm kind={kind} noun={blank.noun} make={blank.make} />;
+  const route = newRouteFor(kind);
+  if (blank !== null && route !== null) return <NewObjectButton noun={blank.noun} route={route} />;
   return (
     <p className="mb-6 text-sm text-ink-subtle">
       This kind has no editor yet, so nothing here can make one: it would land on a page that cannot
@@ -112,84 +112,41 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
 }
 
 /**
- * Name it, and you are in the editor.
+ * A button, and you are in the editor — [polish §10].
  *
- * The shape is [SessionsPage](../play/SessionsPage.tsx)'s deliberately — one
- * field and one button, inline above the list rather than behind a modal —
- * because it is the same job, and because it survives
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s per-kind panels
- * unchanged: when *Actors* is a panel rather than a filter, this form is
- * already that panel's.
+ * **It used to collect the name first**, in an inline box, with the button
+ * disabled until something was typed into it. That was a gate in front of the
+ * one surface built to collect that field, and a disabled control saying
+ * nothing about why is the placeholder
+ * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) rejects —
+ * the same argument the sentence below this control already makes about kinds
+ * with no editor.
  *
- * **Nothing here builds an object by hand.** The factory is the shared one the
- * API's own create path calls, so an actor's four conventional sections
- * ([10 §4](../../../../docs/design/10-schemas.md)) — and a lorebook's scan depth
- * and budgets — are the same on one made in the browser as on one made with
- * `curl` or one that arrived through an import. A local literal would be a
- * second definition of *what a new one is*, and the one that drifted.
+ * **Nothing is created here any more.** The editor holds a draft and its first
+ * Save is the create, which is what keeps the folder name honest: the slug is
+ * taken from the name once and then frozen ([02 §5.2]), so an object created
+ * before it was named would keep `untitled-2` for the rest of its life. It also
+ * means opening this and walking away leaves nothing behind, which the old flow
+ * could not have offered without leaving something.
  *
- * **And the address comes from the table too.** Navigating by a literal was
- * safe while there was one editor and is exactly the failure
- * [fields.ts](./fields.ts) records at its other call site: a second kind and a
- * hard-coded route send the new lorebook to the actor editor.
+ * **The address comes from the table**, as the editor address did before it:
+ * navigating by a literal was safe while there was one editor and is exactly
+ * the failure [fields.ts](./fields.ts) records at its other call site.
  */
-function NewObjectForm(props: {
-  kind: LibraryKind;
-  noun: string;
-  make: (name: string) => Record<string, unknown>;
-}): JSX.Element {
+function NewObjectButton(props: { noun: string; route: NewRoute }): JSX.Element {
   const navigate = useNavigate();
-  const create = useCreateObject();
-  const [name, setName] = useState('');
-  const ready = name.trim().length > 0;
-  const route = editorRouteFor(props.kind);
 
   return (
     <div className="mb-6">
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!ready || create.isPending || route === null) return;
-          create.mutate(
-            { kind: props.kind, object: props.make(name.trim()) },
-            {
-              // The id the *server* answered with, not the one minted above.
-              // They agree today — `create()` echoes what it was posted — and
-              // routing on the response is what keeps that an implementation
-              // detail rather than something this page depends on.
-              onSuccess: (result) => {
-                setName('');
-                void navigate({ to: route, params: { id: result.id }, search: {} });
-              },
-            },
-          );
+      <Button
+        type="button"
+        variant="primary"
+        onClick={() => {
+          void navigate({ to: props.route });
         }}
       >
-        <label className="flex-1">
-          <span className="sr-only">{`Name for the new ${props.noun}`}</span>
-          <input
-            className={control}
-            value={name}
-            placeholder={`A new ${props.noun}`}
-            onChange={(event) => {
-              setName(event.target.value);
-            }}
-          />
-        </label>
-        <Button type="submit" variant="primary" disabled={!ready || create.isPending}>
-          {`New ${props.noun}`}
-        </Button>
-      </form>
-
-      {create.isError ? (
-        // Shown rather than swallowed. A factory-built object should never be
-        // refused as invalid, which is exactly why a refusal here has to be
-        // visible: it means the schema and the factory have parted company.
-        <Alert tone="error" role="alert" className="mt-2">
-          {create.error.message}
-        </Alert>
-      ) : null}
+        {`New ${props.noun}`}
+      </Button>
     </div>
   );
 }

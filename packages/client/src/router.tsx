@@ -6,8 +6,8 @@ import type { JSX } from 'react';
 
 import { isLibraryKind, type LibraryKind } from './api.js';
 import { ComparePage } from './compare/ComparePage.js';
-import { ActorEditorPage } from './editor/ActorEditorPage.js';
-import { LorebookEditorPage } from './editor/LorebookEditorPage.js';
+import { ActorEditorPage, NewActorPage } from './editor/ActorEditorPage.js';
+import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
@@ -203,6 +203,23 @@ const actorEditorRoute = createRoute({
 });
 
 /**
+ * A new actor, before it exists — [polish §10].
+ *
+ * **Three segments, the same shape as `/library/$kind/$id`**, and the reason
+ * this is safe rather than lucky is that the router ranks a static segment
+ * above a dynamic one: `actors` and `new` are both literal here, so this wins
+ * over the read route's `$kind`/`$id` for exactly this address and nothing
+ * else. It is asserted in `router.test.tsx` rather than trusted, because the
+ * failure — *New actor* opening the read page for an object that does not
+ * exist — would be a 404 blamed on the server.
+ */
+const newActorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/actors/new',
+  component: NewActorPage,
+});
+
+/**
  * The lorebook editor's address — [P5.1], and the second entry in
  * `EDITOR_ROUTES`.
  *
@@ -234,12 +251,21 @@ const lorebookEditorRoute = createRoute({
   component: LorebookEditorPage,
 });
 
+/** A new lorebook, before it exists — `newActorRoute`'s twin. */
+const newLorebookRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/lorebooks/new',
+  component: NewLorebookPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
   objectRoute,
   actorEditorRoute,
+  newActorRoute,
   lorebookEditorRoute,
+  newLorebookRoute,
   sessionsRoute,
   playRoute,
   compareRoute,

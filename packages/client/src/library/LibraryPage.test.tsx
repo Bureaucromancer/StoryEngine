@@ -5,8 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, LOREBOOK_SCHEMA } from '@storyengine/shared';
-
 /**
  * **A hand edit reaches the browser without a restart** — the client half of P1
  * gate step 7–8, and [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s blunt statement of
@@ -131,12 +129,9 @@ async function settled(): Promise<void> {
  * here are a change and a submit, with no pointer or focus behaviour that
  * user-event would model better.
  */
-async function nameItAndSubmit(name: string): Promise<void> {
-  act(() => {
-    fireEvent.change(screen.getByLabelText('Name for the new actor'), { target: { value: name } });
-  });
+async function clickNew(noun: string): Promise<void> {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'New actor' }));
+    fireEvent.click(screen.getByRole('button', { name: `New ${noun}` }));
     await vi.advanceTimersByTimeAsync(0);
   });
 }
@@ -195,76 +190,45 @@ describe('the library list', () => {
 
 describe('making an actor', () => {
   /**
-   * **The assertion is the four conventional sections, not the name.**
+   * **Nothing is created here any anymore** — [polish §10].
    *
-   * A name-and-schema check would pass over a page that hand-built a minimal
-   * literal, and a hand-built literal is exactly the failure worth catching:
-   * [10 §4](../../../../docs/design/10-schemas.md) requires *the editor creates all four on a
-   * new actor*, `newActor` is the one place that happens, and an actor made in
-   * the browser has to be the same object as one made with `curl`.
-   */
-  it('posts what the factory builds, conventional sections and all', async () => {
-    renderPage();
-    await settled();
-
-    await nameItAndSubmit('Vera Kohl');
-
-    expect(createObject).toHaveBeenCalledTimes(1);
-    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
-    expect(call[0]).toBe('actors');
-    expect(call[1]['schema']).toBe(ACTOR_SCHEMA);
-    expect(call[1]['name']).toBe('Vera Kohl');
-
-    const profile = call[1]['profile'] as { sections: { id: string }[] };
-    expect(profile.sections.map((section) => section.id).sort()).toEqual(
-      Object.values(CONVENTIONAL_SECTION_IDS).toSorted(),
-    );
-  });
-
-  /**
-   * The id routed on is the server's, not the one minted client-side. They
-   * agree in production — `create()` echoes what it was posted — so only a test
-   * that hands back a *different* id can tell which one the page used.
-   */
-  it('lands in the editor at the id the server answered with', async () => {
-    renderPage();
-    await settled();
-
-    await nameItAndSubmit('Vera Kohl');
-
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/library/actors/$id/edit',
-      params: { id: '01b11111-2222-7333-8444-555566667777' },
-      search: {},
-    });
-  });
-
-  /**
-   * **Both guards, because the disabled button is not one of them.**
+   * The control used to collect a name and post an object. It now opens an
+   * editor over a draft, and the create happens on that editor's first Save,
+   * which is what keeps the folder name honest: the slug is taken from the name
+   * once and frozen ([02 §5.2]), so an object created before it was named would
+   * keep `untitled-2` for good.
    *
-   * Asserting the disabled attribute and clicking is a test that passes itself:
-   * the click never reaches the handler, so deleting the handler's own
-   * `!ready` check leaves it green. The submit is dispatched at the form to get
-   * past the button and reach the code that actually decides.
+   * The claims this test used to make — that the posted object is the
+   * factory's, four conventional sections and all, and that the id routed on is
+   * the server's — moved with the behaviour, to
+   * [ActorEditorPage.test.tsx](../editor/ActorEditorPage.test.tsx). They are
+   * still made; they are made where the create is.
    */
-  it('trims, and will not post a name that is only spaces', async () => {
+  it('creates nothing, and opens the editor over a draft instead', async () => {
     renderPage();
     await settled();
 
-    act(() => {
-      fireEvent.change(screen.getByLabelText('Name for the new actor'), {
-        target: { value: '   ' },
-      });
-    });
-
-    expect(screen.getByRole('button', { name: 'New actor' })).toHaveProperty('disabled', true);
-
-    await act(async () => {
-      fireEvent.submit(screen.getByRole('button', { name: 'New actor' }).closest('form')!);
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    await clickNew('actor');
 
     expect(createObject).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({ to: '/library/actors/new' });
+  });
+
+  /**
+   * **No name to fill in, and no disabled button either.**
+   *
+   * The old control refused a name of only spaces, in two places, and the test
+   * for it dispatched a submit at the form to get past a button that was
+   * disabled anyway. Both are gone: there is no box, so there is nothing here
+   * to refuse. The refusal did not disappear — it moved into the editor, where
+   * [05 §11.1a] puts it, and is asserted there.
+   */
+  it('asks for nothing before it opens the editor', async () => {
+    renderPage();
+    await settled();
+
+    expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
+    expect(screen.getByRole('button', { name: 'New actor' })).toHaveProperty('disabled', false);
   });
 
   it('offers the form on the actors filter', async () => {
@@ -305,32 +269,17 @@ describe('making an actor', () => {
    * literal, and a second creatable kind against a hard-coded `/library/actors`
    * would have posted a lorebook and then opened the actor editor over it.
    */
-  it('offers a lorebook now that lorebooks have an editor, and lands in it', async () => {
+  it('offers a lorebook now that lorebooks have an editor, and lands in its own route', async () => {
     search = { kind: 'lorebooks' };
     renderPage();
     await settled();
 
     expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
 
-    act(() => {
-      fireEvent.change(screen.getByLabelText('Name for the new lorebook'), {
-        target: { value: 'Ardent' },
-      });
-    });
-    await act(async () => {
-      fireEvent.submit(screen.getByRole('button', { name: 'New lorebook' }).closest('form')!);
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    await clickNew('lorebook');
 
-    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
-    expect(call[0]).toBe('lorebooks');
-    expect(call[1]['schema']).toBe(LOREBOOK_SCHEMA);
-    expect(call[1]['entries']).toEqual([]);
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/library/lorebooks/$id/edit',
-      params: { id: '01b11111-2222-7333-8444-555566667777' },
-      search: {},
-    });
+    expect(createObject).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({ to: '/library/lorebooks/new' });
   });
 });
 
