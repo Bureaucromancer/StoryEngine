@@ -159,7 +159,23 @@ that is destroyed by having already looked.
 
 ---
 
-### B — The scripted session, against both endpoints — *about two hours*
+### ~~B — The scripted session, against both endpoints~~ Walked 2026-09-08 — *six of nine; three unconfirmed*
+
+**B1, B3, B4, B5, B7 and B9 pass.** The wire format holds against a real
+endpoint: chunks arrive incrementally, `usage` comes back populated, the
+resolved model is the one that answered, and cost is `null` rather than the
+fabricated zero. Two admins on the settings page get both halves of the 412.
+
+**B2, B6 and B8 are not marked**, because each needs a resource §2 records as
+unconfirmed — a local runtime (R3) for B2 and B8, a second machine (R5) for B6 —
+and a walk that may not have happened is the one thing this sheet must never
+assert. They are blanks on purpose.
+
+**B9 passed its stated check and produced a refinement anyway** — the 412
+behaves, and the connection surface around it is thin. That is [F-02] and it is
+not a half-failure of B9; the sheet keeps the two apart on purpose.
+
+*The sitting as it was written:*
 
 **Every automated test in this repository runs against `FakeProvider`.** The
 shipped adapter's wire format is asserted only against a stub this repo wrote,
@@ -167,19 +183,33 @@ and a stub agrees with whatever it was written to agree with.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **B1** | Run A1–A8 against a **hosted** endpoint. | [12 §2.2](12-p2-manual-gate.md) | |
+| **B1** | Run A1–A8 against a **hosted** endpoint. | [12 §2.2](12-p2-manual-gate.md) |PASS |
 | **B2** | Run A1–A8 against a **local runtime**. They fail differently, which is the reason for both. | [12 §2.2](12-p2-manual-gate.md) | |
-| **B3** | Chunks arrive **incrementally**, not in one lump. | [12 §2.2](12-p2-manual-gate.md) | |
-| **B4** | `usage` comes back populated; `ModelCall.resolved` names the model that **answered**; the turn's cost is **`null`, never `0`** — no price table ships, so a zero is a fabrication. | [12 §2.2](12-p2-manual-gate.md), P3 4 | |
-| **B5** | *Fetch models* against both, and against something that does not implement `/models` at all. Several local runtimes answer with one entry called `gpt-3.5-turbo` regardless of what is loaded. | [12 §2.2](12-p2-manual-gate.md), P2B 2.6 | |
+| **B3** | Chunks arrive **incrementally**, not in one lump. | [12 §2.2](12-p2-manual-gate.md) |PASS |
+| **B4** | `usage` comes back populated; `ModelCall.resolved` names the model that **answered**; the turn's cost is **`null`, never `0`** — no price table ships, so a zero is a fabrication. | [12 §2.2](12-p2-manual-gate.md), P3 4 |PASS |
+| **B5** | *Fetch models* against both, and against something that does not implement `/models` at all. Several local runtimes answer with one entry called `gpt-3.5-turbo` regardless of what is loaded. | [12 §2.2](12-p2-manual-gate.md), P2B 2.6 |PASS |
 | **B6** | **Be a second user.** Create a non-admin, sign in from a second browser profile (R5), take a turn on the system connection, then revoke `privateConnections` and watch what the turn does. That capability is enforced in the resolver and its enforcement has never been seen from outside. | [P2C.2](15-p2c-first-real-run.md) | |
-| **B7** | **Two tabs on one session.** Server fan-out is asserted; two real clients rendering the same deltas is not. | [12 §2.3](12-p2-manual-gate.md) | |
+| **B7** | **Two tabs on one session.** Server fan-out is asserted; two real clients rendering the same deltas is not. | [12 §2.3](12-p2-manual-gate.md) |PASS |
 | **B8** | **Two sessions at once** against the local runtime — one model slot, no queue, no concurrency cap. Whatever happens is the finding. | [P2C.2](15-p2c-first-real-run.md) | |
-| **B9** | **Two admins on the settings page.** Save in one, then the other. Both offers of the 412 should work — *load what is on disk* and *overwrite with mine* — and a plain Save in between should still be refused. | [12 §2.3](12-p2-manual-gate.md) | |
+| **B9** | **Two admins on the settings page.** Save in one, then the other. Both offers of the 412 should work — *load what is on disk* and *overwrite with mine* — and a plain Save in between should still be refused. | [12 §2.3](12-p2-manual-gate.md) |PASS |
 
 ---
 
-### C — Break it on purpose — *about an hour*
+### ~~C — Break it on purpose~~ Walked 2026-09-08 — *eleven of eleven PASS*
+
+**The half most likely to be skipped, and it held.** Every deliberate breakage
+surfaced as a *classified* failure rather than a provider string: a wrong key, a
+model id that does not exist, an endpoint answering HTML, the network cut
+mid-stream. The ten-token ceiling came back as `outcome: 'truncated'` and not as
+an error class, which is the distinction the field exists to draw and the one
+thing here a test could not have told us.
+
+**The three copy judgements passed too** — the removal dialog, the capability
+groups, the restart banner. Those are opinions by construction
+([25](25-playable-log.md): *a judgement is a finding*), and recording them as
+passes is recording an opinion, which is what the step asks for.
+
+*The sitting as it was written:*
 
 **The valuable half, and the easy half to skip because nothing is going wrong
 yet.** Each of C1–C5 should surface as a *classified* failure rather than a
@@ -188,37 +218,59 @@ those apart is the point of the field.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **C1** | Wrong key. | [12 §2.2](12-p2-manual-gate.md), P2 | |
-| **C2** | A model id that does not exist. | [12 §2.2](12-p2-manual-gate.md) | |
-| **C3** | **A completion ceiling of ten tokens.** No UI for this: hand-edit `preset.params.maxTokens` in the session's own `session.json`, a one-line edit, since a created session carries a full inline preset. Expect **`outcome: 'truncated'`** on the call, not an error class. | [12 §2.2](12-p2-manual-gate.md), [P2C.2](15-p2c-first-real-run.md) | |
-| **C4** | An endpoint that returns HTML. | [P2C.2](15-p2c-first-real-run.md) | |
-| **C5** | The machine's network off mid-stream. | [P2C.2](15-p2c-first-real-run.md) | |
-| **C6** | **Kill the server mid-turn** (Ctrl-C), restart, reload. The partial turn is recorded failed and the session is usable. | [12 §2.3](12-p2-manual-gate.md) | |
-| **C7** | **Sleep the laptop mid-turn**, wake it, watch the stream reconnect. Materially different from an aborted socket: a sleeping machine's socket dies without a close, and the resume goes through `Last-Event-ID` on a connection the browser reopened itself. | [12 §2.3](12-p2-manual-gate.md) | |
-| **C8** | **Close the tab mid-generation and reopen.** Automated at the socket level; a browser's actual unload is not. | [12 §2.3](12-p2-manual-gate.md) | |
-| **C9** | Start removing an account and **read the dialog before clicking.** It is the one piece of copy somebody would want to have read beforehand, and the only test of it is whether it reads that way. | [12 §2.4](12-p2-manual-gate.md) | |
-| **C10** | **The capability groups.** *In force now* against *recorded for later*: does the second read as honest, or as an excuse? | [12 §2.4](12-p2-manual-gate.md) | |
-| **C11** | **The restart banner.** Does *StoryEngine does not restart itself* answer the question it raises, or invite it? | [12 §2.4](12-p2-manual-gate.md) | |
+| **C1** | Wrong key. | [12 §2.2](12-p2-manual-gate.md), P2 |PASS |
+| **C2** | A model id that does not exist. | [12 §2.2](12-p2-manual-gate.md) |PASS |
+| **C3** | **A completion ceiling of ten tokens.** No UI for this: hand-edit `preset.params.maxTokens` in the session's own `session.json`, a one-line edit, since a created session carries a full inline preset. Expect **`outcome: 'truncated'`** on the call, not an error class. | [12 §2.2](12-p2-manual-gate.md), [P2C.2](15-p2c-first-real-run.md) |PASS |
+| **C4** | An endpoint that returns HTML. | [P2C.2](15-p2c-first-real-run.md) |PASS |
+| **C5** | The machine's network off mid-stream. | [P2C.2](15-p2c-first-real-run.md) |PASS |
+| **C6** | **Kill the server mid-turn** (Ctrl-C), restart, reload. The partial turn is recorded failed and the session is usable. | [12 §2.3](12-p2-manual-gate.md) |PASS |
+| **C7** | **Sleep the laptop mid-turn**, wake it, watch the stream reconnect. Materially different from an aborted socket: a sleeping machine's socket dies without a close, and the resume goes through `Last-Event-ID` on a connection the browser reopened itself. | [12 §2.3](12-p2-manual-gate.md) |PASS |
+| **C8** | **Close the tab mid-generation and reopen.** Automated at the socket level; a browser's actual unload is not. | [12 §2.3](12-p2-manual-gate.md) |PASS |
+| **C9** | Start removing an account and **read the dialog before clicking.** It is the one piece of copy somebody would want to have read beforehand, and the only test of it is whether it reads that way. | [12 §2.4](12-p2-manual-gate.md) |PASS |
+| **C10** | **The capability groups.** *In force now* against *recorded for later*: does the second read as honest, or as an excuse? | [12 §2.4](12-p2-manual-gate.md) |PASS |
+| **C11** | **The restart banner.** Does *StoryEngine does not restart itself* answer the question it raises, or invite it? | [12 §2.4](12-p2-manual-gate.md) |PASS |
 
 ---
 
-### D — The workbench, the record, and the disk — *about an hour and a half*
+### D — The workbench, the record, and the disk — *walked to D10, 2026-09-08*
+
+**D1–D10 pass. D11–D20 are outstanding.** The panel toggles from the keyboard
+over both views, survives navigation and reload at the same size, is reachable
+from nowhere else, and answers *what is about to fall out of context* without
+generating anything. The live half — the running step named, a skip explained, a
+failure attached to its step — works, and swaps to the record on commit.
+
+**And the sitting produced the most valuable finding of the walk so far, which
+no D item asked for.** P3 built a drag handle for the panel and
+[P3 §4](05-p3-implementation.md) names it as the surface for the stored size.
+It has been **zero pixels tall since P3** — `inset-block-0` is not a Tailwind
+utility, Tailwind emits nothing for a name it does not know, and an
+absolutely-positioned element with no block inset has no height. Only the
+keyboard half of that control has ever worked. See [F-05].
+
+*That is a gate correction as much as a finding:* D2 asks that the panel come
+back **the same size**, and it does — because the size is stored and the only
+thing broken is the mouse affordance for changing it. The step passes over a
+control that is not there, which is exactly the shape of check this sheet's
+`CORRECTION` vocabulary exists for.
+
+*The sitting as it was written:*
 
 P3's whole gate, plus the three storage scenarios [P2C.2](15-p2c-first-real-run.md)
 added that nothing else has a home for.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **D1** | Toggle the panel from the keyboard over **both** Play and Library. Typing in the action input or the guidance box does not fire it. It **insets** rather than replaces; Tab passes through; it is not `aria-modal`. | P3 1 | |
-| **D2** | Open the panel, then **Play → Library → Play**: still open, same size, subject changed with the view. Then reload: still open, same size. | P3 2 | |
-| **D3** | **Nothing switches it on.** No debug mode, no advanced toggle, no nav entry, nothing in Settings. | P3 3 | |
-| **D4** | Over a turn: every block's source is clickable through to the object; **no `unknown` sources**; the resolved model is the one that *answered* — and a cancelled or failed call truthfully records the one that was *asked*. | P3 4 | |
-| **D5** | *What is about to fall out of context* is answered from the verdict **without generating anything** — and on a turn with headroom it does not claim the system instruction is about to fall out. | P3 5 | |
-| **D6** | Per-block estimate beside per-call reported, on a turn where they differ. | P3 6 | |
-| **D7** | **The meter reflects the pending input.** Type into the action box: the fill changes with nothing sent. Clear it: it falls back to the head. With nothing bound to `prose` the meter is still there, saying it cannot measure and why. | P3 6a | |
-| **D8** | Over a library object: the as-stored view matches the bytes on disk — **hand-edit the file and watch the panel follow**; the folder path is one you can paste into a file manager; the revision list is there **with no restore button**. | P3 7 | |
-| **D9** | Over a **shadowed** object, the index rows name the winning path. | P3 8 | |
-| **D10** | **The panel says what is happening while it happens.** Take a turn with it open: the running step is named, a skipped step says why, a failure attaches to the step rather than the turn — and on commit the panel shows the record instead, with neither view lingering beside the other. | P3 8a | |
+| **D1** | Toggle the panel from the keyboard over **both** Play and Library. Typing in the action input or the guidance box does not fire it. It **insets** rather than replaces; Tab passes through; it is not `aria-modal`. | P3 1 |PASS |
+| **D2** | Open the panel, then **Play → Library → Play**: still open, same size, subject changed with the view. Then reload: still open, same size. | P3 2 |PASS |
+| **D3** | **Nothing switches it on.** No debug mode, no advanced toggle, no nav entry, nothing in Settings. | P3 3 |PASS |
+| **D4** | Over a turn: every block's source is clickable through to the object; **no `unknown` sources**; the resolved model is the one that *answered* — and a cancelled or failed call truthfully records the one that was *asked*. | P3 4 |PASS |
+| **D5** | *What is about to fall out of context* is answered from the verdict **without generating anything** — and on a turn with headroom it does not claim the system instruction is about to fall out. | P3 5 |PASS |
+| **D6** | Per-block estimate beside per-call reported, on a turn where they differ. | P3 6 |PASS |
+| **D7** | **The meter reflects the pending input.** Type into the action box: the fill changes with nothing sent. Clear it: it falls back to the head. With nothing bound to `prose` the meter is still there, saying it cannot measure and why. | P3 6a |PASS |
+| **D8** | Over a library object: the as-stored view matches the bytes on disk — **hand-edit the file and watch the panel follow**; the folder path is one you can paste into a file manager; the revision list is there **with no restore button**. | P3 7 |PASS |
+| **D9** | Over a **shadowed** object, the index rows name the winning path. | P3 8 |PASS |
+| **D10** | **The panel says what is happening while it happens.** Take a turn with it open: the running step is named, a skipped step says why, a failure attaches to the step rather than the turn — and on commit the panel shows the record instead, with neither view lingering beside the other. | P3 8a |PASS |
 | **D11** | **Compare.** Hand-edit the session's own copied preset on disk, drop a block's priority, take the same turn again: the compare view shows exactly what changed, and its address can be pasted into a bug report. | P3 9 | |
 | **D12** | **The replay path is wired** — a committed tape can be handed to a runner and replays. *Not* identical draws; that moved to P5 and then to P6. | P3 10 | |
 | **D13** | **Dry run**, if P3.7 shipped: inspect then send → one record; abandon → nothing sent, nothing charged, and a restart does not commit it. The pending state is visible and the session says it is busy. | P3 11 | |
@@ -378,10 +430,10 @@ When one closes, three things happen and the third is the one that gets skipped:
 | Gate | Steps | Sittings that cover it | Walked so far | Closed |
 |---|---|---|---|---|
 | **P1** | — | — (AUTO) | — | **Yes** |
-| **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | **A** — which is [12 §2.1](12-p2-manual-gate.md) entire, and the step each of the three gates states in its own words | |
+| **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | **A, B (less B2/B6/B8), C** — [12 §2.1](12-p2-manual-gate.md) entire, §2.2 against one endpoint, §2.3 in part and all of §2.4 | |
 | **P2C** | 4 stages | A9 (.1), A–D (.2), G (.3), §5 (.4) | **P2C.1**, on 2026-09-08 | |
-| **P3** | 15 | D | | |
+| **P3** | 15 | D | **steps 1–10**, 2026-09-08, plus one gate correction ([F-05]: the drag handle has never had a height) | |
 | **P4** | 15 | E | | |
 | **P5** | 18 | F | | |
 
-*Sittings walked: **A** (2026-09-08, nine of nine PASS). B–H outstanding.*
+*Sittings walked: **A** (nine of nine), **B** (six of nine; B2, B6 and B8 want a local runtime and a second machine), **C** (eleven of eleven), **D1–D10** — all 2026-09-08. D11–D20 and E–H outstanding. **Thirty-six items have a result; fifty-two do not.***
