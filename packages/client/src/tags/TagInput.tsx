@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { normaliseTagName, sameTag } from '@storyengine/shared';
-import { useMemo, type JSX } from 'react';
+import { findTag, normaliseTagName, sameTag } from '@storyengine/shared';
+import { useMemo, useState, type JSX } from 'react';
 
-import { useLibrary } from '../queries.js';
+import { useLibrary, useTags } from '../queries.js';
 import { highlight, matches } from '../library/search.js';
+import { Button } from '../ui/Button.js';
 import { TagChip } from '../ui/TagChip.js';
 import { TokenField, type TokenOption } from '../ui/TokenField.js';
+import { TagManagerDialog } from './TagManagerDialog.js';
 
 /**
  * The tag field an editor actually mounts — [25](../../../../docs/design/25-tagging.md).
@@ -38,6 +40,16 @@ export interface TagInputProps {
 
 export function TagInput(props: TagInputProps): JSX.Element {
   const library = useLibrary();
+  /**
+   * The registry, for **colour only**.
+   *
+   * A tag with no entry draws neutral and behaves identically — [25 §2]'s
+   * invariant 4. Nothing here waits on this query, refuses a tag because of it,
+   * or treats its absence as an error: if it never loads, every chip is grey and
+   * every other thing this field does still works.
+   */
+  const registry = useTags();
+  const [managing, setManaging] = useState(false);
 
   /**
    * Every tag name on the shelf, deduplicated case-insensitively, first spelling
@@ -90,17 +102,76 @@ export function TagInput(props: TagInputProps): JSX.Element {
     return [{ value: typed, label: typed, create: true }, ...options];
   }
 
-  return (
-    <TokenField
-      label={props.label}
-      values={props.values}
-      onChange={props.onChange}
-      optionsFor={optionsFor}
-      renderToken={(value) => <TagChip name={value} />}
-      placeholder="Type to search or create"
-      hint={props.hint}
-    />
+  /** How many objects carry each tag, keyed the way a lookup asks for it. */
+  const counts = useMemo(
+    () => tagCounts(library.data?.objects ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see `known` above
+    [library.dataUpdatedAt],
   );
+
+  return (
+    <>
+      <TokenField
+        label={props.label}
+        values={props.values}
+        onChange={props.onChange}
+        optionsFor={optionsFor}
+        renderToken={(value) => (
+          <TagChip
+            name={value}
+            swatch={registry.data ? (findTag(registry.data, value)?.swatch ?? null) : null}
+          />
+        )}
+        placeholder="Type to search or create"
+        hint={props.hint}
+      />
+
+      <div className="mt-2">
+        <Button
+          type="button"
+          size="compact"
+          onClick={() => {
+            setManaging(true);
+          }}
+        >
+          Manage tags…
+        </Button>
+      </div>
+
+      {managing ? (
+        <TagManagerDialog
+          counts={counts}
+          onDismiss={() => {
+            setManaging(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Objects per tag name, case-folded for the key.
+ *
+ * Counted here rather than asked of the server: `GET /api/library` already
+ * ships every object's body and this page is holding it, so a second answer
+ * computed server-side would be a second thing to keep true.
+ */
+function tagCounts(objects: readonly { object: Record<string, unknown> }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of objects) {
+    const tags = row.object['tags'];
+    if (!Array.isArray(tags)) continue;
+    const seen = new Set<string>();
+    for (const tag of tags) {
+      if (typeof tag !== 'string') continue;
+      const key = normaliseTagName(tag).toLowerCase();
+      if (key === '' || seen.has(key)) continue;
+      seen.add(key);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
 }
 
 /**

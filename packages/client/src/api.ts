@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  type TagEntry,
   LIBRARY_DIRECTORIES,
   type ImportPreview,
   type NearMissOffer,
@@ -382,6 +383,32 @@ export const api = {
 
   changePassword: (input: { currentPassword: string; newPassword: string }): Promise<undefined> =>
     request('POST', '/api/me/password', input),
+
+  /**
+   * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+   *
+   * Every one of these answers with the **whole list**, not with the row it
+   * touched, so a client lands on the truth rather than on its own guess about
+   * what its write did. That is `patchPrefs`' reasoning one shelf along, and it
+   * is what lets the manager render straight from the response.
+   */
+  readTags: (): Promise<{ tags: TagEntry[] }> => request('GET', '/api/tags'),
+
+  createTag: (body: { name: string; swatch?: string | null }): Promise<{ tags: TagEntry[] }> =>
+    request('POST', '/api/tags', body),
+
+  patchTag: (
+    id: string,
+    patch: { swatch?: string | null; folder?: string; hidden?: boolean },
+  ): Promise<{ tags: TagEntry[] }> =>
+    request('PATCH', `/api/tags/${encodeURIComponent(id)}`, patch),
+
+  /** The entry only. Objects carrying the tag are untouched ([25 §2]). */
+  deleteTag: (id: string): Promise<{ tags: TagEntry[] }> =>
+    request('DELETE', `/api/tags/${encodeURIComponent(id)}`),
+
+  orderTags: (ids: string[]): Promise<{ tags: TagEntry[] }> =>
+    request('PUT', '/api/tags/order', { ids }),
 
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 

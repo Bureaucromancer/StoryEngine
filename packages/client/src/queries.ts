@@ -11,6 +11,8 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
+import type { TagEntry } from '@storyengine/shared';
+
 import type { LiveTurn } from './play/reducer.js';
 import {
   adminApi,
@@ -347,6 +349,57 @@ export function useObjectImportNotes(objectId: string): UseQueryResult<{
 
 export function usePrefs(): UseQueryResult<{ prefs: Record<string, unknown> }> {
   return useQuery({ queryKey: ['prefs'], queryFn: api.readPrefs });
+}
+
+/**
+ * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+ *
+ * One key, because there is one document: every write answers with the whole
+ * list, so a mutation seeds the cache from its own response rather than
+ * invalidating and refetching what the server has already sent.
+ */
+export function useTags(): UseQueryResult<{ tags: TagEntry[] }> {
+  return useQuery({ queryKey: ['tags'], queryFn: api.readTags });
+}
+
+/**
+ * Every registry write, behind one hook.
+ *
+ * A single mutation with a discriminated action rather than five hooks: they
+ * differ only in which call they make, they all answer with the same shape, and
+ * they all want the same `onSuccess`. Five copies of that would be five places
+ * for the cache-seeding to drift.
+ */
+export type TagWrite =
+  | { kind: 'create'; name: string; swatch?: string | null }
+  | {
+      kind: 'patch';
+      id: string;
+      patch: { swatch?: string | null; folder?: string; hidden?: boolean };
+    }
+  | { kind: 'delete'; id: string }
+  | { kind: 'order'; ids: string[] };
+
+export function useWriteTags(): UseMutationResult<{ tags: TagEntry[] }, Error, TagWrite> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: TagWrite) => {
+      if (write.kind === 'create') {
+        return api.createTag({
+          name: write.name,
+          ...(write.swatch === undefined ? {} : { swatch: write.swatch }),
+        });
+      }
+      if (write.kind === 'patch') return api.patchTag(write.id, write.patch);
+      if (write.kind === 'delete') return api.deleteTag(write.id);
+      return api.orderTags(write.ids);
+    },
+    onSuccess: (result) => {
+      // Seeded from the answer rather than invalidated: the server just sent
+      // the whole document, so a refetch would ask for what is already here.
+      client.setQueryData(['tags'], result);
+    },
+  });
 }
 
 /**

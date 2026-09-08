@@ -84,6 +84,9 @@ function classShaped(token: string): boolean {
 const NO_BUILD =
   'No built stylesheet under packages/client/dist/assets. Run `pnpm build` first — this test compares the class names the source mentions against the ones Tailwind emitted, and without a build there is nothing to compare against, so an unrecognised utility would pass silently. CI builds before it tests for exactly this reason.';
 
+const STALE_OR_WRONG =
+  'Class names with no rule in the built stylesheet. Either the name is not a Tailwind utility — the bug this test exists for, and the element has silently lost that property — or the build is older than the source, which is what happens the first time a legitimate new class is added. Run `pnpm build` and try again before hunting for a typo.';
+
 function loadCss(): string {
   let names: string[];
   try {
@@ -147,6 +150,15 @@ describe('every utility the client names', () => {
       }
     }
 
-    expect(suspects, 'class names with no rule in the built stylesheet').toEqual([]);
+    /**
+     * **Two things make this fail, and the message has to offer both.**
+     *
+     * Either a name is not a utility — the bug this exists for — or the built
+     * stylesheet is older than the source, which is what happens the first time
+     * anybody adds a legitimate class and runs the suite without rebuilding.
+     * A message that only accused the class would send them looking for a typo
+     * that is not there.
+     */
+    expect(suspects, STALE_OR_WRONG).toEqual([]);
   });
 });

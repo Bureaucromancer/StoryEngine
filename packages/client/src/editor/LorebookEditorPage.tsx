@@ -21,6 +21,7 @@ import { DeleteObject } from '../library/DeleteObject.js';
 import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
+import { landing, nudge } from '../ui/reorder.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
@@ -805,35 +806,6 @@ function GateNote({ book, entry }: { book: Lorebook; entry: LoreEntry }): JSX.El
  * over the same object is the thing not to build. Finding an entry *by what it
  * says* is the read page's job, and it has the Edit link that lands here.
  */
-/**
- * The two nudge buttons, which are one row tall and carry no label text.
- *
- * Inline rather than a token in `classes.ts`, following this package's rule
- * that only what a design decision *shares* is lifted: these are one control in
- * one list, and a token used once is a second place to look.
- */
-const nudge =
-  'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';
-
-/**
- * Which edge of the row at `at` a row dragged from `from` lands on.
- *
- * Dropping on a row above puts the entry in front of it; dropping on one below
- * puts it behind — the rule every list with this gesture uses, and the only one
- * where the row ends up where the pointer left it. It is decided by where the
- * drag *came from* and not by where in the row the pointer is: a row one line
- * tall has no room for two targets, and an edge that flipped as the pointer
- * crossed the middle would be a decision made by a tremor.
- *
- * One function for the drop and for the line drawn before it, so the two cannot
- * disagree: a change to this comparison moves the line and the drop together,
- * and the tests are written against the line because the line is the promise
- * the drop then has to keep.
- */
-function landing(from: number, at: number): 'before' | 'after' {
-  return from > at ? 'before' : 'after';
-}
-
 /**
  * How near the list's top or bottom edge a hovering drag has to be before the
  * list scrolls itself, in pixels, and the most it moves per frame once there.

@@ -143,13 +143,25 @@ export function sameTag(a: string, b: string): boolean {
   );
 }
 
+/**
+ * Anything carrying a list of entries — the whole document, or the `{ tags }`
+ * an API response is.
+ *
+ * The lookups below take this rather than {@link TagRegistry} because neither of
+ * them has any use for `schema`, and asking a caller for a field to satisfy a
+ * type it will not read is how a client ends up inventing one.
+ */
+export interface TagList {
+  tags: readonly TagEntry[];
+}
+
 /** The entry for this name, or null. Case-insensitive, per {@link sameTag}. */
-export function findTag(registry: TagRegistry, name: string): TagEntry | null {
+export function findTag(registry: TagList, name: string): TagEntry | null {
   return registry.tags.find((tag) => sameTag(tag.name, name)) ?? null;
 }
 
 /** The entry with this id, or null. */
-export function tagById(registry: TagRegistry, id: string): TagEntry | null {
+export function tagById(registry: TagList, id: string): TagEntry | null {
   return registry.tags.find((tag) => tag.id === id) ?? null;
 }
 
