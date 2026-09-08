@@ -130,6 +130,28 @@ describe('the two frames a client must not treat as ordinary', () => {
     expect(state.status).toBe('failed');
     expect(state.error).toBe('internal');
   });
+
+  /**
+   * **A transport failure carries its class too** — [P6B.0].
+   *
+   * `onFatal` has always been handed a class and this action had nowhere to
+   * put it, so a stream the connector gave up on arrived as `failed` with a
+   * null error and the surface could only say *something went wrong*. The two
+   * fatal paths — a frame the server sent, and a connection the client gave up
+   * on — now answer the same question.
+   */
+  it('carries a class through a fatal status, and none through a reconnect', () => {
+    const failed = reduce(INITIAL, { kind: 'status', status: 'failed', error: 'unbound' });
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toBe('unbound');
+
+    // A reconnect has no class and must not invent one — nor wipe the one a
+    // previous failure left, which is why the field is only written when it is
+    // given.
+    const reconnecting = reduce(failed, { kind: 'status', status: 'reconnecting' });
+    expect(reconnecting.status).toBe('reconnecting');
+    expect(reconnecting.error).toBe('unbound');
+  });
 });
 
 describe('the parser', () => {

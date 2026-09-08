@@ -3,7 +3,16 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { api, ApiError, cookieValue, isLibraryKind, kindOfSchema, LIBRARY_KINDS } from './api.js';
+import {
+  api,
+  ApiError,
+  cookieValue,
+  createSession,
+  isLibraryKind,
+  kindOfSchema,
+  LIBRARY_KINDS,
+  setSessionLore,
+} from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
 
 describe('the 412 parse', () => {
@@ -74,6 +83,92 @@ describe('the 412 parse', () => {
     expect((failure as ApiError).code).toBe('unknown');
     expect((failure as ApiError).current).toBeUndefined();
     expect((failure as ApiError).message.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * What a session is told to retrieve from, on the wire — [P6B.0].
+ *
+ * **The component tests cannot see this.** They mock these two functions and
+ * assert what the page *passes*, which proves the form collects a selection and
+ * proves nothing about the body: a `createSession` that quietly sent `{ name }`
+ * would leave both pages green and every session empty again, which is the
+ * shape of the defect this stage exists to fix. So the body is asserted here,
+ * where the request is real and only `fetch` is not.
+ *
+ * `document` is stubbed because `request` reads a CSRF cookie on every
+ * state-changing method and this project has no DOM — which is why the block
+ * above uses a GET path and this one cannot.
+ */
+describe('the session write bodies', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function capture(): { url: string; body: unknown }[] {
+    const seen: { url: string; body: unknown }[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    // Typed as what `request` actually sends rather than as `RequestInit`,
+    // whose `body` is a union wide enough that stringifying it is a lint error
+    // — and the stub knows better: every state-changing call here is JSON.
+    vi.stubGlobal('fetch', (url: string, init: { body?: string | null }) => {
+      seen.push({ url, body: JSON.parse(init.body ?? 'null') as unknown });
+      return Promise.resolve(
+        new Response(JSON.stringify({ session: {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    return seen;
+  }
+
+  it('sends the name alone when nothing else was chosen', async () => {
+    const seen = capture();
+
+    await createSession({ name: 'A wet week' });
+
+    // Absent rather than null or empty: the route's optional fields mean
+    // *unset*, and a session that has decided to retrieve nothing is a
+    // different claim from one that was never asked.
+    expect(seen[0]?.body).toEqual({ name: 'A wet week' });
+  });
+
+  it('carries the treatment, the books and the preset when they were chosen', async () => {
+    const seen = capture();
+
+    await createSession({
+      name: 'A wet week',
+      treatment: 'treat-wet',
+      lore: ['book-rain'],
+      preset: 'preset-noir',
+    });
+
+    expect(seen[0]?.body).toEqual({
+      name: 'A wet week',
+      treatment: 'treat-wet',
+      lore: ['book-rain'],
+      preset: 'preset-noir',
+    });
+  });
+
+  it('reads an empty book list as a choice nobody made', async () => {
+    const seen = capture();
+
+    await createSession({ name: 'A wet week', lore: [] });
+
+    expect(seen[0]?.body).toEqual({ name: 'A wet week' });
+  });
+
+  it('replaces both fields on the lore route, and encodes the id', async () => {
+    const seen = capture();
+
+    await setSessionLore('a b', { treatment: null, lore: ['book-rain'] });
+
+    expect(seen[0]?.url).toBe('/api/sessions/a%20b/lore');
+    // Both, always: the route replaces rather than merges, so a caller that
+    // sent one field would silently clear the other.
+    expect(seen[0]?.body).toEqual({ treatment: null, lore: ['book-rain'] });
   });
 });
 

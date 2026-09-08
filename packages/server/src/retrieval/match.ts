@@ -35,6 +35,28 @@ export interface ScanInput {
    */
   messages: readonly string[];
   /**
+   * Text from entries that already activated, fed back for a recursive pass —
+   * [P6B.1].
+   *
+   * **Its own field because it is not a conversation window, and `scanDepth`
+   * only counts those.** The recursive pass used to hand this in as `messages`,
+   * and `haystacksFor` then sliced it: on a default book (`scanDepth: 2`) only
+   * the first **two** activated entries' content was ever scanned, forever.
+   * Worse, the feed inherits the scan order, so raising an entry's `order` — a
+   * *placement* setting, under a banner with nothing to do with recursion —
+   * silently removed its text from the haystack, and the entry that then failed
+   * to fire was reported `no-match`, which `activate.ts` argues at length is
+   * the wrong thing to tell an author whose keys were fine.
+   *
+   * No test could see it: every recursion test was a chain of width one, so
+   * the slice never had a second element to drop ([P5 §0.5]).
+   *
+   * **Recursion has its own limit and always did** — `maxRecursionDepth`, which
+   * `mayRecurse` honours. Bounding the same loop twice, once by a setting that
+   * means something else, is what produced the silence.
+   */
+  recursed?: readonly string[];
+  /**
    * The named haystacks `additionalMatchingSources` can ask for — a persona's
    * tags, a card's description ([10 §5](../../../../docs/design/10-schemas.md)).
    *
@@ -146,6 +168,16 @@ function haystacksFor(
   const messages = depth === 0 ? input.messages : input.messages.slice(0, Math.max(0, depth));
 
   const named = messages.map((text) => ({ source: 'message', text }));
+  /**
+   * **Every fed entry, unsliced** — see `ScanInput.recursed`. A depth counts
+   * messages and there are none in a recursive pass; the loop is bounded by
+   * `maxRecursionDepth` instead, which is the setting that means it.
+   *
+   * Named `entry` rather than `message`, because a hit here happened in another
+   * entry's text and the surfaces that show *where* a key hit should not say
+   * the conversation.
+   */
+  for (const text of input.recursed ?? []) named.push({ source: 'entry', text });
   const unknownSources: string[] = [];
 
   for (const name of entry.additionalMatchingSources) {

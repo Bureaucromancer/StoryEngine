@@ -205,14 +205,27 @@ function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
             <td className={table.cellNumeric}>
               {`${formatCount(book.entriesKept)} / ${formatCount(book.entryLimit)}`}
             </td>
-            <td className={table.cellNumeric}>
-              {`${formatCount(book.tokensSpent)} / ${formatCount(book.tokenBudget)}`}
-            </td>
+            <td className={table.cellNumeric}>{budgetCell(book.tokensSpent, book.tokenBudget)}</td>
           </tr>
         ))}
       </tbody>
     </table>
   );
+}
+
+/**
+ * Tokens spent against the book's allowance — [P6B.1].
+ *
+ * **Zero is unlimited** ([10 §5], and the schema says so), so the pair that
+ * reads correctly everywhere else reads *412 / 0* on exactly the books that had
+ * no limit at all. One string rather than a cell assembled around two values,
+ * which is the shape [07 §12.6a] forbids and also the only way to make the
+ * denominator conditional without splitting the sentence.
+ */
+export function budgetCell(spent: number, budget: number): string {
+  return budget === 0
+    ? `${formatCount(spent)} / no limit`
+    : `${formatCount(spent)} / ${formatCount(budget)}`;
 }
 
 function SkipRow({ row }: { row: LoreSkipRow }): JSX.Element {

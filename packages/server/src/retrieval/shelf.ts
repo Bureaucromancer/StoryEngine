@@ -139,7 +139,27 @@ export function shelve(input: ShelfInput): ShelfResult {
       refused.push({ activation, tokens, refusedBy: 'entry-limit' });
       continue;
     }
-    if (used.tokens + tokens > book.tokenBudget) {
+    /**
+     * **Zero is unlimited, not a ceiling of nothing** — [10 §5], the schema's
+     * own `0 = unlimited`, and the sibling rule `match.ts` already keeps for
+     * `scanDepth`: *zero-as-unlimited is the format's convention and not ours
+     * to improve, because the books that carry it were written elsewhere.*
+     *
+     * Read as a plain ceiling until [P6B.1], which meant a book with
+     * `tokenBudget: 0` refused **every** entry and said so in the words of a
+     * budget — *over the book's token budget of 0* — while two documents and
+     * the schema annotation said the opposite. The importer leaves the field
+     * unclamped where it clamps `entryLimit`, so an imported book carrying the
+     * convention arrived silently mute. [P5 §0.5] found the contradiction and
+     * recorded that the inverted reading was *pinned by a test*, which is what
+     * made it worth settling before anybody walked the gate rather than
+     * during.
+     *
+     * `entryLimit` needs no such arm: the schema gives it `minimum: 1`, so
+     * there is no zero to mean anything.
+     */
+    const budget = book.tokenBudget === 0 ? Infinity : book.tokenBudget;
+    if (used.tokens + tokens > budget) {
       /**
        * Refused, and **the loop goes on** — [02 §3.2]'s *the scan continues
        * past a skipped entry*. Nothing is marked as full, because a later,

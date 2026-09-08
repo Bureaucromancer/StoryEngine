@@ -102,6 +102,28 @@ describe('reasonFor', () => {
   });
 
   /**
+   * **[P5 §3] step 8, and the number was always there** — [05 §11] asks the
+   * block list for *"sticky, 2 messages remaining"*, and until [P6B.1] the
+   * count lived in `ScanResult.timing` and never travelled with the
+   * activation. Two entries one turn and four turns from dropping out read
+   * identically, on the surface whose stated job is answering *what is about
+   * to fall out of context*.
+   */
+  it('counts down a sticky window, and says when it is the last turn', () => {
+    const held = (stickyRemaining: number): string =>
+      reasonFor(firing(entryOf('One'), { by: 'sticky', hit: null, stickyRemaining }));
+
+    expect(held(2)).toContain('2 messages remaining');
+    // Singular, because a reason is a sentence a person reads and not a
+    // template with a number in it.
+    expect(held(1)).toContain('1 message remaining');
+    // Zero is a value rather than an absence: the window closes after this
+    // turn, which is the one moment the count alone could not say.
+    expect(held(0)).toContain('this is its last');
+    expect(held(0)).not.toContain('0 message');
+  });
+
+  /**
    * The distinction a reader most wants: *the player said this* against *another
    * entry said this*. Both are keyword hits, and collapsing them would leave
    * somebody looking through the conversation for a word that was never in it.
@@ -143,6 +165,13 @@ describe('priorityFor', () => {
   });
 });
 
+/**
+ * Both phases, because the shipped preset offers both since [P6B.1] and these
+ * tests are about placement rather than about which slots a preset happens to
+ * declare. The tests that *are* about a missing phase build their own set.
+ */
+const BOTH: ReadonlySet<'before' | 'after'> = new Set(['before', 'after']);
+
 describe('loreBlocks', () => {
   it('carries the entry text, role and reason onto the candidate', () => {
     const entry = entryOf('The Ferryman', {
@@ -153,6 +182,7 @@ describe('loreBlocks', () => {
       kept: [shelved(firing(entry))],
       latestMessage: 'the ferryman',
       outlets: new Set(),
+      phases: BOTH,
       basePriority: 25,
     });
 
@@ -172,6 +202,7 @@ describe('loreBlocks', () => {
       kept: [shelved(firing(entry))],
       latestMessage: '',
       outlets: new Set(),
+      phases: BOTH,
       basePriority: 25,
     });
 
@@ -189,6 +220,7 @@ describe('loreBlocks', () => {
       kept: [shelved(firing(entry, { bookId: 'one' })), shelved(firing(entry, { bookId: 'two' }))],
       latestMessage: '',
       outlets: new Set(),
+      phases: BOTH,
       basePriority: 25,
     });
 
@@ -202,6 +234,7 @@ describe('loreBlocks', () => {
         kept: [shelved(firing(entry))],
         latestMessage: '',
         outlets: new Set(['rules']),
+        phases: BOTH,
         basePriority: 25,
       });
 
@@ -222,11 +255,54 @@ describe('loreBlocks', () => {
         kept: [shelved(firing(entry))],
         latestMessage: '',
         outlets: new Set(['somewhere-else']),
+        phases: BOTH,
         basePriority: 25,
       });
 
       expect(blocks).toEqual([]);
-      expect(unplaced.map((one) => one.outletName)).toEqual(['rules']);
+      expect(unplaced.map((one) => (one.kind === 'outlet' ? one.outletName : one.kind))).toEqual([
+        'rules',
+      ]);
+    });
+
+    /**
+     * **The commoner case, and the one that was never reported** — [P6B.1].
+     *
+     * An entry positioned `after_char` against a preset with no `after` slot
+     * activated, spent the book's budget, matched nothing in `collect.ts`, and
+     * was dropped in silence while the report counted it kept. The shipped
+     * preset gained the missing slot in the same stage; this is the arm for
+     * every preset that has not, which includes every imported one.
+     */
+    it('reports an entry whose phase the preset has no slot for', () => {
+      const entry = entryOf('The Ferryman', { position: 'after_char' });
+      const { blocks, unplaced } = loreBlocks({
+        kept: [shelved(firing(entry))],
+        latestMessage: '',
+        outlets: new Set(),
+        // A preset with only the before slot, which is what the shipped one was.
+        phases: new Set(['before']),
+        basePriority: 25,
+      });
+
+      expect(blocks).toEqual([]);
+      expect(unplaced).toHaveLength(1);
+      expect(unplaced[0]?.kind).toBe('phase');
+    });
+
+    it('places that same entry when the preset does have the slot', () => {
+      // The other half, so the test above cannot pass by refusing everything.
+      const entry = entryOf('The Ferryman', { position: 'after_char' });
+      const { blocks, unplaced } = loreBlocks({
+        kept: [shelved(firing(entry))],
+        latestMessage: '',
+        outlets: new Set(),
+        phases: BOTH,
+        basePriority: 25,
+      });
+
+      expect(unplaced).toEqual([]);
+      expect(blocks[0]?.placement).toEqual({ at: 'after' });
     });
 
     /** Exact and case-sensitive, as `outletName` says. */
@@ -236,6 +312,7 @@ describe('loreBlocks', () => {
         kept: [shelved(firing(entry))],
         latestMessage: '',
         outlets: new Set(['rules']),
+        phases: BOTH,
         basePriority: 25,
       });
 
@@ -291,11 +368,30 @@ describe('refusalsFor', () => {
    * what happened.
    */
   it('reports an unpositioned outlet as costing nothing', () => {
-    const [row] = refusalsFor([], [{ activation: firing(entryOf('Rules')), outletName: 'rules' }]);
+    const [row] = refusalsFor(
+      [],
+      [{ activation: firing(entryOf('Rules')), kind: 'outlet', outletName: 'rules' }],
+    );
 
     expect(row?.tokens).toBe(0);
     expect(row?.rule).toContain('rules');
     expect(row?.rule).toContain('outlet');
+  });
+
+  /**
+   * And the phase case says which phase — [P6B.1]. *Nothing appeared* is the
+   * symptom this whole list exists to replace, and *this preset has no slot for
+   * lore placed after the character* names both things somebody can change.
+   */
+  it('names the phase a preset has no slot for, and charges nothing for it', () => {
+    const [row] = refusalsFor(
+      [],
+      [{ activation: firing(entryOf('The Ferryman')), kind: 'phase', phase: 'after' }],
+    );
+
+    expect(row?.tokens).toBe(0);
+    expect(row?.rule).toContain('after');
+    expect(row?.rule).toContain('no slot');
   });
 
   /**
@@ -308,6 +404,7 @@ describe('refusalsFor', () => {
       kept: [shelved(firing(entry))],
       latestMessage: '',
       outlets: new Set(),
+      phases: BOTH,
       basePriority: 25,
     });
     const [row] = refusalsFor(

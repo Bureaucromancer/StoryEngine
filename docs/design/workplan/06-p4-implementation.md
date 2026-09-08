@@ -1,6 +1,22 @@
 # 06 — P4 implementation plan
 
-**Status: plan.** The revisit the skeleton asked for, performed 2026-08-29
+**Status: ~~plan~~ landed**, merged into `main` 2026-08-31 across three merges
+— `10e5356`, `4482f55` and `3e0af17`, which is the shape of a phase that
+reopened twice.
+
+**Fifteen gate steps and no record of a walk.** Step 1 wants a real imported
+library, which the repository does not have and cannot synthesise: it is
+person-blocked with lead time, and [26 §3.4](26-manual-ledger.md) is where it
+waits with [P5 §3](07-p5-implementation.md) step 6, which wants the same
+thing.
+
+*(This status line was written 2026-09-07 at
+[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+still describing themselves as plans. It had said **plan** since before the
+phase shipped, which is how a corpus comes to record what was intended
+rather than what happened.)*
+
+The revisit the skeleton asked for, performed 2026-08-29
 against the repo at `693b266` (branch `p3`, P3.−1 through P3.6 Landed). The
 skeleton was drafted during P1 and said so; nearly every one of its "to decide
 on revisit" items is decided below, several against ground that moved under it,

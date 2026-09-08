@@ -96,6 +96,7 @@ export function retrieve(context: RetrieveContext): Retrieved {
     kept: shelf.kept,
     latestMessage,
     outlets: outletsOf(context.preset),
+    phases: phasesOf(context.preset),
     basePriority: lorePriorityOf(context.preset),
   });
 
@@ -255,6 +256,30 @@ function outletsOf(preset: Preset): Set<string> {
     if (outlet !== undefined && outlet !== '') named.add(outlet);
   }
   return named;
+}
+
+/**
+ * Which lore phases this preset has somewhere to put — [P6B.1].
+ *
+ * The sibling of {@link outletsOf}, and it exists for the reason that one does:
+ * a placement the preset cannot take has to be **reported rather than dropped**,
+ * and only the preset knows which it can take. Without it an entry positioned
+ * `after_char` against a preset with no `after` slot activated, spent the
+ * book's budget, and then vanished with the report still counting it kept —
+ * which is most of an imported SillyTavern book ([P5 §0.5], [P6B §1.4]).
+ *
+ * A slot naming an outlet is **not** a slot for the ordinary entries of its
+ * phase: the schema says an outlet slot takes that outlet, and one without
+ * takes *the ordinary entries for its phase and no outlet at all*.
+ */
+function phasesOf(preset: Preset): Set<'before' | 'after'> {
+  const phases = new Set<'before' | 'after'>();
+  for (const block of preset.blocks) {
+    if (!block.enabled || block.kind !== 'slot' || block.source.of !== 'lore') continue;
+    const outlet = block.source.outlet;
+    if (outlet === undefined || outlet === '') phases.add(block.source.phase);
+  }
+  return phases;
 }
 
 /**

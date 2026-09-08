@@ -144,6 +144,35 @@ describe('the default preset is a real portable object', () => {
     // artefact appear.
     for (const block of SCENE_PRESET.blocks) expect(block.id.startsWith('se.')).toBe(true);
   });
+
+  /**
+   * **Lore has two phases and this preset had one slot** — [P5 §0.5]'s second
+   * live defect, fixed at [P6B.1].
+   *
+   * `placementOf` maps SillyTavern's `after_char` to `{ at: 'after' }` and
+   * `collect.ts` fills an `after` placement only from an `after` slot, so with
+   * one `before` slot every such entry activated, was charged against its
+   * book's `tokenBudget` and `entryLimit`, matched nothing, and vanished —
+   * with the lore report still counting it kept. **ST positions 1, 2, 3, 5 and
+   * 6 all import as `after_char`**, so the first imported book lost most of its
+   * entries after they had spent the budget, and a hand-made book never showed
+   * it because `newLoreEntry` defaults to `before_char`.
+   *
+   * Asserted over the shipped preset because that is the artefact that was
+   * wrong: the collector's phase routing already had a test, and the routing
+   * was never the bug.
+   */
+  it('positions both lore phases, so an imported entry has somewhere to land', () => {
+    const phases = SCENE_PRESET.blocks
+      .filter((block) => block.kind === 'slot' && block.source.of === 'lore')
+      .map((block) => (block.kind === 'slot' && block.source.of === 'lore' ? block.source : null))
+      // An outlet slot takes its outlet, not the ordinary entries of its phase.
+      .filter((source) => source !== null && (source.outlet ?? '') === '')
+      .map((source) => source?.phase);
+
+    expect(phases).toContain('before');
+    expect(phases).toContain('after');
+  });
 });
 
 describe('what Scene declares, and what the engine does with it', () => {

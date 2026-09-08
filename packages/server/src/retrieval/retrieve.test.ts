@@ -290,7 +290,9 @@ describe('retrieve', () => {
       expect(positioned.blocks).toHaveLength(1);
       expect(positioned.unplaced).toEqual([]);
       expect(not.blocks).toEqual([]);
-      expect(not.unplaced.map((one) => one.outletName)).toEqual(['rules']);
+      expect(
+        not.unplaced.map((one) => (one.kind === 'outlet' ? one.outletName : one.kind)),
+      ).toEqual(['rules']);
     });
   });
 });

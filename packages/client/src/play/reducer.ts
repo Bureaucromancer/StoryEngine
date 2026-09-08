@@ -116,11 +116,26 @@ export const INITIAL: PlayState = {
 
 export type PlayAction =
   | { kind: 'frame'; frame: SseFrame }
-  | { kind: 'status'; status: PlayState['status'] }
+  /**
+   * `error` carries the class where the transport has one — [P6B.0].
+   *
+   * `onFatal` has always been handed a class and this action had nowhere to
+   * put it, so a stream the connector gave up on produced `status: 'failed'`
+   * and `error: null`: the surface could say *something went wrong* and never
+   * *what*. Optional rather than required because `reconnecting` is the same
+   * action and genuinely has no class.
+   */
+  | { kind: 'status'; status: PlayState['status']; error?: string }
   | { kind: 'submitted'; jobId: string };
 
 export function reduce(state: PlayState, action: PlayAction): PlayState {
-  if (action.kind === 'status') return { ...state, status: action.status };
+  if (action.kind === 'status') {
+    return {
+      ...state,
+      status: action.status,
+      ...(action.error === undefined ? {} : { error: action.error }),
+    };
+  }
   if (action.kind === 'submitted') {
     /**
      * **The turn may already be over.**

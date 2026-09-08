@@ -1412,12 +1412,21 @@ describe('a preset block can be scoped to a kind of call', () => {
     expect(lore[0]?.reason).toContain('ferryman');
 
     /**
-     * And the slot is not *also* reported empty. The two lists partition the
-     * preset's applicable blocks, so a lore block on the record beside a lore
-     * row in `notFilled` would mean the collector counted it twice.
+     * And the slot that was filled is not *also* reported empty. The two lists
+     * partition the preset's applicable blocks, so a block on the record beside
+     * its own row in `notFilled` would mean the collector counted it twice.
+     *
+     * **Asserted per slot rather than per source kind since [P6B.1]**, which is
+     * the stage that gave the preset a second lore slot: lore has two phases
+     * and had one slot, so every `after_char` entry activated, spent its book's
+     * budget and vanished ([P5 §0.5]). With two slots, *a lore row in
+     * `notFilled`* stopped meaning double-counting and started being the
+     * ordinary state of the phase this turn's entry did not use — so the claim
+     * is restated at the granularity it was always about, and `se.lore.after`
+     * reporting `empty-source` here is correct rather than a regression.
      */
     const notFilled = callOnRecord(turn).notFilled ?? [];
-    expect(notFilled.find((slot) => slot.source === 'lore')).toBeUndefined();
+    expect(notFilled.find((slot) => slot.blockId === 'se.lore')).toBeUndefined();
   });
 
   /**

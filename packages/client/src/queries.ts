@@ -19,6 +19,7 @@ import {
   readSession,
   readTranscript,
   readTurn,
+  setSessionLore,
   type Account,
   type AccountPatch,
   type ActiveJob,
@@ -425,6 +426,38 @@ export function useSession(
   sessionId: string,
 ): UseQueryResult<{ session: SessionSummary; activeJob: ActiveJob | null }> {
   return useQuery({ queryKey: ['session', sessionId], queryFn: () => readSession(sessionId) });
+}
+
+/**
+ * Point a session at a treatment and a set of books — [P6B.0].
+ *
+ * **The three keys a head move refreshes, for the same reason it refreshes
+ * them**: the session file changed, so the entry Play and the workbench both
+ * read is stale, and the preview is an answer about a prompt whose contents
+ * just moved. The preview is *reset* rather than invalidated because it has no
+ * `queryFn` of its own ([P3.4]) — invalidating an entry nothing can refetch
+ * leaves the old number on screen, which after attaching a book is a meter
+ * confidently reporting a prompt that no longer exists.
+ *
+ * The transcript is deliberately not in the set: turns already taken are what
+ * they were, and retrieval changes the *next* one.
+ */
+export function useSetSessionLore(
+  sessionId: string,
+): UseMutationResult<
+  { session: SessionSummary },
+  Error,
+  { treatment: string | null; lore: string[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (selection: { treatment: string | null; lore: string[] }) =>
+      setSessionLore(sessionId, selection),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
 }
 
 export function useTranscript(

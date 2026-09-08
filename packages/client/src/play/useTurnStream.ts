@@ -34,8 +34,10 @@ export function useTurnStream(sessionId: string): {
       onReconnecting: () => {
         sink.current({ kind: 'status', status: 'reconnecting' });
       },
-      onFatal: () => {
-        sink.current({ kind: 'status', status: 'failed' });
+      // The class travels — [P6B.0]. It was dropped here, so every fatal close
+      // reached the screen as the same sentence whatever had happened.
+      onFatal: (error) => {
+        sink.current({ kind: 'status', status: 'failed', error });
       },
     });
 

@@ -10,7 +10,7 @@ import { listSessions, readSession, type SessionContext } from '../sessions/stor
 import { listDirectoryNames } from '../storage/files.js';
 import { type Layout, type LibraryOwner, SYSTEM_OWNER, userOwner } from '../storage/layout.js';
 import { PathEscapeError, resolveWithin } from '../storage/paths.js';
-import { ingestFile } from './ingest.js';
+import { ingestFile, recordUnusableName } from './ingest.js';
 import { indexSession, indexTurn } from './sessions.js';
 
 /**
@@ -55,6 +55,13 @@ export async function rebuild(
   db.exec('delete from turn_fts');
   db.exec('delete from turn');
   db.exec('delete from session');
+  // Cleared for the same reason as the rest, and it took until [P6B.1] to
+  // notice: a `file_error` row is a claim about bytes that were on disk when
+  // somebody last looked, and the file it names may have been fixed or deleted
+  // since. Keeping it across a rebuild is keeping exactly the stale belief a
+  // rebuild exists to discard — and every error still true is re-recorded
+  // below, because this scan re-reads every object.
+  db.exec('delete from file_error');
 
   const result: RebuildResult = { scanned: 0, indexed: 0, skipped: 0, sessions: 0, turns: 0 };
 
@@ -69,14 +76,21 @@ export async function rebuild(
         // legal on the filesystem that produced them, and hand-made folders are
         // the point of this storage model, so a rebuild that aborted on one
         // would leave the whole library unindexed because of a single
-        // directory. The watcher does index these, and reconciling that
-        // asymmetry is P2.7's, beside F20's invalid-file state — both are the
-        // same question of how the index represents something it cannot open.
+        // directory.
+        //
+        // **It is recorded rather than merely counted** — [P6B.1]. The skip
+        // used to be silent, and its only trace was a number in a return value
+        // nobody stored, so the folder was indistinguishable from a folder that
+        // was not there. That is the same complaint F20 answered for a file
+        // that will not parse, and it takes the same answer: a `file_error`
+        // row. The watcher now applies this rule too, through the same
+        // function, so the two producers can no longer disagree about it.
         let objectFile: string;
         try {
           objectFile = layout.objectFile(owner, schemaId, slug);
         } catch (error) {
           if (!(error instanceof PathEscapeError)) throw error;
+          recordUnusableName(db, layout, owner, schemaId, slug, error, now);
           result.skipped += 1;
           continue;
         }

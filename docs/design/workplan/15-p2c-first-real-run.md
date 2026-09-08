@@ -1,5 +1,22 @@
 # 15 — P2C, the first real run
 
+**Status: opened; only its first stage ran.** P2C.0 closed 2026-08-26 at
+`2f8e329`, and **P2C.1 through P2C.4 never ran**. This document had no status
+line at all until 2026-09-07, which is a worse failure than a stale one: a
+reader had to reconstruct from the stage records that four fifths of the phase
+is outstanding.
+
+**And the premise below has gone stale in a way worth naming rather than
+editing away.** The boundary *has* been crossed since — this checkout carries
+configured connections and sessions with recorded turns, put there by ordinary
+use rather than by this phase. What was never done is **capture**: no exchange
+was recorded and promoted to a fixture, which is the half that leaves something
+behind. So the phase should not be re-run and should not be marked done;
+[P6B §1.6](24-p6b-playable.md) folds the capture into the play, where a long
+unscripted session is happening anyway.
+
+---
+
 **Four phases are built and nobody has used any of them.** P1 through P2B are
 1049 passing tests, and every one of them calls a provider this repository wrote
 to agree with an adapter this repository also wrote. The one boundary in this

@@ -139,10 +139,13 @@ of its own.
 
 [`workplan/`](workplan/) has its own index. In reading order it is the work plan
 itself, the triage the plan is built on, the phase documents — one per phase from
-P1 to P11, plus P2A, P2B, P2C and P6A — the polish list, testing, the release
-model, and the P2C supplements. The phase documents are numbered in the order
-they were written, so P2A, P2B and P2C are 13, 14 and 15 rather than sitting
-between P2 and P3, P7 through P11 are 18 through 22, and P6A is 23.
+P1 to P11, plus P2A, P2B, P2C, P6A and P6B — the polish list, testing, the
+release model, and the supplements the two manual phases carry. The phase
+documents are numbered in the order they were written, so P2A, P2B and P2C are
+13, 14 and 15 rather than sitting between P2 and P3, P7 through P11 are 18
+through 22, P6A is 23, and P6B is 24 with its findings log at 25. **26 is the
+manual ledger** — every gate's walk state and every deferral with an owner,
+which 12 does for the P2 phases and 26 does for the rest.
 
 **02 and 10 are a pair.** 02 carries the reasoning and the alternatives
 considered; 10 carries the definitions. Where they disagree, 10 is current.
