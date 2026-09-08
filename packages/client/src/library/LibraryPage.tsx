@@ -2,17 +2,18 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useId, useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { useAuthState, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { link, page, table } from '../ui/classes.js';
-import { SelectField } from '../ui/Field.js';
+import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
-import { emptyMessage, panelFor, panelNameBadges, type PanelColumn } from './panels.js';
+import { emptyMessage, panelFor, panelNameBadges, searchText, type PanelColumn } from './panels.js';
+import { matches } from './search.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -67,7 +68,7 @@ export function LibraryPage(): JSX.Element {
         </p>
       ) : null}
       {library.data !== undefined ? (
-        <ObjectTable objects={library.data.objects} kind={search.kind} />
+        <ObjectTable key={search.kind ?? 'all'} objects={library.data.objects} kind={search.kind} />
       ) : null}
     </div>
   );
@@ -230,6 +231,24 @@ function ObjectTable(props: {
   const locale = auth.data?.account?.locale ?? undefined;
   const [sortId, setSortId] = useState<string>(panel.sorts[0]?.id ?? '');
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  /**
+   * The live search, and whether its box is on screen — [polish §9].
+   *
+   * **Two pieces of state rather than one**, because *closed* and *empty* are
+   * different: closing the box clears the query, and it has to, or the shelf
+   * stays narrowed with nothing on screen saying why. Keeping the query in the
+   * same state as the visibility would make that rule an accident of how it
+   * happens to be written rather than something a reader can see.
+   *
+   * Both are local, and the whole component is keyed on the kind, so switching
+   * shelves puts the controls back to their defaults. That is deliberate: a
+   * search for a name that exists among actors is not a search anybody meant to
+   * run against presets, and the state used to survive the change only because
+   * one panel had any.
+   */
+  const searchId = useId();
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
   const sort = panel.sorts.find((candidate) => candidate.id === sortId);
 
   if (props.objects.length === 0) {
@@ -256,11 +275,13 @@ function ObjectTable(props: {
    * scope list quietly loses the values it no longer offers, so unpicking is
    * the only way back to a shelf you could see a moment ago.
    */
-  const matching = props.objects.filter((object) =>
-    panel.filters.every((filter) => {
-      const value = chosen[filter.id] ?? '';
-      return value === '' || filter.matches(object, value);
-    }),
+  const matching = props.objects.filter(
+    (object) =>
+      matches(searchText(object), query) &&
+      panel.filters.every((filter) => {
+        const value = chosen[filter.id] ?? '';
+        return value === '' || filter.matches(object, value);
+      }),
   );
 
   // A copy: the array belongs to the query cache, and sorting in place would
@@ -269,32 +290,72 @@ function ObjectTable(props: {
 
   return (
     <>
-      {panel.sorts.length === 0 && panel.filters.length === 0 ? null : (
-        <div className="mb-4 flex flex-wrap gap-4">
-          {panel.sorts.length === 0 ? null : (
-            <div className="min-w-40">
-              <SelectField
-                label="Sort by"
-                value={sortId}
-                options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
-                onChange={setSortId}
-              />
-            </div>
-          )}
-          {panel.filters.map((filter) => (
-            <div key={filter.id} className="min-w-40">
-              <SelectField
-                label={filter.label}
-                value={chosen[filter.id] ?? ''}
-                options={[['', 'Any'], ...filter.optionsFor(props.objects)]}
-                onChange={(value) => {
-                  setChosen((current) => ({ ...current, [filter.id]: value }));
-                }}
-              />
-            </div>
-          ))}
+      {/*
+       * **Always rendered now**, where it used to appear only for a panel that
+       * declared sorts or filters — which was Lorebooks and nothing else, so
+       * five shelves out of six had no controls at all, not even an empty row.
+       * Search is the control every kind can answer, so the condition had
+       * nothing left to be about.
+       */}
+      <div className="mb-4 flex flex-wrap items-end gap-4">
+        <Button
+          type="button"
+          aria-expanded={searching}
+          aria-controls={searchId}
+          onClick={() => {
+            setSearching((open) => {
+              if (open) setQuery('');
+              // Closing clears. A hidden box holding a live query is a shelf
+              // narrowed for a reason nobody on screen can see.
+
+              return !open;
+            });
+          }}
+        >
+          {searching ? 'Hide search' : 'Search'}
+        </Button>
+        {panel.sorts.length === 0 ? null : (
+          <div className="min-w-40">
+            <SelectField
+              label="Sort by"
+              value={sortId}
+              options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
+              onChange={setSortId}
+            />
+          </div>
+        )}
+        {panel.filters.map((filter) => (
+          <div key={filter.id} className="min-w-40">
+            <SelectField
+              label={filter.label}
+              value={chosen[filter.id] ?? ''}
+              options={[['', 'Any'], ...filter.optionsFor(props.objects)]}
+              onChange={(value) => {
+                setChosen((current) => ({ ...current, [filter.id]: value }));
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/*
+       * The box itself, under the row rather than in it, so a long shelf's
+       * controls do not reflow every time it opens. `Field` rather than a
+       * search control of this page's own — [05 §5.3] asks the book panel's box
+       * to be the component a cross-library one would use, and the way to be
+       * that is to be the one text control this client already has.
+       */}
+      {searching ? (
+        <div id={searchId} className="mb-4">
+          <Field
+            label="Search this shelf"
+            value={query}
+            onChange={setQuery}
+            placeholder="Name or tag"
+            hint="Names and tags, on this shelf only. Nothing is sent anywhere."
+          />
         </div>
-      )}
+      ) : null}
 
       {/*
        * **Distinct from the empty shelf, and the difference is what a person
@@ -305,7 +366,11 @@ function ObjectTable(props: {
        * above this, because they are the way out of it.
        */}
       {shown.length === 0 ? (
-        <p className="text-ink-subtle">Nothing on this shelf matches these filters.</p>
+        <p className="text-ink-subtle">
+          {query === ''
+            ? 'Nothing on this shelf matches these filters.'
+            : 'Nothing on this shelf matches that search.'}
+        </p>
       ) : (
         <table className={table.root}>
           <thead>

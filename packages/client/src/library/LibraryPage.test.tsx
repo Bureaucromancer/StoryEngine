@@ -620,3 +620,134 @@ describe('the Lorebooks panel', () => {
     expect(cached?.objects.map((entry) => entry.name)).toEqual(['Ardent', 'Rain City']);
   });
 });
+
+/**
+ * Search and sort on every shelf — [polish §9].
+ *
+ * The control row used to render only for a panel that declared sorts or
+ * filters, which was Lorebooks and nothing else: five shelves out of six had no
+ * controls whatsoever. Search is the one control every kind can answer, so the
+ * condition had nothing left to be about.
+ *
+ * `fireEvent` rather than `userEvent` throughout, which this file's header
+ * explains: user-event's inter-keystroke delay deadlocks against the fake
+ * timers the two-second poll needs, and a typing test is where that bites.
+ */
+describe('searching a shelf', () => {
+  function book(name: string, over: Record<string, unknown> = {}, slug = name.toLowerCase()) {
+    return {
+      ...object(name),
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.lorebook/1',
+        name,
+        enabled: true,
+        scope: { kind: 'global' },
+        tags: [],
+        entries: [],
+        provenance: { updatedAt: '2026-08-30T10:00:00Z' },
+        ...over,
+      },
+    };
+  }
+
+  function shelf() {
+    return [book('Ardent', { tags: ['noir'] }), book('Rain City', { tags: ['city'] }, 'rain-city')];
+  }
+
+  function names(): (string | null)[] {
+    return [...document.querySelectorAll('tbody tr')].map(
+      (row) => row.querySelector('td a')?.textContent ?? null,
+    );
+  }
+
+  async function shelved(): Promise<void> {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: shelf() });
+    renderPage();
+    await settled();
+  }
+
+  function type(value: string): void {
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Search this shelf'), { target: { value } });
+    });
+  }
+
+  function toggle(): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    });
+  }
+
+  it('is behind a toggle, and the box is not there until it is asked for', async () => {
+    await shelved();
+
+    expect(screen.queryByLabelText('Search this shelf')).toBeNull();
+
+    toggle();
+
+    expect(screen.getByLabelText('Search this shelf')).toBeTruthy();
+  });
+
+  it('narrows the shelf as it is typed', async () => {
+    await shelved();
+    toggle();
+
+    type('rain');
+
+    expect(names()).toEqual(['Rain City']);
+  });
+
+  it('reads tags as well as names, which is what the hint promises', async () => {
+    await shelved();
+    toggle();
+
+    // Nothing is called "noir"; the book carrying that tag is.
+    type('noir');
+
+    expect(names()).toEqual(['Ardent']);
+  });
+
+  /**
+   * **Closing clears.** A hidden box holding a live query leaves the shelf
+   * narrowed with nothing on screen to explain it — the reason SillyTavern
+   * clears its own in two places. Reddened by dropping the `setQuery('')`.
+   */
+  it('clears the query when the box is closed', async () => {
+    await shelved();
+    toggle();
+    type('rain');
+    expect(names()).toEqual(['Rain City']);
+
+    toggle();
+
+    expect(names()).toEqual(['Ardent', 'Rain City']);
+  });
+
+  /**
+   * A third empty state. The old sentence was filter-specific and stopped being
+   * true the moment a search could empty the list too — and *widen a filter* is
+   * unhelpful advice to somebody who has mistyped a name.
+   */
+  it('says it was the search, not the filters, that emptied the shelf', async () => {
+    await shelved();
+    toggle();
+
+    type('nothing here is called this');
+
+    expect(screen.getByText('Nothing on this shelf matches that search.')).toBeTruthy();
+    expect(screen.queryByText('Nothing on this shelf matches these filters.')).toBeNull();
+  });
+
+  it('offers Sort by on a shelf that used to have no controls at all', async () => {
+    search = { kind: 'actors' };
+    listLibrary.mockResolvedValue({ objects: [object('Vera')] });
+    renderPage();
+    await settled();
+
+    expect(screen.getByLabelText('Sort by')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
+  });
+});

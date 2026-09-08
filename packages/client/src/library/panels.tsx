@@ -149,6 +149,48 @@ function nameBadges(object: LibraryObject): JSX.Element {
   );
 }
 
+/**
+ * The two sorts every shelf can answer, whatever kind it holds —
+ * [polish §9](../../../../docs/design/workplan/09-polish.md).
+ *
+ * They exist because the control row is now unconditional: a *Sort by* that
+ * appeared on one shelf out of six read as a lorebook feature rather than as
+ * the library's. Every object has a name and a `provenance.updatedAt`, so
+ * these two are the ones no panel has to opt into.
+ *
+ * The Lorebooks panel keeps its own list rather than extending this one — it
+ * puts entry count in the middle, and a shared array with a per-panel insert
+ * would be harder to read than two literals.
+ */
+const COMMON_SORTS: PanelSort[] = [
+  { id: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+  {
+    id: 'updated',
+    label: 'Recently updated',
+    // Newest first, and an object with no stamp sorts last rather than first:
+    // "never updated" is not "updated a long time ago".
+    compare: (a, b) => (updatedAt(b) ?? '').localeCompare(updatedAt(a) ?? ''),
+  },
+];
+
+/**
+ * What a live search reads — [polish §9].
+ *
+ * **Name and tags, and deliberately not the whole object.** The row shows a
+ * name; the tags are what the shelf is organised by and what somebody is most
+ * likely to be reaching for when the name will not come. Serialising the object
+ * would pull a lorebook's entire entry array into every keystroke's haystack,
+ * which is a different feature (finding a *book* by an entry inside it) with a
+ * cost — memoising against a list that re-polls every two seconds — and it
+ * should be chosen rather than arrived at.
+ *
+ * The scope is said in the control's own hint, because a search that quietly
+ * reads less than a person assumes is one they stop trusting.
+ */
+export function searchText(object: LibraryObject): string {
+  return [object.name, ...tagsOf(object)].join(' ');
+}
+
 /** The columns every panel has had since P1.6, for the five with no opinion. */
 const GENERIC: KindPanel = {
   columns: [
@@ -162,7 +204,7 @@ const GENERIC: KindPanel = {
     },
     { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
   ],
-  sorts: [],
+  sorts: COMMON_SORTS,
   filters: [],
   empty:
     'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.',

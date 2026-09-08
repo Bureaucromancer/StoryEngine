@@ -456,18 +456,19 @@ dropdown is not Lorebooks-only furniture.
 
 **The thing to get right.** [05 §5.3](../05-ui-surfaces.md) names *a search box
 per kind* as the failure it is preventing, and asks that the input mounted in the
-book panel be "the same component the eventual cross-library box will use". When
-that box was built, the way it met the ask was to be the plain field primitive —
-a second component whose only job was to be shared later would have been
-machinery built ahead of its second caller, and that reasoning was right at the
-time.
+book panel be "the same component the eventual cross-library box will use". That
+is already satisfied and should stay satisfied the cheap way: the book box is the
+plain field primitive, because a second component whose only job was to be shared
+later would be machinery built ahead of its second caller, and the matching and
+the marked runs are shared as *functions* rather than as a widget
+([search.ts](../../../packages/client/src/library/search.ts)).
 
-It is no longer the whole story, because what the three call sites now share is
-not a text box. It is a *behaviour*: a toggle that reveals and clears, a live
-filter that never compiles a pattern, and matched runs marked in the result. That
-is worth one component, and the extraction is not done until the book panel and
-the lorebook editor's own *Find an entry* both use it. A shared box adopted by
-one caller is the machinery §5.3 was refusing.
+**So this item does not extract a `SearchField`.** What the library box adds is a
+toggle that reveals and clears, and it adds it in one place — the other two
+inputs are always visible and want no toggle at all. A shared widget for a
+behaviour with one caller would be the same mistake §5.3 refused, wearing the
+other hat. It becomes worth extracting when something else needs to reveal a
+search, and not before.
 
 **Four smaller things that will bite.**
 
