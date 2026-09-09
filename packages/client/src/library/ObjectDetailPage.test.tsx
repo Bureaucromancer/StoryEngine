@@ -210,7 +210,7 @@ describe('deleting a library object', () => {
 
 /**
  * The critical controls moved from the header to a strip held at the foot of
- * the page ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)), and the way
+ * the page ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)), and the way
  * back went with them — which turned it from the thing the page opened with
  * into a thing every branch of the loader has to render on its own. The
  * branch most likely to lose it is the one nobody walks on purpose: the object
@@ -230,7 +230,7 @@ describe('the way back', () => {
 });
 
 /**
- * [P5.−1] — [polish §1](../../../../docs/design/workplan/09-polish.md)'s stage,
+ * [P5.−1] — [polish §1](../../../../docs/design/workplan/06-polish.md)'s stage,
  * and its *ends at* stated as a test: an actor's greeting is readable on its
  * detail page without opening the editor.
  *
@@ -386,7 +386,7 @@ describe('a lorebook on the detail route', () => {
   });
 
   /**
-   * **[05 §5.3] by name**: *"the edit affordance is a link into the editor **at
+   * **[10 §5.3] by name**: *"the edit affordance is a link into the editor **at
    * the entry's address**."* The page header's Edit cannot be it — that link is
    * one component shared by every kind and passes no search params — so without
    * this the editor's `?entry=` would have no producer but the URL bar.

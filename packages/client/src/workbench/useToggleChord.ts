@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 /**
  * The workbench toggle: Ctrl+` on a document listener —
- * [P3.1](../../../../docs/design/workplan/05-p3-implementation.md).
+ * [P3.1](../../../../docs/design/workplan/15-p3-implementation.md).
  *
  * The client's only other keyboard handling is `useFocusTrap`, and this hook
  * is deliberately not it and must never call it: the trap teleports escaped

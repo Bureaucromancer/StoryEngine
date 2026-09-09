@@ -13,7 +13,7 @@ import { ApiError, type Account, type LibraryObject } from '../api.js';
 
 /**
  * **Exit-gate step 5** —
- * [P5 §3](../../../../docs/design/workplan/07-p5-implementation.md): *"An entry
+ * [P5 §3](../../../../docs/design/workplan/17-p5-implementation.md): *"An entry
  * is created, edited and deleted through the real write path, and a collapsed
  * section in the editor names its non-default values."*
  *
@@ -23,7 +23,7 @@ import { ApiError, type Account, type LibraryObject } from '../api.js';
  * had been given and the book on the far side changed — against a fake that
  * accepted anything, an editor that never read the envelope would pass. The
  * second is about the **closed-section invariant**, which is the thing
- * [05 §11.2d] says makes progressive disclosure compatible with *no hidden
+ * [10 §11.2d] says makes progressive disclosure compatible with *no hidden
  * fields*, and it is asserted on the `summary` text because that is where the
  * promise is kept.
  *
@@ -257,7 +257,7 @@ describe('an entry created, edited and deleted through the real write path', () 
     const made = server.stored().entries.find((each) => each.name === 'Quay');
     expect(made).toBeDefined();
     // Created entries can reach a folder only through the create verb, because
-    // `folderId` is not a field this stage writes ([05 §11.2d]'s minimum).
+    // `folderId` is not a field this stage writes ([10 §11.2d]'s minimum).
     expect(made?.folderId).toBe('places');
   });
 
@@ -370,7 +370,7 @@ describe('the closed-section invariant', () => {
   /**
    * The whole point of the line: this entry is `sticky: 4`, and *Timing* is
    * shut. A heading that said only *Timing* would be concealing a non-default
-   * value, which [05 §11.2d] calls a hidden field and [05 §2.1] forbids.
+   * value, which [10 §11.2d] calls a hidden field and [10 §2.1] forbids.
    */
   it('names what a shut section is hiding, with the value where the value is the fact', async () => {
     renderApp();
@@ -453,7 +453,7 @@ describe('the closed-section invariant', () => {
 
 describe('what the editor writes and what it only shows', () => {
   /**
-   * [05 §11.2d]'s minimum: *the durable core plus the folder gates, with
+   * [10 §11.2d]'s minimum: *the durable core plus the folder gates, with
    * everything else visible and read-only*. Visible is the load-bearing word —
    * a field rendered nowhere is the hidden field the section forbids.
    */
@@ -511,9 +511,9 @@ describe('what the editor writes and what it only shows', () => {
 });
 
 /**
- * Reordering the entry list — [05 §5.3], [05 §11.2c].
+ * Reordering the entry list — [10 §5.3], [10 §11.2c].
  *
- * **What is being reordered is reading order**, which [05 §5.3] says is the
+ * **What is being reordered is reading order**, which [10 §5.3] says is the
  * file's array order, and *not* `order`, which is injection order: *"Silently
  * sorting a reading list by injection order conflates two different things, and
  * it is the kind of small lie that teaches a false model of what the field
@@ -653,7 +653,7 @@ describe('reordering entries', () => {
   });
 
   /**
-   * **Where the row will land is shown before it is let go** — [05 §11.2c].
+   * **Where the row will land is shown before it is let go** — [10 §11.2c].
    * The line and the drop are one computation (`landing`), so these tests
    * are also the drop rule's tests from the other side: flipping the
    * comparison reddens the first two, and the drop test above with them.
@@ -779,7 +779,7 @@ describe('reordering entries', () => {
 });
 
 /**
- * **The list scrolls itself while a drag hovers near its edge** — [05 §11.2c].
+ * **The list scrolls itself while a drag hovers near its edge** — [10 §11.2c].
  *
  * jsdom lays nothing out and schedules no frames, so both halves are supplied:
  * the list's box is pinned to a known rectangle, and the animation frame is a
@@ -933,7 +933,7 @@ describe('scrolling the list while a drag hovers near its edge', () => {
 });
 
 /**
- * Leaving with unsaved changes — [05 §11.6](../../../../docs/design/05-ui-surfaces.md).
+ * Leaving with unsaved changes — [10 §11.6](../../../../docs/design/10-ui-surfaces.md).
  *
  * The claim under test is **not** that a dialog appears. It is that the draft
  * survives the answer *stay*, and is released only on the answer *leave* — a
@@ -1053,7 +1053,7 @@ describe('leaving an editor with unsaved changes', () => {
 
 /**
  * The critical-controls strip's wiring, for this editor
- * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)). The delete control is
+ * ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)). The delete control is
  * one shared component and its behaviour — the trash, the hash, the guard it
  * must step past — is proved in the actor editor's test; what two editors can
  * differ on silently is whether each mounts it, and whether the way back moved
@@ -1070,7 +1070,7 @@ describe('the critical controls in the lorebook editor', () => {
   });
 
   /**
-   * And what a save says is said there too ([05 §11.6]) — asserted as
+   * And what a save says is said there too ([10 §11.6]) — asserted as
    * structure, since jsdom cannot see a strip pin: the status stands inside
    * the form Save belongs to, where nothing rendered above the form can be.
    * The actor editor's test says why; this one says this editor does it.
@@ -1092,7 +1092,7 @@ describe('the critical controls in the lorebook editor', () => {
 
 /**
  * The book's name is required, and until now it was not —
- * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md).
  *
  * This editor had no field check of any kind: the name could be emptied and
  * saved, and the shelf would then carry a row whose link had nothing to click.

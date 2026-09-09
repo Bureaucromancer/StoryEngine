@@ -28,8 +28,8 @@ import { Dialog } from '../ui/Dialog.js';
 
 /**
  * System connections and the install's role bindings —
- * [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md) stages P2B.3
+ * [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md) stages P2B.3
  * and P2B.4.
  *
  * **This is the section that makes the phase's demo possible:** *fresh install →
@@ -41,10 +41,10 @@ import { Dialog } from '../ui/Dialog.js';
  * **The system scope and only the system scope** ([P2B §2.7]). A user's own
  * `connections/` and `bindings.json` are read by the resolver, counted by the
  * delete warning, hand-written by anyone who wants one, and reachable from
- * nothing here. [05 §15.1]'s *your connections* bullet waits for the phase that
+ * nothing here. [10 §15.1]'s *your connections* bullet waits for the phase that
  * builds the user half — the role table below is the same component with its
  * personal column not yet populated, which is
- * [01 §2.2](../../../../docs/design/workplan/01-work-plan.md)'s minimal demonstration rather
+ * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md)'s minimal demonstration rather
  * than a placeholder.
  *
  * ## What it inherits rather than builds
@@ -412,7 +412,7 @@ function ConnectionForm({
       {/*
        * The action row is held against the bottom of the scrollport, inside
        * this card — `panel.actions` is the editors' strip with the card's
-       * padding in place of the column's ([05 §11.6]). **The conflict lives
+       * padding in place of the column's ([10 §11.6]). **The conflict lives
        * inside the strip**, as a full-width line above the buttons, and that
        * is a consequence rather than a flourish: with the strip pinned, the
        * foot of the form is below the fold, and a refusal rendered there would
@@ -467,7 +467,7 @@ function ConnectionForm({
 
 /**
  * The first run's one question — [P2B §3] stage P2B.4, and
- * [07 §5.1](../../../../docs/design/07-tech-stack.md)'s *a good one and a cheap one*.
+ * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *a good one and a cheap one*.
  *
  * **Two pickers rather than eight**, because eight is more setup than anybody
  * will do and one system-wide default is not enough. Which role gets which is
@@ -562,7 +562,7 @@ function FirstRunDefaults({
  * lose their binding fall through to the install default rather than failing —
  * which is what [P2B §2.1]'s second layer bought.
  *
- * **Counts, never contents** ([04 §4.5]). A list of who binds what to which key
+ * **Counts, never contents** ([09 §4.5]). A list of who binds what to which key
  * is a different feature with a different justification and nobody has asked
  * for it.
  */
@@ -617,7 +617,7 @@ function RemoveConnectionDialog({
  * model"* from a support question into a glance.
  *
  * **It renders what the server resolved; it does not work anything out.**
- * [07 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
+ * [19 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
  * binding maps and decided which would win would be a second implementation of
  * the resolution order — wrong the first time a layer is added, and wrong
  * silently. `GET /api/admin/roles` exists precisely so this component can be
@@ -628,7 +628,7 @@ function RemoveConnectionDialog({
  * `prose` reporting `unbound` is an install nobody can play on. Shown alike,
  * they would send an admin hunting a fault that is not there.
  *
- * **And one column is deliberately absent.** [05 §15.1] wants a user to see
+ * **And one column is deliberately absent.** [10 §15.1] wants a user to see
  * which of their bindings are personal and which fall through to the install —
  * that is the user half, and it waits for the phase that may write a personal
  * binding. This is the same component with that column not yet populated
@@ -683,7 +683,7 @@ function RoleTable(): JSX.Element {
 /**
  * The user-facing sentences of this screen, each whole.
  *
- * [01 §2](../../../../docs/design/workplan/01-work-plan.md) keeps this part of i18n discipline
+ * [work plan §2](../../../../docs/design/workplan/01-work-plan.md) keeps this part of i18n discipline
  * on day one because it is the unretrofittable part: word order differs between
  * languages, so a sentence assembled from fragments around a value cannot be
  * translated at all. A helper returning half a phrase is the same mistake with
@@ -736,7 +736,7 @@ function bindingCount(count: number): string {
 /**
  * The eight roles, in words somebody who did not write this can read.
  *
- * The vocabulary is [07 §5.1]'s and it stays the vocabulary — this only decides
+ * The vocabulary is [19 §5.1]'s and it stays the vocabulary — this only decides
  * what the *table* says, and every id it does not know falls through to itself
  * rather than to a blank cell.
  */

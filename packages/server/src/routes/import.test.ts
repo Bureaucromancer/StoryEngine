@@ -381,7 +381,7 @@ describe('the upload limit is read per request', () => {
 
 /**
  * The server-path sweep, and the permission it turns on ([P4 §1.3],
- * [05 §4.2.2]).
+ * [10 §4.2.2]).
  *
  * `fileAccess` spent three phases as a capability that gated nothing. This is
  * where it gets teeth — and the tests below are mostly about the teeth rather
@@ -457,7 +457,7 @@ describe('pointing the server at a directory', () => {
   });
 
   it('names source files relative to the root, never absolutely', async () => {
-    // [13 §4.1.1]: a review somebody pastes into an issue must not be a
+    // [21 §4.1.1]: a review somebody pastes into an issue must not be a
     // description of their filesystem. The root lives on the job record; the
     // rows do not repeat it.
     await grantFileAccess();
@@ -691,7 +691,7 @@ describe('asking what a folder is, without importing from it', () => {
   });
 });
 
-/** Grants the admin `read`, which [05 §4.2.2] says is enough for a sweep. */
+/** Grants the admin `read`, which [10 §4.2.2] says is enough for a sweep. */
 async function grantFileAccess(): Promise<void> {
   const response = await server.request({
     method: 'PATCH',

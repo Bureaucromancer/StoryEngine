@@ -46,7 +46,7 @@ describe('the revision list', () => {
     render(<RevisionList versions={[]} locale={undefined} />);
 
     // With no versions at all the current entry is still there — the live
-    // object is never written to the history file ([13 §1.6]), so a list
+    // object is never written to the history file ([21 §1.6]), so a list
     // that derived it from the data would show nothing here.
     const items = screen.getAllByRole('listitem');
     expect(items[0]?.textContent).toContain('Current');

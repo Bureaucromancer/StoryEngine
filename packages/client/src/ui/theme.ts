@@ -6,7 +6,7 @@
  * neither, which means the one their system asked for.
  *
  * The stylesheet already answers all three
- * ([05 §1.2](../../../../docs/design/05-ui-surfaces.md)) — `prefers-color-scheme`
+ * ([10 §1.2](../../../../docs/design/10-ui-surfaces.md)) — `prefers-color-scheme`
  * for the default, `[data-theme]` for an explicit choice, and a
  * `:not([data-theme='light'])` guard so the explicit one wins in *both*
  * directions. This module is only the part that decides what to put in the
@@ -16,7 +16,7 @@
 export type ThemeChoice = 'system' | 'light' | 'dark';
 
 /**
- * The key in `prefs.json` — [06 B13](../../../../docs/design/06-open-questions.md),
+ * The key in `prefs.json` — [25 B13](../../../../docs/design/25-open-questions.md),
  * and the first preference to actually use the store that question settled.
  *
  * Per-user rather than per-install, which is what a theme is: two people

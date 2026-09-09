@@ -7,11 +7,11 @@ import { createValidator } from '@storyengine/shared';
 import { readFileBytes } from './storage/files.js';
 
 /**
- * `config.json` — docs/design/13-internal-contracts.md §4.
+ * `config.json` — docs/design/21-internal-contracts.md §4.
  *
  * **The reload tier is declared per key, and that declaration is the source.**
- * [06 D0](../../../docs/design/06-open-questions.md) asks for every key to carry one, and
- * [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md) derives the
+ * [25 D0](../../../docs/design/25-open-questions.md) asks for every key to carry one, and
+ * [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md) derives the
  * restart-required banner from it rather than from a parallel list. The reason
  * is stated plainly there and worth repeating: *a hand-maintained list of
  * settings that need a restart is wrong within two releases*, and wrong in the
@@ -23,7 +23,7 @@ import { readFileBytes } from './storage/files.js';
  * change needs one.
  *
  * **No credentials here.** Connections live in `connections/`
- * ([04 §4.5](../../../docs/design/04-server-multiuser-deployment.md)) and this type has
+ * ([09 §4.5](../../../docs/design/09-server-multiuser-deployment.md)) and this type has
  * nowhere to put a key — the same structural enforcement the portable schemas
  * get ([00 §3.2](../../../docs/design/00-stance.md)), and for the same reason: a check
  * can be forgotten, a missing field cannot.
@@ -42,7 +42,7 @@ export const ConfigSchema = Type.Object(
     server: Type.Object({
       /**
        * **Loopback on first boot**, and the one default that decides first-run
-       * safety ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)).
+       * safety ([09 §5.1](../../../docs/design/09-server-multiuser-deployment.md)).
        * Between first boot and first-run setup there is a window in which
        * anyone who can reach the port can claim the admin account; binding
        * loopback closes it, and LAN exposure becomes an explicit act.
@@ -68,7 +68,7 @@ export const ConfigSchema = Type.Object(
        *
        * **Off by default, and not derived from the bind.** The obvious rule —
        * *secure whenever the bind is not loopback* — is wrong here, and wrong
-       * in the direction that locks people out: [04 §5.1] blesses plain HTTP on
+       * in the direction that locks people out: [09 §5.1] blesses plain HTTP on
        * a trusted LAN and refuses to ship self-signed certificates that train
        * people to click through warnings. A `Secure` cookie is simply not sent
        * back over HTTP, so deriving this would make a LAN install unable to
@@ -98,7 +98,7 @@ export const ConfigSchema = Type.Object(
     auth: Type.Object({
       /**
        * **The one password rule that survives, and it is the operator's rather
-       * than the build's** — [04 §4.1](../../../docs/design/04-server-multiuser-deployment.md).
+       * than the build's** — [09 §4.1](../../../docs/design/09-server-multiuser-deployment.md).
        *
        * That section skips rate limiting, lockout, complexity policy, email
        * verification and 2FA, on a threat model of *access separation among
@@ -121,7 +121,7 @@ export const ConfigSchema = Type.Object(
        * existing account working, with no forced-change flow and no per-account
        * record to carry one. And `--reset-password` honours no minimum at all,
        * including this one: console access is already the highest authority
-       * this software recognises ([04 §5.1]).
+       * this software recognises ([09 §5.1]).
        */
       minPasswordLength: Type.Integer({ minimum: 0, maximum: 128, default: 8 }),
     }),
@@ -129,7 +129,7 @@ export const ConfigSchema = Type.Object(
       /**
        * `silent` is not an operational setting — it exists because the test
        * suite builds whole apps and a level union with no off switch leaves it
-       * nowhere to turn them down ([13 §4](../../../docs/design/13-internal-contracts.md)).
+       * nowhere to turn them down ([21 §4](../../../docs/design/21-internal-contracts.md)).
        */
       level: Type.Union(
         [
@@ -146,7 +146,7 @@ export const ConfigSchema = Type.Object(
        * implemented nowhere; honouring it means a second dependency and a
        * transport for an ergonomic gain in development only, and a terminal
        * that wants it pretty can pipe it
-       * ([13 §4.1](../../../docs/design/13-internal-contracts.md), [P2 §2.2](../../../docs/design/workplan/04-p2-implementation.md)).
+       * ([21 §4.1](../../../docs/design/21-internal-contracts.md), [P2 §2.2](../../../docs/design/workplan/08-p2-implementation.md)).
        * The key stays a union so that adding a format later is not a type
        * change at every call site.
        */
@@ -159,7 +159,7 @@ export const ConfigSchema = Type.Object(
     sessions: Type.Object({
       snapshotEveryNTurns: Type.Integer({ minimum: 1, default: 10 }),
       /**
-       * How often the session stream sends a comment frame — [07 §8].
+       * How often the session stream sends a comment frame — [19 §8].
        *
        * `reconnect` rather than `live`: a keepalive is a property of a
        * *connection*, and an open stream keeps the interval it opened with. It
@@ -183,7 +183,7 @@ export const ConfigSchema = Type.Object(
       extensionStorageQuotaMb: Type.Integer({ minimum: 1, default: 32 }),
       /**
        * The context window a turn may assemble into, when the endpoint does not
-       * say — [13 §1.5].
+       * say — [21 §1.5].
        *
        * No `KNOWN_PROVIDERS` entry sets `maxContextTokens`, because
        * `capabilities.ts` refuses to invent a number it cannot verify. Without
@@ -220,7 +220,7 @@ export const ConfigSchema = Type.Object(
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
     }),
     history: Type.Object({
-      /** Pinned versions are exempt ([02 §11.3](../../../docs/design/02-data-model.md)). */
+      /** Pinned versions are exempt ([03 §11.3](../../../docs/design/03-data-model.md)). */
       keepPerObject: Type.Integer({ minimum: 0, default: 50 }),
     }),
     updates: Type.Object({
@@ -240,7 +240,7 @@ export const ConfigSchema = Type.Object(
 export type Config = Static<typeof ConfigSchema>;
 
 /**
- * Whether a bind address reaches only this machine — [04 §5.1], [P6A §1.4].
+ * Whether a bind address reaches only this machine — [09 §5.1], [P6A §1.4].
  *
  * **One definition, because two would be a security bug rather than an
  * inconsistency.** Everything that turns on *is this install exposed* reads
@@ -305,14 +305,14 @@ export type LiveApplier = 'applied' | 'unread';
  * A tier says what a key is *for*: `limits.maxUploadMb` names uploads and will
  * apply live when there is an upload route, so re-tiering it to `restart` to
  * match today's construction-time read would lock the shortcut into the
- * contract ([P2 §3](../../../docs/design/workplan/04-p2-implementation.md) made
+ * contract ([P2 §3](../../../docs/design/workplan/08-p2-implementation.md) made
  * that argument and it is still right). This table says what is true *now*, and
  * the two are allowed to disagree.
  *
  * **This is what stops the settings surface ever showing a control that does
  * nothing.** `unread` keys render in a group that says the value is stored and
  * not yet read, which is the difference between a setting and a placeholder —
- * and [01 §2.2](../../../docs/design/workplan/01-work-plan.md) forbids the
+ * and [work plan §2.2](../../../docs/design/workplan/01-work-plan.md) forbids the
  * second. The alternative was remembering, per key, forever.
  *
  * **The rule when a tier and an implementation disagree:** this table records
@@ -349,7 +349,7 @@ export const LIVE_APPLIERS = {
    * anything on the next restart.
    *
    * Nothing about correctness depends on it: snapshots are derived and
-   * disposable ([09 §4]), so the value chooses how often the cache is written
+   * disposable ([07 §4]), so the value chooses how often the cache is written
    * and never what a reconstruction answers.
    */
   'sessions.snapshotEveryNTurns': 'applied',
@@ -472,7 +472,7 @@ export function configBounds(): Record<string, ConfigBound> {
  * sharper instance of it. The install form had a hand-written list of log levels
  * carrying `trace`, which the schema's union does not contain: picking it
  * answered `400` and the form said nothing. A control offering a value the
- * server refuses is the exact failure [01 §2.3](../../../docs/design/workplan/01-work-plan.md)'s
+ * server refuses is the exact failure [work plan §2.3](../../../docs/design/workplan/01-work-plan.md)'s
  * *configuration ships with its surface* is about — the surface existed, and it
  * had drifted from the thing it configures.
  *
@@ -541,7 +541,7 @@ export function tierOf(key: string): ReloadTier | null {
  * Every key that changed between two configs and needs a restart to apply.
  *
  * This *is* the restart-required notice
- * ([04 §6.3](../../../docs/design/04-server-multiuser-deployment.md)) — it names the
+ * ([09 §6.3](../../../docs/design/09-server-multiuser-deployment.md)) — it names the
  * specific pending changes rather than saying "restart required", because the
  * bare notice invites people to restart and hope.
  */
@@ -565,8 +565,8 @@ function valueAt(config: Config, key: string): unknown {
 
 /**
  * The bootstrap keys an environment variable may set, by variable name —
- * [P6A §1.2](../../../docs/design/workplan/23-p6a-alpha-1.md),
- * [P10 §1.2](../../../docs/design/workplan/21-p10-implementation.md).
+ * [P6A §1.2](../../../docs/design/workplan/19-p6a-alpha-1.md),
+ * [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
  *
  * **This table exists because of a rule about artifacts, not because
  * environment variables are convenient.** [P10 §1.2] forbids the container

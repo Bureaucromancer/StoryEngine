@@ -1,4 +1,4 @@
-# 04 — Server, multi-user, deployment
+# 09 — Server, multi-user, deployment
 
 **Status: proposal.**
 
@@ -61,7 +61,7 @@ client  ──intent──▶  server
   Messages mode's scheduler is a server-side timer that starts a turn; the fact
   that no client is connected is uninteresting.
 
-~~[OPEN]~~ **Closed at the P2 plan** ([P2 §2.10](workplan/04-p2-implementation.md)),
+~~[OPEN]~~ **Closed at the P2 plan** ([P2 §2.10](docs/design/workplan/08-p2-implementation.md)),
 along this lean and stronger: turns are not resumed across restart — recovery
 resumes *finalisation*, never generation. A job left running becomes a failed
 terminal turn with its blocks and calls checkpointed so far; a job interrupted
@@ -80,9 +80,9 @@ away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
 The large pressure: **Messages mode does not work without it** — though Messages
-is now unscheduled ([14 §3.4](14-roadmap.md)), so this argument lands later than
+is now unscheduled ([24 §3.4](docs/design/24-roadmap.md)), so this argument lands later than
 the others and has no date at all. Autonomous
-messages ([03 §7.1](03-modes-and-turn-pipeline.md)) exist to reach you when you
+messages ([06 §7.1](docs/design/06-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
 surface, is a feature that does nothing.
 
@@ -107,7 +107,7 @@ server knows who should be told and through which channel; the client only
 renders the in-app part.
 
 **Presence is already the input this needs, whenever Messages is built.** Messages mode specifies per-user
-presence — Active, Idle, Do Not Disturb, Invisible ([03 §7.1](03-modes-and-turn-pipeline.md)).
+presence — Active, Idle, Do Not Disturb, Invisible ([06 §7.1](docs/design/06-modes-and-turn-pipeline.md)).
 That is exactly the routing signal: suppress on DND, prefer in-app when Active
 and viewing the session in question, escalate to push when Idle or disconnected.
 Reuse it rather than inventing a parallel notion.
@@ -153,7 +153,7 @@ wait, a reconnecting client replays from its last acknowledged id, and "persist
 until seen" becomes a property of storage rather than a hope about timing.
 
 **That inbox is operational state, not derived** — it goes with jobs and auth
-sessions in the store described in [13 §5.1](13-internal-contracts.md), never in
+sessions in the store described in [21 §5.1](docs/design/21-internal-contracts.md), never in
 the disposable index. A notification that vanishes when someone deletes
 `index.sqlite` was never durable.
 
@@ -169,7 +169,7 @@ exactly failed*.
 
 **[DECIDED] at [P3.5]: that view is the event feed rendered, not the turn
 record rendered early.** This section said the opposite — that the live view
-*is* the record ([02 §8](02-data-model.md)) rendered while it is still being
+*is* the record ([03 §8](docs/design/03-data-model.md)) rendered while it is still being
 written, "same shape live and afterwards, one mental model and one component
 rather than a live view and a separate history view that disagree" — and P3.5
 was the stage that had to build it and found the claim unsupported by the
@@ -182,7 +182,7 @@ would show a block table frozen at the instant of attach while the turn moved
 on beneath it — a live view and a record that disagree, arrived at by the route
 that was supposed to prevent one. The alternative, reconstructing the record
 from event params, is client-side recomputation of what the server already
-computed, which [05 §3](05-ui-surfaces.md) forbids in the same breath as it
+computed, which [10 §3](docs/design/10-ui-surfaces.md) forbids in the same breath as it
 calls the workbench a reader.
 
 So there are two components, deliberately, and the seam between them is
@@ -241,7 +241,7 @@ From the start, notification events carry:
   it is one field rather than a doubling of the class list.
 - **a renderable summary as `{ key, params }`, not English prose.** Composed at
   display time, because the server cannot know the reader's language
-  ([07 §12.5](07-tech-stack.md)). Note this cuts both ways: the params must carry
+  ([19 §12.5](docs/design/19-tech-stack.md)). Note this cuts both ways: the params must carry
   everything the sentence needs, since composing a summary later from
   *unstructured* fields produces the "New event in session 4f2a" school of
   notification.
@@ -258,10 +258,10 @@ settings.
 |---|---|---|
 | `turn.complete` | no | 1.0 — the completion-sound case |
 | `turn.failed` | **yes** | 1.0 |
-| `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([06 C5](06-open-questions.md)); the strongest argument for push |
+| `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([25 C5](docs/design/25-open-questions.md)); the strongest argument for push |
 | `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
-| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([12 §7](12-extensions.md)) |
-| `message.received` | no | With Messages, whenever it is built ([14 §3.4](14-roadmap.md)) |
+| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([22 §7](docs/design/22-extensions.md)) |
+| `message.received` | no | With Messages, whenever it is built ([24 §3.4](docs/design/24-roadmap.md)) |
 
 **`artifact.ready` rather than `rendition-ready`.** Renditions are the only
 producer at 1.0, but the class is about *asynchronous work attached to a turn
@@ -270,7 +270,7 @@ second.
 
 **Deliberately not split into blocking and non-blocking.** The distinction is
 real in general and does not exist here: renditions never block a turn by design
-([03 §10.2](03-modes-and-turn-pipeline.md)), and the blocking case already has
+([06 §10.2](docs/design/06-modes-and-turn-pipeline.md)), and the blocking case already has
 its own class in `turn.awaiting-input`. Modelling a split the architecture
 currently forbids would be inventing a taxonomy for a case that cannot occur. If
 blocking async work ever appears, it extends `awaiting-input` rather than
@@ -285,7 +285,7 @@ already specified with nowhere to be delivered. Without it each of them invents
 a private path.
 
 **Awaiting-input deserves special mention.** If a turn can suspend for player
-input ([06 C5](06-open-questions.md)), and the player has wandered off, the
+input ([25 C5](docs/design/25-open-questions.md)), and the player has wandered off, the
 session is stuck until told. That class is the strongest argument for push
 rather than in-app-only.
 
@@ -303,7 +303,7 @@ rather than in-app-only.
    configuration, not server configuration.
 
 The 1.0 pair covers everything 1.0 generates, because without Messages nothing
-reaches you when no browser is open ([work plan §0.1](workplan/01-work-plan.md)). Push and
+reaches you when no browser is open ([work plan §0.1](docs/design/workplan/01-work-plan.md)). Push and
 webhooks arrive with the mode that needs them.
 
 #### Channels 2 and 3 require a secure context, and plain LAN HTTP is not one
@@ -346,7 +346,7 @@ Three obligations follow:
 
 ### 3.7 A correction to the no-service-worker position
 
-[05 §1](05-ui-surfaces.md) says "no offline story. No service worker, no local
+[10 §1](docs/design/10-ui-surfaces.md) says "no offline story. No service worker, no local
 cache-as-database, no sync." **Web Push requires a service worker**, so that
 needs narrowing rather than quietly contradicting.
 
@@ -397,7 +397,7 @@ minimum at all, for the reason §5.1 gives.
 One disclosure is opt-in rather than skipped: an install may choose an
 account-gallery arrival screen, which shows listed accounts before anyone
 authenticates. The trade, and why this threat model can afford it, is argued
-in [15 §3](15-account-gallery.md).
+in [12 §3](docs/design/12-account-gallery.md).
 
 ### 4.2 Users
 
@@ -405,10 +405,10 @@ in [15 §3](15-account-gallery.md).
 interface Account {
   handle: string          // stable, used for directory names, immutable
   displayName: string
-  passwordHash, salt      // scrypt, per [07 §9] — no native dependency
+  passwordHash, salt      // scrypt, per [19 §9] — no native dependency
   role: "admin" | "user"
   enabled: boolean
-  hiddenFromGallery?: boolean  // presentation, not a capability; absent means listed. [15 §4]
+  hiddenFromGallery?: boolean  // presentation, not a capability; absent means listed. [12 §4]
   locale: string | null   // BCP-47; defaulted from Accept-Language on first login
   capabilities: Capabilities
   createdAt: number
@@ -419,19 +419,19 @@ interface Capabilities {
   /** May add and use their own connections. When false, only system
    *  connections resolve for this user. Default true. See §4.5. */
   privateConnections: boolean
-  /** In-UI file browser over their own directory, and — since [05 §4.2.2] —
+  /** In-UI file browser over their own directory, and — since [10 §4.2.2] —
    *  naming a path outside /data for a read-only import sweep. Default "none".
    *  Two powers under one name, deliberately; the widening and what it costs
-   *  are argued in [05 §4.2.2] rather than here. */
+   *  are argued in [10 §4.2.2] rather than here. */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
-   *  remains admin-only. Default false. [12 §7] */
+   *  remains admin-only. Default false. [22 §7] */
   enableExtensions: boolean
 }
 ```
 
 **The defaults are part of the contract, and two of them were only in the
-code.** [05 §15.2](05-ui-surfaces.md) undertakes to render each capability with
+code.** [10 §15.2](docs/design/10-ui-surfaces.md) undertakes to render each capability with
 its consequence beside it, which is not something a surface can do from a
 definition that omits what happens when nobody chooses. `privateConnections`
 defaults **true** because the threat model is access separation among people who
@@ -443,7 +443,7 @@ First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
 
 **All accounts are manually provisioned.** Auto-provisioning is on the feature
-list at Low ([14 §3.2](14-roadmap.md)) rather than in any committed version. No
+list at Low ([24 §3.2](docs/design/24-roadmap.md)) rather than in any committed version. No
 self-registration, no invite links, no auto-provisioning from an identity
 provider. Not a philosophical position — simply simpler, and matched to reality:
 most installs are one user or a handful, and the typical act of adding a person
@@ -484,7 +484,7 @@ than scattering booleans as they arise, is that **a future role system then
 becomes a move rather than an invention** — capabilities relocate from the
 account to a role, and accounts reference roles. Additive, and only if wanted.
 
-**A real role system is on the feature list at High** ([14 §3.1](14-roadmap.md)),
+**A real role system is on the feature list at High** ([24 §3.1](docs/design/24-roadmap.md)),
 not in a committed version. The signals that it
 is needed: a capability that is not a simple boolean, wanting to apply the same
 set to several people, or wanting permissions scoped to particular objects
@@ -524,8 +524,8 @@ So:
   `visibility` field — **the path is the owner.** Adding those fields now would
   be building a permission model we have decided to defer.
 - **Duplication is fine.** Two users with the same character is two files. Disk
-  is cheap, and the import/export story ([02 §5.2](02-data-model.md)) plus the
-  in-UI file browser ([05 §4](05-ui-surfaces.md)) already make copying one drag.
+  is cheap, and the import/export story ([03 §5.2](docs/design/03-data-model.md)) plus the
+  in-UI file browser ([10 §4](docs/design/10-ui-surfaces.md)) already make copying one drag.
 - **The system library is a full library, not a special case.** Same layout,
   same loader, same index, same UI — a user's effective library is *their
   objects plus the system's*, resolved as one query. What it ships is small: the
@@ -539,11 +539,11 @@ So:
   it.
 - **Refs may point at system objects**, which is the point of shipping a
   lorebook. If an update removes one, the ref dangles visibly and non-blockingly
-  like any other ([00 §3.3](00-stance.md)).
+  like any other ([00 §3.3](docs/design/00-stance.md)).
 - **Connections are account-scoped, with a system scope alongside** — the same
   shape as the library. See §4.5.
 - **Refs never cross users.** A treatment's link to a lorebook resolves inside that
-  user's library or dangles visibly ([00 §3.3](00-stance.md)). Cross-user refs
+  user's library or dangles visibly ([00 §3.3](docs/design/00-stance.md)). Cross-user refs
   are precisely the thing that would make a future split or merge painful, so
   they must not exist.
 
@@ -555,12 +555,12 @@ rather than a schema migration:
 1. **Object ids are globally unique** (uuidv7), not namespaced per user. Alice's
    Vera and Bob's Vera are different objects with different ids, so a future
    merge has no collisions to resolve.
-2. **Provenance already records origin** ([10 §3](10-schemas.md)), so a copy can
+2. **Provenance already records origin** ([04 §3](docs/design/04-schemas.md)), so a copy can
    say where it came from and a future dedupe has something to match on.
 3. **When sharing arrives it should be a new *location*, not a new field** — a
    `/data/shared/library/` alongside the per-user ones, with objects copied or
    moved into it. That is additive and leaves every schema in
-   [10](10-schemas.md) untouched.
+   [04](docs/design/04-schemas.md) untouched.
 4. **No visibility or ownership fields until then.** Not having them is free;
    removing them later is churn.
 
@@ -615,7 +615,7 @@ similarity:
 
 - **The key never leaves the server.** Not to a client, not to the UI, not to
   the file browser. `system/connections/` is excluded from file access entirely,
-  unlike `system/library/` which is readable ([05 §4.2](05-ui-surfaces.md)).
+  unlike `system/library/` which is readable ([10 §4.2](docs/design/10-ui-surfaces.md)).
 - **There is no fork.** "Copy to my library" has no analogue here, because
   copying would mean copying the credential. The read-only-so-edit-forks-it rule
   from §4.3 explicitly does not extend to connections.
@@ -626,7 +626,7 @@ similarity:
 #### Where they are actually consumed: role bindings
 
 Users do not pick a connection per turn. They bind **model roles**
-([07 §5.1](07-tech-stack.md)), and a binding may point at a personal or a system
+([19 §5.1](docs/design/19-tech-stack.md)), and a binding may point at a personal or a system
 connection. That is what makes this the natural household arrangement:
 
 > The admin binds `prose` and `fast` to system connections. Every user's
@@ -636,7 +636,7 @@ connection. That is what makes this the natural household arrangement:
 Personal bindings win over system defaults, visibly and switchably. If an admin
 removes a system connection that bindings point at, those bindings dangle and
 the user is told to pick another — the same non-blocking treatment every other
-dangling reference gets ([00 §3.3](00-stance.md)).
+dangling reference gets ([00 §3.3](docs/design/00-stance.md)).
 
 #### Private connections are a per-account capability
 
@@ -650,10 +650,10 @@ Three details that decide whether it works:
 
 - **Enforced at resolution, not at creation.** A user with `fileAccess: "write"`
   can drop a connection file into their own `connections/` directory
-  ([05 §4](05-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
+  ([10 §4](docs/design/10-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
   loader must ignore personal connections for a user without the capability.
   That also means the same rule covers extensions for free, since they request
-  calls by role and the host resolves ([12 §4](12-extensions.md)).
+  calls by role and the host resolves ([22 §4](docs/design/22-extensions.md)).
 - **Revoking disables, never deletes.** Existing personal connections stay on
   disk and stop resolving, and the user is *told* rather than left wondering why
   a model call started failing. Role bindings pointing at them dangle and fall
@@ -665,9 +665,9 @@ Three details that decide whether it works:
   `readBindings` read the user's file and nothing else, there was no system
   bindings path, and `resolveRole` had no layer to fall through to — so a
   dangling binding failed the turn rather than falling back to anything.
-  [P2B §1.2](workplan/14-p2b-provider-configuration.md) is the finding.*
+  [P2B §1.2](docs/design/workplan/10-p2b-provider-configuration.md) is the finding.*
 
-  ***Built at [P2B §2.1](workplan/14-p2b-provider-configuration.md).***
+  ***Built at [P2B §2.1](docs/design/workplan/10-p2b-provider-configuration.md).***
   `system/bindings.json` is a real file with the same shape and the same
   reader, layered under every user's own, and `resolveRole` now takes **the
   first layer that resolves rather than the first that exists** — which is the
@@ -678,12 +678,12 @@ Three details that decide whether it works:
   the binding whose owner has to fix it.
 - **The dead-end state needs surfacing.** A user with no private connections
   allowed and no system connection available cannot do anything at all. The
-  admin screen ([05 §15.2](05-ui-surfaces.md)) should say so plainly — *"2 users
+  admin screen ([10 §15.2](docs/design/10-ui-surfaces.md)) should say so plainly — *"2 users
   have no usable connection"* — because it is otherwise discovered as a bug
   report from someone who cannot send a message.
 
-  *Built at [P2A](workplan/13-p2a-configuration-surface.md), with the count
-  corrected at [P2B](workplan/14-p2b-provider-configuration.md).4. It first
+  *Built at [P2A](docs/design/workplan/09-p2a-configuration-surface.md), with the count
+  corrected at [P2B](docs/design/workplan/10-p2b-provider-configuration.md).4. It first
   counted connection **files**, which cannot witness what this bullet asks for:
   a system connection with nothing bound to it made every account read as fine
   while every turn failed `unbound`. It asks the turn's own question now — does
@@ -696,9 +696,9 @@ Three details that decide whether it works:
 - **Cost attribution stops being optional the moment multi-user is real, which
   is 1.0** (P10). With everyone spending one key, "who used what" becomes a real
   question. Turns already record cost and already belong to a user
-  ([05 §3](05-ui-surfaces.md)), so what 1.0 owes is the *recording*, which it
+  ([10 §3](docs/design/10-ui-surfaces.md)), so what 1.0 owes is the *recording*, which it
   already does. The aggregate view is on the feature list at Eventually
-  ([14 §3.3](14-roadmap.md)) and is where it surfaces.
+  ([24 §3.3](docs/design/24-roadmap.md)) and is where it surfaces.
 
   *An earlier draft pinned this to "2.0", which was always a release later than
   the thing that triggers it and stopped meaning anything when 2.0 became the
@@ -710,7 +710,7 @@ Three details that decide whether it works:
   beats a turn that errors, and the progress stream (§3.3) makes waiting legible
   instead of looking like a hang. Scoping the queue to the connection, not the
   user, is the part that has to be right from the start; the cap itself can stay
-  a setting. See [06 E7](06-open-questions.md) for the failure taxonomy this
+  a setting. See [25 E7](docs/design/25-open-questions.md) for the failure taxonomy this
   sits inside.
 
 **No literal system account.** "The system account" is the right mental model
@@ -757,7 +757,7 @@ Only someone with host access sees the console, which is exactly the right
 audience. This is what makes §5.3's container default safe rather than merely
 unavoidable.
 
-**Built at [P6A.2](workplan/23-p6a-alpha-1.md), 2026-09-04.** A token generated
+**Built at [P6A.2](docs/design/workplan/19-p6a-alpha-1.md), 2026-09-04.** A token generated
 once and stored beside the session key, minted only when this process booted
 bound beyond loopback with no admin; required by `POST /api/auth/setup` in that
 condition and compared in constant time; advertised as `setupTokenRequired` on
@@ -774,26 +774,26 @@ token on every non-loopback boot and stored it nowhere, so it was never checked
 a token printed reasonably concludes something is enforcing it. P2.0 removes the
 print rather than implementing the check, because the check is a new field on
 two auth routes and the setup form, and P2.0 forbids feature work
-([P2 §2.1](workplan/04-p2-implementation.md)). ~~It lands with **P10**~~, beside
+([P2 §2.1](docs/design/workplan/08-p2-implementation.md)). ~~It lands with **P10**~~, beside
 the container inversion in §5.3 that is the reason it exists: until an image
 ships, nothing binds non-loopback without someone typing the bind address, and
 the loopback default is what carries the safety in the meantime.
 
-**It lands with [P6A](workplan/23-p6a-alpha-1.md), because that is the phase that
+**It lands with [P6A](docs/design/workplan/19-p6a-alpha-1.md), because that is the phase that
 ships the image.** The deferral above was always scheduled against the *artifact*
 rather than against a phase number — *until an image ships* is its own condition —
 and P6A ships one. Re-pointed rather than rewritten, because the reasoning is
 unchanged and only its address moved.
 
 **And it does not travel alone.** The cookie `secure`/`trustProxy` hardening
-deferred at [P2 §2.11](workplan/04-p2-implementation.md) rests on the *same*
+deferred at [P2 §2.11](docs/design/workplan/08-p2-implementation.md) rests on the *same*
 premise, in the same words — the loopback default is what makes deferring it safe
 — so a container binding `0.0.0.0`, typically behind the reverse proxy an unraid
 user already runs, voids both justifications at one stroke. They ship together or
 not at all; splitting them leaves the survivor resting on a premise that no
 longer holds, which is worse than either alternative because it looks decided.
 
-**They did ship together, at [P6A.2](workplan/23-p6a-alpha-1.md).** `trustProxy`
+**They did ship together, at [P6A.2](docs/design/workplan/19-p6a-alpha-1.md).** `trustProxy`
 turned out to have become a config key already, at P2A, and to be wired into
 Fastify — so what that stage owed was `server.cookieSecure`, which is now the
 key that decides `Secure` on both cookies. **Deliberately not derived from the
@@ -813,14 +813,14 @@ authority the setup token assumes: someone who can run the binary against the
 data directory can already read it. There is no in-app recovery flow to weaken,
 which is the point — no email, no security questions, no account-recovery
 surface for an attacker to work on. Password reset from *inside* the admin UI is
-[P2A](workplan/13-p2a-configuration-surface.md)'s, and does not remove this one:
+[P2A](docs/design/workplan/09-p2a-configuration-surface.md)'s, and does not remove this one:
 it is what recovers the admin who cannot log in to reach it. **The console path
 is the rung beneath the UI, not an earlier version of it**, which is why it
 survives the phase that makes the UI exist.
 
 ### 5.2 Tailscale
 
-**All on the feature list at High** ([14 §3.1](14-roadmap.md)), not in a
+**All on the feature list at High** ([24 §3.1](docs/design/24-roadmap.md)), not in a
 committed version. Not hard, but a side project rather than a release blocker.
 Worth designing the seam now because it changes the auth model
 rather than sitting beside it. Three levels, in increasing order of effort:
@@ -848,7 +848,7 @@ access.
 
 **Settled: Level 1 yes, Level 2 maybe, Level 3 not worth the effort** — an
 embedded `tsnet` node is a real component for a convenience the two simpler
-levels mostly deliver. **All of it is on the feature list at High** ([14 §3.1](14-roadmap.md)), not in a committed version. Not hard, but a side
+levels mostly deliver. **All of it is on the feature list at High** ([24 §3.1](docs/design/24-roadmap.md)), not in a committed version. Not hard, but a side
 project rather than anything on the path.
 
 The only thing to do now is keep the auth layer shaped so Level 2 is a provider
@@ -884,14 +884,14 @@ than disappearing:
   the host-access-only channel it assumes. This image is also the token's first
   real consumer, which is why §5.1 ~~homes it at P10~~ homed it at the image
   rather than at a date — and the image came at
-  [P6A](workplan/23-p6a-alpha-1.md), so the token came with it
-  ([P6A.2](workplan/23-p6a-alpha-1.md)) rather than being deferred
+  [P6A](docs/design/workplan/19-p6a-alpha-1.md), so the token came with it
+  ([P6A.2](docs/design/workplan/19-p6a-alpha-1.md)) rather than being deferred
   indefinitely.
 
 This should be a single, documented environment variable rather than a hidden
 build difference, so that a bare-metal user can opt into the same behaviour and
 a container user can tighten it. *It is: `SE_HOST`, since
-[P6A.0](workplan/23-p6a-alpha-1.md), and [13 §4](13-internal-contracts.md)
+[P6A.0](docs/design/workplan/19-p6a-alpha-1.md), and [21 §4](docs/design/21-internal-contracts.md)
 carries the table of the four variables that exist.*
 
 **Ship an unraid Community Applications template as a first-class artifact.**
@@ -904,7 +904,7 @@ than being left to a third party.
 ~~**[OPEN]** Whether to also publish to the unraid CA store directly, which means
 maintaining a presence there, versus letting the template be community-submitted.~~
 
-**Closed at [P6A](workplan/23-p6a-alpha-1.md): the template is written and
+**Closed at [P6A](docs/design/workplan/19-p6a-alpha-1.md): the template is written and
 committed; the store submission is deferred, and not to a phase.** The two halves
 turned out to be separable, which is what the open question had missed. Shipping
 the XML in the repository is a repository act with no external obligation
@@ -917,7 +917,7 @@ with one maintainer and no users.
 
 So the template exists from P6A onward and is submitted to nobody. The submission
 becomes live again when the project takes on an audience — the same decision as
-publishing the image at all ([releases §0.1](workplan/11-repo-and-releases.md)),
+publishing the image at all ([releases §0.1](docs/design/workplan/04-repo-and-releases.md)),
 not a separate one.
 
 ### 5.4 Which packages are first-class
@@ -983,7 +983,7 @@ the machine I already have" is a real and well-populated case in this audience:
   under-delivers. A portable single file is a desktop convenience; a server
   wants an install location and a service.
 - **Snap** — as above, plus confinement fights with a data directory the user is
-  expected to browse and hand-edit ([05 §4](05-ui-surfaces.md)).
+  expected to browse and hand-edit ([10 §4](docs/design/10-ui-surfaces.md)).
 - **`.rpm`** — Tier 2's tarball covers it. Revisit only if Fedora/RHEL users turn
   up in numbers and say otherwise.
 - **LXC templates** — genuine in Proxmox homelabs, but Proxmox users overwhelmingly
@@ -1021,14 +1021,14 @@ optionality** — Tier 3 is no longer "as capacity allows". Everything outside t
 six — Flatpak, AppImage, Snap, `.rpm`, LXC — stays declined, and
 build-from-source stays first-class.
 
-**Which are needed *when*** ([work plan §0.5](workplan/01-work-plan.md)):
+**Which are needed *when*** ([work plan §0.5](docs/design/workplan/01-work-plan.md)):
 
 | Milestone | Artifacts |
 |---|---|
 | **Beta** | The OCI image and the tarball |
 | **1.0** | `.deb`, AUR, the Windows service installer, the Homebrew formula — and the in-app update *check* ([§6.5](#65-update-check-and-using-it-as-a-connectivity-signal)) |
 
-**All six are owned by P11** ([22](workplan/22-p11-implementation.md)), which is
+**All six are owned by P11** ([P11](docs/design/workplan/27-p11-implementation.md)), which is
 the correction to an earlier version of this table. The 1.0 row used to be a
 *bar* with no phase behind it, and P11 — the last phase — had put those four out
 of scope, so the requirement existed and the builder did not.
@@ -1044,7 +1044,7 @@ home-server product people cannot install is a home-server product nobody uses,
 and an unclaimed AUR slot gets claimed by someone else. Both are true of a
 release; neither is true of a beta.
 
-**Five, since [P6A](workplan/23-p6a-alpha-1.md)** — and the *list* is still six.
+**Five, since [P6A](docs/design/workplan/19-p6a-alpha-1.md)** — and the *list* is still six.
 Tier 1, the image and its compose file plus the unraid template that wraps it, is
 built there instead: privately, during alpha, for the project rather than for an
 audience. P11 keeps the tarball and the other four. Nothing above changes except
@@ -1056,12 +1056,12 @@ re-assignment rather than a repeat of the same defect.** That one fixed four
 artifacts with a requirement
 and no builder; the failure available here is the mirror image — one artifact
 with two builders — and it was already live before P6A existed, since
-[P10.0](workplan/21-p10-implementation.md) gated on `docker run` while
-[P10 §4](workplan/21-p10-implementation.md) called packaging P11's. So the
+[P10.0](docs/design/workplan/26-p10-implementation.md) gated on `docker run` while
+[P10 §4](docs/design/workplan/26-p10-implementation.md) called packaging P11's. So the
 boundary is stated once, at the foot of this section, and cited from P10 and P11
 rather than restated in either.
 
-**Auto-update — settled in [releases §4](workplan/11-repo-and-releases.md).** We publish a
+**Auto-update — settled in [releases §4](docs/design/workplan/04-repo-and-releases.md).** We publish a
 `latest` channel that others track, rather than updating in place: container
 users through unraid auto-update or watchtower, package users through their
 package manager, and everyone else through an in-app check that notices a
@@ -1070,8 +1070,8 @@ release and links to it. That check pairs with the version-awareness the AGPL
 data directory is not planned.
 
 **None of this packaging work is alpha-phase** — *with one artifact's exception,
-added at [P6A](workplan/23-p6a-alpha-1.md).* Per
-[releases §0](workplan/11-repo-and-releases.md), release engineering begins at beta — defined
+added at [P6A](docs/design/workplan/19-p6a-alpha-1.md).* Per
+[releases §0](docs/design/workplan/04-repo-and-releases.md), release engineering begins at beta — defined
 as feature-complete to the 1.0 spec. Until then the distribution strategy is
 build-it-yourself, and the tiers above are a plan rather than a backlog.
 
@@ -1079,18 +1079,18 @@ build-it-yourself, and the tiers above are a plan rather than a backlog.
 milestone.** P6A produces the OCI image, its compose file and the unraid
 template as an artifact for the project rather than for an audience: private
 repository, private registry, no channel, no store submission, no alias moved.
-[releases §0.1](workplan/11-repo-and-releases.md) is where that distinction is
+[releases §0.1](docs/design/workplan/04-repo-and-releases.md) is where that distinction is
 argued, and the reason it costs nothing here is that every recurring cost this
 section warns about — the CI matrix entry aside — is a cost of *having users*.
 Tiers 2 and 3 are untouched and remain exactly as scheduled above.
 
 **Ownership, since three documents have claimed it.**
-[P10.0](workplan/21-p10-implementation.md) gates on `docker run`,
-[P10 §4](workplan/21-p10-implementation.md) calls packaging P11's, and the
+[P10.0](docs/design/workplan/26-p10-implementation.md) gates on `docker run`,
+[P10 §4](docs/design/workplan/26-p10-implementation.md) calls packaging P11's, and the
 paragraph above says all six are P11's. The boundary, stated once and cited from
 the others: **P6A builds** the image, compose file and template; **P10 consumes**
 them; **P11 owns** the tarball, the other four artifacts, and public
-distribution. [P6A §1.8](workplan/23-p6a-alpha-1.md) carries the argument.
+distribution. [P6A §1.8](docs/design/workplan/19-p6a-alpha-1.md) carries the argument.
 
 ---
 
@@ -1121,11 +1121,11 @@ setting, see nothing happen, and conclude the app is broken.
 
 Worth stating because it is easy to file under "dev mode" and it is not: because
 files on disk are canonical and the index is watcher-fed
-([02 §5.1](02-data-model.md)), **editing a lorebook, treatment, preset or prompt
+([03 §5.1](docs/design/03-data-model.md)), **editing a lorebook, treatment, preset or prompt
 template on disk takes effect with no restart, in production, for everyone.**
 That falls straight out of the storage design.
 
-It is also the property that makes in-UI file access ([05 §4](05-ui-surfaces.md))
+It is also the property that makes in-UI file access ([10 §4](docs/design/10-ui-surfaces.md))
 coherent, and the reason prompt-template iteration does not need a dev
 environment at all.
 
@@ -1157,18 +1157,18 @@ within a timeout, then exit. And because this is multi-user, the confirmation
 must say what it is about to interrupt: *"2 other users have active sessions."*
 
 Clients reconnect on their own, since the event stream already reconnects
-([07 §8](07-tech-stack.md)), so the user-visible result is a brief disconnected
+([19 §8](docs/design/19-tech-stack.md)), so the user-visible result is a brief disconnected
 banner rather than a manual refresh.
 
 **[OPEN]** Whether extension install/uninstall can avoid a full restart. In-process
 ESM modules make true unloading hard — stale references, already-registered
 channel definitions — so "restart required" is the honest 1.0 answer, and a
-cleaner lifecycle depends on [06 A1](06-open-questions.md).
+cleaner lifecycle depends on [25 A1](docs/design/25-open-questions.md).
 
 ### 6.5 Update check, and using it as a connectivity signal
 
 **An in-app update check ships.** It queries the release feed for the configured
-channel ([releases §4](workplan/11-repo-and-releases.md)), compares against the running version
+channel ([releases §4](docs/design/workplan/04-repo-and-releases.md)), compares against the running version
 — which the build will embed for AGPL §13 (§5); **no build embeds one today**,
 and that is P10's to fix along with the About surface below — and surfaces a
 quiet indicator. Daily, cached, never on page load.
@@ -1232,7 +1232,7 @@ never work.
 
 ## 7. Licence obligations that are actually features
 
-StoryEngine is AGPL-3.0 ([triage §1](workplan/02-triage.md)), and §13 — the network clause —
+StoryEngine is AGPL-3.0 ([triage §1](docs/design/workplan/02-triage.md)), and §13 — the network clause —
 applies squarely to a multi-user server reached over a LAN: people interacting
 with it remotely must be offered the corresponding source for the version they
 are interacting with.
@@ -1245,7 +1245,7 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
   embeds its tag and commit hash and the link is version-aware. A link to `main`
   is not strictly compliant when the operator is running a patched build — and
   the patched-build case is exactly the one §13 exists for. The permanent
-  release branches and tags in [releases §2](workplan/11-repo-and-releases.md) are what keep
+  release branches and tags in [releases §2](docs/design/workplan/04-repo-and-releases.md) are what keep
   those links resolving years later.
 - An **About** surface showing version, commit, licence, and the dependency
   licence manifest. Cheap to generate at build time and independently useful for
@@ -1253,7 +1253,7 @@ This is small, and it is a 1.0 requirement rather than a later tidy-up:
 
 The same surface should state the licence boundary plainly, because the
 project asks copyleft of one category and nothing of the other
-([triage §1.2](workplan/02-triage.md)):
+([triage §1.2](docs/design/workplan/02-triage.md)):
 
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.
@@ -1277,7 +1277,7 @@ made now keep the door open:
 
 1. `Session.participants` is a list (length 1 at 1.0).
 2. `PartyMember.control: "player"` is not structurally limited to one member
-   ([03 §8](03-modes-and-turn-pipeline.md)).
+   ([06 §8](docs/design/06-modes-and-turn-pipeline.md)).
 3. Turn execution is already server-side with an event stream, so a second
    subscriber is not a new mechanism.
 

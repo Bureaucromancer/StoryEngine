@@ -22,7 +22,7 @@
  * copy — the library derives a slug from the name and suffixes duplicates, so a
  * blind re-run would quietly build `rain-city-2`. It reads first.
  *
- * Not a fixture corpus. [testing §5](../docs/design/workplan/10-testing.md) wants one of
+ * Not a fixture corpus. [testing §5](../docs/design/workplan/03-testing.md) wants one of
  * those and it is a different thing: hand-authored, committed, deliberately
  * awkward. This is the smallest thing that makes an install playable.
  */
@@ -136,7 +136,7 @@ async function main() {
     personality: 'Dry, unhurried, and harder to surprise than she looks.',
     greeting: '"You picked a wet day for it."',
     // A reference carries the name as well as the id — for display, and so a
-    // link survives an id it cannot resolve ([10 §3]).
+    // link survives an id it cannot resolve ([04 §3]).
     lore: [{ id: lorebook, name: 'Rain City' }],
   });
 

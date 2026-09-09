@@ -2,7 +2,7 @@
  * Copyright (C) 2026 StoryEngine contributors
  *
  * The first stylesheet in the project, and therefore the one the logical-property
- * rule was written for (docs/design/07-tech-stack.md §12.6). `margin-inline-start`,
+ * rule was written for (docs/design/19-tech-stack.md §12.6). `margin-inline-start`,
  * never `margin-left` — Stylelint enforces it, and eslint.config.js enforces the
  * Tailwind-utility half that Stylelint cannot see.
  *
@@ -94,7 +94,7 @@
   --color-highlight-surface: var(--color-sky-100);
   --color-highlight-ink: var(--color-sky-900);
 
-  /* The tag palette — [25 §4](../../../docs/design/25-tagging.md).
+  /* The tag palette — [05 §4](../../../docs/design/05-tagging.md).
 
      Eight pairs, and every one of them the same two ramp steps `highlight` and
      `provenance` already use: 100 on 900 in light, inverted in dark. That is not
@@ -142,7 +142,7 @@
   --text-subsection--line-height: var(--text-base--line-height);
   --text-subsection--font-weight: var(--font-weight-medium);
 
-  /* The quiet surfaces (docs/design/05-ui-surfaces.md §1.1): the reading view
+  /* The quiet surfaces (docs/design/10-ui-surfaces.md §1.1): the reading view
      and the modes' play surfaces. They share this palette — P2C found the dark
      play surface was a stranded assumption rather than a theme — and differ in
      type, measure and chrome instead. */

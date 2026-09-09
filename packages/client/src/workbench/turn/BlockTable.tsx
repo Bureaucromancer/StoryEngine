@@ -12,9 +12,9 @@ import { link, table } from '../../ui/classes.js';
 import { blockSourceAddress } from '../address.js';
 
 /**
- * The block list, in order — [05 §3]'s primary view: source, plain-language
+ * The block list, in order — [10 §3]'s primary view: source, plain-language
  * reason, tokens, and included-or-dropped with the responsible rule. A table
- * rather than thirty disclosures, per [05 §1.1]'s density check, and the
+ * rather than thirty disclosures, per [10 §1.1]'s density check, and the
  * first consumer of `ui/classes.ts`'s table recipes.
  *
  * The ruling column reads from the verdict's decisions (`droppedBy` exists

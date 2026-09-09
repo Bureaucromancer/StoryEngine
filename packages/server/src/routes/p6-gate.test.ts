@@ -12,7 +12,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * The two exit-gate steps that only exist through a running server —
- * [P6 §3](../../../../docs/design/workplan/08-p6-implementation.md) steps 7 and
+ * [P6 §3](../../../../docs/design/workplan/18-p6-implementation.md) steps 7 and
  * 8, [P6.3].
  *
  * **Step 7** is *search finds text on an abandoned branch, labelled as such*.
@@ -243,7 +243,7 @@ describe('step 2 — swipes are siblings, and nothing is destroyed', () => {
     // The transcript is the selected path, and the affordance is what makes the
     // other two reachable — **the falsifying mutation is reporting no
     // alternatives**, which leaves them on disk and unreachable, exactly the
-    // state [21 §4.3] describes for an imported chat with swipes.
+    // state [18 §4.3] describes for an imported chat with swipes.
     const path = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
     expect((path.body.turns as { id: string }[]).map((turn) => turn.id)).toEqual([first, three]);
     expect((path.body.siblings as Record<string, string[]>)[three]).toEqual([one, two, three]);

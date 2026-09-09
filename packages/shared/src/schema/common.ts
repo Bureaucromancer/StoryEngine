@@ -4,7 +4,7 @@
 import { type Static, Type } from '@sinclair/typebox';
 
 /**
- * The shared substructures, from docs/design/10-schemas.md §3.
+ * The shared substructures, from docs/design/04-schemas.md §3.
  *
  * "Getting these right matters more than any individual entity, because a flaw
  * here appears everywhere."
@@ -78,7 +78,7 @@ export const LoreLink = Type.Object(
 export type LoreLink = Static<typeof LoreLink>;
 
 /**
- * The registry entries an object's tags point at — [25 §3](../../../../docs/design/25-tagging.md).
+ * The registry entries an object's tags point at — [05 §3](../../../../docs/design/05-tagging.md).
  *
  * **`tags` stays the readable copy and this is what identity runs on.** Both
  * exist because tag *names* are load-bearing in the engine: an entry's
@@ -203,11 +203,11 @@ export type Openings = Static<typeof Openings>;
  * Everything else in these schemas that touches style **describes** it.
  * `Treatment.tone.styleNotes` says "terse, hardboiled"; `se.voice` is register
  * and verbal tics and is precise that it is not what a person sounds like
- * ([10 §4](../../../../docs/design/10-schemas.md)). A writing sample is the
+ * ([04 §4](../../../../docs/design/04-schemas.md)). A writing sample is the
  * other half: a short story from the setting, a page of a character's
  * narration, pasted whole and meant to be read as *this is the register*.
  *
- * The precedent is already in the corpus for pictures. [14 §2.4] separates a
+ * The precedent is already in the corpus for pictures. [24 §2.4] separates a
  * style exemplar from a likeness because "style is a property of the
  * *production*, not the person" — the same character in ink wash and in
  * photoreal is still that character. This is that argument applied to prose,
@@ -215,7 +215,7 @@ export type Openings = Static<typeof Openings>;
  * production: the person, the world, and the stance on the world.
  *
  * **Not a Section, and this supersedes a standing decision.**
- * [02 §2.7] and [10 §4] route ST's `mes_example` to a `Section` with
+ * [03 §2.7] and [04 §4] route ST's `mes_example` to a `Section` with
  * `disposition: "on-demand"`, on the reasoning that the card is not a prompt
  * configuration file. That reasoning survives untouched — a sample is still
  * positioned and budgeted by a *slot*, never by the card. What did not survive
@@ -238,7 +238,7 @@ export const WritingSample = Type.Object(
      */
     enabled: Type.Boolean(),
     /**
-     * Budget priority, in the preset's own vocabulary ([10 §8.2]).
+     * Budget priority, in the preset's own vocabulary ([04 §8.2]).
      *
      * Absent means *inherit the slot block's priority*, which is how every
      * other candidate already behaves — so the common case needs no number and
@@ -302,7 +302,7 @@ export type VisualDescriptors = Static<typeof VisualDescriptors>;
  * lorebook entry as on an actor — *this is what it looks like*, suitable for
  * conditioning generation — which is what lets a later feature treat a
  * location's reference image the way it already treats an actor's
- * ([14 §3](../../../../docs/design/14-roadmap.md)). `map` is the only addition lore needed,
+ * ([24 §3](../../../../docs/design/24-roadmap.md)). `map` is the only addition lore needed,
  * because a diagram is genuinely not a likeness. `illustration` was considered
  * and rejected as a synonym for `reference` that would leave authors guessing.
  */

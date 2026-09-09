@@ -13,7 +13,7 @@ export function Bad(): string[] {
  *
  * The second is not an exception to the rule: an RFC 3339 timestamp is a
  * serialisation format, not a rendering, and the schemas require it
- * (docs/design/10-schemas.md §3).
+ * (docs/design/04-schemas.md §3).
  */
 export function Good(): string[] {
   return [new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(when), when.toISOString()];

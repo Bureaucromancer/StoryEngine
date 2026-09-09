@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { TagIdList, Compat, GeneratedMap, Id, Metadata, ModelHint, Provenance } from './common.js';
 
 /**
- * Preset — docs/design/10-schemas.md §8. **The prompt pack.**
+ * Preset — docs/design/04-schemas.md §8. **The prompt pack.**
  *
  * At `/0`, and that is the honest number: §8.5 lists four things still
  * genuinely unsettled, and three of them are in this file. What `/0` buys over
@@ -83,7 +83,7 @@ export type Placement = Static<typeof Placement>;
  * What fills a slot. Closed for now, and expected to grow as modes declare
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
- * This is `BlockSource` ([13 §1.1](../../../../docs/design/13-internal-contracts.md)) minus
+ * This is `BlockSource` ([21 §1.1](../../../../docs/design/21-internal-contracts.md)) minus
  * its two assembler-only origins: `preset`, because a preset's own prose *is* a
  * TextBlock rather than a reference to one, and `step`, because a step's
  * contribution did not exist when the preset was authored.
@@ -107,7 +107,7 @@ export const SlotSource = Type.Union(
       of: Type.Literal('lore'),
       phase: Type.Union([Type.Literal('before'), Type.Literal('after')]),
       /**
-       * An outlet this slot positions — [P5.6], [02 §3.1].
+       * An outlet this slot positions — [P5.6], [03 §3.1].
        *
        * **Block addressing arriving from the other direction.** Every other
        * field here names what the preset wants and lets the engine supply it;
@@ -130,10 +130,10 @@ export const SlotSource = Type.Union(
     }),
     Type.Object({ of: Type.Literal('history') }),
     /**
-     * Writing samples — [10 §3.1]. **Renamed from `examples`**, which named the
+     * Writing samples — [04 §3.1]. **Renamed from `examples`**, which named the
      * SillyTavern field it was reserved for rather than the thing it fills; the
      * carrier is `writingSamples` on three kinds, and one concept under two
-     * names is exactly the drift [13 §1.1] exists to prevent. Safe to rename
+     * names is exactly the drift [21 §1.1] exists to prevent. Safe to rename
      * rather than add because this schema is `/0`, no shipped preset positions
      * the old arm, and `default:` in the collector skips an unknown slot
      * instead of throwing.
@@ -152,8 +152,8 @@ export const SlotSource = Type.Union(
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
     /**
      * The treatment slot. Named for the kind it reads, completing the
-     * Setting→Treatment rename ([10 §6]) that the docs took and the code did
-     * not — [10 §8.2], the §8.4.1 marker table and [13 §1.1] have all spelled
+     * Setting→Treatment rename ([04 §6]) that the docs took and the code did
+     * not — [04 §8.2], the §8.4.1 marker table and [21 §1.1] have all spelled
      * this `treatment` since; every line of shipped code spelled it `setting`
      * until P4.0, which meant an importer written to the marker table emitted
      * presets this schema rejected ([P4 §1.7]).
@@ -170,11 +170,11 @@ export const SlotSource = Type.Union(
     }),
     Type.Object({ of: Type.Literal('goal') }),
     /**
-     * The guidance slot — [03 §5.1](../../../../docs/design/03-modes-and-turn-pipeline.md).
+     * The guidance slot — [06 §5.1](../../../../docs/design/06-modes-and-turn-pipeline.md).
      *
      * That section says the guidance block is *positioned by the preset*, which
      * makes it slot-nameable by definition. It was missing: the internal
-     * `BlockSource` gained it at P2.5 and both [13 §1.1] and [10 §8.2] were
+     * `BlockSource` gained it at P2.5 and both [21 §1.1] and [04 §8.2] were
      * edited to match, but this — the schema that actually validates a preset —
      * was not, so a preset positioning the one block §5.1 says it positions
      * failed validation. Found at P2.6, by the first preset that needed it.
@@ -185,13 +185,13 @@ export const SlotSource = Type.Union(
      */
     Type.Object({ of: Type.Literal('guidance') }),
     /**
-     * The previous attempt — the second advisory slot, [03 §5.1], [09 §7].
+     * The previous attempt — the second advisory slot, [06 §5.1], [07 §7].
      *
      * On a *guided* redo the model is shown the sibling it is redoing, beside
      * the instruction saying what to change: "make it rain harder" needs an
      * *it*. What fills the slot is that sibling's `output.text`, read from the
      * server's own record and never from the wire — the posture the tape takes
-     * ([07 §14.5]), so a client cannot show the model words the record does
+     * ([19 §14.5]), so a client cannot show the model words the record does
      * not hold. Which sibling is recorded on the emitted block, as the producer
      * is for `guidance`.
      *
@@ -248,7 +248,7 @@ const BlockCommon = {
   appliesTo: Type.Array(CallKind),
   /**
    * Guidance-class blocks are refused by effect-producing calls
-   * ([03 §5.2](../../../../docs/design/03-modes-and-turn-pipeline.md)).
+   * ([06 §5.2](../../../../docs/design/06-modes-and-turn-pipeline.md)).
    */
   advisory: Type.Boolean(),
   /** Drop the block rather than emit a heading with nothing under it. */
@@ -338,7 +338,7 @@ export type BudgetPolicy = Static<typeof BudgetPolicy>;
  * ([00 §3.2](../../../../docs/design/00-stance.md)).
  *
  * The portable subset — the parameters an OpenAI-compatible chat endpoint
- * understands ([07 §5.5](../../../../docs/design/07-tech-stack.md)). Backend-specific
+ * understands ([19 §5.5](../../../../docs/design/19-tech-stack.md)). Backend-specific
  * sampler controls (`dry_*`, `mirostat_*`, `xtc_*`, `tfs`, and the rest of the
  * text-completion family) have no chat-API equivalent and land in `compat` with
  * a named loss in the import review, never here.
@@ -369,7 +369,7 @@ export type GenerationParams = Static<typeof GenerationParams>;
 /**
  * Author-declared variables the templates interpolate, with defaults and help
  * text. The Aventuras `CustomVariable` shape
- * ([05 §6](../../../../docs/design/05-ui-surfaces.md)) — typed, enum options, required flag,
+ * ([10 §6](../../../../docs/design/10-ui-surfaces.md)) — typed, enum options, required flag,
  * defaults, sort order, help text — which is a working precedent rather than a
  * guess.
  */
@@ -398,7 +398,7 @@ export type PresetVariable = Static<typeof PresetVariable>;
 
 /**
  * Named levels the mode's difficulty setting resolves against
- * ([03 §7.3.1](../../../../docs/design/03-modes-and-turn-pipeline.md)).
+ * ([06 §7.3.1](../../../../docs/design/06-modes-and-turn-pipeline.md)).
  *
  * **The levels live in the prompt pack, not in engine code**, which is the
  * whole point: "hard" meaning something different in one prompt pack than
@@ -406,7 +406,7 @@ export type PresetVariable = Static<typeof PresetVariable>;
  * with a source rather than buried in a conditional.
  *
  * Fragments are *ranked* rather than a single string, so the prompt-cap
- * machinery ([07 §5.3](../../../../docs/design/07-tech-stack.md)) can drop the lowest-ranked
+ * machinery ([19 §5.3](../../../../docs/design/19-tech-stack.md)) can drop the lowest-ranked
  * rather than cutting mid-sentence.
  */
 export const DifficultyLevel = Type.Object(

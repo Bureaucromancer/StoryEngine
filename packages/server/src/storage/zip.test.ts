@@ -8,7 +8,7 @@ import { DEFAULT_ZIP_LIMITS, looksLikeZip, readZipDirectory, readZipEntry } from
 
 /**
  * The archive reader, and mostly its refusals
- * ([P4 §7.5](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.5](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * The happy path is four assertions and the rest of this file is everything the
  * reader is supposed to decline, which is the right proportion: reading a zip is

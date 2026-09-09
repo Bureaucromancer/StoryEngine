@@ -8,7 +8,7 @@
  * contract itself is P7 (docs/design/workplan/01-work-plan.md), but the package exists
  * now because the boundary rule that makes built-in modes consume this package
  * — rather than reaching into `server` — has to predate the first mode
- * (docs/design/07-tech-stack.md §10).
+ * (docs/design/19-tech-stack.md §10).
  */
 
 export * from '@storyengine/shared';

@@ -15,7 +15,7 @@ import {
 } from './TagFilterBar.js';
 
 /**
- * The library's tag filter — [25 §5](../../../../docs/design/25-tagging.md).
+ * The library's tag filter — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * Two subjects. The **cycle**, because a three-state control has no attribute
  * to carry its state and therefore nothing but its accessible name to be tested
@@ -102,7 +102,7 @@ describe('the cycle', () => {
 describe('the order of the chips', () => {
   /**
    * A tag that has been given a place keeps it; one nobody has arranged still
-   * appears, because it filters exactly as well ([25 §2] invariant 1) and a bar
+   * appears, because it filters exactly as well ([05 §2] invariant 1) and a bar
    * that hid it would lie about what the shelf holds.
    */
   it('puts arranged tags first and the rest alphabetically after', () => {

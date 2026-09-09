@@ -10,11 +10,11 @@ import { makeTestServer, routesUnder, setUpAdmin, type TestServer } from '../tes
 
 /**
  * System connections and the install defaults, through the API —
- * [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md) stage P2B.2.
+ * [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md) stage P2B.2.
  *
  * These are the routes that let an admin act on what P2A's account list tells
- * them, which is [05 §15.4]'s test for whether either panel belongs at all.
+ * them, which is [10 §15.4]'s test for whether either panel belongs at all.
  */
 
 let server: TestServer;
@@ -359,7 +359,7 @@ describe('fetching a model list', () => {
   });
 
   /**
-   * **An assist, not the path** — [05 §6], [P2B §2.6].
+   * **An assist, not the path** — [10 §6], [P2B §2.6].
    *
    * `/models` is optional in practice, and several local runtimes answer it with
    * one entry called `gpt-3.5-turbo` regardless of what is loaded. A failed
@@ -415,7 +415,7 @@ describe('fetching a model list', () => {
 
   /**
    * **A refused key is not an unreachable endpoint** — finding 5 in
-   * [16](../../../../docs/design/workplan/16-p2c-log.md). A 401 and a dead
+   * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). A 401 and a dead
    * socket both answered `502 unreachable`, and the remedies point in opposite
    * directions: *unreachable* sends an admin to the URL and the network, and
    * the key field is the one thing that answer cannot name. Adding a
@@ -552,7 +552,7 @@ describe('editing a connection somebody else has changed', () => {
 
 /**
  * **Two files, one id** — [P2B §4] step 10, and
- * [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)'s posture: both are listed,
+ * [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s posture: both are listed,
  * the one that loses says so, and nothing is blocked.
  */
 describe('a duplicated id', () => {
@@ -695,8 +695,8 @@ describe('a duplicated id', () => {
 /**
  * **The role table's route** — [P2B §3] stage P2B.3, and the thing that was
  * missing when the gate was walked: `via` is a local in `resolveRole`, absent
- * from the turn record by design ([13 §1.4]), and returned by nothing. A table
- * showing it would have had to reimplement [07 §5.1] in the browser.
+ * from the turn record by design ([21 §1.4]), and returned by nothing. A table
+ * showing it would have had to reimplement [19 §5.1] in the browser.
  */
 describe('what every role will do', () => {
   it('answers unbound for all eight on a fresh install, and marks the three unset by design', async () => {
@@ -829,7 +829,7 @@ describe('spreading two models across the roles', () => {
 
 /**
  * **The opacity test** — this phase's CI contribution, and
- * [P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md)'s boundary
+ * [P2B §2.2](../../../../docs/design/workplan/10-p2b-provider-configuration.md)'s boundary
  * asserted rather than the discipline that maintains it.
  *
  * **Coverage is enumerated; bodies are not.** The guard sweep in
@@ -924,7 +924,7 @@ describe('a key', () => {
   });
 
   /**
-   * **`baseUrl` is admin-visible and user-invisible** — [04 §4.5]'s *"an admin
+   * **`baseUrl` is admin-visible and user-invisible** — [09 §4.5]'s *"an admin
    * may opt to show it"* read as narrowly as it goes.
    *
    * The strongest form of that claim is structural: there is no non-admin

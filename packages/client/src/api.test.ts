@@ -136,7 +136,7 @@ describe('the session write bodies', () => {
   });
 
   /**
-   * A session need not be named — [02 §8].
+   * A session need not be named — [03 §8].
    *
    * Absent and blank mean the same thing, so only one spelling reaches the
    * wire. The route would store `''` for either; this is about not putting an

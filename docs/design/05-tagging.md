@@ -1,4 +1,4 @@
-# 25 — Tagging
+# 05 — Tagging
 
 **Status: the position behind `feat/tagging_and_search`.** Tags have existed on
 six schemas since P1 and have been edited, the whole time, as a textarea of one
@@ -7,7 +7,7 @@ surface — because the honest version of *what a tag is* turned out to differ f
 what two other notes say.
 
 It carries the number 25 because 00–24 were taken when it was written. Like
-[17](17-write-mode.md), [19](19-world.md) and [20](20-authoring.md) it is a note
+[13](docs/design/13-write-mode.md), [15](docs/design/15-world.md) and [16](docs/design/16-authoring.md) it is a note
 that arrived after the original run rather than a new tier of document.
 
 > **A tag is a name an author chose. The registry decorates names; it never owns
@@ -17,10 +17,10 @@ that arrived after the original run rather than a new tier of document.
 
 ## 1. The sentence that was already false
 
-[02 §2.2](02-data-model.md) is headed *Roles are closed, tags are open*, and
-[02 §3.6](02-data-model.md) restates it in one line: `ActorRole` is closed and
+[03 §2.2](docs/design/03-data-model.md) is headed *Roles are closed, tags are open*, and
+[03 §3.6](docs/design/03-data-model.md) restates it in one line: `ActorRole` is closed and
 read by the engine, **"`tags` are open and nothing branches on them"**.
-[10 §3.4](10-schemas.md) and [05 §11.2b](05-ui-surfaces.md) say the same thing in
+[04 §3.4](docs/design/04-schemas.md) and [10 §11.2b](docs/design/10-ui-surfaces.md) say the same thing in
 their own words.
 
 The last clause is not true, and has not been since P5.
@@ -53,7 +53,7 @@ them is a change to §1's restatement, not an implementation detail.
 1. **Anyone can create any tag by typing it.** The input's *create* option is
    always available. The registry never rejects a name and has no approved list.
 2. **The engine never reads the registry.** It reads tag names, exactly as it
-   does today. [17 §9.2](17-write-mode.md)'s promise that tags never reach the
+   does today. [13 §9.2](docs/design/13-write-mode.md)'s promise that tags never reach the
    model is untouched, and nothing in retrieval or activation learns that a
    registry exists.
 3. **The stored object stays readable.** An actor's file carries tag *names*, not
@@ -98,7 +98,7 @@ that is what is on disk.
 
 **An object with no `tagIds` predates the registry.** That is why the field is
 optional while `tags` is required — here, unlike in
-[10 §2](10-schemas.md)'s usual argument, absent and empty genuinely differ:
+[04 §2](docs/design/04-schemas.md)'s usual argument, absent and empty genuinely differ:
 absent means *not yet adopted*, empty means *no tags*.
 
 **Adoption is one deliberate pass that somebody asks for**, not something that
@@ -123,10 +123,10 @@ changed.
 ## 4. Where the document lives
 
 A per-user `tags.json`, beside `prefs.json` in the canonical per-user block
-([04 §4.3](04-server-multiuser-deployment.md)).
+([09 §4.3](docs/design/09-server-multiuser-deployment.md)).
 
 **Not in `prefs.json`.** That file carries an explicit decision —
-[06 B13](06-open-questions.md) — that it is a bag the server does not validate,
+[25 B13](docs/design/25-open-questions.md) — that it is a bag the server does not validate,
 and the whole return on that decision
 is that a preference the client stops using rots quietly instead of needing a
 migration. A structured document with a schema does not belong in it. This one
@@ -144,7 +144,7 @@ duplicated name arrives as two rows to repair rather than as a silently collapse
 key. The colour is a swatch *name*, not a colour value, so the palette can be
 re-tuned without rewriting anyone's data. Swatch and folder mode are open strings
 with documented values rather than closed unions — the call
-[10 §8.2](10-schemas.md) makes for `ActorRole` — so a typo makes one tag render
+[04 §8.2](docs/design/04-schemas.md) makes for `ActorRole` — so a typo makes one tag render
 plainly instead of making the document unreadable.
 
 ## 5. The management surface
@@ -192,15 +192,15 @@ has, driven from a different control.
 
 - **A closed tag vocabulary**, in any form: no approved list, no validation, no
   autocomplete-only input. §2 invariant 1.
-- **Tags reaching the model.** [17 §9.2](17-write-mode.md) stands unchanged.
+- **Tags reaching the model.** [13 §9.2](docs/design/13-write-mode.md) stands unchanged.
 - **A tag column in the derived index.** Counts are computed from the object
   bodies the library route already ships. This becomes worth revisiting if that
   route ever stops shipping them, and not before.
 - **Backup and restore of the registry as its own file.** The data directory is
-  the backup unit ([02 §5](02-data-model.md)); a second, narrower backup format
+  the backup unit ([03 §5](docs/design/03-data-model.md)); a second, narrower backup format
   is a second thing to keep correct.
 - **`EmbeddedMedia.tags`.** Those are per-image descriptors — *winter*, *aerial*,
-  *by Mireille* ([02 §3.6](02-data-model.md)) — a genuinely different vocabulary
+  *by Mireille* ([03 §3.6](docs/design/03-data-model.md)) — a genuinely different vocabulary
   that happens to share a field name. Sweeping them in would make renaming an
   actor's tag rewrite an unrelated image tag nested inside that actor. The
   registry covers the five object-level `tags` fields and stops there.

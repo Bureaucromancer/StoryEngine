@@ -1,4 +1,4 @@
-# 05 — P3 implementation plan
+# 15 — P3 implementation plan
 
 **Status: ~~rewritten against the panel~~ landed**, merged into `main`
 2026-08-29 at `780a6dd`. *Audited for readiness 2026-08-26, at `ba5ff4a`, with
@@ -7,16 +7,16 @@ the outstanding P2 record items adopted into P3.0 the same day.*
 **Fifteen gate steps and no record of a walk.** Step 12 — *somebody who did
 not build the turn explains it from the panel* — is PLAYABLE’s fourth
 hypothesis wearing a step number, which is why
-[26 §3.3](26-manual-testing.md) sequences it immediately after
-[P6B.2](24-p6b-playable.md) rather than as a pass of its own.
+[manual testing §3.3](docs/design/workplan/05-manual-testing.md) sequences it immediately after
+[P6B.2](docs/design/workplan/20-p6b-playable.md) rather than as a pass of its own.
 
 *(This status line was written 2026-09-07 at
-[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
  Drafted during P1 as a skeleton, revised once against the turn record
-as built, rewritten here because [05 §3](../05-ui-surfaces.md) changed the
+as built, rewritten here because [10 §3](../10-ui-surfaces.md) changed the
 workbench's shape underneath it — and then audited three days later, because
 the P2C.0 closeout moved the record underneath §3. The audit's findings are
 §0; corrections it forced elsewhere are marked *audit correction* in place;
@@ -31,14 +31,14 @@ Library.
 
 **The old plan's central claim survives and is still the phase's best sentence:**
 the record holds almost everything, and the workbench is a *reader*, not a second
-implementation of the assembler ([05 §3](../05-ui-surfaces.md)). Every view below
+implementation of the assembler ([10 §3](../10-ui-surfaces.md)). Every view below
 renders a field the record already holds. If a view needs data the record lacks,
 the fix is in the record, not in workbench-side recomputation — recomputation is
 how the viewer and the truth drift apart.
 
 **What does not survive is the shape.** The old plan treated *how much workbench
 lives in Play* as an open question and leaned toward a route beside the session.
-[05 §3](../05-ui-surfaces.md) now marks it **[RESOLVED]** the other way — Play
+[10 §3](../10-ui-surfaces.md) now marks it **[RESOLVED]** the other way — Play
 keeps one always-visible context-fill meter, and clicking it opens the panel in
 place, already on the current turn: *"A full workbench beside every message is
 still not the answer; a full workbench one keystroke behind every message is."*
@@ -54,7 +54,7 @@ a shell that is one centred column with three nested `<main>` tags, an app where
 nothing is a scroll container, zero breakpoints, and no pointer handling
 anywhere. None of it is hard. Together it is more than the viewer — §5.
 
-**Edit-and-re-run leaves for P6**, where [01 P6](01-work-plan.md) already puts
+**Edit-and-re-run leaves for P6**, where [work plan P6](docs/design/workplan/01-work-plan.md) already puts
 rewrite, reroll, the RNG tape and sibling navigation. §1.8.
 
 **And the phase gains a stage it never had**, because the client has no typed turn
@@ -63,7 +63,7 @@ workbench as the phase that owes the fix. §1.9.
 
 **Why the phase is still early and still small.** Everything after P3 is debugged
 through it, and the record already holds what it displays
-([01 P3](01-work-plan.md)). If a *turn view* here grows large, something is being
+([work plan P3](docs/design/workplan/01-work-plan.md)). If a *turn view* here grows large, something is being
 computed that should have been recorded. That test still applies to the reader; it
 does not excuse the dock, and §5 says so in the plan's own words rather than
 inheriting a sentence that has stopped being true.
@@ -89,7 +89,7 @@ still describes a greenfield.
 
 **The record is more ready than §3 says.** Two of §3(a)'s five bullets landed
 at the P2C.0 closeout and are marked **Done** there: the cancelled turn's
-`ModelCall` (finding 2 in [16](16-p2c-log.md), which P2C adopted exactly as
+`ModelCall` (finding 2 in [P2C log](docs/design/workplan/14-p2c-log.md), which P2C adopted exactly as
 this plan asked), and all four provider-boundary items — truthful
 `resolved.modelId`, recorded `finishReason`, provider-reported `usage`, and a
 per-connection context window that arrived *with* a surface, a form field
@@ -104,14 +104,14 @@ carries the work and its ordering.
 **Two of §6's four P2C handoffs do not exist, and they are the two only a real
 session can produce.** The honest provider boundary is real and verifiable in
 code, and the gate-correction habit is demonstrably alive —
-[15](15-p2c-first-real-run.md) is dense with struck-through corrected claims.
+[P2C](docs/design/workplan/12-p2c-first-real-run.md) is dense with struck-through corrected claims.
 But the cassette *corpus* is empty: the recorder shipped
 (`providers/capture.ts`, on by default under `pnpm dev:logged`, and
 `pnpm test:live` records every live exchange), `captures/` is gitignored as
 designed, and `packages/server/src/providers/fixtures/` **does not exist** —
 the machine for producing cassettes exists and the bytes do not, because
 P2C.1 through P2C.4 have not run. The journeys list is a P2C.4 output and
-P2C.4 has not begun: the triage table in [16](16-p2c-log.md) is empty against
+P2C.4 has not begun: the triage table in [P2C log](docs/design/workplan/14-p2c-log.md) is empty against
 fourteen findings, and the only session in the log is the automated stub run,
 whose own entry says it is not a person's session. The calibration that P3.2
 "makes continuous" was never taken once.
@@ -139,7 +139,7 @@ the cost view owes *unknown* a rendering distinct from *free* — the old
 **The retention question resolved in P3's favour.** §6 said compaction lands
 on P3's doorstep if the re-parse measurement came back bad. It came back good
 — finding 14: session and turns reads flat at 4.8–17.7 ms from 13 to 55 turns
-— so [02 §8](../02-data-model.md) stays **[OPEN]** where it is. The half P3
+— so [03 §8](../03-data-model.md) stays **[OPEN]** where it is. The half P3
 does inherit is payload, not parse: `GET /turns` returns the whole transcript,
 about 10.8 KB a turn and 590 KB by turn 55, and the panel is the first surface
 that reads all of a record. `?limit=1` exists and is cheap; P3.0's read-a-turn-
@@ -159,7 +159,7 @@ carries two cross-route concerns for exactly that reason — `useTheme()` and th
 restart banner. So persistence *within a session* is free, and only a full reload
 reaches storage.
 
-**"Expands over" in [05 §3](../05-ui-surfaces.md) is a claim about navigation, not
+**"Expands over" in [10 §3](../10-ui-surfaces.md) is a claim about navigation, not
 about z-order** — the panel is not a place you go. Devtools, the shape §3 invokes,
 insets; and an overlay on a centred column covers the text you opened the panel to
 explain, which contradicts *"left open while you work"* in the same paragraph. On
@@ -206,7 +206,7 @@ because the store serialises a read-modify-write per handle through a
 laptop and a large monitor, and a preference round-trip flashes where a
 `localStorage` mirror would not. Clamping on read defuses the first in one line,
 and the flash never happens for a navigation because the state lives in `Shell`.
-[05 §1.2](../05-ui-surfaces.md)'s *"the only use of localStorage in the client"*
+[10 §1.2](../10-ui-surfaces.md)'s *"the only use of localStorage in the client"*
 stays true rather than needing an amendment nobody argued for.
 
 **And not the URL, which is actively wrong here rather than merely worse.**
@@ -224,9 +224,9 @@ because it is the reflex a router-shaped codebase invites.
 **Yes — and it is roughly a fifth of the phase, because most of it is a move
 rather than a build.**
 
-The decisive reason is not that [05 §3](../05-ui-surfaces.md) lists it. It is that
+The decisive reason is not that [10 §3](../10-ui-surfaces.md) lists it. It is that
 **this phase's own gate step lands there**: every block's source clickable through
-to the object it came from. And [05 §2.1](../05-ui-surfaces.md)'s claim that the
+to the object it came from. And [10 §2.1](../10-ui-surfaces.md)'s claim that the
 library is *"a near-raw view of the data and the files"* has, until now, had
 nowhere to put the depth it promises.
 
@@ -246,7 +246,7 @@ the list, the panel shows its empty state.
 **One revision-list component, two hosts, different powers: the panel gets the
 list read-only, and restore, rename and pin stay in the editor.**
 
-[05 §2.1](../05-ui-surfaces.md) draws the boundary and it decides this — *browse
+[10 §2.1](../10-ui-surfaces.md) draws the boundary and it decides this — *browse
 and inspect are raw; editing is assisted* — and restore is an edit. §3 lists
 version history under *"the raw truth of that object"*: the list, not the actions.
 
@@ -268,9 +268,9 @@ plan first counted: history read, version payload, restore, rename and pin.
 **A route — two turns in one session, the block table aligned by block id, plus
 the call parameters.**
 
-[05 §3](../05-ui-surfaces.md) justifies the escalation by saying a panel *"has one
+[10 §3](../10-ui-surfaces.md) justifies the escalation by saying a panel *"has one
 subject by construction"*. **That argument does not carry, and the plan should say
-so rather than repeat it.** [05 §11.2a](../05-ui-surfaces.md) already ships a
+so rather than repeat it.** [10 §11.2a](../10-ui-surfaces.md) already ships a
 two-payload diff *inside* a panel and cites §3 as its precedent for doing so. The
 two sections contradict each other.
 
@@ -279,7 +279,7 @@ has to be bookmarkable, pasteable into a bug report, and reopenable after the he
 has moved past both turns. A panel scoped to what the main view is showing can
 never be any of those. That is a substitution this plan is proposing, not one the
 design has made — §7.2 records the amendment owed. **[P3.6] made it**: §7.2 is
-decided, and [05 §3](../05-ui-surfaces.md) now grounds the escalation on
+decided, and [10 §3](../10-ui-surfaces.md) now grounds the escalation on
 addressability in its own words.
 
 *Two mechanical requirements.* The existing object differ cannot be reused for the
@@ -288,7 +288,7 @@ below it as changed. And the compare view needs a **read a turn by id**, because
 re-run sibling and a turn the head has passed are both off the current path.
 
 *The panel supplies the entry point* — *compare this turn with…* — which answers
-[§1.1](../05-ui-surfaces.md)'s *depth is charged per visit*: you do not arrive
+[§1.1](../10-ui-surfaces.md)'s *depth is charged per visit*: you do not arrive
 somewhere you already were, you leave once and deliberately.
 
 ### 1.6 A dry run splits in two, and the split is what makes the meter possible
@@ -326,13 +326,13 @@ rather than in the assembler.** Four things to state now:
   *enforcement* of §3's *"visibly pending until sent"*, not an obstacle to it.
 
 *A note for P7:* park, publish, resume-on-intent is
-[06 C5](../06-open-questions.md)'s mechanism arriving early — said here so C5
+[25 C5](../25-open-questions.md)'s mechanism arriving early — said here so C5
 attaches rather than rebuilds. But the obvious name is taken:
 `Turn.status: 'suspended'` already means a turn that will resume and complete.
 
 ### 1.7 The generalised keyword test stays at P5, and not for scheduling reasons
 
-[05 §3](../05-ui-surfaces.md) calls the keyword tester excellent and wants it over
+[10 §3](../10-ui-surfaces.md) calls the keyword tester excellent and wants it over
 the whole assembly against a real session's channel state. **All three of its
 inputs are absent at P3.**
 
@@ -354,7 +354,7 @@ tester is a text box over machinery that already exists.
 **The surface moves; the risk it was carrying stays here as a test, and the test
 is downgraded.**
 
-[01 P3](01-work-plan.md) does not list edit-and-re-run — [01 P6](01-work-plan.md)
+[work plan P3](docs/design/workplan/01-work-plan.md) does not list edit-and-re-run — [work plan P6](docs/design/workplan/01-work-plan.md)
 owns rewrite, reroll, the RNG tape and sibling navigation. The old plan attributed
 it to 01 anyway.
 
@@ -371,7 +371,7 @@ site anywhere in the server and every committed tape is empty, so *"identical
 draws (rewrite)"* would replay nothing against nothing. P3's gate claims the
 plumbing; the reproduction claim moves to P5, whose gate already asserts it
 against activations that actually draw. A gate correction in
-[P2C.4](15-p2c-first-real-run.md)'s own habit, and labelled as one.
+[P2C.4](docs/design/workplan/12-p2c-first-real-run.md)'s own habit, and labelled as one.
 
 *And the inherited contradiction is resolved rather than carried:* the old §1.2
 said *"the UI simply shows the newest"*, and §3 preserves Marinara's rule that
@@ -386,7 +386,7 @@ already names the workbench as the surface that owes the shared package. A typed
 block table, a typed verdict and an id-keyed comparison cannot be written over
 `unknown`.
 
-[13 §1](../13-internal-contracts.md)'s *"internal and free to migrate"* is what
+[21 §1](../21-internal-contracts.md)'s *"internal and free to migrate"* is what
 makes this a decision rather than a chore: moving the shapes into `shared` is a
 promise to stop churning them. So it lands *after* the record repairs P3.0 now
 adopts from §3, in the same stage — and that ordering is the reason the
@@ -417,7 +417,7 @@ shell commit carrying this note). What the stage's three clauses became:
   page, mutation-proofed by re-promoting one.
 - *Settle one content width:* two `page` recipes in `ui/classes.ts` — the
   tooling column (56rem) and the reading column (48rem) — each spelled once,
-  per [05 §1.2]'s measure-against-the-shell distinction; `max-w-3xl` is gone
+  per [10 §1.2]'s measure-against-the-shell distinction; `max-w-3xl` is gone
   from the codebase, and SessionsPage moved from the reading measure it was
   borrowing to the tooling width (a visible change, reversible in one line if
   it reads badly). **Pages own their column; the shell's `<main>` is a bare
@@ -489,7 +489,7 @@ clause became:
   nullable. Preset sources stay unhashed with the reason in the arm.
 - **The effect vocabulary split**: `engine-computed` and `user-only` replace
   the merged `update-policy`, and `supersedes` links the engine's clock write
-  to the same-turn refusal it overrode — [05 §3]'s third outcome as a link,
+  to the same-turn refusal it overrode — [10 §3]'s third outcome as a link,
   not an inference. **The degraded state is a recorded deferral, not code**:
   `ChannelDefinition` ships without `schema`, so a writer is structurally
   impossible and a guard on a validation that cannot fail would be dead code
@@ -504,7 +504,7 @@ clause became:
   through is gone.
 - **Read a turn by id**: `findTurnLocation` (the location index's first by-id
   reader), `readTurnById` (index hit verified by id-match, cold-read
-  fallback per [13 §5], tombstones absent on both paths), the route with the
+  fallback per [21 §5], tombstones absent on both paths), the route with the
   file's own 404 discipline, and the client's `readTurn`/`useTurn`.
 
 Every new test was reddened by a named falsifying mutation before its
@@ -523,7 +523,7 @@ churning the shapes is only keepable once they have stopped churning.
 First the repairs, golden files and all:
 
 - **`advisory` on `AssembledBlock` and `purpose` on `ModelCall`** — §3(a)'s
-  invariant pair, which makes [testing §1](10-testing.md)'s invariant
+  invariant pair, which makes [testing §1](docs/design/workplan/03-testing.md)'s invariant
   expressible over a committed record for the first time.
 - **An honestly stamped budget `limit.source`** — §3(a).
 - **Blocks and budget move onto each `ModelCall`**, and *the turn's blocks*
@@ -673,7 +673,7 @@ tokens and wall time.
 
 **And per-block estimate beside per-call reported** — the one place a person sees
 the estimator disagree with the provider, which is what
-[P2C](15-p2c-first-real-run.md)'s calibration measures once and this makes
+[P2C](docs/design/workplan/12-p2c-first-real-run.md)'s calibration measures once and this makes
 continuous. *Noting §0:* the once has not happened — no real run has — so until
 P2C.1 delivers a baseline, this view is the first measurement rather than the
 continuation of one.
@@ -736,7 +736,7 @@ hand-written fixture turn, which is by construction current.
 Three things the fix settles, all one doctrine:
 
 - **The four fields are optional on `ModelCall`, and absence means *old*, never
-  *empty*.** *Free to move* ([10 §1]) licenses changing the shape; it never
+  *empty*.** *Free to move* ([04 §1]) licenses changing the shape; it never
   said the files vanish. Backfilling `[]` on read was refused for the reason
   the whole panel exists: it would claim *this call assembled no blocks*, a
   fact about the prompt, where the truth is *nobody recorded them*, a fact
@@ -757,12 +757,12 @@ the same way.
 ### P3.3 — The library subject
 
 The as-stored view, collapsed by default with a copy control and a bounded height
-— this is [polish §2](09-polish.md)'s component, and building it here discharges
+— this is [polish §2](docs/design/workplan/06-polish.md)'s component, and building it here discharges
 that item rather than colliding with it. The real folder path. Object-level
 provenance as rows rather than two timestamps. The read-only revision list. The
 index-rows projection behind one new route.
 
-The detail page keeps its own embed per [polish §2](09-polish.md); the panel's win
+The detail page keeps its own embed per [polish §2](docs/design/workplan/06-polish.md); the panel's win
 is depth without the visit.
 
 *Ends at:* opening the panel over a **shadowed** object names the winning path —
@@ -775,7 +775,7 @@ and this annotation. What the clauses became:
 - **§7.4 is closed, not worked around**: the rows are every row the index
   holds for the id — winner first in portable-path order, shadowed copies,
   and rows inside their tombstone settling window — and the projection is
-  best-effort, documented in [05 §3](../05-ui-surfaces.md) and docs/api.md
+  best-effort, documented in [10 §3](../10-ui-surfaces.md) and docs/api.md
   per §7's own write-back rule. Paths are portable and never native, which
   turned out to be F22's standing doctrine rather than a new choice.
 - **The folder path is the portable path** — decided over gate step 7's
@@ -831,7 +831,7 @@ precedence — and no fixture was promoted anywhere.
 
 ### P3.4 — The play-surface signal, and the stateless preview
 
-[05 §3](../05-ui-surfaces.md)'s **[RESOLVED]** answer: the always-visible
+[10 §3](../10-ui-surfaces.md)'s **[RESOLVED]** answer: the always-visible
 context-fill meter on the input bar, fed by a stateless assemble that takes
 candidates and returns blocks and a verdict without a job, a draft or a record.
 Clicking the meter opens the panel already on the current turn.
@@ -852,7 +852,7 @@ the browser walk turned up. What the clauses became:
   function* discharged rather than promised.
 - **Not a second collector, deliberately.** The drift a parallel one invites
   is silent, not loud: the mode's `historyWindow`, the `callKind` that drives
-  `appliesTo`, and `callPurposeFor`, which is [03 §5.2]'s structural
+  `appliesTo`, and `callPurposeFor`, which is [06 §5.2]'s structural
   enforcement — a preview computing its own purpose could show a block table
   containing guidance for a call `assemble` would refuse.
 - **§7.4's sibling question, answered in passing:** §3(c) never listed the
@@ -873,7 +873,7 @@ the browser walk turned up. What the clauses became:
   the button's name, which is what `aria-valuetext` would have carried. The
   number sits beside the bar rather than on the fill, because `contrast.test`
   enumerates the text-on-surface pairs the palette guarantees.
-- **The estimate is labelled, never corrected**, and [06 E5] gains the
+- **The estimate is labelled, never corrected**, and [25 E5] gains the
   recording line: the shipped approximator is `ceil(length/4)` rather than the
   BPE one that section proposes, the one measurement was 10.3% low — exactly
   its stated tolerance — and a fudge factor would make the meter disagree with
@@ -882,7 +882,7 @@ the browser walk turned up. What the clauses became:
   *the turn about to be taken, or the one last taken*; both halves derive from
   the route and one shared cache entry whose reader provably cannot fetch
   (`skipToken` is the mechanism), and the entry is dropped at submit and again
-  on leave. Written into [05 §3] per §7's write-back rule, and into the
+  on leave. Written into [10 §3] per §7's write-back rule, and into the
   `Workbench` docstring.
 
 The browser walk ran over the scratch install and **found a bug the suite
@@ -915,7 +915,7 @@ its commit; no fixture was promoted anywhere.
 
 ### P3.5 — The live half, or its explicit refusal
 
-Decide [04 §3.3](../04-server-multiuser-deployment.md) rather than assert it:
+Decide [09 §3.3](../09-server-multiuser-deployment.md) rather than assert it:
 either the reducer keeps enough for the panel to render a turn under construction,
 or the plan states the live view is deferred and the record views accept a partial
 record. If it is built, a refused effect needs a reason or the live and durable
@@ -936,8 +936,8 @@ claim*, which is what "decide it rather than assert it" turned out to mean:
   one; and reconstructing the record from event params is the client-side
   recomputation §5 forbids. So there are two components, and **the seam between
   them is time rather than shape**: the feed while the turn runs, the record
-  once it commits, never both at once. Written back into [04 §3.3] and
-  [05 §3](../05-ui-surfaces.md).
+  once it commits, never both at once. Written back into [09 §3.3] and
+  [10 §3](../10-ui-surfaces.md).
 - **The reducer keeps enough** — the stage's own phrase, honoured for a *step*
   view rather than a record: steps with their stage and state, the model each
   call asked and the figures it later reports, effects, the terminal state.
@@ -995,7 +995,7 @@ a word for what became of each, their call parameters and budgets side by side,
 both outputs, and the panel's one-click way in from the head turn.
 
 - **[DECIDED] §7.2: the escalation stands, and its ground is addressability.**
-  Written into [05 §3](../05-ui-surfaces.md) by striking the old reason rather
+  Written into [10 §3](../10-ui-surfaces.md) by striking the old reason rather
   than quietly editing it, because the old reason was load-bearing for §11.2a's
   panel diff and somebody will read that section next. See §7.2 for the
   argument.
@@ -1068,7 +1068,7 @@ landed at the P2C.0 closeout and are marked **Done** below; the other three
 are adopted into P3.0's repair list.
 
 - **`advisory` on `AssembledBlock`.** It carries
-  [testing §1](10-testing.md)'s invariant — *no advisory block ever appears in an
+  [testing §1](docs/design/workplan/03-testing.md)'s invariant — *no advisory block ever appears in an
   effect-producing call* — which is **not expressible over a committed record at
   all** today. The gate test settles for the block's source kind and says in its
   own header that this is *"deliberately the weaker, true thing"*. That proxy does
@@ -1078,7 +1078,7 @@ are adopted into P3.0's repair list.
   it is computed from the step's declared contributions and writes, and
   `StepOutcome` records neither.
 - ~~**A `ModelCall` for a cancelled turn.**~~ **Done, and P2C adopted it exactly
-  as asked** — finding 2 in [16](16-p2c-log.md): a Stop mid-call now writes the
+  as asked** — finding 2 in [P2C log](docs/design/workplan/14-p2c-log.md): a Stop mid-call now writes the
   interrupted call with `outcome: 'cancelled'`, the model that was *asked*
   (because nothing answered), a real `wallMs`, and `usage`, `finishReason` and
   `error` null rather than invented; a Stop between attempts stays bare, because
@@ -1097,7 +1097,7 @@ are adopted into P3.0's repair list.
   phase's gate steps now compare something to something else.
 - **An honestly stamped budget `limit.source`.** It reports `preset` for a number
   that is three-quarters of the config default, which hides the exact remedy
-  [13 §1.5](../13-internal-contracts.md) says the field exists to suggest. *And
+  [21 §1.5](../21-internal-contracts.md) says the field exists to suggest. *And
   sharper since the audit:* `limits.contextTokens` is now live-editable from the
   settings form, so the number a person can actually change is precisely the one
   the record mislabels.
@@ -1110,7 +1110,7 @@ list, with one caveat: not-filled slots land only once §7.5 is decided, because
 that item is gated on a design answer rather than on effort.*
 
 - **Blocks and budget move from the turn's request onto each `ModelCall`.**
-  [05 §3](../05-ui-surfaces.md) promises *"one per model call"*; the runner
+  [10 §3](../10-ui-surfaces.md) promises *"one per model call"*; the runner
   overwrites per call, so an earlier call's block ids name rows that are not in
   the table. This changes golden files, and makes *the turn's blocks* a derived
   union rather than a field.
@@ -1125,7 +1125,7 @@ that item is gated on a design answer rather than on effort.*
   (`disabled` / `not-applicable` / `no-producer` / `empty-source` /
   `unknown-slot`), because a slot that produced no candidate has no text, no
   tokens and no budget ruling, and a row among the blocks would be a
-  block-shaped hole. Written back into [02 §8] as the contract. The measured
+  block-shaped hole. Written back into [03 §8] as the contract. The measured
   motivation stands: on the only real turn available, ten of twelve blocks
   left no row.
 - **Effects need to distinguish their three outcomes.** An engine-computed refusal
@@ -1158,7 +1158,7 @@ function* discharged.
 **A block's `reason` is free English prose in a durable record**, which is the
 opposite of the rule progress events are held to — *a failure travels as a class*.
 The collector already records the key-and-params conversion as P11 sweep debt.
-[05 §3](../05-ui-surfaces.md) makes `reason` the **primary view**, so P3 is where
+[10 §3](../10-ui-surfaces.md) makes `reason` the **primary view**, so P3 is where
 that debt becomes visible and where somebody will be tempted to call it settled.
 One line pointing at P11, so this is not the phase that quietly ratifies it.
 
@@ -1180,7 +1180,7 @@ that most of a gate like this is not automatable and that is the point.
    subject-follows-view rule at once* — and it is the claim §3 makes that nothing
    else touches.
 3. **Nowhere switches it on.** No debug mode, no advanced toggle, no nav entry,
-   nothing in Settings. [05 §2](../05-ui-surfaces.md) names this as the specific
+   nothing in Settings. [10 §2](../10-ui-surfaces.md) names this as the specific
    failure of both source projects, and a panel is the shape that most invites it.
    The nav half is already pinned: `Shell.test.tsx` asserts *offers no workbench
    entry, because it is a panel and not a place* — keep it passing.
@@ -1234,10 +1234,10 @@ that most of a gate like this is not automatable and that is the point.
     panel on a real turn they did not script and says why it came out that way —
     without the log, without the source, without a JSON pretty-printer. **And its
     honest counterpart:** at least one turn where the answer is *I could not tell*,
-    written into [16](16-p2c-log.md) with what was missing, rather than waved
-    through. This is [01 §4.1](01-work-plan.md)'s fourth PLAYABLE hypothesis — the
+    written into [P2C log](docs/design/workplan/14-p2c-log.md) with what was missing, rather than waved
+    through. This is [work plan §4.1](docs/design/workplan/01-work-plan.md)'s fourth PLAYABLE hypothesis — the
     one it calls likeliest to be wrong and cheapest to fix here.
-13. **The density check** ([05 §1.1](../05-ui-surfaces.md), *depth is a cost paid
+13. **The density check** ([10 §1.1](../10-ui-surfaces.md), *depth is a cost paid
     for by the user, and it is charged per visit*): a turn with thirty blocks
     reads as a table rather than thirty disclosures; nothing that belongs on
     screen is behind a click for calm's sake; and the panel open over Play does
@@ -1250,7 +1250,7 @@ that most of a gate like this is not automatable and that is the point.
     nothing — so this needs a fixture, or it belongs to the phase that ships an
     effect-producing step. Do not leave it reading as performable.
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
 configuration that has no surface.** P3 introduces two stored values — the panel's
 open state and its size — and their surface is the panel's own toggle and drag
 handle. Written down rather than assumed, because this is the first phase with a
@@ -1262,7 +1262,7 @@ its surface in the manipulation, and does not owe a control in Preferences.**
 ## 5. Out of scope, deliberately
 
 **The old fences all survive:** aggregate spend tracking (post-1.0 —
-[14 §3](../14-roadmap.md); per-turn tokens only), the keyword test's lore half
+[24 §3](../24-roadmap.md); per-turn tokens only), the keyword test's lore half
 (P5, §1.7), sibling navigation and the branch-aware history view (P6), the
 workbench over renditions (P9), editor completeness (P11), any assembly logic in
 the client, and **no editing of the record itself** — the record is what happened.
@@ -1275,19 +1275,19 @@ the server.
 **What the panel shape newly invites, refused by name:**
 
 - **Editing a library object from the panel** — the strongest new pull, and
-  [05 §2.1](../05-ui-surfaces.md) has already answered it: browse and inspect are
+  [10 §2.1](../10-ui-surfaces.md) has already answered it: browse and inspect are
   raw, editing is assisted, and the assisted surface is the editor. No field
   edits, no restore, no rename, no pin.
-- **The by-field read view** ([polish §1](09-polish.md)). That is the *assisted*
+- **The by-field read view** ([polish §1](docs/design/workplan/06-polish.md)). That is the *assisted*
   rendering, derived from the editor's schema-driven form; the panel's job is the
   raw truth beneath it. Already handed to polish, and this plan stays consistent
   with itself.
-- **Backlinks, the *Used by* panel** ([05 §5.2](../05-ui-surfaces.md)). No link
+- **Backlinks, the *Used by* panel** ([10 §5.2](../10-ui-surfaces.md)). No link
   table exists in the index — this is schema work plus a query plus a library
   surface. *And record that §5.2 overstates what P1 built* when it says the
   derived index answers it already, so nobody plans against the overstatement.
 - **A second JSON viewer.** One component, shared with the detail page and
-  [polish §2](09-polish.md)'s editor pane — or two ship and disagree about
+  [polish §2](docs/design/workplan/06-polish.md)'s editor pane — or two ship and disagree about
   wrapping and copy. *Audit correction: too late to prevent — two already ship
   and already disagree.* The detail page's unbounded `<pre>` and the turn
   disclosure's bounded one differ on background, radius and height, and neither
@@ -1356,7 +1356,7 @@ cannot be cut, only rediscovered.
 pressure: **P3.7** first — the only item with a commit-protocol change attached,
 and P3.4's stateless preview keeps the meter honest without it. Then **P3.5**,
 which can be an explicit deferral rather than a build. Then **P3.6**, which is
-where [14 §1.4](../14-roadmap.md) already plans a second entry point and can
+where [24 §1.4](../24-roadmap.md) already plans a second entry point and can
 arrive with it.
 
 **Do not cut the Library subject to make room.** P4's own demo is a converted
@@ -1366,7 +1366,7 @@ are exactly what import fills in.
 
 **Two facts that were stated here to be discovered have since resolved, one
 each way.** The re-parse measurement came back good — finding 14: reads flat
-from 13 to 55 turns — so [02 §8](../02-data-model.md)'s retention question
+from 13 to 55 turns — so [03 §8](../03-data-model.md)'s retention question
 stays **[OPEN]** where it is and compaction does not land on P3's doorstep;
 what P3 does inherit is the payload shape, stated in §0. And of the **four
 things P2C hands P3 as inputs rather than courtesies** — the cassette corpus
@@ -1383,13 +1383,13 @@ consequence decided rather than left to pressure, is §0.
 ## 7. What the design still has to settle
 
 Undecided by the *design*, not merely absent from the code. Each needs an answer
-written back into [05](../05-ui-surfaces.md) or [02](../02-data-model.md) rather
+written back into [10](../10-ui-surfaces.md) or [03](../03-data-model.md) rather
 than settled inside a work-plan file.
 
 **7.1 Whether the panel may re-subject itself.** §3 says the subject follows the
 main view. But a block's source click wants to land on a Library object, and that
 is this phase's own gate step 4. Moving the main view honours the rule and yanks
-you out of the turn you were reading — [05 §1.1](../05-ui-surfaces.md)'s per-visit
+you out of the turn you were reading — [10 §1.1](../10-ui-surfaces.md)'s per-visit
 cost, charged for a click nobody meant as navigation. Re-subjecting the panel
 keeps your place and breaks the rule. *Devtools breaks the rule here:* clicking a
 network row does not navigate the page.
@@ -1398,24 +1398,24 @@ network row does not navigate the page.
 escalation stands, and its ground is addressability rather than subject count.**
 The old argument — that a panel scoped to the main view has one subject by
 construction — could not be the one doing the work, because
-[05 §11.2a](../05-ui-surfaces.md) ships a two-payload diff *inside* a panel and
+[10 §11.2a](../10-ui-surfaces.md) ships a two-payload diff *inside* a panel and
 cites §3 as its precedent; two sections of one document cannot both be right.
 What carries the escalation is that a comparison must be **bookmarkable,
 pasteable into a bug report, and reopenable after the head has moved past both
 turns**, and a panel whose subject follows the main view can be none of those.
 So `/compare/:sessionId?before=&after=` is a full view, the panel keeps the
-*entry point* rather than the comparison (which is also [05 §1.1]'s
+*entry point* rather than the comparison (which is also [10 §1.1]'s
 depth-is-charged-per-visit answer: you leave once, deliberately), and the
-stateless-reader rule of [05 §2] is untouched — nothing about the panel became
+stateless-reader rule of [10 §2] is untouched — nothing about the panel became
 stateful to make this work. The answer is written into
-[05 §3](../05-ui-surfaces.md), per this section's own rule; §11.2a needs no
+[10 §3](../10-ui-surfaces.md), per this section's own rule; §11.2a needs no
 amendment, because under the new ground a panel diff and a compare view are
 distinguished by whether anybody needs to *point at* the comparison later.
 
 **7.3 What the panel shows where the main view has no subject** — the sessions
 list, settings, the auth screens, and later home. An empty panel is honest; a
 panel that keeps its last subject is more useful and quietly makes the reader
-*stateful*, which is the property [05 §2](../05-ui-surfaces.md) says it must not
+*stateful*, which is the property [10 §2](../10-ui-surfaces.md) says it must not
 have. §3 assumes an object or a turn is always in view.
 
 **7.4 Whether an index projection is a contract. [DECIDED] at P3.3: it is
@@ -1425,11 +1425,11 @@ shadowed copies, and rows inside their tombstone settling window — with
 portable paths only, never native ones (F22); the FTS row stays out, being a
 search artifact rather than an object fact, and so do `body` (the read
 route's answer) and `mtime`/`size` (watcher bookkeeping). The route is
-documented as best-effort: [13 §5](../13-internal-contracts.md) keeps its
+documented as best-effort: [21 §5](../21-internal-contracts.md) keeps its
 implementation-detail posture untouched, the drop-and-rescan migration policy
 stays honest, and the projection may return less after an index schema bump
 until the surface catches up. The answer is written into
-[05 §3](../05-ui-surfaces.md), per this section's own rule.
+[10 §3](../10-ui-surfaces.md), per this section's own rule.
 
 **7.5 Whether a slot that collected nothing is a row. [DECIDED] at P3.0: it
 is an entry in a second list, not a row among the blocks.** `omitWhenEmpty`
@@ -1437,5 +1437,5 @@ stays an authoring feature about the *prompt*; the record now carries the
 *explanation* as `ModelCall.notFilled` — one entry per preset block that
 emitted no candidate, with the reason as a class rather than prose. `included`
 stays two-valued: a slot that was never assembled has nothing for a budget to
-rule on. The answer is written into [02 §8](../02-data-model.md); the panel's
+rule on. The answer is written into [03 §8](../03-data-model.md); the panel's
 *why is there no lore in this prompt* is a rendering of the record.

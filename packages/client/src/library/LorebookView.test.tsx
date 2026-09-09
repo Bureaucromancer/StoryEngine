@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 
 /**
- * The book as a document — [05 §5.3], and P5.0's half of the exit gate.
+ * The book as a document — [10 §5.3], and P5.0's half of the exit gate.
  *
  * **The assertion the stage is about is the second block**: an entry that will
  * not fire says *which* of the three ways it is off, and the folder case leaves
@@ -237,7 +237,7 @@ describe('the book’s own header', () => {
   });
 
   /**
-   * [02 §3.1]'s *each flag is a direct UI control* is satisfied by reachable,
+   * [03 §3.1]'s *each flag is a direct UI control* is satisfied by reachable,
    * not by prominent — so the tuning is present and quiet rather than absent.
    */
   it('carries the book’s activation settings as one quiet strip', () => {
@@ -280,7 +280,7 @@ describe('the load the page exists for', () => {
 });
 
 /**
- * Narrowing a book — [05 §5.3]'s *search, which is two features at very
+ * Narrowing a book — [10 §5.3]'s *search, which is two features at very
  * different prices*, and the cheap one.
  *
  * Within a book it is free: the detail route already holds the whole object, so
@@ -403,7 +403,7 @@ describe('narrowing a book', () => {
 });
 
 /**
- * The entry address — [05 §5.3]'s *an entry's address is a validated search
+ * The entry address — [10 §5.3]'s *an entry's address is a validated search
  * param on that route*, and gate step 1's second half: a named entry is
  * reachable by its own address, and the link survives a reload and lands on
  * that entry.
@@ -551,11 +551,11 @@ describe('what the import said about this book', () => {
 });
 
 /**
- * [P5.3] — *Mentions* and *Mentioned by*, which [05 §5.3] specifies as derived,
+ * [P5.3] — *Mentions* and *Mentioned by*, which [10 §5.3] specifies as derived,
  * labelled sections precisely so that the prose is left alone.
  *
  * **What is asserted here is the rendering, not the rule.** The rule lives in
- * `shared/mentions.ts` because [16 §6]'s falsification script counts the same
+ * `shared/mentions.ts` because [11 §6]'s falsification script counts the same
  * pairs this page draws, and it is tested there. What this file owes is the
  * three things §5.3 says about the *surface*: both directions appear, every row
  * names what matched, and an entry with no mentions gets no heading.
@@ -597,7 +597,7 @@ describe('an entry’s mentions', () => {
 
   /**
    * **The list is capped and says by how much**, which is a different thing
-   * from the stop-list [05 §5.3] rejects: that rejection turns on the word
+   * from the stop-list [10 §5.3] rejects: that rejection turns on the word
    * *invisible*, and a truncated list stating its own remainder is a list plus
    * the fact that it is long. Found by walking a real book — forty entries
    * there share the key *quay*, so uncapped every one of them listed thirty-nine
@@ -637,7 +637,7 @@ describe('an entry’s mentions', () => {
 });
 
 /**
- * Inline highlighting, made honest — [P5.8], [05 §5.3].
+ * Inline highlighting, made honest — [P5.8], [10 §5.3].
  *
  * §5.3 scheduled this rather than refusing it: *once a real matcher exists it
  * stops being a guess about linking and becomes the keyword test applied to

@@ -20,16 +20,16 @@ import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * The two storage claims of the exit gate — [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md)
+ * The two storage claims of the exit gate — [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md)
  * steps 15 and 16, through the app.
  *
  * **Step 15 is one claim with two halves and the halves point opposite ways.**
  * *"Delete `index.sqlite` → sessions, turns and library all still read, and the
  * admin still logs in. Delete `state.sqlite` → an in-flight turn is lost and
  * that is expected; nothing else is."* The index is derived
- * ([02 §5.1](../../../../docs/design/02-data-model.md), [13 §5](../../../../docs/design/13-internal-contracts.md)),
+ * ([03 §5.1](../../../../docs/design/03-data-model.md), [21 §5](../../../../docs/design/21-internal-contracts.md)),
  * so losing it costs a rescan and nothing a person can perceive except a pause;
- * the operational store is authoritative ([13 §5.1]), so losing it costs
+ * the operational store is authoritative ([21 §5.1]), so losing it costs
  * exactly one thing — the turn that had not been written down yet — and the
  * value of the step is that the cost is *named and bounded* rather than
  * discovered.
@@ -302,7 +302,7 @@ describe('step 15 — deleting index.sqlite costs a rescan and nothing a user ca
      * **(4) The turn reads back with its record, not just its id.**
      *
      * `request.calls` is the part that would be quietly lost by a store that
-     * kept only what search needs, and `resolved` is [13 §1.4]'s answer to *"why
+     * kept only what search needs, and `resolved` is [21 §1.4]'s answer to *"why
      * is this turn different"* — a turn record without it is a log line.
      */
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -341,7 +341,7 @@ describe('step 15 — deleting index.sqlite costs a rescan and nothing a user ca
 });
 
 /**
- * The other half of the asymmetry — [13 §5.1], [P2 §2.10].
+ * The other half of the asymmetry — [21 §5.1], [P2 §2.10].
  *
  * `state.sqlite` holds the idempotency reservations, the job rows and the
  * in-progress draft, and none of those is a restatement of anything on disk.
@@ -444,7 +444,7 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
      * With the store intact this is the case `recovery.test.ts` covers — the job
      * is still active at startup and `reconcile` finalises it into a failed turn
      * carrying its blocks. Here there is no job row to walk, so the reported
-     * outcome is empty, and that emptiness is precisely the cost [13 §5.1]
+     * outcome is empty, and that emptiness is precisely the cost [21 §5.1]
      * names. A non-empty `finalised` here would mean the delete had not taken.
      */
     expect(server.services.reconciliation).toEqual({
@@ -508,7 +508,7 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
     /**
      * **The head is where it was.**
      *
-     * `session.json` is authoritative for the head snapshot ([02 §8.1]), and
+     * `session.json` is authoritative for the head snapshot ([03 §8.1]), and
      * this is the assertion that catches a head that had migrated into the
      * operational store — a plausible optimisation, since that is where the job
      * already knows the parent turn. It would look correct until the first time
@@ -577,7 +577,7 @@ describe('step 15 — deleting state.sqlite loses the turn in flight and nothing
 });
 
 /**
- * Step 16 — [P2 §2.7], [02 §8.1].
+ * Step 16 — [P2 §2.7], [03 §8.1].
  *
  * *Replay-from-zero reproduces the head channel state; hand-edit `session.json`'s
  * clock on disk → the divergence lands as a user-attributed effect.*
@@ -631,7 +631,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
 
     /**
      * And the effects are chained rather than each computed from the pre-turn
-     * state: the second turn's `before` is the first turn's `after`. [13 §1.2]
+     * state: the second turn's `before` is the first turn's `after`. [21 §1.2]
      * makes `before` stored rather than derived so that undoing the tip is an
      * apply and not a replay of 0..N−1, and an unchained `before` would restore
      * a value that had already been superseded — invisible in the head snapshot
@@ -675,7 +675,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
      * change the number, save. *"It should be the next evening by now."*
      *
      * Written back through `readFile`/`writeFile` rather than through any server
-     * helper, because the promise [05 §4] makes is about a text editor — a test
+     * helper, because the promise [10 §4] makes is about a text editor — a test
      * that went through the store would be exercising a door nobody uses.
      */
     const file = await readSessionFile(sessionId);
@@ -684,7 +684,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
 
     /**
      * `GET /api/sessions/:id` is what forces reconciliation — the route's `mine`
-     * helper calls `reconcileHandEdits` before it answers, because [02 §8.1]
+     * helper calls `reconcileHandEdits` before it answers, because [03 §8.1]
      * says the comparison happens *on load*. Until that call existed the
      * reconciler was exported, unit-tested and reached by nothing, and a hand
      * edit was silently absorbed into the next head advance.
@@ -696,7 +696,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
      * **A new turn, not effects appended to the old head.** A segment is
      * append-only, so rewriting the head turn's line to carry the edit is
      * exactly what the format forbids; `divergenceTurn` makes the edit its own
-     * turn instead, which is also what keeps [02 §8.1]'s promise that the change
+     * turn instead, which is also what keeps [03 §8.1]'s promise that the change
      * is visible *in the turn record*.
      */
     const newHead = read.body.session.headTurnId as string;
@@ -712,7 +712,7 @@ describe('step 16 — the head snapshot is derived from what the engine wrote', 
     expect(newest?.id).toBe(newHead);
     expect(newest?.parentTurnId).toBe(head);
     /**
-     * No request, and that is a claim rather than an absence. [02 §8.1]: a
+     * No request, and that is a claim rather than an absence. [03 §8.1]: a
      * divergence turn made no request, ran no steps and cost nothing — an empty
      * `request` here would be a record asserting that a prompt was built and
      * came back empty, which is a different and false statement about what

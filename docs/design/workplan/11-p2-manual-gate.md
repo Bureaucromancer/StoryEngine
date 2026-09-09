@@ -1,7 +1,7 @@
-# 12 — what the machine cannot check
+# 11 — what the machine cannot check
 
 **Status: historical, and still cited.** The P2-era record, superseded as a
-working list by [26](26-manual-testing.md) on 2026-09-08: §2 is walked through
+working list by [manual testing](docs/design/workplan/05-manual-testing.md) on 2026-09-08: §2 is walked through
 that file's sittings A–D and H, and §4 is absorbed into its §9, because a
 should-be-a-test list stranded in a document marked historical is a list nobody
 reads.
@@ -12,9 +12,9 @@ carry. §1's anchor reads 1,186 tests and is four phases stale — left alone
 deliberately, because that anchor records when the gate was walked and moving it
 would be a claim nobody made.
 
-The exit gates for [P2](04-p2-implementation.md#4-verification--the-p2-exit-gate),
-[P2A](13-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
-[P2B](14-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are
+The exit gates for [P2](docs/design/workplan/08-p2-implementation.md#4-verification--the-p2-exit-gate),
+[P2A](docs/design/workplan/09-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
+[P2B](docs/design/workplan/10-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are
 forty-eight steps between them. This file is what is left after the automatable
 part of each was written, and it stays three lists rather than one, because
 "manual test" does three different jobs and they need different answers.
@@ -103,13 +103,13 @@ pnpm build && pnpm dev
    does not exist.* The account list
    should say *1 person has no usable connection and cannot send a message. No
    system connection is configured, so adding one fixes this for everybody.*
-   **This is [04 §4.5]'s commissioned sentence, and P2A exists partly to make it
+   **This is [09 §4.5]'s commissioned sentence, and P2A exists partly to make it
    appear.** Read it as a stranger would — it is the one piece of copy in the app
    whose whole job is to be understood by somebody who is stuck.
 3. **A connection.** Add one, with a real key, in **Settings →
    Administration → Connections → Add a connection**. *This step said "blocked
    today: there is no form" long after P2B.3 shipped one — the kind of stale
-   instruction [P2C §1](15-p2c-first-real-run.md) exists to catch.* The form
+   instruction [P2C §1](docs/design/workplan/12-p2c-first-real-run.md) exists to catch.* The form
    fetches the endpoint's model list as an assist and saves without it; a
    refused key now says so in its own sentence rather than reading as an
    unreachable endpoint.
@@ -129,7 +129,7 @@ pnpm build && pnpm dev
 ### 2.2 A real provider
 
 **Every automated test in this repository runs against `FakeProvider`.** That is
-the right default — [10 §4](10-testing.md) argues it, and an E2E suite calling a
+the right default — [testing §4](docs/design/workplan/03-testing.md) argues it, and an E2E suite calling a
 real model would be slow, flaky, expensive and would test the model rather than
 the app. It means the shipped adapter's wire format is asserted only against a
 stub this repo wrote, and a stub agrees with whatever it was written to agree
@@ -139,7 +139,7 @@ Run §2.1 against **at least one hosted endpoint and one local runtime**, becaus
 they fail differently.
 
 Watch for: the request is accepted at all; chunks arrive incrementally rather
-than in one lump; `usage` comes back populated, since [13 §1.4] calls it
+than in one lump; `usage` comes back populated, since [21 §1.4] calls it
 *provider-reported, not estimated* and a provider that reports nothing makes
 every budget figure a guess; `ModelCall.resolved` names the model that actually
 ran; and the turn's cost is **`null`, never `0`** — no price table ships and
@@ -149,7 +149,7 @@ the same correction gate step 2 already carries.)*
 
 Then break it deliberately — wrong key, model id that does not exist, a
 deliberately tiny completion ceiling — and check the first two surface as a
-*classified* failure ([06 E7]) rather than a provider string in the UI, while
+*classified* failure ([25 E7]) rather than a provider string in the UI, while
 the ceiling surfaces as `outcome: 'truncated'` on the call: a ceiling reached
 is not a failure, and telling those apart is the point of the field.
 
@@ -216,7 +216,7 @@ found by reading a gate step against the code that was supposed to satisfy it.*
   at all. Two things the stage had not scoped had to land first: a route
   returning per-role resolution — `via` was a local in `resolveRole` and
   returned by nothing, so a role table would have reimplemented
-  [07 §5.1](../07-tech-stack.md) in the browser — and a masked input, since
+  [19 §5.1](../19-tech-stack.md) in the browser — and a masked input, since
   `PasswordInput` was file-private and an API-key field built from `Field`
   would have rendered the key in plain text. **Built:** `GET /api/admin/roles`
   and `editor/SecretField.tsx`.
@@ -248,7 +248,7 @@ refused by a conflict dialog blaming a concurrent editor.
 ### 3.6 Smaller ones, all still open
 
 - **~~A killed turn names no model call~~ — half closed at
-  [P2C §1](15-p2c-first-real-run.md), and the halves are different failures.** A
+  [P2C §1](docs/design/workplan/12-p2c-first-real-run.md), and the halves are different failures.** A
   person's *Stop* now records the interrupted call: `Cancelled` carries it with
   `outcome: 'cancelled'`, the model that was asked, the wall time, and the
   streamed words — finding 2, and the failure a tester produces most often. A
@@ -263,11 +263,11 @@ refused by a conflict dialog blaming a concurrent editor.
 - **Two constructors of the clock effect disagree** about `before` on a
   session's first effect, and `channels.ts`'s `clockEffect` has no production
   caller.
-- **~~Log bindings~~ Closed at [P2C §1.3](15-p2c-first-real-run.md).**
+- **~~Log bindings~~ Closed at [P2C §1.3](docs/design/workplan/12-p2c-first-real-run.md).**
   `job.committed` carried no `sessionId` and `job.unstartable` and `job.lost`
   carried neither, because the child logger was built inside `#body` and all
   three are written outside it. It is built in `start()` now, which is what
-  [13 §4.1] asks for. **`requestId` remains unbound and is deferred with a
+  [21 §4.1] asks for. **`requestId` remains unbound and is deferred with a
   written reason** — a turn outlives the request that submitted it, so carrying
   one means a column and a migration and a decision about what the id means for
   a recovered turn.
@@ -302,7 +302,7 @@ stale the day the provider changes, and nothing tells you.
 
 **The single highest-yield gap in the suite, on the evidence.** Six of the
 findings in §1 are the same shape: well-formed JSON that means nothing, in a
-file [05 §4](../05-ui-surfaces.md) says a person edits by hand. `{"prose":
+file [10 §4](../10-ui-surfaces.md) says a person edits by hand. `{"prose":
 null}`, a directory named `notes.json`, an id containing `../`. None of them
 had a test; five of them answered **500** on an admin page.
 
@@ -333,7 +333,7 @@ something shared would let one tab's state leak into the other's render. Two
 
 ~~Four concurrent `pnpm test` runs produced two file failures —
 `history.test.ts` hitting vitest's 5000ms default.~~ **Fixed at
-[P2C §1.5](15-p2c-first-real-run.md):** a declared `testTimeout` per vitest
+[P2C §1.5](docs/design/workplan/12-p2c-first-real-run.md):** a declared `testTimeout` per vitest
 project (projects do not inherit the top-level one, which is how the first
 attempt silently did nothing), and the measured ladder now holds from one to
 four concurrent runs. The property this section names is still worth watching
@@ -344,7 +344,7 @@ fresh test that parsed a chunk-split log line and failed one full run in four.
 ### 4.5 The ubuntu leg has never been watched
 
 ~~Every number in §1 is from Windows.~~ **Discharged at
-[P2C §1.6](15-p2c-first-real-run.md):** the first draft PR ran the matrix,
+[P2C §1.6](docs/design/workplan/12-p2c-first-real-run.md):** the first draft PR ran the matrix,
 ubuntu passed, and Windows — the development platform — failed on a native
 libuv abort that no amount of reading would have found. Both legs green since.
 `ci-shape.test.ts` still asserts the matrix exists, which stops it being

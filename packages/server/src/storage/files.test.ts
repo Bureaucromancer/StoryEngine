@@ -20,7 +20,7 @@ import {
  * They would be one function if `rm` were the only consideration; they are two
  * because a call site that says *tree* while meaning *file* is one refactor away
  * from meaning what it says. A connection is one file
- * ([P2B §2.3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)); a library
+ * ([P2B §2.3](../../../../docs/design/workplan/10-p2b-provider-configuration.md)); a library
  * object is a folder, and the two deletions must not be spelled the same.
  */
 
@@ -67,7 +67,7 @@ describe('unlinkFile', () => {
 
 /**
  * The probe Alpha 1's first install was missing —
- * [P6A §3](../../../../docs/design/workplan/23-p6a-alpha-1.md) step 11 — and
+ * [P6A §3](../../../../docs/design/workplan/19-p6a-alpha-1.md) step 11 — and
  * the sentence that replaced its stack trace.
  */
 describe('ensureWritableDirectory', () => {

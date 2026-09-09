@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { Id, Ref } from './common.js';
 
 /**
- * PlotHook — docs/design/10-schemas.md §6.1.
+ * PlotHook — docs/design/04-schemas.md §6.1.
  *
  * A pool of authored, discrete plot turns, held out of context until a selector
  * judges the moment right. The inverse of a rule: a rule is condition-first, a

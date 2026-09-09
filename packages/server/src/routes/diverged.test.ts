@@ -11,7 +11,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * **P2C finding 8** — *a broken library file becomes permanently unwritable and
- * undeletable* ([16](../../../../docs/design/workplan/16-p2c-log.md)).
+ * undeletable* ([P2C log](../../../../docs/design/workplan/14-p2c-log.md)).
  *
  * The log recorded three successive writes each answering `412 stale` with a
  * `current.contentHash` byte-identical to the hash just presented, so the
@@ -19,7 +19,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * answered the same way, so the file could not be removed either. *"The only
  * exit is a text editor."*
  *
- * [P4 §2](../../../../docs/design/workplan/06-p4-implementation.md)'s P4.0 asks
+ * [P4 §2](../../../../docs/design/workplan/16-p4-implementation.md)'s P4.0 asks
  * for it verified fixed or fixed here, because import walks this exact path in
  * bulk: a wild-corpus object that lands broken, or a re-import over one, goes
  * straight into it.
@@ -43,7 +43,7 @@ afterEach(async () => {
  *
  * A lorebook rather than an actor because the finding is about *a hand edit
  * into invalid JSON*, and a lorebook is stored as JSON. An actor's canonical
- * file is `card.png` ([02 §5.2]), so breaking one is a different kind of
+ * file is `card.png` ([03 §5.2]), so breaking one is a different kind of
  * damage; the code path under test is the same for both.
  */
 async function createLorebook(

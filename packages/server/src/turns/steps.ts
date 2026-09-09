@@ -14,7 +14,7 @@ import type { EffectProposal } from './effects.js';
 
 /**
  * Steps, and the boundary they run behind —
- * [03 §6](../../../../docs/design/03-modes-and-turn-pipeline.md).
+ * [06 §6](../../../../docs/design/06-modes-and-turn-pipeline.md).
  *
  * A turn is an ordered sequence of steps; the built-in stages are steps that
  * always exist. A step declares what it reads, what it writes, and where it may
@@ -23,7 +23,7 @@ import type { EffectProposal } from './effects.js';
  */
 
 /**
- * When a step runs — [03 §6]'s closed set, spelled out.
+ * When a step runs — [06 §6]'s closed set, spelled out.
  *
  * Three arms and no more: *a cadence, a stage flag, an explicit arm by the
  * user*. Deliberately **not an expression language**, and deliberately not the
@@ -44,20 +44,20 @@ export interface StepDefinition {
   id: string;
   stage: StepStage;
   /**
-   * Channel ids, plus the two pseudo-sources [03 §6] names — `history` and
+   * Channel ids, plus the two pseudo-sources [06 §6] names — `history` and
    * `output`.
    *
    * Typed as bare `string` rather than `string | 'history' | 'output'`: a
    * union with `string` in it collapses to `string` anyway, so the literals
    * would be documentation pretending to be types. A channel id is an open
-   * vocabulary ([03 §4] lets a mode declare its own), so this cannot be closed.
+   * vocabulary ([06 §4] lets a mode declare its own), so this cannot be closed.
    */
   reads: string[];
   /** Channel ids this step may propose effects on. */
   writes: string[];
   contributes?: 'blocks' | 'effects' | 'messages';
   /**
-   * What kind of call this step makes — [10 §8.2]'s portable, open string, which
+   * What kind of call this step makes — [04 §8.2]'s portable, open string, which
    * a preset block's `appliesTo` filters on.
    *
    * Distinct from the assembler's `CallPurpose`, which is *derived* from
@@ -109,7 +109,7 @@ export function evaluateCondition(
  * What the assembler is told a call is for, **derived from the step's own
  * declaration and never chosen by it**.
  *
- * This is what makes [03 §5.2]'s refusal structural rather than remembered.
+ * This is what makes [06 §5.2]'s refusal structural rather than remembered.
  * Guidance is advisory: it may shape prose and must never reach a systematic
  * outcome. If a step could pass its own purpose, honouring the rule would be one
  * honest declaration deep — a step could say `prose` and produce effects, and
@@ -127,7 +127,7 @@ export function evaluateCondition(
  * consuming it*, and this derivation does not cover that — a prose step is
  * handed both the guidance and an `Rng`. Nothing at P2.5 draws inside a prose
  * step, and the boundary that would enforce it is P7's worker split, where the
- * host supplies `random` rather than the step reaching for it ([12 §4]).
+ * host supplies `random` rather than the step reaching for it ([22 §4]).
  */
 export function callPurposeFor(step: StepDefinition): CallPurpose {
   return step.contributes === 'messages' && step.writes.length === 0 ? 'prose' : 'effects';
@@ -136,7 +136,7 @@ export function callPurposeFor(step: StepDefinition): CallPurpose {
 /**
  * What a step is given — plain data, and **no guidance**.
  *
- * The omission is the design. [12 §3.1] gives the payload-filter rule this
+ * The omission is the design. [22 §3.1] gives the payload-filter rule this
  * implements — *a step that did not declare `history` does not receive it* — and
  * `reads` can name a channel, `history` or `output` and nothing else, so
  * guidance is not expressible there and could only arrive as an ungated extra.
@@ -145,7 +145,7 @@ export function callPurposeFor(step: StepDefinition): CallPurpose {
  * where the words came from. Guidance therefore reaches the prompt only as a
  * candidate the *runner* collects, marked advisory, and never passes through a
  * step at all. The previous attempt a guided redo shows the model
- * ([03 §5.1]) is withheld for the same reason, and by the same route.
+ * ([06 §5.1]) is withheld for the same reason, and by the same route.
  *
  * Serialisable both ways, because [01 §2] makes the step contract async and
  * serialisable a day-one item — the boundary P7 moves to a worker is this one,
@@ -212,7 +212,7 @@ export interface TurnPlan {
 }
 
 /**
- * Builds a step's payload from what it declared — [12 §3.1].
+ * Builds a step's payload from what it declared — [22 §3.1].
  *
  * A step that did not declare `history` does not receive it. The filter exists
  * now, with the first step, rather than as a retrofit when the boundary becomes

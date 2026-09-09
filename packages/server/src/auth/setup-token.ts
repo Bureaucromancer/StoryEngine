@@ -7,10 +7,10 @@ import type { Layout } from '../storage/layout.js';
 import { generateSecret } from './secrets.js';
 
 /**
- * The first-run setup token — [04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md),
- * [P6A §1.4](../../../../docs/design/workplan/23-p6a-alpha-1.md), F10.
+ * The first-run setup token — [09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md),
+ * [P6A §1.4](../../../../docs/design/workplan/19-p6a-alpha-1.md), F10.
  *
- * **The check, not the print** — [P10 §1.1](../../../../docs/design/workplan/21-p10-implementation.md)
+ * **The check, not the print** — [P10 §1.1](../../../../docs/design/workplan/26-p10-implementation.md)
  * names the failure this file exists to not repeat. P1 printed a freshly
  * generated token on every non-loopback boot and stored it nowhere, so nothing
  * ever verified it: security theatre in the one place theatre is worst, because
@@ -18,7 +18,7 @@ import { generateSecret } from './secrets.js';
  * something is enforcing it. P2.0 removed the print rather than half-building
  * the check. This is the check, and the print comes back with it.
  *
- * **Why now.** [04 §5.1] scheduled it against an artifact rather than a phase —
+ * **Why now.** [09 §5.1] scheduled it against an artifact rather than a phase —
  * *until an image ships, nothing binds non-loopback without someone typing a
  * bind address* — and that sentence is a condition. P6A ships the image, so the
  * condition fired here.

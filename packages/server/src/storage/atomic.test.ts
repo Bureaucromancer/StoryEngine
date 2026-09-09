@@ -53,7 +53,7 @@ describe('writeAtomic', () => {
 
 describe('writeJsonAtomic', () => {
   it('formats for humans, because the store is meant to be readable', async () => {
-    // [02 §5.4](../../../../docs/design/02-data-model.md): diffable, greppable, git-able.
+    // [03 §5.4](../../../../docs/design/03-data-model.md): diffable, greppable, git-able.
     // A single-line blob would make keeping a library in git useless.
     const path = join(dir, 'lorebook.json');
     await writeJsonAtomic(path, { name: 'Rain City', entries: [] });
@@ -137,7 +137,7 @@ describe('a write killed mid-flight', () => {
    * The failure this whole module exists to prevent: a crash partway through a
    * direct write leaves a file that is neither the old actor nor the new one —
    * and `card.png` is the only copy of that actor
-   * ([02 §5.2](../../../../docs/design/02-data-model.md)).
+   * ([03 §5.2](../../../../docs/design/03-data-model.md)).
    *
    * The same harness run against a plain `fs.writeFile` produces exactly that,
    * which is what makes this test mean something: truncations at 1 MB and 36 MB

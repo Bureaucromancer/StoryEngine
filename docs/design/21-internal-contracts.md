@@ -1,18 +1,18 @@
-# 13 — Internal contracts
+# 21 — Internal contracts
 
 **Status: proposal.** The structures that never leave the install but that
 everything is built against.
 
-**Why this document exists.** [10](10-schemas.md) covers portable structures and
+**Why this document exists.** [04](docs/design/04-schemas.md) covers portable structures and
 deliberately stops there — a turn record never crosses an install boundary, so it
-is free to migrate ([10 §1](10-schemas.md)) and defining it early buys no
+is free to migrate ([04 §1](docs/design/04-schemas.md)) and defining it early buys no
 compatibility. That reasoning is right and produced a gap: *free to move* was
 read as *need not exist*, and four of the turn record's substructures ended up
 referenced across eight documents and defined nowhere.
 
 They are not incidental. The turn record is described as the artefact everything
-reads ([00 §1](00-stance.md)), the highest-value test surface
-([work plan P2](workplan/01-work-plan.md)), and what branching, replay and the workbench are all
+reads ([00 §1](docs/design/00-stance.md)), the highest-value test surface
+([work plan P2](docs/design/workplan/01-work-plan.md)), and what branching, replay and the workbench are all
 built on. **P2 cannot be written without these types.**
 
 > **The tier is unchanged: internal, migrate at will.** Nothing here carries a
@@ -24,15 +24,15 @@ built on. **P2 cannot be written without these types.**
 
 ## 1. The turn record, completed
 
-[02 §8](02-data-model.md) defines `Turn` and `AssembledBlock` and references four
+[03 §8](docs/design/03-data-model.md) defines `Turn` and `AssembledBlock` and references four
 types it does not define. Here they are, with the properties other documents
 depend on called out.
 
 ### 1.1 `BlockSource` — one vocabulary, used from both ends
 
 Currently two vocabularies describing the same thing:
-`AssembledBlock.source.kind` ([02 §8](02-data-model.md)) and `SlotSource.of`
-([10 §8.2](10-schemas.md)). They overlap, disagree, and nothing relates them —
+`AssembledBlock.source.kind` ([03 §8](docs/design/03-data-model.md)) and `SlotSource.of`
+([04 §8.2](docs/design/04-schemas.md)). They overlap, disagree, and nothing relates them —
 which would mean the workbench's block list and a preset's slot list disagreeing
 about what anything *is*, while golden-file tests snapshot the former and authors
 edit the latter.
@@ -53,20 +53,20 @@ type BlockSource =
   /** turnId is the identity (P3.0); the window-relative range stays as display
    *  information — where in this prompt the turn sat. */
   | { kind: "history"; turnId: TurnId; range: [number, number] }
-  /** One writing sample, from whichever kind carried it — [10 §3.1],
-   *  [18](18-writing-samples.md). `owner` rather than a bare `actorId` because
+  /** One writing sample, from whichever kind carried it — [04 §3.1],
+   *  [14](docs/design/14-writing-samples.md). `owner` rather than a bare `actorId` because
    *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
    *  carries one — the carrier is a link read fresh every turn. */
   | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "treatment"; part: "framing" | "tone" }
   | { kind: "goal"; goalId: string }
-  /** The guidance slot ([03 §5.1](03-modes-and-turn-pipeline.md)). `producer` because that
+  /** The guidance slot ([06 §5.1](docs/design/06-modes-and-turn-pipeline.md)). `producer` because that
    *  section is explicit that one slot has several — the user's box, a rule's
    *  `giveGuidance`, a Narrative Director push — and the workbench should be
    *  able to say which without three sources to keep in step. */
   | { kind: "guidance"; producer: "user" | "rule" | "step" }
-  /** The previous attempt a guided redo showed the model ([03 §5.1]). `turnId`
+  /** The previous attempt a guided redo showed the model ([06 §5.1]). `turnId`
    *  is the sibling whose output was shown — what makes *which attempt* a
    *  question the record answers; null only when a preset emits the slot over
    *  nothing, the claim `persona`'s nulls make. */
@@ -87,7 +87,7 @@ preset was authored. `SlotSource` is therefore **`BlockSource` minus those two**
 which is a derivation rather than a second list.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
-gap rather than an omission.** [03 §5.1](03-modes-and-turn-pipeline.md) says the guidance
+gap rather than an omission.** [06 §5.1](docs/design/06-modes-and-turn-pipeline.md) says the guidance
 block is *"positioned by the preset"* — which makes it slot-nameable by
 definition — but the only source it could have claimed was `step`, one of the
 two `SlotSource` excludes. So a preset could not position the one block that
@@ -105,16 +105,16 @@ that is not prose.
 
 The identifiers (`actorId`, `entryId`, `stepId`) are what make a block's
 provenance clickable in the workbench — *which* lore entry, not just "a lore
-entry". [03 §5](03-modes-and-turn-pipeline.md)'s "the reason is a product
+entry". [06 §5](docs/design/06-modes-and-turn-pipeline.md)'s "the reason is a product
 feature, not a debug string" needs this to be true of the source as well.
 
 ### 1.2 `ChannelEffect` — the one to get right
 
 **The most load-bearing type in this document.** It carries reversibility
-([09 §2](09-branching.md)), it crosses the worker boundary
-([12 §4](12-extensions.md)), it is what a branch replays
-([09 §4](09-branching.md)), and it is what undo inverts
-([00 §2.8](00-stance.md)). An effect that cannot state its own inverse breaks all
+([07 §2](docs/design/07-branching.md)), it crosses the worker boundary
+([22 §4](docs/design/22-extensions.md)), it is what a branch replays
+([07 §4](docs/design/07-branching.md)), and it is what undo inverts
+([00 §2.8](docs/design/00-stance.md)). An effect that cannot state its own inverse breaks all
 four at once.
 
 ```ts
@@ -132,7 +132,7 @@ interface ChannelEffect {
   after: unknown
 
   /** Who proposed it, and who decided. The model proposing and the engine
-   *  deciding is [03 §4]'s update policy, recorded rather than assumed. */
+   *  deciding is [06 §4]'s update policy, recorded rather than assumed. */
   proposedBy: { kind: "model"; callId: string }
                | { kind: "step"; stepId: StepId }
                | { kind: "user" }
@@ -142,13 +142,13 @@ interface ChannelEffect {
    *  rule overriding a model proposal, or a policy refusal. */
   rejectedReason: string | null
 
-  /** Schema version of the channel this was written against. [03 §4.2] */
+  /** Schema version of the channel this was written against. [06 §4.2] */
   channelVersion: number
 
   /** Whether the effect stayed inside the session or escaped it — a library
    *  write, a generated asset, anything a branch cannot un-write. Escaped
    *  effects are recorded like everything else but never replayed or
-   *  reverted ([09 §7]). Added ahead of P2 so P6 needs a field, not a
+   *  reverted ([07 §7]). Added ahead of P2 so P6 needs a field, not a
    *  migration ([P2 §2.7], closing [P6 §1.5]); P2 writes only "session". */
   scope: "session" | "escaped"
 }
@@ -167,10 +167,10 @@ It looks redundant — the previous state is replayable — and storing it makes
 three things cheap:
 
 - **Undoing the tip is local.** Reverting the newest turn means applying
-  `before`, not replaying 0..N-1. [00 §2.8](00-stance.md)'s promise, in place of
+  `before`, not replaying 0..N-1. [00 §2.8](docs/design/00-stance.md)'s promise, in place of
   Aventuras' hand-maintained `PersistentRetryState`.
 - **The workbench can show a diff** without materialising two full states.
-- **A snapshot disagreement is diagnosable.** [09 §4](09-branching.md) requires
+- **A snapshot disagreement is diagnosable.** [07 §4](docs/design/07-branching.md) requires
   CI to assert replay-from-zero equals snapshot-plus-replay; when that fails,
   `before`/`after` pairs say *which effect* diverged rather than only that the
   end states differ.
@@ -193,7 +193,7 @@ the operative word — the value is plausible, so nothing surfaces.
 | | Mechanism |
 |---|---|
 | **Undo the tip** | Apply `before`. Local, O(1), what the undo button does. |
-| **Change something further back** | **Branch and replay** ([09 §3](09-branching.md)) |
+| **Change something further back** | **Branch and replay** ([07 §3](docs/design/07-branching.md)) |
 
 The second is not a limitation to apologise for — it is the design's existing
 answer. "Go back to turn N and do it differently" is a pointer move plus new
@@ -211,14 +211,14 @@ UI affordance.
 *Cost:* effects grow with the state they touch, and a `merge` over a large object
 stores a large `before`. Bounded by scoping `before` to the touched keys — hence
 `op` carrying a `path` — and channel state is tracked numbers and flags
-([03 §4.2](03-modes-and-turn-pipeline.md)), not prose.
+([06 §4.2](docs/design/06-modes-and-turn-pipeline.md)), not prose.
 
 #### 1.2.2 Rejected effects are recorded, not dropped
 
 `applied: false` with a reason, kept in the record. A model proposing an illegal
 state change is information — it is how a preset gets debugged and how
 `engine-computed` demonstrates that it overrode something
-([05 §3](05-ui-surfaces.md) lists exactly this in the workbench's effects view).
+([10 §3](docs/design/10-ui-surfaces.md) lists exactly this in the workbench's effects view).
 Dropping them would make "the model tried to give itself 40 gold" invisible.
 
 They are skipped on replay, which follows from `applied`.
@@ -228,36 +228,36 @@ They are skipped on replay, which follows from `applied`.
 ```ts
 interface ChannelState {
   /** Which schema version the value was written against. One integer, never
-   *  the schema itself. [03 §4.2] */
+   *  the schema itself. [06 §4.2] */
   version: number
   value: unknown                 // validated against the definition's schema
   /** Set when load-time validation failed and the value was quarantined.
-   *  The raw value survives here until the user chooses. [03 §4.2] */
+   *  The raw value survives here until the user chooses. [06 §4.2] */
   degraded?: { reason: string; raw: unknown }
 }
 ```
 
-`ChannelDefinition` is [03 §4](03-modes-and-turn-pipeline.md)'s, with one field
+`ChannelDefinition` is [06 §4](docs/design/06-modes-and-turn-pipeline.md)'s, with one field
 that section describes in prose and does not show:
 
 ```ts
 interface ChannelDefinition {
   id: ChannelId
-  /** **Shipped at P2.6**, with the first channel definition — [03 §4.1] names
+  /** **Shipped at P2.6**, with the first channel definition — [06 §4.1] names
    *  accepting a package id as something 1.0 owes from that first definition,
    *  because widening it afterwards is a migration over every stored channel. */
-  owner: ModeId | ExtensionId | PackageId   // package: [03 §4.1], 6.0
+  owner: ModeId | ExtensionId | PackageId   // package: [06 §4.1], 6.0
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
   scope: "session" | "actor" | "entry"
   init: InitPolicy
   update: "model-proposed" | "engine-computed" | "user-only"
-  visibility: "player" | "hidden"            // [03 §7.3]
+  visibility: "player" | "hidden"            // [06 §7.3]
   budget: number | null
   surface?: WidgetSpec
   /** Optional, and optional deliberately — most schema evolution never needs
    *  one. Must be pure and deterministic: it sits inside the replay path.
-   *  [03 §4.2] */
+   *  [06 §4.2] */
   migrate?: (fromVersion: number, state: unknown) => unknown
 }
 ```
@@ -269,10 +269,10 @@ replay path, so guessing its contract before a channel needs one is the thing §
 refuses to do for `WidgetSpec`.
 
 **`InitPolicy` now has a named first consumer, which is how §6 wanted it to
-arrive.** The hook-pacing dial ([03 §6.1](03-modes-and-turn-pipeline.md),
-[10 §6.1b](10-schemas.md)) is a session channel with `update: "user-only"`,
+arrive.** The hook-pacing dial ([06 §6.1](docs/design/06-modes-and-turn-pipeline.md),
+[04 §6.1b](docs/design/04-schemas.md)) is a session channel with `update: "user-only"`,
 `budget: null`, and an init that reads a Treatment's advisory value — which
-exercises exactly the *from treatment* arm [03 §4](03-modes-and-turn-pipeline.md)
+exercises exactly the *from treatment* arm [06 §4](docs/design/06-modes-and-turn-pipeline.md)
 describes and nothing has needed until now. It is a P7 dependency rather than a
 free consequence: the dial cannot be built before the policy is, and scheduling
 the two apart would have the dial invent its own prefill path. Worth having,
@@ -281,7 +281,7 @@ three imagined ones — which is §6's own argument for deferring it.
 
 **A second consumer has since appeared, and it is the same shape**, which is the
 outcome that argument was betting on. Illustration pacing
-([03 §10.6](03-modes-and-turn-pipeline.md)) is a session channel with
+([06 §10.6](docs/design/06-modes-and-turn-pipeline.md)) is a session channel with
 `update: "user-only"`, `budget: null` and an init from treatment — hook pacing's
 declaration with a different subject. It arrives later than P7, so it does not
 move the dependency above; it is worth recording only because *designed against
@@ -295,7 +295,7 @@ alteration was fitted to the right thing.
 interface ModelCall {
   id: string
   stepId: StepId
-  role: ModelRole                 // never a model id — [07 §5.1]
+  role: ModelRole                 // never a model id — [19 §5.1]
   /** What this call was allowed to produce, derived from the step's declared
    *  contributes/writes (P3.0). Not recoverable after the fact — StepOutcome
    *  records only the counts — and the committed half of [testing §1]'s
@@ -317,12 +317,12 @@ interface ModelCall {
   messages: RenderedMessage[]     // §2
   params: GenerationParams
   /** Provider-reported, not estimated. The measured half of budgeting with a
-   *  margin ([06 E5](06-open-questions.md)). */
+   *  margin ([25 E5](docs/design/25-open-questions.md)). */
   usage: { promptTokens: number; completionTokens: number } | null
   cost: { amount: number; currency: string } | null
   wallMs: number
   outcome: "ok" | "refused" | "error"
-  /** Classified per [06 E7](06-open-questions.md), so the UI can offer the
+  /** Classified per [25 E7](docs/design/25-open-questions.md), so the UI can offer the
    *  right recovery rather than surfacing a provider string. */
   error: { class: "transient" | "retryable" | "terminal"; message: string } | null
   retries: number
@@ -340,7 +340,7 @@ first question anyone asks about a turn that came out wrong.
 interface BudgetVerdict {
   /** The window, and the honest account of where it came from (P3.0).
    *  `source` names the origin of the *ceiling* — whichever side won the min:
-   *  the endpoint's declared window, the preset's absolute cap ([10 §8.4.1]'s
+   *  the endpoint's declared window, the preset's absolute cap ([04 §8.4.1]'s
    *  4k-must-not-apply-at-200k rule), or the config default (`"user"`, the
    *  live-editable number). The preset's `contextShare` narrows the ceiling to
    *  `tokens` without relabelling it: `share` present ⇒ a preset budget was in
@@ -357,10 +357,10 @@ interface BudgetVerdict {
     tokens: number
     included: boolean
     /** The rule, in the language the workbench shows. "book budget",
-     *  "priority 3 < cutoff", "always". [05 §3] */
+     *  "priority 3 < cutoff", "always". [10 §3] */
     rule: string
   }[]
-  /** What would drop on the next turn at current pressure. [05 §3] promises
+  /** What would drop on the next turn at current pressure. [10 §3] promises
    *  this is answerable *before* it happens, which requires computing it. */
   nextToDrop: string[]
 }
@@ -369,7 +369,7 @@ interface BudgetVerdict {
 ### 1.6 `VersionRecord`
 
 One line of `history/index.jsonl` inside a library object's folder
-([02 §11.2](02-data-model.md)). Internal: the *payload* is a portable object, but
+([03 §11.2](docs/design/03-data-model.md)). Internal: the *payload* is a portable object, but
 the bookkeeping around it never leaves the install and is free to migrate.
 
 ```ts
@@ -382,7 +382,7 @@ interface VersionRecord {
   /** When the snapshotted state was *authored*, not when it was superseded.
    *  Taken from the replaced object's `provenance.updatedAt`. The subtlety
    *  Marinara names explicitly and the reason a restored version keeps its real
-   *  date in the list. [02 §11.1] */
+   *  date in the list. [03 §11.1] */
   authoredAt: string
   /** When the snapshot was taken. Usually uninteresting; occasionally the only
    *  way to explain an out-of-order list. */
@@ -391,7 +391,7 @@ interface VersionRecord {
   /** What made the change this snapshot preserves the state before. */
   source:
     | { kind: "manual" }
-    | { kind: "assist"; field: string }        // [05 §11.1]
+    | { kind: "assist"; field: string }        // [10 §11.1]
     | { kind: "extension"; extensionId: string }
     | { kind: "import"; from: string }
     | { kind: "external" }                     // a hand-edit, seen by the watcher
@@ -400,11 +400,11 @@ interface VersionRecord {
    *  version"), sometimes the user's — they may rename it later. */
   reason: string
 
-  /** The author's own version string at the time ([02 §11.5]) — theirs, not
+  /** The author's own version string at the time ([03 §11.5]) — theirs, not
    *  ours, and displayed alongside our revision number rather than instead
    *  of it. */
   authorVersion: string | null
-  /** Exempt from retention pruning. [02 §11.3] */
+  /** Exempt from retention pruning. [03 §11.3] */
   pinned: boolean
 }
 ```
@@ -423,7 +423,7 @@ any two versions.
 
 ## 2. Rendering: blocks to provider messages
 
-[03 §5](03-modes-and-turn-pipeline.md) step 4 is one sentence, and it hides a
+[06 §5](docs/design/06-modes-and-turn-pipeline.md) step 4 is one sentence, and it hides a
 decision: **what happens to adjacent blocks with the same role?** Six consecutive
 `system` blocks — one message or six?
 
@@ -435,7 +435,7 @@ endpoint.
 **So it is a provider capability, not a global choice** — `mergeSameRole` on
 `ProviderCapabilities` (§3), defaulted per known provider and overridable per
 connection, exactly like the prompt caps beside it
-([07 §5.3](07-tech-stack.md)).
+([19 §5.3](docs/design/19-tech-stack.md)).
 
 ```ts
 interface RenderedMessage {
@@ -448,7 +448,7 @@ interface RenderedMessage {
 
 **`fromBlocks` is the requirement that merging must not break.** The workbench
 maps every sent byte back to the block that produced it
-([05 §3](05-ui-surfaces.md)), and a merge that concatenates six blocks into one
+([10 §3](docs/design/10-ui-surfaces.md)), and a merge that concatenates six blocks into one
 string without recording which six destroys that mapping — quietly, and only
 noticeably when someone is debugging. Keeping the list makes merging a rendering
 detail rather than a loss of provenance.
@@ -464,7 +464,7 @@ Two rules that follow:
 
 ## 3. `ProviderCapabilities`
 
-[07 §5.3](07-tech-stack.md) sketches this and trails off in a `// …`. Completed
+[19 §5.3](docs/design/19-tech-stack.md) sketches this and trails off in a `// …`. Completed
 here because the adapter layer is P2.
 
 ```ts
@@ -488,16 +488,16 @@ interface ProviderCapabilities {
 
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production
-config ([00 §3.2](00-stance.md)).
+config ([00 §3.2](docs/design/00-stance.md)).
 
 ---
 
 ## 4. `config.json`
 
-Referenced in the storage layout ([02 §5.1](02-data-model.md)), given a
-permission rule ([05 §4](05-ui-surfaces.md)), promised a commented example
-([02 §5.4](02-data-model.md)), and required by
-[06 D0](06-open-questions.md) to annotate **every key** with a reload tier — with
+Referenced in the storage layout ([03 §5.1](docs/design/03-data-model.md)), given a
+permission rule ([10 §4](docs/design/10-ui-surfaces.md)), promised a commented example
+([03 §5.4](docs/design/03-data-model.md)), and required by
+[25 D0](docs/design/25-open-questions.md) to annotate **every key** with a reload tier — with
 no key list anywhere. It is P1 work: the bind address alone decides first-boot
 behaviour.
 
@@ -509,7 +509,7 @@ interface Config {
     cookieSecure: boolean                    // [P6A §1.4]
     clientRoot: string                       // [P6A §1.3]
   }
-  auth: { minPasswordLength: number }        // [04 §4.1]
+  auth: { minPasswordLength: number }        // [09 §4.1]
   log: { level: "silent" | "error" | "warn" | "info" | "debug"; format: "json" }
   index: { rebuildOnStart: boolean }
   sessions: {
@@ -520,56 +520,56 @@ interface Config {
   limits: {
     maxUploadMb: number
     extensionStorageQuotaMb: number
-    contextTokens: number                    // [06 E5]
+    contextTokens: number                    // [25 E5]
     reservedCompletionTokens: number
     providerTimeoutMs: number                // [P2C §1.3]
   }
-  trash: { retentionDays: number }          // [02 §10.2]
-  history: { keepPerObject: number }        // [02 §11.3]
+  trash: { retentionDays: number }          // [03 §10.2]
+  history: { keepPerObject: number }        // [03 §11.3]
   updates: { checkEnabled: boolean; channel: "latest" | "testing" | "nightly" }
-  dev: { enabled: boolean }                  // [07 §14]
+  dev: { enabled: boolean }                  // [19 §14]
 }
 ```
 
 | Key | Tier | Default | Note |
 |---|---|---|---|
 | `dataDir` | `restart` | `./data` | |
-| `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([04 §5.1](04-server-multiuser-deployment.md)) |
+| `server.host` | `restart` | **`127.0.0.1`** | Loopback on first boot; the container image inverts it ([09 §5.1](docs/design/09-server-multiuser-deployment.md)) |
 | `server.port` | `restart` | `8080` | |
 | `server.trustProxy` | `restart` | `false` | |
-| `server.cookieSecure` | `restart` | `false` | `Secure` on the session and CSRF cookies. Deliberately **not** derived from the bind: [04 §5.1](04-server-multiuser-deployment.md) supports plain HTTP on a trusted LAN, and a `Secure` cookie is not sent back over HTTP — so deriving it would lock that install out silently (F10, [P6A §1.4](workplan/23-p6a-alpha-1.md)) |
-| `server.clientRoot` | `restart` | `""` | Where the built client is, so one process serves the API and the UI on one port ([P6A §1.3](workplan/23-p6a-alpha-1.md)). Empty means serve nothing, which is what development wants — two processes, Vite proxying `/api`. `/api` is never the fallback: an unrouted address there answers JSON |
-| `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([04 §5.1](04-server-multiuser-deployment.md)). `0` means the empty string is a password |
-| `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](workplan/04-p2-implementation.md)) |
+| `server.cookieSecure` | `restart` | `false` | `Secure` on the session and CSRF cookies. Deliberately **not** derived from the bind: [09 §5.1](docs/design/09-server-multiuser-deployment.md) supports plain HTTP on a trusted LAN, and a `Secure` cookie is not sent back over HTTP — so deriving it would lock that install out silently (F10, [P6A §1.4](docs/design/workplan/19-p6a-alpha-1.md)) |
+| `server.clientRoot` | `restart` | `""` | Where the built client is, so one process serves the API and the UI on one port ([P6A §1.3](docs/design/workplan/19-p6a-alpha-1.md)). Empty means serve nothing, which is what development wants — two processes, Vite proxying `/api`. `/api` is never the fallback: an unrouted address there answers JSON |
+| `auth.minPasswordLength` | `live` | `8` | The shortest password accepted when one is *set*: setup, an admin creating an account, either reset, a self-change. Never measured at login, and `--reset-password` honours no minimum at all ([09 §5.1](docs/design/09-server-multiuser-deployment.md)). `0` means the empty string is a password |
+| `log.level` | `live` | `info` | `silent` exists for tests, which build a whole app each ([P2 §1.4](docs/design/workplan/08-p2-implementation.md)) |
 | `log.format` | `restart` | `json` | §4.1. `pretty` is not a value: it would be a second dependency no section here names |
-| `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](workplan/01-work-plan.md)) |
-| `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([06 C8](06-open-questions.md)) |
+| `index.rebuildOnStart` | `restart` | `false` | The rebuild-from-disk option ([work plan P1](docs/design/workplan/01-work-plan.md)) |
+| `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([25 C8](docs/design/25-open-questions.md)) |
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
 | `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
-| `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([06 E5](06-open-questions.md)) |
+| `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](docs/design/25-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
-| `limits.providerTimeoutMs` | `live` | `300000` | How long one call may make **no progress** before the turn abandons it ([P2C §1.3](workplan/15-p2c-first-real-run.md)). Silence rather than duration — a streamed chunk re-arms it — because a multi-minute first token is ordinary on a local runtime and a wall-clock ceiling would kill healthy generations. The resulting failure is `terminal`: it is transient in the ordinary sense, but two retries at the full timeout is three times the hang the key exists to end. `0` disables it |
+| `limits.providerTimeoutMs` | `live` | `300000` | How long one call may make **no progress** before the turn abandons it ([P2C §1.3](docs/design/workplan/12-p2c-first-real-run.md)). Silence rather than duration — a streamed chunk re-arms it — because a multi-minute first token is ordinary on a local runtime and a wall-clock ceiling would kill healthy generations. The resulting failure is `terminal`: it is transient in the ordinary sense, but two retries at the full timeout is three times the hang the key exists to end. `0` disables it |
 | `trash.retentionDays` | `live` | `30` | |
-| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([02 §11.3](02-data-model.md)) |
-| `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([04 §6.5](04-server-multiuser-deployment.md)) |
+| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](docs/design/03-data-model.md)) |
+| `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([09 §6.5](docs/design/09-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |
 | `dev.enabled` | `restart` | `false` | |
 
 **The tier annotation is the source, not documentation of it.** The
-restart-required notice ([04 §6](04-server-multiuser-deployment.md)) is derived
+restart-required notice ([09 §6](docs/design/09-server-multiuser-deployment.md)) is derived
 from this table at runtime rather than hand-maintained, which is the whole point
-of [06 D0](06-open-questions.md) — a hand-maintained list of "things that need a
+of [25 D0](docs/design/25-open-questions.md) — a hand-maintained list of "things that need a
 restart" is wrong within two releases.
 
 **No credentials here.** Connections live in `connections/`
-([04 §4.5](04-server-multiuser-deployment.md)), and config has nowhere to put a
+([09 §4.5](docs/design/09-server-multiuser-deployment.md)), and config has nowhere to put a
 key — the same structural enforcement as the portable types
-([00 §3.2](00-stance.md)).
+([00 §3.2](docs/design/00-stance.md)).
 
 **Three keys also take an environment variable**
-([P6A §1.2](workplan/23-p6a-alpha-1.md)):
+([P6A §1.2](docs/design/workplan/19-p6a-alpha-1.md)):
 
 | Variable | Key |
 |---|---|
@@ -581,10 +581,10 @@ key — the same structural enforcement as the portable types
 These and no others, because these are the keys that decide where the config
 file is, whether the process is reachable at all, and whether it serves
 anything — everything else can wait for the file it finds. The last of them was
-added at [P6A.4](workplan/23-p6a-alpha-1.md) for the reason the list exists: the
+added at [P6A.4](docs/design/workplan/19-p6a-alpha-1.md) for the reason the list exists: the
 config file lives *inside* the data directory, so a container starting on an
 empty volume has no file to be configured by. The list is
-[P10 §1.2](workplan/21-p10-implementation.md)'s rule made concrete: the
+[P10 §1.2](docs/design/workplan/26-p10-implementation.md)'s rule made concrete: the
 container image binds `0.0.0.0` **by setting `SE_HOST`**, not by being a build
 that decided differently, because *a hidden difference between artifacts is a
 support burden shaped like a security feature*. The same variable tightens the
@@ -610,7 +610,7 @@ to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
 
 `log.format` had two literals and no meaning behind either. This is the meaning,
 written before the first line is emitted, because
-[P2 §4](workplan/04-p2-implementation.md)'s gate step 19 asks the log to answer a
+[P2 §4](docs/design/workplan/08-p2-implementation.md)'s gate step 19 asks the log to answer a
 question — *a turn was killed mid-flight; reconstruct its lifecycle* — and a log
 answers that only if the fields were decided in advance.
 
@@ -618,7 +618,7 @@ answers that only if the fields were decided in advance.
 own destination, because every way of running it already has one — a terminal, a
 service manager, a container runtime. A log file would also be the only writer
 outside the storage package, against the day-one rule that keeps
-path resolution behind one door ([testing §2](workplan/10-testing.md)).
+path resolution behind one door ([testing §2](docs/design/workplan/03-testing.md)).
 
 Every line carries `level`, `time`, `msg`. Beyond that, the contract is
 **bindings, not prose**: a value a later reader will filter on is a field, never
@@ -627,7 +627,7 @@ someone will grep for — `requestId`, `account`, `sessionId`, `jobId`, `turnId`
 `objectId`, `kind` — and the rule is that a child logger binds them once at the
 point the subject comes into existence rather than each call site repeating
 them. `jobId` is the one gate step 19 turns on: the turn job binds it when the
-job is created ([P2 §2.10](workplan/04-p2-implementation.md)) and every line from
+job is created ([P2 §2.10](docs/design/workplan/08-p2-implementation.md)) and every line from
 that job inherits it, which is what makes *filter by job id* a complete
 lifecycle rather than a sample of one.
 
@@ -645,7 +645,7 @@ paste into issues.
 
 #### 4.1.1 Foreign paths — the half the rule above did not cover
 
-*Added at P4.0, decided in [P4 §1.3](workplan/06-p4-implementation.md).* The
+*Added at P4.0, decided in [P4 §1.3](docs/design/workplan/16-p4-implementation.md).* The
 paragraph above governs paths inside the data root: relative to it, because the
 log gets pasted into issues. Import introduces paths that are not inside it at
 all — a SillyTavern user directory, a Marinara data root, somewhere on the
@@ -677,7 +677,7 @@ pressure:
 
 ### 4.2 What a reload does, including when it cannot
 
-`log.level` is the first key re-read live ([P2 §2.2](workplan/04-p2-implementation.md)),
+`log.level` is the first key re-read live ([P2 §2.2](docs/design/workplan/08-p2-implementation.md)),
 so the reload path stops being hypothetical and needs its failure states stated.
 Three, and only the third is the happy one:
 
@@ -694,13 +694,13 @@ Three, and only the third is the happy one:
   file keeps the running config and is treated as the first case.
 - **The file is valid.** `live` keys apply immediately. `restart`-tier
   differences are collected by `pendingRestart` and surfaced as the
-  restart-required notice ([04 §6.3](04-server-multiuser-deployment.md)) — the
+  restart-required notice ([09 §6.3](docs/design/09-server-multiuser-deployment.md)) — the
   notice is the *only* thing that fires; nothing restarts itself.
 
 **A reload is never triggered by the server's own write.** The settings UI
-([05 §15](05-ui-surfaces.md)) writes this file, and the write is atomic, so the
+([10 §15](docs/design/10-ui-surfaces.md)) writes this file, and the write is atomic, so the
 config source must consume the same self-write suppression the object watcher
-uses ([P1 §1.4](workplan/03-p1-implementation.md)) rather than reacting to its
+uses ([P1 §1.4](docs/design/workplan/07-p1-implementation.md)) rather than reacting to its
 own rename.
 
 ### 4.3 What a `live` key actually does, which is not always what its tier says
@@ -716,8 +716,8 @@ client so the settings form can put the `unread` ones in a group that says so.
 apply live when there is an upload route; there is not one, and Fastify fixes
 `bodyLimit` when the instance is constructed. Re-tiering it to `restart` to match
 today's implementation would lock the shortcut into the contract, which
-[P2 §3](workplan/04-p2-implementation.md) declined for that reason and
-[P2A §2.5](workplan/13-p2a-configuration-surface.md) agreed with after its first
+[P2 §3](docs/design/workplan/08-p2-implementation.md) declined for that reason and
+[P2A §2.5](docs/design/workplan/09-p2a-configuration-surface.md) agreed with after its first
 draft got it wrong.
 
 **The rule this settles:** where a tier and an implementation disagree, the
@@ -725,7 +725,7 @@ appliers table records the disagreement; **the tier moves only when the *intent*
 changes.**
 
 This exists because a settings surface that shows a control doing nothing is the
-placeholder [work plan §2.2](workplan/01-work-plan.md) forbids, and remembering
+placeholder [work plan §2.2](docs/design/workplan/01-work-plan.md) forbids, and remembering
 which keys are which is not a mechanism. Of the eleven keys tiered `live` at
 P2A, five are applied and six are honestly declared unread.
 
@@ -748,16 +748,16 @@ tables are an implementation detail. What is *not* an implementation detail is
 what must be true of it.
 
 - **Rebuild-from-disk equals incremental.** The CI assertion from
-  [work plan P1](workplan/01-work-plan.md), and now sharper because there are two producers to
-  agree ([02 §5.1.1](02-data-model.md)).
+  [work plan P1](docs/design/workplan/01-work-plan.md), and now sharper because there are two producers to
+  agree ([03 §5.1.1](docs/design/03-data-model.md)).
 - **Read-after-write for the server's own writes.** A `GET` after a `POST`
   reflects it. Foreign writes have no such guarantee and need none.
 - **Nothing is answerable only from the index.** The test in
-  [02 §5.1](02-data-model.md): if a feature cannot be reconstructed from disk,
+  [03 §5.1](docs/design/03-data-model.md): if a feature cannot be reconstructed from disk,
   it is storing data in the wrong place.
-- **Turn text is indexed on write**, not lazily ([07 §7.1](07-tech-stack.md)),
+- **Turn text is indexed on write**, not lazily ([19 §7.1](docs/design/19-tech-stack.md)),
   and rows off the current path stay indexed but carry their branch
-  ([05 §14.2](05-ui-surfaces.md)).
+  ([10 §14.2](docs/design/10-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
 
 ### 5.1 Operational state is not derived, and must not live in the index
@@ -768,10 +768,10 @@ been put there or implied into it:
 
 | State | Why it is not derived |
 |---|---|
-| **Auth sessions** | [07 §9](07-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
-| **Notification inbox** | "Persist until seen" ([04 §3.2](04-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
+| **Auth sessions** | [19 §9](docs/design/19-tech-stack.md) put session records "in the index database". Deleting the index would log every user out — recoverable, but it is not a non-event, and it means the index is not disposable after all. |
+| **Notification inbox** | "Persist until seen" ([09 §3.2](docs/design/09-server-multiuser-deployment.md)) is a durability claim. A notification lost to a rebuild was never durable. |
 | **Jobs and idempotency keys** | A turn in flight, and the keys that stop a retry charging twice, are facts about work — not restatements of anything on disk. |
-| **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([P2 §2.10](workplan/04-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([02 §5.5](02-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
+| **In-flight turn drafts, and sequenced progress events** | The live turn *during* execution ([P2 §2.10](docs/design/workplan/08-p2-implementation.md)). The JSONL segment is append-only and terminal-only ([03 §5.5](docs/design/03-data-model.md)), so the draft's only consistent home is here; event rows carry the reattach cursor and are prunable once the terminal turn exists, because the turn record is their durable meaning. |
 
 **So: a small operational store, separate from the index**, at
 `/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
@@ -779,7 +779,7 @@ rebuildable — which is exactly why keeping it out of the index matters. Both a
 SQLite; the distinction is what happens when you delete them.
 
 **Auth may not need it at all.** Signed stateless cookies with a short lifetime
-and a server-side revocation list ([07 §9](07-tech-stack.md)) reduce this to a
+and a server-side revocation list ([19 §9](docs/design/19-tech-stack.md)) reduce this to a
 small denylist rather than a session table, which is the cheaper answer for a
 household. The store is still wanted for jobs and notifications.
 
@@ -798,7 +798,7 @@ this is a second database rather than four more tables:
 | A version from the future | rebuild over it | refuse to open |
 
 The `full` fsync is affordable only because streaming deltas **coalesce** into
-checkpoints ([P2 §2.10](workplan/04-p2-implementation.md)); a durable transaction
+checkpoints ([P2 §2.10](docs/design/workplan/08-p2-implementation.md)); a durable transaction
 per token would make this the wrong trade.
 
 ---
@@ -807,11 +807,11 @@ per token would make this the wrong trade.
 
 | Structure | Why not here |
 |---|---|
-| Preset internals beyond [10 §8](10-schemas.md) | Portable; 13 owns it |
+| Preset internals beyond [04 §8](docs/design/04-schemas.md) | Portable; 13 owns it |
 | `InitPolicy`, `WidgetSpec` | Want the mode contract built first |
-| Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) |
-| The SSE wire format | [04 §3.3](04-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
-| Extension `HostApi` | [12 §4](12-extensions.md) owns it |
+| Rule vocabulary (`Predicate`, `Effect`) | 6.0, the authoring tier ([work plan §0.6](docs/design/workplan/01-work-plan.md)) |
+| The SSE wire format | [09 §3.3](docs/design/09-server-multiuser-deployment.md) has the event list; the encoding is a transport detail |
+| Extension `HostApi` | [22 §4](docs/design/22-extensions.md) owns it |
 
 **The rule for adding to this document:** a type belongs here when something is
 *built against it* and it never leaves the install. A type that only one module

@@ -12,11 +12,11 @@ import { NARRATE, SCENE, SCENE_ID, SCENE_MODE } from './mode.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
- * Scene, held to what it claims — [03 §2], [P2 §2.4].
+ * Scene, held to what it claims — [06 §2], [P2 §2.4].
  *
  * Two of these matter more than the rest. **The preset is a real portable
  * object**, validated by the same validator a user's write goes through — which
- * is what caught `SlotSource` missing the `guidance` arm that [03 §5.1] requires
+ * is what caught `SlotSource` missing the `guidance` arm that [06 §5.1] requires
  * a preset to be able to position. And **the mode is data**: a manifest with a
  * function on it would be the back door §2 says means the contract is wrong.
  */
@@ -30,7 +30,7 @@ describe('the manifest is data', () => {
   });
 
   it('carries no function on any field', () => {
-    // `collect()` on an AssemblyPlan is the specific back door [03 §5] rules
+    // `collect()` on an AssemblyPlan is the specific back door [06 §5] rules
     // out — it would also mean the collector P4 needs for imported presets is a
     // second implementation of the same thing.
     const walk = (value: unknown, path: string): void => {
@@ -48,7 +48,7 @@ describe('the manifest is data', () => {
   });
 
   it('keeps what it runs separate from what it declares', () => {
-    // [12 §3]'s split: `definition` crosses any boundary unchanged, `run` is
+    // [22 §3]'s split: `definition` crosses any boundary unchanged, `run` is
     // what becomes a dispatch table.
     expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id]);
     expect(SCENE_MODE.definition).toBe(SCENE);
@@ -63,7 +63,7 @@ describe('the default preset is a real portable object', () => {
   });
 
   it('positions the guidance block, which is the whole point of the slot', () => {
-    // [03 §5.1] says the guidance block is positioned by the preset. Until the
+    // [06 §5.1] says the guidance block is positioned by the preset. Until the
     // `SlotSource` fix this line could not be written: the schema had no
     // `guidance` arm, so this preset would not have validated above.
     const guidance = SCENE_PRESET.blocks.find(
@@ -76,7 +76,7 @@ describe('the default preset is a real portable object', () => {
   });
 
   it('positions the previous attempt after the guidance, advisory, and ranked below it', () => {
-    // [03 §5.1]'s second advisory slot, the one a guided redo fills. Three
+    // [06 §5.1]'s second advisory slot, the one a guided redo fills. Three
     // claims, each with its own falsifying mutation.
     const blocks = SCENE_PRESET.blocks;
     const at = (of: string): number =>
@@ -121,7 +121,7 @@ describe('the default preset is a real portable object', () => {
   });
 
   it('ranks writing samples above history and below lore', () => {
-    // [10 §3.1]. The constant is the whole behaviour of the feature under
+    // [04 §3.1]. The constant is the whole behaviour of the feature under
     // pressure, and it is not self-evident: history is emitted at
     // `priority + index` across the window, so this preset's history spans
     // 10..29 rather than sitting at its declared 10. A sample at 20 therefore
@@ -178,7 +178,7 @@ describe('the default preset is a real portable object', () => {
 describe('what Scene declares, and what the engine does with it', () => {
   it('makes its one step a prose call, which is what admits guidance', () => {
     // One `writes` entry here would turn every guidance-carrying turn into an
-    // AdvisoryLeakError abort — [03 §5.2] working as designed, and worth
+    // AdvisoryLeakError abort — [06 §5.2] working as designed, and worth
     // pinning before somebody adds a channel to the step.
     expect(callPurposeFor(NARRATE)).toBe('prose');
   });

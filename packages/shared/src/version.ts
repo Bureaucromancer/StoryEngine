@@ -3,7 +3,7 @@
 
 /**
  * The name a person calls a build, derived from the string the machinery
- * reads — [releases §7.1](../../../docs/design/workplan/11-repo-and-releases.md).
+ * reads — [releases §7.1](../../../docs/design/workplan/04-repo-and-releases.md).
  *
  * The string is semver (`1.0.0-alpha.1`, `1.0.0-beta.1.1`, `1.0.0`, `1.0.1`)
  * and is what the tag, the data-directory stamp, the release test and the

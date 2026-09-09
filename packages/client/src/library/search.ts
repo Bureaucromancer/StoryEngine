@@ -4,7 +4,7 @@
 import type { LoreEntry } from '@storyengine/shared';
 
 /**
- * Within-book search, which [05 §5.3](../../../../docs/design/05-ui-surfaces.md)
+ * Within-book search, which [10 §5.3](../../../../docs/design/10-ui-surfaces.md)
  * calls "the strongest fact in this section": the detail route already holds
  * the whole object, so filtering and highlighting across `name`, `keys`,
  * `secondaryKeys`, `description` and `content` is local, immediate, and needs
@@ -13,7 +13,7 @@ import type { LoreEntry } from '@storyengine/shared';
  *
  * **Substring, case-insensitively, and no regular expression anywhere.** Not a
  * simplification — a pattern compiled from something a person is still typing
- * is the same hazard [§1.10](../../../../docs/design/workplan/07-p5-implementation.md)
+ * is the same hazard [§1.10](../../../../docs/design/workplan/17-p5-implementation.md)
  * puts a hard timeout in front of at P5.4, and reaching for one here would put
  * it in a keystroke handler where there is nothing to time out. `indexOf` over
  * a lowercased copy is what the feature actually needs.

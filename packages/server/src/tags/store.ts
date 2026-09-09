@@ -17,11 +17,11 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 
 /**
- * The tag registry on disk — [25 §4](../../../../docs/design/25-tagging.md).
+ * The tag registry on disk — [05 §4](../../../../docs/design/05-tagging.md).
  *
  * **Shaped like `PrefsStore`, with one deliberate difference: this one
  * validates.** The preferences store documents at length that it does not, and
- * that is the whole of [06 B13]'s decision — a bag whose keys nothing
+ * that is the whole of [25 B13]'s decision — a bag whose keys nothing
  * interprets can be added to and abandoned without a migration. A structured
  * document with a schema is what that decision *excluded*, which is why this is
  * a second file rather than a key in the first one, and why validating here
@@ -147,7 +147,7 @@ export class TagStore {
  * The checks are the ones a *caller* could get wrong — a name that is empty
  * after normalising, two entries that are one tag, a list without end. Nothing
  * here interprets a swatch or a folder mode, because those are open strings
- * whose unknown values are the shared module's business ([25 §4]).
+ * whose unknown values are the shared module's business ([05 §4]).
  */
 function validated(tags: readonly TagEntry[]): TagEntry[] {
   if (tags.length > MAX_TAGS) {

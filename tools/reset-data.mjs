@@ -10,7 +10,7 @@ import { basename, dirname, join, resolve } from 'node:path';
  * **`rm -rf` on a live data directory half-succeeds, and the half that survives
  * is the wrong half.** Measured: everything unlocked goes, and both SQLite
  * stores stay — including `state/`, which
- * [13 §5.1](../docs/design/13-internal-contracts.md) says is the authoritative one and
+ * [21 §5.1](../docs/design/21-internal-contracts.md) says is the authoritative one and
  * explicitly *not* disposable. Its own signing key, a plain file beside it, is
  * deleted. So the store survives without the key that validates the sessions
  * inside it, `config.json` goes and the next start silently reverts to the

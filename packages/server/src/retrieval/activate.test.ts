@@ -683,7 +683,7 @@ describe('activate', () => {
     });
 
     /**
-     * **Each entry's roll is keyed to that entry** — [07 §14]'s *keyed by site,
+     * **Each entry's roll is keyed to that entry** — [19 §14]'s *keyed by site,
      * never by position*. Two entries drawing under one purpose are told apart
      * only by an index, and an index is a position: drop the first entry on a
      * rewrite and the second inherits its coin flip.

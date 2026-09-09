@@ -23,7 +23,7 @@ import { rebuild } from './rebuild.js';
 import { listSessionRows, searchTurns, sessionSnapshot, turnText } from './sessions.js';
 
 /**
- * Sessions and turns in the index — [07 §7.1], F10.
+ * Sessions and turns in the index — [19 §7.1], F10.
  *
  * Two properties matter here and they pull in different directions. The index
  * must be **maintained on write**, because a lazily built search index is empty
@@ -122,7 +122,7 @@ describe('a session is indexed as it is written', () => {
   });
 
   it('indexes nothing for a turn that has no text', () => {
-    // A hand-edit turn ([02 §8.1]) has neither input nor output, and an empty
+    // A hand-edit turn ([03 §8.1]) has neither input nor output, and an empty
     // FTS row would match a bare-prefix query and offer the reader nothing.
     const turn: Turn = { ...spokenTurn('s', null, '') };
     delete turn.input;
@@ -160,7 +160,7 @@ describe('rebuild-from-disk equals the incremental index, for sessions too', () 
 
   it('agrees after writes, an archive, a rename and a delete', async () => {
     // The same assertion the library is held to, and it is what keeps the
-    // session rows honest about being derived ([13 §5]).
+    // session rows honest about being derived ([21 §5]).
     await aSessionWith('Rain City', ['The rain had not stopped in nine days.', 'Nor had she.']);
     const archived = await aSessionWith('Old Game', ['Once.']);
     const doomed = await aSessionWith('A Mistake', ['Never mind.']);
@@ -225,14 +225,14 @@ describe('search over turn text', () => {
 
   it('never reaches another account', async () => {
     // The owner comes from the session row, which is the only thing that knows
-    // an owner — the join *is* the containment rule ([04 §4.3]).
+    // an owner — the join *is* the containment rule ([09 §4.3]).
     await aSessionWith('Rain City', ['The cathedral was three streets east.']);
 
     expect(searchTurns(index.db, ['user:sister'], 'cathedral')).toEqual([]);
   });
 
   it('still finds an archived session', async () => {
-    // Archived is out of the way, not gone ([02 §10.3]) — a search that skipped
+    // Archived is out of the way, not gone ([03 §10.3]) — a search that skipped
     // it would make archiving a quiet way of losing things.
     const sessionId = await aSessionWith('Old Game', ['The cathedral burned that winter.']);
     await setArchived(context, ACCOUNT, sessionId, true);

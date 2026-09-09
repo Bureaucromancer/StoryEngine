@@ -19,11 +19,11 @@ import { Alert } from './ui/Alert.js';
 /**
  * Two surfaces and their pages: Library at `/library`, Play at `/play`, plus the
  * detail view, the actor editor and settings
- * ([05 §2](../../../docs/design/05-ui-surfaces.md)). The kind filter is a search
+ * ([10 §2](../../../docs/design/10-ui-surfaces.md)). The kind filter is a search
  * param on the list, so a filtered library is an address like any other. The
  * editor's path is actor-specific because the editor is — the other five kinds
  * stay read-only in P1
- * ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)).
+ * ([P1 §P1.7](../../../docs/design/workplan/07-p1-implementation.md)).
  *
  * Code-based rather than file-based routing — at this size the generator would
  * be more machinery than route.
@@ -49,7 +49,7 @@ export interface CompareSearch {
 /**
  * Which copy of a duplicated id the detail page is showing (F19), and — for a
  * lorebook — which entry inside it is in focus
- * ([05 §5.3](../../../docs/design/05-ui-surfaces.md)).
+ * ([10 §5.3](../../../docs/design/10-ui-surfaces.md)).
  *
  * **The bag now carries two different jobs, and §5.3 asks for this sentence
  * where it is read**: `slug` and `source` say *which copy of the object*, and
@@ -74,7 +74,7 @@ export interface ObjectSearch {
  * `entry` is validated only as *a string*. Whether the book still contains it
  * is the page's question, not the router's, and the answer there is the same
  * shrug: an entry id "is unique within one book and carries no meaning beyond
- * it" ([10 §5.2]) and an importer may renumber freely, so a saved link
+ * it" ([04 §5.2]) and an importer may renumber freely, so a saved link
  * outliving its entry is the expected end of one.
  *
  * Named and exported so it can be tested as the contract it is. Inline in the
@@ -96,7 +96,7 @@ const rootRoute = createRootRoute({ component: Shell });
 /**
  * The library lives at `/library`, not at `/`.
  *
- * `/` is the eventual home ([05 §2.2](../../../docs/design/05-ui-surfaces.md)) —
+ * `/` is the eventual home ([10 §2.2](../../../docs/design/10-ui-surfaces.md)) —
  * resume, start, notice, recent work — and the library is explicitly *not* the
  * answer to arrival. Moving it now, before home exists, means the address is
  * right from the start and `/` is free to become home without breaking a link
@@ -176,7 +176,7 @@ const objectRoute = createRoute({
 
 /**
  * The comparison — the one full view this phase adds, and the reason it is a
- * view rather than a panel is in the address: [P3 §7.2] re-grounds [05 §3]'s
+ * view rather than a panel is in the address: [P3 §7.2] re-grounds [10 §3]'s
  * escalation on **addressability**, and a bookmarkable pair of turn ids is
  * exactly what a panel scoped to the main view cannot be.
  *
@@ -223,7 +223,7 @@ const newActorRoute = createRoute({
  * The lorebook editor's address — [P5.1], and the second entry in
  * `EDITOR_ROUTES`.
  *
- * **`?entry=` and nothing else.** [05 §5.3] asks that the read view's edit
+ * **`?entry=` and nothing else.** [10 §5.3] asks that the read view's edit
  * affordance be *"a link into the editor at the entry's address"*, so the write
  * surface has to be able to hold one — and the read route's `?source=` and
  * `?slug=` deliberately do **not** come with it, because every write resolves

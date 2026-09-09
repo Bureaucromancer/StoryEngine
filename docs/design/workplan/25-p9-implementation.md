@@ -1,18 +1,18 @@
-# 20 — P9 implementation plan
+# 25 — P9 implementation plan
 
 **Status: skeleton.** Drafted 2026-08-29 alongside
-[P7](18-p7-implementation.md), [P8](19-p8-implementation.md),
-[P10](21-p10-implementation.md) and [P11](22-p11-implementation.md); to be
-revisited before the phase starts. [18 §0](18-p7-implementation.md) says what a
-skeleton this far out is for. Format follows [03](03-p1-implementation.md);
-citation convention as [P4](06-p4-implementation.md)'s.
+[P7](docs/design/workplan/23-p7-implementation.md), [P8](docs/design/workplan/24-p8-implementation.md),
+[P10](docs/design/workplan/26-p10-implementation.md) and [P11](docs/design/workplan/27-p11-implementation.md); to be
+revisited before the phase starts. [P7 §0](docs/design/workplan/23-p7-implementation.md) says what a
+skeleton this far out is for. Format follows [P1](docs/design/workplan/07-p1-implementation.md);
+citation convention as [P4](docs/design/workplan/16-p4-implementation.md)'s.
 
-**P9 delivers**, from [01 P9](01-work-plan.md): per-turn and on-demand
-illustration ([03 §10](../03-modes-and-turn-pipeline.md)), built against the
+**P9 delivers**, from [work plan P9](docs/design/workplan/01-work-plan.md): per-turn and on-demand
+illustration ([06 §10](../06-modes-and-turn-pipeline.md)), built against the
 general **rendition** shape so that video and speech are later *kinds* rather
 than later subsystems — **and the backdrop a scene is staged against**, which is
 the same shape under a second *purpose*
-([03 §10.1a](../03-modes-and-turn-pipeline.md), §1.7).
+([06 §10.1a](../06-modes-and-turn-pipeline.md), §1.7).
 
 **The demo that defines done:** *a turn completes on text and an image arrives
 seconds later, rendering in place; illustrate a turn from forty turns back and
@@ -25,15 +25,15 @@ rewind past the doorway and it is behind you again.*
 stage.** Two things it does not have to build are already settled and already
 paid for: renditions never block the turn, so a failed image is a placeholder
 with a retry button rather than a failed turn
-([03 §10.2](../03-modes-and-turn-pipeline.md)); and a rendition is **not** a
+([06 §10.2](../06-modes-and-turn-pipeline.md)); and a rendition is **not** a
 channel effect, so it does not participate in state
 reconstruction — a branch inherits a turn's renditions by inheriting the turn
-([09 §2](../09-branching.md)). What it does have to build first is a contract that
+([07 §2](../07-branching.md)). What it does have to build first is a contract that
 does not exist (§1.1).
 
 **CI this phase establishes:** golden-file coverage of prompt assembly under the
 provider's declared cap — the ranked-fragment path from
-[07 §5.3](../07-tech-stack.md) getting its second consumer and its first one with
+[19 §5.3](../19-tech-stack.md) getting its second consumer and its first one with
 a hard external limit — plus the recipe-survives-eviction property: *for any
 rendition, dropping `asset` and re-running from `prompt` and `provenance`
 produces a request byte-identical to the original's.* The backdrop's reuse key
@@ -43,7 +43,7 @@ rendered dispatches no job.*
 
 **That property is now load-bearing in a way it was not when it was written**,
 because one fragment of the prompt is written by a model
-([03 §10.3](../03-modes-and-turn-pipeline.md)). Byte-identical re-runs and equal
+([06 §10.3](../06-modes-and-turn-pipeline.md)). Byte-identical re-runs and equal
 digests both survive only if the moment is stored and **replayed** rather than
 asked for a second time, so the assertion has to be run against an implementation
 that makes no text call on re-creation. Written the natural way it regenerates,
@@ -54,12 +54,12 @@ itself a month later. P9.1 says it again where the code is.
 
 ## 0. What this document is, six phases out
 
-[P7 §0](18-p7-implementation.md) states the shared answer. Two things are
+[P7 §0](docs/design/workplan/23-p7-implementation.md) states the shared answer. Two things are
 specific to this one, and both are about a phase whose subject does not exist
 yet in any form.
 
 **§1.1's claim was re-checked on 2026-08-31 and still holds:** `Rendition` is
-specified in [03 §10](../03-modes-and-turn-pipeline.md) and appears in **no
+specified in [06 §10](../06-modes-and-turn-pipeline.md) and appears in **no
 schema** — the name is absent from `packages/shared/src` entirely. So this
 phase is not extending a type, it is introducing one, and §1.1 is the decision
 that matters most in the document. Everything after it is a consumer.
@@ -70,7 +70,7 @@ unusual for something this late and worth naming:
 - **P6 owes it reconstruction-at-a-node.** §1.3 — old turns rendered against
   *recorded* state rather than present state — is only answerable because P6
   makes *that turn's state* a thing you can ask for.
-  [P6 §0](08-p6-implementation.md) now records the dependency from its end.
+  [P6 §0](docs/design/workplan/18-p6-implementation.md) now records the dependency from its end.
 - **P10 owes it a router.** §1.5 is explicit that `artifact.ready` has a
   producer here and a consumer two phases later, which means this phase ships a
   signal nobody listens to and has to say so rather than quietly not emitting
@@ -81,7 +81,7 @@ unusual for something this late and worth naming:
 - **P7 also owes it a channel value it can write.** §1.7 — the backdrop
   channel P7 declares must hold a media reference able to name a rendition's
   asset, not only an uploaded file. Free there, a migration here.
-  [P7.9](18-p7-implementation.md) records it from its end.
+  [P7.9](docs/design/workplan/23-p7-implementation.md) records it from its end.
 
 ---
 ## 1. Decisions this plan has to make
@@ -89,27 +89,27 @@ unusual for something this late and worth naming:
 ### 1.1 `Rendition` is specified in one document and appears in no schema
 
 **The phase's first stage is a contract, not a feature**, and this is the reason.
-[03 §10.1](../03-modes-and-turn-pipeline.md) gives the full interface — `kind`,
+[06 §10.1](../06-modes-and-turn-pipeline.md) gives the full interface — `kind`,
 `purpose`, `scope` (both halves, §1.6), `state`, `prompt`, `asset`, `provenance`,
 `error` — and it is the only place in the design that has it. It is **not** in
-[10](../10-schemas.md), which owns portable objects; **not** in
-[13](../13-internal-contracts.md), which owns internal ones; and **not** in
-[02](../02-data-model.md), which owns what is on disk. `sessions/<id>/assets/`
+[04](../04-schemas.md), which owns portable objects; **not** in
+[21](../21-internal-contracts.md), which owns internal ones; and **not** in
+[03](../03-data-model.md), which owns what is on disk. `sessions/<id>/assets/`
 exists in the layout with nothing writing to it.
 
 That is the same shape of gap as
-[P2B §1](14-p2b-provider-configuration.md)'s missing fallback layer — three
+[P2B §1](docs/design/workplan/10-p2b-provider-configuration.md)'s missing fallback layer — three
 documents relying on a thing no document defines — and it is named here so it is
 found while planning rather than on the day. The remedy is small: one section in
-[13](../13-internal-contracts.md), one paragraph in
-[02 §5](../02-data-model.md) about where the bytes live, and the turn record's
+[21](../21-internal-contracts.md), one paragraph in
+[03 §5](../03-data-model.md) about where the bytes live, and the turn record's
 link to them.
 
 **One field of that interface names a type that does exist, and it is the wrong
 one.** *Found 2026-09-01, while adding §1.7.* `Rendition.provenance` is typed as
 `GeneratedFieldProvenance`, which ships today in
 `packages/shared/src/schema/common.ts` — and it cannot carry what
-[03 §10.7](../03-modes-and-turn-pipeline.md) requires. Its `seed` is documented
+[06 §10.7](../06-modes-and-turn-pipeline.md) requires. Its `seed` is documented
 as *"the input the generation ran from"*, a string holding the prompt an assist
 ran against; §10.7 means the **sampling seed**, and calls it *"the load-bearing
 field here, and the one an implementation is most likely to drop as
@@ -131,21 +131,21 @@ date.** A rendition hangs off a turn, and turns are internal. The
 counter-argument is that the recipe is the durable half and someone will want it
 to survive an export.
 
-When this was written, export was [06 B12](../06-open-questions.md) with no
+When this was written, export was [25 B12](../25-open-questions.md) with no
 release attached, so deciding here would have been deciding early and blind.
-**Export now ships at 1.0** ([01 §0.5](01-work-plan.md)) at P11, which is after
+**Export now ships at 1.0** ([work plan §0.5](docs/design/workplan/01-work-plan.md)) at P11, which is after
 this phase — so the lean still holds, but it is no longer a decision that can be
 left indefinitely. **P9 owes P11 an answer rather than a lean**: what a rendition
 contributes to an exported session, and whether the recipe travels with it.
 
 ### 1.2 The provider layer speaks chat, and no image endpoint does
 
-`image` is one of the eight model roles ([07 §5.1](../07-tech-stack.md)) and is
+`image` is one of the eight model roles ([19 §5.1](../19-tech-stack.md)) and is
 **unset until a matching connection exists**, because there is no sensible
 text-model fallback for it. So the role vocabulary is ready. What is not ready is
 the adapter: `Provider` in `packages/server/src/providers/types.ts` is
 `generate(request) → GenerationResult` with an optional text `stream`, and
-[07 §5.5](../07-tech-stack.md)'s compatibility surface is stated as *if it speaks
+[19 §5.5](../19-tech-stack.md)'s compatibility surface is stated as *if it speaks
 OpenAI-compatible chat, it works* — which no image-generation API does.
 
 So the phase owns a genuine question rather than a wiring job: **does `Provider`
@@ -156,17 +156,17 @@ re-derive them:
 - Connections, credentials-never-leave-the-server, role binding and the
   five-layer override order are all worth reusing whichever answer wins; the
   *capability record* and the request/response shapes are not.
-- [07 §5.5](../07-tech-stack.md) already says the chat bet is reversible at a
+- [19 §5.5](../19-tech-stack.md) already says the chat bet is reversible at a
   single seam because rendering is isolated as one step. A second *provider
   kind* is a larger claim than a second renderer and should be made
   deliberately.
 - Whatever ships must not make `image` look bound when nothing can serve it.
-  [P2B](14-p2b-provider-configuration.md)'s dangling posture is the precedent:
+  [P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s dangling posture is the precedent:
   visible, named, and never a turn that fails obscurely.
 
 ### 1.3 Old turns: recorded state or present state
 
-[03 §10.6](../03-modes-and-turn-pipeline.md)'s standing `[OPEN]` — whether an
+[06 §10.6](../06-modes-and-turn-pipeline.md)'s standing `[OPEN]` — whether an
 on-demand rendition of an *old* turn assembles from that turn's recorded state or
 from the present. Recorded state is more correct and more surprising; the turn
 record makes either possible.
@@ -187,7 +187,7 @@ not be decided twice.
 
 ### 1.4 Eviction is a later decision, and that is only true if the hook ships
 
-[06 E3](../06-open-questions.md) is explicit that an eviction policy can be
+[25 E3](../25-open-questions.md) is explicit that an eviction policy can be
 adopted later *because adopting one can never cost history*. That holds only if
 two things are true from the first commit: `asset: null` renders as a
 regenerable placeholder rather than a broken image, and the recipe — prompt,
@@ -197,19 +197,19 @@ the shape that makes it safe is not**, and a phase that ships pixels without
 
 ### 1.5 `artifact.ready` has a producer here and a router two phases later
 
-[04 §3.5](../04-server-multiuser-deployment.md) defines the class and names
+[09 §3.5](../09-server-multiuser-deployment.md) defines the class and names
 renditions as its only 1.0 producer; the notification **router** is
-[P10](21-p10-implementation.md)'s. So this phase emits an event nothing routes,
+[P10](docs/design/workplan/26-p10-implementation.md)'s. So this phase emits an event nothing routes,
 and the phases are in that order for good reasons on both sides.
 
-The obligation that follows is [04 §3.4](../04-server-multiuser-deployment.md)'s
+The obligation that follows is [09 §3.4](../09-server-multiuser-deployment.md)'s
 and it is cheap here and expensive later: the event carries its class, its target
 user resolved **server-side**, `actionable: false`, a renderable summary as
 `{ key, params }` rather than English prose, and a dedupe key. Getting the schema
 right is the retrofit risk; the delivery is additive.
 
 **A backdrop arriving emits the same event**, and does not earn a class of its
-own: [04 §3.5](../04-server-multiuser-deployment.md) named the class
+own: [09 §3.5](../09-server-multiuser-deployment.md) named the class
 `artifact.ready` rather than `rendition-ready` precisely so its second instance
 would not require renaming it, and a second *purpose* is a weaker case for a new
 class than a second kind would be. Whether a backdrop is worth ringing about is
@@ -219,7 +219,7 @@ that is this phase's to get right.
 
 ### 1.6 Three fields whose absence would force a schema change later
 
-[03 §10.5](../03-modes-and-turn-pipeline.md) records the first two. `kind` is a
+[06 §10.5](../06-modes-and-turn-pipeline.md) records the first two. `kind` is a
 union from the first commit even though only `"image"` is ever written, and
 `scope.messageId` exists even though images rarely need it — speech is per
 utterance, and under `per-actor` dispatch a turn holds several. Neither is
@@ -227,7 +227,7 @@ speculative machinery: they are fields whose absence would force a schema change
 on a stored type.
 
 **`scope.anchor` is the third, and it is the one with a consumer in this phase**
-([03 §10.4a](../03-modes-and-turn-pipeline.md)). That makes it a different
+([06 §10.4a](../06-modes-and-turn-pipeline.md)). That makes it a different
 argument from the other two rather than a longer version of the same one: they
 are shapes held open for kinds nobody builds at 1.0, while the anchor is used on
 the first turn P9 illustrates — the picture lands *in* the prose rather than
@@ -241,16 +241,16 @@ two kinds. The shape is general; the implementation is images.
 
 ### 1.7 Backgrounds are the second thing this phase delivers, and a second field
 
-*Added 2026-09-01.* [03 §10.1a](../03-modes-and-turn-pipeline.md) is the design
+*Added 2026-09-01.* [06 §10.1a](../06-modes-and-turn-pipeline.md) is the design
 side of this; what follows is what it costs the phase and what the phase owes
 back.
 
 **The gap it closes is older than this document.**
-[03 §7.2](../03-modes-and-turn-pipeline.md) has described Scene as *"staged
+[06 §7.2](../06-modes-and-turn-pipeline.md) has described Scene as *"staged
 scene, optional background and sprites"* since it was written, and has always
 said backgrounds are steps writing to channels. **No document has ever said
-where the image comes from.** [P7.9](18-p7-implementation.md) repeats the
-channel and inherits the silence; [P4](06-p4-implementation.md) counts
+where the image comes from.** [P7.9](docs/design/workplan/23-p7-implementation.md) repeats the
+channel and inherits the silence; [P4](docs/design/workplan/16-p4-implementation.md) counts
 SillyTavern's `backgrounds/` folder among the directories it *skips*, correctly,
 because thirty JPEGs are not a StoryEngine object. So at the end of P7 the
 engine has a channel that says which backdrop is showing and nothing at all that
@@ -259,7 +259,7 @@ backdrop is a rendition.**
 
 **`purpose` is one closed union, and it is not `kind`.** `kind` answers *how is
 this produced* — provider, latency, cost, the axis on which the three kinds of
-[03 §10.1](../03-modes-and-turn-pipeline.md) genuinely differ. `purpose` answers
+[06 §10.1](../06-modes-and-turn-pipeline.md) genuinely differ. `purpose` answers
 *what is it for*. The rejected shape is putting `"background"` into `kind`,
 which is smaller by one field and wrong in a way that shows up exactly once, late:
 an animated backdrop is `{ kind: "video", purpose: "background" }` here and
@@ -287,8 +287,8 @@ it the *worst* candidate for the version with no history.
 
 **What it does not add is a mechanism.** The pointer to the selected backdrop is
 an ordinary `ChannelEffect`, so rewind and branching come from
-[09 §2](../09-branching.md) with nothing written for them, and
-[03 §10.2](../03-modes-and-turn-pipeline.md)'s corollary is sharpened rather than
+[07 §2](../07-branching.md) with nothing written for them, and
+[06 §10.2](../06-modes-and-turn-pipeline.md)'s corollary is sharpened rather than
 weakened: *the artefact is not an effect; the selection is.* If this phase finds
 itself writing branch-aware code for backdrops, the split was implemented
 backwards.
@@ -327,16 +327,16 @@ an authored image or a rendition's asset, from the declaration onward.** P7 ship
 that channel two phases before anything can generate for it, so the natural
 declaration is the one that matches what P7 can actually produce — a file
 somebody uploaded — and narrowing it that way means widening a channel's schema
-under live sessions ([03 §4.2](../03-modes-and-turn-pipeline.md)) to admit the
+under live sessions ([06 §4.2](../06-modes-and-turn-pipeline.md)) to admit the
 generated case. It is free in P7 and a migration in P9, which is the same shape
-of obligation [P6 §0](08-p6-implementation.md) already records from its end, and
-it is recorded in [P7.9](18-p7-implementation.md) from that end.
+of obligation [P6 §0](docs/design/workplan/18-p6-implementation.md) already records from its end, and
+it is recorded in [P7.9](docs/design/workplan/23-p7-implementation.md) from that end.
 
 #### The line this does not cross
 
 **Text in, images out.** A background prompt is built from channel state as
 *text*. Conditioning generation on a location's `reference` **image** is
-**lore-conditioned renditions**, deferred past 1.0 by [14 §3](../14-roadmap.md)
+**lore-conditioned renditions**, deferred past 1.0 by [24 §3](../24-roadmap.md)
 and by §4 below, for a reason that survives contact with this feature: *choosing
 which images* is the hard part when six active entries and three present actors
 all carry references, and attaching all of them produces mud.
@@ -353,8 +353,8 @@ request after it works for one location is the one with six.
 
 ### P9.0 — The contract
 
-§1.1: `Rendition` lands in [13](../13-internal-contracts.md), the bytes get a
-home in [02 §5](../02-data-model.md) under `sessions/<id>/assets/`, and the turn
+§1.1: `Rendition` lands in [21](../21-internal-contracts.md), the bytes get a
+home in [03 §5](../03-data-model.md) under `sessions/<id>/assets/`, and the turn
 record links to them. §1.2's provider question answered and written down before
 any adapter is chosen. **Both unions are closed here** — `kind` with one value
 ever written and `purpose` with both (§1.6, §1.7) — and §1.1's `provenance`
@@ -366,11 +366,11 @@ digest and the exit gate's property both hash.
 
 ### P9.1 — The step, and the prompt
 
-An ordinary `post`-stage step ([03 §10.3](../03-modes-and-turn-pipeline.md)),
+An ordinary `post`-stage step ([06 §10.3](../06-modes-and-turn-pipeline.md)),
 composing from what is already there: **the moment**, present actors'
 `VisualDescriptors` and their `reference` media, channel state, and the
 treatment's tone. Assembled as **ranked fragments under the provider's declared
-cap** ([07 §5.3](../07-tech-stack.md)) so overrun drops the lowest-ranked
+cap** ([19 §5.3](../19-tech-stack.md)) so overrun drops the lowest-ranked
 fragment rather than truncating mid-sentence — work that was specified for
 exactly this case and has had no consumer until now.
 
@@ -378,14 +378,14 @@ exactly this case and has had no consumer until now.
 stopped being pure assembly. A cheap `fast`-role call reads the turn's output
 text and answers *what is the picture of*, because handing a whole paragraph to
 an image model produces a prompt about a paragraph
-([03 §10.3](../03-modes-and-turn-pipeline.md)). The call also returns the
+([06 §10.3](../06-modes-and-turn-pipeline.md)). The call also returns the
 **anchor** — a verbatim quote saying where in the message the picture belongs
-([03 §10.4a](../03-modes-and-turn-pipeline.md)) — and its miss path is built
+([06 §10.4a](../06-modes-and-turn-pipeline.md)) — and its miss path is built
 here, not deferred: an anchor that does not resolve renders the image at the end
 of its message and records the miss, and it must never fail the rendition.
 
 **One image per turn this phase.** The call asks for *the* moment, singular.
-[03 §10.4](../03-modes-and-turn-pipeline.md)'s count judgement — a list, a
+[06 §10.4](../06-modes-and-turn-pipeline.md)'s count judgement — a list, a
 salience, a cap, top-*k* — is specified and deliberately not built (§4), which is
 only safe if this stage does not foreclose it: the step contract emits a **list**
 of rendition requests from the first commit even though the list has one element,
@@ -411,7 +411,7 @@ lands with it, over the fragments as sent.
 
 Renditions dispatched as their own jobs, arriving over the event stream and
 rendering in place; placeholder while pending; retry on failure; §1.5's event
-shape. This is the stage where [03 §10.2](../03-modes-and-turn-pipeline.md)'s
+shape. This is the stage where [06 §10.2](../06-modes-and-turn-pipeline.md)'s
 *not an optimisation, the only workable design* is either true in the code or
 quietly false.
 
@@ -420,7 +420,7 @@ quietly false.
 Many renditions per turn with the user choosing which is shown — structurally
 the turn tree again, siblings under a node, and for the same reason:
 regeneration must never be destructive
-([06 E3](../06-open-questions.md), [03 §10.7](../03-modes-and-turn-pipeline.md)).
+([25 E3](../25-open-questions.md), [06 §10.7](../06-modes-and-turn-pipeline.md)).
 Variations ship; §1.4's `asset: null` rendering ships with them.
 
 **The backdrop's channel binding belongs here**, because *which one is showing*
@@ -428,13 +428,13 @@ is the same question this stage answers for illustrations and a different
 mechanism only for backdrops: a `ChannelEffect` naming the selected rendition
 (§1.7). Digest reuse resolves through that selection, which is what makes
 returning to a place return the backdrop you picked for it rather than the first
-one generated there. Rewind and branching are then [09 §2](../09-branching.md)'s
+one generated there. Rewind and branching are then [07 §2](../07-branching.md)'s
 and nothing is written for them — the check is that nothing *was*.
 
 ### P9.4 — Controls
 
 Per session: off, on-demand only, or each turn that has a moment worth one
-([03 §10.6](../03-modes-and-turn-pipeline.md)). The third setting reads as
+([06 §10.6](../06-modes-and-turn-pipeline.md)). The third setting reads as
 conditional in the design because the count judgement may answer none — but that
 judgement is §4's deferral, so **what P9 ships behind that label is one image per
 turn**, and the label is written to survive the later phase rather than promise
@@ -444,23 +444,23 @@ message in the history — the same step invoked by hand, additive and never
 replacing — and §1.3's decision, disclosed.
 
 **Neither pacing dial is P9's** — not the cap and not the cadence
-([03 §10.6](../03-modes-and-turn-pipeline.md)). They arrive with the judgement
+([06 §10.6](../06-modes-and-turn-pipeline.md)). They arrive with the judgement
 they gate, and building either here would be a control over a decision nothing
 makes yet.
 
 **The backdrop's own control, which is off or on and has no per-turn setting**
-([03 §10.6](../03-modes-and-turn-pipeline.md)): *on* means when the place
+([06 §10.6](../06-modes-and-turn-pipeline.md)): *on* means when the place
 changes, and a per-turn backdrop is the failure mode rather than the thorough
 option. **Set the scene** is its manual counterpart. And the surface it renders
-on — [05 §2.3](../05-ui-surfaces.md), where the constraint is that the prose
+on — [10 §2.3](../10-ui-surfaces.md), where the constraint is that the prose
 wins: a backdrop is chrome behind a reading column, never a thing the story has
 to compete with. **Off leaves Play exactly as it was**, which is
-[03 §7.2](../03-modes-and-turn-pipeline.md)'s text-only-is-first-class applied to
+[06 §7.2](../06-modes-and-turn-pipeline.md)'s text-only-is-first-class applied to
 the feature most likely to treat its own absence as an empty state.
 
 ### P9.5 — The workbench over renditions
 
-Deferred here by name from [P3 §5](05-p3-implementation.md). Renditions are
+Deferred here by name from [P3 §5](docs/design/workplan/15-p3-implementation.md). Renditions are
 worth showing for the same reason calls are: they cost money, they can fail, and
 *why did this one come out different* is answerable from two seeds. No new
 viewer — the block and call tables already exist and this is a third row kind.
@@ -503,7 +503,7 @@ Sketch; expand on revisit.
     no `image` call was made.
 13. An illustration renders **at its anchor** — inside the prose, at the sentence
     the moment call quoted, not underneath the message
-    ([03 §10.4a](../03-modes-and-turn-pipeline.md)).
+    ([06 §10.4a](../06-modes-and-turn-pipeline.md)).
 14. Edit that message so the quote no longer occurs in it: the image renders at
     the end of the message, the unresolved anchor is recorded, and the rendition
     is still `ready`. A miss is ordinary and must never be an error — this is the
@@ -513,14 +513,14 @@ Sketch; expand on revisit.
     log, because assertion 5's byte-identical request passes either way on the
     day it is written and only diverges later.
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
 configuration that has no surface.** Five settings arrive here — the per-session
 illustration mode, the per-mode default, the backdrop's own on/off, and two role
 bindings, since the moment call (P9.1) needs a `fast` binding beside the `image`
 one. Both bindings belong on
-[P2B](14-p2b-provider-configuration.md)'s existing surface rather than a new one;
+[P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s existing surface rather than a new one;
 the other three do not have a surface anywhere in
-[05](../05-ui-surfaces.md) yet, and P9.4 is where that debt comes due.
+[10](../10-ui-surfaces.md) yet, and P9.4 is where that debt comes due.
 
 ---
 
@@ -529,20 +529,20 @@ the other three do not have a surface anywhere in
 Video and speech as *implementations* (the shape is general from P9.0 and the
 fields that keep them cheap ship now — §1.6); **the count judgement** — which
 moments of a turn deserve a picture, and how many — now specified in full at
-[03 §10.4](../03-modes-and-turn-pipeline.md) and deliberately not built here,
+[06 §10.4](../06-modes-and-turn-pipeline.md) and deliberately not built here,
 along with the storyboard surface downstream of it; an eviction *policy* (§1.4 —
 the hook, not the policy); **lore-conditioned renditions**
-([14 §3](../14-roadmap.md): committed
+([24 §3](../24-roadmap.md): committed
 intent rather than a maybe, and deferred because *choosing which images* is the
 hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
 tune against — and §1.7 is explicit that a backdrop is the most plausible excuse
 for crossing that line and still does not cross it); the Character Studio
-([24](../24-character-studio.md)) — which is now a committed release at 3.0 and
+([17](../17-character-studio.md)) — which is now a committed release at 3.0 and
 therefore the nearest post-1.0 consumer of everything this phase builds, rather
 than a member of the authoring tier at 6.0; any model-quality evaluation of
 generated images
-([testing §4.3](10-testing.md) — do not build quality evals, and an image eval is
+([testing §4.3](docs/design/workplan/03-testing.md) — do not build quality evals, and an image eval is
 the most tempting version of the mistake).
 
 **The count judgement is the one deferral on that list that constrains this
@@ -554,13 +554,13 @@ than one, from the first commit, with a list of one; the anchor field ships and
 is used (§1.6); and the moment call is shaped as *the* moment of a turn, so
 widening it to a list of moments with a salience is a change to one call's
 schema rather than a new call. Nothing here builds the cap, the ranking or the
-pacing dial ([03 §10.6](../03-modes-and-turn-pipeline.md)).
+pacing dial ([06 §10.6](../06-modes-and-turn-pipeline.md)).
 
 **Three more that backgrounds specifically do not drag in** (§1.7), named
 because each is one step away from something this phase does build:
 
 - **Sprites and expression selection stay P7's.** They are steps writing
-  channels ([03 §7.2](../03-modes-and-turn-pipeline.md)) and a sprite is not a
+  channels ([06 §7.2](../06-modes-and-turn-pipeline.md)) and a sprite is not a
   rendition at 1.0. The backdrop is here because it has no source anywhere else;
   sprites have one.
 - **Video backdrops stay expressible and unbuilt.**
@@ -568,7 +568,7 @@ because each is one step away from something this phase does build:
   §1.6's posture applies unchanged: the union is general, the implementation is
   images.
 - **SillyTavern's `backgrounds/` folder stays skipped.**
-  [P4](06-p4-implementation.md) counts it among the directories it does not
+  [P4](docs/design/workplan/16-p4-implementation.md) counts it among the directories it does not
   convert, correctly — thirty loose JPEGs are not a StoryEngine object — and
   giving backdrops a generator is not a reason to reopen an import decision. An
   uploaded backdrop reaches the channel the way any authored image does.
@@ -584,7 +584,7 @@ because each is one step away from something this phase does build:
 — and once it exists, generating an image is a provider call and a job. The
 risk is entirely in getting the type right, because it is the one thing here
 that later phases and later *releases* will be stuck with: video and speech are
-named in [14](../14-roadmap.md) as things the `kind` union and
+named in [24](../24-roadmap.md) as things the `kind` union and
 `scope.messageId` should keep cheap, and §1.6 is the three fields that do it —
 the third, `scope.anchor`, being the one this phase actually uses.
 
@@ -607,7 +607,7 @@ operational store's job vocabulary, which has existed since P2 and by then will
 have carried imports as well as turns. Accumulation and selection (P9.3) is a
 list on an object. The backdrop's persistence across turns looks like the
 exception and is the cheapest part of it — a pointer in channel state, which is
-machinery [09 §2](../09-branching.md) already paid for.
+machinery [07 §2](../07-branching.md) already paid for.
 
 **What is at risk of being cut and should not be:** the workbench over
 renditions (P9.5). It is the only surface that answers *why does this picture
@@ -619,7 +619,7 @@ account of itself.
 
 - **Whether renditions are worth 1.0 at all.** Not currently asked, and it
   should be. This is the phase most easily deferred to a later release without
-  the core loop noticing, and [01 §0.4](01-work-plan.md)'s further-cuts
+  the core loop noticing, and [work plan §0.4](docs/design/workplan/01-work-plan.md)'s further-cuts
   discipline is where that argument belongs if PLAYABLE says the loop is thin
   elsewhere. **§1.7 raises the price of that cut** without settling it: deferring
   P9 now also leaves P7 shipping a backdrop channel nothing can fill, so the cut
@@ -644,7 +644,7 @@ account of itself.
   fact.
 
   **The count judgement brings the other half, and it arrives after this phase**
-  ([03 §10.4](../03-modes-and-turn-pipeline.md), §4). Two of its rules are cost
+  ([06 §10.4](../06-modes-and-turn-pipeline.md), §4). Two of its rules are cost
   rules wearing other clothes: a cap enforced in code rather than requested in a
   prompt is the only kind that bounds a bill, and a cadence dial gating the
   judgement puts a *rate* on illustration the way §1.7's digest puts one on

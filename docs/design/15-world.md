@@ -1,4 +1,4 @@
-# 19 — World: the continuity container
+# 15 — World: the continuity container
 
 **Status: proposal.** A World is a grouping of sessions that share a continuity —
 history available as context across them, a shared starting set of lorebooks and
@@ -6,12 +6,12 @@ a shared treatment baseline, with the stylistic particulars still varying per
 session. *"The Rain City campaign"*, holding six sessions that know about each
 other.
 
-**Scheduled for 4.0** ([work plan §0](workplan/01-work-plan.md)). It carries the
+**Scheduled for 4.0** ([work plan §0](docs/design/workplan/01-work-plan.md)). It carries the
 number 19 because 00–18 were taken when it was written; like
-[15](15-account-gallery.md) and [17](17-write-mode.md) it is a design note that
+[12](docs/design/12-account-gallery.md) and [13](docs/design/13-write-mode.md) it is a design note that
 arrived after the original run rather than a new tier of document.
 
-This note began as §2d of [14](14-roadmap.md), where it was a roadmap entry with
+This note began as §2d of [24](docs/design/24-roadmap.md), where it was a roadmap entry with
 an obligations table framed as insurance against a feature that might never
 happen. It moved here when World became a committed release, and the framing
 moved with it: **§5's obligations are requirements now, not hedges.**
@@ -25,7 +25,7 @@ moved with it: **§5's obligations are requirements now, not hedges.**
 **Two existing open questions are what this answers**, which is the argument for
 it being a real object rather than a nice idea:
 
-- [11 §8](11-cross-session-memory.md) carries *"cross-session memory for the
+- [08 §8](docs/design/08-cross-session-memory.md) carries *"cross-session memory for the
   narrator rather than a character — 'the GM remembers your last campaign'.
   Coherent, and **a different scope key**."* Memory today is keyed
   `(user, actor, persona)` — character-centric. A World is the world-centric key
@@ -35,7 +35,7 @@ it being a real object rather than a nice idea:
   unchanged: **derived, never authoritative.**
 
 **The word was reserved at 1.0 and is spent here.**
-[05 §2.1](05-ui-surfaces.md) declines to use "World" as a library label
+[10 §2.1](docs/design/10-ui-surfaces.md) declines to use "World" as a library label
 precisely so that this can have it. That was a cheap decision when this was a
 roadmap entry and it is a vindicated one now.
 
@@ -52,29 +52,29 @@ a World that has been played twice is a different object from the one that was
 created.
 
 It is also why 4.0 is the right release rather than an earlier one
-([work plan §0](workplan/01-work-plan.md)): a continuity container designed
+([work plan §0](docs/design/workplan/01-work-plan.md)): a continuity container designed
 before any continuities exist is designed against a guess, and the shape of the
 guess would be the shape of the feature.
 
 ## 3. It is a play-side object, not a portable kind
 
-Per [05 §2.1](05-ui-surfaces.md), the library represents objects as they are and
+Per [10 §2.1](docs/design/10-ui-surfaces.md), the library represents objects as they are and
 Play carries the conveniences. Grouping your own sessions is a convenience over
 sessions, not a seventh portable kind.
 
 Three things follow, and each is a constraint worth holding:
 
-- **No new library panel, and no seventh kind in [10](10-schemas.md).** The
-  release check in [work plan §0.2](workplan/01-work-plan.md) states this as a
+- **No new library panel, and no seventh kind in [04](docs/design/04-schemas.md).** The
+  release check in [work plan §0.2](docs/design/workplan/01-work-plan.md) states this as a
   commitment: *World at 4.0 must add no portable kind at all.*
 - **It stays out of the export surface**, which is right — a continuity is about
   *your* play, and the material underneath it already travels as a Package
-  ([10 §9.1](10-schemas.md)). Someone who wants to share "the Rain City setting"
+  ([04 §9.1](docs/design/04-schemas.md)). Someone who wants to share "the Rain City setting"
   is asking for the Package; someone who wants to share "my six Rain City
-  sessions" is asking for session export ([06 B12](06-open-questions.md)), which
+  sessions" is asking for session export ([25 B12](docs/design/25-open-questions.md)), which
   is a different feature that already exists by then.
 - **World is not a surface.** The name reads like one and it is not: it adds no
-  top-level place to the application ([05 §2](05-ui-surfaces.md)). It is a
+  top-level place to the application ([10 §2](docs/design/10-ui-surfaces.md)). It is a
   grouping *within* Play, in the same sense that a folder is not a new
   application.
 
@@ -96,10 +96,10 @@ container without the view would be shipping the definition's subject without
 its predicate.
 
 Nothing in it is new data. Actors and their presence come from
-[03 §8.1](03-modes-and-turn-pipeline.md); established facts come from extraction
+[06 §8.1](docs/design/06-modes-and-turn-pipeline.md); established facts come from extraction
 steps whose output already lands as channel effects; lore activation history is
-in every turn record ([02 §8](02-data-model.md)); the goal chain is in its own
-channel ([03 §7.3.4](03-modes-and-turn-pipeline.md)). **The bible is a reader**,
+in every turn record ([03 §8](docs/design/03-data-model.md)); the goal chain is in its own
+channel ([06 §7.3.4](docs/design/06-modes-and-turn-pipeline.md)). **The bible is a reader**,
 in the same sense that the workbench is a reader — which is why it is cheap, and
 why it was worth designing the record to be complete.
 
@@ -109,25 +109,25 @@ Two reasons it earns a place rather than being a nicety:
   well-known habit in long-form RP, and it exists because the information is
   genuinely scattered and genuinely needed. Software that has all of it and shows
   none of it is leaving the obvious on the table.
-- **It is the appendix to the reading view** ([05 §12](05-ui-surfaces.md)). One
+- **It is the appendix to the reading view** ([10 §12](docs/design/10-ui-surfaces.md)). One
   answers *what happened*, the other *what is true*, and a long story wants both.
 
 **Where it must not go:** the bible is derived, never authoritative. Editing it
 means editing the thing underneath — a channel, an actor, a lore entry — not
 writing to a parallel store. A bible that could drift from the sessions it
-describes would be [00 §2.8](00-stance.md)'s derived-data-persisted-as-truth
+describes would be [00 §2.8](docs/design/00-stance.md)'s derived-data-persisted-as-truth
 failure in a new costume.
 
 **It has a second consumer at 2.0.** Write's outline is what a manuscript
 *intends*, where the bible is what play *established*
-([17 §10](17-write-mode.md)); the two want the same derived-never-authoritative
+([13 §10](docs/design/13-write-mode.md)); the two want the same derived-never-authoritative
 discipline, and the second one built should reuse the first one's shape rather
 than inventing a parallel view.
 
 **Continuity checking is not part of this.** Reading established state back
 against recent turns to flag contradictions is a separate, more expensive
 feature with a false-positive problem the bible does not have, and it stays on
-the feature list ([14](14-roadmap.md)). The bible is what makes it *possible*
+the feature list ([24](docs/design/24-roadmap.md)). The bible is what makes it *possible*
 later; it is not a down payment on it.
 
 ## 5. What this obliges 1.0 to do
@@ -139,15 +139,15 @@ unrecoverable if missed.
 
 | Element | Obligation | Lands |
 |---|---|---|
-| Sessions belong to a World | **None.** Sessions are the *free to move* tier ([10 §1](10-schemas.md)) — internal, migrate at will. | — |
-| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. **But see §5.3** — a question was left open here at [P5.7] that this element is the natural owner of. | — |
-| World-scoped memory | **Small, and now decided rather than noted.** Memory books must not hard-code the `(user, actor, persona)` three-tuple into how they are keyed and named on disk. [11 §8](11-cross-session-memory.md)'s open question about book granularity is to be settled knowing a fourth key is coming. | P8 |
+| Sessions belong to a World | **None.** Sessions are the *free to move* tier ([04 §1](docs/design/04-schemas.md)) — internal, migrate at will. | — |
+| Shared lorebooks, shared treatment baseline | **None, by construction.** Prefill-not-binding ([00 §3.1](docs/design/00-stance.md)) means session creation *copies*; a World is one more prefill source. Per-session divergence is already the default rather than a feature to add. **But see §5.3** — a question was left open here at [P5.7] that this element is the natural owner of. | — |
+| World-scoped memory | **Small, and now decided rather than noted.** Memory books must not hard-code the `(user, actor, persona)` three-tuple into how they are keyed and named on disk. [08 §8](docs/design/08-cross-session-memory.md)'s open question about book granularity is to be settled knowing a fourth key is coming. | P8 |
 | Hook identity survives the copy | **Real, and unrecoverable if missed.** §5.1 | P7 |
 | Introduction hooks key on the subject | **Real, and cheap.** §5.2 | P7 |
 
 ### 5.1 Hook identity must survive the copy
 
-[02 §4.1](02-data-model.md) has session creation *copy* hooks from all sources.
+[03 §4.1](docs/design/03-data-model.md) has session creation *copy* hooks from all sources.
 Within a World, a hook fired in session one must not fire again in session two —
 the same *"firing a hook about someone who died four sessions ago"* failure that
 document calls severe, reached by a different route.
@@ -161,12 +161,12 @@ cannot be retro-fitted into a continuity, because the information that would
 link them was never written.
 
 Where the firing record itself lives is orthogonal: that state is a channel as
-of [02 §4.1](02-data-model.md), and the obligation was always about the *id*
+of [03 §4.1](docs/design/03-data-model.md), and the obligation was always about the *id*
 surviving the copy.
 
 ### 5.2 An introduction hook needs a second key, and id is not it
 
-[10 §6.1a](10-schemas.md)'s `introduces` fires on a character rather than an
+[04 §6.1a](docs/design/04-schemas.md)'s `introduces` fires on a character rather than an
 event, so the failure it must avoid is *this person arriving for the first time,
 twice*. Id-matching catches only the case where the **same hook** fired before;
 it misses the commoner one, where a different hook — or the narrator, unprompted
@@ -175,7 +175,7 @@ it misses the commoner one, where a different hook — or the narrator, unprompt
 So within a World the suppression key is the **subject**, not the hook: a
 character already introduced in this continuity has no first arrival left to
 stage. This costs 1.0 nothing, because the *introduced* predicate it needs
-already exists per-session ([03 §8.1](03-modes-and-turn-pipeline.md)) and only
+already exists per-session ([06 §8.1](docs/design/06-modes-and-turn-pipeline.md)) and only
 its scope widens.
 
 ### 5.3 Inheritance is what would give `LoreScope` a consumer again
@@ -184,7 +184,7 @@ its scope widens.
 when the question next matters.*
 
 **A lorebook reaches a session by being selected, and by nothing else**
-([02 §3.4](02-data-model.md)): `session.lore`, or the treatment the session
+([03 §3.4](docs/design/03-data-model.md)): `session.lore`, or the treatment the session
 names. P5.7 briefly let a book's own `LoreScope` admit it — `global` everywhere,
 `linked` wherever one of its actors was cast — and that was reversed within the
 day. `global` is the factory default *and* the SillyTavern importer's fallback,
@@ -203,9 +203,9 @@ arrives, three things have to be decided together rather than one at a time:
   creation and stays selected — not a live query that re-decides every turn. That
   keeps the rule intact rather than carving an exception into it.
 - **Whether `scope` then narrows** a book the session has chosen —
-  [06 §B14](06-open-questions.md), left open on purpose, with the argument for
+  [25 §B14](docs/design/25-open-questions.md), left open on purpose, with the argument for
   both answers written down.
-- **What a new book's `scope` should default to** — [06 §B15]. `global` is the
+- **What a new book's `scope` should default to** — [25 §B15]. `global` is the
   widest value in the union and the current default, which is precisely why P5.7
   went wrong so fast.
 
@@ -219,30 +219,30 @@ made.
 Two *stable-tier* schemas already spend the word. `PlotHook.magnitude` no longer
 does, but `Lorebook.category: "world" | …` still carries it, and
 `hook.magnitude` was renamed away from `scope: "world"` for exactly this reason
-([10 §5](10-schemas.md), [10 §6.1](10-schemas.md)). `category` is gone as of that
+([04 §5](docs/design/04-schemas.md), [04 §6.1](docs/design/04-schemas.md)). `category` is gone as of that
 same pass, so what remains is ordinary lowercase prose — "world facts", "the
 world as a whole" — which coexists with a capital-W kind without real ambiguity.
 
 Portable schemas cannot be cleaned up later without a version bump
-([10 §2](10-schemas.md)), so **any new use of the word in a portable structure
+([04 §2](docs/design/04-schemas.md)), so **any new use of the word in a portable structure
 between now and 4.0 should be refused.**
 
 ## 7. Non-goals
 
 - **Not a shared or collaborative world.** A World belongs to one user, like
   every other play-side object. Real multiplayer stays where
-  [04 §8](04-server-multiuser-deployment.md) put it.
+  [09 §8](docs/design/09-server-multiuser-deployment.md) put it.
 - **Not an authoring surface.** A World accumulates from play; it is not a place
   to write a setting. Writing a setting is a Package
-  ([10 §9.1](10-schemas.md)), and the play-to-authoring direction is lorebook
+  ([04 §9.1](docs/design/04-schemas.md)), and the play-to-authoring direction is lorebook
   extraction, which is a separate feature.
 - **Not automatic.** Sessions do not join a continuity by resembling each other.
   A World is something a person makes and puts sessions into, for the same
-  reason chapterisation is manual ([06 E1](06-open-questions.md)): a human knows
+  reason chapterisation is manual ([25 E1](docs/design/25-open-questions.md)): a human knows
   where a continuity's edges are and a heuristic does not.
 - **Not a second memory store.** World-scoped memory is the existing memory
   mechanism with a fourth key, not a parallel system
-  ([11](11-cross-session-memory.md)).
+  ([08](docs/design/08-cross-session-memory.md)).
 
 ## 8. How we would know this was wrong
 

@@ -11,10 +11,10 @@ import { EffectList } from './EffectList.js';
 import { StepList } from './StepList.js';
 
 /**
- * The turn record, rendered — [05 §3]'s viewer, replacing the JSON echo the
+ * The turn record, rendered — [10 §3]'s viewer, replacing the JSON echo the
  * frame shipped with. Strictly a reader over fields the record holds: every
  * section below is a projection, and a section whose data is absent renders
- * the *absence* — [02 §8]'s doctrine that *this never happened* and *this
+ * the *absence* — [03 §8]'s doctrine that *this never happened* and *this
  * happened and was empty* are different claims the workbench shows apart.
  *
  * Blocks render **per call**, because that is what the record now says: the

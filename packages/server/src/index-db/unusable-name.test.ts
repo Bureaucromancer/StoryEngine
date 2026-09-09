@@ -21,7 +21,7 @@ import { LibraryWatcher } from './watcher.js';
  *
  * The index has two producers and one gate holding them to a single answer: a
  * full rebuild from disk, and the watcher maintaining it live
- * ([02 §5.1](../../../../docs/design/02-data-model.md)). They disagreed about
+ * ([03 §5.1](../../../../docs/design/03-data-model.md)). They disagreed about
  * exactly one thing, in opposite directions, for six phases.
  *
  * `resolveWithin` refuses a set of *names* — `con`, `lpt1`, anything ending in

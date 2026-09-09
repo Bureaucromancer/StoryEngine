@@ -6,7 +6,7 @@ import type { JSX, ReactNode } from 'react';
 import { tagClassFor } from './tag-colors.js';
 
 /**
- * A tag, drawn — [25 §5](../../../../docs/design/25-tagging.md).
+ * A tag, drawn — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * **Not a `Badge` tone**, and the distinction is the one `Badge`'s own header
  * spends its length on: that component's tones are *meanings*. `provenance` and

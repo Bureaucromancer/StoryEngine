@@ -3,8 +3,8 @@
 
 /**
  * SillyTavern's macros, converted to Liquid at import
- * ([10 §8.4.2](../../../../docs/design/10-schemas.md),
- * [P4 §1.6](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([04 §8.4.2](../../../../docs/design/04-schemas.md),
+ * [P4 §1.6](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * §8.4.2 promised *"a closed mapping table"* and did not contain one. This is
  * it, and it is closed in a stronger sense than that sentence implies: a macro
@@ -29,7 +29,7 @@ export type MacroOutcome =
    * put literal braces in a prompt, and mapping it would be wrong.
    */
   | { kind: 'refused'; because: MacroRefusal }
-  /** Not in the table. Preserved verbatim and flagged ([10 §8.4.2]). */
+  /** Not in the table. Preserved verbatim and flagged ([04 §8.4.2]). */
   | { kind: 'unknown' };
 
 export type MacroRefusal =
@@ -43,7 +43,7 @@ export type MacroRefusal =
   /**
    * The macro draws randomness. Every draw comes from the RNG service and is
    * recorded, or replay and branching break silently
-   * ([07 §14](../../../../docs/design/07-tech-stack.md)) — a template rolling
+   * ([19 §14](../../../../docs/design/19-tech-stack.md)) — a template rolling
    * its own dice is exactly the case that rule exists for.
    */
   | 'randomness-must-be-drawn-and-recorded'

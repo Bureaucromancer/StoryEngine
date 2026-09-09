@@ -59,7 +59,7 @@ describe('the three ways off', () => {
   });
 
   /**
-   * The case [10 §5] is explicit about: a folder gate leaves each entry's own
+   * The case [04 §5] is explicit about: a folder gate leaves each entry's own
    * `enabled` *preserved rather than mutated*. Exit-gate step 2 tests exactly
    * this, so the assertion is two-sided — the entry is off, and its own switch
    * is visibly still on.

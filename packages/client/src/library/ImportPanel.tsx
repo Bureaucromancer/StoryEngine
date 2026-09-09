@@ -15,12 +15,12 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
 import { sentence } from './note-labels.js';
 
 /**
- * The way in — [P4 §1.4](../../../../docs/design/05-ui-surfaces.md)'s review
+ * The way in — [P4 §1.4](../../../../docs/design/10-ui-surfaces.md)'s review
  * step, rendered.
  *
  * **~~Import commits immediately and the review reports loudly~~ — and which of
  * the two depends on how the file arrived.** §1.4's decision, made against
- * [05 §5]'s original *"let the user fix it before committing"*, rested on three
+ * [10 §5]'s original *"let the user fix it before committing"*, rested on three
  * arguments: a staging area is a second library to maintain; dangling references
  * are survivable, visible and non-blocking by stance; and a three-hundred-object
  * sweep gated per-object on a human is not a review, it is a chore.
@@ -38,7 +38,7 @@ import { sentence } from './note-labels.js';
  * when somebody collapses the form is worse than one that does not fold.
  *
  * **The sentences are composed here, from classes and params.** The server sends
- * `{ key, params, level }` and never prose ([06 A2d]) — a report stored as
+ * `{ key, params, level }` and never prose ([25 A2d]) — a report stored as
  * English is a bug that only surfaces when somebody changes language. There is
  * no ICU catalogue yet ([P11 §1.3] owns that), so these are the same open-keyed
  * label maps every other class-to-word surface here uses, with the raw key as
@@ -104,7 +104,7 @@ export function importOpenPatch(open: boolean): Record<string, unknown> {
  * **Two choices, not three.** `skip` is a policy the sweep needs, because a
  * three-hundred-object walk has to be able to leave one alone. Offered here it
  * would do nothing Cancel does not, except write a ledger row saying you
- * declined — and [01 §2.2] forbids a control that does nothing.
+ * declined — and [work plan §2.2] forbids a control that does nothing.
  */
 type PreviewPolicy = 'replace' | 'keep-both';
 
@@ -221,7 +221,7 @@ export function ImportPanel(): JSX.Element {
   /**
    * Whether a picker may start something new.
    *
-   * **Disabled, not hidden**, while a decision is pending — [05 §1.1] rejects
+   * **Disabled, not hidden**, while a decision is pending — [10 §1.1] rejects
    * hiding a control to make a screen calmer, and a person who has just been
    * asked a question should be able to see the thing that asked it. What this
    * stops is a second import starting on top of an unanswered one, which would
@@ -245,7 +245,7 @@ export function ImportPanel(): JSX.Element {
     setError(null);
     try {
       /**
-       * **A look, not an import** ([05 §5], as amended). The file stays in the
+       * **A look, not an import** ([10 §5], as amended). The file stays in the
        * browser's own handle and is sent again on confirm; nothing is held here
        * and nothing is written there, which is what keeps this short of the
        * staging area [P4 §1.4] refused.
@@ -466,10 +466,10 @@ export function ImportPanel(): JSX.Element {
 
           {/*
             **The folder half is behind a permission, so it says so rather than
-            answering 403.** [05 §4.2.2] gates the sweep on `fileAccess`, which
+            answering 403.** [10 §4.2.2] gates the sweep on `fileAccess`, which
             defaults to `none` — so for most accounts every control below was a
             form that could only fail, and the failure arrived as a red string
-            after the request. [01 §2.2] forbids a control that does nothing;
+            after the request. [work plan §2.2] forbids a control that does nothing;
             offering one that is *guaranteed* to refuse is the same fault with an
             extra round trip. What it cannot do is explain the grant in the
             grantee's own words, because they cannot make it: only an
@@ -713,7 +713,7 @@ function Report(props: { report: ImportReport }): JSX.Element {
       <ul className="flex flex-col gap-2 text-sm">
         {props.report.items.map((item) => (
           <li key={item.source} className="border-t border-line pt-2">
-            {/* Relative to the folder that was swept, never absolute ([13 §4.1.1]). */}
+            {/* Relative to the folder that was swept, never absolute ([21 §4.1.1]). */}
             <code className="block break-all text-xs text-ink">{item.source}</code>
             <p className="text-ink-subtle">
               {DISPOSITION_LABELS[item.disposition] ?? item.disposition}
@@ -733,7 +733,7 @@ function Report(props: { report: ImportReport }): JSX.Element {
 /**
  * What that file would become, before it becomes it.
  *
- * **One dense block rather than a stepper**, which is [05 §1.1]'s rule on the
+ * **One dense block rather than a stepper**, which is [10 §1.1]'s rule on the
  * tooling side of the split — *progressive disclosure as a reflex* and
  * *infinite layers of click-through* are both rejected there, and import lives
  * in the dense column by name. The stronger reason is that the steps would be
@@ -741,7 +741,7 @@ function Report(props: { report: ImportReport }): JSX.Element {
  * *replace or keep both*. Everything between is a slideshow of the server's
  * progress, and disclosure has to be earned.
  *
- * **Not a `Dialog`** either. [05 §5] names the failure mode — *a review step,
+ * **Not a `Dialog`** either. [10 §5] names the failure mode — *a review step,
  * not a modal that dumps* — and a modal would buy nothing mechanically:
  * `size="wide"` is `max-w-lg`, narrower than the dock's own 640px maximum, so
  * it would be a layer that covers the panel with something smaller than the
@@ -814,7 +814,7 @@ function Preview(props: {
 
       {/*
         Names, never values. A screen that showed what was in the file would show
-        a proxy password to whoever was handed the file ([10 §8.4.4]).
+        a proxy password to whoever was handed the file ([04 §8.4.4]).
       */}
       {preset !== null && preset.compatKeys.length > 0 ? (
         <p className="text-sm text-ink-subtle">{compatLabel(preset.compatKeys)}</p>

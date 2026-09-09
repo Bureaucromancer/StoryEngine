@@ -249,7 +249,7 @@ describe('the schema’s own field groups', () => {
   });
 
   /**
-   * The head group is the identity fields, which [05 §11.2d] leaves deliberately
+   * The head group is the identity fields, which [10 §11.2d] leaves deliberately
    * un-bannered — so they render with no heading above them rather than under an
    * invented one.
    */

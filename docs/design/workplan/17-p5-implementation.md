@@ -1,4 +1,4 @@
-# 07 — P5 implementation plan
+# 17 — P5 implementation plan
 
 **Status: ~~plan~~ landed, and merged into `main` 2026-09-02 at `a27be5b`; the
 phase does not close, and §0.5 is why.** Every stage in §2 reads Landed. §0.5 is
@@ -7,21 +7,21 @@ would have met on the day — among them the retriever half unreachable through
 the product, because nothing in the client selects a lorebook for a session.
 ~~That one is still true at P6A's close: neither the browser nor `pnpm seed`
 names a book or a treatment for the session it makes, so the session resolves
-none.~~ **Fixed at [P6B.0](24-p6b-playable.md), 2026-09-07** — the create form
+none.~~ **Fixed at [P6B.0](docs/design/workplan/20-p6b-playable.md), 2026-09-07** — the create form
 and a mid-session panel send the selection, `pnpm seed` names the treatment it
 builds, and the whole path was checked against a real server rather than only in
 jsdom. The **[AWAITS PLAYABLE]** questions are still open, because PLAYABLE
 still has not run.
 
 **What holds this phase open, as of 2026-09-07, is now exactly two things and
-they are both a person's.** [P6B.1](24-p6b-playable.md) discharged §0.5's list:
+they are both a person's.** [P6B.1](docs/design/workplan/20-p6b-playable.md) discharged §0.5's list:
 six silent defects fixed with tests that redden without them, the four
 contradictions settled and recorded, and steps 6, 8, 11 and 12 amended to ask
 what is actually being asked. What is left is **the walk itself** — eighteen
 steps against HEAD, with each outcome recorded rather than ticked — and **the
-four [AWAITS PLAYABLE] questions**, which want [P6B.2](24-p6b-playable.md). Two
+four [AWAITS PLAYABLE] questions**, which want [P6B.2](docs/design/workplan/20-p6b-playable.md). Two
 of the eighteen already have their answers written down: step 6 is
-person-blocked on a corpus with lead time ([26 §3.4](26-manual-testing.md)), and
+person-blocked on a corpus with lead time ([manual testing §3.4](docs/design/workplan/05-manual-testing.md)), and
 step 12 is deferred to P7 with the row moved and the receiving document told.
 Neither is a failure and neither is a blank. Audited 2026-08-30 at `09ea758`, re-audited
 2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
@@ -49,15 +49,15 @@ the answering session pass unremarked has held them open for nothing.
 
 The split into a document half and a retriever half is §1.6; §1.1–§1.5 stand as
 written, with §0 saying which of their leans the ground has since confirmed.
-Format follows [03](03-p1-implementation.md); the readiness audit, honest-size
-and still-to-settle sections follow [06](06-p4-implementation.md)'s, which is the
+Format follows [P1](docs/design/workplan/07-p1-implementation.md); the readiness audit, honest-size
+and still-to-settle sections follow [P4](docs/design/workplan/16-p4-implementation.md)'s, which is the
 document this one was expanded alongside.
 
-**Citation convention**, adopted from [P4](06-p4-implementation.md) because two
-documents are "10": `10 §N` means [10-schemas](../10-schemas.md); **`testing §N`**
-means [10-testing](10-testing.md); **`survey §N`** means
+**Citation convention**, adopted from [P4](docs/design/workplan/16-p4-implementation.md) because two
+documents are "10": `10 §N` means [04-schemas](../04-schemas.md); **`testing §N`**
+means [testing-testing](docs/design/workplan/03-testing.md); **`survey §N`** means
 [01-source-survey](../01-source-survey.md); **`polish §N`** means
-[09-polish](09-polish.md).
+[polish-polish](docs/design/workplan/06-polish.md).
 
 **P5 delivers two things that share a subject and share almost nothing else.**
 
@@ -65,10 +65,10 @@ means [10-testing](10-testing.md); **`survey §N`** means
   edit: the Lorebooks panel, the book's own page, folder gates rendered with
   their reasons, within-book and cross-library search, and the entry editor's
   minimum. Needs no model, no assembler and no schema change; verifiable entirely
-  offline. Specified at [05 §5.3](../05-ui-surfaces.md),
-  [05 §11.2d](../05-ui-surfaces.md) and [05 §14.5](../05-ui-surfaces.md), with the
-  position at [16](../16-lorebooks-as-a-format.md).
-- **The retriever half**, from [01 P5](01-work-plan.md): full lorebook activation
+  offline. Specified at [10 §5.3](../10-ui-surfaces.md),
+  [10 §11.2d](../10-ui-surfaces.md) and [10 §14.5](../10-ui-surfaces.md), with the
+  position at [11](../11-lorebooks-as-a-format.md).
+- **The retriever half**, from [work plan P5](docs/design/workplan/01-work-plan.md): full lorebook activation
   semantics, book scoping, the two-tier budget, the deterministic trim order, and
   skip reporting — testable against P4's real library rather than fixtures.
 
@@ -83,11 +83,11 @@ written, and it is corrected rather than deleted because its argument is still
 right about the half it was written about. **The retriever half has no surface of
 its own, and that remains the design working as intended.** The document half is
 not a surface *for retrieval* — it renders what is on disk and predicts nothing
-([05 §5.3](../05-ui-surfaces.md)'s closing fence) — so the original claim survives
+([10 §5.3](../10-ui-surfaces.md)'s closing fence) — so the original claim survives
 with its scope named. Keeping the two halves' surfaces distinct is the standing
 consequence, and §1.6 is where it is argued.
 
-**The posture, settled in [02 §3](../02-data-model.md):** this is a PORT, not a
+**The posture, settled in [03 §3](../03-data-model.md):** this is a PORT, not a
 design. Entry activation is the one part of the ecosystem that has genuinely
 converged, and the vocabulary is taken essentially as-is — matching, always-on,
 timing, recursion, placement, grouping, gating, outlets. The design work was
@@ -95,15 +95,15 @@ done in 02/13; the retriever half is implementation plus the two divergences
 (state out of entries, scoping collapsed). **The document half has the same
 posture for the same reason**: it adds no field, and every affordance is a
 rendering of something the schema already carries
-([16 §4](../16-lorebooks-as-a-format.md)).
+([11 §4](../11-lorebooks-as-a-format.md)).
 
 **CI this phase establishes:** unit tests over the pure activation logic
-([10 §3.2](10-testing.md)) — matching, timing interactions, recursion flags,
+([testing §3.2](docs/design/workplan/03-testing.md)) — matching, timing interactions, recursion flags,
 trim order — plus golden-file coverage of budget behaviour under pressure
 against the imported library (the `context-fit` regression pattern,
-[10 §3.1](10-testing.md)). The document half's own contribution is smaller and
+[testing §3.1](docs/design/workplan/03-testing.md)). The document half's own contribution is smaller and
 different in kind: the index gains a second table pair, so the rebuild property
-test ([10 §3.1](10-testing.md)) has to cover it, and that is the check that keeps
+test ([testing §3.1](docs/design/workplan/03-testing.md)) has to cover it, and that is the check that keeps
 §1.7's stale-row hazard from shipping.
 
 ---
@@ -150,7 +150,7 @@ knew in five places, less ready in five, and moved outright in four.
   becomes a decision — §1.8 makes it.
 - **The regex timeout has not landed**, and this one is sharper than a missing
   dependency. `useRegex` is stored on every entry and **read by nothing**;
-  [triage §5.1](02-triage.md) marks Marinara's `regex-timeout.ts` an ADOPT and
+  [triage §5.1](docs/design/workplan/02-triage.md) marks Marinara's `regex-timeout.ts` an ADOPT and
   calls it *"the strongest single lift candidate in all three repos"*. P5.4 runs
   author-supplied patterns over turn text, and P4 has just filled the library
   with patterns nobody here wrote. Without the timeout, an imported book is a
@@ -164,7 +164,7 @@ knew in five places, less ready in five, and moved outright in four.
 - **There is no client lorebook surface of any kind.** `library/` holds the
   list, the detail page, the as-stored fold and the revision list. The document
   half starts from nothing, which is the honest reading of its size.
-- **The corpus still does not exist.** [P4 §1.2](06-p4-implementation.md)
+- **The corpus still does not exist.** [P4 §1.2](docs/design/workplan/16-p4-implementation.md)
   established there is no used SillyTavern or Marinara install on hand, and
   §1.6 now carries the prerequisite that follows: **acquiring one is
   person-blocked work this phase depends on**, not a convenience.
@@ -262,7 +262,7 @@ because two of them change what P5 starts from, and a plan that assumed today's
 - **`claude/library-file-creation`** — object creation in the library, as a
   **P4.5**. It has already amended §2's editor clause in this document: create
   and delete at the *object* level are done, and creating an **entry** is
-  writing below the object, which [05 §5] puts on the editor's side of the line.
+  writing below the object, which [10 §5] puts on the editor's side of the line.
   So the document half inherits a precedent for the shape rather than inventing
   one.
 - **`claude/kind-driscoll`** and two docs branches — small, and not load-bearing
@@ -297,7 +297,7 @@ holds open:
 - **Does the same wrong thing happen twice?** A diagnostic earns its place by
   the second occurrence, not the first.
 
-Write what happens down somewhere, even roughly. [16](16-p2c-log.md) is the
+Write what happens down somewhere, even roughly. [P2C log](docs/design/workplan/14-p2c-log.md) is the
 precedent and the reason it exists: a findings log appended to as things happen
 is worth more than a recollection assembled afterwards, and this plan has four
 decisions waiting on exactly that.
@@ -404,7 +404,7 @@ exact rather than by ambiguous name.
 
 #### §1.3 overstates what is on disk
 
-*"`extensionActivations` on the entry ([02 §3.1]) is stored (P4 already preserves
+*"`extensionActivations` on the entry ([03 §3.1]) is stored (P4 already preserves
 it)"* — nothing writes it. Unknown import fields are routed to `metadata`, and
 the field survives only as a key Ajv declines to strip. Harmless, and corrected
 because the sentence reads as a P4 deliverable that a later phase can rely on.
@@ -412,8 +412,8 @@ because the sentence reads as a P4 deliverable that a later phase can rely on.
 #### Two dependencies this plan does not name anywhere
 
 - **P5.0 needs a panel to be a panel, and `polish §4` has not landed.**
-  [05 §5.3](../05-ui-surfaces.md) specifies the Lorebooks panel as one of the six
-  per-kind panels [polish §4](09-polish.md) creates; `LibraryPage.tsx` is still
+  [10 §5.3](../10-ui-surfaces.md) specifies the Lorebooks panel as one of the six
+  per-kind panels [polish §4](docs/design/workplan/06-polish.md) creates; `LibraryPage.tsx` is still
   one merged table with a kind filter, and §1.7's dependency reasoning covered
   `polish §1` alone. The escape is the shape `polish §4` already describes —
   *shared machinery, per-kind surfaces*, with Lorebooks as the first of the six
@@ -442,7 +442,7 @@ missing — and both change what landing a stage *means*.
 
 - **The regex timeout is asserted as fact in two places.**
   `schema/lorebook.ts:105` says of `useRegex` that *"Patterns run under a hard
-  execution timeout"*, and [02 §3](../02-data-model.md) says the same in
+  execution timeout"*, and [03 §3](../03-data-model.md) says the same in
   parentheses. There is none, and there is no `RegExp` constructed anywhere in
   the server — the danger §1.10 describes is created by P5.4's own matcher, which
   is the strongest available argument for the timeout being that stage's first
@@ -498,7 +498,7 @@ missing — and both change what landing a stage *means*.
 #### And §0.3's instruction has no receptacle
 
 §0.3 asks that the window immediately ahead be written down, on
-[16-p2c-log](16-p2c-log.md)'s precedent, because four decisions wait on it. **No
+[P2C log-p2c-log](docs/design/workplan/14-p2c-log.md)'s precedent, because four decisions wait on it. **No
 such log exists**, and `16-p2c-log.md` records nothing about what gets cut, how
 often, or how long it takes to find out why — so nothing anywhere answers the
 four [AWAITS PLAYABLE] questions today, and §1.11's re-audit line stands
@@ -531,8 +531,8 @@ written against:
   corpus policy already keeps in the repository"*. It keeps none —
   `import/fixtures/test-sillytavern.ts:15-20` says outright *"this is the whole
   corpus the phase gets"* and names the real-library walk as outstanding.
-  [10 §5](10-testing.md) is the policy's *plan*, not a record that it ran. The
-  same false claim is duplicated at [P4 §1057](06-p4-implementation.md).
+  [testing §5](docs/design/workplan/03-testing.md) is the policy's *plan*, not a record that it ran. The
+  same false claim is duplicated at [P4 §1057](docs/design/workplan/16-p4-implementation.md).
 - **Step 8** describes a string the build does not produce. It asks the workbench
   to show *"sticky, 2 remaining"*; `blocks.ts:94-95` returns `'still active from
   an earlier turn'` with no count, `LoreReport` has no timing field, and
@@ -542,12 +542,12 @@ written against:
 - **Step 11** cannot be executed. There is no production replay entry point:
   `turns/runner.ts:304` and `turns/preview.ts:135` are the only non-test `Rng`
   constructions and neither takes a tape. Its parenthetical cites *"P3's
-  edit-and-re-run"*, which [P3 §344](05-p3-implementation.md) explicitly
+  edit-and-re-run"*, which [P3 §344](docs/design/workplan/15-p3-implementation.md) explicitly
   disclaims. **What P5 actually discharged is the keying, not the reproduction.**
 - **Step 12** cannot be expressed. No entry can be conditioned on a channel at
-  all: [10 §5]'s schema lists `activationConditions` as *deliberately absent*,
+  all: [04 §5]'s schema lists `activationConditions` as *deliberately absent*,
   the importer discards it, and no `SkipReason` in the seventeen-arm union names
-  a channel. Meanwhile [01 §195](01-work-plan.md) still assigns the work to P5.
+  a channel. Meanwhile [work plan §195](docs/design/workplan/01-work-plan.md) still assigns the work to P5.
   **Do not credit `unknownSources` to this step** — it is the same visible-warning
   posture for scan *sources*, but the entry keeps scanning and can still fire, so
   it does not satisfy *never fires*.
@@ -574,9 +574,9 @@ are bugs.**
   are tests; and `tools/seed.mjs:164` creates its session with a cast and never
   names the treatment it built twenty lines above. So `pnpm seed` produces a
   session that resolves **zero books**. The reversal was right — `2380bd0` fixed
-  a real fault, and [02 §3.4](../02-data-model.md) now describes the world — but
+  a real fault, and [03 §3.4](../03-data-model.md) now describes the world — but
   it shipped half a mechanism, and no test noticed because every test builds its
-  selection by hand. **This is the standing line from [01 §2.3](01-work-plan.md)
+  selection by hand. **This is the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md)
   undischarged for the retriever half**, and it is the single largest thing
   between this phase and an honest close.
 - **`SCENE_PRESET` has exactly one lore slot**, `{ of: 'lore', phase: 'before' }`
@@ -621,24 +621,24 @@ unexamined** — recorded here because the miss is as instructive as the find:
 **Four document-vs-code contradictions to settle before anyone walks**, because
 each is an argument waiting to happen mid-walk:
 
-1. **`tokenBudget: 0`.** [10 §5](../10-schemas.md) and the schema both say
+1. **`tokenBudget: 0`.** [04 §5](../04-schemas.md) and the schema both say
    *0 = unlimited*; `shelf.ts:142` is a plain ceiling with no zero arm, so such a
    book refuses every entry with *"over the book's token budget of 0"*. The
    inverted reading is **pinned** by `shelf.test.ts:296`, so a doc-conformant fix
    reddens a test. The sibling field is handled correctly — `match.ts:137` says
    *"Zero-as-unlimited is the format's convention and not ours to improve"* — and
    the importer leaves `tokenBudget` unclamped where it clamps `entryLimit`.
-2. **Step 12's ownership** (§1.4 and [01 §195] say P5; the schema says
+2. **Step 12's ownership** (§1.4 and [work plan §195] say P5; the schema says
    deliberately absent).
 3. **Step 11's ownership** (this document says P3's gesture; P3 says P6's).
 4. **Step 6's stated means** (above).
 
-**All four settled at [P6B.1](24-p6b-playable.md), 2026-09-07.** Recorded here
+**All four settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07.** Recorded here
 rather than only in the steps, because a list of open arguments that never says
 how they ended is the same failure at one remove.
 
 1. **Settled for the documents, against the code.** `shelf.ts` now reads zero as
-   unlimited, matching [10 §5](../10-schemas.md), the schema and its own sibling
+   unlimited, matching [04 §5](../04-schemas.md), the schema and its own sibling
    field. `shelf.test.ts` changed with it, which was the point of naming the
    pinning test in advance: a test can pin a defect, and one that does is
    evidence about the day it was written rather than about the design.
@@ -647,22 +647,22 @@ how they ended is the same failure at one remove.
    `activationConditions` is *deliberately absent* from the schema, and a
    predicate over a channel is unbuildable in a phase where nearly no channels
    exist. What was wrong is that the deferral was taken in the code and no
-   document followed, so [01 §195](01-work-plan.md) still read **P5** for a thing
+   document followed, so [work plan §195](docs/design/workplan/01-work-plan.md) still read **P5** for a thing
    P5 had decided not to build. **It is P7's**, which is the phase that makes
    channels a contract rather than a handful of engine-owned names — that row and
-   §1.4 now say so, and [P7 §0.1](18-p7-implementation.md) carries it as
+   §1.4 now say so, and [P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as
    inherited. *Anything richer still waits for 6.0's rule vocabulary; what moved
    is the minimal comparison set, not the vocabulary.*
 3. **Settled in P6's favour, which is where it had already gone.** P3 disclaims
    rewrite and reroll explicitly, so the reproduction half of step 11 was never
-   P5's to execute and never P3's to have provided. [P6 §3](08-p6-implementation.md)
+   P5's to execute and never P3's to have provided. [P6 §3](docs/design/workplan/18-p6-implementation.md)
    step 3 carries it, with the fixture constraint P5 could not have known. The
    contradiction was only ever between two documents; no code was wrong.
 4. **Settled as person-blocked, which is a resolution and not a dodge.** The
    permissively-licensed corpus this step was said to be met by does not exist in
    the repository — `import/fixtures/` holds three synthesised files and one of
    them says so. The walker supplies the book. It is counted at
-   [26 §3.4](26-manual-testing.md) beside [P4 §3](06-p4-implementation.md) step 1,
+   [manual testing §3.4](docs/design/workplan/05-manual-testing.md) beside [P4 §3](docs/design/workplan/16-p4-implementation.md) step 1,
    which wants the same thing, and the same false claim is corrected there.
 
 **What would have to happen, in the order that costs least.** Settle the four
@@ -673,7 +673,7 @@ in-place rebuild; and an `ephemeral` entry with neither `sticky` nor `cooldown`,
 which is what protects `same()`'s `left.fired === right.fired` clause at
 `retrieve.ts:239` — deleting that clause today leaves the suite green and makes
 an ephemeral entry fire forever — *the first and third of these are one test,
-written at [P6.0a](08-p6-implementation.md) on 2026-09-02; the `orphan-fts`
+written at [P6.0a](docs/design/workplan/18-p6-implementation.md) on 2026-09-02; the `orphan-fts`
 assertion is still owed*); make selection reachable enough to walk from;
 then amend steps 6, 8, 11 and 12 to ask what is actually being asked, and have a
 person walk all eighteen **against HEAD**. Everything but step 6 is about a day's
@@ -701,10 +701,10 @@ met the way the step asked — changed in the commit that changed its meaning.
 `sticky`, `cooldown`, `delay` and `ephemeral` need per-session counters
 (Marinara's `LorebookEntryTimingState`). Those counters change as a result of
 turns — which is the definition of a channel
-([03 §4](../03-modes-and-turn-pipeline.md)) — and if they live anywhere else they
+([06 §4](../06-modes-and-turn-pipeline.md)) — and if they live anywhere else they
 do not reconstruct at a node, and a branch inherits the wrong stickiness. The
 same argument that moved party membership into channels
-([03 §8](../03-modes-and-turn-pipeline.md)) applies unchanged.
+([06 §8](../06-modes-and-turn-pipeline.md)) applies unchanged.
 
 **Lean: an engine-owned channel** (`se.lore.timing` or similar,
 `scope: "entry"`), updated by the retrieval step through ordinary
@@ -716,7 +716,7 @@ machinery in view.
 ### 1.2 Stochastic activation draws through the tape
 
 Per-entry `probability` goes through the RNG service and is recorded keyed by
-site ([07 §14.6](../07-tech-stack.md) names stochastic lore activation
+site ([19 §14.6](../19-tech-stack.md) names stochastic lore activation
 explicitly). A rewrite replays the same activations — *same setup, same result,
 different words* — and the workbench shows `lore:<entry> chance 30% → fired`
 rather than an anonymous draw.
@@ -724,17 +724,17 @@ rather than an anonymous draw.
 ### 1.3 What the retrieval step is, structurally
 
 An ordinary step at the collect stage contributing blocks
-([03 §5](../03-modes-and-turn-pipeline.md) step 1), with
+([06 §5](../06-modes-and-turn-pipeline.md) step 1), with
 `LorebookActivationSource` feeding block reasons
-([02 §3.1](../02-data-model.md)). Recursion runs inside the step (activated text
+([03 §3.1](../03-data-model.md)). Recursion runs inside the step (activated text
 re-scanned up to book limits); the two-tier budget is **not** inside it —
 per-book `tokenBudget`/`entryLimit` verdicts feed the one arbiter, and the
-chat-wide cut is the budgeter's ([02 §3.2](../02-data-model.md)), so every skip
+chat-wide cut is the budgeter's ([03 §3.2](../03-data-model.md)), so every skip
 lands in the `BudgetVerdict` with the rule that made it.
 
 **Replaceability seam, not machinery:** the built-in retriever is the default
 an extension may substitute; `extensionActivations` on the entry
-([02 §3.1](../02-data-model.md)) is stored ~~(P4 already preserves it)~~ but
+([03 §3.1](../03-data-model.md)) is stored ~~(P4 already preserves it)~~ but
 nothing consumes it until P7's extension host exists. *Corrected at §0.4:*
 nothing **writes** it. Unknown import fields go to `metadata`, and the field
 survives only as a key Ajv declines to strip — which is enough for the seam and
@@ -749,26 +749,26 @@ has, and an entry conditioned on an undeclared channel is a **visible warning
 and never fires** — the dangling posture, already specified. The predicate
 *vocabulary* stays the minimal comparison set; anything richer waits for the
 6.0 rule vocabulary and must not leak in here early
-([03 §6](../03-modes-and-turn-pipeline.md)'s warning about `StepCondition`
+([06 §6](../06-modes-and-turn-pipeline.md)'s warning about `StepCondition`
 applies).
 
 **Not built, and the section is corrected rather than left as a lean —
-[P6B.1](24-p6b-playable.md), 2026-09-07, settling §0.5's second contradiction.**
+[P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07, settling §0.5's second contradiction.**
 The lean was taken the other way in the code and nothing said so: the schema
 lists `activationConditions` as *deliberately absent*, the importer discards it,
 no `SkipReason` names a channel, and gate step 12 asks for a posture no entry
 can reach. The decision itself is right — a predicate needs a channel to be
 about, and this phase has almost none — so what is corrected is the record, not
 the code. **The minimal comparison set is P7's**, with the channels it
-predicates over; [01 §195](01-work-plan.md) says so now, and
-[P7 §0.1](18-p7-implementation.md) carries it as inherited. The paragraph above
+predicates over; [work plan §195](docs/design/workplan/01-work-plan.md) says so now, and
+[P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as inherited. The paragraph above
 stands as the design for whoever builds it.
 
 ### 1.5 Scan sources and mention resolution
 
 `additionalMatchingSources` (scan the persona, actor descriptions, etc.) ships
 with the vocabulary. The *shared keyword pass* with mention resolution
-([03 §8.2](../03-modes-and-turn-pipeline.md)) is a P7 concern — but the scanner
+([06 §8.2](../06-modes-and-turn-pipeline.md)) is a P7 concern — but the scanner
 should be built as the reusable pass now (one scan, N consumers) so P7 attaches
 rather than rewrites. Cheap to shape correctly, expensive to unshare later.
 
@@ -783,38 +783,38 @@ tester answers "why does this entry never fire" without playing a turn.* Against
 a real imported library the commonest true answers are **the book is disabled**,
 **the entry's folder gate is off**, and **the entry is not where you think it
 is** — none of which is a matching fact, and all three of which are invisible at
-every surface that exists today ([16 §4](../16-lorebooks-as-a-format.md)'s
+every surface that exists today ([11 §4](../11-lorebooks-as-a-format.md)'s
 count). Building the tester first means building a matcher to answer questions
 that were never about matching.
 
 **Why the document half sits here rather than in a phase of its own.** It needs a
 corpus. A three-hundred-entry reading view designed against a three-entry fixture
 is designed without the load it exists for, and every falsification test the
-position offers ([16 §6](../16-lorebooks-as-a-format.md)) runs against imported
+position offers ([11 §6](../11-lorebooks-as-a-format.md)) runs against imported
 books rather than seeds. P5 already follows P4, so this placement buys the
 dependency for nothing — where a lettered phase would have been the same
 sequence with more numbering.
 
 > **The dependency stopped being free on 2026-08-29, and this is the correction
-> rather than a note.** [P4 §1.2](06-p4-implementation.md) established that
+> rather than a note.** [P4 §1.2](docs/design/workplan/16-p4-implementation.md) established that
 > **no real corpus exists** — no used SillyTavern or Marinara install is on
 > hand — and that P4 therefore runs on fixtures it synthesised. So "P5 already
 > follows P4" no longer buys the dependency: P4 produces a library, not a
 > *corpus*, and the difference is the whole of what this paragraph was relying
 > on. A reading view sized against fixtures we wrote is sized against our own
-> assumptions, and [16 §6](../16-lorebooks-as-a-format.md)'s counts run over
+> assumptions, and [11 §6](../11-lorebooks-as-a-format.md)'s counts run over
 > those fixtures would confirm whatever the fixtures were built to contain.
 >
 > **Acquiring a real library is therefore a prerequisite of this half**, not a
 > convenience: person-blocked, with lead time, in the same class as the P2C
-> sessions ([P4 §0](06-p4-implementation.md)) — someone has to find a
+> sessions ([P4 §0](docs/design/workplan/16-p4-implementation.md)) — someone has to find a
 > SillyTavern or Marinara install with years of books in it and put it
 > somewhere the importer can reach. It is named here because this is the
 > document whose argument depends on it, and a prerequisite recorded only in
 > the phase that cannot supply it is a prerequisite nobody owns.
 >
 > **What it does not do is block the phase.** The half is written against
-> fixtures and the corpus sharpens it; only [16 §6]'s falsification counts
+> fixtures and the corpus sharpens it; only [11 §6]'s falsification counts
 > genuinely require real books, and P5.3's gate is restated below so that a
 > task with unknown lead time cannot hold a phase closed. If the corpus is
 > still absent when this phase is planned, §1.6's own escape applies: the
@@ -842,16 +842,16 @@ header restated as a rule:
 > **behaviour**. Nothing in the panel, the book page or the editor may say *will
 > fire*.
 
-### 1.7 The dependency on [polish §1](09-polish.md), and the hazard in the index
+### 1.7 The dependency on [polish §1](docs/design/workplan/06-polish.md), and the hazard in the index
 
 **Added 2026-08-28.** Two things this plan would otherwise discover late.
 
-**[polish §1](09-polish.md) is shared machinery, and it is upstream of both the
+**[polish §1](docs/design/workplan/06-polish.md) is shared machinery, and it is upstream of both the
 read view and the editor.** The by-field view derived from the schema is what the
 book page's *as configured* fold and the editor's disclosures
-([05 §11.2d](../05-ui-surfaces.md)) both render through. If it has not landed,
+([10 §11.2d](../10-ui-surfaces.md)) both render through. If it has not landed,
 the document half either builds it or duplicates it — and this repo has already
-been burned in exactly this way: [P3 §5](05-p3-implementation.md) records the
+been burned in exactly this way: [P3 §5](docs/design/workplan/15-p3-implementation.md) records the
 audit finding that two JSON viewers already ship and already disagree. **So:
 land polish §1 first, or make it the document half's first stage.** Named here
 because it is invisible from either item on its own.
@@ -861,7 +861,7 @@ pair alongside `object_fts`, and `object_fts` is deleted by path in **five**
 separate places in the ingest path. Every one needs a sibling, and missing one
 leaves stale entry rows in a store whose entire claim is that it is derived and
 trustworthy — a failure that is silent, survives a restart, and is precisely what
-[13 §5](../13-internal-contracts.md)'s index invariants exist to forbid.
+[21 §5](../21-internal-contracts.md)'s index invariants exist to forbid.
 **Mitigation, and it is worth doing regardless of this phase: extract one helper
 that owns dropping and reinserting an object across both table pairs, so five
 delete sites become one.**
@@ -908,7 +908,7 @@ Somebody debugging an entry six months after the import will not think to look
 for the sweep that created it.~~
 
 ***Overtaken 2026-08-31: the alternative was built, and it changes half of this
-section.*** [P4 §7.14](06-p4-implementation.md) closed the addressable report —
+section.*** [P4 §7.14](docs/design/workplan/16-p4-implementation.md) closed the addressable report —
 `import_job` and a new `import_item` are written, `GET /api/import/jobs/:id`
 returns the same `ImportReport` the sweep answered with, and **`importNotesFor(db,
 objectId)` exists and is tested**, written against this section by name.
@@ -945,7 +945,7 @@ with a lorebook surface at all.**
 
 The alternative — building the book page's *as configured* fold and the entry
 editor's disclosures on their own — is how this repository got two JSON viewers
-that disagree ([P3 §5](05-p3-implementation.md) records the finding). A third
+that disagree ([P3 §5](docs/design/workplan/15-p3-implementation.md) records the finding). A third
 would be the same mistake with better documentation. And the by-field view is
 useful to every kind, so building it inside a lorebook stage would bury shared
 machinery under a specific feature, which is the shape that makes it hard to
@@ -975,7 +975,7 @@ own stage.
 
 **The regex timeout comes before the matcher, not with it.** `useRegex` is stored
 and read by nothing, P4 has filled the library with patterns nobody here wrote,
-and [triage §5.1](02-triage.md)'s ADOPT is about sixty lines. A matcher that runs
+and [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT is about sixty lines. A matcher that runs
 an imported pattern without a timeout is a denial-of-service on your own server,
 triggered by a book somebody downloaded. It is **P5.4's first commit** and its
 own test.
@@ -1004,7 +1004,7 @@ mistaken for settled.
   order and it is a reasonable prior, but the question *which entries do you
   regret losing* is answerable only by losing some while playing.
 - **[AWAITS PLAYABLE] Whether the two-tier budget's per-book tier earns its
-  keep.** [02 §3.2] gives each book a `tokenBudget` and `entryLimit` and the
+  keep.** [03 §3.2] gives each book a `tokenBudget` and `entryLimit` and the
   arbiter a chat-wide cut. If in practice every book is under its own limit and
   only the global cut ever fires, the per-book tier is ceremony — and imported
   books carry whatever limits their authors set, which is the only realistic
@@ -1019,7 +1019,7 @@ mistaken for settled.
   the workbench's budget view is the surface that matters.
 
 *The corpus counts are not on this list*, and the distinction is worth keeping:
-[16 §6](../16-lorebooks-as-a-format.md)'s falsification tests need **a real
+[11 §6](../11-lorebooks-as-a-format.md)'s falsification tests need **a real
 library**, which is person-blocked work (§1.6), while these four need **play**,
 which needs the P2C sessions first. Two different blockers, and confusing them
 would let either excuse the other.
@@ -1045,7 +1045,7 @@ place for the evidence to arrive from.
 the detail route, for every kind rather than for actors. The fields sit above
 the storage block, which kept its own heading; *As stored* stays and keeps the
 job §2 gave it, which is the keys the schema does not declare. `polish §1` and
-§2 are struck in [09](09-polish.md), §1 by this stage and §2 by the clause it
+§2 are struck in [polish](docs/design/workplan/06-polish.md), §1 by this stage and §2 by the clause it
 could not honestly claim until §1 existed.
 
 **Three things it settled that the item left open**, each argued where it landed
@@ -1058,7 +1058,7 @@ condition and the editor's *address* moved together, because the branch named
 `actors` twice and widening one without the other would have opened a lorebook
 in the actor editor.
 
-**Not in it, deliberately:** the disclosure groups. [05 §11.2d] builds them from
+**Not in it, deliberately:** the disclosure groups. [10 §11.2d] builds them from
 the schema's comment banners and decides which start open, ~~and both of those
 are P5.1's — the stage that owes an editor.~~ The description is shaped so that
 adding them is additive rather than a rewrite, and `polish §1` asks for a
@@ -1068,7 +1068,7 @@ this stage owed.
 *Corrected at P5.0, and the correction is worth reading because the sentence was
 wrong about a stage rather than about a fact.* Only **which groups start open**
 is P5.1's. The groups themselves are P5.0's, because
-[05 §5.3](../05-ui-surfaces.md) asks the book page's *as configured* fold for
+[10 §5.3](../10-ui-surfaces.md) asks the book page's *as configured* fold for
 "every remaining field **in the schema's own groups**" and calls it "the same
 component §11.2d specifies for the editor, in its read-only mode" — so the read
 surface needs them a stage before the write surface does, and P5.1 inherits them
@@ -1080,7 +1080,7 @@ editor's disclosures both render through it, and building it inside either would
 bury shared machinery under a specific feature — which is how this repository
 acquired two disagreeing JSON viewers already.
 
-Numbered `−1` on the precedent [P3](05-p3-implementation.md) set for the same
+Numbered `−1` on the precedent [P3](docs/design/workplan/15-p3-implementation.md) set for the same
 situation: work that has to happen first and is not what the phase is about.
 
 *Ends at:* ~~an actor's greeting readable on its detail page without opening the
@@ -1115,7 +1115,7 @@ hangs on the field that opens its group, §5.3's fold omits `keys`, and `keys` i
 the field `Matching` hangs on — so filtering first silently dropped a heading
 and spilled its fields into the group above.
 
-**Then the panel**, as the first of [polish §4](09-polish.md)'s six and on that
+**Then the panel**, as the first of [polish §4](docs/design/workplan/06-polish.md)'s six and on that
 item's own rule — one list component, and what a panel supplies is its columns,
 its sort and its empty state (`library/panels.tsx`). §5.3's table, verbatim:
 name with badges, entry count, tags, source, updated; sorts by name, recency and
@@ -1141,7 +1141,7 @@ breaks is every *other* reader of the query cache.
 `lorebooks` — not a new page, so the header, the storage block and *As stored*
 stay the page's. The book's own fields and the counts §5.3 asks for (*214
 entries, 31 off*, invisible at every surface before this); the activation
-settings as one quiet strip, which is where [02 §3.1]'s *each flag is a direct
+settings as one quiet strip, which is where [03 §3.1]'s *each flag is a direct
 UI control* gets read as **reachable** rather than as prominent; the folders
 panel with its **Gate** column and a real *Ungrouped* row; and each entry as a
 readable unit — keys as an index row, description set apart, content clamped
@@ -1238,7 +1238,7 @@ route — not a fragment, which cannot hand the view a focused state, and not a
 child route, which would put the shadowed-copy discriminator in two places.
 
 *Dropped rather than rejected*, like every other param on this router: an id
-this build has never seen degrades to the whole book, because [10 §5.2] says an
+this build has never seen degrades to the whole book, because [04 §5.2] says an
 entry id "is unique within one book and carries no meaning beyond it" and an
 importer may renumber freely — so a saved link outliving its entry is the
 expected end of one, and a whole book is a real page where an error card is not.
@@ -1292,7 +1292,7 @@ and two entries at author's-note positions, imported through the real sweep,
 produces exactly those three notes on the book's own page, with the clamped 1,000
 visible in the strip above them.
 
-[05 §5.3](../05-ui-surfaces.md) built on the existing detail route: the panel's
+[10 §5.3](../10-ui-surfaces.md) built on the existing detail route: the panel's
 columns, badges, filters and sorts; the book page with its header, folder tree,
 entry list as readable units, and the *as configured* fold; the entry address as
 a validated search param; within-book filter and search, including the key chips
@@ -1302,9 +1302,9 @@ half-built, and the one §1.6 turns on.
 
 No server work, no schema change. Reuses `/library/$kind/$id` and its existing
 shadowed-copy discriminator; a panel that builds its own links from `{kind, id}`
-reintroduces F19 and [polish §4](09-polish.md) says so.
+reintroduces F19 and [polish §4](docs/design/workplan/06-polish.md) says so.
 
-**And “the panel” presumes a panel** — [polish §4](09-polish.md) has not landed,
+**And “the panel” presumes a panel** — [polish §4](docs/design/workplan/06-polish.md) has not landed,
 so the library is still one merged table with a kind filter (§0.4). This stage
 builds the Lorebooks panel as the **first** of that item’s six, on its own
 *shared machinery, per-kind surfaces* rule, and leaves the other five and the
@@ -1331,7 +1331,7 @@ tested function rather than a rendering detail.
 from §11.2d's illustration rather than from its rule.** The section says *name
 what is inside it that is not at its default* and glosses the standard at the
 value — *a collapse that conceals a non-default value is a hidden field* — and
-[05 §2.1] forbids a *lossy summary* by name. The illustration *Matching (3 set)*
+[10 §2.1] forbids a *lossy summary* by name. The illustration *Matching (3 set)*
 is a count, and a count conceals all three: an entry running `useRegex` under a
 heading saying only *3 set* has exactly the surprising behaviour the section
 exists to surface. So every off-default field is named. *Timing (sticky 4)* is
@@ -1357,12 +1357,12 @@ converter must not be "fixed" to hide it. And a **uuid** `folderId` exceeds the
 value cap and renders as *folder id set* — the field named without printing
 thirty-six characters nobody can read.
 
-**The writable set is [05 §11.2d]'s sentence and nothing more** — `name`,
+**The writable set is [10 §11.2d]'s sentence and nothing more** — `name`,
 `content`, `description`, `keys`, `enabled`, plus `folders[].enabled` — and
 `folderId` was **considered and cut**. The argument for it was that a created
 entry lands Ungrouped forever, and the argument is real; but §11.2d requires the
 schema's grouping *verbatim*, which would bury a filing control two clicks
-inside a collapsed group named for firing behaviour, and [05 §11.2c] puts
+inside a collapsed group named for firing behaviour, and [10 §11.2c] puts
 filing-shaped operations on the entry list at P11. **The hole is closed at the
 create verb instead**: a new entry lands in the folder the list is standing in.
 Re-filing an existing entry stays P11's. `tag` and `secondaryKeys` are the two
@@ -1370,7 +1370,7 @@ other defensible widenings and are cut for the same reason — the sentence says
 *everything else visible and read-only*, and this stage is called a minimum.
 
 **Three things the stage turned out to owe that its own text does not say.**
-[05 §5.3] asks that the read view's edit affordance be *"a link into the editor
+[10 §5.3] asks that the read view's edit affordance be *"a link into the editor
 **at the entry's address**"*, and the page header's Edit cannot be it — that
 link is one component shared by every kind and passes no search params — so the
 book page gained a per-entry Edit, withheld on a shadowed copy through the same
@@ -1445,8 +1445,8 @@ the comparison beside it was already true.
 
 **Two design notes are stale and are named rather than edited.** The schema
 carries **seven** banners since P5.0 reworded the seventh to *The entry itself*;
-[05 §11.2d](../05-ui-surfaces.md) still lists six, and
-[10 §5](../10-schemas.md)'s pseudo-code still calls it *The one addition*.
+[10 §11.2d](../10-ui-surfaces.md) still lists six, and
+[04 §5](../04-schemas.md)'s pseudo-code still calls it *The one addition*.
 Nothing here depends on either — the open-set is keyed on the field a banner
 hangs on rather than on its words, precisely so a rewording cannot change which
 sections open — but the documents should catch up.
@@ -1461,19 +1461,19 @@ save* the moment it returned.
 
 *The stage as it was written:*
 
-[05 §11.2d](../05-ui-surfaces.md)'s disclosures, derived from the schema's own
+[10 §11.2d](../10-ui-surfaces.md)'s disclosures, derived from the schema's own
 comment banners, with Matching and Firing open. Create, rename, delete an entry;
 edit the durable core and the folder gates; everything else visible and
-read-only. **To scope on revisit** against [05 §11](../05-ui-surfaces.md) — the
+read-only. **To scope on revisit** against [10 §11](../10-ui-surfaces.md) — the
 full editors-are-not-dumb-forms treatment is P11's, and the P1.7 precedent (real
 write path, no assist) is the model. This absorbs the editor clause of what was
 previously P5.3.
 
 *The object-level halves of that clause landed first — delete at P4.4, create
-at [P4.5](06-p4-implementation.md), where the actors-only rule means a lorebook
+at [P4.5](docs/design/workplan/16-p4-implementation.md), where the actors-only rule means a lorebook
 gets its New control when **this** editor exists. Nothing here is discharged by
 that: creating and deleting an **entry** is writing below the object, which
-[05 §5](../05-ui-surfaces.md) puts on the editor's side of the line and not the
+[10 §5](../10-ui-surfaces.md) puts on the editor's side of the line and not the
 library's. What P4.5 supplies is the precedent for the shape — a name, a real
 write path, no assist.*
 
@@ -1529,7 +1529,7 @@ was a real gap rather than a stubborn mutation.*
   indexed field.
 
 **The locator's key is `(path, position)` and `entry_id` is deliberately not in
-it**, which is the design decision this stage most nearly got wrong. [10 §5.2]
+it**, which is the design decision this stage most nearly got wrong. [04 §5.2]
 makes entry-id uniqueness a *format* rule and nothing enforces it: `Id` carries
 no uniqueness constraint, `validate` does not walk the array, and both importers
 derive one as `stableId('entry', name, content)` — so two byte-identical entries
@@ -1570,7 +1570,7 @@ than fixed — it is `search`'s, not this stage's — and it matters more here,
 because what an unscoped entry hit would carry is the prose itself.
 
 **No client surface, and that is settled rather than deferred.**
-[05 §5.3](../05-ui-surfaces.md) says across-the-library search *"belongs to the
+[10 §5.3](../10-ui-surfaces.md) says across-the-library search *"belongs to the
 one search surface rather than to this panel"* and names *"building a
 lorebook-only global search"* as the failure it exists to prevent. The route
 already returns objects and turns that no client calls; this is a third array
@@ -1586,7 +1586,7 @@ blaming the reader for a table the server had not built**, because the route
 caught every throw and called it the caller's. `no such table` is the one
 message a query string cannot produce, so it is re-thrown now and becomes a 500
 with the real fault in the log. The remedy for the index itself is the one
-[13 §5](../13-internal-contracts.md) already prescribes: delete it, and the next
+[21 §5](../21-internal-contracts.md) already prescribes: delete it, and the next
 start rescans.
 
 *Ends at:* **met, and walked** — searching `eat` across a library of four books
@@ -1601,13 +1601,13 @@ thirty years and has never once been seen to eat.…"* as the snippet, and the
 
 > **P5.2 — Per-entry index rows, and the search they exist for**
 >
-> [05 §14.5](../05-ui-surfaces.md): a locator table and an FTS table for lore
+> [10 §14.5](../10-ui-surfaces.md): a locator table and an FTS table for lore
 > entries, mirroring the existing turn pair; an ingest branch that writes one row
 > per entry; the rebuild path clearing both; a query returning **snippets**, which
 > is what makes a hit worth returning; and one additive array on the search
 > response. The only server work in the half, and the only place a schema id
 > appears in the ingest path — justified by the rule at
-> [05 §14.5](../05-ui-surfaces.md), *a fragment is indexable when it has an
+> [10 §14.5](../10-ui-surfaces.md), *a fragment is indexable when it has an
 > address*, and bounded by it.
 >
 > §1.7's five delete sites are the risk. The helper is the mitigation and ~~the
@@ -1627,13 +1627,13 @@ thirty years and has never once been seen to eat.…"* as the snippet, and the
 
 **What shipped:** *Mentions* and *Mentioned by* as derived, labelled sections on
 each entry, every row naming what matched; the rule in `shared/mentions.ts`
-because [16 §6](../16-lorebooks-as-a-format.md)'s falsification script counts the
+because [11 §6](../11-lorebooks-as-a-format.md)'s falsification script counts the
 same pairs the page draws; and `tools/lore-mentions.ts`, run, with its reading
 below.
 
 **The rule is whole-word, case-insensitive, over name, keys and secondaryKeys,
 with no stop-list and no length floor** — and the last clause is the decision.
-[05 §5.3](../05-ui-surfaces.md) raises four objections to *drawing* links and
+[10 §5.3](../10-ui-surfaces.md) raises four objections to *drawing* links and
 three of them are survivable in a list: this does not pretend to be the matcher,
 it uses one stated rule rather than approximating thirty per-entry ones, and it
 picks no winner where two entries share a key. The fourth needed a choice —
@@ -1698,10 +1698,10 @@ was never about the extension.
 > **P5.3 — Mentions**
 >
 > The derived *Mentions* and *Mentioned by* sections
-> ([05 §5.3](../05-ui-surfaces.md)), each row naming what matched. Computed at
+> ([10 §5.3](../10-ui-surfaces.md)), each row naming what matched. Computed at
 > render, memoised per book, never indexed. Deliberately last in the half: it is
 > the most interesting item and the most cuttable, and it is also the one whose
-> premise [16 §6](../16-lorebooks-as-a-format.md) offers to falsify — so building
+> premise [11 §6](../11-lorebooks-as-a-format.md) offers to falsify — so building
 > it late means building it after the corpus can answer whether it was worth
 > building.
 >
@@ -1709,9 +1709,9 @@ was never about the extension.
 > the retriever half's tester, where it stops being a guess about linking and
 > becomes *this is what the scanner sees*.
 >
-> *Ends at:* ~~the count from [16 §6](../16-lorebooks-as-a-format.md) run over the
+> *Ends at:* ~~the count from [11 §6](../11-lorebooks-as-a-format.md) run over the
 > imported corpus, and recorded — whichever way it comes out.~~ **the count from
-> [16 §6](../16-lorebooks-as-a-format.md) written as a script, run over whatever
+> [11 §6](../11-lorebooks-as-a-format.md) written as a script, run over whatever
 > library is to hand, and recorded with what it ran against stated beside it.**
 > *Restated 2026-08-30 (§1.6):* the falsification value is in real books and there
 > may be none when this stage lands, so the stage owes the **instrument and the
@@ -1727,7 +1727,7 @@ was never about the extension.
 **Two commits, in §1.10's order.** The regex timeout alone and first, then the
 matcher on top of it.
 
-**The timeout is [triage §5.1](02-triage.md)'s ADOPT, with its two named details
+**The timeout is [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT, with its two named details
 carried and one of them checked rather than inherited.** §5.1 says the pattern
 must be recompiled *inside* the vm because passing a compiled `RegExp` in "would
 not work, and that is not obvious". On this runtime it does work — a compiled
@@ -1767,7 +1767,7 @@ Everything deciding whether a matched entry actually *fires* — `enabled`, the
 folder gate, `constant`, `probability`, timing, recursion, budgets — stays out,
 and keeping it out is what made this the cheapest place in the phase to be
 exhaustive. It answers with **why** rather than with a boolean, because
-[02 §3.1](../02-data-model.md)'s `LorebookActivationSource` is the per-block
+[03 §3.1](../03-data-model.md)'s `LorebookActivationSource` is the per-block
 *why was this included* value and §1.3 wires it into block reasons at P5.6.
 
 *Four outcomes rather than two.* `no-keys` is separated from `no-match` because
@@ -1810,7 +1810,7 @@ hang is a result rather than something the person running it inherits.
 >
 > **The regex timeout first, and on its own** (§1.10): `useRegex` is stored and
 > read by nothing, the library is now full of patterns nobody here wrote, and
-> [triage §5.1](02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
+> [triage §5.1](docs/design/workplan/02-triage.md)'s ADOPT is sixty lines. A matcher that runs an
 > imported pattern unbounded is a denial-of-service on your own server, triggered
 > by a book somebody downloaded.
 >
@@ -1836,7 +1836,7 @@ and a branch inherits the wrong stickiness. **But `ChannelDefinition.scope` had
 offered `'entry'` since the first channel was written while `applyEffects` keyed
 on the channel id alone**, so two entries' timing states would have overwritten
 each other, silently, and P6's reconstruction would have inherited whichever
-landed last. §0.4 found it; [P6 §1.9](08-p6-implementation.md) asked which phase
+landed last. §0.4 found it; [P6 §1.9](docs/design/workplan/18-p6-implementation.md) asked which phase
 pays; the phase order answers this one, because P5.5 is the first stage that
 needs a per-entry value and the alternative was shipping a feature that clobbers
 itself.
@@ -1860,7 +1860,7 @@ window is one firing that has not finished. The case that caught it is the one
 the stage predicted: *the interactions, which are the part people actually get
 wrong*.
 
-**And [triage §5.2](02-triage.md)'s carried reasoning is the load-bearing rule:**
+**And [triage §5.2](docs/design/workplan/02-triage.md)'s carried reasoning is the load-bearing rule:**
 the sticky timer is *not* refreshed while an entry is sticky, so an entry named
 every single turn still drops out when its window expires and is re-matched the
 turn after — a hard ceiling on continuous presence rather than a sliding window,
@@ -1915,14 +1915,14 @@ the cooldown would be true about the counter and misleading about the entry.
 Five commits, and the stage did everything it said. What is worth recording is
 the four places where writing it changed something that had been assumed.
 
-**§0's open question — *copy or live link* — is answered: links.** [02 §8] gives
+**§0's open question — *copy or live link* — is answered: links.** [03 §8] gives
 the session `lore: Ref<Lorebook>[]` outright, and the asymmetry with `preset` is
 the design rather than an oversight: improving a character card should reach an
 ongoing game while editing a preset must not, and a lorebook is a character
 card. The **treatment** half needed two notes read together and the reading is
-written into `turns/lore.ts` rather than assumed — [02 §8] gives the session no
+written into `turns/lore.ts` rather than assumed — [03 §8] gives the session no
 treatment field and says *editing the source treatment later must not affect
-this session*, while [18 §7] schedules the treatment arm of writing samples for
+this session*, while [14 §7] schedules the treatment arm of writing samples for
 P5 because *a session references neither object today*. They reconcile if that
 sentence is about the `origin` provenance chain, which is a Setup somebody can
 re-aim, rather than about a treatment the session names itself. Defensible, and
@@ -1939,7 +1939,7 @@ an imported treatment resolves to zero books in silence.
 **A lint rule about `Math.random` corrected a design decision.** Grouping was
 going to be deterministic highest-weight-wins, reasoning that a swipe changing
 which of three weather entries is in the prompt reads as instability. That is a
-real problem [07 §14.5] had already solved — draws go on the turn's tape and a
+real problem [19 §14.5] had already solved — draws go on the turn's tape and a
 rewrite replays it — so `groupWeight` is a weighted draw, which is what a weight
 is. Sorting by it would have made `groupWeight: 99` mean *always* rather than
 *usually* and quietly deleted the field.
@@ -1988,14 +1988,14 @@ of determinism.
 > and skip reasons surfaced. Grouping (`group`/`groupWeight`), gating filters,
 > placement including outlets — an outlet is an activated block a preset slot
 > positions, which is block addressing arriving from the other direction
-> ([02 §3.1](../02-data-model.md)).
+> ([03 §3.1](../03-data-model.md)).
 
 #### ~~P5.7 — Scoping, and the folder gate enforced~~ Landed
 
 Two commits, and the second half went further than the stage asked.
 
 ~~**The union was already enforced by shape; what it lacked was behaviour.**
-[02 §3.4]'s collapse landed with the schema, so `characterId` and its six
+[03 §3.4]'s collapse landed with the schema, so `characterId` and its six
 siblings have been gone since P4 — but nothing on the server ever *read* `scope`,
 which made it a stored field with no consequence: the same shape of omission
 §1.10 caught for `useRegex`, and it had been sitting in plain view for a phase
@@ -2025,7 +2025,7 @@ nothing depended on getting it right.~~
 > session until they say otherwise* describes a system with no usable off
 > switch — the only way to say otherwise was hand-editing JSON.
 >
-> The mistake was in the reading, not the implementation. [02 §3.4] describes a
+> The mistake was in the reading, not the implementation. [03 §3.4] describes a
 > shape, and *where a book applies* was taken as **discovery**: a field on a
 > library object deciding to join somebody's story. The rule is the other way
 > round — **no lorebook is active that has not been selected for the session**,
@@ -2035,7 +2035,7 @@ nothing depended on getting it right.~~
 > the union stays because it is what the format carries and what an import must
 > preserve, but nothing consults it. Giving it a consumer means designing
 > **inheritance** — something above the session contributing books, which is a
-> Worlds-shaped concept ([19](../19-world.md)) — rather than inferring one from
+> Worlds-shaped concept ([15](../15-world.md)) — rather than inferring one from
 > the union's wording. §3.4 carries the same correction.
 >
 > The reversal brought one thing with it that the original stage should have
@@ -2049,12 +2049,12 @@ nothing depended on getting it right.~~
 >
 > **Two questions were left open on purpose and written down**, so the next
 > person meets them rather than re-deriving them from the union's wording:
-> [06 §B14](../06-open-questions.md) — may `scope` *narrow* a book the session
+> [25 §B14](../25-open-questions.md) — may `scope` *narrow* a book the session
 > already chose, which is coherent and was declined because it is a new way for
-> a deliberate choice to go quiet; and [06 §B15] — what a new book's `scope`
+> a deliberate choice to go quiet; and [25 §B15] — what a new book's `scope`
 > should default to, since `global` is the widest value in the union and is what
 > both the factory and the SillyTavern importer produce.
-> [19 §5.3](../19-world.md) is where a consumer would come from.
+> [15 §5.3](../15-world.md) is where a consumer would come from.
 
 **The folder gate is not honoured by a second implementation; it is honoured by
 the same one.** §5 asks for a test that fails if the rendered reason and the
@@ -2081,7 +2081,7 @@ mean telling that person their entry is off while the page says it is on.
 
 ~~**A surface came with it, unasked but owed.** `scope` was nowhere on the
 detail page, which cost nothing while it was inert; the moment it decides
-whether a book is scanned, its absence is [05 §5.3]'s *a field that renders as
+whether a book is scanned, its absence is [10 §5.3]'s *a field that renders as
 nothing hides things* with a whole world behind it. Book-level *editing* remains
 out of this phase, which makes showing it matter more rather than less.~~
 
@@ -2112,7 +2112,7 @@ reads.~~
 
 *The stage as it was written:*
 
-> The `LoreScope` union enforced by shape ([02 §3.4](../02-data-model.md)); the
+> The `LoreScope` union enforced by shape ([03 §3.4](../03-data-model.md)); the
 > folder gate honoured in activation, so that the reason P5.0 *renders* is the
 > reason the engine *acts on*. That correspondence is the whole value of having
 > built the rendering first, and it is worth a test that fails if the two diverge.
@@ -2120,7 +2120,7 @@ reads.~~
 #### ~~P5.8 — The keyword test, generalised~~ Landed
 
 Three commits, and the stage's own framing turned out to be the thing worth
-re-examining: **it needed no text box**, and the reason is a rule [05 §3] states
+re-examining: **it needed no text box**, and the reason is a rule [10 §3] states
 about itself.
 
 **The tester needs no endpoint either — sample text *is* an input.** So the
@@ -2162,9 +2162,9 @@ client evaluates none and prints how many entries it therefore cannot speak for
 — an author whose book is half patterns would otherwise read an empty highlight
 as *nothing links*, which is the one conclusion this feature must not allow.
 
-**`mentions.ts` keeps its own rule, and that is deliberate.** [05 §5.3] argues
+**`mentions.ts` keeps its own rule, and that is deliberate.** [10 §5.3] argues
 it into one stated rule because a *list* approximating thirty rule sets would be
-pretending to be the matcher, and because it is [16 §6]'s falsification
+pretending to be the matcher, and because it is [11 §6]'s falsification
 instrument where changing the rule changes what the measurement means. So the
 list and the highlight can disagree, and the disagreement is informative: the
 list says a name appears, the highlight says whether the scanner would catch it.
@@ -2176,7 +2176,7 @@ and each entry's own key left alone.
 
 *The stage as it was written:*
 
-> The workbench feature deferred from P3 ([05 §3](../05-ui-surfaces.md)): paste
+> The workbench feature deferred from P3 ([10 §3](../10-ui-surfaces.md)): paste
 > sample text, see what would fire, against a real session's channel state,
 > covering every activation source. Doubles as the authoring loop for imported
 > books — which, per PLAYABLE, is where "my lorebook never fires" gets diagnosed.
@@ -2188,7 +2188,7 @@ and each entry's own key left alone.
 
 #### ~~P5.9 — Writing samples, the other two carriers~~ Landed
 
-One commit, and it was the wiring change [18 §7] predicted — which is the
+One commit, and it was the wiring change [14 §7] predicted — which is the
 result worth recording, because that prediction was made two phases before the
 thing it depended on existed. §7 said *a session references neither object
 today*, scheduled these arms for P5 on exactly that basis, and shipped the slot
@@ -2221,7 +2221,7 @@ include `routes/`, where the preview's own test lives.
 
 *The stage as it was written:*
 
-> [18 §7](../18-writing-samples.md) shipped the `samples` slot with only its
+> [14 §7](../14-writing-samples.md) shipped the `samples` slot with only its
 > **actor** arm live. The treatment and lore arms return nothing and report
 > `no-producer`, because a session references neither object — the same posture
 > `se.lore` held through P2 to P4, and it resolves here for the same reason: this
@@ -2284,22 +2284,22 @@ does** — "a book you did not author" is false by construction for a fixture we
 wrote, and the judgement it asks for is about somebody else's organising
 habits. ~~It is met by the **handful of explicitly-permissive real books** the
 corpus policy already keeps in the repository
-([testing §5](10-testing.md)), which is what that handful is for; it does not
+([testing §5](docs/design/workplan/03-testing.md)), which is what that handful is for; it does not
 need the private corpus.~~ **False, found at §0.5: the repository keeps none.**
 `import/fixtures/` holds three synthesised files and one of them says so —
 *"this is the whole corpus the phase gets"*, naming the real-library walk as
-outstanding and owned by §1.6. [10 §5](10-testing.md) is the policy's *plan*.
+outstanding and owned by §1.6. [testing §5](docs/design/workplan/03-testing.md) is the policy's *plan*.
 **The walker must supply the book**, which §1.6 already classes as person-blocked
 with lead time; it still does not need the private corpus, and the same false
-claim wants correcting at [P4 §1057](06-p4-implementation.md). **Only [16 §6]'s falsification counts need that**, and
+claim wants correcting at [P4 §1057](docs/design/workplan/16-p4-implementation.md). **Only [11 §6]'s falsification counts need that**, and
 P5.3 is written so they do not hold the phase closed.
 
-**Amended at [P6B.1](24-p6b-playable.md), 2026-09-07 — step 6 is recorded
+**Amended at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — step 6 is recorded
 person-blocked, and that is its outcome rather than a note beside a blank.**
 A walker does not fail it, skip it or fake it with a fixture: the step wants
 a book somebody else organised, the repository has none and cannot make one,
 and the honest entry is *deferred, owner named, reason given*. It waits at
-[26 §3.4](26-manual-testing.md) with [P4 §3](06-p4-implementation.md) step 1,
+[manual testing §3.4](docs/design/workplan/05-manual-testing.md) with [P4 §3](docs/design/workplan/16-p4-implementation.md) step 1,
 which wants the same book — one arrangement answers both, which is the
 argument for counting them in one place rather than letting each phase's
 revisit rediscover its own.
@@ -2311,7 +2311,7 @@ revisit rediscover its own.
 8. A sticky entry persists N messages and the workbench shows "sticky, 2
    remaining"; cooldown, delay and ephemeral each observable in the record.
    **Unmet at §0.5, and the string is the design's, not the gate's** —
-   [05 §11](../05-ui-surfaces.md) specifies it. Nothing renders a remaining
+   [10 §11](../10-ui-surfaces.md) specifies it. Nothing renders a remaining
    count: `blocks.ts:94` returns `'still active from an earlier turn'`,
    `LoreReport` has no timing field, and `EffectList.tsx:44` prints `channelId`
    without `scopeKey`, so two sticky entries are indistinguishable on the one
@@ -2321,7 +2321,7 @@ revisit rediscover its own.
    counter by design, so its only trace would be a skip reason, and skip reasons
    reach the preview but never the turn record.
 
-   **Amended at [P6B.1](24-p6b-playable.md), 2026-09-07. Two of the three
+   **Amended at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07. Two of the three
    complaints are fixed; the third is a design gap and is now asked as one.**
    `Activation` carries `stickyRemaining`, the post-turn figure, and
    `reasonFor` spends it — *"still active from an earlier turn, 2 messages
@@ -2339,7 +2339,7 @@ revisit rediscover its own.
    records rather than hunts for. Its only trace is a skip reason, skip reasons
    live in the preview, and the preview is gone by the time the record exists.
    Giving `delay` a place in the record changes what a turn record holds —
-   [05 §11](../05-ui-surfaces.md)'s question rather than a plumbing job — and it
+   [10 §11](../10-ui-surfaces.md)'s question rather than a plumbing job — and it
    is deferred to whoever next opens that surface.
 9. Recursion: an activated entry's text activates another; `preventRecursion`
    et al. honoured; no runaway at the book's depth limit.
@@ -2352,12 +2352,12 @@ revisit rediscover its own.
     `activate.ts:535` and `:611`, each carrying its own entry or group as
     purpose. The *reproduction* half cannot be executed here — there is no
     production replay entry point, and the parenthetical was wrong, since
-    [P3 §344](05-p3-implementation.md) disclaims rewrite and reroll explicitly.
-    It is carried by [P6 §3](08-p6-implementation.md) step 3, which already names
+    [P3 §344](docs/design/workplan/15-p3-implementation.md) disclaims rewrite and reroll explicitly.
+    It is carried by [P6 §3](docs/design/workplan/18-p6-implementation.md) step 3, which already names
     the fixture constraint P5 could not have known: an ordinary turn commits an
     empty tape, so the fixture has to be built to roll.
 
-    **Settled at [P6B.1](24-p6b-playable.md), 2026-09-07 — §0.5's third
+    **Settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — §0.5's third
     contradiction, and no code was ever wrong.** It was two documents
     disagreeing: this one called reproduction P3's gesture, and P3 disclaims
     rewrite and reroll in as many words. **A walker marks the keying half met
@@ -2365,23 +2365,23 @@ revisit rediscover its own.
     point, because none exists to find.
 12. ~~An entry conditioned on a channel that does not exist → visible warning,
     never fires, nothing blocks (§1.4).~~ **Unbuildable, and the scope never
-    moved.** No entry can be conditioned on a channel: [10 §5](../10-schemas.md)
+    moved.** No entry can be conditioned on a channel: [04 §5](../04-schemas.md)
     lists `activationConditions` as *deliberately absent*, the importer discards
     it, and no `SkipReason` names a channel. §1.4 kept the predicate check and
     §4 defers only *"the rule vocabulary"*, so the deferral was taken in the code
-    without either section following — and [01 §195](01-work-plan.md) still reads
+    without either section following — and [work plan §195](docs/design/workplan/01-work-plan.md) still reads
     **P5**. **This step is not met and this phase does not meet it**; the work
     moves to the phase that ships channel predicates. *Do not credit
     `unknownSources` here* — it is the identical visible-warning posture for scan
     *sources*, but such an entry keeps scanning its other haystacks and can still
     fire, so it fails the *never fires* clause.
 
-    **Settled at [P6B.1](24-p6b-playable.md), 2026-09-07 — §0.5's second
+    **Settled at [P6B.1](docs/design/workplan/20-p6b-playable.md), 2026-09-07 — §0.5's second
     contradiction, and the deferral finally has an owner.** The step named the
     phase that ships channel predicates without naming which one, which is the
     state this project's ledger exists to make impossible. **It is P7's**:
-    [01 §195](01-work-plan.md)'s row moved, §1.4 above is corrected, and
-    [P7 §0.1](18-p7-implementation.md) carries it as inherited work with this
+    [work plan §195](docs/design/workplan/01-work-plan.md)'s row moved, §1.4 above is corrected, and
+    [P7 §0.1](docs/design/workplan/23-p7-implementation.md) carries it as inherited work with this
     step attached. **A walker records step 12 deferred with an owner, not
     failed** — the distinction matters, because a failed step is a defect and a
     deferred one is a plan, and P5 declined to build this deliberately.
@@ -2397,7 +2397,7 @@ revisit rediscover its own.
     a session through two turns with a sticky-or-cooldown entry and assert
     `replayChannels(walkPath(turns, head))` equals `session.channels` with the
     three counters checked. **So P6 inherits an obligation rather than a step
-    that changed meaning**, and [P6 §2](08-p6-implementation.md)'s P6.0a is where
+    that changed meaning**, and [P6 §2](docs/design/workplan/18-p6-implementation.md)'s P6.0a is where
     it is discharged.
     **Discharged at P6.0a, 2026-09-02**, in
     `packages/server/src/sessions/reconstruct-property.test.ts`: four turns
@@ -2407,7 +2407,7 @@ revisit rediscover its own.
     node of a forked session, against a table that passes through no
     production code. The branch-*gesture* half — activate on one line, branch
     from before it, the sibling line does not have it — is
-    [P6 §3](08-p6-implementation.md) step 10, owned by P6.3.
+    [P6 §3](docs/design/workplan/18-p6-implementation.md) step 10, owned by P6.3.
 
 ### Added at the audit
 
@@ -2433,7 +2433,7 @@ revisit rediscover its own.
     A named CI step that goes red on a landing is a step somebody repairs
     hastily; one that changes in the commit that changes it is a decision.
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
 **The document half is the first phase to discharge that line in the other
@@ -2469,28 +2469,28 @@ built have no surface, and the first is the phase's largest open item:
 
 ## 4. Out of scope, deliberately
 
-Semantic/embedding retrieval ([05 §14.3](../05-ui-surfaces.md) — keyword is the
+Semantic/embedding retrieval ([10 §14.3](../10-ui-surfaces.md) — keyword is the
 1.0 position; embeddings moved to the derived index and nothing populates
 them); entry state values beyond timing — quests, dispositions, relationship
 levels live in channels that arrive with modes (P7) and 6.0; the rule
 vocabulary (§1.4's line); the full lorebook editor with galleries, assist and
-entry-level import and export ([05 §11.2c](../05-ui-surfaces.md)) (P11; media
+entry-level import and export ([10 §11.2c](../10-ui-surfaces.md)) (P11; media
 schema shipped in P1.1 and stays schema-only); cross-session memory
 as an auto-maintained lorebook (P8 — it *consumes* this phase's machinery,
 which is the dependency, not a reason to build any of it now).
 
 **And what the document half newly invites, refused by name:**
 
-- **A schema field.** Eleven ship unread ([16 §4](../16-lorebooks-as-a-format.md));
+- **A schema field.** Eleven ship unread ([11 §4](../11-lorebooks-as-a-format.md));
   adding a twelfth to serve a rendering would be buying machinery to avoid
   building a surface. The two most tempting — a saved variant/toggle set, and a
   `compatibleWith` list — are refused with reasons at
-  [16 §4.2](../16-lorebooks-as-a-format.md).
-- **A cross-kind search box.** [05 §5](../05-ui-surfaces.md) names *a search box
+  [11 §4.2](../11-lorebooks-as-a-format.md).
+- **A cross-kind search box.** [10 §5](../10-ui-surfaces.md) names *a search box
   per kind* as the failure; the input this half builds is scoped to the panel and
   is the component the eventual one surface uses.
 - **Inline cross-links drawn into entry prose.** Refused with its reasons at
-  [05 §5.3](../05-ui-surfaces.md), and rescheduled to P5.8 where it can tell the
+  [10 §5.3](../10-ui-surfaces.md), and rescheduled to P5.8 where it can tell the
   truth.
 - **A cached or derived rendering of a book.** The read view renders
   `lorebook.json` and nothing else. A second representation is a second thing to
@@ -2499,7 +2499,7 @@ which is the dependency, not a reason to build any of it now).
   few hundred entries does not need one. If real imported books run to thousands
   of entries, revisit with a measurement rather than with a dependency.
 - **Elevating lorebooks above the library.** No third surface, no mode, no
-  promotion in the navigation — [16 §5](../16-lorebooks-as-a-format.md).
+  promotion in the navigation — [11 §5](../11-lorebooks-as-a-format.md).
 - **Finishing P4.4's addressable review report.** §1.8 decides that the facts an
   import established belong on the *book*, not on the sweep that created it, and
   that is a different piece of work from the one P4.4 cut. The cut stands and is
@@ -2512,7 +2512,7 @@ which is the dependency, not a reason to build any of it now).
 **The document half is bigger than it reads and the retriever half is smaller**,
 and the audit is what makes that sayable rather than a hunch.
 
-The retriever is a **PORT** ([02 §3]): the vocabulary is settled, the divergences
+The retriever is a **PORT** ([03 §3]): the vocabulary is settled, the divergences
 are two and named, the matching logic is pure functions, and the two hardest
 inputs — channels for timing state, the RNG for probability — already exist. What
 is genuinely new is the arbiter's interaction with per-book verdicts, and the
@@ -2527,7 +2527,7 @@ a document or as a form* — which only a person can settle.
 Priced honestly, in the order the phase would cut under pressure:
 
 1. **P5.3, Mentions, goes first.** The skeleton already calls it *the most
-   interesting item and the most cuttable*, and its premise is the one [16 §6]
+   interesting item and the most cuttable*, and its premise is the one [11 §6]
    offers to falsify — with counts that cannot run until a real corpus exists
    (§1.6). Cutting it costs a feature; keeping it while the corpus is absent
    costs the ability to know whether it was worth building.
@@ -2555,7 +2555,7 @@ phase happens.
 
 *Re-audit 2026-08-31, and the price moved once:* **the document half is slightly
 smaller than this says.** §1.8's storage, its object-keyed query and its index
-came from [P4 §7.14](06-p4-implementation.md), and a concurrent branch has built
+came from [P4 §7.14](docs/design/workplan/16-p4-implementation.md), and a concurrent branch has built
 object-level create and delete, so the entry editor inherits a precedent instead
 of setting one. Everything else here stands — most importantly *starts from
 nothing*, which is still true of the surface, and the five `object_fts` delete
@@ -2563,7 +2563,7 @@ sites, which are still five. The cut order is unchanged.
 
 **Expect the document half to be revised by use.** It is the first surface in
 this repository whose success condition is a reading experience rather than a
-behaviour, and [P3](05-p3-implementation.md)'s workbench — the nearest
+behaviour, and [P3](docs/design/workplan/15-p3-implementation.md)'s workbench — the nearest
 comparable — changed shape three times against a browser walk.
 
 ---
@@ -2581,9 +2581,9 @@ inherits whatever it built.
 
 **6.2 What an entry's `metadata` may carry from an import** (§1.8). The
 decision is that import notes live there; what has not been decided is whether
-that is a documented convention with reserved keys or a free-text bag. [10 §5]'s
+that is a documented convention with reserved keys or a free-text bag. [04 §5]'s
 `metadata` is the latter today, and a reading surface that renders specific keys
-turns it into the former by accident. Worth settling in [10] rather than here.
+turns it into the former by accident. Worth settling in [04] rather than here.
 
 **6.3 Whether `additionalMatchingSources` is a closed union.** §1.5 ships the
 vocabulary; Marinara's is a closed union of named sources and ours is a string
@@ -2591,12 +2591,12 @@ array. An open list is right for the same reason `CallKind` is open — but it
 means an unknown source silently matches nothing, and *silently* is the word
 this phase spends most of its effort against.
 
-**6.4 Write-backs this plan owes and schedules.** [05 §5.3] — the book page's
-import-notes row (§1.8, with P5.0). [16 §6] — its counts run when a corpus
+**6.4 Write-backs this plan owes and schedules.** [10 §5.3] — the book page's
+import-notes row (§1.8, with P5.0). [11 §6] — its counts run when a corpus
 exists, and the document already records that they wait (P4.3 wrote it). The
 fixture-pair gate's `lore` assertion (§1.10, with P5.6). ~~And `polish §1`
 leaves the polish list when it lands, per that document's own rule.~~ **Done at
-P5.−1, and the rule cited was not there.** [09](09-polish.md) has no removal
+P5.−1, and the rule cited was not there.** [polish](docs/design/workplan/06-polish.md) has no removal
 rule — its house rule is about an item that turns out to need a schema change,
 which is a different thing — and its own §6 is the precedent against one: it
 landed and stayed, marked *landed rather than proposed*. So §1 and §2 are struck

@@ -69,7 +69,7 @@ describe('the raw document', () => {
 
 describe('the tier table is the source', () => {
   it('gives every key a tier', () => {
-    // [06 D0](../../../docs/design/06-open-questions.md) requires every key to be
+    // [25 D0](../../../docs/design/25-open-questions.md) requires every key to be
     // annotated. Adding a key without deciding how it applies should be a test
     // failure rather than a silent `undefined` that reads as "live".
     const missing = configKeys().filter((key) => tierOf(key) === null);
@@ -83,22 +83,22 @@ describe('the tier table is the source', () => {
   });
 
   it('declares every key in the commented example', async () => {
-    // [01 §2.3](../../../docs/design/workplan/01-work-plan.md): configuration
+    // [work plan §2.3](../../../docs/design/workplan/01-work-plan.md): configuration
     // ships with its surface, and `config.example.json` is the surface every
     // operator meets first — its own header calls the settings UI "the primary
     // path", which makes this file the other one. Four keys had already drifted
     // out of it before anybody looked, which is the argument for a test rather
     // than a habit.
     //
-    // Named as out of scope at [P2 §3](../../../docs/design/workplan/04-p2-implementation.md)
+    // Named as out of scope at [P2 §3](../../../docs/design/workplan/08-p2-implementation.md)
     // because it cited no finding; it enters at
-    // [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+    // [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md).
     const example = await readFile(
       fileURLToPath(new URL('../../../config.example.json', import.meta.url)),
       'utf8',
     );
     // JSON has no comments, which is the one real cost of JSON everywhere
-    // ([02 §5.4]) and the reason this file is not loadable as it stands. Strip
+    // ([03 §5.4]) and the reason this file is not loadable as it stands. Strip
     // whole-line comments only: no value in it contains `//`, and a parser that
     // tried to be cleverer would be a second config reader.
     const stripped = example
@@ -208,7 +208,7 @@ describe('the tier table is the source', () => {
   });
 
   /**
-   * **The tier table in [13 §4] names exactly the keys the schema has, with the
+   * **The tier table in [21 §4] names exactly the keys the schema has, with the
    * same tiers.**
    *
    * That document calls the annotation *the source, not documentation of it* —
@@ -223,7 +223,7 @@ describe('the tier table is the source', () => {
    */
   it('matches the tier table in the internal contracts', async () => {
     const doc = await readFile(
-      fileURLToPath(new URL('../../../docs/design/13-internal-contracts.md', import.meta.url)),
+      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
       'utf8',
     );
 
@@ -252,7 +252,7 @@ describe('the tier table is the source', () => {
 
 describe('the restart-required notice is derived', () => {
   it('names the specific keys that changed', () => {
-    // [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md): the banner lists
+    // [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md): the banner lists
     // *what* is pending, because "restart required" alone invites people to
     // restart and hope.
     const next = {
@@ -285,7 +285,7 @@ describe('loading', () => {
 
   it('binds loopback by default', async () => {
     // The one default that decides first-run safety
-    // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)): between first
+    // ([09 §5.1](../../../docs/design/09-server-multiuser-deployment.md)): between first
     // boot and first-run setup, anyone who can reach the port can claim the
     // admin account.
     const { config } = await loadConfig(join(dir, 'nothing.json'));
@@ -365,7 +365,7 @@ describe('loading', () => {
 describe('config has nowhere to put a credential', () => {
   it('declares no key that looks like one', () => {
     // The same structural enforcement the portable schemas get
-    // ([00 §3.2](../../../docs/design/00-stance.md), [13 §4]): connections live in
+    // ([00 §3.2](../../../docs/design/00-stance.md), [21 §4]): connections live in
     // `connections/`, and a check can be forgotten where a missing field
     // cannot.
     const denied = /key|secret|password|token|credential|proxy|auth|url|endpoint|host/i;
@@ -414,7 +414,7 @@ describe('config has nowhere to put a credential', () => {
 });
 
 /**
- * **A control cannot offer a value the schema refuses** — [01 §2.3].
+ * **A control cannot offer a value the schema refuses** — [work plan §2.3].
  *
  * The install form carried a hand-written list of log levels including `trace`,
  * which the union does not contain: picking it answered `400` and the form said
@@ -465,8 +465,8 @@ describe('the closed unions travel with the config', () => {
 });
 
 /**
- * The environment layer — [P6A.0], [P6A §1.2], [13 §4],
- * [P10 §1.2](../../../docs/design/workplan/21-p10-implementation.md).
+ * The environment layer — [P6A.0], [P6A §1.2], [21 §4],
+ * [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
  *
  * **The claim the phase turns on is the first test**: a server that takes its
  * bind address from a variable with no config file anywhere. Until this stage
@@ -596,7 +596,7 @@ describe('the environment layer', () => {
    */
   it('matches the variable table in the internal contracts', async () => {
     const doc = await readFile(
-      fileURLToPath(new URL('../../../docs/design/13-internal-contracts.md', import.meta.url)),
+      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
       'utf8',
     );
 

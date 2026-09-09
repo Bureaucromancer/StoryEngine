@@ -11,7 +11,7 @@ import type { BlockSource } from '@storyengine/shared';
  * on an ordinary turn"* is the label map being total (its own test constructs
  * every arm), and *"clickable through to the object it came from"* is the
  * link — which, per the decision recorded at planning, **navigates the main
- * view** rather than re-subjecting the panel: [05 §2]'s stateless-reader rule
+ * view** rather than re-subjecting the panel: [10 §2]'s stateless-reader rule
  * holds, and [P3 §7.1]'s tension stays open where it is written.
  *
  * What links and what does not, stated rather than discovered:
@@ -21,7 +21,7 @@ import type { BlockSource } from '@storyengine/shared';
  * - **history** names a turn, not a library object; its address arrives with
  *   the compare view (P3.6).
  * - **attempt** names a turn too — the sibling a guided redo showed the model
- *   ([03 §5.1]) — and gets its address with history's, for the same reason.
+ *   ([06 §5.1]) — and gets its address with history's, for the same reason.
  * - **samples** names a sample inside whichever object carried it. The actor
  *   carrier links, for the reason `actor` does — it is a library object with a
  *   page. Treatment and Lorebook get a label until those pages exist.
@@ -55,7 +55,7 @@ const SOURCE_LABELS: Record<string, string> = {
   /**
    * The retired spelling of the arm above, kept rather than replaced. The slot
    * literal became `treatment` at P4.0 ([P4 §1.7]) because the docs had spelled
-   * it that way since [10 §6]'s rename and the code never followed — but a turn
+   * it that way since [04 §6]'s rename and the code never followed — but a turn
    * record is free-to-move tier, and every record committed before that day
    * carries `kind: 'setting'` forever. The open map is exactly the mechanism
    * that lets an old record keep rendering, so this entry is that rule being

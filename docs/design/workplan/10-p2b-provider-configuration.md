@@ -1,15 +1,15 @@
-# 14 — P2B implementation plan
+# 10 — P2B implementation plan
 
 **Status: ~~plan~~ landed**, in `main` since 2026-08-22 at `6041c8c`, with the
 gate’s closing method written down at `423d9e0`. *Reviewed against
-[P2A](13-p2a-configuration-surface.md) as built.*
+[P2A](docs/design/workplan/09-p2a-configuration-surface.md) as built.*
 
 **Eleven gate steps, nine automated, walked as far as automation goes.** The
-rest is [12 §2](12-p2-manual-gate.md)’s list, counted at
-[26 §3.5](26-manual-testing.md).
+rest is [manual gate §2](docs/design/workplan/11-p2-manual-gate.md)’s list, counted at
+[manual testing §3.5](docs/design/workplan/05-manual-testing.md).
 
 *(This status line was written 2026-09-07 at
-[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -17,13 +17,13 @@ rather than what happened.)*
 §6 was a checklist of what P2A had to settle and is now the answer sheet, §6.1
 carries two things P2A created that this plan did not anticipate, and §6.2
 records what re-reading the code confirmed — every finding in §1 held. Format
-follows [03](03-p1-implementation.md).
+follows [P1](docs/design/workplan/07-p1-implementation.md).
 
-**P2B delivers**, from [01 P2B](01-work-plan.md): provider configuration through
+**P2B delivers**, from [work plan P2B](docs/design/workplan/01-work-plan.md): provider configuration through
 the UI — system connections, the **install default bindings** everyone inherits,
 and the role table that shows what resolves to what
-([04 §4.5](../04-server-multiuser-deployment.md),
-[05 §15.3](../05-ui-surfaces.md)). **Admin-only, deliberately**, with the
+([09 §4.5](../09-server-multiuser-deployment.md),
+[10 §15.3](../10-ui-surfaces.md)). **Admin-only, deliberately**, with the
 per-user half named and deferred in §2.7.
 
 **The demo that defines done:** *install fresh, create the first admin, paste in
@@ -35,17 +35,17 @@ worked example lives in a test, and a hand-written `bindings.json` whose writer
 was deliberately not shipped. P2A's account list now says so out loud, for every
 account — *"1 person has no usable connection and cannot send a message. No
 system connection is configured, so adding one fixes this for everybody."* —
-which is [04 §4.5](../04-server-multiuser-deployment.md)'s dead-end state made
+which is [09 §4.5](../09-server-multiuser-deployment.md)'s dead-end state made
 visible at last, and a sentence with no action behind it until this phase.
 **P2B is what lets an admin act on what P2A tells them**, which is
-[05 §15.4](../05-ui-surfaces.md)'s test for whether either panel belongs at all.
+[10 §15.4](../10-ui-surfaces.md)'s test for whether either panel belongs at all.
 
-**And it is the second phase written under [01 §2.3](01-work-plan.md).** The
+**And it is the second phase written under [work plan §2.3](docs/design/workplan/01-work-plan.md).** The
 provider layer shipped at P2.1 with its configuration left on disk. That is the
 gap the rule exists to close, and this is the larger half of closing it: P2A
 makes the install administrable, P2B makes it *usable*.
 
-**P2B is where [04 §4.5](../04-server-multiuser-deployment.md) stops being a
+**P2B is where [09 §4.5](../09-server-multiuser-deployment.md) stops being a
 document** — and §1 is the discovery that three of its sentences describe
 machinery nobody has built, because nothing has ever needed it.
 
@@ -66,7 +66,7 @@ and a 400 contains no key trivially. §6.1 is where that correction came from.
 More than the phase expected, and it is worth saying so before the list of gaps.
 `resolveConnections` merges the two scopes and enforces `privateConnections`
 **at the loader**, which is the placement
-[04 §4.5](../04-server-multiuser-deployment.md) calls load-bearing;
+[09 §4.5](../09-server-multiuser-deployment.md) calls load-bearing;
 `presentConnection` is a `Pick` rather than a hand-written interface, so a field
 added to `Connection` cannot leak by being forgotten; `resolveRole` already
 tells `unbound` from `dangling`, and `sessions/types.ts` already carries both as
@@ -82,12 +82,12 @@ verified.
 **The largest finding, and it is not a UI question.** Three documents describe a
 layer of bindings that belongs to the install rather than to a person:
 
-- [04 §4.5](../04-server-multiuser-deployment.md): when an admin removes a
+- [09 §4.5](../09-server-multiuser-deployment.md): when an admin removes a
   system connection, bindings that point at it *"dangle and **fall back to
   system bindings** — the existing non-blocking behaviour, no new mechanism."*
-- [05 §15.3](../05-ui-surfaces.md): system connections are *"the household's
+- [10 §15.3](../10-ui-surfaces.md): system connections are *"the household's
   shared keys, **and the default role bindings everyone inherits**."*
-- [07 §5.1](../07-tech-stack.md): the resolution order is
+- [19 §5.1](../19-tech-stack.md): the resolution order is
   *"**install default** → role binding → session override → step override →
   actor hint"*, and the
   worked example is an admin binding the two defaults so that *"every user's
@@ -174,7 +174,7 @@ goes through `presentConnection`* — is not the rule. §2.2 is what it becomes.
 the same reader, layered *under* the personal one.
 
 `resolveRole`'s order becomes `step → session → user binding → install default`,
-which is [07 §5.1](../07-tech-stack.md)'s order read from the strongest end.
+which is [19 §5.1](../19-tech-stack.md)'s order read from the strongest end.
 The hint stays where it is, applied last and weakest over whichever layer won.
 
 Against the alternative, recorded because it is the cheaper-looking one:
@@ -182,7 +182,7 @@ Against the alternative, recorded because it is the cheaper-looking one:
 gives the same answer for every case that resolves, and a worse answer for
 every case that does not. A merged map cannot say *why* a role resolved, so the
 role table cannot show *inherited from the install* against *yours*, which is
-the substance of [05 §15.1](../05-ui-surfaces.md)'s "the one place a user sees
+the substance of [10 §15.1](../10-ui-surfaces.md)'s "the one place a user sees
 which of their bindings are personal and which fall back to system defaults".
 `ResolutionSource` already exists to answer that question and would be lied to
 by a merge. **Two layers, one resolver, and the source recorded.**
@@ -224,7 +224,7 @@ the discipline** — over every route, no response body contains `apiKey`, and n
 response from a non-admin route contains `baseUrl`.
 
 **`baseUrl` is admin-visible and user-invisible**, which is
-[04 §4.5](../04-server-multiuser-deployment.md)'s *"an admin may opt to show
+[09 §4.5](../09-server-multiuser-deployment.md)'s *"an admin may opt to show
 it"* read as narrowly as it can be. The bullet permits showing a user the URL;
 this phase does not, because the admin who set it is the only person who needs
 it and *may opt to* is permission, not a requirement. `providers/connections.ts`
@@ -238,7 +238,7 @@ phase — as is `bindings.ts`'s, which names the writer's home as P7.
 
 The filename is derived, never read — `readConnectionsIn` keeps taking the id
 from the contents, so a hand-renamed file keeps working, which is the same
-position [P1 §1.1](03-p1-implementation.md) takes on library slugs and for the
+position [P1 §1.1](docs/design/workplan/07-p1-implementation.md) takes on library slugs and for the
 same reason: the path is a convenience, the id is identity. Deriving it means a
 write knows where to put a file and a delete can *try* the obvious path first,
 while still falling back to a scan for a file somebody named themselves.
@@ -247,7 +247,7 @@ while still falling back to a scan for a file somebody named themselves.
 closes §1.5's shadowing hole for anything created through the UI without
 outlawing the hand-written file that already works. A duplicate id found on disk
 is reported, not repaired — the library's own posture for the same collision
-([P1 §1.2](03-p1-implementation.md)).
+([P1 §1.2](docs/design/workplan/07-p1-implementation.md)).
 
 ### 2.4 The writer invalidates the cache, and the seam is one function
 
@@ -278,7 +278,7 @@ time, which is the worst place to find out.
 **Decided, both halves:**
 
 - **The form offers `openai-compatible` and nothing else**, which is
-  [07 §5.5](../07-tech-stack.md)'s compatibility surface stated as a control
+  [19 §5.5](../19-tech-stack.md)'s compatibility surface stated as a control
   rather than as a paragraph: *if it speaks OpenAI-compatible chat it works, and
   if it does not it does not.* An empty `baseUrl` means OpenAI's own endpoint —
   the adapter already defaults to it — so the common cases are a key with no URL
@@ -299,7 +299,7 @@ a turn"* falls down, and OpenAI-compatible endpoints expose `GET
 {baseUrl}/models`. So the form offers a **Fetch models** action beside the
 field, filling a picker from the endpoint's own answer.
 
-**It is an assist, not the path**, which is [05 §6](../05-ui-surfaces.md)'s rule
+**It is an assist, not the path**, which is [10 §6](../10-ui-surfaces.md)'s rule
 for every wizard here — Aventuras' `useSettingAsIs()` escape hatch, generalised.
 The field stays free text, a failed fetch is a notice rather than a blocked
 save, and an endpoint that does not implement `/models` costs the admin nothing
@@ -330,7 +330,7 @@ would be easy to add one on the way past on the grounds that the shape is
 already there. It is the same deferral for the same reason, and §6's open
 question about a route shape is about the **system** file alone.
 
-[05 §15.1](../05-ui-surfaces.md) wants *your connections and role bindings* in
+[10 §15.1](../10-ui-surfaces.md) wants *your connections and role bindings* in
 the user half — *"the one place a user sees which of their bindings are personal
 and which fall back to system defaults."* It is not here, and the reason is not
 scope:
@@ -338,8 +338,8 @@ scope:
 - The user half only means anything for an account with `privateConnections`,
   and a surface predating the check would have been granting an ability the
   server did not enforce — **the trivial bypass
-  [04 §4.5](../04-server-multiuser-deployment.md) warns about, wearing a UI.**
-  *That half is discharged: [P2A §2.1](13-p2a-configuration-surface.md) moved
+  [09 §4.5](../09-server-multiuser-deployment.md) warns about, wearing a UI.**
+  *That half is discharged: [P2A §2.1](docs/design/workplan/09-p2a-configuration-surface.md) moved
   enforcement into `turns/runner.ts`, where the account's real capability now
   decides what `resolveConnections` returns. What remains is the second bullet,
   which is this phase's own work rather than a dependency.*
@@ -351,19 +351,19 @@ So: system connections and install defaults here; personal connections, personal
 bindings and the personal-versus-system view in the phase after, or at P10 with
 the rest of §15.1. The role table this phase builds is the same component, with
 one of its two columns not yet populated — which is
-[01 §2.2](01-work-plan.md)'s minimal demonstration rather than a placeholder,
+[work plan §2.2](docs/design/workplan/01-work-plan.md)'s minimal demonstration rather than a placeholder,
 because nothing about it is discarded when the second column arrives.
 
 **What this costs, recorded rather than glossed:** a user who wants their own
 key still hand-writes two files, exactly as today. P2B does not improve that
 case at all — it makes the case where *nobody* has configured anything work,
 which is every fresh install and most household ones. The household example
-[07 §5.1](../07-tech-stack.md) uses is *"Dad pays for the API"*, and that is
+[19 §5.1](../19-tech-stack.md) uses is *"Dad pays for the API"*, and that is
 precisely the half this phase builds.
 
 ### 2.8 Dangling bindings: the warning is here, the notification is not
 
-[04 §4.5](../04-server-multiuser-deployment.md) says a removed system connection
+[09 §4.5](../09-server-multiuser-deployment.md) says a removed system connection
 leaves bindings dangling *"and the user is told to pick another"*. Two halves,
 and only the first is this phase's:
 
@@ -395,7 +395,7 @@ suite's expectations updated for the new `via` value.
 No routes, no UI. *Ends at:* a hand-written `system/bindings.json` resolves for
 a user with no `bindings.json` of their own, and a personal binding whose
 connection is gone falls through to it instead of failing the turn — which is
-what [04 §4.5](../04-server-multiuser-deployment.md) has claimed all along.
+what [09 §4.5](../09-server-multiuser-deployment.md) has claimed all along.
 
 ### P2B.1 — The connection store grows a writer
 
@@ -416,7 +416,7 @@ the install default bindings; the delete-time binding count (§2.8); the model
 fetch (§2.6).
 
 The prefix exists now, as an encapsulated plugin with one `onRequest` hook, and
-[P2A §2.4](13-p2a-configuration-surface.md) commits to never adding a
+[P2A §2.4](docs/design/workplan/09-p2a-configuration-surface.md) commits to never adding a
 per-handler admin check — so these routes add none. Registering them inside it
 is the whole of their authorisation, and the route-table test covers them the
 moment they are registered.
@@ -460,7 +460,7 @@ walking the gate before writing any of it:
 
 - **`GET /api/admin/roles`**, because `via` was returnable by nothing. It is a
   local in `resolveRole`, deliberately absent from the turn record
-  ([13 §1.4](../13-internal-contracts.md) specifies no such field), and a table
+  ([21 §1.4](../21-internal-contracts.md) specifies no such field), and a table
   showing it would have had to reimplement §5.1's layering in the browser
   against two binding maps it would also have had to fetch. The route asks the
   resolver; the component renders what it says and works nothing out.
@@ -480,7 +480,7 @@ in prose.
 ### P2B.4 — First run, and the dead end closing
 
 The first connection an admin saves offers to write the install defaults from it
-— [07 §5.1](../07-tech-stack.md)'s *a good one and a cheap one*, with one model
+— [19 §5.1](../19-tech-stack.md)'s *a good one and a cheap one*, with one model
 answering both when only one exists. `defaultBindings` gets its first production
 caller.
 
@@ -513,8 +513,8 @@ read and two directory reads per account, and the cheaper answer was wrong.
 
 [The API doc](../../api.md) gains the connections and bindings routes;
 `connections.ts`'s P10 comment and `bindings.ts`'s P7 comment are repaired;
-[04 §4.5](../04-server-multiuser-deployment.md)'s *"no new mechanism"* sentence
-is corrected against §1.2; [07 §5.1](../07-tech-stack.md)'s resolution order is
+[09 §4.5](../09-server-multiuser-deployment.md)'s *"no new mechanism"* sentence
+is corrected against §1.2; [19 §5.1](../19-tech-stack.md)'s resolution order is
 annotated with which layers have callers and which are P7's.
 
 *Ends at:* no document describes a fallback the code does not perform.
@@ -528,7 +528,7 @@ annotated with which layers have callers and which are P7's.
 - Its `GET /api/admin/accounts` section described the dead-end rule as *a system
   connection exists, or a personal one plus the capability*. That was an
   accurate description of the wrong implementation, so it moved with the code.
-- [07 §5.1](../07-tech-stack.md)'s note became a table, and gained the
+- [19 §5.1](../19-tech-stack.md)'s note became a table, and gained the
   correction the order alone could not state: **the first layer that resolves
   wins, not the first that exists.**
 
@@ -574,14 +574,14 @@ pnpm dev    # the client is on :5173; :8080 is the API and serves no UI
 7. Grant `privateConnections` to a user with a personal connection file on disk
    → their bindings resolve to it over the install default; revoke it → they
    return to the install default and the file is untouched
-   ([P2A §2.1](13-p2a-configuration-surface.md) did the enforcing; this asserts
+   ([P2A §2.1](docs/design/workplan/09-p2a-configuration-surface.md) did the enforcing; this asserts
    it end to end).
 8. Save a connection naming a provider this build cannot construct → refused at
    save time, naming the provider — not at the next turn (§2.5).
 9. Point the model fetch at an endpoint that does not implement `/models` → a
    notice, the field still accepts a typed id, and the save still works (§2.6).
 10. Two connections on disk claiming one id → both listed, the shadowed one
-    flagged, nothing blocked ([P1 §1.2](03-p1-implementation.md)'s posture).
+    flagged, nothing blocked ([P1 §1.2](docs/design/workplan/07-p1-implementation.md)'s posture).
     **Two gaps here, both found by walking the gate.** `AdminConnection` has no
     `shadowed` field and the list route maps presenters straight over the array,
     so there is nothing for P2B.3 to render — the presenter needs one. And
@@ -596,7 +596,7 @@ pnpm dev    # the client is on :5173; :8080 is the API and serves no UI
     table rather than from a list — and reaches a successful response on each,
     because a refusal proves nothing about what a response body carries (§6.1).
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
 configuration that has no surface.** For P2B that is step 1, and it is the only
 step that matters — this phase exists because P2 could not pass it.
 
@@ -607,7 +607,7 @@ rather than a finding.* Of what was built then, two steps were automated and
 falsifiable and five were partial. What the walk was worth was the three steps
 it found describing things the code could not do: step 6's arithmetic, step
 10's missing flag and lying delete, and P2B.4's ending clause. Each is corrected
-in place above rather than only in [12](12-p2-manual-gate.md), because a
+in place above rather than only in [manual gate](docs/design/workplan/11-p2-manual-gate.md), because a
 correction filed somewhere other than the thing it corrects is one nobody reads.
 
 *2026-08-21, with P2B.3–.5 built.* **Nine of the eleven steps are now automated
@@ -618,17 +618,17 @@ only.
 
 | Step | State |
 |---|---|
-| 1 | The *no text editor* half is now walkable end to end in the UI. The turn needs a real provider — [12 §2.1](12-p2-manual-gate.md) |
+| 1 | The *no text editor* half is now walkable end to end in the UI. The turn needs a real provider — [manual gate §2.1](docs/design/workplan/11-p2-manual-gate.md) |
 | 2 | Automated. The opacity test enumerates the surface from Fastify's own table and reaches a **successful** response on all ten routes |
 | 3 | Automated but for the turn: the memo invalidation on write and delete, and the rebuild against a new connection of the same id |
 | 4 | Automated, both halves: the count is read before the confirm, and the fallback to the install default is asserted at the resolver |
 | 5 | Automated. `dangling` and `unbound` are different answers in the role table and in the turn |
 | 6 | Arithmetic automated; one clause deferred by §2.7 — see the step |
-| 7 | Automated at [P2A §2.1](13-p2a-configuration-surface.md), which moved the enforcement into the resolver |
+| 7 | Automated at [P2A §2.1](docs/design/workplan/09-p2a-configuration-surface.md), which moved the enforcement into the resolver |
 | 8 | Automated |
 | 9 | The seam is automated; a real endpoint that does not implement `/models` is a person's job |
 | 10 | Automated, both halves — and both were **wrong** before this walk found them |
-| 11 | Automated, and it grew a second half: the opacity walk covers everything *under* the prefix, and a new test walks the whole `/api` table to prove nothing on this surface is registered outside it. The ubuntu leg is asserted as configuration and has never been watched — [12 §4.5](12-p2-manual-gate.md) |
+| 11 | Automated, and it grew a second half: the opacity walk covers everything *under* the prefix, and a new test walks the whole `/api` table to prove nothing on this surface is registered outside it. The ubuntu leg is asserted as configuration and has never been watched — [manual gate §4.5](docs/design/workplan/11-p2-manual-gate.md) |
 
 **And then twenty agents were told to refute the server work rather than review
 it.** Sixteen findings, ten refuted, **six survived** — five of them introduced
@@ -658,12 +658,12 @@ is the designed path here rather than an exotic input.
 **What that is worth recording as a method, not a list.** Every earlier finding
 in this phase came from walking a gate step against the code. These six came
 from a different question — *what can a person put in a file that this will not
-survive* — and no gate step asks it. [12 §4.2](12-p2-manual-gate.md) is where it
+survive* — and no gate step asks it. [manual gate §4.2](docs/design/workplan/11-p2-manual-gate.md) is where it
 became a standing gap rather than an anecdote.
 
 **What needs a person.** Steps 1 and 9 above all: every test in this repository
 runs against `FakeProvider`, so *"paste in a real key and take a turn"* is
-exactly the gap [12 §2.2](12-p2-manual-gate.md) already names, and P2B is the
+exactly the gap [manual gate §2.2](docs/design/workplan/11-p2-manual-gate.md) already names, and P2B is the
 phase where it stops being theoretical. Run it against at least one hosted
 endpoint and one local runtime, because §2.6's caveat about `/models` is the
 kind of thing only a real llama.cpp answers.
@@ -682,14 +682,14 @@ model fetch — *"is this key still good"* is a live call with a cost, and it
 belongs with the connectivity work P10 does once P11's producer exists.
 
 Cost attribution per connection and the per-connection queue with a concurrency
-cap that [04 §4.5](../04-server-multiuser-deployment.md) raises as multi-user's
+cap that [09 §4.5](../09-server-multiuser-deployment.md) raises as multi-user's
 problem — P10's, since that is when multi-user becomes real — **except** the one
 part that section says has to be right from the start — that the queue is scoped to the connection rather than to the user.
 Nothing here forecloses that; nothing here builds it either.
 
-And the system library panel, which [05 §15.3](../05-ui-surfaces.md) lists
+And the system library panel, which [10 §15.3](../10-ui-surfaces.md) lists
 beside system connections and which
-[P2A §2.6](13-p2a-configuration-surface.md) refuses on the grounds that it has
+[P2A §2.6](docs/design/workplan/09-p2a-configuration-surface.md) refuses on the grounds that it has
 no admin action at 1.0. Being adjacent in a list is not a reason.
 
 **The line most likely to erode is the role table's.** It is the first surface
@@ -698,7 +698,7 @@ exist yet — session override, step override, actor hint — is one column away
 from looking like it should be editable there. It shows what resolves and which
 layer won. Adding a control for a layer with no caller would build P7's UI
 against P7's unwritten contract, which is the one thing
-[01 §2.2](01-work-plan.md) is unambiguous about.
+[work plan §2.2](docs/design/workplan/01-work-plan.md) is unambiguous about.
 
 ---
 
@@ -709,11 +709,11 @@ answer sheet. Every row was a thing this document assumed and could not check.
 
 | Was open | Settled |
 |---|---|
-| **The route shape for `system/bindings.json`** (§2.7: the system file only) — a whole document under a hash, or a map patched per role | **The whole document, with the stale check** — the lean was right, and for a reason the lean did not name. Two admins editing bindings at once is rare; the writer the check actually defends against is a **text editor**, and `bindings.json` is hand-written today and stays hand-writable by design. That is the same argument the config form's check rests on. Inherit one lesson with it: P2A's first version compared the *merged* view against the running config and refused on every container start, because `--data` and an absent file both make the running record legitimately differ from the file. Compare the document as this process read it — [P2A §2.5](13-p2a-configuration-surface.md) |
-| **Where the third section lives on the treatments route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](13-p2a-configuration-surface.md) refuses |
+| **The route shape for `system/bindings.json`** (§2.7: the system file only) — a whole document under a hash, or a map patched per role | **The whole document, with the stale check** — the lean was right, and for a reason the lean did not name. Two admins editing bindings at once is rare; the writer the check actually defends against is a **text editor**, and `bindings.json` is hand-written today and stays hand-writable by design. That is the same argument the config form's check rests on. Inherit one lesson with it: P2A's first version compared the *merged* view against the running config and refused on every container start, because `--data` and an absent file both make the running record legitimately differ from the file. Compare the document as this process read it — [P2A §2.5](docs/design/workplan/09-p2a-configuration-surface.md) |
+| **Where the third section lives on the treatments route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](docs/design/workplan/09-p2a-configuration-surface.md) refuses |
 | **Whether `AdminConnection` wants the stale-check idiom** | **Yes**, and the reason moved. It is not worth its weight against a second admin at this scale; it is worth it against the person editing the file on disk, which is the same writer and the same argument as the row above. The cost is known now: one field on the services record and one comparison, plus the discipline of updating that field on write — P2A's second save refused its own predecessor's work until it did |
 | **The dead-end count's exact wording**, shared with P2A's account list | **Written**: *"N people have no usable connection and cannot send a message."* followed by either *"No system connection is configured, so adding one fixes this for everybody."* or *"Give them their own connection, or allow them to add one."* The second clause is the one P2B changes — the whole phase is the first sentence reaching zero. Note the shape: the lint rule for assembled sentences forbids building these around the number, so each is a whole string with the count substituted in |
-| ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([13 §4.3](../13-internal-contracts.md)) |
+| ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([21 §4.3](../21-internal-contracts.md)) |
 
 ### 6.1 Two things P2A created that this plan did not anticipate
 
@@ -738,7 +738,7 @@ smaller claim than *"asserted over the route table"* and it is the true one;
 
 Every finding in §1 still holds, checked rather than assumed: `readBindings`
 reads one path, `layout` has no system bindings member, `resolveRole` layers
-three where [07 §5.1](../07-tech-stack.md) names five, `ResolutionSource` has
+three where [19 §5.1](../19-tech-stack.md) names five, `ResolutionSource` has
 four members and no `default`, `ProviderFactory` is still a bare function type
 with a memo and no invalidation, `PublicConnection` is still a `Pick` without
 `baseUrl`, and `sessionOverride`/`stepOverride` still have no caller outside

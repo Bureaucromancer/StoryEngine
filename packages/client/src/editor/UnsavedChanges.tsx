@@ -9,11 +9,11 @@ import { Dialog } from '../ui/Dialog.js';
 import { SubsectionTitle } from '../ui/Text.js';
 
 /**
- * Leaving an editor with unsaved changes — [05 §11.6](../../../../docs/design/05-ui-surfaces.md).
+ * Leaving an editor with unsaved changes — [10 §11.6](../../../../docs/design/10-ui-surfaces.md).
  *
  * **The draft lives in memory and nothing is written until Save**, which is the
  * property the rest of the editing surface is built on: a delete is mild
- * because the file still has the entry ([05 §11.2a]), the entry list can mark
+ * because the file still has the entry ([10 §11.2a]), the entry list can mark
  * what is unsaved ([P5 §1328]), and *as stored* can sit under the form without
  * either of them lying. The whole cost of that design lands in one moment — the
  * draft is gone the instant the page unmounts — and every other surface in this

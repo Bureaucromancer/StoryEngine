@@ -12,7 +12,7 @@ import { Treatment, TREATMENT_SCHEMA } from './treatment.js';
 import { Setup, SETUP_SCHEMA } from './setup.js';
 
 /**
- * The registry — docs/design/10-schemas.md §9.
+ * The registry — docs/design/04-schemas.md §9.
  *
  * **Every portable object self-describes with a `schema` field, so containers
  * never enumerate kinds** ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). This maps that
@@ -26,7 +26,7 @@ import { Setup, SETUP_SCHEMA } from './setup.js';
 /**
  * **`removeAdditional` is off, and it is the single most important line here.**
  *
- * [10 §2](../../../../docs/design/10-schemas.md) requires readers to *preserve* unknown
+ * [04 §2](../../../../docs/design/04-schemas.md) requires readers to *preserve* unknown
  * fields — the one rule that lets the format evolve without stranding anyone.
  * Ajv's `removeAdditional` does the exact opposite, and it is precisely the sort
  * of option switched on for tidiness by someone who has not read that section.
@@ -35,7 +35,7 @@ import { Setup, SETUP_SCHEMA } from './setup.js';
  *
  * `useDefaults` is off for the same reason: materialising a default is a write
  * the author did not make, and it turns "absent" into "present with a value" —
- * a distinction [10 §2](../../../../docs/design/10-schemas.md) makes deliberate meaning of.
+ * a distinction [04 §2](../../../../docs/design/04-schemas.md) makes deliberate meaning of.
  *
  * `coerceTypes` is off because a string that looks like a number is a bug in the
  * writer, not something to paper over on read.
@@ -54,12 +54,12 @@ export const AJV_OPTIONS = {
 
 /**
  * RFC 3339 date-time, which is the profile of ISO 8601 that
- * [10 §3](../../../../docs/design/10-schemas.md) means by "ISO 8601. Never epoch ms."
+ * [04 §3](../../../../docs/design/04-schemas.md) means by "ISO 8601. Never epoch ms."
  *
  * Written out rather than pulled from `ajv-formats`, because `date-time` is the
  * only format any portable schema uses and this package is supposed to carry as
  * close to no runtime dependencies as the job allows
- * ([07 §10](../../../../docs/design/07-tech-stack.md)). A regex plus a parse is cheaper than
+ * ([19 §10](../../../../docs/design/19-tech-stack.md)). A regex plus a parse is cheaper than
  * a dependency and says exactly what it accepts.
  */
 const RFC3339 = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
@@ -89,7 +89,7 @@ export const PORTABLE_SCHEMAS = {
 export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
 
 /**
- * The folder each kind lives in, per [02 §5.1](../../../../docs/design/02-data-model.md).
+ * The folder each kind lives in, per [03 §5.1](../../../../docs/design/03-data-model.md).
  * Plural, matching the storage layout.
  *
  * Package is here too. It is a transport container rather than something you
@@ -151,7 +151,7 @@ export function schemaIdOf(value: unknown): string | null {
  *
  * **An unknown `schema` string is not a failure.** A package may legitimately
  * contain a kind this build has never heard of, and rejecting it is the
- * stranding [10 §2](../../../../docs/design/10-schemas.md) forbids. Callers that need to
+ * stranding [04 §2](../../../../docs/design/04-schemas.md) forbids. Callers that need to
  * distinguish "valid" from "not checked" ask `isKnownSchema` first.
  */
 export function validate(value: unknown): ValidationResult {
@@ -184,7 +184,7 @@ export function validate(value: unknown): ValidationResult {
 }
 
 /**
- * The `se.` namespace is the engine's — [01 §2](../../../../docs/design/workplan/01-work-plan.md).
+ * The `se.` namespace is the engine's — [work plan §2](../../../../docs/design/workplan/01-work-plan.md).
  *
  * Reserved since P1.0 and enforced nowhere until now (F18), which is the state
  * a reservation cannot stay in for long: the four conventional sections are

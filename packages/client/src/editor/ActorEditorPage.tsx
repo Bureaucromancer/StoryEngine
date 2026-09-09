@@ -31,7 +31,7 @@ import { HistoryPanel } from './HistoryPanel.js';
 import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
 /**
- * The prototype actor editor — [P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md).
+ * The prototype actor editor — [P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md).
  *
  * Actor only, deliberately: the kind with the richest shape, so it is the
  * honest test rather than the easy one. Text and simple structured fields,
@@ -44,7 +44,7 @@ import { UnsavedChangesGuard } from './UnsavedChanges.js';
  * moved underneath (the likelier conflict is not two tabs but one tab and a
  * text editor), the 412 carries the current object and the dialog offers
  * reload-and-reapply or save-as-a-copy
- * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)). Nothing here
+ * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)). Nothing here
  * guesses.
  */
 
@@ -116,7 +116,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
  * **Nothing is written until the first Save**, and that is the whole point of
  * the route. The obvious cheaper version — create it under a placeholder name
  * and let the editor rename it — is wrong here because the folder is slugged
- * from the name once, at creation, and then frozen ([02 §5.2]): an object made
+ * from the name once, at creation, and then frozen ([03 §5.2]): an object made
  * before it was named keeps `untitled-3` on disk for the rest of its life, in
  * the part of this design meant to be legible to somebody with a file browser.
  *
@@ -162,7 +162,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
   const [notice, setNotice] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   /**
-   * Why the last Save did not write — [05 §11.1a].
+   * Why the last Save did not write — [10 §11.1a].
    *
    * Separate from `notice`, which is `role="status"`: a refusal is not a
    * progress report and has to interrupt. Cleared by the next edit, like the
@@ -192,7 +192,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
    * *are there unsaved edits*, and the difference is this route.
    *
    * A draft nobody has typed into has no changes and still has a create to
-   * make, so Save stays live and refuses with the reason ([05 §11.1a]) rather
+   * make, so Save stays live and refuses with the reason ([10 §11.1a]) rather
    * than greying out and saying *No changes to save.* about an actor that does
    * not exist. The guard below keeps asking the narrower question, because
    * leaving an untouched blank form should cost nobody a dialog.
@@ -200,7 +200,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
   const savable = unsaved || changed;
 
   /**
-   * The required fields this form is not currently answering — [05 §11.1a].
+   * The required fields this form is not currently answering — [10 §11.1a].
    *
    * Derived on every render rather than computed at submit, because the same
    * answer drives the field's own error and the refusal in the strip, and two
@@ -217,10 +217,10 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
   function handleSave(): void {
     if (!savable) return;
     /**
-     * **Refused here rather than prevented by a disabled button** — [05 §11.1a]
+     * **Refused here rather than prevented by a disabled button** — [10 §11.1a]
      * and [work plan §2.2]. The button that cannot be pressed is the one that
      * teaches nothing about why, so Save stays live and this says what is
-     * wrong, beside the Save that caused it ([05 §11.6]), with the cursor moved
+     * wrong, beside the Save that caused it ([10 §11.6]), with the cursor moved
      * to the field that has to answer.
      */
     if (missing.length > 0) {
@@ -453,7 +453,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         ))}
 
         {/*
-          Writing samples — [10 §3.1]. **The first list in this editor that can
+          Writing samples — [04 §3.1]. **The first list in this editor that can
           grow and shrink**; sections are a fixed set edited in place, which is
           why they need no add or remove control and this does.
 
@@ -563,7 +563,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         </section>
 
         {/* The critical controls, held against the bottom of the scrollport —
-            [05 §11.6], and the recipe in `ui/classes.ts` carries the why. Last
+            [10 §11.6], and the recipe in `ui/classes.ts` carries the why. Last
             inside the `<form>`, because that is the extent a sticky element is
             held within and the form is everything Save is about. The way back
             and Delete share the strip with Save: they are the controls that
@@ -631,7 +631,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           </span>
           {/* Both of these ask about a file, and a draft has not made one:
               there are no versions to list and nothing to delete. Absent
-              rather than disabled, which is the same call [05 §11.1a] makes
+              rather than disabled, which is the same call [10 §11.1a] makes
               about Save — a control that cannot work explains nothing. */}
           {unsaved ? null : (
             <span className="ms-auto flex flex-wrap items-center gap-3">
@@ -709,7 +709,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
 /**
  * The stale-hash dialog — the only defence the hot-reload thesis has against
  * silently eating a hand edit, surfaced instead of swallowed
- * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)).
  */
 export function ConflictDialog(props: {
   onReload: () => void;

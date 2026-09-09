@@ -6,7 +6,7 @@ import { folderOf, type TagEntry } from '@storyengine/shared';
 import type { TagFilters } from './TagFilterBar.js';
 
 /**
- * Tags used as folders over a shelf — [25 §5](../../../../docs/design/25-tagging.md).
+ * Tags used as folders over a shelf — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * **Entering a folder is applying that tag's filter.** Not a second navigation
  * model with its own state and its own way of being wrong — the shelf already

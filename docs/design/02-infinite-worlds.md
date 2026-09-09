@@ -1,10 +1,10 @@
-# 08 — Infinite Worlds as a fourth reference
+# 02 — Infinite Worlds as a fourth reference
 
 **Status: proposal.** Infinite Worlds (infiniteworlds.app, Friendly Fox Games) is
 a closed-source commercial browser service in the same genre as Aventuras'
 the Freeform and Campaign modes — which already lean in its direction. This document records what
 is worth taking from it and, more importantly, one structural gap it exposes in
-[03](03-modes-and-turn-pipeline.md).
+[06](docs/design/06-modes-and-turn-pipeline.md).
 
 **Sources and their reliability.** The app itself would not render for
 inspection (client-side error), so everything here comes from the community wiki
@@ -48,7 +48,7 @@ generator, class tree and quest state machine.** Same feature surface, arrived a
 from opposite directions.
 
 This is the strongest available evidence for the position in
-[03 §4](03-modes-and-turn-pipeline.md) — that RPG systems should be authored
+[06 §4](docs/design/06-modes-and-turn-pipeline.md) — that RPG systems should be authored
 content rather than engine features — and it also shows that position is
 currently under-specified. See §2.
 
@@ -68,7 +68,7 @@ StoryEngine's design currently has two extensibility tiers:
 
 1. **Engine features** — written by us, in the core.
 2. **Code extensions** — modes, steps and channels shipped as installable
-   packages ([03 §9](03-modes-and-turn-pipeline.md)).
+   packages ([06 §9](docs/design/06-modes-and-turn-pipeline.md)).
 
 Infinite Worlds demonstrates a third that sits between them:
 
@@ -81,7 +81,7 @@ author *declare a variable* but not *state a rule about it*. Declaring
 "Corruption: 0–100, purple, pinned" is a fraction of the way to "when corruption
 reaches 50, change the objective and swap in a different instruction block".
 
-**Scheduled for 6.0, the authoring tier** ([work plan §0.6](workplan/01-work-plan.md)) — and this document
+**Scheduled for 6.0, the authoring tier** ([work plan §0.6](docs/design/workplan/01-work-plan.md)) — and this document
 is the reason why, in both directions. It makes the case for the tier, and it
 also records that IW ran on triggers and tracked items for years before adding
 PawScript (§6), designing that language against a corpus of real authored worlds.
@@ -89,11 +89,11 @@ Building the vocabulary first, with no corpus, would be taking IW's destination
 without its route. Campaign at 5.0 is what produces the corpus; this tier is a
 release behind it for exactly that reason, and not because Campaign needs it. What 1.0 keeps is the room: `owner` accepting a package id,
 and one application path for all effects
-([03 §4.1](03-modes-and-turn-pipeline.md)).
+([06 §4.1](docs/design/06-modes-and-turn-pipeline.md)).
 
 ### 2.1 Why this is safe, and how it resolves an open question
 
-[06 A2](06-open-questions.md) asks whether a package may ship code, and leans no,
+[25 A2](docs/design/25-open-questions.md) asks whether a package may ship code, and leans no,
 because importing a package would become a code-execution decision.
 
 Authored rules dissolve that tension, because **rules are data, not code**. A
@@ -106,21 +106,21 @@ sharpens to:
 The security boundary is the closed vocabulary, which is exactly the property
 that makes a declarative rules engine worth having over "let authors write
 JavaScript". It also means shared content gets dramatically more expressive
-without touching the extension-execution question in [06 A1](06-open-questions.md).
+without touching the extension-execution question in [25 A1](docs/design/25-open-questions.md).
 
 ### 2.2 What this changes in the data model
 
 - **Channels become author-declarable**, not only mode-declared
-  ([03 §4](03-modes-and-turn-pipeline.md)). An author defines a channel in a
+  ([06 §4](docs/design/06-modes-and-turn-pipeline.md)). An author defines a channel in a
   package the same way a mode does; the mode-owned ones are just the built-in
   set.
 - **Packages and treatments carry a `rules` collection**
-  ([02 §7](02-data-model.md)) — evaluated by us, versioned with the rule
+  ([03 §7](docs/design/03-data-model.md)) — evaluated by us, versioned with the rule
   vocabulary, and inert if a referenced channel is missing.
 - **Rules are a pipeline step**, not a new subsystem. Evaluate at end of turn,
   collect effects, apply through the same channel-effect path that
   model-proposed updates use, and record them in the turn record like everything
-  else ([02 §8](02-data-model.md)).
+  else ([03 §8](docs/design/03-data-model.md)).
 
 ---
 
@@ -179,10 +179,10 @@ the AI does next", which is consistent with Marinara's Narrative Director
 arriving at the same mechanism independently. Two systems converging on
 "a one-shot instruction block for the next turn" is a strong signal.
 
-Taken further in [03 §5.1](03-modes-and-turn-pipeline.md): the same slot is
+Taken further in [06 §5.1](docs/design/06-modes-and-turn-pipeline.md): the same slot is
 exposed directly to the *player* as an expandable guidance box on every turn,
 with rule effects and agent pushes as additional producers of the same block.
-[03 §5.2](03-modes-and-turn-pipeline.md) then adds the constraint IW does not
+[06 §5.2](docs/design/06-modes-and-turn-pipeline.md) then adds the constraint IW does not
 state — guidance is advisory and must never reach a roll, a rule verdict, or an
 engine computation, which matters most for IW-style AI-evaluated conditions,
 since those are model calls a player could otherwise talk into firing.
@@ -211,13 +211,13 @@ victory/defeat as an optional channel, and don't build a game-outcome system
 into the core.
 
 **Adopted, and further than this section originally proposed.** The Objective is
-now **Goal** ([03 §7.3.3](03-modes-and-turn-pipeline.md)), a 1.0 feature of
+now **Goal** ([06 §7.3.3](docs/design/06-modes-and-turn-pipeline.md)), a 1.0 feature of
 Freeform and Campaign, and such a game has one by default rather than optionally. Two
 things pushed it past "worth trying early":
 
 - **It is a sequence, not a slot.** Marinara lets you set the next goal on
   completion where IW only lets you continue open-ended; both are wanted, and
-  supporting both means goals chain ([03 §7.3.4](03-modes-and-turn-pipeline.md)).
+  supporting both means goals chain ([06 §7.3.4](docs/design/06-modes-and-turn-pipeline.md)).
 - **Difficulty needs it.** Without a goal, a difficulty treatment can only ask for
   generic friction. With one, it can ask the narrator to obstruct progress
   toward a *named* thing, which is the difference between a dial that works and
@@ -235,21 +235,21 @@ stores the answer in a tracked item. `effectRequestInput` collects free text,
 optionally required.
 
 **Our `StepDefinition` cannot express this.** As specified in
-[03 §6](03-modes-and-turn-pipeline.md), a step contributes blocks, effects or
+[06 §6](docs/design/06-modes-and-turn-pipeline.md), a step contributes blocks, effects or
 messages, and a turn runs to completion. Nothing can pause mid-turn and wait for
 the player.
 
 This is a real gap, not a nicety — it is how authored content asks a question
 ("which door?", "name your ship") without hoping the narrator remembers to. It
 also interacts with the server-authoritative model
-([04 §2](04-server-multiuser-deployment.md)) in a useful way: a suspended turn is
+([09 §2](docs/design/09-server-multiuser-deployment.md)) in a useful way: a suspended turn is
 a job in a waiting state, which is already the right shape, and the client
 reattaching to a prompt-for-input is the same mechanism as reattaching to a
 streaming reply.
 
 Proposed: steps may return a **suspend** outcome carrying an input request; the
 turn job parks, the event stream publishes the request, the answer arrives as an
-intent, and the turn resumes. Recorded in [06](06-open-questions.md) as C5.
+intent, and the turn resumes. Recorded in [25](docs/design/25-open-questions.md) as C5.
 
 ### 4.3 An evaluation pass before narration
 
@@ -277,7 +277,7 @@ outcomes while writing prose" is the default failure mode otherwise.
 Related, and worth noting as a warning rather than a model: IW's summariser
 reportedly first runs at turn 8 and cannot see the original background or
 anything beyond six turns back. Fixed windows like that are what
-[06 E1](06-open-questions.md)'s rolling summary avoids: the chain covers every
+[25 E1](docs/design/25-open-questions.md)'s rolling summary avoids: the chain covers every
 turn from the first, and full history stays on disk behind it.
 
 ---
@@ -292,7 +292,7 @@ information the player never told them), and **agency-based evaluation**
 
 **Sycophancy prevention is the one we ship rather than leave to the community**,
 because it turns out to be what a difficulty setting actually is
-([03 §7.3.1](03-modes-and-turn-pipeline.md)). In a mode with no dice, "hard"
+([06 §7.3.1](docs/design/06-modes-and-turn-pipeline.md)). In a mode with no dice, "hard"
 cannot mean higher target numbers; it can only mean the narrator concedes less.
 Recognising those as the same control is what lets difficulty be a real setting
 instead of a decorative one, and it puts the levels in the prompt pack — the
@@ -303,11 +303,11 @@ markedly opinionated about where a story should go and will fight a player to
 get back to it, which is a *different* quality from resistance and a much less
 pleasant one. The two get conflated because the prompt language for "push back
 on the player" and for "assert your own plot" look alike. Kept apart as separate
-axes in [03 §7.3.2](03-modes-and-turn-pipeline.md).
+axes in [06 §7.3.2](docs/design/06-modes-and-turn-pipeline.md).
 
 Anti-omniscience is the one with real structural depth, and none of the four
 references solves it. Our data model has `hidden` on lore entries
-([02 §3](02-data-model.md)), which handles "the player doesn't know this yet" but
+([03 §3](docs/design/03-data-model.md)), which handles "the player doesn't know this yet" but
 not "*this NPC* doesn't know this yet". A per-actor knowledge scope is a genuinely
 interesting channel — `knows(actorId, factId)`, updated when information is
 exchanged in scene — and it would be a strong demonstration that the channel
@@ -317,12 +317,12 @@ retrofit into a prompt assembler that concatenates all lore into one block.
 Not proposed for 1.0. Proposed as a **test case**: if a community member could
 build lightweight anti-omniscience out of channels and rules without engine
 changes, the extensibility design is working. Recorded as an acceptance test
-alongside [triage §6.3](workplan/02-triage.md).
+alongside [triage §6.3](docs/design/workplan/02-triage.md).
 
 There is a cheaper way to find out early. Poker needs exactly this mechanism in
 miniature — hole cards are per-actor hidden state, and the call generating a
 character's action must see that character's cards and no one else's. Building
-poker as a first-party reference extension ([14 §4.4](14-roadmap.md)) therefore
+poker as a first-party reference extension ([24 §4.4](docs/design/24-roadmap.md)) therefore
 settles whether per-actor visibility works at all, on a bounded problem, long
 before anyone attempts it over a whole session's accumulated knowledge.
 
@@ -340,7 +340,7 @@ Two lessons:
 1. **Purely declarative rules run out.** IW operated on triggers and tracked
    items for a long time and eventually needed expressions. We should assume the
    same and pick the expression layer deliberately rather than bolting one on.
-   Aventuras already uses Liquid; [03 §5](03-modes-and-turn-pipeline.md) proposes
+   Aventuras already uses Liquid; [06 §5](docs/design/06-modes-and-turn-pipeline.md) proposes
    Liquid for block rendering. **The same expression language should serve
    template rendering and rule conditions** — one thing for authors to learn, one
    evaluator to sandbox.
@@ -361,11 +361,11 @@ thing that comes from retrofitting.
 
 | Change | Where | Size |
 |---|---|---|
-| Add authored rules as a third extensibility tier — **6.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) | [03](03-modes-and-turn-pipeline.md), [02 §7](02-data-model.md) | Large — the main finding, and the reason it waits |
-| "Packages may ship rules, never code" resolves A2 | [06 A2](06-open-questions.md) | Clarification |
-| Channels declarable by authors, not only modes | [03 §4](03-modes-and-turn-pipeline.md) | Moderate |
-| Steps may suspend for player input | [03 §6](03-modes-and-turn-pipeline.md) | Moderate — new C5 |
-| Name the evaluate-before-narrate pattern | [03 §6](03-modes-and-turn-pipeline.md) | Small |
-| Add a mutable Objective block | [02](02-data-model.md), [03](03-modes-and-turn-pipeline.md) | Small |
-| One expression language for templates and rules — **decided when rules are** | [03 §5](03-modes-and-turn-pipeline.md), [07](07-tech-stack.md) | Decision, deferred with §2 |
-| Per-actor knowledge scope as an acceptance test | [triage §6.3](workplan/02-triage.md) | Test, not feature |
+| Add authored rules as a third extensibility tier — **6.0**, the authoring tier ([work plan §0.6](docs/design/workplan/01-work-plan.md)) | [06](docs/design/06-modes-and-turn-pipeline.md), [03 §7](docs/design/03-data-model.md) | Large — the main finding, and the reason it waits |
+| "Packages may ship rules, never code" resolves A2 | [25 A2](docs/design/25-open-questions.md) | Clarification |
+| Channels declarable by authors, not only modes | [06 §4](docs/design/06-modes-and-turn-pipeline.md) | Moderate |
+| Steps may suspend for player input | [06 §6](docs/design/06-modes-and-turn-pipeline.md) | Moderate — new C5 |
+| Name the evaluate-before-narrate pattern | [06 §6](docs/design/06-modes-and-turn-pipeline.md) | Small |
+| Add a mutable Objective block | [03](docs/design/03-data-model.md), [06](docs/design/06-modes-and-turn-pipeline.md) | Small |
+| One expression language for templates and rules — **decided when rules are** | [06 §5](docs/design/06-modes-and-turn-pipeline.md), [19](docs/design/19-tech-stack.md) | Decision, deferred with §2 |
+| Per-actor knowledge scope as an acceptance test | [triage §6.3](docs/design/workplan/02-triage.md) | Test, not feature |

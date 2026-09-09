@@ -1,19 +1,19 @@
-# 21 — Session import, and what it would need from us
+# 18 — Session import, and what it would need from us
 
 **Status: feasibility assessment.** It defines nothing, schedules nothing, and
-changes no schema. [06 E4](06-open-questions.md) already holds the position — that
+changes no schema. [25 E4](docs/design/25-open-questions.md) already holds the position — that
 session import is *conditional on an interchange format* rather than refused — and
 this document is the survey that condition needs in order to be checkable rather
 than merely stated. Where it disagrees with an existing note it says so and does
 not quietly correct either side.
 
-It sits here rather than in [01](01-source-survey.md) because the source survey
+It sits here rather than in [01](docs/design/01-source-survey.md) because the source survey
 answers *what these codebases do* and this answers *what it would cost us*, and
-because §3 is addressed to a phase — [P11](workplan/22-p11-implementation.md) —
+because §3 is addressed to a phase — [P11](docs/design/workplan/27-p11-implementation.md) —
 rather than to a reader.
 
 **Sources surveyed from disk, and pinned**, on the argument
-[01 §1](01-source-survey.md) already makes about unpinned surveys being stale on
+[01 §1](docs/design/01-source-survey.md) already makes about unpinned surveys being stale on
 arrival:
 
 | Source | Pinned at | Dated |
@@ -22,8 +22,8 @@ arrival:
 | Marinara Engine | `34442e26da577ff0d95ee890a87024e35831bfa9` (v2.4.3) | 2026-08-18 |
 | Aventuras | `8ae0d79a0df0745be3594fa5affcc98dd02c5a75` (v0.7.8) | 2026-08-16 |
 
-The first and third match the commits [P4](workplan/06-p4-implementation.md)
-already cites; the second matches [01 §1](01-source-survey.md)'s on-disk survey.
+The first and third match the commits [P4](docs/design/workplan/16-p4-implementation.md)
+already cites; the second matches [01 §1](docs/design/01-source-survey.md)'s on-disk survey.
 Nothing here required a newer checkout, which is itself worth recording — the
 session halves of these three products have not moved under the library halves.
 
@@ -34,19 +34,19 @@ session halves of these three products have not moved under the library halves.
 **The position on session import changed on 2026-08-31, and four sites still
 quote the version it replaced.**
 
-[06 E4](06-open-questions.md) was retitled from *"Session import from other
+[25 E4](docs/design/25-open-questions.md) was retitled from *"Session import from other
 platforms — speculative, not roadmapped"* to *"— conditional on an interchange
 format"*, and its opening line now reads **"Not a commitment, and no longer a
 flat refusal. The condition is the shape, not the appetite."** The four sites
 that cite it were written one to two days earlier and say *closed*:
 
-- [P4 §4](workplan/06-p4-implementation.md) — *"Chat and session history import —
+- [P4 §4](docs/design/workplan/16-p4-implementation.md) — *"Chat and session history import —
   closed, not deferred… Confirmed by citation"*, quoting E4's superseded
   *"speculative and unroadmapped"*.
-- [P7 §1.10](workplan/18-p7-implementation.md) — *"[06 E4] already closed chat and
+- [P7 §1.10](docs/design/workplan/23-p7-implementation.md) — *"[25 E4] already closed chat and
   session import"*.
 - `packages/server/src/import/registries/sillytavern.ts` and
-  `.../marinara.ts` — *"Chat import is closed rather than deferred ([06 E4])"*,
+  `.../marinara.ts` — *"Chat import is closed rather than deferred ([25 E4])"*,
   in the comment above the `recorded` dispositions.
 
 P4 was itself edited on 2026-08-31, at §7.5's `.seactor` repair, so §4's stale
@@ -70,7 +70,7 @@ described as conditional. The comment was the only wrong part.
 
 **Feasible, cheaper than E4's language suggests in the plumbing, more expensive
 than it looks in the target — and correctly sequenced after
-[P11](workplan/22-p11-implementation.md).**
+[P11](docs/design/workplan/27-p11-implementation.md).**
 
 Three findings hold it up, and the third is the one that decides the schedule.
 
@@ -91,10 +91,10 @@ not in tension: the lift is large exactly where E4 says, and nowhere else.**
 
 **The target does not exist yet, and that is what fixes the order.** P4 struck
 `.seactor` from its own import list because an importer for it *"would have been a
-reader for a format with no writer, which [01 §2.2] forbids"*
-([P4 §1.3](workplan/06-p4-implementation.md), corrected 2026-08-31). A session
+reader for a format with no writer, which [work plan §2.2] forbids"*
+([P4 §1.3](docs/design/workplan/16-p4-implementation.md), corrected 2026-08-31). A session
 importer aimed at the interchange format before session export writes it has that
-shape exactly. [01 §2.2](workplan/01-work-plan.md) is the rule — *"do not build a
+shape exactly. [work plan §2.2](docs/design/workplan/01-work-plan.md) is the rule — *"do not build a
 system whose only purpose is to be replaced"* — and §2.1 supplies the
 qualification that settles it: if nothing needs it yet, deferring is *"work not
 done, which is better."*
@@ -109,7 +109,7 @@ absence is a mistake this project has already made once and caught.**
 
 One subsection each: how the data leaves the app, what a session *is* there, and
 what a conversion would meet. The concept table at
-[01 §4](01-source-survey.md) has one cell for all of this — *"Running story |
+[01 §4](docs/design/01-source-survey.md) has one cell for all of this — *"Running story |
 `Story` + `StoryEntry[]` | `Chat` + messages | chat jsonl"* — which was the entire
 recorded corpus before this pass.
 
@@ -136,7 +136,7 @@ recorded anywhere in our tree. `mesId` in `public/script.js` is a transient rend
 and event handle from `getNextMessageId(type)`; nothing durable identifies a line.
 A message is addressed by its index in the file, so **any edit to any earlier
 message re-addresses every message after it.** Re-import identity — which
-[P4 §6.2](workplan/06-p4-implementation.md) already flags as the weak point of the
+[P4 §6.2](docs/design/workplan/16-p4-implementation.md) already flags as the weak point of the
 filename rule — has nothing better to key on than *(file, index, content hash)*,
 and that key is not stable under exactly the operation people perform most.
 
@@ -155,7 +155,7 @@ must drop that copy or it will import every message twice at its live branch.
 ### 2.2 Marinara — real ids, and branches that are copied chats
 
 **Three shapes leave the app**, all already enumerated at
-[01 §1](01-source-survey.md) and all already readable here: the data root, the
+[01 §1](docs/design/01-source-survey.md) and all already readable here: the data root, the
 zipped profile archive, and the single-object `.marinara.json` envelope. The
 session tables are the **sharded** half of the store — `messages`,
 `message_swipes`, the `game_*` and `conversation_call_*` families — and
@@ -176,7 +176,7 @@ cannot share one identity rule.
 (`packages/shared/src/types/chat.ts`), so scoping an import to roleplay is a
 filter on rows, not a different reader. The other two modes are not degenerate
 cases of it: `game` drags the six `game_*` tables that
-[P7 §1.10](workplan/18-p7-implementation.md) already owns as channel-shaped, and
+[P7 §1.10](docs/design/workplan/23-p7-implementation.md) already owns as channel-shaped, and
 `conversation` carries the command surface — `uno`, `poker`, `call` — that has no
 counterpart here at all.
 
@@ -209,7 +209,7 @@ version history written into the file: nine versions, and every one after the
 first is a field added rather than a field changed. Images are base64 inside the
 JSON, injected natively from SQLite so the bytes never pass through the JS heap.
 
-**This is the shape [06 E4](06-open-questions.md) argues for, built by somebody
+**This is the shape [25 E4](docs/design/25-open-questions.md) argues for, built by somebody
 else and working.** One documented target the app owns and versions, additive
 across nine revisions, with the importer explicitly forbidden from depending on
 the exporter — the header comment says so. It is evidence that E4's proposed shape
@@ -219,10 +219,10 @@ formality to be waived.
 
 It also means the `.avt` path is the **cheapest of the three to convert** — one
 file, no tree walk, no relational join, a declared version to gate on — which
-inverts the ordering somebody would guess from [01 §2](01-source-survey.md), where
+inverts the ordering somebody would guess from [01 §2](docs/design/01-source-survey.md), where
 Aventuras is the source with no on-disk survey.
 
-*Correcting our own record:* [P4 §1.5](workplan/06-p4-implementation.md) surveyed
+*Correcting our own record:* [P4 §1.5](docs/design/workplan/16-p4-implementation.md) surveyed
 three Aventuras extraction paths — lorebooks as SillyTavern files, characters and
 scenarios as raw JSON, and the whole vault as a zip of a SQLite snapshot. **`.avt`
 is a fourth and was missed**, which matters because P4 called the SQLite snapshot
@@ -235,14 +235,14 @@ of the three.
 … }` with `type: 'user_action' | 'narration' | 'system' | 'retry'` — a real
 `parentId`, so the history is already a tree — and `Branch` is
 `{ id, storyId, name, parentBranchId, forkEntryId, checkpointId, createdAt,
-snapshotComplete }`, which is [09 §3](09-branching.md)'s `BranchRef` with a fork
+snapshotComplete }`, which is [07 §3](docs/design/07-branching.md)'s `BranchRef` with a fork
 point attached. `EntryMetadata` carries `tokenCount`, `model`, `profileId`,
 `temperature`, `reasoningEffort` and `generationTime`: genuine instrumentation
 that lands in our `cost` and `request.calls[].params` rather than being
 fabricated.
 
 **One mismatch, and it is structural rather than lossy.** A `StoryEntry` is one
-*message* — a `user_action` or a `narration` — and a [02 §8](02-data-model.md)
+*message* — a `user_action` or a `narration` — and a [03 §8](docs/design/03-data-model.md)
 `Turn` is one *input and its output together*. Converting is a pairing pass over
 the entry list, not a rename, and `type: 'retry'` is a third case that pairs with
 neither. Nothing is lost either direction; the point is that the arithmetic is not
@@ -254,8 +254,8 @@ one-to-one and a plan that assumes it is will be wrong about its own size.
 
 **This is the section with a deadline, and the only one addressed to a phase.**
 
-[06 B12](06-open-questions.md) ships session export at 1.0, owned by
-[P11 §1.8](workplan/22-p11-implementation.md), and E4 is explicit that *"a format
+[25 B12](docs/design/25-open-questions.md) ships session export at 1.0, owned by
+[P11 §1.8](docs/design/workplan/27-p11-implementation.md), and E4 is explicit that *"a format
 designed with import in mind and a format designed without it are different
 documents, and only one of them can be written at P11."* What follows is that
 difference, as concretely as this survey can put it. None of it is a request to
@@ -277,7 +277,7 @@ build an importer.
    came from, in the space it came from"* that tolerates being absent — and the
    absent case is not an edge, it is the most widely deployed source of the three.
 
-3. **Siblings must survive the round trip.** [09 §3](09-branching.md) makes swipes
+3. **Siblings must survive the round trip.** [07 §3](docs/design/07-branching.md) makes swipes
    and branches one mechanism, which is what lets ST `swipes[]`, Marinara
    `message_swipes` and Aventuras `'retry'` entries all land as sibling nodes. An
    export that serialises `walkPath(head)` — the current path, which is what every
@@ -307,16 +307,16 @@ inside a session importer whenever one is written.
 `Provenance`, whose `source` union has included `'import'` since P1, and the
 session record has nothing.
 
-[02 §8](02-data-model.md) specifies `origin: Provenance` on Session and it is
+[03 §8](docs/design/03-data-model.md) specifies `origin: Provenance` on Session and it is
 unimplemented. `stampImported<T extends { provenance: Provenance }>`
 (`packages/server/src/import/identity.ts`) — the function that makes a re-import
 findable — does not typecheck against a session.
 
-**Why this one is urgent and the other three are not.** [10 §1](10-schemas.md)
+**Why this one is urgent and the other three are not.** [04 §1](docs/design/04-schemas.md)
 puts Session and Turn in the *free to move* tier **because nothing exports them**,
 and `turn.ts` names the event that ends it in its own header. Adding a field now
 is an edit; adding it after P11 is a migration of a frozen portable format. This
-is [01 §2](workplan/01-work-plan.md)'s retrofit test met exactly — *it changes a
+is [work plan §2](docs/design/workplan/01-work-plan.md)'s retrofit test met exactly — *it changes a
 persisted shape* — and it is the one item in this document that costs more by
 waiting.
 
@@ -336,7 +336,7 @@ Not difficult. Worth naming because the existing `Writer` reads as though adding
 
 ### 4.3 Imported swipes would be written and then invisible
 
-`BranchRef` is specified at [09 §3](09-branching.md) and **has no
+`BranchRef` is specified at [07 §3](docs/design/07-branching.md) and **has no
 implementation** — no occurrence in `packages/`, and the index's `branch_id`
 column is written `null` by construction. `GET /sessions/:id/turns` returns
 `walkPath(head)`, so siblings are unreachable from the only surface that lists
@@ -344,13 +344,13 @@ turns.
 
 The consequence is specific: import a chat with swipes today and the alternatives
 land correctly in the tree and cannot be seen, named, or switched to.
-[P6](workplan/08-p6-implementation.md) owns the turn tree and its sibling
+[P6](docs/design/workplan/18-p6-implementation.md) owns the turn tree and its sibling
 navigation, which is the phase that removes this — another reason the sequencing
 in §1 is a finding rather than a preference.
 
 ### 4.4 `LoreScope` would gain a target it has never had
 
-[P4 §1.4](workplan/06-p4-implementation.md) shipped `LoreScope` with two arms
+[P4 §1.4](docs/design/workplan/16-p4-implementation.md) shipped `LoreScope` with two arms
 rather than three because *"an ST book scoped to a chat has no representable"*
 home, and chat-scoped books import as `global` with the dropped scope named in
 the review — *"because there are no chats for it to bind to."* If sessions become
@@ -380,7 +380,7 @@ future reader deciding the size should not re-derive it.
 - **The review vocabulary.** `{ key, params }` notes, seven dispositions, the
   addressable report, `import_job` / `import_item`, and the near-miss diagnosis.
   A session sweep would emit into all of it unchanged, which also keeps its prose
-  off [P11 §0.4](workplan/22-p11-implementation.md)'s localisation sweep.
+  off [P11 §0.4](docs/design/workplan/27-p11-implementation.md)'s localisation sweep.
 - **The session write path.** `createSession`, `appendTurnOnly`, `advanceHead`,
   `reconcileSession` — turns can be written without running a model today.
 
@@ -392,9 +392,9 @@ a conclusion this document has.
 
 ## 6. Sequencing
 
-**After [P11](workplan/22-p11-implementation.md), and not before**, for the reason
+**After [P11](docs/design/workplan/27-p11-implementation.md), and not before**, for the reason
 in §1: until session export exists, an importer for the interchange format is a
-reader for a format with no writer, and [01 §2.2](workplan/01-work-plan.md)
+reader for a format with no writer, and [work plan §2.2](docs/design/workplan/01-work-plan.md)
 forbids it under the rule that struck `.seactor`.
 
 **One thing pulled forward**, and only one: §3's four obligations on the export
@@ -410,7 +410,7 @@ number to be useful. What it needed was to exist before P11 rather than after, a
 that is now true.
 
 **The one recorded way to reopen it earlier** is
-[P7 §1.10](workplan/18-p7-implementation.md)'s: *"a **format** argument rather
+[P7 §1.10](docs/design/workplan/23-p7-implementation.md)'s: *"a **format** argument rather
 than a completeness one… the case reopens for that one shape only."* E4's revision
 supplies exactly that argument, and P7's own §1.10 was written before it. Whoever
 holds P7's revisit should read the two together rather than either alone — which

@@ -1,4 +1,4 @@
-# 13 — P2A implementation plan
+# 09 — P2A implementation plan
 
 **Status: built.** P2A.0 through P2A.7 have landed. §3 carries what each stage
 found; this is what the phase as a whole did that the plan did not predict.
@@ -30,10 +30,10 @@ pinned by tests, which is the useful half of having worried about them.
 
 Written immediately after P2 closed, against a
 design section that four other documents already cite as though it were built.
-Format follows [03](03-p1-implementation.md).
+Format follows [P1](docs/design/workplan/07-p1-implementation.md).
 
-**P2A delivers**, from [01 P2A](01-work-plan.md): the settings surface —
-[05 §15.1](../05-ui-surfaces.md) in full, [05 §15.2](../05-ui-surfaces.md) in
+**P2A delivers**, from [work plan P2A](docs/design/workplan/01-work-plan.md): the settings surface —
+[10 §15.1](../10-ui-surfaces.md) in full, [10 §15.2](../10-ui-surfaces.md) in
 full, and the half of §15.3 that has something to configure. One route, one
 navigation entry, the admin half **absent** rather than disabled.
 
@@ -42,19 +42,19 @@ house from the browser, sign in as them, change their password and display name
 — and watch the admin list say plainly that they still have no usable
 connection, because they do.* That last clause is the phase. The surface earns
 its place by reporting the dead-end state
-([04 §4.5](../04-server-multiuser-deployment.md)) rather than leaving it to
+([09 §4.5](../09-server-multiuser-deployment.md)) rather than leaving it to
 arrive as a bug report from someone who cannot send a message. Fixing that state
-without a text editor is [P2B](14-p2b-provider-configuration.md)'s demo, not
+without a text editor is [P2B](docs/design/workplan/10-p2b-provider-configuration.md)'s demo, not
 this one.
 
 **P2A is where three things stop being documents.**
-[13 §4.2](../13-internal-contracts.md)'s *"the settings UI writes this file"*,
+[21 §4.2](../21-internal-contracts.md)'s *"the settings UI writes this file"*,
 including the self-write rule it attaches; `pendingRestart()`, which P2 built,
-tested, and left with no caller ([04 Appendix A](04-p2-implementation.md)); and
+tested, and left with no caller ([P2 Appendix A](docs/design/workplan/08-p2-implementation.md)); and
 `Capabilities`, a persisted shape since P1 that nothing has ever honoured.
 
 **CI this phase establishes:** two checks, both the mechanised half of
-[01 §2.3](01-work-plan.md). The **config drift test** — `config.example.json`
+[work plan §2.3](docs/design/workplan/01-work-plan.md). The **config drift test** — `config.example.json`
 declares every key `ConfigSchema` does — and the **route-table test**, which
 asserts every path under `/api/admin` refuses a non-admin without naming any of
 them. A list of admin routes maintained by hand is wrong the first time somebody
@@ -64,17 +64,17 @@ adds one in a hurry.
 
 ## 1. Why this is a phase and not P10's problem
 
-[05 §15.5](../05-ui-surfaces.md) homes this at P10 and then leaves the door
+[10 §15.5](../10-ui-surfaces.md) homes this at P10 and then leaves the door
 open: *"the halves can land separately."* The case for walking through it is not
 that the surface would be nice. It is that **five shipped artifacts already
 behave as though it exists**, and each is currently saying something untrue:
 
 - **`config.example.json` calls the settings UI "the primary path"** for
   configuration, in its own header, in the file every operator reads first.
-- **[13 §4.2](../13-internal-contracts.md) contracts the write path** — *"The
-  settings UI ([05 §15](../05-ui-surfaces.md)) writes this file"* — and derives
+- **[21 §4.2](../21-internal-contracts.md) contracts the write path** — *"The
+  settings UI ([10 §15](../10-ui-surfaces.md)) writes this file"* — and derives
   a self-write-suppression requirement from it.
-- **[04 §4.5](../04-server-multiuser-deployment.md) commissioned a specific
+- **[09 §4.5](../09-server-multiuser-deployment.md) commissioned a specific
   sentence**, *"2 users have no usable connection"*, and named the admin screen
   as where it appears.
 - **P2 shipped `pendingRestart()` correct and unreachable.** F8 split the notice
@@ -87,12 +87,12 @@ behave as though it exists**, and each is currently saying something untrue:
 
 **So this is not a P10 feature arriving early; it is a dependency that was never
 scheduled.** The distinction matters because it is exactly what
-[01 §2.1](01-work-plan.md)'s deferral question is meant to catch and did not.
+[work plan §2.1](docs/design/workplan/01-work-plan.md)'s deferral question is meant to catch and did not.
 Asked of *the settings screen*, "what does it cost to add this a year later?"
 answers "the work itself", and the screen defers correctly. Asked of *the
 ability to configure the thing you just built*, it answers "every phase in
 between ships a feature nobody can turn on without a text editor". The question
-was right and it was asked about the wrong noun. [01 §2.3](01-work-plan.md) is
+was right and it was asked about the wrong noun. [work plan §2.3](docs/design/workplan/01-work-plan.md) is
 the correction.
 
 **What it is not is a licence to build §15 entirely.** Half of §15.3 configures
@@ -104,7 +104,7 @@ subsystems that do not exist, and §2.6 refuses each of them by name.
 
 ### 2.1 Capability enforcement moves forward, and only one of the three bites
 
-[01 §2.2](01-work-plan.md) uses capability enforcement as its worked example of
+[work plan §2.2](docs/design/workplan/01-work-plan.md) uses capability enforcement as its worked example of
 a correct split: the `Capabilities` record ships at P1 because it is a persisted
 shape, the enforcement waits for P10 because it is additive. That split was
 right while nothing granted capabilities. **A screen that grants them changes
@@ -116,7 +116,7 @@ front, which is the failure §2.2 names outright.
 So enforcement lands here, and the change is one expression. `turns/runner.ts`
 passes `{ privateConnections: true }` as a **literal** into
 `resolveConnections`, defeating the loader-level check
-[04 §4.5](../04-server-multiuser-deployment.md) calls the load-bearing one — and
+[09 §4.5](../09-server-multiuser-deployment.md) calls the load-bearing one — and
 calls it that precisely because a UI-level check is a trivial bypass for anyone
 with `fileAccess: "write"`. It becomes the account's real capability, read
 through the same `Accounts` instance the routes use, so a revocation is seen by
@@ -124,14 +124,14 @@ the very next turn rather than at the next restart. Two instances would be two
 caches and a revocation that takes effect eventually.
 
 **Two of the three capabilities still gate nothing, and the surface says so.**
-`fileAccess` gates a file browser [01 §4](01-work-plan.md) moved to the roadmap;
+`fileAccess` gates a file browser [work plan §4](docs/design/workplan/01-work-plan.md) moved to the roadmap;
 `enableExtensions` gates extensions, which appear in no phase list at all. Two
 dishonest options were available and both are refused: inventing a partial
 enforcement so the switch feels real, and rendering three switches as though
 they were equally live. **The account form groups them instead** — *in force
 now* against *recorded for later*, the second carrying one sentence saying the
 feature has not shipped and the setting will apply when it does.
-[05 §15.2](../05-ui-surfaces.md) asks for the consequence written next to each
+[10 §15.2](../10-ui-surfaces.md) asks for the consequence written next to each
 switch; this is the other half of that truth, which is *when*.
 
 `auth/accounts.ts`'s own comment says *"Nothing enforces these at P1…
@@ -141,10 +141,10 @@ found. [The API doc](../../api.md) carries the same claim and gets the same fix.
 
 ### 2.2 B13 closes: preferences are a per-user file
 
-[06 B13](../06-open-questions.md) is the only question in its block still marked
+[25 B13](../25-open-questions.md) is the only question in its block still marked
 OPEN, and it leans to the third of three answers: a separate per-user file
 rather than `localStorage` or a map on `Account`. **The lean is already written
-into the layout** — [04 §4.3](../04-server-multiuser-deployment.md)'s canonical
+into the layout** — [09 §4.3](../09-server-multiuser-deployment.md)'s canonical
 per-user block lists `prefs.json` — so closing the question is mostly letting
 two documents agree.
 
@@ -172,13 +172,13 @@ an unbounded write surface for any signed-in account. They bound the file; they
 do not interpret it. Without that comment the next reader improves them into a
 schema, which is the one thing B13 ruled out.
 
-This unblocks [polish §2](09-polish.md)'s *As stored* pane state, which is hard
-blocked, and [polish §4](09-polish.md)'s all-kinds view, which is not — §4
+This unblocks [polish §2](docs/design/workplan/06-polish.md)'s *As stored* pane state, which is hard
+blocked, and [polish §4](docs/design/workplan/06-polish.md)'s all-kinds view, which is not — §4
 authorises deleting that view rather than waiting, and no longer has to.
 
 ### 2.3 Removal: disable is the default, and the second choice says what it does
 
-[05 §15.2](../05-ui-surfaces.md) leaves this `[OPEN]`: whether removal offers
+[10 §15.2](../10-ui-surfaces.md) leaves this `[OPEN]`: whether removal offers
 *keep the data, disable the login* as the default. It does, and the two are
 **two verbs rather than one verb with a flag**. `PATCH` with `enabled: false` is
 the ordinary path and needs no route of its own; `DELETE` is unambiguously the
@@ -189,7 +189,7 @@ precisely the shape that makes a dangerous control feel routine.
 `accounts.json`; the directory moves to `data/removed/<handle>-<suffix>/`, which
 the maturation sweep does not touch — it is per-user retention and this is not a
 user any more. The surface says this in words, with the honesty
-[02 §10.2](../02-data-model.md) requires of the trash: *their library is moved
+[03 §10.2](../03-data-model.md) requires of the trash: *their library is moved
 to `data/removed/` on the server, StoryEngine will not delete it, remove that
 folder yourself when you are sure.* The handle is free for reuse immediately and
 the old data is not reachable through it, which is the property that makes the
@@ -235,7 +235,7 @@ of what it declares is not true of the running server.**
   running config with the new one. After a single save the record claims the new
   bind address while the listener holds the old, and the next save computes its
   delta against an already-moved baseline. The banner
-  [04 §6.3](../04-server-multiuser-deployment.md) specifies — persistent,
+  [09 §6.3](../09-server-multiuser-deployment.md) specifies — persistent,
   server-held, naming what is pending — cannot be built on that. It would be
   right once, never clear, and lie about what is outstanding.
 - **The runner captured the config object rather than a reference.** Three
@@ -248,7 +248,7 @@ of what it declares is not true of the running server.**
 - **`ConfigSchema` does not close `additionalProperties`**, so a validated `PUT`
   would accept a credential-shaped key and the unknown-key-preserving write
   would put it on disk. That falsifies the structural claim
-  [13 §4](../13-internal-contracts.md) makes about config having nowhere to put
+  [21 §4](../21-internal-contracts.md) makes about config having nowhere to put
   a key.
 
 **The repairs, in the order they have to happen:**
@@ -258,7 +258,7 @@ of what it declares is not true of the running server.**
   computed per request, stored nowhere. That makes it self-healing: change a
   value, change it back, the notice clears, because it is derived rather than
   accumulated. A stored field would be a second source of truth for a derived
-  value, which is what [13 §4](../13-internal-contracts.md) argues against at
+  value, which is what [21 §4](../21-internal-contracts.md) argues against at
   length.
 - **`applyLiveConfig` assigns into the running config in place** rather than
   replacing it, so every holder of that reference sees the change. Its own
@@ -268,10 +268,10 @@ of what it declares is not true of the running server.**
   paths, marking each `live` key `applied` or `unread`. It ships over the wire
   and the form renders `unread` keys in a group that says so. **This is the
   mechanism that stops the settings surface ever showing a control that does
-  nothing**, which is the placeholder failure [01 §2.2](01-work-plan.md)
+  nothing**, which is the placeholder failure [work plan §2.2](docs/design/workplan/01-work-plan.md)
   forbids — and it is cheaper than the alternative, which is remembering.
 - **`limits.maxUploadMb` is *not* re-tiered**, and this plan's first draft said
-  it should be. [04 §3](04-p2-implementation.md) named the tier as out of P2.0's
+  it should be. [P2 §3](docs/design/workplan/08-p2-implementation.md) named the tier as out of P2.0's
   scope and gave a reason worth keeping: *"the key names uploads; there is no
   upload route yet, and re-tiering the contract to match today's shortcut would
   lock the shortcut in."* That is right. The tier describes what the key is for;
@@ -289,12 +289,12 @@ of what it declares is not true of the running server.**
 
 **The tier table travels to the client as data**, because the client may not
 import from the server package and a duplicated table would falsify
-[13 §4](../13-internal-contracts.md)'s claim that the annotation is the source.
+[21 §4](../21-internal-contracts.md)'s claim that the annotation is the source.
 Sending it means a key a newer build adds renders with the right badge without a
 client release.
 
 **No config watcher lands here**, and the reason is recorded rather than left to
-be rediscovered: [04 §6.2](../04-server-multiuser-deployment.md)'s hot-reload
+be rediscovered: [09 §6.2](../09-server-multiuser-deployment.md)'s hot-reload
 claim is about content, config is explicitly not content, and a stale check on
 write gives the settings UI everything a watcher would without introducing a
 second writer to the in-memory record on the day the first one ships. When a
@@ -305,41 +305,41 @@ reacting to its own rename.
 
 ### 2.6 What §15.3 does not carry, and why each one is absent
 
-[05 §15.3](../05-ui-surfaces.md) lists five things. P2A builds one and a half,
-and the section is **not** marked done — [05 §15.5](../05-ui-surfaces.md) gains
+[10 §15.3](../10-ui-surfaces.md) lists five things. P2A builds one and a half,
+and the section is **not** marked done — [10 §15.5](../10-ui-surfaces.md) gains
 a line naming exactly which bullets closed, so P2B and P10 inherit an accurate
 remainder rather than a section that looks finished.
 
-- **System connections** — [P2B](14-p2b-provider-configuration.md). The whole of
+- **System connections** — [P2B](docs/design/workplan/10-p2b-provider-configuration.md). The whole of
   the next phase.
 - **The system library** — nothing, and this is the one place §15 asks for a
-  panel that fails its own test. [05 §4.2](../05-ui-surfaces.md) makes the
+  panel that fails its own test. [10 §4.2](../10-ui-surfaces.md) makes the
   system library never-writable and
-  [04 §4.3](../04-server-multiuser-deployment.md) withholds admin write at 1.0
+  [09 §4.3](../09-server-multiuser-deployment.md) withholds admin write at 1.0
   deliberately, because that permission is one step from making it the household
   share. So there is no *action* — grant, revoke, create, disable, restart,
-  install — for an admin to take, and [05 §15.4](../05-ui-surfaces.md) says a
+  install — for an admin to take, and [10 §15.4](../10-ui-surfaces.md) says a
   panel without one does not belong. The design document is what to fix here,
   not the phase.
 - **Extensions** — install does not exist and is scheduled nowhere.
 - **Restart now** — the notice ships; the button does not.
-  [04 §6.4](../04-server-multiuser-deployment.md) is explicit that under no
+  [09 §6.4](../09-server-multiuser-deployment.md) is explicit that under no
   supervisor the control leaves the admin with no server and possibly no shell,
   so it needs supervisor detection and a drain, neither of which exists. **The
   banner says so in one sentence** rather than listing pending changes and
   offering nothing, because a notice that invites *"so how do I restart it?"* is
   a worse answer than a notice saying the server does not restart itself.
 - **Connectivity and bind state** — the bind is readable today, but the signal
-  worth showing is [04 §6.5](../04-server-multiuser-deployment.md)'s
+  worth showing is [09 §6.5](../09-server-multiuser-deployment.md)'s
   all-local-versus-any-remote judgement, whose producer is P11's update check.
   Building the display first means a panel that can only ever say one thing.
 
 **Notification preferences are not here either**, though
-[04 §3.5](../04-server-multiuser-deployment.md) puts one row per class in
+[09 §3.5](../09-server-multiuser-deployment.md) puts one row per class in
 settings. No class has a producer and the router is P10's. Building the rows
 first would invent a preference model ahead of the event schema that binds it,
 which is the wrong order for the one contract
-[04 §3.4](../04-server-multiuser-deployment.md) says must be complete from the
+[09 §3.4](../09-server-multiuser-deployment.md) says must be complete from the
 first producer.
 
 **Two things §15 does not anticipate and the form has to.** `dataDir` is the key
@@ -347,7 +347,7 @@ that decides where `config.json` itself lives, so a form that edits it and then
 writes to the old location is a one-click way to appear to lose everything — it
 renders read-only, pointing at `--data` and the file. And `server.host` becomes
 a **fourth** place someone binds beyond loopback, so it carries the same
-sentence [04 §4.1](../04-server-multiuser-deployment.md) requires of the other
+sentence [09 §4.1](../09-server-multiuser-deployment.md) requires of the other
 three, at the moment of binding rather than in documentation nobody reads.
 
 ---
@@ -367,7 +367,7 @@ with their tier comments; the route table the admin test reads.
 
 **Two of these were named as out of P2.0's scope and are now in.** The
 `config.example.json` drift test and `limits.maxUploadMb`'s tier were both left
-because neither cited a finding ([04 §3](04-p2-implementation.md)) — the right
+because neither cited a finding ([P2 §3](docs/design/workplan/08-p2-implementation.md)) — the right
 call under that stage's rule. The drift test enters here because a settings form
 makes the example file's accuracy load-bearing rather than cosmetic; the tier
 stays where P2 left it, for P2's reason, and §2.5 records why the first draft of
@@ -452,7 +452,7 @@ which is B13's rot-quietly position asserted rather than described.
 
 *Ends at:* a signed-in person changes their display name, locale and password
 through the API, cannot change their role by asking, and a preference survives a
-move to another browser — closing [06 B13](../06-open-questions.md).
+move to another browser — closing [25 B13](../25-open-questions.md).
 
 ### P2A.3 — Capability enforcement
 
@@ -469,7 +469,7 @@ eventually.
 
 *Ends at:* revoking `privateConnections` stops the next turn resolving a
 personal connection, with the file untouched on disk — which is
-[04 §4.5](../04-server-multiuser-deployment.md)'s *revoking disables, never
+[09 §4.5](../09-server-multiuser-deployment.md)'s *revoking disables, never
 deletes*, demonstrated rather than asserted.
 
 ### P2A.4 — The admin half: accounts
@@ -477,14 +477,14 @@ deletes*, demonstrated rather than asserted.
 The `/api/admin` plugin and its prefix guard; list, create, patch, admin
 password reset, remove. The dead-end summary as **counts, never contents** — the
 warning needs a number, and
-[04 §4.5](../04-server-multiuser-deployment.md) keeps a connection opaque — read
+[09 §4.5](../09-server-multiuser-deployment.md) keeps a connection opaque — read
 from the system directory once rather than once per account.
 
 **Carries the route table deferred from P2A.0**, because this is the stage that
 gives it a consumer: the every-admin-route-refuses-a-non-admin test reads it,
 and a table with no reader is a fixture waiting to go stale.
 
-*Ends at:* every account operation [05 §15.2](../05-ui-surfaces.md) names is
+*Ends at:* every account operation [10 §15.2](../10-ui-surfaces.md) names is
 reachable, admin-only by prefix rather than by remembering, and no admin can
 lock the install out.
 
@@ -506,7 +506,7 @@ every admin sees the same pending list.
 ### P2A.6 — The client surface
 
 `/settings`, one entry in the shell, and the restart banner above the outlet
-because [04 §6.3](../04-server-multiuser-deployment.md) wants it on every page
+because [09 §6.3](../09-server-multiuser-deployment.md) wants it on every page
 rather than on the settings page. The focus trap extracted from the conflict
 dialog so two new dialogs can use it — in a commit that changes nothing else,
 because the existing dialog test is the only thing that makes the extraction
@@ -519,17 +519,17 @@ could be refused. That is the difference between absent and disabled expressed
 as a mechanism, and it is directly testable.
 
 *Not done here:* any settings end-to-end journey. The Playwright tier does not
-exist ([testing §3.5](10-testing.md)) and P2A does not create it.
+exist ([testing §3.5](docs/design/workplan/03-testing.md)) and P2A does not create it.
 
 *Ends at:* one route, one navigation entry, two halves.
 
 ### P2A.7 — Docs and drift
 
 [The API doc](../../api.md) gains the settings and administration sections and
-loses two false claims; [06 B13](../06-open-questions.md) is marked resolved in
-the file's own vocabulary; [05 §15.2](../05-ui-surfaces.md)'s `[OPEN]` closes;
-[05 §15.5](../05-ui-surfaces.md) names which bullets P2A actually closed;
-[13 §4](../13-internal-contracts.md)'s tier table gains the four keys and the
+loses two false claims; [25 B13](../25-open-questions.md) is marked resolved in
+the file's own vocabulary; [10 §15.2](../10-ui-surfaces.md)'s `[OPEN]` closes;
+[10 §15.5](../10-ui-surfaces.md) names which bullets P2A actually closed;
+[21 §4](../21-internal-contracts.md)'s tier table gains the four keys and the
 re-tier.
 
 *Ends at:* no document still says capability enforcement waits for P10, and no
@@ -554,7 +554,7 @@ pnpm dev    # http://127.0.0.1:8080
    *Refused, not ignored — ignoring teaches a client that it worked.*
 4. Change your own password with the wrong current one → `401
    invalid-credentials`; with the right one → the old password no longer logs in
-   and the new one does ([05 §15.1](../05-ui-surfaces.md)).
+   and the new one does ([10 §15.1](../10-ui-surfaces.md)).
 5. Toggle a preference, sign in from a second browser → it is there. Hand-edit
    `prefs.json` into nonsense, reload → the app works and the preference is back
    at its default (§2.2).
@@ -564,8 +564,8 @@ pnpm dev    # http://127.0.0.1:8080
    (§2.1).
 7. Open the admin account list with one account that has no usable connection →
    that row says so **inline**, and the heading carries the count
-   ([04 §4.5](../04-server-multiuser-deployment.md),
-   [05 §15.4](../05-ui-surfaces.md)).
+   ([09 §4.5](../09-server-multiuser-deployment.md),
+   [10 §15.4](../10-ui-surfaces.md)).
 8. Create an account and sign in as it → its library directory exists and the
    capabilities granted are the ones shown.
 9. Disable an account with an open session in another tab → its next request is
@@ -595,14 +595,14 @@ pnpm dev    # http://127.0.0.1:8080
     route-table test refuses a non-admin on every path under `/api/admin`
     without naming any of them.
 
-**And the standing line, from [01 §2.3](01-work-plan.md): no phase exits with
+**And the standing line, from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
 configuration that has no surface.** For P2A it is discharged by steps 12–14 and
 by the drift test. For every phase after it, it is a question to answer before
 calling the phase done.
 
 **Walked, 2026-08-20.** Thirteen of the seventeen steps are automated and
 falsifiable; the rest are partial with the human half in
-[12 §2](12-p2-manual-gate.md).
+[manual gate §2](docs/design/workplan/11-p2-manual-gate.md).
 
 **Step 15 found a real failure, and it is fixed.** One hand edit wedged the
 form until the process restarted: the `412` compared against what the process
@@ -617,17 +617,17 @@ both recoveries; both are covered from the client's side.
 **What needs a person.** Steps 1, 7, 11 and 13 have automatable cores and
 user-visible halves that do not automate — that a warning reads as a warning,
 that the removal sentence is the one somebody would want to have read before
-clicking. Following [12](12-p2-manual-gate.md)'s precedent, those halves are
+clicking. Following [manual gate](docs/design/workplan/11-p2-manual-gate.md)'s precedent, those halves are
 written down rather than rounded off.
 
 ---
 
 ## 5. Out of scope, deliberately
 
-Per-user connections and role bindings ([P2B](14-p2b-provider-configuration.md)
+Per-user connections and role bindings ([P2B](docs/design/workplan/10-p2b-provider-configuration.md)
 — P2A does the enforcing that unblocks them); the system library panel, the
 extensions panel, *Restart now*, and connectivity state
-([05 §15.3](../05-ui-surfaces.md), each refused by name in §2.6); notification
+([10 §15.3](../10-ui-surfaces.md), each refused by name in §2.6); notification
 preferences, the router and delivery channels (P10); the setup token, mDNS, the
 container inversion and the About surface (P10); aggregate spend (post-1.0); the
 Playwright tier (P11).
@@ -645,7 +645,7 @@ stage fixes what a form would otherwise display falsely, and nothing else. If
 P2A.0 is growing items that no rendered control would have exposed, it has
 already eroded.
 
-**The second is §15's own gravity.** [05 §15.4](../05-ui-surfaces.md) exists
+**The second is §15's own gravity.** [10 §15.4](../10-ui-surfaces.md) exists
 because an administration screen attracts every idea anyone has ever had about a
 dashboard, and the test it sets — an admin has an *action* — is the fence. A
 count of users with no usable connection passes it, because the action is

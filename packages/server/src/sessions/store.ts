@@ -30,8 +30,8 @@ import {
 import type { BranchRef, ChannelEffect, ChannelState, SessionFile, Turn } from './types.js';
 
 /**
- * Session storage — [02 §5.5](../../../../docs/design/02-data-model.md),
- * [02 §8.1](../../../../docs/design/02-data-model.md).
+ * Session storage — [03 §5.5](../../../../docs/design/03-data-model.md),
+ * [03 §8.1](../../../../docs/design/03-data-model.md).
  *
  * The library's write path proved a thesis for objects; this is the sessions
  * half of it, and it is deliberately built on the *fixed* pattern rather than
@@ -47,7 +47,7 @@ const writes = new KeyedQueue();
  * Runs a task under one session's write lock.
  *
  * Exported because the turn-submission protocol
- * ([P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md)) runs *under the session's
+ * ([P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md)) runs *under the session's
  * keyed write queue* by name: it re-reads the head, decides, and reserves in a
  * sequence that means nothing if another writer can land between the read and
  * the decision. Sharing this queue is what makes "the head I checked" and "the
@@ -66,7 +66,7 @@ export interface SessionContext {
   /**
    * The index, written synchronously by this store's own writes.
    *
-   * The same rule the library follows ([02 §5.1.1]): the server indexes what it
+   * The same rule the library follows ([03 §5.1.1]): the server indexes what it
    * writes as it writes it, so a read straight after a write reflects it. Not
    * optional, because an optional index is one that a caller forgets and then
    * cannot explain why search is empty.
@@ -81,7 +81,7 @@ export interface SessionContext {
    * snapshot behind — `sessions.snapshotEveryNTurns`, [P6.0d].
    *
    * **A function, so the value cannot be captured.** The key is tiered `live`
-   * ([13 §4]), and `applyLiveConfig` assigns into the config object rather than
+   * ([21 §4]), and `applyLiveConfig` assigns into the config object rather than
    * replacing it — so a number read at construction would make this key's row
    * in `LIVE_APPLIERS` say `applied` and be a lie, which is the exact failure
    * that table exists to prevent and what `routes/live-config.test.ts` was
@@ -107,7 +107,7 @@ function turnsRoot(layout: Layout, handle: string, sessionId: string): string {
 }
 
 /**
- * What a session is created as — [03 §1].
+ * What a session is created as — [06 §1].
  *
  * The mode and its preset are decided once, at creation, because a session that
  * changed mode mid-story would have to answer what its existing turns meant.
@@ -127,13 +127,13 @@ export interface NewSession {
    *
    * It also costs nothing to give up. The only distinction optionality would
    * buy is *never named* versus *named and then emptied*, and nothing consumes
-   * it — the deferred derive-a-name feature ([06 E13]) has to treat both as
+   * it — the deferred derive-a-name feature ([25 E13]) has to treat both as
    * blank, or clearing a name would permanently disable derivation for that
    * session.
    */
   name?: string;
   mode?: { id: string; config: unknown };
-  /** Copied in whole. [02 §8]: the session owns its prompt pack from here on. */
+  /** Copied in whole. [03 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
   cast?: { persona: string | null; actors: string[] };
   /** Links, not copies — [P5.6], and see `SessionFile` for why. */
@@ -222,7 +222,7 @@ export async function listSessionFiles(
 }
 
 /**
- * Changes who is in a session — [03 §7.2].
+ * Changes who is in a session — [06 §7.2].
  *
  * Separate from create because a cast is the one part of a session's
  * configuration that legitimately changes mid-story: somebody joins the scene.
@@ -246,7 +246,7 @@ export async function setCast(
 }
 
 /**
- * Archives or unarchives a session — [02 §10.3](../../../../docs/design/02-data-model.md).
+ * Archives or unarchives a session — [03 §10.3](../../../../docs/design/03-data-model.md).
  *
  * *Hidden from the default list, fully intact, restorable, never swept.* All
  * four of those are properties of doing nothing except setting a field, which is
@@ -276,7 +276,7 @@ export async function setArchived(
 }
 
 /**
- * Renames a session — [02 §8](../../../../docs/design/02-data-model.md).
+ * Renames a session — [03 §8](../../../../docs/design/03-data-model.md).
  *
  * One JSON write and one index upsert, because that is genuinely all a session
  * name is. Nothing resolves a session by it: the folder is the uuidv7, and
@@ -314,7 +314,7 @@ export async function setName(
 /**
  * Deletes a session by **moving its folder to the user's trash**.
  *
- * [02 §10.3](../../../../docs/design/02-data-model.md) is explicit that a session is a folder
+ * [03 §10.3](../../../../docs/design/03-data-model.md) is explicit that a session is a folder
  * too and that §10.2 covers it unchanged — so this is the library's delete, not
  * a second mechanism. That is F7's lesson applied rather than re-learned: the
  * finding was a hard delete that took an object's history with it, and a
@@ -344,7 +344,7 @@ export async function deleteSession(
     // trash, exactly as it does for library objects.
     await moveTree(root, context.layout.sessionTrashDestination(handle, sessionId, uuidv7()));
     // The index treats a trashed session as absent, exactly as it does a
-    // trashed object ([02 §10.2]) — it does not appear in a list and does not
+    // trashed object ([03 §10.2]) — it does not appear in a list and does not
     // match a search. Restoring re-indexes it.
     removeSessionRows(context.index, sessionId);
     return true;
@@ -373,7 +373,7 @@ export async function appendTurnToSession(
  *
  * **It is the two halves below, composed** — which is the point rather than an
  * implementation detail. The commit protocol
- * ([P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md)) must be able to be
+ * ([P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md)) must be able to be
  * interrupted *between* the append and the head advance and resume from either,
  * so the two have to be separately callable. Building the ordinary path out of
  * the same two pieces is what stops the recoverable version from drifting into a
@@ -490,7 +490,7 @@ export async function advanceHead(
  *
  * `null` keys the roots. Order within a parent is the map's insertion order,
  * which is the order the turns were read — creation order, since a segment is
- * append-only ([02 §5.5]). That is the order siblings should be offered in.
+ * append-only ([03 §5.5]). That is the order siblings should be offered in.
  */
 export function childrenByParent(turns: Map<string, Turn>): Map<string | null, Turn[]> {
   const byParent = new Map<string | null, Turn[]>();
@@ -503,7 +503,7 @@ export function childrenByParent(turns: Map<string, Turn>): Map<string | null, T
 }
 
 /**
- * Where *forward* goes from a node — [09 §3]'s
+ * Where *forward* goes from a node — [07 §3]'s
  * *"navigating back and then forward again resumes where you were rather than
  * guessing"*.
  *
@@ -557,7 +557,7 @@ export function resumeFrom(
 
 /** What moving the head can answer — [P6.1]. */
 /**
- * What moving the head leaves behind — [09 §7]'s honesty banner, [§1.5],
+ * What moving the head leaves behind — [07 §7]'s honesty banner, [§1.5],
  * [P6.3].
  *
  * **Reversibility holds for channel state and not for what left the session.**
@@ -575,7 +575,7 @@ export function resumeFrom(
  * is always zero until something produces one. [P6 §0.2] identifies the first
  * producer as P8's memory extraction — memory books are ordinary library
  * lorebooks, so every extraction is exactly the *lorebook entry promoted to the
- * shared library* [09 §7] classifies as escaped. The count is here because the
+ * shared library* [07 §7] classifies as escaped. The count is here because the
  * alternative is P8 shipping a producer with nowhere for it to surface.
  */
 function abandonedBy(
@@ -597,7 +597,7 @@ export type MoveHeadOutcome =
   | {
       kind: 'moved';
       session: SessionFile;
-      /** What the old line still has out in the world — [09 §7], [P6.3]. */
+      /** What the old line still has out in the world — [07 §7], [P6.3]. */
       abandoned: { turns: number; escapedEffects: number };
     }
   | { kind: 'no-session' }
@@ -683,7 +683,7 @@ export type BranchRefOutcome =
  *
  * The three gestures below differ only in how they compute that set, and every
  * one of them writes **names** — no turn is read, moved, or written by any of
- * them, which is [09 §6]'s *promoting a swipe writes about fifty bytes and
+ * them, which is [07 §6]'s *promoting a swipe writes about fifty bytes and
  * moves no data* stated as code.
  */
 async function withBranchRefs(
@@ -711,7 +711,7 @@ async function withBranchRefs(
   });
 }
 
-/** Names a node — [09 §6]'s *promote*. */
+/** Names a node — [07 §6]'s *promote*. */
 export async function createBranchRef(
   context: SessionContext,
   handle: string,
@@ -762,7 +762,7 @@ export async function deleteBranchRef(
   });
 }
 
-/** What an undo can answer — [§1.4], [13 §1.2.1], [P6.3]. */
+/** What an undo can answer — [§1.4], [21 §1.2.1], [P6.3]. */
 export type UndoOutcome =
   | { kind: 'undone'; session: SessionFile; turn: Turn }
   | { kind: 'no-session' }
@@ -780,10 +780,10 @@ export type UndoOutcome =
 
 /**
  * Undoes a turn's effects by applying their `before` — [§1.4],
- * [13 §1.2.1](../../../../docs/design/13-internal-contracts.md).
+ * [21 §1.2.1](../../../../docs/design/21-internal-contracts.md).
  *
  * **`before` is only an inverse while nothing has touched the same key since**,
- * and that sentence is the whole of this function. [13 §1.2.1] corrects an
+ * and that sentence is the whole of this function. [21 §1.2.1] corrects an
  * earlier draft that thought otherwise, with the case that makes it plain: HP
  * goes 10 → 8 at turn N and 8 → 5 later; applying turn N's `before: 10` now
  * does not undo turn N, it destroys the later change and produces a state no
@@ -791,7 +791,7 @@ export type UndoOutcome =
  * what converts a silent corruption into an affordance** — and the affordance
  * is the one this phase built: branch from before it and play it differently.
  *
- * **The check reads the log rather than the index.** [13 §1.2.1] says *the
+ * **The check reads the log rather than the index.** [21 §1.2.1] says *the
  * index knows the latest effect per path*; this index knows no effects at all,
  * and [P6.1] decided against the column that would have carried a path — a turn
  * is on every path through it, so *latest on the path* is a question about the
@@ -799,12 +799,12 @@ export type UndoOutcome =
  * O(depth) against turns already read, which is what everything else here costs.
  *
  * **The undo is an append, not an erasure.** A segment is never rewritten
- * ([02 §5.5]), so the inverse lands as its own turn, attributed to the user, the
- * way a hand edit does ([02 §8.1]). The record then says a person undid
+ * ([03 §5.5]), so the inverse lands as its own turn, attributed to the user, the
+ * way a hand edit does ([03 §8.1]). The record then says a person undid
  * something, which is more honest than a history that quietly lacks it — and it
  * is why undoing an undo is an ordinary undo.
  *
- * **Escaped effects are never inverted** ([09 §7]): a library write or a
+ * **Escaped effects are never inverted** ([07 §7]): a library write or a
  * generated asset left the session, and pretending a branch can un-write it
  * would be worse than saying plainly that it cannot.
  */
@@ -922,13 +922,13 @@ function inverseOf(
 }
 
 /**
- * Reconciles a hand-edited `session.json` into the effect log — [02 §8.1].
+ * Reconciles a hand-edited `session.json` into the effect log — [03 §8.1].
  *
  * The load-time half of the rule. It replays the channels the log says are true
  * at head, compares them with what the file holds, and — if a person has been in
  * there — appends a turn whose effects carry their edit, attributed to them.
  *
- * **This is why the file may be edited at all.** [05 §4](../../../../docs/design/05-ui-surfaces.md)
+ * **This is why the file may be edited at all.** [10 §4](../../../../docs/design/10-ui-surfaces.md)
  * promises that editing your own data on disk works, and without this it would
  * work for library objects and silently not for sessions: the next head advance
  * would recompute `channels` from the log and the edit would vanish with no
@@ -950,7 +950,7 @@ export async function reconcileHandEdits(
     /**
      * Through the cache — [P6.0d]. This runs on the outermost session read, so
      * it is the reconstruction a person waits for when they open a session, and
-     * the one [09 §4] means by *too slow to feel casual* at turn eight hundred.
+     * the one [07 §4] means by *too slow to feel casual* at turn eight hundred.
      *
      * **It is also the one place a bad snapshot would have a durable
      * consequence**, which is worth naming rather than discovering: a snapshot
@@ -958,7 +958,7 @@ export async function reconcileHandEdits(
      * written into the log as a user-attributed effect. What stands between is
      * the property test asserting the two agree at every index, a snapshot that
      * carries its own turn id so a copied or renamed file is refused, and an
-     * atomic write so a torn one is never read. [09 §4] says the rest plainly:
+     * atomic write so a torn one is never read. [07 §4] says the rest plainly:
      * a snapshot that disagrees with a replay is a bug in the effects.
      */
     const replayed = await reconstructAlong(
@@ -1031,7 +1031,7 @@ export function applyEffects(
  * The channel state at a turn, replayed from zero.
  *
  * P2 has no snapshot *cache* — that is P6's, and it is an optimisation rather
- * than a mechanism ([09 §4](../../../../docs/design/09-branching.md)). What
+ * than a mechanism ([07 §4](../../../../docs/design/07-branching.md)). What
  * matters now is that the head in `session.json` is **derived**: this function
  * is the thing it is derived from, and deleting the file must cost a
  * recomputation and nothing else.
@@ -1062,7 +1062,7 @@ function snapshotInterval(context: SessionContext): number {
 
 /**
  * The channel state at the end of a path, through the snapshot cache —
- * [09 §4](../../../../docs/design/09-branching.md), [P6.0d].
+ * [07 §4](../../../../docs/design/07-branching.md), [P6.0d].
  *
  * *Walk up to the nearest ancestor holding a snapshot, replay effects forward
  * along the path.* The walk is the caller's, because every caller has already
@@ -1072,7 +1072,7 @@ function snapshotInterval(context: SessionContext): number {
  * **It must return exactly what `replayChannels` would**, and that is a
  * property this phase asserts rather than a hope it holds:
  * `reconstruct-property.test.ts` compares the two at every node of a forked
- * session, with the cache warm and again with every snapshot deleted. [09 §4]
+ * session, with the cache warm and again with every snapshot deleted. [07 §4]
  * asks CI for precisely that, and it is why a cache is allowed on this path.
  *
  * **Snapshots are written while folding forward, every N turns of the replayed
@@ -1127,7 +1127,7 @@ export async function reconstructAlong(
 }
 
 /**
- * A snapshot at a node that has just acquired a second child — [09 §4]'s other
+ * A snapshot at a node that has just acquired a second child — [07 §4]'s other
  * trigger, and the cheap one: a node with several children is a node whose
  * state will be materialised once per sibling explored.
  *
@@ -1165,7 +1165,7 @@ async function snapshotFork(
  * Whether `session.channels` is the state at this node — [P6.0b].
  *
  * **It is the state at the head, and at no other node.** `SessionFile` says so
- * of itself — *"state at `headTurnId`. Derived."* ([02 §8.1]) — and until this
+ * of itself — *"state at `headTurnId`. Derived."* ([03 §8.1]) — and until this
  * stage nothing enforced it: two readers took the file's map whenever the file
  * was there, which pairs one line's history with another line's state the
  * moment anything asks for a node that is not the head. The symptom used to be
@@ -1220,7 +1220,7 @@ export async function readTurns(
  * promised.
  *
  * **Index hit first, cold read second, and the fallback is required rather
- * than defensive** ([13 §5]): the index is derived, deleting it is a
+ * than defensive** ([21 §5]): the index is derived, deleting it is a
  * non-event, and a route that 404'd on a missing row would make it
  * load-bearing. **The ownership boundary is structural**: the location is
  * only ever resolved under the *requested* session's own turns directory, so
@@ -1267,7 +1267,7 @@ export async function readTurnById(
  * could never gain a world, and every session that predates the field would be
  * stuck without one for good.
  *
- * Links rather than copies, exactly as the cast is ([02 §8]): fixing a typo in
+ * Links rather than copies, exactly as the cast is ([03 §8]): fixing a typo in
  * a lorebook should reach the story being told in it.
  */
 export async function setLore(

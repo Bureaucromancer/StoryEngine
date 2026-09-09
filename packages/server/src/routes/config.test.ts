@@ -10,8 +10,8 @@ import { DEFAULT_CONFIG } from '../config.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * The install's settings — [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.5.
+ * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md) stage P2A.5.
  *
  * The stage's ending is four clauses: *the whole `Config` shape is writable, an
  * unknown key from a newer build survives the round trip, a key the caller
@@ -60,7 +60,7 @@ describe('GET /api/admin/config', () => {
 
     expect(response.status).toBe(200);
     // The client may not import from the server package, and a duplicated table
-    // would falsify [13 §4]'s claim that the annotation *is* the source —
+    // would falsify [21 §4]'s claim that the annotation *is* the source —
     // sending it means a key a newer build adds renders with the right badge
     // without a client release.
     expect(response.body.tiers['server.port']).toBe('restart');
@@ -69,7 +69,7 @@ describe('GET /api/admin/config', () => {
 
   /**
    * **And whether each live key is actually read**, which is what stops the form
-   * ever showing a control that does nothing — the placeholder [01 §2.2]
+   * ever showing a control that does nothing — the placeholder [work plan §2.2]
    * forbids.
    */
   it('says which live keys are stored and not yet read', async () => {
@@ -311,7 +311,7 @@ describe('PUT /api/admin/config', () => {
  * The asymmetry is the correct one and both halves matter. A newer build's key
  * may legitimately be on disk, and eating it would make a downgrade
  * destructive. No client may invent one, and accepting one would falsify the
- * structural claim [13 §4](../../../../docs/design/13-internal-contracts.md)
+ * structural claim [21 §4](../../../../docs/design/21-internal-contracts.md)
  * makes about config having nowhere to put a credential.
  */
 describe('what survives a round trip', () => {
@@ -348,7 +348,7 @@ describe('what survives a round trip', () => {
    * **And a key the caller invents never reaches disk** — not because it was
    * rejected, but because the pick never looked at it.
    *
-   * `apiKey` is the shape that matters: [13 §4] argues config has nowhere to
+   * `apiKey` is the shape that matters: [21 §4] argues config has nowhere to
    * put a credential, and an unknown-key-preserving write over an open schema
    * would have made that false the moment somebody sent one.
    */
@@ -378,7 +378,7 @@ describe('what survives a round trip', () => {
  * a watcher — [P2A §2.5], gate step 15.
  *
  * No config watcher lands this phase, and the reason is recorded rather than
- * left to be rediscovered: [04 §6.2]'s hot-reload claim is about *content*,
+ * left to be rediscovered: [09 §6.2]'s hot-reload claim is about *content*,
  * config is explicitly not content, and a check on write gives the settings form
  * everything a watcher would without introducing a second writer to the
  * in-memory record on the day the first one ships.
@@ -507,7 +507,7 @@ describe('GET /api/admin/notices', () => {
       const response = await theirs.request({ method: 'GET', url: '/api/admin/notices' });
 
       expect(response.status).toBe(200);
-      // [04 §6.4]: the notice ships, the button does not. A banner that invites
+      // [09 §6.4]: the notice ships, the button does not. A banner that invites
       // "so how do I restart it?" is a worse answer than one that says.
       expect(response.body.canRestart).toBe(false);
     } finally {

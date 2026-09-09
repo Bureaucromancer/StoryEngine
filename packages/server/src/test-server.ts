@@ -21,7 +21,7 @@ import { Layout } from './storage/layout.js';
  * because the suite runs several of these at once and because binding is the one
  * thing a test should not be doing on somebody's machine.
  *
- * The filesystem underneath is real. [testing §8](../../../docs/design/workplan/10-testing.md) is
+ * The filesystem underneath is real. [testing §8](../../../docs/design/workplan/03-testing.md) is
  * blunt: *do not mock the filesystem* — the storage layer is the thing under
  * test.
  */
@@ -137,7 +137,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
    * Without this a server on a borrowed `dataDir` was not a restart: it began
    * from the defaults and never saw what the previous one wrote, so a test
    * asserting *this file is one the process can start on* asserted nothing —
-   * and did, until [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md)
+   * and did, until [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md)
    * stage P2A.5 needed exactly that claim.
    *
    * An unreadable file is left to the caller's overrides rather than thrown,
@@ -152,7 +152,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
       ...(loaded?.config ?? DEFAULT_CONFIG),
       // `silent`, because several of these run at once and a suite that prints
       // a request log per assertion buries its own failures. This is the
-      // level's reason for existing ([13 §4]).
+      // level's reason for existing ([21 §4]).
       ...{ log: { ...DEFAULT_CONFIG.log, level: 'silent' as const } },
       ...options.config,
       dataDir,
@@ -381,7 +381,7 @@ export async function setUpAdmin(
  *
  * **Enumerated, never listed.** A hand-maintained array of admin routes is wrong
  * the first time somebody adds one in a hurry, and it is wrong silently — which
- * is the whole claim [P2A §2.4](../../../docs/design/workplan/13-p2a-configuration-surface.md)
+ * is the whole claim [P2A §2.4](../../../docs/design/workplan/09-p2a-configuration-surface.md)
  * makes about the guard being a property of the prefix.
  *
  * Shared rather than copied, because `printRoutes` emits a **tree** whose
@@ -398,7 +398,7 @@ export async function setUpAdmin(
  * testing `DELETE /connections/:id`. Depth comes from the indent, four columns a
  * level, and the full path is the stack above it. A second copy of that parser
  * is a second chance to get the tree wrong, which is why
- * [P2B §6.1](../../../docs/design/workplan/14-p2b-provider-configuration.md) asked for this to
+ * [P2B §6.1](../../../docs/design/workplan/10-p2b-provider-configuration.md) asked for this to
  * move here before the opacity test needed it too.
  *
  * `HEAD` is dropped: Fastify generates one per `GET` and `inject` has nothing

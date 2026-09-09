@@ -5,7 +5,7 @@ import type { FileSource, ImportSourceKind, SourceRefusal } from './source.js';
 
 /**
  * What a root is, decided by **probing it rather than by what somebody typed**
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * The person points at a directory and the engine says what it found. That
  * matters more than it sounds: a wrong guess converts somebody's library through

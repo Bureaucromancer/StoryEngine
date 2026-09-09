@@ -67,7 +67,7 @@ describe('the registry', () => {
   });
 
   it('gives every portable kind a library directory', () => {
-    // [02 §5.1](../../../../docs/design/02-data-model.md) lists all six under
+    // [03 §5.1](../../../../docs/design/03-data-model.md) lists all six under
     // users/<handle>/library/, `packages/` included. A kind added to the
     // registry without a directory would have nowhere to be written.
     expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
@@ -107,7 +107,7 @@ describe('the registry', () => {
   });
 });
 
-describe('unknown-field preservation (docs/design/10-schemas.md §2)', () => {
+describe('unknown-field preservation (docs/design/04-schemas.md §2)', () => {
   it('accepts fields the schema does not declare', () => {
     // "A file written by a newer version must survive a round trip through an
     // older one." A /1 reader meeting a field added in /2 must not reject it.
@@ -156,7 +156,7 @@ describe('unknown-field preservation (docs/design/10-schemas.md §2)', () => {
 
 describe('writing samples are additive, so older files still validate', () => {
   /**
-   * [10 §2]: "new optional fields are free" — which is the whole reason Actor,
+   * [04 §2]: "new optional fields are free" — which is the whole reason Actor,
    * Lorebook and Treatment stayed at `/1` when they gained `writingSamples`.
    * The claim only holds if a file written before the field existed still
    * validates, and that file is not hypothetical: every card and book on disk
@@ -217,7 +217,7 @@ describe('timestamps', () => {
     expect(isTimestamp('2026-08-13T12:00:00+01:00')).toBe(true);
     expect(isTimestamp('yesterday')).toBe(false);
     expect(isTimestamp('2026-08-13')).toBe(false);
-    // Never epoch milliseconds ([10 §3](../../../../docs/design/10-schemas.md)).
+    // Never epoch milliseconds ([04 §3](../../../../docs/design/04-schemas.md)).
     expect(isTimestamp('1786622400000')).toBe(false);
   });
 

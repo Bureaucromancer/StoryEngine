@@ -9,20 +9,20 @@ import type { FieldGroup, FieldRow } from './fields.js';
 /**
  * **What in this entry is not at its default** — the one computation the
  * closed-section invariant needs
- * ([05 §11.2d](../../../../docs/design/05-ui-surfaces.md)):
+ * ([10 §11.2d](../../../../docs/design/10-ui-surfaces.md)):
  *
  * > A closed section must name what is inside it that is not at its default.
  * > *Matching (3 set)*. *Timing (sticky 4)*.
  *
  * That invariant is what makes progressive disclosure compatible with
- * [05 §2.1](../../../../docs/design/05-ui-surfaces.md)'s refusal of hidden
- * fields, and [P5.1](../../../../docs/design/workplan/07-p5-implementation.md)
+ * [10 §2.1](../../../../docs/design/10-ui-surfaces.md)'s refusal of hidden
+ * fields, and [P5.1](../../../../docs/design/workplan/17-p5-implementation.md)
  * calls it *the part not to cut*. A collapse that conceals a non-default value
  * **is** a hidden field; a collapse that advertises one is a summary.
  *
  * **The default is the factory, and there is no second list of defaults.**
  * `newLoreEntry` is documented as *"a lore entry with the doc's stated defaults
- * ([10 §5])"* and it is already what creating an entry calls — so the entry this
+ * ([04 §5])"* and it is already what creating an entry calls — so the entry this
  * editor makes and the entry this module measures against are the same object,
  * and they cannot drift into disagreeing about what *default* means. A
  * hand-written table here would be the second description that
@@ -45,7 +45,7 @@ export interface OffDefault {
  * `newLoreEntry` mints a uuid, so calling it per field would be thirty
  * identifiers for a comparison that never looks at `id`. The name is empty
  * because it is not compared either — `name` is un-bannered, so it belongs to
- * the head group, which [05 §11.2d] leaves always open and which therefore
+ * the head group, which [10 §11.2d] leaves always open and which therefore
  * never carries a summary.
  */
 let fresh: Record<string, unknown> | undefined;
@@ -110,7 +110,7 @@ const MAX_VALUE_CHARS = 24;
  * *3 keys*, which reads as the same field-and-value pair every other token here
  * is and, not incidentally, has no singular to get wrong: a rule that produced
  * *1 keys* would be one that has to grow a plural table, and a plural table is
- * the thing [01 §2](../../../../docs/design/workplan/01-work-plan.md)'s i18n
+ * the thing [work plan §2](../../../../docs/design/workplan/01-work-plan.md)'s i18n
  * discipline is about. A boolean names itself when it is on and takes *off*
  * when it is not, because a field is listed here only *because* it is not at
  * its default — so *use regex* already says the whole thing, and *match whole
@@ -141,13 +141,13 @@ function token(row: OffDefault): string {
  * an element.
  *
  * **Every off-default field is named, and that is a departure from the
- * illustration in [05 §11.2d] rather than from its rule.** The rule says *name
+ * illustration in [10 §11.2d] rather than from its rule.** The rule says *name
  * what is inside it that is not at its default*, and the section's own gloss
  * puts the standard at the value: *a collapse that conceals a non-default value
  * is a hidden field*. The illustration *Matching (3 set)* is a count, and a
  * count conceals every one of the three — an entry running `useRegex` under a
  * heading that says only *3 set* has exactly the surprising behaviour §11.2d
- * exists to make discoverable, and [05 §2.1] forbids a *lossy summary* by name.
+ * exists to make discoverable, and [10 §2.1] forbids a *lossy summary* by name.
  * So *Timing (sticky 4)* is reproduced exactly and *Matching (3 set)* comes out
  * as the fields it stood for.
  *

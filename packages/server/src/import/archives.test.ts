@@ -11,7 +11,7 @@ import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 
 /**
  * Archives, end to end
- * ([P4 §7.5](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.5](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **One reader, three things closed.** §1.3 always said *an archive is a root
  * read through a different file source*, and until now that was a claim with one

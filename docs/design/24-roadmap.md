@@ -1,10 +1,10 @@
-# 14 — The feature list, and desired extensions
+# 24 — The feature list, and desired extensions
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
 - **§§1–3, the feature list** — things *we* intend to build, in three priority
   tiers, with **no release attached to any of them**. The committed versions live
-  in [work plan §0](workplan/01-work-plan.md); this document is everything else.
+  in [work plan §0](docs/design/workplan/01-work-plan.md); this document is everything else.
 - **§4, desired extensions** — things we hope *someone else* builds, and in
   several cases should never be in core at all. Hints for expansion authors, and
   the standing acceptance test for the extension contract.
@@ -34,9 +34,9 @@ direction rather than a feature.
 
 **§2, §2c.1 and §2c.3 are stubs pointing at committed releases.** Each was a
 feature-list entry until it turned out to be constitutive of a release rather
-than adjacent to one — the story bible to World ([19](19-world.md)), lorebook
-extraction to the authoring tier ([20](20-authoring.md)), and the Character
-Studio to a release of its own ([24](24-character-studio.md)). The stubs stay
+than adjacent to one — the story bible to World ([15](docs/design/15-world.md)), lorebook
+extraction to the authoring tier ([16](docs/design/16-authoring.md)), and the Character
+Studio to a release of its own ([17](docs/design/17-character-studio.md)). The stubs stay
 because the section numbers are cited elsewhere and because *why something left
 this list* is the most useful thing this document can record about it.
 
@@ -46,9 +46,9 @@ this list* is the most useful thing this document can record about it.
 
 ## 1. Branch tree visualiser
 
-**Tier: High.** The turn tree ([09 §3](09-branching.md)) makes every swipe and branch a node in
+**Tier: High.** The turn tree ([07 §3](docs/design/07-branching.md)) makes every swipe and branch a node in
 one structure. At 1.0 the reading surface shows the **selected path**, with
-siblings as an inline affordance on each node ([06 C9](06-open-questions.md)).
+siblings as an inline affordance on each node ([25 C9](docs/design/25-open-questions.md)).
 That is the right default and it is deliberately not a tree browser.
 
 The visualiser is the escalation: a view of the whole tree for when the default
@@ -58,7 +58,7 @@ stops being enough.
 
 It is pure addition. Everything it displays — topology, cost, model, channel
 effects, summary reuse — is already recorded by 1.0 for other reasons
-([02 §8](02-data-model.md)). It derives, it does not require.
+([03 §8](docs/design/03-data-model.md)). It derives, it does not require.
 
 It is also the wrong thing to build early for a softer reason: **it is only
 worth designing once real sessions exist.** The layout problem below depends
@@ -110,12 +110,12 @@ is the feature.
 
 **R2 — Compare.** Select two nodes, get a three-way comparison: output text,
 assembled blocks, and cost. The block diff is not new work — the workbench
-([05 §3](05-ui-surfaces.md)) already diffs turn records; this is a second
+([10 §3](docs/design/10-ui-surfaces.md)) already diffs turn records; this is a second
 entry point into it.
 
 **R3 — State divergence.** The genuinely novel tier, and the one no tool in the
 survey can do. Because effects are per-node, channel state at any node is
-reconstructible ([09 §4](09-branching.md)), so the visualiser can answer *how
+reconstructible ([07 §4](docs/design/07-branching.md)), so the visualiser can answer *how
 these two lines differ in substance*:
 
 > On this line you have 40 gold and Vera trusts you. On that one you are broke
@@ -127,7 +127,7 @@ changed. "Where did this go wrong" becomes a question with an answer.
 
 **R4 — Curate.** Rename, promote a swipe to a named ref, prune a subtree,
 bookmark. Pruning must surface the escaped-effects warning from
-[09 §7](09-branching.md): deleting a subtree cannot un-write library entries or
+[07 §7](docs/design/07-branching.md): deleting a subtree cannot un-write library entries or
 generated images that line produced, and the UI should say so with a count
 rather than let it be discovered later.
 
@@ -137,7 +137,7 @@ on every node.
 
 ### 1.5 A nice extra: summary sharing
 
-Content-addressed summaries ([09 §5](09-branching.md)) mean the tree knows which
+Content-addressed summaries ([07 §5](docs/design/07-branching.md)) mean the tree knows which
 parts of itself share memory. Showing the extent of a shared summary as a span
 over the spine makes an abstract property concrete, and explains to a user why
 branching was free here and expensive there. Small, and unusually explanatory.
@@ -148,7 +148,7 @@ Almost nothing — which is the point of deferring it. Everything above derives
 from data 1.0 already records.
 
 **One exception, and it is worth acting on now.** R4's pruning implies deleting
-turns, and [02 §5.5](02-data-model.md) proposes storing turns as append-only
+turns, and [03 §5.5](docs/design/03-data-model.md) proposes storing turns as append-only
 JSONL segments. Deleting a record inside an append-only segment is awkward if
 nothing anticipated it.
 
@@ -163,7 +163,7 @@ pleasant later feature into a migration.
 - **Not the default reading surface.** The 1.0 path view stays the default. A
   tree browser as the primary way to read your own story would be a bad trade
   for a feature most people use occasionally.
-- **Not a merge tool.** Cross-branch merge is [06 C10](06-open-questions.md) and
+- **Not a merge tool.** Cross-branch merge is [25 C10](docs/design/25-open-questions.md) and
   stays out of scope. The visualiser is where a merge UI would eventually live,
   which is a reason to keep its layout honest, not a reason to build merging.
 - **Not editable topology.** No dragging nodes to re-parent. The tree records
@@ -174,7 +174,7 @@ pleasant later feature into a migration.
 ## 2. Character Studio — moved
 
 **The Character Studio is a committed release of its own at 3.0
-([24](24-character-studio.md)).**
+([17](docs/design/17-character-studio.md)).**
 
 It was a High-tier entry here until the authoring tier acquired a release, and it
 went there on the shape it shares with lorebook extraction and authored rules:
@@ -184,10 +184,10 @@ Studio is that move for an actor's visual identity.
 **It moved a second time when that shape turned out not to be a dependency.**
 Nothing in the tier gated it and nothing it needs waits for the corpus that holds
 the tier back, so it now carries a release number rather than a tier membership
-([24 §1.2](24-character-studio.md)). Its four obligations on 1.0 — typed media
+([17 §1.2](docs/design/17-character-studio.md)). Its four obligations on 1.0 — typed media
 roles, structured descriptors, per-media generation provenance, and crop as a
 stored rectangle — are unchanged through both moves and now live at
-[24 §5](24-character-studio.md).
+[17 §5](docs/design/17-character-studio.md).
 
 ---
 
@@ -201,15 +201,15 @@ to one.
 
 What continuity checking retains from the original framing is the reason it is
 additive: it reads data 1.0 already records, and it is a direct application of
-[00 §3.6](00-stance.md) — *the engine's understanding is visible, and
+[00 §3.6](docs/design/00-stance.md) — *the engine's understanding is visible, and
 correctable*.
 
 ### 2c.1 The story bible — moved
 
 **The story bible is no longer here. It ships with World at 4.0
-([19 §4](19-world.md)).**
+([15 §4](docs/design/15-world.md)).**
 
-It was defined as *what a session has established*, and [19 §1](19-world.md)
+It was defined as *what a session has established*, and [15 §1](docs/design/15-world.md)
 defines a World partly as that same view widened across sessions — which made it
 World's definition rather than its neighbour. A continuity container with no way
 to see what the continuity contains is half a feature, so the two went together
@@ -234,16 +234,16 @@ hundred turns later; what is available is noticing.
 The shape, and every piece of it exists:
 
 - **A `fast`-role step** at `post`. The cheap-model principle
-  ([07 §5.1](07-tech-stack.md)) applies squarely: this runs often and judges
+  ([19 §5.1](docs/design/19-tech-stack.md)) applies squarely: this runs often and judges
   rather than writes.
 - **Reads recent turns plus channel state plus activated lore** — precisely what
   `StepDefinition.reads` already declares
-  ([03 §6](03-modes-and-turn-pipeline.md)).
+  ([06 §6](docs/design/06-modes-and-turn-pipeline.md)).
 - **Emits notices, never effects.** It does not correct anything. It cannot
   correct anything; a checker confident enough to rewrite the story would be
   worse than the problem.
 - **Surfaced where the subject lives** — a character contradiction on the cast
-  panel ([05 §13.2](05-ui-surfaces.md)), a world contradiction as a notice. And
+  panel ([10 §13.2](docs/design/10-ui-surfaces.md)), a world contradiction as a notice. And
   dismissible, permanently, per notice: **the author is allowed to contradict
   themselves on purpose**, and a checker that cannot be told *"yes, deliberately"*
   becomes noise within an hour.
@@ -263,7 +263,7 @@ genre's most common complaint.
 ### 2c.3 Lorebook extraction — moved
 
 **Extraction ships with the authoring tier at 6.0
-([20 §3](20-authoring.md)).** *Play a session, keep the world* turned out to be
+([16 §3](docs/design/16-authoring.md)).** *Play a session, keep the world* turned out to be
 the clearest single statement of what that release is for, which made it the
 wrong thing to leave on a list with no release attached.
 
@@ -280,44 +280,44 @@ knows that the original does not.
 
 | Item | Deferred in | Note |
 |---|---|---|
-| **Tailscale, all levels** | [04 §5.2](04-server-multiuser-deployment.md) | Level 1 yes, Level 2 maybe, Level 3 not worth it ([06 D1](06-open-questions.md)). Keep the auth layer shaped so Level 2 is a provider rather than a special case. High because reaching your own server from outside the house is the most-asked-for thing this project does not do |
-| **A real user role system** | [04 §4.2.1](04-server-multiuser-deployment.md) | Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
-| **Prompt-overrun recovery** | [07 §5.4](07-tech-stack.md) | Detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting. Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
-| **Manual chapterisation** | [06 E1](06-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([05 §12](05-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters apply retroactively to sessions that predate the feature. Named as a likely out-of-sequence pickup somewhere in the 1.0–2.0 range |
-| **Lore-conditioned renditions** | [02 §3.6](02-data-model.md) | **Committed intent, not a maybe** — much of why lore images exist. A location's `reference` image is the same shape of input to *illustrate this scene* that an actor's already is ([03 §10.3](03-modes-and-turn-pipeline.md)). Deferred because the plumbing is not the hard part: **choosing which images** is, when six active entries and three present actors all carry references, and conditioning on all of them produces mud. Wants the location channel (P7) for an honest selector, a precedence rule against actor references, and real sessions to tune how many references help before they fight. Half-built — *attach every active entry's image* — gives worse illustrations than no feature, and gets switched off rather than reported. **Obliges 1.0 to** give `reference` the same meaning on lore as on actors, make media addressable per entry, and carry `tags` so a selector has something finer than a role to discriminate on ([10 §3](10-schemas.md)). **The backdrop does not open this** ([03 §10.1a](03-modes-and-turn-pipeline.md)): it conditions on channel state as *text* and ships at 1.0 on that basis, while feeding a location's `reference` image to the model stays here. Recorded because a picture of a place is the most plausible-looking reason anyone will have to move the line, and the selector problem is absent rather than solved |
+| **Tailscale, all levels** | [09 §5.2](docs/design/09-server-multiuser-deployment.md) | Level 1 yes, Level 2 maybe, Level 3 not worth it ([25 D1](docs/design/25-open-questions.md)). Keep the auth layer shaped so Level 2 is a provider rather than a special case. High because reaching your own server from outside the house is the most-asked-for thing this project does not do |
+| **A real user role system** | [09 §4.2.1](docs/design/09-server-multiuser-deployment.md) | Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
+| **Prompt-overrun recovery** | [19 §5.4](docs/design/19-tech-stack.md) | Detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting. Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
+| **Manual chapterisation** | [25 E1](docs/design/25-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([10 §12](docs/design/10-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters apply retroactively to sessions that predate the feature. Named as a likely out-of-sequence pickup somewhere in the 1.0–2.0 range |
+| **Lore-conditioned renditions** | [03 §3.6](docs/design/03-data-model.md) | **Committed intent, not a maybe** — much of why lore images exist. A location's `reference` image is the same shape of input to *illustrate this scene* that an actor's already is ([06 §10.3](docs/design/06-modes-and-turn-pipeline.md)). Deferred because the plumbing is not the hard part: **choosing which images** is, when six active entries and three present actors all carry references, and conditioning on all of them produces mud. Wants the location channel (P7) for an honest selector, a precedence rule against actor references, and real sessions to tune how many references help before they fight. Half-built — *attach every active entry's image* — gives worse illustrations than no feature, and gets switched off rather than reported. **Obliges 1.0 to** give `reference` the same meaning on lore as on actors, make media addressable per entry, and carry `tags` so a selector has something finer than a role to discriminate on ([04 §3](docs/design/04-schemas.md)). **The backdrop does not open this** ([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md)): it conditions on channel state as *text* and ships at 1.0 on that basis, while feeding a location's `reference` image to the model stays here. Recorded because a picture of a place is the most plausible-looking reason anyone will have to move the line, and the selector problem is absent rather than solved |
 
 ### 3.2 Low
 
 | Item | Deferred in | Note |
 |---|---|---|
-| **Auto-provisioning accounts** | [06 D2](06-open-questions.md) | Self-registration, invites, an identity provider. Low rather than eventual because the shape is known and the demand is not — a household install does not need it, and everything larger wants the role system above first |
-| Truly mobile-optimised layout | [05 §1](05-ui-surfaces.md) | A mode of the same web app, never a native shell. Low because the responsive floor already works and the ceiling is a real design project |
-| Custom extension rendering (sandboxed iframe) | [05 §8](05-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work. Tactical combat or anything map-shaped are the likely triggers (§4.3) |
-| **Per-actor knowledge scope** (anti-omniscience) | [08 §5](08-infinite-worlds.md) | Held as an acceptance test for the channel model rather than a feature commitment. Low on competence rather than importance: this project has not yet earned an opinion about memory scoping, and guessing at one produces a feature that is wrong in a way nobody can debug |
-| Embeddings and semantic retrieval | [06 E2](06-open-questions.md) | Aimed at cross-session memory ([11](11-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss. Same competence caveat as the row above |
-| Cross-actor memory | [11 §8](11-cross-session-memory.md) | *"Vera recalling that she and Tomas both know you."* Explicitly not 1.0, and in the same memory-scoping area held back for the same reason |
-| Rendition asset eviction policy | [06 E3](06-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([03 §10.1a](03-modes-and-turn-pipeline.md)) |
-| Mention resolution beyond actors | [05 §13.1](05-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([17 §13](17-write-mode.md)), so widening the target set is addition rather than migration |
-| The `proposed` mention tier | [05 §13.1](05-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
-| Hook packs as a shareable kind | [02 §4.1](02-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
-| Prologue packages | [06 B12](06-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
+| **Auto-provisioning accounts** | [25 D2](docs/design/25-open-questions.md) | Self-registration, invites, an identity provider. Low rather than eventual because the shape is known and the demand is not — a household install does not need it, and everything larger wants the role system above first |
+| Truly mobile-optimised layout | [10 §1](docs/design/10-ui-surfaces.md) | A mode of the same web app, never a native shell. Low because the responsive floor already works and the ceiling is a real design project |
+| Custom extension rendering (sandboxed iframe) | [10 §8](docs/design/10-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work. Tactical combat or anything map-shaped are the likely triggers (§4.3) |
+| **Per-actor knowledge scope** (anti-omniscience) | [02 §5](docs/design/02-infinite-worlds.md) | Held as an acceptance test for the channel model rather than a feature commitment. Low on competence rather than importance: this project has not yet earned an opinion about memory scoping, and guessing at one produces a feature that is wrong in a way nobody can debug |
+| Embeddings and semantic retrieval | [25 E2](docs/design/25-open-questions.md) | Aimed at cross-session memory ([08](docs/design/08-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss. Same competence caveat as the row above |
+| Cross-actor memory | [08 §8](docs/design/08-cross-session-memory.md) | *"Vera recalling that she and Tomas both know you."* Explicitly not 1.0, and in the same memory-scoping area held back for the same reason |
+| Rendition asset eviction policy | [25 E3](docs/design/25-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md)) |
+| Mention resolution beyond actors | [10 §13.1](docs/design/10-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([13 §13](docs/design/13-write-mode.md)), so widening the target set is addition rather than migration |
+| The `proposed` mention tier | [10 §13.1](docs/design/10-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
+| Hook packs as a shareable kind | [03 §4.1](docs/design/03-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
+| Prologue packages | [25 B12](docs/design/25-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](docs/design/workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
 
 ### 3.3 Eventually
 
 | Item | Deferred in | Note |
 |---|---|---|
-| Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [04 §8](04-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
-| **In-UI file access, the whole feature** | [05 §4](05-ui-surfaces.md) | Deprioritised to experimental ([06 D3](06-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
-| Aggregate cost and usage view | [05 §3](05-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
-| Sharing content between users on one install | [06 A3](06-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
-| Video renditions | [03 §10](03-modes-and-turn-pipeline.md) | The `kind` union and `scope.messageId` ship at P9; the implementation does not. An animated backdrop is `{ kind: "video", purpose: "background" }` — expressible from P9 and unbuilt, which is the whole reason `purpose` is not a fourth `kind` ([03 §10.1a](03-modes-and-turn-pipeline.md)) |
-| Speech and TTS renditions | [03 §10](03-modes-and-turn-pipeline.md) | As above — the shape ships, the feature does not. Voice as an *I/O surface* is a desired extension rather than this (§4.3) |
-| Rendition series and storyboarding | [03 §10.4](03-modes-and-turn-pipeline.md) | **The surface, not the mechanism.** The count judgement beneath it — which moments of a turn deserve a picture, and how many — is now specified and lands in a phase after P9. What stays here is presenting the result *as* a storyboard, with its own surface and pacing, which is also the line that keeps [02 §6.3](workplan/02-triage.md)'s discard verdict intact |
-| A native client | [05 §1](05-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([06 D4](06-open-questions.md)) |
-| Cross-branch merge | [06 C10](06-open-questions.md) | Nothing in the tree model precludes it, and nothing in use has asked for it |
-| A simple/advanced split, or a rearrangeable layout | [06 D7](06-open-questions.md) | Explicitly not blocking. Density and disclosure carry 1.0; a second layout system is a large commitment to make on a guess |
+| Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [09 §8](docs/design/09-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
+| **In-UI file access, the whole feature** | [10 §4](docs/design/10-ui-surfaces.md) | Deprioritised to experimental ([25 D3](docs/design/25-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
+| Aggregate cost and usage view | [10 §3](docs/design/10-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing |
+| Sharing content between users on one install | [25 A3](docs/design/25-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
+| Video renditions | [06 §10](docs/design/06-modes-and-turn-pipeline.md) | The `kind` union and `scope.messageId` ship at P9; the implementation does not. An animated backdrop is `{ kind: "video", purpose: "background" }` — expressible from P9 and unbuilt, which is the whole reason `purpose` is not a fourth `kind` ([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md)) |
+| Speech and TTS renditions | [06 §10](docs/design/06-modes-and-turn-pipeline.md) | As above — the shape ships, the feature does not. Voice as an *I/O surface* is a desired extension rather than this (§4.3) |
+| Rendition series and storyboarding | [06 §10.4](docs/design/06-modes-and-turn-pipeline.md) | **The surface, not the mechanism.** The count judgement beneath it — which moments of a turn deserve a picture, and how many — is now specified and lands in a phase after P9. What stays here is presenting the result *as* a storyboard, with its own surface and pacing, which is also the line that keeps [triage §6.3](docs/design/workplan/02-triage.md)'s discard verdict intact |
+| A native client | [10 §1](docs/design/10-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([25 D4](docs/design/25-open-questions.md)) |
+| Cross-branch merge | [25 C10](docs/design/25-open-questions.md) | Nothing in the tree model precludes it, and nothing in use has asked for it |
+| A simple/advanced split, or a rearrangeable layout | [25 D7](docs/design/25-open-questions.md) | Explicitly not blocking. Density and disclosure carry 1.0; a second layout system is a large commitment to make on a guess |
 
-The peripheral feature surface discarded in [triage §6.3](workplan/02-triage.md) —
+The peripheral feature surface discarded in [triage §6.3](docs/design/workplan/02-triage.md) —
 table games, music, calls, haptics — deliberately does **not** appear above. It
 is not a tier; it is §4.
 
@@ -328,7 +328,7 @@ proposition: that **Social is a fourth top-level surface with its own modes**,
 rather than messaging being one more mode of Play.
 
 Messages was scheduled for 2.0 until this pass
-([work plan §0](workplan/01-work-plan.md)). What moved it was not doubt about
+([work plan §0](docs/design/workplan/01-work-plan.md)). What moved it was not doubt about
 the feature but a better reading of its shape: a messenger, a Marinara-style
 activity feed (§4.6) and something board-shaped — threaded, persistent,
 many-to-many, closer to a forum than to a chat — are three answers to the same
@@ -345,10 +345,10 @@ What travels with Messages whenever this is built: presence
 messaging, Discord-style profiles, reactions, the command-family gating model,
 **background scheduling** — the server-side timer that starts a turn with no
 client attached — and the Web Push, ntfy and webhook delivery channels
-([04 §3](04-server-multiuser-deployment.md)).
+([09 §3](docs/design/09-server-multiuser-deployment.md)).
 
 **One cost is already being paid for this**, and
-[work plan §0.3](workplan/01-work-plan.md) records it rather than hiding it:
+[work plan §0.3](docs/design/workplan/01-work-plan.md) records it rather than hiding it:
 background scheduling and presence were Messages' to prove, they are specified,
 and with Messages off the release schedule there is now no date at which that
 seam gets exercised. That is an argument for defining this cluster sooner rather
@@ -363,20 +363,20 @@ entries would be actively wrong to ship in core. This section exists as **a set
 of large hints for anyone who wants to write an expansion** — what is worth
 building, which seam it should use, and where the naive version goes wrong.
 
-It doubles as the acceptance test for [03 §9](03-modes-and-turn-pipeline.md): if
+It doubles as the acceptance test for [06 §9](docs/design/06-modes-and-turn-pipeline.md): if
 a motivated person cannot build these against the published contract without
 engine changes, the contract has failed and that is our problem, not theirs.
 
 ### 4.1 First question: rules or code?
 
 Before anything else, work out which tier the idea belongs to
-([08 §2](08-infinite-worlds.md)):
+([02 §2](docs/design/02-infinite-worlds.md)):
 
 - **Authored rules** — declarative conditions and effects over channels, shipped
   as data inside a package. No installation, no code review, no AGPL obligation
-  ([triage §1.2](workplan/02-triage.md)), works for anyone who imports the package.
+  ([triage §1.2](docs/design/workplan/02-triage.md)), works for anyone who imports the package.
   **Arrives at 6.0, the authoring tier**
-  ([work plan §0.6](workplan/01-work-plan.md)). That is a considerably longer
+  ([work plan §0.6](docs/design/workplan/01-work-plan.md)). That is a considerably longer
   wait than the 2.0 this once promised, and the reason is the one that defers the
   tier at all: the vocabulary is to be designed against a corpus of real authored
   worlds, and Campaign at 5.0 is what produces one. Until then everything below
@@ -408,7 +408,7 @@ character. Give the board to a real engine and the model to the commentary, and
 both halves get better at once — the moves become correct and the writing
 becomes about the opponent's smugness rather than about the rules.
 
-This is `update: "engine-computed"` from [03 §4](03-modes-and-turn-pipeline.md),
+This is `update: "engine-computed"` from [06 §4](docs/design/06-modes-and-turn-pipeline.md),
 and it is Marinara's own observation about combat generalised: round maths is
 calculated by the engine, not the model, "so results stay fair and consistent."
 
@@ -445,7 +445,7 @@ and the discipline of not calling a model where a lookup will do.
 
 **Dice and skill resolution.** — *first-party, see §3.4.*
 *Seam:* an engine-computed channel plus a pre-narration evaluation step
-([08 §4.3](08-infinite-worlds.md)).
+([02 §4.3](docs/design/02-infinite-worlds.md)).
 *The trap:* the model rolling. It cannot, will not produce a defensible
 distribution, and players can feel it. The engine rolls before narration and
 hands the outcome down; the model writes the consequence it was given.
@@ -457,7 +457,7 @@ being baked into core.
 mode.
 *The trap:* scope. This is the largest thing on the list and the one most likely
 to want an escape hatch from the declarative widget vocabulary
-([05 §8](05-ui-surfaces.md)). A good first attempt at it would tell us whether
+([10 §8](docs/design/10-ui-surfaces.md)). A good first attempt at it would tell us whether
 that escape hatch needs to exist sooner than planned.
 
 **Voice — calls, speech in and out.**
@@ -468,18 +468,18 @@ contract, which makes it valuable feedback even if few people use it.
 
 **Alternative memory strategies.**
 *Seam:* retrieval and summarisation steps, replacing the defaults.
-*Why:* the rolling summary ([06 E1](06-open-questions.md)) is deliberately the
+*Why:* the rolling summary ([25 E1](docs/design/25-open-questions.md)) is deliberately the
 simple answer, and the honest position is that someone will have a better idea
 than ours.
 Retrieval being a set of steps behind a common interface
-([02 §3](02-data-model.md)) exists precisely so that person does not have to
+([03 §3](docs/design/03-data-model.md)) exists precisely so that person does not have to
 fork the project.
 
 **Per-actor knowledge scope — anti-omniscience.**
 *Seam:* a channel recording who knows what, updated when information is
 exchanged in scene, gating lore retrieval per speaking actor.
 *Why it is here as well as in §3.2:* the feature-list entry is what *we* might
-build; this one is [08 §5](08-infinite-worlds.md)'s acceptance test, and the two
+build; this one is [02 §5](docs/design/02-infinite-worlds.md)'s acceptance test, and the two
 are not the same claim. If a motivated author can build it against the published
 contract, the channel model has earned its keep and our own entry matters less. NPCs acting on things the player never told them is one of the
 most-complained-about failures in this genre and none of the four references
@@ -493,7 +493,7 @@ test of the capability API being *narrow*. Device access must be something an
 extension has to be granted, never something it inherits by being installed. An
 attempt at this would find out.
 
-**Randomizers — outcomes and appearances.** *Outlined in [22](22-randomizers.md);
+**Randomizers — outcomes and appearances.** *Outlined in [23](docs/design/23-randomizers.md);
 wanted early, and first-party.*
 *Seam:* for plot, a `generate`-stage step that asks the cheap model for a few
 outcomes by kind, draws one with the RNG service under difficulty-derived
@@ -508,7 +508,7 @@ sharper.
 *Proves:* evaluate-before-narrate with a real consumer, a step that draws
 inside the boundary, structured output through `StepCallRequest.schema`, and
 whether rewrite and reroll keep their meanings when a draw is made over a
-model-written list ([22 §3.5](22-randomizers.md)).
+model-written list ([23 §3.5](docs/design/23-randomizers.md)).
 
 ### 4.4 First-party reference extensions: dice and poker
 
@@ -525,7 +525,7 @@ hooks.
 
 So dice is a **dependency**, not a demonstration. That still makes it useful:
 A mode declaring `requires: [dice]` exercises the mode-to-extension
-dependency path in [02 §7](02-data-model.md), and uninstalling dice should
+dependency path in [03 §7](docs/design/03-data-model.md), and uninstalling dice should
 degrade the mode legibly rather than break it.
 
 **Poker is the proof, precisely because nothing needs it.** Nobody can mistake
@@ -535,10 +535,10 @@ never touches:
 - **Per-actor hidden state.** Hole cards are visible to one actor and not the
   others — and critically, the model call generating a character's action must
   see *that character's* cards and not anyone else's. Channels currently have
-  hidden-versus-visible ([03 §7.3](03-modes-and-turn-pipeline.md)); this needs
+  hidden-versus-visible ([06 §7.3](docs/design/06-modes-and-turn-pipeline.md)); this needs
   per-actor visibility, and per-actor filtering of assembled context.
 
-  **This is the same machinery as anti-omniscience** ([08 §5](08-infinite-worlds.md)),
+  **This is the same machinery as anti-omniscience** ([02 §5](docs/design/02-infinite-worlds.md)),
   in a bounded and testable form. Poker is a hand of cards; anti-omniscience is
   everything an NPC has ever learned. Build the first and the second becomes a
   question of scope rather than of mechanism. That connection is the strongest
@@ -559,7 +559,7 @@ never touches:
 - **Multi-participant action between player turns.** A hand runs several betting
   rounds with characters acting in sequence and the player acting in the middle
   of them. This exercises step iteration and the suspend-for-input mechanism
-  ([06 C5](06-open-questions.md)) harder than anything else on the list.
+  ([25 C5](docs/design/25-open-questions.md)) harder than anything else on the list.
 
 *Scope control:* hand evaluation is a solved problem with libraries, and side
 pots and multi-way all-ins are where the complexity actually lives. Heads-up
@@ -569,13 +569,13 @@ completeness.
 ### 4.5 One constraint this puts on core: randomness
 
 Both extensions roll dice, in the general sense, which forced a core decision —
-now settled in [07 §14](07-tech-stack.md).
+now settled in [19 §14](docs/design/19-tech-stack.md).
 
 There is **one canonical RNG service**, server-local, with no network
 dependency, and every draw is recorded in the turn's effects. Extensions receive
 it through the capability API and must not find their own: replay works by
 replaying *effects* rather than re-running generation
-([09 §2](09-branching.md)), so an unrecorded draw quietly breaks the invariant
+([07 §2](docs/design/07-branching.md)), so an unrecorded draw quietly breaks the invariant
 branching depends on.
 
 For extension authors specifically, the useful part is that this is
@@ -585,7 +585,7 @@ reproduce its behaviour. Use the provided source and that check passes for free.
 
 ### 4.6 Noodle — notes on Marinara's in-app social feed
 
-Flagged as unexamined in the first triage pass ([triage §9](workplan/02-triage.md)); examined
+Flagged as unexamined in the first triage pass ([triage §9](docs/design/workplan/02-triage.md)); examined
 now, because it turns out to be the most informative thing on this list even
 though it is unlikely we build it.
 
@@ -618,7 +618,7 @@ Strip the social-media skin and what remains is:
 
 That is the same shape as Messages mode's autonomous messages — characters doing
 things while you are not looking — and structurally the same as the share/intake
-pair in cross-session memory ([11 §4](11-cross-session-memory.md)). Three
+pair in cross-session memory ([08 §4](docs/design/08-cross-session-memory.md)). Three
 features, one pattern: **two opt-in toggles governing context flow between
 separate activity streams.** A timeline is one skin on it. A character's
 journal, in-world news, letters, or a group chat you are not in are others, and
@@ -630,12 +630,12 @@ This is the useful part, and why it is a better stress test than poker.
 
 - **Extension-owned durable storage that is not session state.** Noodle accounts,
   posts and interactions live across sessions and belong to no session. Channels
-  ([03 §4](03-modes-and-turn-pipeline.md)) are session-scoped, and library access
+  ([06 §4](docs/design/06-modes-and-turn-pipeline.md)) are session-scoped, and library access
   is read-plus-propose. There is currently **nowhere for an extension to keep its
   own persistent data**. Poker does not reveal this because a hand lives and dies
   inside one session.
 - **The custom-rendering escape hatch.** The declarative widget vocabulary
-  ([05 §8](05-ui-surfaces.md)) covers HUD widgets and panels; it cannot render a
+  ([10 §8](docs/design/10-ui-surfaces.md)) covers HUD widgets and panels; it cannot render a
   social feed with composer, polls, threads and profile pages. Noodle needs the
   sandboxed-iframe route that is deferred there.
 - **Scheduler access**, to generate on a timer without a client connected.
@@ -650,7 +650,7 @@ every account as adult and permit explicit content, and that **this is not a
 setting that can be turned off**. Whatever one thinks of the default, a
 non-optional content posture baked into a subsystem is the wrong shape — content
 rating is a `Treatment` field with `null` meaning *ask*
-([10 §6](10-schemas.md)), and any extension contributing generated content
+([04 §6](docs/design/04-schemas.md)), and any extension contributing generated content
 should respect it rather than carry its own fixed policy.
 
 The NoodleR economy — coins, subscriptions, locked posts — is where "gimmicky"
@@ -675,7 +675,7 @@ worth generalising into core whether or not any feed is ever built.
 If this section is to be more than a wishlist:
 
 - The contract has to be published and versioned, with the built-in modes
-  visibly consuming it ([07 §10](07-tech-stack.md)).
+  visibly consuming it ([19 §10](docs/design/19-tech-stack.md)).
 - The declarative widget vocabulary has to be documented with worked examples,
   since it is the part most likely to block someone.
 - Rules need reference documentation at least as good as the code SDK's, because

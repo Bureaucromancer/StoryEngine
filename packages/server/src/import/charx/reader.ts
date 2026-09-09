@@ -13,8 +13,8 @@ import type {
 
 /**
  * CHARX, the V3 character-card container
- * ([P4 §1.10](../../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.5](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.10](../../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.5](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Named in two sections since the phase plan was written, and built at the
  * audit.** §1.3 listed it among what a unit of import is and §1.10 said the card

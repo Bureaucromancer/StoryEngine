@@ -12,7 +12,7 @@ import type { ImportDisposition, ImportNote } from './import.js';
  * in one file would invite somebody to store a preview, and a stored prediction
  * is a claim that goes stale the moment anything around it changes.
  *
- * **Why it exists at all.** [05 §5](../../../docs/design/05-ui-surfaces.md)
+ * **Why it exists at all.** [10 §5](../../../docs/design/10-ui-surfaces.md)
  * struck *"let the user fix it before committing"* in favour of committing first
  * and reporting loudly, and [P4 §1.4] argues it in full — a staging area is a
  * second library, dangling references are survivable by stance, and a
@@ -26,7 +26,7 @@ import type { ImportDisposition, ImportNote } from './import.js';
  * written, and nothing here is held: the bytes stay in the browser's own file
  * handle and are sent a second time on confirm, so the commit re-derives
  * everything from the file rather than trusting a prediction. Nothing is built
- * to be discarded ([01 §2.2]) because nothing is built.
+ * to be discarded ([work plan §2.2]) because nothing is built.
  *
  * **A summary rather than the object.** This carries statements *about* what
  * would land, never the converted `Preset` itself, for two reasons that both
@@ -35,7 +35,7 @@ import type { ImportDisposition, ImportNote } from './import.js';
  * unrecognised fields. See `compatKeys`.
  */
 export interface ImportPreview {
-  /** The file as it arrived. Never a path ([13 §4.1.1]). */
+  /** The file as it arrived. Never a path ([21 §4.1.1]). */
   source: string;
   /**
    * The disposition the commit is expected to report.
@@ -103,14 +103,14 @@ export interface ImportPreviewPreset {
   params: ImportPreviewParam[];
   /** `budget.maxContextTokens`, when the source set one. */
   maxContextTokens: number | null;
-  /** `modelHint.preferredModelIds` — a wish, never a binding ([10 §3]). */
+  /** `modelHint.preferredModelIds` — a wish, never a binding ([04 §3]). */
   preferredModelIds: string[];
   /**
    * The **names** of the fields kept verbatim under `compat`, and never their
    * values.
    *
    * **This is the rule that keeps a preview from becoming the "import as-is"
-   * affordance [10 §8.4.4] refuses to have anywhere.** A screen that showed what
+   * affordance [04 §8.4.4] refuses to have anywhere.** A screen that showed what
    * was in the file would show a proxy password to whoever was handed the file —
    * turning a look-before-you-commit into a credential viewer, which is a worse
    * feature than the one being added.

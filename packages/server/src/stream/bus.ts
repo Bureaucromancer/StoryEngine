@@ -5,8 +5,8 @@ import type { ProgressEvent } from '../state/jobs.js';
 
 /**
  * In-process fan-out for the session stream —
- * [04 §3.1](../../../../docs/design/04-server-multiuser-deployment.md),
- * [07 §8](../../../../docs/design/07-tech-stack.md).
+ * [09 §3.1](../../../../docs/design/09-server-multiuser-deployment.md),
+ * [19 §8](../../../../docs/design/19-tech-stack.md).
  *
  * Two channels, because that section describes two.
  *
@@ -15,12 +15,12 @@ import type { ProgressEvent } from '../state/jobs.js';
  * cursor. This class only *delivers* them — the store is what makes them true,
  * and a subscriber that missed some reads them back rather than being resent.
  *
- * **Ephemeral**: token deltas, which [07 §8] names first among the traffic SSE
+ * **Ephemeral**: token deltas, which [19 §8] names first among the traffic SSE
  * was chosen for and which [P2 §2.10] explicitly declines to make durable. A
  * delta that was missed is not resent and cannot be: the next checkpoint carries
  * the accumulated text and resyncs it.
  *
- * Keyed **by session, not by job**. [04 §3.1] scopes the session stream to *"one
+ * Keyed **by session, not by job**. [09 §3.1] scopes the session stream to *"one
  * session, subscribed while viewing it"* — so a subscriber has to survive one
  * turn ending and the next beginning, and `activeJob` returns null the instant
  * `finished_at` is set.

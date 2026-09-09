@@ -24,7 +24,7 @@ import { advanceTiming, timingVerdict, type EntryTiming, NO_TIMING } from './tim
  *
  * The output carries every entry that did **not** fire, with the rule that
  * stopped it. That is the expensive-looking half and it is the point:
- * [02 §3.2] asks for skip reasons surfaced, [P5.8]'s keyword tester is a
+ * [03 §3.2] asks for skip reasons surfaced, [P5.8]'s keyword tester is a
  * surface over exactly this list, and the commonest real complaint about a
  * lorebook — *why is my entry not firing* — has as many answers as there are
  * `SkipReason`s. A scan that returned only its hits would make every one of
@@ -46,7 +46,7 @@ import { advanceTiming, timingVerdict, type EntryTiming, NO_TIMING } from './tim
 
 /**
  * Why an entry is in the prompt — Marinara's `LorebookActivationSource`, which
- * [02 §3.1] says to *take and let grow*.
+ * [03 §3.1] says to *take and let grow*.
  *
  * Four of its six are live here. `semantic` waits for embeddings, and
  * `current_location` for the channel predicates [P5 §1.4] is still deciding the
@@ -69,7 +69,7 @@ export type ActivationSource = 'keyword' | 'constant' | 'sticky' | 'recursive';
 export type SkipReason =
   | 'book-disabled'
   /**
-   * A folder above it is shut — [P5.7], [10 §5].
+   * A folder above it is shut — [P5.7], [04 §5].
    *
    * Its own reason and not `entry-disabled`, because they send somebody to two
    * different switches, and the folder gate *preserves* the entry's own
@@ -108,7 +108,7 @@ export interface Activation {
    * Turns of stickiness left **after** this one, on an activation that is here
    * because a window is still open — [P5 §3] step 8, filled at [P6B.1].
    *
-   * [05 §11](../../../../docs/design/05-ui-surfaces.md) asks the block list for
+   * [10 §11](../../../../docs/design/10-ui-surfaces.md) asks the block list for
    * *"sticky, 2 messages remaining"*, and the number existed the whole time in
    * `ScanResult.timing`; it simply never travelled with the activation, so the
    * one surface that could have shown it had nothing to show. Zero is a real
@@ -151,7 +151,7 @@ export interface ScanContext {
   timing: Readonly<Record<string, EntryTiming>>;
   filters: FilterContext;
   /**
-   * The turn's RNG — [07 §14].
+   * The turn's RNG — [19 §14].
    *
    * **Two fields here are stochastic and both draw through the service**, which
    * is not a style rule: an unrecorded draw does not fail where it is written,
@@ -161,7 +161,7 @@ export interface ScanContext {
    * forbids it is the reason this parameter exists at all — it was written
    * with an injected `() => number` first, and the rule was right.
    *
-   * What the tape buys is the distinction [07 §14.5] draws between **rewrite**
+   * What the tape buys is the distinction [19 §14.5] draws between **rewrite**
    * and **reroll**: swiping replays the same draws, so which of three weather
    * entries is in the prompt does not change under a person who only wanted
    * different prose. That is the property a hand-rolled RNG could not have had,
@@ -172,7 +172,7 @@ export interface ScanContext {
 }
 
 /**
- * What the gating filters are matched against — [02 §3.1]'s *filters*.
+ * What the gating filters are matched against — [03 §3.1]'s *filters*.
  *
  * Supplied by the caller rather than read here, for `gather.ts`'s reason: a
  * retriever that went looking for the cast would be a second place that
@@ -564,7 +564,7 @@ function considerAt(
 function rolled(entry: LoreEntry, rng: Rng): boolean {
   if (entry.probability === null) return true;
   /**
-   * Keyed on the entry rather than on the site alone, which is [07 §14]'s
+   * Keyed on the entry rather than on the site alone, which is [19 §14]'s
    * **keyed by site, never by position** applied where it bites hardest: a
    * positional tape hands one entry's coin flip to another the moment a
    * rewrite takes a slightly different path, and lore is where paths differ.
@@ -573,13 +573,13 @@ function rolled(entry: LoreEntry, rng: Rng): boolean {
 }
 
 /**
- * *Only one of a group fires* — [02 §3.1].
+ * *Only one of a group fires* — [03 §3.1].
  *
  * **A weighted draw, which is what `groupWeight` says it is** — and the tape is
  * what makes that safe. This was written first as deterministic
  * highest-weight-wins, reasoning that a swipe changing which of three weather
  * entries is in the prompt reads as instability rather than as variety. Good
- * reason, aimed at a problem [07 §14.5] had already solved: draws go on the
+ * reason, aimed at a problem [19 §14.5] had already solved: draws go on the
  * turn's tape and a rewrite replays it, so a swipe keeps the same weather while
  * a genuine reroll gets new weather. Sorting by weight would instead have made
  * `groupWeight: 99` mean *always* rather than *usually*, quietly deleting the
@@ -657,7 +657,7 @@ function pickOne(key: string, members: readonly Activation[], rng: Rng): Activat
 }
 
 /**
- * The three `NullableFilter`s — [02 §3.1]'s *gating*.
+ * The three `NullableFilter`s — [03 §3.1]'s *gating*.
  *
  * Each is `{ mode: 'any' | 'include' | 'exclude', values }`, and null is the
  * same as `any`: no opinion. `include` is *at least one of mine is present*

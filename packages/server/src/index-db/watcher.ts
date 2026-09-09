@@ -19,7 +19,7 @@ import { findByPath } from './query.js';
 /**
  * The watcher — **foreign writes only**.
  *
- * [02 §5.1.1](../../../../docs/design/02-data-model.md) is the whole design of this file.
+ * [03 §5.1.1](../../../../docs/design/03-data-model.md) is the whole design of this file.
  * An earlier draft of the data model had *all* index updates come from here,
  * which is appealing — one path, the index provably a function of the disk — and
  * wrong in a way that would not have surfaced until the P1 demo: it makes every
@@ -49,10 +49,10 @@ export interface WatcherOptions {
    */
   stabilityThresholdMs?: number;
   /**
-   * Retention cap for the history a foreign edit leaves behind ([02 §11.3]).
+   * Retention cap for the history a foreign edit leaves behind ([03 §11.3]).
    *
    * **Read at the point of use, not copied here.** `history.keepPerObject` is
-   * tiered `live` ([13 §4]), and the app hands this watcher the very
+   * tiered `live` ([21 §4]), and the app hands this watcher the very
    * `LibraryContext` the routes write through — so both paths into one object's
    * history read the same cell, and a live change reaches both. Copying the
    * number into a field at construction is what made the tier untrue, and it
@@ -101,7 +101,7 @@ export class LibraryWatcher {
    * chokidar does not wait for a handler, so a rename firing unlink-then-add
    * could otherwise have the add's tombstone lookup run before the unlink's
    * update commits — turning a move into a delete plus a create, which is the
-   * exact failure [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) exists to
+   * exact failure [P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md) exists to
    * prevent. Ordering is not an optimisation here; it is the mechanism.
    */
   #queue: Promise<void> = Promise.resolve();
@@ -126,7 +126,7 @@ export class LibraryWatcher {
   async start(): Promise<void> {
     const watcher = watch(this.#layout.dataRoot, {
       ignoreInitial: true,
-      // A rebuild is the startup path ([02 §5.1]); the watcher is for what
+      // A rebuild is the startup path ([03 §5.1]); the watcher is for what
       // happens after. Reporting every existing file as an add would duplicate
       // that scan and slow start-up on a large library.
       awaitWriteFinish: {
@@ -186,7 +186,7 @@ export class LibraryWatcher {
    * that lands in the gap is dropped permanently, with no error and no
    * catch-up. Measured: under load a watcher could sit event-dead for seconds
    * after `ready` while the raw layer reported nothing at all — which is
-   * [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s central gesture failing
+   * [10 §4.1](../../../../docs/design/10-ui-surfaces.md)'s central gesture failing
    * silently, at the exact moment a rebuild has just declared the index
    * current.
    *
@@ -298,7 +298,7 @@ export class LibraryWatcher {
     matureTombstones(this.#db, this.#layout);
     const outcome = await ingestFile(this.#db, this.#layout, path);
 
-    // **Hand-edits get history for free** ([02 §11.2]) — the strongest argument
+    // **Hand-edits get history for free** ([03 §11.2]) — the strongest argument
     // for building the mechanism now, while the watcher exists and no editor
     // does. Snapshot when the content genuinely changed, and also when the new
     // content failed to parse at all: someone breaking a file in a text editor
@@ -324,15 +324,15 @@ export class LibraryWatcher {
      * The index records it and `GET /api/library/errors` exposes it, and until
      * now **nothing logged it and no client read the route** — so a hand-edit
      * that failed to parse was invisible to the person who made it and invisible
-     * to anyone reading the log afterwards. [12 §2.1](../../../../docs/design/workplan/12-p2-manual-gate.md)
+     * to anyone reading the log afterwards. [manual gate §2.1](../../../../docs/design/workplan/11-p2-manual-gate.md)
      * step 8 tells a tester to do exactly this.
      *
-     * `warn` rather than `error` — [13 §4.1]'s boundary: the server refused a
+     * `warn` rather than `error` — [21 §4.1]'s boundary: the server refused a
      * file, which is the system working. The path is relative to the data root,
      * which is what the error row already stores and what that section requires.
      *
      * The card that shows this to the person who broke the file is
-     * [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md) step 7 and still not built.
+     * [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md) step 7 and still not built.
      * This is the half that makes it findable rather than the half that makes it
      * visible.
      */

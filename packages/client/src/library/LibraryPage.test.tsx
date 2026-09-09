@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * **A hand edit reaches the browser without a restart** — the client half of P1
- * gate step 7–8, and [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s blunt statement of
+ * gate step 7–8, and [10 §4.1](../../../../docs/design/10-ui-surfaces.md)'s blunt statement of
  * the stakes: *if editing a file on disk does not reflect, the storage design
  * has already failed on its own terms.*
  *
@@ -195,7 +195,7 @@ describe('making an actor', () => {
    * The control used to collect a name and post an object. It now opens an
    * editor over a draft, and the create happens on that editor's first Save,
    * which is what keeps the folder name honest: the slug is taken from the name
-   * once and frozen ([02 §5.2]), so an object created before it was named would
+   * once and frozen ([03 §5.2]), so an object created before it was named would
    * keep `untitled-2` for good.
    *
    * The claims this test used to make — that the posted object is the
@@ -221,7 +221,7 @@ describe('making an actor', () => {
    * for it dispatched a submit at the form to get past a button that was
    * disabled anyway. Both are gone: there is no box, so there is nothing here
    * to refuse. The refusal did not disappear — it moved into the editor, where
-   * [05 §11.1a] puts it, and is asserted there.
+   * [10 §11.1a] puts it, and is asserted there.
    */
   it('asks for nothing before it opens the editor', async () => {
     renderPage();
@@ -286,7 +286,7 @@ describe('making an actor', () => {
 /**
  * The way in, after the panel moved to the dock ([P4 §7.12]).
  *
- * [05 §5] says the empty library *points at import*, and the panel is no longer
+ * [10 §5] says the empty library *points at import*, and the panel is no longer
  * on this page to point at — so what has to survive the move is a control here
  * that opens the dock over this route. It patches a preference rather than
  * routing, because [P3 §1.2] keeps the dock's open state out of the URL on the
@@ -344,9 +344,9 @@ describe('the import entry point', () => {
 
 /**
  * [P5.0] — the Lorebooks panel, which is
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s first of six and
+ * [polish §4](../../../../docs/design/workplan/06-polish.md)'s first of six and
  * is specified in the design rather than left to this page
- * ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)), because a lorebook is
+ * ([10 §5.3](../../../../docs/design/10-ui-surfaces.md)), because a lorebook is
  * the only library kind whose object is a collection.
  *
  * **The assertion that matters is the badge**, and §5.3 says why: a disabled
@@ -499,7 +499,7 @@ describe('the Lorebooks panel', () => {
    * belongs to the query client, and `sort` reorders in place.
    */
   /**
-   * §5.3's four: tags, scope, enabled, source. The first is the one [10 §5]
+   * §5.3's four: tags, scope, enabled, source. The first is the one [04 §5]
    * documented a consumer for and never got.
    */
   describe('the four filters', () => {
@@ -532,7 +532,7 @@ describe('the Lorebooks panel', () => {
     }
 
     /**
-     * **Tags moved out of this panel** — [25 §5](../../../../docs/design/25-tagging.md).
+     * **Tags moved out of this panel** — [05 §5](../../../../docs/design/05-tagging.md).
      * They are on every kind while scope, enabled and source are the lorebook's,
      * so the single-select this block used to drive is now a three-state chip
      * bar on the page. Its own tests are in `tags/TagFilterBar.test.tsx`; what

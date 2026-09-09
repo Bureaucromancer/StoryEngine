@@ -14,7 +14,7 @@ import { sweep } from './sweep.js';
 
 /**
  * **A folder of loose cards converts** — [P4 §7.8]'s repair
- * ([06 §7.8](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.8](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * `classifyRoot` has always answered `loose-files` for a directory that matches
  * no probe, and `sweep.ts` has always handed it to the SillyTavern walker on the

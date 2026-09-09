@@ -1,4 +1,4 @@
-# 23 — P6A implementation plan: Alpha 1
+# 19 — P6A implementation plan: Alpha 1
 
 **Status: ~~plan~~ ~~in progress~~ ~~built, unwalked~~ landed; the phase closes
 on its merge into `main`, and the exit gate is the Alpha 1 cut, which waits on a
@@ -32,8 +32,8 @@ Unusually for these documents there is no half-revisit, no skeleton and no
 **[AWAITS]** marker. P6 merged the morning this was written, the phase starts
 now, and every precondition it depends on is checkable today rather than on the
 day. That is the whole reason it reads differently from
-[08](08-p6-implementation.md) and [18](18-p7-implementation.md) through
-[22](22-p11-implementation.md): those are plans for phases at a distance, and
+[P6](docs/design/workplan/18-p6-implementation.md) and [P7](docs/design/workplan/23-p7-implementation.md) through
+[P11](docs/design/workplan/27-p11-implementation.md): those are plans for phases at a distance, and
 this is a plan for the phase in front of us.
 
 **P6A delivers one thing, and the rest is what that thing needs:** a build you
@@ -47,17 +47,17 @@ token out of `docker logs`, create an admin, and play a session — with the
 working tree in any state at all, and the running build able to say exactly which
 commit it came from.*
 
-**Citation convention**, following [P5](07-p5-implementation.md) and
-[P4](06-p4-implementation.md): **`releases §N`** means
-[11-repo-and-releases](11-repo-and-releases.md); **`testing §N`** means
-[10-testing](10-testing.md); bare numbers are design documents one level up. Code
+**Citation convention**, following [P5](docs/design/workplan/17-p5-implementation.md) and
+[P4](docs/design/workplan/16-p4-implementation.md): **`releases §N`** means
+[releases-repo-and-releases](docs/design/workplan/04-repo-and-releases.md); **`testing §N`** means
+[testing-testing](docs/design/workplan/03-testing.md); bare numbers are design documents one level up. Code
 paths are relative to `packages/<pkg>/src`.
 
 ---
 
 ## 0. What this phase is, and the correction it opens with
 
-**It is not a distribution.** [releases §0](11-repo-and-releases.md) defers
+**It is not a distribution.** [releases §0](docs/design/workplan/04-repo-and-releases.md) defers
 release engineering to beta on the argument that *"building them now would be
 maintaining a distribution for software that has no users"*, and that argument is
 right and survives this phase untouched. What it does not distinguish — and what
@@ -71,11 +71,11 @@ this phase turns on — is the difference between:
 P6A is the second. The repository is private, the registry package is private,
 and the unraid template is written and committed rather than submitted. Nothing
 about `latest`, `nightly`, the tarball or the other four packaging artifacts
-moves, and [releases §8](11-repo-and-releases.md)'s gate on those stands exactly
+moves, and [releases §8](docs/design/workplan/04-repo-and-releases.md)'s gate on those stands exactly
 where it was.
 
 **Which is also the line this phase must not blur.** AGPL §13 attaches on
-distribution ([04 §7](../04-server-multiuser-deployment.md)), so it does not
+distribution ([09 §7](../09-server-multiuser-deployment.md)), so it does not
 attach here — and the moment the image goes public, the repository must go with
 it and the §13 surface comes too. That is a sentence in §4, not work in this
 phase, and it is written down so that the decision to publish is taken
@@ -110,7 +110,7 @@ The config file lives *inside* the data directory — `new Layout(dataDir).confi
 in `main.ts` — so a container started against an empty `/data` volume finds no
 config file, falls back to `DEFAULT_CONFIG`, and binds `127.0.0.1`. Inside a
 container that is the container's own loopback, which is precisely the failure
-[04 §5.3](../04-server-multiuser-deployment.md) describes: the image *"would
+[09 §5.3](../09-server-multiuser-deployment.md) describes: the image *"would
 appear completely dead on first run"*.
 
 **And three files already say it does the right thing.** `config.example.json:34`
@@ -127,7 +127,7 @@ is the **serving** claim rather than the bind one — equally false today, and m
 true by §0.3's stage rather than this one. Recorded rather than quietly widened,
 because the stage that owns a false sentence is the stage that makes it true.
 
-**The mechanism is constrained, not free.** [P10 §1.2](21-p10-implementation.md)
+**The mechanism is constrained, not free.** [P10 §1.2](docs/design/workplan/26-p10-implementation.md)
 already ruled out the obvious shortcut — the image shipping a different baked
 default — as *"a hidden difference between artifacts"*, and requires **one
 documented environment variable** that a bare-metal operator can set to get the
@@ -161,9 +161,9 @@ the 404 that passage already rejects.
 **Adding the config key is a five-place edit and a test enforces it.** A
 `server.clientRoot` key touches the schema, `CONFIG_TIERS` and `DEFAULT_CONFIG`
 in `config.ts`, then `config.example.json` — and then **the markdown tier table
-in [13 §4](../13-internal-contracts.md)**, because `config.test.ts` reads that
+in [21 §4](../21-internal-contracts.md)**, because `config.test.ts` reads that
 document, regex-parses the table, and asserts key-for-key equality with
-`configKeys()`. This is [01 §2.3](01-work-plan.md)'s mechanically-checked core
+`configKeys()`. This is [work plan §2.3](docs/design/workplan/01-work-plan.md)'s mechanically-checked core
 doing its job, and it is worth naming here so nobody discovers it as a red test.
 
 ### 0.4 Readiness — the two deferrals the image expires
@@ -174,12 +174,12 @@ doing its job, and it is worth naming here so nobody discovers it as a red test.
   with no admin — *"anyone who can reach this port can claim this install"* — and
   enforces nothing. The comment beside it (F10) says the token *"lands with the
   container image that needs it, at P10"*, and
-  [04 §5.1](../04-server-multiuser-deployment.md) states the condition plainly:
+  [09 §5.1](../09-server-multiuser-deployment.md) states the condition plainly:
   *until an image ships, nothing binds non-loopback without someone typing the
   bind address.* **This phase ships that image**, so the deferral's own trigger
   fires here rather than at P10. The scheduling was always against the artifact,
   not against the phase number.
-- **Cookie `secure` and `trustProxy`.** [P2 §2.11](04-p2-implementation.md)
+- **Cookie `secure` and `trustProxy`.** [P2 §2.11](docs/design/workplan/08-p2-implementation.md)
   deferred these citing *the loopback default* as what made deferring safe, and
   `routes/auth.ts:56` hardcodes `const secure = false`. A container binding
   `0.0.0.0` — typically behind the reverse proxy an unraid user already runs —
@@ -199,12 +199,12 @@ days.
 
 ### 0.5 Readiness — what is already there
 
-Worth stating, because it is the half of [releases §8](11-repo-and-releases.md)'s
+Worth stating, because it is the half of [releases §8](docs/design/workplan/04-repo-and-releases.md)'s
 gate that is already met:
 
 - **CI runs the per-PR tier on ubuntu and Windows** — format, typecheck, lint,
   build, the emitted-schema drift check, the suite, and the named P1 gate step.
-  [testing §6](10-testing.md)'s *"must be fast enough that it is never skipped"*
+  [testing §6](docs/design/workplan/03-testing.md)'s *"must be fast enough that it is never skipped"*
   tier exists and is green. What is absent, and this phase adds one of them, is
   the nightly and on-tag tiers.
 - **`pnpm build` already builds the client.** The root script runs `tsc -b`, the
@@ -228,7 +228,7 @@ gate that is already met:
   (§1.6) — which is the one place a human edits it; the four workspace packages
   stay `0.0.0`, and nothing reads them. The trigger is filtered, and the filter
   has a test.*
-- **No CHANGELOG.** [releases §7](11-repo-and-releases.md) requires an entry per
+- **No CHANGELOG.** [releases §7](docs/design/workplan/04-repo-and-releases.md) requires an entry per
   release tag. *Written at [P6A.3]; the entry is in it — headed `0.1.0-alpha.1`
   then, `1.0.0-alpha.1` since the close — marked unreleased until the tag is
   cut.*
@@ -236,8 +236,8 @@ gate that is already met:
   directory, and nothing refuses to open one it does not understand.
   *`state/build.json` since [P6A.3], and the refusal with it.*
 - **The image's own shape is an open question the corpus already flagged.**
-  [P10 §5](21-p10-implementation.md) records *"what the container image actually
-  is"* as unsettled and sends it to [07](../07-tech-stack.md), which does not
+  [P10 §5](docs/design/workplan/26-p10-implementation.md) records *"what the container image actually
+  is"* as unsettled and sends it to [19](../19-tech-stack.md), which does not
   answer it. This document is where it gets answered. *Answered at [P6A.4]:
   `node:26-slim`, pnpm ~~from corepack~~ installed with npm at the version
   `packageManager` pins — the first run of the workflow found that Node 25 had
@@ -263,7 +263,7 @@ surface, and no auto-update audience.
 
 **This is a stronger position than a public alpha, not a weaker one.** A public
 alpha of software whose storage tier is still licensed to change without
-migration ([13](../13-internal-contracts.md)'s preamble grants that freedom
+migration ([21](../21-internal-contracts.md)'s preamble grants that freedom
 explicitly *because nothing leaves the install*) would convert open design
 questions into compatibility questions against strangers' data. Staying private
 keeps that licence intact, and three unbuilt phases still depend on it.
@@ -276,7 +276,7 @@ directory beside it so the container's whole bootstrap is one mechanism rather
 than a flag, a variable and a file.
 
 **The container sets the documented variable; it does not get a different
-build.** That is [P10 §1.2](21-p10-implementation.md)'s requirement and the
+build.** That is [P10 §1.2](docs/design/workplan/26-p10-implementation.md)'s requirement and the
 reason it exists — a bare-metal operator can set the same variable to get the
 same behaviour, and a container operator can set it the other way to tighten. The
 image's `0.0.0.0` is then a line in the Dockerfile that anybody can read and
@@ -298,9 +298,9 @@ must stay that way, and `pnpm dev` not changing is an exit-gate step rather than
 an assumption.
 
 **What this buys beyond the image** is the class
-[P2C](15-p2c-first-real-run.md) listed as structurally out of reach: cookie scope
+[P2C](docs/design/workplan/12-p2c-first-real-run.md) listed as structurally out of reach: cookie scope
 on a single origin, asset caching, and the reverse-proxy case
-[04 §5](../04-server-multiuser-deployment.md) describes. That phase could not
+[09 §5](../09-server-multiuser-deployment.md) describes. That phase could not
 test any of it because everything ran behind Vite's dev proxy.
 
 ### 1.4 Both halves of F10
@@ -310,7 +310,7 @@ test any of it because everything ran behind Vite's dev proxy.
 and no admin exists; advertised as a boolean on `GET /api/auth/state` so the
 client can render the field rather than guess; printed to the log on first boot
 in that condition. Compared in constant time.
-[P10 §1.1](21-p10-implementation.md)'s framing is the one to keep — **the check,
+[P10 §1.1](docs/design/workplan/26-p10-implementation.md)'s framing is the one to keep — **the check,
 not the print** — because P1 already printed a token that nothing verified, and
 an operator who reads "setup token" in a console reasonably concludes something
 is enforcing it.
@@ -329,18 +329,18 @@ purpose, and because the on-tag workflow has the values in hand for free. The
 running server reports them on an existing route.
 
 **Not built:** the version-aware Source link and the About surface
-([04 §6.5](../04-server-multiuser-deployment.md),
-[04 §7](../04-server-multiuser-deployment.md), P10.5, P11.6). §13 does not attach
+([09 §6.5](../09-server-multiuser-deployment.md),
+[09 §7](../09-server-multiuser-deployment.md), P10.5, P11.6). §13 does not attach
 to an undistributed build, and there is a second reason to be glad of that: **no
 document actually specifies an About surface.**
-[05 §15.3](../05-ui-surfaces.md) enumerates the admin panels and About is not
+[10 §15.3](../10-ui-surfaces.md) enumerates the admin panels and About is not
 among them, so a public Alpha 1 would have had to invent that specification under
 deadline. It stays where it is planned, and P6A hands it a version string that
 already exists.
 
 *Half of it since alpha.2:* the version has a surface — the footer on every
 page and an About block at the top of Settings, fed by `GET /api/auth/state`
-and specified at [05 §15.1](../05-ui-surfaces.md) — because Alpha 1's first
+and specified at [10 §15.1](../10-ui-surfaces.md) — because Alpha 1's first
 install could not name the build it was running from inside the app. The §13
 link is still not built, and §4's condition is unchanged.
 
@@ -350,27 +350,27 @@ link is still not built, and §4's condition is unchanged.
 
 **~~`v0.1.0-alpha.1`~~ `v1.0.0-alpha.1`.** Prefixed `v` because the on-tag
 trigger has to filter `tags: ['v*']` to avoid firing on `p1`; ~~`0.1.0` because
-[releases §7](11-repo-and-releases.md) already concedes that pre-1.0 semver
+[releases §7](docs/design/workplan/04-repo-and-releases.md) already concedes that pre-1.0 semver
 *"means little"* and the data formats carry the real compatibility story~~
 `1.0.0` because every prerelease is named after the release it leads to;
 `-alpha.1` because it sorts correctly and increments without argument.
 
 *Renamed at the close, 2026-09-05, before the tag existed.* The stages were
-built and recorded under `0.1.0`, and [releases §7.1](11-repo-and-releases.md)
+built and recorded under `0.1.0`, and [releases §7.1](docs/design/workplan/04-repo-and-releases.md)
 — the naming scheme, recorded the same day — made the cost of that visible: it
 left the alpha as the one series whose name could not be derived from its
 string by the rule every other build follows, and made `0.1.0` a constant that
 meant nothing. So this build is *1.0-alpha 1*, the first prerelease of 1.0, and
-[releases §8](11-repo-and-releases.md) keeps the question as it was put. Every
+[releases §8](docs/design/workplan/04-repo-and-releases.md) keeps the question as it was put. Every
 file that names the version was renamed in one commit and
 `tools/release.test.ts` is what proves they agree; the stage records below keep
 `0.1.0-alpha.1` where they quote what a process printed, because that is what
 it printed. The same commit fixed two things in the workflow that no build had
 yet reached — the P6A.4 record says what.
 
-**No release branch.** [releases §2](11-repo-and-releases.md) makes release
+**No release branch.** [releases §2](docs/design/workplan/04-repo-and-releases.md) makes release
 branches per minor line, and cutting one here would switch on
-[releases §3](11-repo-and-releases.md)'s forward-port obligation for a line
+[releases §3](docs/design/workplan/04-repo-and-releases.md)'s forward-port obligation for a line
 nobody is maintaining. Pre-1.0 prereleases are tags on `main` and nothing else.
 
 **And no `latest` alias is moved.** `updates.channel` already ships as a closed
@@ -379,10 +379,10 @@ union of `latest | testing | nightly`, defaulting to `latest`, at `config.ts:189
 the first thing `latest` could name, and unraid's auto-update and watchtower both
 track exactly that alias. Publishing under the immutable tag only means the
 channel still names nothing, which is what
-[releases §0](11-repo-and-releases.md) says alpha should be.
+[releases §0](docs/design/workplan/04-repo-and-releases.md) says alpha should be.
 
 *Since alpha.2 the `testing` alias does move, with every tag
-([releases §4](11-repo-and-releases.md)) — the maintainer's own decision after
+([releases §4](docs/design/workplan/04-repo-and-releases.md)) — the maintainer's own decision after
 the first unraid install wanted a channel to follow; `latest` still does not.*
 
 ### 1.7 A data-directory stamp, and nothing more
@@ -391,7 +391,7 @@ Write the build identity into the data directory on first open, and refuse to
 open a directory written by a *newer* build than the one running.
 
 **That is the whole of it, and the reason it is so small is §1.1.**
-[13](../13-internal-contracts.md) licenses the storage tier to change without
+[21](../21-internal-contracts.md) licenses the storage tier to change without
 migration on the condition that nothing leaves the install. Nothing does. So the
 hazard is not strangers losing data, it is *you* pointing an older build at a
 volume a newer one has already migrated in place — which is a foot-gun a stamp
@@ -405,10 +405,10 @@ is listed in §4 as the price of publishing rather than built now.
 
 **Packaging ownership is already contested three ways before this phase exists**,
 which is the finding that most needs writing down:
-[P10.0](21-p10-implementation.md) builds a container image and makes `docker run`
-its exit gate; [P10 §4](21-p10-implementation.md) declares packaging out of scope
-as P11's; and [04 §5.4](../04-server-multiuser-deployment.md) says all six
-artifacts are owned by P11. [01 §0.5](01-work-plan.md)'s own lesson — *"a bar
+[P10.0](docs/design/workplan/26-p10-implementation.md) builds a container image and makes `docker run`
+its exit gate; [P10 §4](docs/design/workplan/26-p10-implementation.md) declares packaging out of scope
+as P11's; and [09 §5.4](../09-server-multiuser-deployment.md) says all six
+artifacts are owned by P11. [work plan §0.5](docs/design/workplan/01-work-plan.md)'s own lesson — *"a bar
 nobody owns is a wish"* — has a converse, and this is it: two owners for one
 artifact is the same defect read from the other end.
 
@@ -417,15 +417,15 @@ So, once, and cited from the other three documents rather than restated in them:
 - **P6A builds** the OCI image, the compose file, the unraid template, the on-tag
   workflow, the environment layer, static serving, and both halves of F10.
 - **P10 consumes** them: mDNS, the notification router, the gallery, the
-  remainder of [05 §15](../05-ui-surfaces.md). Its bind, token and container
+  remainder of [10 §15](../10-ui-surfaces.md). Its bind, token and container
   sections cite this document instead of planning the work.
 - **P11 keeps** the tarball and the other four artifacts, public distribution,
   the §13 surface, the update check, and the channels.
 
 **And the unraid template is not a seventh artifact.**
-[04 §5.4](../04-server-multiuser-deployment.md) calls it *"a thin wrapper over"*
-Tier 1, [06 D0b](../06-open-questions.md)'s canonical enumeration names six and
-does not include it, and [P11 §1.8](22-p11-implementation.md) currently lists
+[09 §5.4](../09-server-multiuser-deployment.md) calls it *"a thin wrapper over"*
+Tier 1, [25 D0b](../25-open-questions.md)'s canonical enumeration names six and
+does not include it, and [P11 §1.8](docs/design/workplan/27-p11-implementation.md) currently lists
 five names while counting four. Scheduling it with the image resolves the
 miscount rather than adding to it.
 
@@ -479,9 +479,9 @@ argument defaults to *none* rather than to `process.env`, so a test that loads a
 config does not depend on the machine it runs on — the convenience fails open
 where the argument fails closed.
 
-**The variable table is in [13 §4](../13-internal-contracts.md) and a test parses
+**The variable table is in [21 §4](../21-internal-contracts.md) and a test parses
 it**, the same way the tier table has been checked since P2A. That is the
-requirement rather than a courtesy: [P10 §1.2](21-p10-implementation.md) asks for
+requirement rather than a courtesy: [P10 §1.2](docs/design/workplan/26-p10-implementation.md) asks for
 *one documented environment variable* precisely so that the image is not a build
 that behaves differently, and an undocumented variable would satisfy the code and
 fail the rule.
@@ -512,7 +512,7 @@ The root namespace really was empty, there really was no `setNotFoundHandler`
 anywhere, and the client really needed no change — `vite.config.ts` sets no
 `base`, so the built `index.html` names `/assets/…` absolutely and every call in
 `api.ts` is already a relative `/api/…`. The five-place edit landed as described,
-including [13 §4](../13-internal-contracts.md)'s markdown table, and
+including [21 §4](../21-internal-contracts.md)'s markdown table, and
 `config.test.ts` was the thing that would have caught it if it had not.
 
 **Where §0.3 was wrong: `isApi` in the fallback is necessary and not
@@ -545,7 +545,7 @@ default, which nothing had ever chosen, and which is not the `{error, message}`
 shape [docs/api.md](../../api.md) documents. It is `404 {"error":"not-found"}`
 now, in development and in a packaged build alike, and the API doc says so.
 
-**One dependency, argued in [07 §7](../07-tech-stack.md) rather than noticed in a
+**One dependency, argued in [19 §7](../19-tech-stack.md) rather than noticed in a
 lockfile**, per that section's own convention. `@fastify/static` is MIT, pinned,
 first-party to Fastify, and the surface depended on is `root`, `allowedPath` and
 `reply.sendFile`. Sixteen transitive packages, which is the largest addition so
@@ -569,7 +569,7 @@ rendered from one origin with no console error.
 *The stage as it was written:*
 
 > §1.3: `@fastify/static`, the `server.clientRoot` key with its five-place edit
-> including [13 §4](../13-internal-contracts.md)'s table, and the SPA fallback
+> including [21 §4](../21-internal-contracts.md)'s table, and the SPA fallback
 > branching on `isApi`.
 >
 > *Ends at:* one process on one port serving both halves — and `pnpm dev`
@@ -606,21 +606,21 @@ bug rather than an inconsistency.
 **The twin turned out to be half-done already.** §1.4 asks for cookie `secure`
 *and* `trustProxy` to become config; `trustProxy` had already become a config key
 at P2A and is already wired into `Fastify({ … })`. So what this stage owed was
-`server.cookieSecure`, and [04 §5.1](../04-server-multiuser-deployment.md) and
-[P2 §2.11](04-p2-implementation.md) now say so rather than leaving a reader to
+`server.cookieSecure`, and [09 §5.1](../09-server-multiuser-deployment.md) and
+[P2 §2.11](docs/design/workplan/08-p2-implementation.md) now say so rather than leaving a reader to
 find one of the two missing.
 
 **And it is deliberately not derived from the bind**, which is the one place the
 obvious rule is wrong. *Secure whenever exposed* sounds right and would lock out
-the trusted-LAN install [04 §5.1] explicitly supports: a `Secure` cookie is not
+the trusted-LAN install [09 §5.1] explicitly supports: a `Secure` cookie is not
 sent back over plain HTTP, so signing in would fail with no error anywhere,
 because the browser declines silently. It is the operator's statement that TLS
 is in front — the same thing `trustProxy` beside it is.
 
 **The five-place edit was caught by the tests rather than by memory**, which is
-the mechanism [01 §2.3](01-work-plan.md) asks for working: the key landed in the
+the mechanism [work plan §2.3](docs/design/workplan/01-work-plan.md) asks for working: the key landed in the
 schema, the tiers and `DEFAULT_CONFIG`, the suite went red on
-`config.example.json` and [13 §4](../13-internal-contracts.md)'s table, and named
+`config.example.json` and [21 §4](../21-internal-contracts.md)'s table, and named
 both.
 
 Twelve mutations, twelve red, across the server and the client. Not covered here
@@ -699,7 +699,7 @@ that [§3](#3-verification--the-p6a-exit-gate) step 8 will ask it of.
 
 > §1.5's build-time embed reported by the running server, §1.7's data-directory
 > stamp, and the CHANGELOG with the entry convention
-> [releases §7](11-repo-and-releases.md) requires.
+> [releases §7](docs/design/workplan/04-repo-and-releases.md) requires.
 >
 > *Ends at:* a running server that names its own commit, and an older build that
 > declines a newer volume.
@@ -739,7 +739,7 @@ matters immediately.
 a container had no way to say where the client was — the config file lives
 *inside* the data directory, which on a first run is an empty volume. It is a
 fifth entry in `CONFIG_ENVIRONMENT` and a row in
-[13 §4](../13-internal-contracts.md)'s table, which `config.test.ts` enforces.
+[21 §4](../21-internal-contracts.md)'s table, which `config.test.ts` enforces.
 
 **Two checks made mechanical rather than remembered.** `write-build-info.mjs`
 gained `--expect-version`, so a tag that disagrees with the root `package.json`
@@ -750,7 +750,7 @@ entry, `compose.yaml`'s image tag and the unraid template's `Repository`. The
 workflow could never have caught the last two.
 
 **`slim` rather than `alpine`**, deliberately paying a few tens of megabytes:
-this server formats numbers and dates against a user's locale ([04 §4.2]), and a
+this server formats numbers and dates against a user's locale ([09 §4.2]), and a
 musl base with a trimmed ICU shows up as one wrong separator in one language
 rather than as a build failure. Nothing needs a native compiler — SQLite is
 `node:sqlite` — so the usual reason for alpine does not apply.
@@ -758,7 +758,7 @@ rather than as a build failure. Nothing needs a native compiler — SQLite is
 **The unraid template lost its icon before it gained anything.** The first draft
 pointed `<Icon>` at `packages/client/public/favicon.svg`; the client ships no
 `public/` directory and names no favicon, so that was a template with a URL that
-404s — [04 §5.3]'s *"a template that only half-works is worse than none"*,
+404s — [09 §5.3]'s *"a template that only half-works is worse than none"*,
 committed. It has no icon element and a comment saying when to add one.
 
 *Overtaken the same evening, and it changes nothing yet.* `893fd91` on `main`
@@ -808,7 +808,7 @@ version, and a missing `SE_CLIENT_ROOT`.
 > base with corepack pnpm 11.18.0 (`.npmrc` is `engine-strict=true`, so a lower
 > base fails hard rather than warning); the `workspace:*` prune story; the `/data`
 > volume and the non-root user; `compose.yaml`, because
-> [04 §5.4](../04-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
+> [09 §5.4](../09-server-multiuser-deployment.md)'s Tier 1 is *"image plus a
 > compose file"* and compose is therefore inside the deliverable rather than beside
 > it; the unraid template; and the on-tag workflow filtered to `v*`, publishing to
 > a **private** GHCR package.
@@ -826,13 +826,13 @@ rather than merely built.
 **It must say plainly that the package is private**, and therefore that the
 unraid host needs a registry credential before the template will pull. An unraid
 template whose image cannot be fetched is exactly
-[04 §5.3](../04-server-multiuser-deployment.md)'s *"a template that only
+[09 §5.3](../09-server-multiuser-deployment.md)'s *"a template that only
 half-works is worse than none"* — and the honest way to ship one against a
 private registry is to say so at the top rather than to let it fail at install.
 
-**Submitted to nobody.** [04 §5.3](../04-server-multiuser-deployment.md)'s
+**Submitted to nobody.** [09 §5.3](../09-server-multiuser-deployment.md)'s
 `[OPEN]` on the Community Applications store closes as a recorded deferral in
-this phase, for [04 §5.4](../04-server-multiuser-deployment.md)'s own reason:
+this phase, for [09 §5.4](../09-server-multiuser-deployment.md)'s own reason:
 every package format is *"a recurring cost, not a one-time build"*, and a store
 listing adds a moderated presence and a support thread to a project with one
 maintainer and no users yet.
@@ -845,7 +845,7 @@ Manual, numbered, and run against a build from a clean checkout at the tag — n
 against the working tree, because a gate that passes on the developer's machine
 state is testing the wrong thing.
 
-*Annotated at the close, 2026-09-05, in the shape [P6 §3](08-p6-implementation.md)
+*Annotated at the close, 2026-09-05, in the shape [P6 §3](docs/design/workplan/18-p6-implementation.md)
 uses: under each step, what the suite already proves and what only the walk can.
 Nothing here is ticked. The suite drives the app through `fastify.inject` and a
 config-bound host — never a socket, never a container — so what it proves is
@@ -881,7 +881,7 @@ the walk.*
    tag exists and the workflow ran; *a second build from the same tag behaves
    identically* is still the walk. The move is the one time this repository
    has moved a `v*` tag, and the reason it was allowed is the reason
-   [releases §2](11-repo-and-releases.md) makes them immutable: a tag answers
+   [releases §2](docs/design/workplan/04-repo-and-releases.md) makes them immutable: a tag answers
    *what precisely is the user running*, and nobody had run anything.
 2. **The trigger is filtered.** Pushing an unrelated non-`v` tag does not fire
    the release workflow.
@@ -926,7 +926,7 @@ the walk.*
 7. **A turn, from another machine.** Sign in from a host that is not the
    container's host and take a turn end to end.
    **Nothing covered.** Two machines and a model that is not ours — the clause
-   that has kept three earlier gates open ([P2C](15-p2c-first-real-run.md)).
+   that has kept three earlier gates open ([P2C](docs/design/workplan/12-p2c-first-real-run.md)).
 8. **Identity.** The running server reports a version and commit matching the
    tag.
    **Mechanism covered at P6A.3** in `build-info.test.ts`, and checked against
@@ -981,12 +981,12 @@ the walk.*
 the AGPL §13 Source link, the About surface, the CA store submission, and the
 no-carry-forward apparatus §1.7 replaced with a stamp. **These travel together
 and must be taken together**: a public image obliges a public repository at the
-same instant, because [04 §7](../04-server-multiuser-deployment.md)'s link has to
+same instant, because [09 §7](../09-server-multiuser-deployment.md)'s link has to
 resolve for the person running it. The decision to publish is therefore a
 decision to do all of it, and naming that here is what stops it from happening by
 way of a registry visibility toggle.
 
-**`nightly`, and moving `latest`.** [releases §4](11-repo-and-releases.md)'s
+**`nightly`, and moving `latest`.** [releases §4](docs/design/workplan/04-repo-and-releases.md)'s
 channels stay P11's. A nightly for a single-developer project is a build of a
 tree already on that developer's disk.
 
@@ -994,10 +994,10 @@ tree already on that developer's disk.
 `.deb`, AUR, the Windows service, the Homebrew tap. P11's, per §1.8.
 
 **mDNS, the notification router, the gallery, the remainder of
-[05 §15](../05-ui-surfaces.md).** P10's, per §1.8.
+[10 §15](../10-ui-surfaces.md).** P10's, per §1.8.
 
 **Reproducible builds in the strict bit-for-bit sense.**
-[01 §8](01-work-plan.md) asks for them at the beta bar. This phase asks only that
+[work plan §8](docs/design/workplan/01-work-plan.md) asks for them at the beta bar. This phase asks only that
 two builds of one tag behave identically, which is gate step 1.
 
 **Migration machinery.** §1.7's stamp refuses; it does not convert.
@@ -1007,11 +1007,11 @@ two builds of one tag behave identically, which is gate step 1.
 ## 5. The one thing left open
 
 **Whether Alpha 1 is cut before PLAYABLE has run.**
-[P6 §0.3 and §5](08-p6-implementation.md) still list PLAYABLE as outstanding, and
-[01 §4.1](01-work-plan.md) calls it the milestone that matters more than beta
+[P6 §0.3 and §5](docs/design/workplan/18-p6-implementation.md) still list PLAYABLE as outstanding, and
+[work plan §4.1](docs/design/workplan/01-work-plan.md) calls it the milestone that matters more than beta
 does.
 
-Being private defuses the sharp version of this. [01 §4.1](01-work-plan.md)
+Being private defuses the sharp version of this. [work plan §4.1](docs/design/workplan/01-work-plan.md)
 defines PLAYABLE as explicitly *not something anyone else installs*, so cutting a
 private, undistributed build first reorders nothing that document cares about —
 and there is a case that a one-command install makes PLAYABLE easier to actually

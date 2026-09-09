@@ -7,7 +7,7 @@ import { SILLYTAVERN_SENSITIVE_FIELDS, stripSensitiveFields } from './sensitive-
 
 /**
  * The vendored snapshot, checked against the fields
- * [10 §8.4.4](../../../../../docs/design/10-schemas.md) names.
+ * [04 §8.4.4](../../../../../docs/design/04-schemas.md) names.
  *
  * §1.1 asked for the list to be *"derived from that category rather than
  * enumerated by hand"*, and this is the half of that promise a test can keep: if

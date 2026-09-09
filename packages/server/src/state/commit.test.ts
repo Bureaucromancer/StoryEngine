@@ -354,7 +354,7 @@ describe('a turn on disk with no job is reconciled into the session', () => {
 
   it('stops at a fork rather than choosing a branch', async () => {
     // Two children of the same head is a branch, and P2 has no semantics for
-    // picking one ([09 §4]). Guessing would silently choose somebody's story.
+    // picking one ([07 §4]). Guessing would silently choose somebody's story.
     await appendTurnOnly(context.sessions, ACCOUNT, sessionId, orphanTurn(null, 9));
     await appendTurnOnly(context.sessions, ACCOUNT, sessionId, orphanTurn(null, 10));
 

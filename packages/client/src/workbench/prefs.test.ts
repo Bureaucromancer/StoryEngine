@@ -16,7 +16,7 @@ import {
 } from './prefs.js';
 
 /**
- * The pure half of [P3.1a](../../../../docs/design/workplan/05-p3-implementation.md):
+ * The pure half of [P3.1a](../../../../docs/design/workplan/15-p3-implementation.md):
  * what the workbench reads out of a prefs document it does not control.
  * `prefs.json` is hand-editable by design and the server validates nothing
  * but the key shape, so the read helpers are the whole defence — the clamp

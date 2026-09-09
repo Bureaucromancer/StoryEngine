@@ -14,12 +14,12 @@ import { describe, expect, it } from 'vitest';
  * and a playable session* produced a session that resolved zero books. It
  * shipped that way through P5 and P6 and nothing noticed, because no test
  * looked at the script and every server test builds its selection by hand —
- * which is [P5 §0.5](../docs/design/workplan/07-p5-implementation.md)'s
+ * which is [P5 §0.5](../docs/design/workplan/17-p5-implementation.md)'s
  * finding, and half the reason PLAYABLE could not run.
  *
  * **A text assertion, and it is weak on purpose.** The honest proof is the
  * walk — reset, seed, take a turn, read the lore report — and that is
- * [P6B §3](../docs/design/workplan/24-p6b-playable.md) step 3, a person's.
+ * [P6B §3](../docs/design/workplan/20-p6b-playable.md) step 3, a person's.
  * What this catches is the regression: somebody editing the session block and
  * dropping the field again, silently, exactly as before. The same weak-but-real
  * shape `release.test.ts` uses on the workflow, and for the same reason.

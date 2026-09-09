@@ -9,7 +9,7 @@ import { testPattern, type PatternOutcome } from './regex.js';
  * Does this entry's text match — and nothing else.
  *
  * **Pure, and that is the stage's own argument**
- * ([P5.4](../../../../docs/design/workplan/07-p5-implementation.md)): keys,
+ * ([P5.4](../../../../docs/design/workplan/17-p5-implementation.md)): keys,
  * secondary keys with selective logic, whole-word, case, regex, scan depth and
  * scan sources, as functions over values. Everything that decides whether a
  * matched entry actually *fires* — `enabled`, the folder gate, `constant`,
@@ -17,7 +17,7 @@ import { testPattern, type PatternOutcome } from './regex.js';
  * one, and keeping it out is what makes this the cheapest place in the phase to
  * be exhaustive.
  *
- * **It answers with why, not with a boolean.** [02 §3.1](../../../../docs/design/02-data-model.md)
+ * **It answers with why, not with a boolean.** [03 §3.1](../../../../docs/design/03-data-model.md)
  * takes Marinara's `LorebookActivationSource` as the per-block *why was this
  * included* value, and [P5 §1.3] wires that into block reasons at P5.6. A
  * matcher that returned `true` would have thrown away the only thing those
@@ -58,7 +58,7 @@ export interface ScanInput {
   recursed?: readonly string[];
   /**
    * The named haystacks `additionalMatchingSources` can ask for — a persona's
-   * tags, a card's description ([10 §5](../../../../docs/design/10-schemas.md)).
+   * tags, a card's description ([04 §5](../../../../docs/design/04-schemas.md)).
    *
    * A source an entry names and this does not supply is simply not scanned, and
    * is reported: an entry that never fires because it is looking somewhere that
@@ -156,7 +156,7 @@ function keyMatches(
  * entry also asked to look at.
  *
  * `null` on the entry inherits the book's, and **`0` means the whole session**
- * at either level ([10 §5]). Zero-as-unlimited is the format's convention and
+ * at either level ([04 §5]). Zero-as-unlimited is the format's convention and
  * not ours to improve: the books that carry it were written elsewhere.
  */
 function haystacksFor(

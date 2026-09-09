@@ -122,7 +122,7 @@ describe('--reset-password', () => {
 
   it('honours no minimum, because the console is the authority', async () => {
     // `auth.minPasswordLength` is what the API refuses on. This path is the
-    // break-glass ([04 §5.1]) and takes what it is given — five characters, or
+    // break-glass ([09 §5.1]) and takes what it is given — five characters, or
     // one, on an install configured to demand twelve.
     await anAccount();
 
@@ -196,7 +196,7 @@ describe('--reset-password', () => {
 
 /**
  * **A missing config file announces itself in the voice of a problem** —
- * finding 9 in [16](../../../docs/design/workplan/16-p2c-log.md).
+ * finding 9 in [P2C log](../../../docs/design/workplan/14-p2c-log.md).
  *
  * It is an ordinary state on a first boot and an alarming one on every boot
  * after: a teardown that takes `config.json` reverts the port and the data
@@ -268,7 +268,7 @@ describe('the config-file line', () => {
 
   /**
    * **The environment layer, where it actually has to work** — [P6A.0],
-   * [P6A §1.2], [P10 §1.2](../../../docs/design/workplan/21-p10-implementation.md).
+   * [P6A §1.2], [P10 §1.2](../../../docs/design/workplan/26-p10-implementation.md).
    *
    * `config.test.ts` proves the resolver: what the layers are and which wins.
    * What it cannot prove is that this entry point *uses* it, and that is the
@@ -382,7 +382,7 @@ describe('the config-file line', () => {
 /**
  * **A data directory the process cannot use is refused in one line** — what
  * Alpha 1's first install met as an `EACCES` stack trace out of
- * `mkdir /data/state` ([P6A §3](../../../docs/design/workplan/23-p6a-alpha-1.md)
+ * `mkdir /data/state` ([P6A §3](../../../docs/design/workplan/19-p6a-alpha-1.md)
  * step 11). Driven as a child because the subject is what a person sees when
  * the server does not start: the sentence, the exit code, and no listening line.
  *

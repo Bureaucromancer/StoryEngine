@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { readFileBytes } from './storage/files.js';
 
 /**
- * What build this is — [P6A §1.5](../../../docs/design/workplan/23-p6a-alpha-1.md),
- * [releases §7](../../../docs/design/workplan/11-repo-and-releases.md).
+ * What build this is — [P6A §1.5](../../../docs/design/workplan/19-p6a-alpha-1.md),
+ * [releases §7](../../../docs/design/workplan/04-repo-and-releases.md).
  *
  * **A frozen build that cannot say what it is defeats its own purpose.** The
  * whole of P6A is *a build you can go back to*; a running container that cannot
@@ -21,12 +21,12 @@ import { readFileBytes } from './storage/files.js';
  * such rather than as a version.
  *
  * Deliberately **not** the About surface. That is [P11.6] and needs a
- * specification no document has written yet — [05 §15.3] enumerates the admin
+ * specification no document has written yet — [10 §15.3] enumerates the admin
  * panels and About is not among them — so what this stage ships is the string,
  * and the surface arrives later to a value that already exists.
  *
  * It arrived at alpha.2, in part: the footer on every page and the About block
- * on the user half of Settings ([05 §15.1]) render this value from
+ * on the user half of Settings ([10 §15.1]) render this value from
  * `GET /api/auth/state`, after the first install of Alpha 1 could not name the
  * build it was running. The §13 link is still [P11.6]'s.
  */

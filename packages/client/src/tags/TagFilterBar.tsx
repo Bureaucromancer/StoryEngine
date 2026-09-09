@@ -7,7 +7,7 @@ import type { JSX } from 'react';
 import { tagClassFor } from '../ui/tag-colors.js';
 
 /**
- * The library's tag filter — [25 §5](../../../../docs/design/25-tagging.md).
+ * The library's tag filter — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * **Three states, not two.** Neutral, selected, excluded, and back. A two-state
  * filter can say *show me the noir ones*; it cannot say *anything but the
@@ -21,7 +21,7 @@ import { tagClassFor } from '../ui/tag-colors.js';
  *
  * **Registry order first, then everything else alphabetically.** A tag that has
  * been given a place keeps it; a tag in use that nobody has arranged still
- * appears, because it filters exactly as well ([25 §2] invariant 1) and a bar
+ * appears, because it filters exactly as well ([05 §2] invariant 1) and a bar
  * that hid it would be a bar that lied about what the shelf contains.
  */
 

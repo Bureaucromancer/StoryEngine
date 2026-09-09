@@ -22,11 +22,11 @@ import type { LoreBlock } from '../retrieval/blocks.js';
 import { collectCandidates, type CollectContext, type SampleCarriers } from './collect.js';
 
 /**
- * Step 1 of [03 §5] — collect, the preset-to-prompt mapping.
+ * Step 1 of [06 §5] — collect, the preset-to-prompt mapping.
  *
  * This file exists because an audit measured its absence: five of the
  * collector's guards could each be deleted with the entire suite green, and the
- * worst of them is the one the collector's own commit argues *is* [03 §5.2]'s
+ * worst of them is the one the collector's own commit argues *is* [06 §5.2]'s
  * structural firewall. Every test below is written to fail when its mechanism is
  * removed — which for the advisory rule means testing it with a preset that does
  * **not** declare the flag, since the shipped one satisfies both halves of the
@@ -85,7 +85,7 @@ function actorWith(name: string, body: string): Actor {
 }
 
 describe('the previous attempt is the second advisory slot', () => {
-  // [03 §5.1]: a guided redo shows the model the attempt it is redoing. Tested
+  // [06 §5.1]: a guided redo shows the model the attempt it is redoing. Tested
   // under the same rule as guidance — a preset declaring `advisory: false` —
   // because the shipped preset sets it true and would falsify nothing.
   const ATTEMPT = { turnId: 't-first', text: 'He did not look up.' };
@@ -170,7 +170,7 @@ describe('the advisory firewall is structural, not an author preference', () => 
     // **The mechanism the whole rule rests on.** `assemble` keys its refusal on
     // the candidate's flag and not on where the words came from, so a preset
     // declaring `advisory: false` here would walk guidance into an effects
-    // call. [03 §5.2] says enforce it *structurally* — a flag an author can
+    // call. [06 §5.2] says enforce it *structurally* — a flag an author can
     // clear is not structural.
     //
     // Tested with `advisory: false` precisely because the shipped preset sets
@@ -251,7 +251,7 @@ describe('what the preset says about a block is obeyed', () => {
 
   it('filters on appliesTo when it is not empty', () => {
     // Empty means all — the thing that dissolves the eight special-cased
-    // template fields [10 §8.4.3] describes.
+    // template fields [04 §8.4.3] describes.
     const only = preset([
       block({ kind: 'text', template: 'for verdicts', appliesTo: ['verdict'] }),
     ]);
@@ -336,7 +336,7 @@ describe('what the preset says about a block is obeyed', () => {
   });
 
   it('carries the author-facing label through as the reason', () => {
-    // [03 §5]: the reason is a product feature, not a debug string — it is what
+    // [06 §5]: the reason is a product feature, not a debug string — it is what
     // the workbench shows when somebody asks why a block is in the prompt.
     const { candidates } = collectCandidates(
       context({
@@ -409,7 +409,7 @@ describe('the cast fills the slots that were unreachable', () => {
   });
 
   it('renders traits and refuses to invent a rendering for visual', () => {
-    // `visual` is structured data for an image pipeline ([10 §4]) with no prose
+    // `visual` is structured data for an image pipeline ([04 §4]) with no prose
     // renderer specified — emitting something would be inventing a format.
     const { candidates: traits } = collectCandidates(
       context({
@@ -1089,9 +1089,9 @@ describe('the lore slot', () => {
 });
 
 /**
- * The other two carriers — [P5.9], [18 §7].
+ * The other two carriers — [P5.9], [14 §7].
  *
- * [18 §7] shipped this slot with only its actor arm live and said the other two
+ * [14 §7] shipped this slot with only its actor arm live and said the other two
  * would arrive when a session could reach a Treatment and its books. [P5.6]
  * made that true, and this is the wiring change §7 promised it would be.
  */
@@ -1200,7 +1200,7 @@ describe('samples from a treatment and from a book', () => {
   });
 
   /**
-   * **The order [10 §3.1] fixes**: the stance on the material, then the world,
+   * **The order [04 §3.1] fixes**: the stance on the material, then the world,
    * then the person, which is the order they narrow in. A preset that declines
    * to name a `from` is relying on it.
    */

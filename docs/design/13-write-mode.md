@@ -1,20 +1,20 @@
-# 17 — Write: the long-form prose surface
+# 13 — Write: the long-form prose surface
 
 **Status: proposal, with a release attached.** This is the design for the **2.0**
-series; [work plan §0](workplan/01-work-plan.md) is where it is scheduled. It
+series; [work plan §0](docs/design/workplan/01-work-plan.md) is where it is scheduled. It
 sits in its own file rather than as a fifth entry in
-[03 §7](03-modes-and-turn-pipeline.md) because it is not one more configuration
+[06 §7](docs/design/06-modes-and-turn-pipeline.md) because it is not one more configuration
 of the pipeline over the same artefact. Play's modes differ in what they
 assemble; this differs in **what the result lands in**, which means it touches
 the object set
-([02 §1](02-data-model.md)), the mode contract
-([03 §2](03-modes-and-turn-pipeline.md)), the surface count
-([05 §2](05-ui-surfaces.md)) and the stability tiers ([10 §1](10-schemas.md)) at
-once — the same reason [11](11-cross-session-memory.md) and
-[16](16-lorebooks-as-a-format.md) are their own documents. It is also the first
+([03 §1](docs/design/03-data-model.md)), the mode contract
+([06 §2](docs/design/06-modes-and-turn-pipeline.md)), the surface count
+([10 §2](docs/design/10-ui-surfaces.md)) and the stability tiers ([04 §1](docs/design/04-schemas.md)) at
+once — the same reason [08](docs/design/08-cross-session-memory.md) and
+[11](docs/design/11-lorebooks-as-a-format.md) are their own documents. It is also the first
 note here that asks to *change* an internal shape rather than consume one, and
 that argument (§4) wants room. It changes no portable schema. It asks for three
-optional fields on one ([10 §5](10-schemas.md)), and §13 says when they have to
+optional fields on one ([04 §5](docs/design/04-schemas.md)), and §13 says when they have to
 land — which is now 1.0, not with Write.
 
 **Write is a surface holding two modes, Outline and Prose** (§6.4). An earlier
@@ -26,7 +26,7 @@ already two clusters of work that this makes explicit rather than invents.
 
 **It is nearer than it was.** This document described a far release when it was
 written and now describes the next one, and §4.8's window has shut rather than
-narrowed: session export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)),
+narrowed: session export ships at 1.0 ([work plan §0.5](docs/design/workplan/01-work-plan.md)),
 so §4 must be settled *before* export rather than protected by export's absence.
 
 ---
@@ -56,14 +56,14 @@ Three consequences, and each settles a later section:
 - **Every existing convenience must reach it unchanged.** The guidance box, the
   workbench, rewrite and reroll, the reading view, per-turn cost, mentions, the
   cast panel, version history and the hand-edit watcher are all wanted here and
-  **none of them may be reimplemented.** [00 §2.7](00-stance.md) is the standing
+  **none of them may be reimplemented.** [00 §2.7](docs/design/00-stance.md) is the standing
   rule against per-mode duplication and this mode is its largest test.
 - **The prose is the product, so the prose is a file.** Not a field in a record
   and not rows in a table. §5 turns that into a storage decision, and
-  [00 §3.4](00-stance.md) is what makes it non-negotiable.
+  [00 §3.4](docs/design/00-stance.md) is what makes it non-negotiable.
 
 **"Collaborative" means human and model, one human.** Real-time co-editing
-between two people is [04 §8](04-server-multiuser-deployment.md)'s deferred
+between two people is [09 §8](docs/design/09-server-multiuser-deployment.md)'s deferred
 question, unchanged and not reopened by this — a manuscript is a library object
 under one user, exactly as everything else in the library is.
 
@@ -72,7 +72,7 @@ under one user, exactly as everything else in the library is.
 ## 2. NovelCrafter supplies the interaction, Scrivener supplies the structure
 
 Not a survey — a list of what is taken, in the register of
-[01](01-source-survey.md).
+[01](docs/design/01-source-survey.md).
 
 **From NovelCrafter, taken essentially whole:**
 
@@ -97,10 +97,10 @@ Not a survey — a list of what is taken, in the register of
 - **Synopsis and notes per document**, which is what makes a corkboard and an
   outliner two layouts over one field set rather than two features.
 - **Label and status** as free-text axes.
-- **Snapshots**, which land directly on [02 §11](02-data-model.md)'s version
+- **Snapshots**, which land directly on [03 §11](docs/design/03-data-model.md)'s version
   history (§5).
 - **Compile as a separate pass**, taken *as a concept only*: the manuscript is
-  not the output. The output is the reading view ([05 §12](05-ui-surfaces.md)),
+  not the output. The output is the reading view ([10 §12](docs/design/10-ui-surfaces.md)),
   and §14 refuses the typesetting half by name.
 
 **Not taken:** NovelCrafter's prompt-function language, refused in this
@@ -119,7 +119,7 @@ half is wrong in three ways, and each wrong turn has a consequence:
 
 | Where the transcript analogy breaks | Consequence |
 |---|---|
-| **Ordering.** A transcript's order is a `parentTurnId` walk ([02 §5.5](02-data-model.md)). A manuscript's order is a binder the author drags around, and a chapter that moves has not branched. | Reading order leaves the turn log entirely. §4. |
+| **Ordering.** A transcript's order is a `parentTurnId` walk ([03 §5.5](docs/design/03-data-model.md)). A manuscript's order is a binder the author drags around, and a chapter that moves has not branched. | Reading order leaves the turn log entirely. §4. |
 | **Mutability.** A message is written once. A paragraph is edited fifty times, and the fiftieth edit is not a swipe. | Edits are versions, not turns. §4, §5. |
 | **Cardinality.** A turn produces the message. A beat produces a *candidate* that may be applied, retried three times, discarded or shelved — so calls outnumber accepted prose and most leave no trace in the artefact. | Apply is not a turn; Discard destroys nothing. §8. |
 
@@ -146,11 +146,11 @@ candidate prose), `steps`, `cost`, `tape` and `effects` — every field meaning
 precisely what it means today. **The workbench reads a Write turn with no
 changes**, which is the strongest available argument against a parallel
 generation record: a second record type for the same job is
-[00 §2.7](00-stance.md)'s per-mode reimplementation arriving dressed as
+[00 §2.7](docs/design/00-stance.md)'s per-mode reimplementation arriving dressed as
 architecture.
 
 **The objection to meet first, because it is a good one.**
-[05 §11.4](05-ui-surfaces.md) already establishes a second call path — field
+[10 §11.4](docs/design/10-ui-surfaces.md) already establishes a second call path — field
 assists and library image generation — which runs outside any session and
 deliberately **produces no turn record**, using generated-field provenance
 instead. A beat looks like that. It is not, and the difference is what a beat
@@ -175,7 +175,7 @@ it, unchanged.
 the **causal parent** and the **reading predecessor**. In Write they come apart,
 and the field keeps the first job only.
 
-- **Retry is a sibling**, which is [09 §6](09-branching.md) doing exactly what it
+- **Retry is a sibling**, which is [07 §6](docs/design/07-branching.md) doing exactly what it
   was built for. *"A swipe is a sibling node nobody named"*, and siblings carry
   their full record — blocks, verdict, cost. NovelCrafter's Retry **deletes the
   previous response**; ours cannot, and comparing two attempts can therefore
@@ -184,10 +184,10 @@ and the field keeps the first job only.
   is a consequence of a decision already made for other reasons.
 - **The tree is local to a beat, never global to the manuscript.** Worth saying
   plainly, so nobody later points the branch visualiser
-  ([14 §1](14-roadmap.md)) at a Write session and finds a field of small bushes
+  ([24 §1](docs/design/24-roadmap.md)) at a Write session and finds a field of small bushes
   with no spine to hang them on. Its collapse-linear-runs trick has nothing to
   collapse here.
-- **[09](09-branching.md)'s reconstruction guarantees are not claimed here, and
+- **[07](docs/design/07-branching.md)'s reconstruction guarantees are not claimed here, and
   must not be.** Channel state rebuilt at a node is meaningful when the artefact
   is rebuilt from effects. The manuscript is not: the file on disk *is* the
   state. Write's answer to the fear branch-anywhere addresses is version history
@@ -208,11 +208,11 @@ anchor?: {
 
 **The anchor lives on the turn, not on the node.** Two reasons, both existing
 rules rather than new preferences. A node carrying turn ids would put engine
-bookkeeping into the file [00 §3.4](00-stance.md) promises you can drag out and
-read. And it would be [00 §2.8](00-stance.md)'s derived-data-persisted-as-truth
+bookkeeping into the file [00 §3.4](docs/design/00-stance.md) promises you can drag out and
+read. And it would be [00 §2.8](docs/design/00-stance.md)'s derived-data-persisted-as-truth
 the moment the turn already knows — *which calls produced this scene* is an index
 query over `anchor.nodeId`, which is what a derived, rebuildable index is for
-([02 §5.1](02-data-model.md)).
+([03 §5.1](docs/design/03-data-model.md)).
 
 Note the asymmetry, because it is what keeps two similar-looking facts honest.
 **The anchor records where a call was aimed**, is written before the provider is
@@ -227,16 +227,16 @@ derivable from the other, and a system with only one of them cannot answer both
 |---|---|---|
 | **Beat call** | A turn | Nothing in the manuscript |
 | **Retry** | A sibling turn | Nothing in the manuscript. The previous candidate is *replaced on screen*, never deleted — a deliberate divergence from the source, named as one |
-| **Discard** | Nothing | The turn stays. `Turn.removed` is a tombstone for pruning ([02 §5.5](02-data-model.md)); a rejected candidate is not pruned, because it happened and it cost money |
-| **Apply** | A text edit, provenance, a beat state change, and a version under the snapshot policy | **No turn.** [02 §8](02-data-model.md) is explicit that an absent `request` and an empty one are different claims, and a turn carrying nothing but a pointer would be a record asserting a prompt was built |
+| **Discard** | Nothing | The turn stays. `Turn.removed` is a tombstone for pruning ([03 §5.5](docs/design/03-data-model.md)); a rejected candidate is not pruned, because it happened and it cost money |
+| **Apply** | A text edit, provenance, a beat state change, and a version under the snapshot policy | **No turn.** [03 §8](docs/design/03-data-model.md) is explicit that an absent `request` and an empty one are different claims, and a turn carrying nothing but a pointer would be a record asserting a prompt was built |
 
 The objection someone will raise, answered here so it is not rediscovered later:
-[02 §8.1](02-data-model.md) *does* mint a call-less turn when a hand edit to
+[03 §8.1](docs/design/03-data-model.md) *does* mint a call-less turn when a hand edit to
 `session.json` diverges from replayed channel state. That is a turn because
 channel state is reconstructed from the effect log, so an edit outside the log is
 a genuine divergence with nowhere else to be recorded. **The manuscript has no
 such reconstruction.** The mechanism that already answers *how did this file come
-to be this way* is version history ([02 §11](02-data-model.md)). Different
+to be this way* is version history ([03 §11](docs/design/03-data-model.md)). Different
 invariant, different home.
 
 ### 4.5 Where Write turns live
@@ -246,7 +246,7 @@ invariant, different home.
   key, the path walk keeps working, the dry-run preview keeps working.
 - **The manuscript is a library object the session names in its mode config**,
   which the host stores verbatim and never interprets
-  ([03 §2](03-modes-and-turn-pipeline.md)) — so this costs no schema change.
+  ([06 §2](docs/design/06-modes-and-turn-pipeline.md)) — so this costs no schema change.
 - The manuscript folder therefore stays clean: binder, prose, assets, history.
   No turn ids in it.
 
@@ -257,7 +257,7 @@ non-goal (§14), so the lean is one.
 
 ### 4.6 The exception this creates, named rather than discovered
 
-[00 §3.1](00-stance.md) — prefill, not binding — has session creation *copy* what
+[00 §3.1](docs/design/00-stance.md) — prefill, not binding — has session creation *copy* what
 it needs. **A Write session must not copy the manuscript**, because editing the
 artefact is the whole point.
 
@@ -269,12 +269,12 @@ tool holds a live reference to the work.
 The consequence is already handled. Turn records will reference prose that has
 since changed — and a block source already carries a content hash precisely so it
 addresses *the bytes that were used* rather than the object with that id today
-([13 §1.1](13-internal-contracts.md)). An existing decision collecting, not a new
+([21 §1.1](docs/design/21-internal-contracts.md)). An existing decision collecting, not a new
 problem.
 
 ### 4.7 Rewrite and reroll collapse, and the reason is already written down
 
-[07 §14.5](07-tech-stack.md) makes rewrite the default because *"I didn't like
+[19 §14.5](docs/design/19-tech-stack.md) makes rewrite the default because *"I didn't like
 how that was written"* is the common intent over a narration of a resolved
 outcome. A beat resolves nothing, so that argument does not transfer — and the
 same section supplies the answer: in a mode that consumed no draws, rewrite and
@@ -286,13 +286,13 @@ stochastic lore entry, with no code change and no design revisit.
 ### 4.8 The window this depends on, and when it shuts
 
 The turn record is internal tier and free to move, and **session export is the
-event that ends that freedom** — [10 §1](10-schemas.md),
-[06 B12](06-open-questions.md), and the record's own definition all say so.
+event that ends that freedom** — [04 §1](docs/design/04-schemas.md),
+[25 B12](docs/design/25-open-questions.md), and the record's own definition all say so.
 
 This section was written while that freedom still existed, and it no longer does.
 The original disjunction was *either export is scheduled after 3.0, or its format
 is designed knowing Write is coming*; **export now ships at 1.0**
-([work plan §0.5](workplan/01-work-plan.md)), which takes the first branch off
+([work plan §0.5](docs/design/workplan/01-work-plan.md)), which takes the first branch off
 the table and forces the second.
 
 So the practical rule is: **§4 is settled before export's format is frozen, not
@@ -349,59 +349,59 @@ library/manuscripts/<slug>/
     <nodeId>.md        # one file per node with prose. Clean Markdown.
     INDEX.md           # derived, disposable, never read back
   assets/
-  history/             # [02 §11] machinery, unchanged
+  history/             # [03 §11] machinery, unchanged
 ```
 
 **Prose bodies are Markdown files, one per node**, on four legs:
 
-1. **[00 §3.4](00-stance.md).** Drag the folder out and you have the novel, in
+1. **[00 §3.4](docs/design/00-stance.md).** Drag the folder out and you have the novel, in
    the format everyone already reads. A single JSON object with prose inside
    string fields fails that test exactly as a proprietary project file does.
-2. **The precedent exists.** [02 §5.4](02-data-model.md)'s *everything else is
+2. **The precedent exists.** [03 §5.4](docs/design/03-data-model.md)'s *everything else is
    JSON* is a rule about **objects**; a scene body is a **document** — the same
    distinction that made the card PNG canonical for an actor rather than a mirror
-   of a JSON file ([02 §5.2](02-data-model.md)).
+   of a JSON file ([03 §5.2](docs/design/03-data-model.md)).
 3. **The watcher gets granular for free.** Editing chapter three in an external
    editor produces one `external` version against one node rather than a
    whole-manuscript version. This is the leg that actually decides it.
 4. **It round-trips into the reading view**, which already emits Markdown
-   ([05 §12.2](05-ui-surfaces.md)).
+   ([10 §12.2](docs/design/10-ui-surfaces.md)).
 
 **Filenames are ids, not `NN-title.md`.** Order encoded in a path is a second
-source of truth for the binder ([00 §2.8](00-stance.md)), and reordering must not
+source of truth for the binder ([00 §2.8](docs/design/00-stance.md)), and reordering must not
 rewrite the filesystem. The cost is real — the folder is drag-portable but not
 *browsable* — and it is paid by `text/INDEX.md`: a generated, ordered, titled
 index the engine rewrites on binder change and never reads back. That is the move
-[02 §8.1](02-data-model.md) already makes for the head channel snapshot, a
+[03 §8.1](docs/design/03-data-model.md) already makes for the head channel snapshot, a
 derived legibility affordance explicitly not authoritative. **[OPEN]** whether it
 is enough in practice; §15 carries the test.
 
 ### 5.3 Tier: internal, with a portability path rather than a portability promise
 
-The cost of portable is not small ([10 §1–2](10-schemas.md)): define it now,
+The cost of portable is not small ([04 §1–2](docs/design/04-schemas.md)): define it now,
 change only additively, version on breakage, emit a JSON Schema, register it,
 preserve unknown fields — and pay all of that from 1.0, for a shape nobody has
 yet written a novel in, against a feature landing at 2.0.
 
-**The case for portable** is [10 §1](10-schemas.md)'s own asymmetry — *breaking a
+**The case for portable** is [04 §1](docs/design/04-schemas.md)'s own asymmetry — *breaking a
 container costs a re-export; breaking an Actor costs somebody's character* — and
 this is somebody's novel. It is a real argument, which is why the answer is not
 simply *internal, done*.
 
 **The case for internal wins on three counts:**
 
-- **There is no ecosystem to be compatible with.** [16 §1](16-lorebooks-as-a-format.md)
+- **There is no ecosystem to be compatible with.** [11 §1](docs/design/11-lorebooks-as-a-format.md)
   keeps the lorebook format because everyone else uses it. Nobody else uses this.
   Committing a manuscript-with-beats-and-links structure is an interchange claim
   no second implementation would honour.
 - **The prose is already portable in the sense that matters.** `text/` is
-  Markdown on disk, so [00 §3.4](00-stance.md) is satisfied by the directory
+  Markdown on disk, so [00 §3.4](docs/design/00-stance.md) is satisfied by the directory
   whatever tier the JSON sits in. Portability would buy *structure* interchange,
   which has no consumer.
 - **The right analogy is Session, not Actor.** A manuscript is one person's
   accumulating work, not a reusable authored artefact — which is
-  [10 §1](10-schemas.md)'s *free to move* tier, where Session and the turn record
-  already live. [19 §3](19-world.md) declines to make World a portable kind on
+  [04 §1](docs/design/04-schemas.md)'s *free to move* tier, where Session and the turn record
+  already live. [15 §3](docs/design/15-world.md) declines to make World a portable kind on
   a related instinct.
 
 **So, concretely:** it lives in the library and uses the object-folder machinery
@@ -414,14 +414,14 @@ view, the `text/` folder, and a zip that is transport rather than a format
 promise.
 
 **And it is a seventh library panel, which is a cost this project has already
-priced.** [05 §5.1](05-ui-surfaces.md) settles on six panels named for the kinds
+priced.** [10 §5.1](docs/design/10-ui-surfaces.md) settles on six panels named for the kinds
 and marks that *for now*, sending any reduction to the simple/advanced question
 rather than deciding it there. A seventh is therefore allowed and not free, and
 the honest defence is the one that section already makes for six: density is the
 position, and a shelf showing every kind legibly beats one that hides a kind
 behind a mode. The one-line answer to *why is a manuscript in the library when a
 session is not* — **the library is where editing, browsing, searching and
-hand-editing live** ([05 §2.1](05-ui-surfaces.md)), and a manuscript wants all
+hand-editing live** ([10 §2.1](docs/design/10-ui-surfaces.md)), and a manuscript wants all
 four. A session is a transcript you continue; a manuscript is content you edit.
 
 ### 5.4 Version history, and the one storage decision inside it
@@ -481,7 +481,7 @@ which is the whole reconciliation:
 
 ### 6.2 Why this is not the escape hatch arriving early
 
-[05 §8.1](05-ui-surfaces.md) defers custom rendering *as far as it will go*, and
+[10 §8.1](docs/design/10-ui-surfaces.md) defers custom rendering *as far as it will go*, and
 pairs the deferral with a commitment: when an extension cannot express something,
 the first response is to ask **what widget would let it**, and add that. A
 declared nav entry rendered by host code is that commitment being honoured. The
@@ -491,20 +491,20 @@ being done, and must not be done to close the gap below.
 **And the gap should be stated rather than smoothed.** A third-party mode may
 declare a top-level surface and get a nav entry leading to a page it did not
 write. Nothing in the *server-side* contract is bypassed: the declaration is
-complete and honest, and [12 §3](12-extensions.md)'s claim that contributing UI
+complete and honest, and [22 §3](docs/design/22-extensions.md)'s claim that contributing UI
 crosses the worker boundary with **nothing** still holds. What is missing is a
-**page vocabulary**, which is [05 §8.1](05-ui-surfaces.md)'s deferral arriving
+**page vocabulary**, which is [10 §8.1](docs/design/10-ui-surfaces.md)'s deferral arriving
 from a new direction rather than a back door in the mode contract.
 
 So the client holds a map from mode id to page component with one entry, and an
 unknown mode's declared surface renders **a stub naming the mode that wanted
-it**. That is [00 §3.3](00-stance.md) — dangling references are survivable,
+it**. That is [00 §3.3](docs/design/00-stance.md) — dangling references are survivable,
 visible and non-blocking — applied to navigation, and it makes the hole legible
 instead of silent.
 
 ### 6.3 Reconciling with 16, which refuses a second surface by name
 
-[16 §5](16-lorebooks-as-a-format.md) is unambiguous: *"No second surface, no
+[11 §5](docs/design/11-lorebooks-as-a-format.md) is unambiguous: *"No second surface, no
 mode, no promotion in the navigation. Everything here happens inside the
 library."* Three points, in this order, because the first is the one that
 matters:
@@ -514,18 +514,18 @@ matters:
    elevates an activity, not an object.** The Manuscript kind gets exactly what a
    lorebook gets — a panel, the detail route, the backlink panel — and nothing
    more. Nobody navigates to *Manuscripts* to write; they navigate to Write.
-2. **Surfaces hold modes by construction.** [05 §2](05-ui-surfaces.md) already
+2. **Surfaces hold modes by construction.** [10 §2](docs/design/10-ui-surfaces.md) already
    describes Play as the surface its modes live in. What is new is only that
    these modes' views do not fit inside Play's frame.
 3. **Why Play cannot simply contain it.** Play is session-shaped — a transcript,
    an input bar, a head, a stream. Write is document-shaped — a binder, an
    editor, a cursor. Putting a binder inside Play makes Play's *layout*
    conditional on the mode, which is the one-surface-two-personalities failure
-   [05 §5.1](05-ui-surfaces.md) rejects for a merged library list.
+   [10 §5.1](docs/design/10-ui-surfaces.md) rejects for a merged library list.
 
-**The cost, stated.** [05 §2](05-ui-surfaces.md) had two surface rows and a title
+**The cost, stated.** [10 §2](docs/design/10-ui-surfaces.md) had two surface rows and a title
 that named the count. At 2.0 it has three, and a fourth is proposed
-([14 §3.4](14-roadmap.md)); §16 lists the edit that owed it. The count was always
+([24 §3.4](docs/design/24-roadmap.md)); §16 lists the edit that owed it. The count was always
 a fact about what ships rather than a principle — and the reasoning that demotes
 the workbench is untouched, because a reader is still not a surface.
 
@@ -545,13 +545,13 @@ reaches further than layout. The two differ in what a call means: an Outline cal
 produces structure and synopses, a Prose call produces text at a position. They
 differ in what a version is, in what the budgeter is assembling for, and in what
 an undo undoes. Modes are how this project expresses "same contract, different
-assembly" ([03 §2](03-modes-and-turn-pipeline.md)), and that is exactly what
+assembly" ([06 §2](docs/design/06-modes-and-turn-pipeline.md)), and that is exactly what
 these are.
 
 **Why not two surfaces.** They share the artefact, the binder, the codex and the
 navigation. Splitting the nav entry would make *the manuscript you are working
 on* a thing you re-select when you switch between planning and writing, which is
-[05 §1.1](05-ui-surfaces.md)'s per-visit cost charged for nothing.
+[10 §1.1](docs/design/10-ui-surfaces.md)'s per-visit cost charged for nothing.
 
 **What this obliges the contract to do, and it is small.** The `top-level` arm
 (§6.1) is declared by a mode; two modes naming the same `slug` are how a surface
@@ -581,14 +581,14 @@ interface Beat {
 ```
 
 **Beats live in `manuscript.json`, never inline in the prose.** This is
-[05 §13.1](05-ui-surfaces.md)'s *annotate, never rewrite* applied one level out:
+[10 §13.1](docs/design/10-ui-surfaces.md)'s *annotate, never rewrite* applied one level out:
 the moment a beat is an HTML comment or a fenced block inside the file, the prose
 file stops being prose and hand-editing acquires a syntax. Stored outside,
 rendered inline — which is what an overlay is.
 
 **The cost is the cost mentions already pay, and that is the point.** A beat's
 offset indexes text a human is editing, so it drifts and must be maintained
-across edits — precisely what [05 §13.1](05-ui-surfaces.md) means by *editing a
+across edits — precisely what [10 §13.1](docs/design/10-ui-surfaces.md) means by *editing a
 message recomputes the spans*. One mechanism, not two. It is why §13's
 span-generalisation obligation matters, and it is what §12's editor decision has
 to be held to.
@@ -618,7 +618,7 @@ Two consequences worth naming:
 - the previous and next beat — new arm
 - the beat instruction itself — the existing input slot, unchanged
 - the guidance box — unchanged, one-shot and advisory
-  ([03 §5.1](03-modes-and-turn-pipeline.md))
+  ([06 §5.1](docs/design/06-modes-and-turn-pipeline.md))
 
 > **Every one of those is a candidate the one budgeter arbitrates. Nothing about
 > assembly changes except which producers fill which slots.**
@@ -638,7 +638,7 @@ one: the fourth button costs a boolean that already exists for another reason.
 ### 8.3 Input kinds, call kinds, and a free decision paying off
 
 A mode declares its own input kinds, and a preset block filters on call kind —
-which [10 §8](10-schemas.md) deliberately left **open**, so that a preset written
+which [04 §8](docs/design/04-schemas.md) deliberately left **open**, so that a preset written
 for a mode you do not have still round-trips rather than failing validation on a
 string this build has not heard of.
 
@@ -665,7 +665,7 @@ Five things, four homes, all of them existing:
 
 ### 8.5 One refusal that belongs here rather than in §14
 
-**Every call is user-initiated.** [05 §11.5](05-ui-surfaces.md)'s *never
+**Every call is user-initiated.** [10 §11.5](docs/design/10-ui-surfaces.md)'s *never
 auto-generate — not on focus, not on blur, not on opening an empty editor*
 applies with full force to prose. Nothing writes into the manuscript because the
 cursor moved, because a scene looks short, or because a beat has been sitting
@@ -681,15 +681,15 @@ and that is worse for a novel than for a form.
 NovelCrafter's codex has five entry types, and this project already has homes for
 all five: **character → Actor**; location, lore, object and subplot →
 **lore entry**, whose tag field is already a free string with a suggested
-vocabulary. A Codex kind would be [00 §2.7](00-stance.md)'s per-mode
+vocabulary. A Codex kind would be [00 §2.7](docs/design/00-stance.md)'s per-mode
 reimplementation, and it would immediately produce the failure
-[05 §13.2](05-ui-surfaces.md) exists to surface — two records for one person.
+[10 §13.2](docs/design/10-ui-surfaces.md) exists to surface — two records for one person.
 
 > **The codex is not a thing to build. It is the library, filtered to what this
 > manuscript uses and sorted by where it appears — which is a query, not a
 > kind.**
 
-The precedent is [16 §4.2](16-lorebooks-as-a-format.md)'s refusal of a
+The precedent is [11 §4.2](docs/design/11-lorebooks-as-a-format.md)'s refusal of a
 compatibility field on the same grounds: the honest version is co-occurrence,
 and that is a query rather than something to store.
 
@@ -697,26 +697,26 @@ and that is a query rather than something to store.
 
 | Tracking control | Status |
 |---|---|
-| Track by name and alias | **Exists.** An actor's aliases are already *the default keyword set for lore matching* ([10 §4](10-schemas.md)), which is why [05 §13.1](05-ui-surfaces.md)'s one-pass-two-consumers rule already covers this. **Write must not add a second matcher.** |
+| Track by name and alias | **Exists.** An actor's aliases are already *the default keyword set for lore matching* ([04 §4](docs/design/04-schemas.md)), which is why [10 §13.1](docs/design/10-ui-surfaces.md)'s one-pass-two-consumers rule already covers this. **Write must not add a second matcher.** |
 | Case sensitivity | **Exists on a lore entry, absent on an actor.** New on the actor side, or resolved as a matcher option. |
 | Whole-word matching | **Exists on a lore entry, absent on an actor.** Same. |
 | Automatic plurals | **New, and a property of the language rather than of the entry.** A matcher option at book or manuscript level, not a per-entry boolean. **[OPEN]** where it is configured; lean, matcher-level. |
 | **Exclusion list** — the character named *Will* | **New, and genuinely needed.** Keys have no negative form. And this is *not* the existing `not_any` selective logic, which gates activation on other keys being present and cannot suppress one literal match. |
-| **Four-valued AI context** | **Partly expressible, and the missing value is the interesting one.** A constant entry is *always*; a disabled entry is *never*; an ordinary one is *on match*. What has no expression is **tracked but never injected** — highlight *Will* everywhere and spend no tokens on him. The clean fix is not a fourth state but naming the two axes: an `aiContext` of always / on-match / never, **plus** a separate `track` boolean. That is [05 §13.2](05-ui-surfaces.md)'s *two axes, not one enum* arriving for the third time, and it should be cited as such rather than reinvented. |
-| **Relations and nesting** | **Refused, and the reason is already written down.** Recursive activation already produces the effect text-first, and [05 §5.3](05-ui-surfaces.md) already decided links between entries are *offered, not drawn*. The blocker for a declared graph is [16 §4.1](16-lorebooks-as-a-format.md): an entry id is unique within one book and carries no meaning beyond it, so a stable relation cannot be declared to a thing with no stable identity. An actor's lore links plus recursion carry the real cases. §15 holds the reopening condition. |
+| **Four-valued AI context** | **Partly expressible, and the missing value is the interesting one.** A constant entry is *always*; a disabled entry is *never*; an ordinary one is *on match*. What has no expression is **tracked but never injected** — highlight *Will* everywhere and spend no tokens on him. The clean fix is not a fourth state but naming the two axes: an `aiContext` of always / on-match / never, **plus** a separate `track` boolean. That is [10 §13.2](docs/design/10-ui-surfaces.md)'s *two axes, not one enum* arriving for the third time, and it should be cited as such rather than reinvented. |
+| **Relations and nesting** | **Refused, and the reason is already written down.** Recursive activation already produces the effect text-first, and [10 §5.3](docs/design/10-ui-surfaces.md) already decided links between entries are *offered, not drawn*. The blocker for a declared graph is [11 §4.1](docs/design/11-lorebooks-as-a-format.md): an entry id is unique within one book and carries no meaning beyond it, so a stable relation cannot be declared to a thing with no stable identity. An actor's lore links plus recursion carry the real cases. §15 holds the reopening condition. |
 | **A mentions index** | **New and cheap.** Full-text search already covers objects and turns; the manuscript's `text/` is a third subject. |
 | **The heatmap** | Free once the index exists: a per-node count is a rendering. |
-| Marking in the prose | [05 §13.1](05-ui-surfaces.md)'s overlay pointed at a node, with the same three methods and the same rule that they must look different. |
+| Marking in the prose | [10 §13.1](docs/design/10-ui-surfaces.md)'s overlay pointed at a node, with the same three methods and the same rule that they must look different. |
 | Thumbnails | Embedded media — exists. |
 | Tags never reaching the model | Exists on actors, books and entries, and none is injected. Worth restating as a promise, because NovelCrafter makes it explicitly and users rely on it. |
 
 **One deliberate divergence from 16, and it must be declared rather than
-slipped.** [16 §5](16-lorebooks-as-a-format.md) computes a lorebook's mentions
+slipped.** [11 §5](docs/design/11-lorebooks-as-a-format.md) computes a lorebook's mentions
 *at render and deliberately never indexes them*. **A ninety-thousand-word
 manuscript is not a lorebook**, and a heatmap over it does want the index. The
 rule 16 was protecting — no derived document, no parallel representation to fall
 out of date — is kept: the index stays derived and rebuildable
-([02 §5.1](02-data-model.md)), which was always the actual invariant.
+([03 §5.1](docs/design/03-data-model.md)), which was always the actual invariant.
 
 **So: three new optional fields on the lore entry** — an exclusion list, the
 AI-context value and the track flag — plus the matcher options. §13 says when
@@ -724,7 +724,7 @@ they have to land.
 
 ### 9.3 Characters mentioned without a card — three tiers, all existing
 
-[05 §13.1](05-ui-surfaces.md) applies unchanged and is the whole answer: **an
+[10 §13.1](docs/design/10-ui-surfaces.md) applies unchanged and is the whole answer: **an
 unresolved name is an offer, never a write.** A capitalised name the engine does
 not know renders as `proposed` — visibly tentative, clickable — and nothing is
 materialised. *"An unresolved mention is not an error"*, and most names in prose
@@ -734,7 +734,7 @@ Where an accepted offer lands, cheapest first:
 
 1. **Manuscript-local.** `localActors` on the manuscript — the same Actor type,
    the same session-origin provenance, the same explicit promotion as
-   [02 §2.3](02-data-model.md)'s session-local actors, moved onto the object that
+   [03 §2.3](docs/design/03-data-model.md)'s session-local actors, moved onto the object that
    outlives the session. Not an invention: the same mechanism against the durable
    artefact, and the direct answer to *NPC-like handling of characters referenced
    without cards*.
@@ -743,7 +743,7 @@ Where an accepted offer lands, cheapest first:
 3. **Nothing at all**, which stays the default.
 
 Why session-local is the *wrong* tier here is worth one line, because the rule it
-bends is a good one: [02 §2.3](02-data-model.md) exists so that *a session tried
+bends is a good one: [03 §2.3](docs/design/03-data-model.md) exists so that *a session tried
 once and abandoned leaves nothing behind*. In Write the session is the tool and
 the manuscript is the work, so a character invented in chapter three has to
 outlive the afternoon.
@@ -754,7 +754,7 @@ outlive the afternoon.
 
 **This section is Outline mode** (§6.4). What follows are its three layouts, not
 three modes — the mode/layout distinction is the same one
-[05 §5](05-ui-surfaces.md) draws for the library panels.
+[10 §5](docs/design/10-ui-surfaces.md) draws for the library panels.
 
 **The name collides with itself and that is tolerable.** Outline mode's default
 layout is also called Outline, with Grid and Matrix as the alternatives. The mode
@@ -766,7 +766,7 @@ and "fixes".
 ### 10.1 The three views
 
 Not three features — the same *shared handling, distinct surfaces* line
-[05 §5](05-ui-surfaces.md) draws for the library panels.
+[10 §5](docs/design/10-ui-surfaces.md) draws for the library panels.
 
 - **Outline** — the tree with synopses. Scrivener's outliner, and the default.
 - **Grid** — cards, dragged to reorder. Scrivener's corkboard. The card face is
@@ -774,7 +774,7 @@ Not three features — the same *shared handling, distinct surfaces* line
   rather than a note.
 - **Matrix** — a table, one row per scene, with columns for synopsis, summary,
   POV, threads, label, status and word count. The cheapest of the three and
-  probably the most used; [05 §1.1](05-ui-surfaces.md)'s density stance actively
+  probably the most used; [10 §1.1](docs/design/10-ui-surfaces.md)'s density stance actively
   wants it.
 
 **One divergence from NovelCrafter, taken from Scrivener: the board is per
@@ -783,7 +783,7 @@ the binder already supplies the zoom.
 
 **Threads are declared on the node, not derived from mentions.** Derived is free
 and wrong whenever a scene advances a thread without naming it, and an
-uneditable derived column is [00 §3.6](00-stance.md)'s *showing without
+uneditable derived column is [00 §3.6](docs/design/00-stance.md)'s *showing without
 correcting*. A Matrix column has to be editable to be worth having.
 
 ### 10.2 Summaries, and the asymmetry that decides two slots
@@ -795,22 +795,22 @@ correcting*. A Matrix column has to be editable to be worth having.
 - *Story to come* is the chain of **authored synopses** for everything after —
   because the future has no prose to summarise, only intent.
 
-This puts [06 E1](06-open-questions.md)'s rolling summary and
-[09 §5.1](09-branching.md)'s content-addressed chain on new ground: in Play the
+This puts [25 E1](docs/design/25-open-questions.md)'s rolling summary and
+[07 §5.1](docs/design/07-branching.md)'s content-addressed chain on new ground: in Play the
 chain runs over turns in path order, in Write over **nodes in binder order**.
 Same machinery, different sequence.
 
 **And it carries a cost Play does not have, which has to be stated.** In Play a
 fork invalidates exactly one link. In Write, **dragging a chapter invalidates
 every link after it.** The mitigation is in the keying, and it is why
-[09 §5](09-branching.md)'s content-addressing has to land at 1.0 as designed
+[07 §5](docs/design/07-branching.md)'s content-addressing has to land at 1.0 as designed
 rather than as a running total: a *node summary* is keyed by that node's content,
 and a *chain link* is keyed by the sequence of node-summary keys. A reorder
 therefore recomputes the links — which take summaries as input rather than prose,
 and are correspondingly cheap — and reuses every node summary untouched.
 
 **Where a wrong summary is seen, and how it is fixed**, because a derived value
-the user cannot reach is [00 §3.6](00-stance.md)'s *showing without correcting*
+the user cannot reach is [00 §3.6](docs/design/00-stance.md)'s *showing without correcting*
 and this section would otherwise fail its own test. **The Matrix carries the
 summary as a column beside the synopsis** — which is most of the answer, because
 the two sitting adjacent is what makes a drifted summary visible at all: the
@@ -818,21 +818,21 @@ authored intent and the derived description of the result, disagreeing in one
 row. An edited summary is **pinned**, held against regeneration and marked as
 authored, in the same spirit as the *offered, never automatic* rule everywhere
 else here. And because summaries are derived and disposable
-([06 E1](06-open-questions.md)), the heavier repair is always available: discard
+([25 E1](docs/design/25-open-questions.md)), the heavier repair is always available: discard
 and regenerate one node, a chapter, or the chain, with a better model or a
 better prompt. **Summary quality is not a one-way door**, which is what makes
 shipping a simple version of this safe.
 
 ### 10.3 Create from outline
 
-[00 §2.3](00-stance.md) forbids big-bang generation, and this is the textbook
+[00 §2.3](docs/design/00-stance.md) forbids big-bang generation, and this is the textbook
 application: generate the act list, validate, apply; chapters per act, validate,
 apply; scene synopses per chapter, validate, apply. Each individually retryable,
 with partial application and per-section validity.
 
 **The plotting methods are content, not code.** Three-act, save-the-cat and the
 hero's journey ship as a Treatment or a Preset — the same reasoning
-[03 §7.3.1](03-modes-and-turn-pipeline.md) uses for difficulty levels: *the layer
+[06 §7.3.1](docs/design/06-modes-and-turn-pipeline.md) uses for difficulty levels: *the layer
 that shapes model behaviour should be the layer an author can open and edit*.
 
 ---
@@ -843,9 +843,9 @@ NovelCrafter has a function language over the story — scene text, codex querie
 POV predicates, story-so-far. **Refuse the language; add arms.**
 
 And be precise about why, because the obvious citation is the weaker one.
-[00 §2.1](00-stance.md) rejects macro substitution, but a function language is
+[00 §2.1](docs/design/00-stance.md) rejects macro substitution, but a function language is
 not string surgery on a blob and would survive that objection. The argument that
-actually decides it is [00 §2.6](00-stance.md):
+actually decides it is [00 §2.6](docs/design/00-stance.md):
 
 > **A placeholder that expands inside a block is invisible to the budgeter. A
 > slot that names a source is a block with a token cost, an inclusion reason and
@@ -877,7 +877,7 @@ model a breaking change to everybody's presets.
   node. Three homes exist; a fourth is not needed.
 - **Codex queries in the preset**, with or without relation expansion. Choosing
   *which* lore entries go in is the retriever's job
-  ([00 §2.5](00-stance.md), [02 §3](02-data-model.md)); putting it in the preset
+  ([00 §2.5](docs/design/00-stance.md), [03 §3](docs/design/03-data-model.md)); putting it in the preset
   moves retrieval into the prompt pack. The lore arm exists and the activation
   source decides. This is the cleanest refusal in the list.
 - **Previous-scene-with-the-same-POV.** A retrieval predicate wearing a slot's
@@ -885,7 +885,7 @@ model a breaking change to everybody's presets.
   a new arm.
 
 **Templating is not refused, and the note must not claim it is.**
-[03 §5](03-modes-and-turn-pipeline.md) already intends templates to render
+[06 §5](docs/design/06-modes-and-turn-pipeline.md) already intends templates to render
 *within* a block, and that is unchanged. **[OPEN]** whether the existing wrapper
 placeholder covers the small residue — a manuscript title, a POV name — or
 whether Write is finally the feature that wants a template language inside a text
@@ -904,8 +904,8 @@ Three constraints, and the third is the one that decides:
 1. **The canonical form is plain Markdown on disk** (§5.2). An editor whose
    document model is a node tree makes the file a *render* of that model, which
    inverts the storage decision and reproduces the two-sources-of-truth failure
-   [02 §5.2](02-data-model.md) rejects for cards.
-2. **Annotate, never rewrite** ([05 §13.1](05-ui-surfaces.md)). No markup is
+   [03 §5.2](docs/design/03-data-model.md) rejects for cards.
+2. **Annotate, never rewrite** ([10 §13.1](docs/design/10-ui-surfaces.md)). No markup is
    injected into the authored bytes: mentions, provenance and beats are all
    offset-keyed overlays held outside the file.
 3. **Therefore the editor must maintain externally-held, offset-keyed
@@ -924,7 +924,7 @@ constraint 3. Rich-text document models fight constraints 1 and 2.
 because the decision is contained: the document on disk is Markdown, the
 annotations are offsets in `manuscript.json`, and nothing in the server, the
 schemas or the API knows what the editor is. That is client-internal in the same
-structural sense [07 §6](07-tech-stack.md) makes the framework choice reversible
+structural sense [19 §6](docs/design/19-tech-stack.md) makes the framework choice reversible
 — by construction rather than by promise. It is also this repository's **first
 editor dependency of any kind**, so it is argued in the register
 `packages/shared`'s dependency note establishes for this project, and it is
@@ -933,7 +933,7 @@ argued in the phase plan rather than assumed here.
 Two constraints to record whichever way it goes:
 
 - **Read-only rendering must not require the editor bundle.** The reading view
-  ([05 §12](05-ui-surfaces.md)) and the library's raw view must not depend on it,
+  ([10 §12](docs/design/10-ui-surfaces.md)) and the library's raw view must not depend on it,
   or the editor becomes a dependency of everything.
 - **The reopening condition.** If the beat interaction turns out to need rich
   structured content *inside* the prose — tables, embeds, threaded comments — the
@@ -955,15 +955,15 @@ between, so "before Write" and "at 1.0" are the same instruction.
 
 | Element | Obligation |
 |---|---|
-| Turn tombstones and compaction | **None, and Write reduces the pressure.** Already required by [02 §5.5](02-data-model.md) for branch pruning; Write needs no deletion at all, because Discard keeps the turn. |
-| An open call-kind union | **None — already done, and this is where it pays.** Write's four input kinds are call kinds with no schema change, and a preset carries a different instruction block per kind ([10 §8](10-schemas.md)). Recorded as a vindication rather than a debt. |
-| The index holding a third kind of text | **None.** The index is derived and rebuildable ([02 §5.1](02-data-model.md)); another table is free. |
-| Mode config naming a library object | **None.** It is stored verbatim and never interpreted ([03 §2](03-modes-and-turn-pipeline.md)). |
+| Turn tombstones and compaction | **None, and Write reduces the pressure.** Already required by [03 §5.5](docs/design/03-data-model.md) for branch pruning; Write needs no deletion at all, because Discard keeps the turn. |
+| An open call-kind union | **None — already done, and this is where it pays.** Write's four input kinds are call kinds with no schema change, and a preset carries a different instruction block per kind ([04 §8](docs/design/04-schemas.md)). Recorded as a vindication rather than a debt. |
+| The index holding a third kind of text | **None.** The index is derived and rebuildable ([03 §5.1](docs/design/03-data-model.md)); another table is free. |
+| Mode config naming a library object | **None.** It is stored verbatim and never interpreted ([06 §2](docs/design/06-modes-and-turn-pipeline.md)). |
 | Plot-hook identity, goals, presence | **None.** All are Play concepts Write does not use. |
-| **The span overlay must generalise past actors** | **Real, and the largest.** [05 §13.1](05-ui-surfaces.md) already says the model *"should be built so that it can"* — Write needs three consumers of one span shape: mentions, machine-written provenance, and beat positions. So *generalises* has to mean **a tagged reference from the first span ever written**, and the type must not be named for mentions. If P7 ships it with an actor reference baked in, Write must either migrate every stored turn or grow a second span type — and the second is how one overlay becomes two. |
-| **The lore entry's four-value axis must not be squeezed into the two booleans** | **Real, and it lands at 1.0** ([work plan §0.5](workplan/01-work-plan.md)). Optional fields are additive and free later ([10 §2](10-schemas.md)); *reinterpreting* the existing constant and enabled flags as the axis is a version bump, because a field that means something different is a new version. So add the AI-context value, the track flag and the exclusion list as **optional fields whose absence means today's behaviour.** The old deadline was "2.0 at the latest", which stopped meaning anything when Write became 2.0 — the consumer and the deadline collided, so the deadline moves in front of it. Free now, a bump later, so now. |
-| **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [09 §5.1](09-branching.md) and [06 E1](06-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
-| **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [06 B12](06-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
+| **The span overlay must generalise past actors** | **Real, and the largest.** [10 §13.1](docs/design/10-ui-surfaces.md) already says the model *"should be built so that it can"* — Write needs three consumers of one span shape: mentions, machine-written provenance, and beat positions. So *generalises* has to mean **a tagged reference from the first span ever written**, and the type must not be named for mentions. If P7 ships it with an actor reference baked in, Write must either migrate every stored turn or grow a second span type — and the second is how one overlay becomes two. |
+| **The lore entry's four-value axis must not be squeezed into the two booleans** | **Real, and it lands at 1.0** ([work plan §0.5](docs/design/workplan/01-work-plan.md)). Optional fields are additive and free later ([04 §2](docs/design/04-schemas.md)); *reinterpreting* the existing constant and enabled flags as the axis is a version bump, because a field that means something different is a new version. So add the AI-context value, the track flag and the exclusion list as **optional fields whose absence means today's behaviour.** The old deadline was "2.0 at the latest", which stopped meaning anything when Write became 2.0 — the consumer and the deadline collided, so the deadline moves in front of it. Free now, a bump later, so now. |
+| **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [07 §5.1](docs/design/07-branching.md) and [25 E1](docs/design/25-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
+| **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [25 B12](docs/design/25-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](docs/design/workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
 | **Version snapshot payloads stay opaque digest-addressed bytes** | **Small, and a check rather than a change.** A manuscript version is a manifest of file hashes (§5.4); if the payload is ever typed as *the object's JSON*, that is not expressible and Write grows a second history mechanism. Verify at P5, do not assume. |
 | **`surfaces` stays a declared value on the mode definition** | **None, but do not delete it.** Widening the union is internal work. What is worth writing down is that an empty `surfaces` on Scene means *this mode contributes none*, not *placeholder* — an empty array nothing reads is exactly what invites removal. |
 
@@ -971,21 +971,21 @@ between, so "before Write" and "at 1.0" are the same instruction.
 
 ## 14. Non-goals, refused by name
 
-- **Real-time multi-human co-editing.** [04 §8](04-server-multiuser-deployment.md)'s
+- **Real-time multi-human co-editing.** [09 §8](docs/design/09-server-multiuser-deployment.md)'s
   posture holds unchanged: don't preclude, don't build. A manuscript is a library
   object under one user, so this is the same deferred question as everything
   else, not a new one.
 - **Typesetting, page layout, and compile-as-production.** Compile is adopted as
   a *concept* — the manuscript is not the output — and the output is the reading
   view, which already refuses to ship a PDF library
-  ([05 §12.2](05-ui-surfaces.md)). Refused: pagination, fonts, style sheets, ePub
+  ([10 §12.2](docs/design/10-ui-surfaces.md)). Refused: pagination, fonts, style sheets, ePub
   production. **Compile is the reading view, and the reading view is not a
   typesetter.**
 - **Track changes.** Version history answers *what changed* and provenance
   answers *who wrote it*. Track changes is a review workflow for several humans,
   which is the co-editing non-goal in different clothes.
 - **A grammar or style checker.** A per-keystroke advisory over prose has the
-  false-positive problem [14 §2c.2](14-roadmap.md) defers continuity checking
+  false-positive problem [24 §2c.2](docs/design/24-roadmap.md) defers continuity checking
   for, without continuity checking's payoff — and the browser and the operating
   system already ship one.
 - **A submission or publishing pipeline.** Query letters and manuscript format
@@ -993,7 +993,7 @@ between, so "before Write" and "at 1.0" are the same instruction.
 - **Replacing the reading view.** It renders a path through a turn tree;
   rendering a binder is a *second subject* for one view, not a competitor to it.
 - **Being an import target for SillyTavern or NovelCrafter.**
-  [00 §4](00-stance.md) already refuses ST parity; for NovelCrafter there is no
+  [00 §4](docs/design/00-stance.md) already refuses ST parity; for NovelCrafter there is no
   exchange format to be a target of, and building against a closed product's
   export is a commitment to track someone else's roadmap. **What is not refused:
   content.** A folder of Markdown imports as prose and a codex export imports as
@@ -1002,7 +1002,7 @@ between, so "before Write" and "at 1.0" are the same instruction.
   the refusal that keeps the mode light rather than turning it into an agent
   harness, and it is the one most likely to be argued with.
 - **A second codex store.** §9's argument, restated as a refusal.
-- **A wiki or a note-taking app.** [16 §5](16-lorebooks-as-a-format.md)'s refusal
+- **A wiki or a note-taking app.** [11 §5](docs/design/11-lorebooks-as-a-format.md)'s refusal
   of wiki-ness carries over unchanged. The notes field is notes *on a node*, not
   a knowledge base.
 
@@ -1023,7 +1023,7 @@ Write at 2.0 there is no intervening release to run these in:
   Write into a Scene preset rather than a mode with a place in the navigation.
   This is the cheapest and sharpest test available and it costs nothing but
   attention.
-- **Watch whether mentions get switched off.** [05 §13.1](05-ui-surfaces.md) says
+- **Watch whether mentions get switched off.** [10 §13.1](docs/design/10-ui-surfaces.md) says
   an unresolved mention is not an error, which is easy to hold in a transcript. A
   ninety-thousand-word manuscript has hundreds of proper nouns. If the first
   thing people do at P7 is turn the marking off, **the overlay does not survive
@@ -1031,7 +1031,7 @@ Write at 2.0 there is no intervening release to run these in:
   fix.
 - **Measure a full turn record against a plausible manuscript.** Three hundred
   beats at three attempts each is nine hundred records at roughly ten to a
-  hundred times their text ([02 §8](02-data-model.md)). If that number is
+  hundred times their text ([03 §8](docs/design/03-data-model.md)). If that number is
   unpleasant, retention stops being a comfortable open question and Write is what
   made it urgent.
 
@@ -1055,12 +1055,12 @@ Write at 2.0 there is no intervening release to run these in:
 **Two reopening conditions rather than tests:**
 
 - **If a lore entry ever gains a portable, cross-install identity**
-  ([16 §4.1](16-lorebooks-as-a-format.md)), declared codex relations become
+  ([11 §4.1](docs/design/11-lorebooks-as-a-format.md)), declared codex relations become
   possible and §9.2's refusal reopens.
 - ~~**If session export is scheduled before 3.0**, §4 stops being a far-release
   design and becomes a near constraint, and this document has to be settled
   early.~~ **This has fired.** Export ships at 1.0
-  ([06 B12](06-open-questions.md), [work plan §0.5](workplan/01-work-plan.md)),
+  ([25 B12](docs/design/25-open-questions.md), [work plan §0.5](docs/design/workplan/01-work-plan.md)),
   so §4 is a 1.0-adjacent constraint and this document is settled early rather
   than eventually. Kept struck through rather than deleted, because a reopening
   condition that quietly disappears when it fires teaches nobody anything.
@@ -1075,34 +1075,34 @@ list nobody can act on.
 
 **Discharged in the same pass as this document:**
 
-- **[05 §2](05-ui-surfaces.md)** was titled *"Two surfaces and an inspector"*; it
+- **[10 §2](docs/design/10-ui-surfaces.md)** was titled *"Two surfaces and an inspector"*; it
   is now *"The surfaces, and an inspector"* and names Write's arrival at 2.0
   along with the proposed fourth (§6.3). A stale count in the surface document is
   exactly the sort of thing that gets cited later as a rule, which is why the
   count stopped being in the title.
-- **[03 §7](03-modes-and-turn-pipeline.md)** carries a pointer here — deliberately
+- **[06 §7](docs/design/06-modes-and-turn-pipeline.md)** carries a pointer here — deliberately
   a pointer rather than a §7.5, which would invite reading Write as Scene's peer.
   Write is a surface rather than a chat mode, a sharper version of the same
   distinction §7.4 already draws for the assistant.
-- **[06](06-open-questions.md)** has taken this document's open questions as E11
+- **[25](docs/design/25-open-questions.md)** has taken this document's open questions as E11
   (the editor, §12) and E12 (the four smaller shapes: history granularity §5.4,
   plurals §9.2, sessions per manuscript §4.5, and templating inside a text block
   §11.1).
-- **[work plan §0](workplan/01-work-plan.md)** and
-  [releases §0](workplan/11-repo-and-releases.md) carry the scheduling, and
+- **[work plan §0](docs/design/workplan/01-work-plan.md)** and
+  [releases §0](docs/design/workplan/04-repo-and-releases.md) carry the scheduling, and
   [the design index](README.md) carries the surface and the two new terms.
-  [14](14-roadmap.md) no longer carries any of it: §2e is gone, because the
+  [24](docs/design/24-roadmap.md) no longer carries any of it: §2e is gone, because the
   feature list stopped holding release commitments.
 
 **Still owed, and deliberately not done here:**
 
-- **[05 §5.1](05-ui-surfaces.md)** settles on **six** library panels and marks
+- **[10 §5.1](docs/design/10-ui-surfaces.md)** settles on **six** library panels and marks
   that *for now*. §5.3 spends the seventh, so that section owes a line — and so
-  does [polish §5](workplan/09-polish.md), whose build item reads *six panels,
+  does [polish §5](docs/design/workplan/06-polish.md), whose build item reads *six panels,
   one per portable kind*. Manuscript is a panel **without** being portable
   (§5.3), so that phrasing stops being true before the count does, which is the
   easier half to miss.
-- **[10 §5](10-schemas.md)** takes the three optional lore-entry fields from
+- **[04 §5](docs/design/04-schemas.md)** takes the three optional lore-entry fields from
   §9.2, on §13's schedule — which is **now 1.0**, not "2.0 at the latest". The
   old objection was that adding them before there is a consumer puts three unread
   fields in a portable schema, which is how a schema accretes. That objection is

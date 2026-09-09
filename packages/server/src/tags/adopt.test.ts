@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * Adoption and renaming — [25 §3](../../../../docs/design/25-tagging.md) and §1.
+ * Adoption and renaming — [05 §3](../../../../docs/design/05-tagging.md) and §1.
  *
  * **This is the riskiest code on the branch** and it is tested through the API
  * rather than against the functions, because what matters is what ends up on
@@ -199,7 +199,7 @@ describe('renaming an adopted tag', () => {
 });
 
 /**
- * **[25 §1]'s sharp edge.** A lore entry's `actorTagFilter` holds author-written
+ * **[05 §1]'s sharp edge.** A lore entry's `actorTagFilter` holds author-written
  * names and activation compares them exactly, so a rename that ignored them
  * would silently change which lore fires. Found always; rewritten only on ask.
  */

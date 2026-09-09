@@ -14,7 +14,7 @@ import { PORTABLE_SCHEMAS } from './registry.js';
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas');
 
 /**
- * The invariants from docs/design/workplan/10-testing.md §1 that are properties of the
+ * The invariants from docs/design/workplan/03-testing.md §1 that are properties of the
  * schemas rather than of any instance.
  *
  * These are the tests that "fail loudly when a refactor breaks the design rather
@@ -77,7 +77,7 @@ function declaredProperties(kind: string, schema: unknown, path = ''): FoundProp
  * The connection and credential denylist.
  *
  * Half of it is ST's own `sensitiveFields` list, quoted in
- * [10 §8.4.4](../../../../docs/design/10-schemas.md) — *"presets circulating in the wild can
+ * [04 §8.4.4](../../../../docs/design/04-schemas.md) — *"presets circulating in the wild can
  * and do contain a working proxy password"*. The other half is the general
  * shape, so a field named `apiKey` or `endpointUrl` fails this test even though
  * ST never had one.
@@ -133,7 +133,7 @@ describe('no portable schema carries a connection or a credential', () => {
    * Walking the TypeBox objects catches a violation one step earlier, which is
    * why both are here, but it leaves `emit-schemas` untested (F18): the
    * artefact is what a third party fetches and validates against
-   * ([07 §4](../../../../docs/design/07-tech-stack.md)), and an emitter that
+   * ([19 §4](../../../../docs/design/19-tech-stack.md)), and an emitter that
    * dropped, renamed or added a property would sail past a walk over the input.
    *
    * Read synchronously and deliberately: this package has no business touching
@@ -164,7 +164,7 @@ describe('no portable schema carries a connection or a credential', () => {
       violations.map((v) => `${v.kind}${v.path}`),
       'A portable object must never carry production settings. If this field is ' +
         'genuinely needed, it belongs on a Connection — which is private, local ' +
-        'and never exported (docs/design/10-schemas.md §10).',
+        'and never exported (docs/design/04-schemas.md §10).',
     ).toEqual([]);
   });
 
@@ -211,7 +211,7 @@ describe('the emitted artefact is the document its $id names', () => {
 describe('every portable schema preserves unknown fields', () => {
   it('never sets additionalProperties to false, at any depth', () => {
     // The single rule that lets the format evolve without stranding anyone
-    // ([10 §2](../../../../docs/design/10-schemas.md)). A `false` anywhere in here would
+    // ([04 §2](../../../../docs/design/04-schemas.md)). A `false` anywhere in here would
     // reject a file from a newer build, and would do it invisibly.
     const closed: string[] = [];
 
@@ -242,7 +242,7 @@ describe('every portable schema preserves unknown fields', () => {
   });
 });
 
-describe('the two unions that must stay open (docs/design/10-schemas.md §8.2)', () => {
+describe('the two unions that must stay open (docs/design/04-schemas.md §8.2)', () => {
   // "In TypeScript the comment was aspirational; in the emitted JSON Schema it
   // was a hard enum, which would have rejected a perfectly good file from a
   // newer build."

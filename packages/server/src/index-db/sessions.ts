@@ -8,8 +8,8 @@ import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 
 /**
- * Sessions and turns in the index — [07 §7.1](../../../../docs/design/07-tech-stack.md),
- * [P2 §2.3](../../../../docs/design/workplan/04-p2-implementation.md).
+ * Sessions and turns in the index — [19 §7.1](../../../../docs/design/19-tech-stack.md),
+ * [P2 §2.3](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * Two jobs, and it is worth being clear that they are different. The **turn
  * row** is a location — turn id to `(segment, offset)` — which is what makes
@@ -20,7 +20,7 @@ import { inTransaction } from '../storage/transaction.js';
  *
  * Both are derived. `session.json` and the segments are the truth; deleting
  * `index.sqlite` costs a rescan and nothing else
- * ([13 §5](../../../../docs/design/13-internal-contracts.md)), which is why the rebuild scans
+ * ([21 §5](../../../../docs/design/21-internal-contracts.md)), which is why the rebuild scans
  * sessions too and why the CI gate holds the two producers to one answer.
  */
 
@@ -155,12 +155,12 @@ export function listSessionRows(
  *
  * **The owner comes from the session row, not the turn row.** A turn knows its
  * session and a session knows its owner, so the join is what enforces
- * [04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)'s rule that a request
+ * [09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md)'s rule that a request
  * never reaches another user's data. Denormalising the owner onto the turn would
  * be faster and would give the rule two places to be wrong.
  *
  * Archived sessions **are** searched. They are hidden from the default list, not
- * gone ([02 §10.3]), and a search that skipped them would turn archiving into a
+ * gone ([03 §10.3]), and a search that skipped them would turn archiving into a
  * quiet way of losing things.
  */
 export function searchTurns(
@@ -206,7 +206,7 @@ export function searchTurns(
  * by-id readers until the workbench's read-a-turn route.
  *
  * **The owner comes from the session row, not the turn row** — the same join
- * `searchTurns` draws and for the same reason ([04 §4.3]): denormalising the
+ * `searchTurns` draws and for the same reason ([09 §4.3]): denormalising the
  * owner onto the turn would give the rule two places to be wrong.
  */
 export function findTurnLocation(

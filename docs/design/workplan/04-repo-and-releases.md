@@ -1,4 +1,4 @@
-# 11 — Repository and release model
+# 04 — Repository and release model
 
 **Status: proposal.** Process rather than architecture. This document is the
 draft of what eventually becomes `CONTRIBUTING.md`; it lives here while the
@@ -13,26 +13,26 @@ what is deferred rather than forgotten.
 
 | Phase | Definition | Distribution |
 |---|---|---|
-| **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No *distribution* — no channels, no packages anyone else installs. One private artifact from [P6A](23-p6a-alpha-1.md) onward; see below. |
-| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [04 §5.4](../04-server-multiuser-deployment.md). |
+| **Alpha** | *now.* Building toward the 1.0 spec. | **Build it yourself.** No *distribution* — no channels, no packages anyone else installs. One private artifact from [P6A](docs/design/workplan/19-p6a-alpha-1.md) onward; see below. |
+| **Beta** | **Feature complete to the 1.0 spec** — every capability the design documents commit to exists and works. | Release handling starts here: tags, release branches, channels, the packaging tiers in [09 §5.4](../09-server-multiuser-deployment.md). |
 | **1.0** | Beta, stabilised. | Full packaging matrix. `release/1.0` persists. |
-| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([01 §0](01-work-plan.md), [17](../17-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
-| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — the Character Studio ([01 §0](01-work-plan.md), [24](../24-character-studio.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
-| **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — World ([01 §0](01-work-plan.md), [19](../19-world.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
-| **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — Campaign and the RPG channel library ([01 §0](01-work-plan.md)). | 5.0 work continues on `main` while `release/4.0` takes fixes. |
-| **6.0 beta → 6.0** | The same gate again, against the 6.0 scope — the authoring tier ([01 §0.6](01-work-plan.md)). | And so on. The pattern does not change again. |
+| **2.0 beta → 2.0** | The same gate again, against the 2.0 scope — the Write surface ([work plan §0](docs/design/workplan/01-work-plan.md), [13](../13-write-mode.md)). | 2.0 work continues on `main` while `release/1.0` takes fixes. |
+| **3.0 beta → 3.0** | The same gate again, against the 3.0 scope — the Character Studio ([work plan §0](docs/design/workplan/01-work-plan.md), [17](../17-character-studio.md)). | 3.0 work continues on `main` while `release/2.0` takes fixes. |
+| **4.0 beta → 4.0** | The same gate again, against the 4.0 scope — World ([work plan §0](docs/design/workplan/01-work-plan.md), [15](../15-world.md)). | 4.0 work continues on `main` while `release/3.0` takes fixes. |
+| **5.0 beta → 5.0** | The same gate again, against the 5.0 scope — Campaign and the RPG channel library ([work plan §0](docs/design/workplan/01-work-plan.md)). | 5.0 work continues on `main` while `release/4.0` takes fixes. |
+| **6.0 beta → 6.0** | The same gate again, against the 6.0 scope — the authoring tier ([work plan §0.6](docs/design/workplan/01-work-plan.md)). | And so on. The pattern does not change again. |
 
 **1.0 is a real release, not a staging post.** It ships the Play surface with two
 modes — Scene and Freeform — chosen as the ones this project has opinions about,
 with Write, the Character Studio, World and Campaign held for later series
-([01 §0](01-work-plan.md)).
+([work plan §0](docs/design/workplan/01-work-plan.md)).
 The release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.
 
 **The gate definition does not change as the series go up.** *Feature complete
-to the 2.0 spec* is checkable against [17](../17-write-mode.md) exactly as the
+to the 2.0 spec* is checkable against [13](../13-write-mode.md) exactly as the
 first one is checkable against the 1.0 design notes, and *to the 3.0 spec*
-against [24](../24-character-studio.md) after it. The branch model needs nothing
+against [17](../17-character-studio.md) after it. The branch model needs nothing
 new either:
 §2 already makes release branches per **minor line**, so each major is one more
 line rather than a new pattern. **There is no `1.x` line and never was** — a
@@ -41,7 +41,7 @@ features.
 
 **What the table does not contain is as important as what it does.** Only
 committed scopes get rows. Everything on the feature list
-([14](../14-roadmap.md)) has a priority rather than a release, so nothing there
+([24](../24-roadmap.md)) has a priority rather than a release, so nothing there
 is late, and nothing there gates a beta.
 
 **Beta is a completeness gate, not a quality gate.** "Feature complete to 1.0
@@ -53,16 +53,16 @@ rather than negotiable, and it puts the argument about whether something ships
 build chains, release automation, and workflows stable enough that shipping is
 repeatable rather than an event. That belongs *in* the beta gate rather than
 after it. One piece is settled: the canonical build must deliver **the OCI image
-and the tarball** ([04 §5.4](../04-server-multiuser-deployment.md)) for beta to
+and the tarball** ([09 §5.4](../09-server-multiuser-deployment.md)) for beta to
 count. The other four packaging artifacts are a **1.0** requirement rather than a
 beta one — enough to have users is the beta test, and four more build chains is
 work that reads as progress while delaying the thing being packaged.
 
-**They are owned by P11 rather than by a bar** ([01 §0.5](01-work-plan.md)),
+**They are owned by P11 rather than by a bar** ([work plan §0.5](docs/design/workplan/01-work-plan.md)),
 which is the correction to an earlier version of this paragraph. "At the 1.0
 bar" left four required artifacts with a requirement and no builder, because P11
 is the last phase and had put them out of scope. A bar nobody owns is a wish.
-The rest is sketched pending expansion in [01 §8](01-work-plan.md).
+The rest is sketched pending expansion in [work plan §8](docs/design/workplan/01-work-plan.md).
 
 Two consequences worth naming:
 
@@ -70,13 +70,13 @@ Two consequences worth naming:
   signing, and CI matrices are all beta-phase concerns. Building them now would
   be maintaining a distribution for software that has no users.
 - **"Build it yourself" is the alpha distribution strategy, not a permanent
-  philosophy.** [04 §5.4](../04-server-multiuser-deployment.md) argues that
+  philosophy.** [09 §5.4](../09-server-multiuser-deployment.md) argues that
   build-from-source should stay genuinely first-class forever — that remains
   true, but during alpha it is the *only* path, which is a different claim.
 
 ### 0.1 The distinction the table above was missing
 
-*Added at [P6A](23-p6a-alpha-1.md), which is the phase that needed it.*
+*Added at [P6A](docs/design/workplan/19-p6a-alpha-1.md), which is the phase that needed it.*
 
 Both bullets say **distribution**, and both are right about it. Neither
 distinguishes distribution from the thing that happens to share its build chain:
@@ -86,7 +86,7 @@ distinguishes distribution from the thing that happens to share its build chain:
   word of the two bullets applies to it, and it stays post-alpha.
 - **A build the project produces for itself** is tagged, changelogged,
   reproducible and identified — and handed to nobody. None of the recurring costs
-  [04 §5.4](../04-server-multiuser-deployment.md) warns about attach to it,
+  [09 §5.4](../09-server-multiuser-deployment.md) warns about attach to it,
   because every one of them is a cost of having an audience.
 
 **P6A cuts the second and calls it Alpha 1.** A private repository, a private
@@ -98,12 +98,12 @@ distribution argument is not weakened by this; it is what the privacy is for.**
 Two things follow that are worth stating rather than inferring:
 
 - **AGPL §13 attaches on distribution**
-  ([04 §7](../04-server-multiuser-deployment.md)), so it does not attach to
+  ([09 §7](../09-server-multiuser-deployment.md)), so it does not attach to
   Alpha 1 — which is why the About surface and the version-aware source link stay
   at P10 and P11 rather than being dragged forward.
 - **Publishing is therefore one decision, not a toggle.** A public image obliges
   a public repository at the same instant, plus the §13 surface, plus a data
-  story for strangers' installs. [P6A §4](23-p6a-alpha-1.md) lists them together
+  story for strangers' installs. [P6A §4](docs/design/workplan/19-p6a-alpha-1.md) lists them together
   for that reason.
 
 ---
@@ -152,7 +152,7 @@ Release branches are per **minor line**, not per patch — `release/1.2` carries
 
 **This model directly serves an obligation we already have.** AGPL §13 requires
 offering the source corresponding to *the running version*
-([04 §7](../04-server-multiuser-deployment.md)), which means builds embed their tag
+([09 §7](../09-server-multiuser-deployment.md)), which means builds embed their tag
 and commit and the About surface links to them. Permanent release branches and
 permanent tags are what make that link resolve years later. A model that deleted
 release history would quietly make §13 compliance harder over time.
@@ -195,7 +195,7 @@ automated and reliable" — and the automation condition is the tell.
   automated fast-forward that can drift or fail silently. The genuine use case
   is convenience for install instructions — `git clone -b latest` reading better
   than "look up the newest tag". But per
-  [04 §5.4](../04-server-multiuser-deployment.md) the real install paths are a
+  [09 §5.4](../09-server-multiuser-deployment.md) the real install paths are a
   container image and a tarball, and both already have a `:latest` concept that
   is not a git ref.
 - A **`nightly` branch** is a category error in the same way: nightly builds are
@@ -215,11 +215,11 @@ Three channels:
 | **nightly** | `main` HEAD | schedule only | seeing today's state; may be broken |
 
 **An alpha build occupies one of these rows since alpha.2 — `testing`.**
-[P6A](23-p6a-alpha-1.md) published Alpha 1 under an immutable tag and moved no
+[P6A](docs/design/workplan/19-p6a-alpha-1.md) published Alpha 1 under an immutable tag and moved no
 alias; on 2026-09-07 the maintainer's own unraid install asked for a channel it
 could follow, and the `testing` row is exactly what a tagged alpha is: *a chosen
 commit on `main`* — a prerelease is a tag on `main`
-([P6A §1.6](23-p6a-alpha-1.md)) — *gated on a human deciding*, which a tag is.
+([P6A §1.6](docs/design/workplan/19-p6a-alpha-1.md)) — *gated on a human deciding*, which a tag is.
 So every `v*` tag also pushes the image as `:testing`, the unraid template
 follows that tag, and `compose.yaml` stays pinned to the version — the build
 you can go back to. **`latest` still names nothing**, and it stays that way
@@ -250,7 +250,7 @@ rewrite itself, and every mechanism above already delivers the outcome without
 that risk.
 
 The in-app check is specified in
-[04 §6.5](../04-server-multiuser-deployment.md), including the deliberate limits
+[09 §6.5](../09-server-multiuser-deployment.md), including the deliberate limits
 that keep it from becoming telemetry, and its secondary use as a connectivity
 signal that improves generation error messages.
 
@@ -298,7 +298,7 @@ protecting from merge volume rather than from individual mistakes.
 - **Semantic versioning**, with the caveat that pre-1.0 it means little and the
   data formats are the thing that actually needs a compatibility story — package
   and card schema versions are independent of the app version
-  ([02 §7](../02-data-model.md)). The string is what the machinery reads; what
+  ([03 §7](../03-data-model.md)). The string is what the machinery reads; what
   a person calls a build is §7.1.
 - **Every release tag needs a changelog entry**, because the About surface links
   to it and because §13 makes "what am I running" a user-facing question rather
@@ -324,7 +324,7 @@ reads.** The string is semver: the tag is `v` plus it, `write-build-info.mjs`
 refuses a tag that disagrees with the root `package.json`, `release.test.ts`
 holds `compose.yaml`, the unraid template and the CHANGELOG entry to the same
 string and the release workflow to the same image tag, and the data-directory
-stamp ([P6A §1.7](23-p6a-alpha-1.md)) orders two builds by it. The name is
+stamp ([P6A §1.7](docs/design/workplan/19-p6a-alpha-1.md)) orders two builds by it. The name is
 **derived from the string by one rule and typed nowhere on its own** — four
 places carried the version before anything compared them, and a fifth that
 could not be derived would be a fifth to disagree.
@@ -333,7 +333,7 @@ could not be derived would be a fifth to disagree.
 
 | Build | Name | String | Tag |
 |---|---|---|---|
-| The first alpha of 1.0 — the build [P6A](23-p6a-alpha-1.md) calls Alpha 1 | *1.0-alpha 1* | `1.0.0-alpha.1` | `v1.0.0-alpha.1` |
+| The first alpha of 1.0 — the build [P6A](docs/design/workplan/19-p6a-alpha-1.md) calls Alpha 1 | *1.0-alpha 1* | `1.0.0-alpha.1` | `v1.0.0-alpha.1` |
 | The alphas after it, one sequence | *1.0-alpha 2* | `1.0.0-alpha.2` | `v1.0.0-alpha.2` |
 | The first beta — feature-complete to the 1.0 spec (§0) | *1.0-beta 1* | `1.0.0-beta.1` | `v1.0.0-beta.1` |
 | A hotfix on that beta | *1.0-beta 1.1* | `1.0.0-beta.1.1` | `v1.0.0-beta.1.1` |
@@ -352,7 +352,7 @@ anything uses it. Nothing deeper than a hotfix level is planned, and nothing
 forbids one if it is ever needed.
 
 **Alphas are not expected to be hotfixed, and the branch model does not
-provide for it.** A prerelease is a tag on `main` ([P6A §1.6](23-p6a-alpha-1.md)),
+provide for it.** A prerelease is a tag on `main` ([P6A §1.6](docs/design/workplan/19-p6a-alpha-1.md)),
 so a hotfix on an alpha would need a branch cut from that tag, and §1 lists no
 such branch. Recorded as a gap rather than filled: the intent is not to hotfix
 an alpha at all, and a branch nobody wants to use is the kind of thing this
@@ -360,7 +360,7 @@ document exists to avoid writing. A beta hotfix has a home if `release/1.0` is
 cut at beta 1, which is the freeze-not-release answer §8 leans toward.
 
 **Why every prerelease carries the release's name.** The committed versions
-([01 §0](01-work-plan.md)) are one surface or tier each — 1.0 Play, 2.0 Write,
+([work plan §0](docs/design/workplan/01-work-plan.md)) are one surface or tier each — 1.0 Play, 2.0 Write,
 3.0 the Character Studio, 4.0 World, 5.0 Campaign, 6.0 the authoring tier — so
 the major number moves
 faster than the word usually implies, and *2.0-beta 1* says which of those it
@@ -402,7 +402,7 @@ of a line; the name and the date follow after dashes —
 
 - **[OPEN]** When to introduce `nightly` and `testing`. Gated on CI reliability
   per §4, and on reaching beta per §0. **Resolved in part at
-  [P6A](23-p6a-alpha-1.md), and the halves are worth naming separately** because
+  [P6A](docs/design/workplan/19-p6a-alpha-1.md), and the halves are worth naming separately** because
   only one of them moved. The *CI reliability* half is substantially met — the
   per-PR tier runs format, typecheck, lint, build, schema-drift, the suite and
   the named gate on ubuntu and Windows, and P6A adds the on-tag tier. The
@@ -425,11 +425,11 @@ of a line; the name and the date follow after dashes —
   was opened and before the tag: the alphas join the regular sequence as
   `1.0.0-alpha.N`, a hotfix as `1.0.0-alpha.N.M`, and the tree was renamed in
   one commit** — the root `package.json`, the CHANGELOG heading, `compose.yaml`,
-  the template and [P6A §1.6](23-p6a-alpha-1.md), with `release.test.ts` proving
+  the template and [P6A §1.6](docs/design/workplan/19-p6a-alpha-1.md), with `release.test.ts` proving
   they agree. The rendering settled with it: *1.0-alpha 1*, no `.0`, the same
   shape as *1.0-beta 1*. The question as it was put, kept because the reasoning
   is the record: the tree held `0.1.0-alpha.N`, chosen at
-  [P6A §1.6](23-p6a-alpha-1.md) because pre-1.0 semver *"means little"*, and
+  [P6A §1.6](docs/design/workplan/19-p6a-alpha-1.md) because pre-1.0 semver *"means little"*, and
   three things followed from that choice that the naming made visible — the
   `0.1.0` was a constant that meant nothing; the alpha was the one series whose
   name was not derivable by §7.1's general rule; and alphas had two rules where

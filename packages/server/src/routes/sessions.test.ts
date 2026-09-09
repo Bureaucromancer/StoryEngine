@@ -124,7 +124,7 @@ describe('the session surface', () => {
   });
 
   /**
-   * A session need not be named — [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+   * A session need not be named — [10 §11.1a](../../../../docs/design/10-ui-surfaces.md).
    *
    * Nothing resolves a session by name and no folder is derived from one, so a
    * name freezes nothing at creation and demanding one bought only a form to
@@ -161,7 +161,7 @@ describe('the session surface', () => {
   });
 
   /**
-   * Renaming through the same `PATCH` that archives — [02 §8].
+   * Renaming through the same `PATCH` that archives — [03 §8].
    *
    * The follow-up `GET` is the half that matters: a handler could build a
    * correct response body without the write ever reaching disk, and only a
@@ -214,7 +214,7 @@ describe('the session surface', () => {
   });
 
   it("answers 404 for another account's session, not 403", async () => {
-    // The path is the owner ([04 §4.3]): confirming the id exists elsewhere
+    // The path is the owner ([09 §4.3]): confirming the id exists elsewhere
     // would leak the one fact the separation keeps.
     await server.services.accounts.create({
       handle: 'sister',
@@ -307,7 +307,7 @@ describe('the stream', () => {
   });
 
   it('gives two clients the same ordered events, and unsubscribes both', async () => {
-    // [04 §3.1]: the session stream is subscribed while viewing, so two tabs on
+    // [09 §3.1]: the session stream is subscribed while viewing, so two tabs on
     // one session is the ordinary case rather than an exotic one.
     await server.dispose();
     await standUp([{ text: 'abcdef', chunks: 3, chunkDelayMs: 5 }]);
@@ -512,7 +512,7 @@ describe('a hand-edited session file reaches the log', () => {
     // `reconcileHandEdits` was exported, unit-tested and reached by nothing, so
     // this step was green on code the running server never executed — and a
     // hand edit was absorbed into the head snapshot without ever entering the
-    // effect log, which is the failure [02 §8.1] exists to prevent.
+    // effect log, which is the failure [03 §8.1] exists to prevent.
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
     await stream.until(finished, 4000);
@@ -676,7 +676,7 @@ describe('a session with a cast assembles the whole preset', () => {
   });
 
   it('copies the preset rather than referencing it', async () => {
-    // [02 §8]: the session owns its pack from creation, so editing the mode's
+    // [03 §8]: the session owns its pack from creation, so editing the mode's
     // default never rewrites a game in progress. The asymmetry with the cast —
     // which is links — is the design.
     const created = await server.request({
@@ -688,7 +688,7 @@ describe('a session with a cast assembles the whole preset', () => {
     // Tracks the Scene preset's block count, so it moves when that preset
     // gains a block — 15 since the second lore slot ([P6B.1], the phase every
     // `after_char` entry was being dropped for), 14 from the previous-attempt
-    // slot ([03 §5.1]), 13 from the writing-samples slot ([10 §3.1]) before it.
+    // slot ([06 §5.1]), 13 from the writing-samples slot ([04 §3.1]) before it.
     expect(created.body.session.preset.blocks).toHaveLength(15);
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });

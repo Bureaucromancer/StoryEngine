@@ -63,7 +63,7 @@ import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
 
 /**
- * The HTTP app — Fastify, per [07 §3](../../../docs/design/07-tech-stack.md).
+ * The HTTP app — Fastify, per [19 §3](../../../docs/design/19-tech-stack.md).
  *
  * The deciding argument there was that this design already needs runtime JSON
  * Schema in four places, so route validation becomes a *fifth* use of the same
@@ -98,7 +98,7 @@ export interface AppServices {
   layout: Layout;
   index: OpenedIndex;
   /**
-   * The operational store — jobs, reservations, drafts, events ([13 §5.1]).
+   * The operational store — jobs, reservations, drafts, events ([21 §5.1]).
    *
    * Beside the index and emphatically not part of it: deleting `index.sqlite`
    * is a non-event, and deleting this one loses an uncommitted turn.
@@ -147,8 +147,8 @@ export interface AppServices {
   sessionKey: string;
   /**
    * The first-run setup token, or null when nothing needs one — F10,
-   * [04 §5.1](../../../docs/design/04-server-multiuser-deployment.md),
-   * [P6A §1.4](../../../docs/design/workplan/23-p6a-alpha-1.md).
+   * [09 §5.1](../../../docs/design/09-server-multiuser-deployment.md),
+   * [P6A §1.4](../../../docs/design/workplan/19-p6a-alpha-1.md).
    *
    * **Null carries the decision**, which is why it is a nullable value rather
    * than a token plus a boolean somewhere else: a token exists exactly when this
@@ -203,7 +203,7 @@ export interface AppServices {
   configDocument: Record<string, unknown>;
   library: LibraryContext;
   /**
-   * Client preferences, per user ([06 B13]).
+   * Client preferences, per user ([25 B13]).
    *
    * A service rather than a free function because it owns a write queue: a
    * patch is read-modify-write across an `await`, and two of those racing lose
@@ -211,12 +211,12 @@ export interface AppServices {
    */
   prefs: PrefsStore;
   /**
-   * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+   * The tag registry — [05 §4](../../../docs/design/05-tagging.md).
    *
    * Beside `prefs` and for the same structural reason: it owns a write queue,
    * because every change to it is a read-modify-write across an `await`. It is
    * a *separate* store rather than a key in that one because it has a schema
-   * and validates, which is exactly what [06 B13] decided the preferences bag
+   * and validates, which is exactly what [25 B13] decided the preferences bag
    * would not do.
    */
   tags: TagStore;
@@ -336,7 +336,7 @@ async function assembleWithState(
 
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
-  // ([13 §5](../../../docs/design/13-internal-contracts.md)).
+  // ([21 §5](../../../docs/design/21-internal-contracts.md)).
   if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
     await rebuild(index.db, layout);
   }
@@ -378,7 +378,7 @@ async function assembleWithState(
     options.providers ??
     createProviderFactory(capture === undefined ? {} : { wrapFetch: capture.wrapFetch });
   /**
-   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/09-p2a-configuration-surface.md).
    *
    * The runner needs it to read the account's `privateConnections` capability.
    *
@@ -462,7 +462,7 @@ async function assembleWithState(
     sessionKey: await loadOrCreateSessionKey(layout),
     /**
      * **Minted only in the window it is for.** A loopback install never gets
-     * one — [04 §5.1]'s claim window is closed by the bind itself — and an
+     * one — [09 §5.1]'s claim window is closed by the bind itself — and an
      * install that already has an admin never gets one either, because the
      * thing a token protects has already happened.
      *
@@ -532,7 +532,7 @@ export async function buildApp(
      * pino already travels with Fastify, so taking the option instead of
      * declaring and injecting an instance keeps this stage from silently
      * choosing a logging library that no design section names. JSON is the only
-     * format ([13 §4.1]), which is pino's default, so `level` is the whole
+     * format ([21 §4.1]), which is pino's default, so `level` is the whole
      * configuration — and it is also what makes the `live` tier real: pino
      * resolves a child's level through its prototype, so assigning
      * `app.log.level` reaches every logger derived from it.
@@ -557,7 +557,7 @@ export async function buildApp(
    *
    * `createValidator()` is Ajv with those off, and with `date-time` registered
    * as an actual check rather than an ignored unknown format — the one place in
-   * the repo that gets that right ([10 §3](../../../docs/design/10-schemas.md)),
+   * the repo that gets that right ([04 §3](../../../docs/design/04-schemas.md)),
    * now shared instead of imitated.
    */
   app.setValidatorCompiler(({ schema }) => validator.compile(schema as object));
@@ -588,7 +588,7 @@ export async function buildApp(
          * carrying a `role` answered `/ must NOT have additional properties`,
          * which tells a client author to go and read the schema.
          *
-         * That matters more since [P2A](../../../docs/design/workplan/13-p2a-configuration-surface.md):
+         * That matters more since [P2A](../../../docs/design/workplan/09-p2a-configuration-surface.md):
          * closed bodies are how the settings routes refuse a field rather than
          * ignoring it, and *refused* only teaches a client something if the
          * answer says which field.
@@ -700,7 +700,7 @@ export async function buildApp(
 
     // CSRF before anything else acts on the request. Double-submit: a token in
     // a script-readable cookie, echoed in a header a cross-site caller cannot
-    // set ([04 §4.1](../../../docs/design/04-server-multiuser-deployment.md)).
+    // set ([09 §4.1](../../../docs/design/09-server-multiuser-deployment.md)).
     //
     // **Only when there is a session to protect.** CSRF is an attack on ambient
     // authority — it makes the victim's browser spend credentials it is already
@@ -721,7 +721,7 @@ export async function buildApp(
 
     // **First-run setup gates everything.** Until an admin exists, every route
     // except setup reports that setup is needed
-    // ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)). Combined with
+    // ([09 §5.1](../../../docs/design/09-server-multiuser-deployment.md)). Combined with
     // the loopback default this closes the window in which anyone on the
     // network could claim the admin account.
     if (
@@ -747,7 +747,7 @@ export async function buildApp(
       registerSessionRoutes(api, services);
 
       /**
-       * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+       * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/09-p2a-configuration-surface.md).
        *
        * A nested `register` rather than a call beside the others, because that
        * is what gives `adminOnly` somewhere to live: a Fastify plugin is an
@@ -893,7 +893,7 @@ function survivesSetupGate(url: string): boolean {
  *
  * The `live` tier stops being a data-only annotation here: `log.level` is its
  * first real consumer ([P2 §2.2]), and the return value *is* the
- * restart-required notice ([04 §6.3]) — the specific keys, because a bare
+ * restart-required notice ([09 §6.3]) — the specific keys, because a bare
  * "restart required" invites people to restart and hope.
  *
  * Deliberately not a subscription mechanism. One assignment reaches every
@@ -903,7 +903,7 @@ function survivesSetupGate(url: string): boolean {
  *
  * The caller decides *when* — this function does not watch anything. What it
  * must never be handed is a config that failed to load: a reload that cannot
- * read a valid file keeps the running one ([13 §4.2]), because a server that
+ * read a valid file keeps the running one ([21 §4.2]), because a server that
  * reverted to defaults on a typo would unbind itself from its own port.
  */
 export function applyLiveConfig(

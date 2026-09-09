@@ -1,24 +1,24 @@
 # The HTTP API
 
 **Status: as built, and kept so.** Written at P2.5 and revised with every phase
-since — last at [P6A](design/workplan/23-p6a-alpha-1.md), for the setup token,
+since — last at [P6A](docs/design/workplan/19-p6a-alpha-1.md), for the setup token,
 the build identity and the `/api` boundary. This describes what exists, not what
 is planned — where the two differ, this file is right and the design notes
 record intent ([docs/README.md](README.md)).
 
 Everything is under `/api`. Responses are JSON. The client is the only consumer
 today, but nothing here is client-specific: `curl` is a first-class way to drive
-it, and the P1 exit gate ([P1 §3](design/workplan/03-p1-implementation.md)) is written in
+it, and the P1 exit gate ([P1 §3](docs/design/workplan/07-p1-implementation.md)) is written in
 terms of it.
 
 **The prefix is a boundary, not a convention.** Since
-[P6A.1](design/workplan/23-p6a-alpha-1.md) the same process can also serve the
+[P6A.1](docs/design/workplan/19-p6a-alpha-1.md) the same process can also serve the
 web client, so an address outside `/api` may answer HTML — but an address
 *under* it never does. One that matches no route is
 `404 {"error":"not-found"}` like any other JSON error, because a client that
 parses this API is worse served by a page than by a 404. Whether the UI is
 served at all is one config key, `server.clientRoot`
-([13 §4](design/13-internal-contracts.md)); in development it is unset and the
+([21 §4](docs/design/21-internal-contracts.md)); in development it is unset and the
 client is a second process.
 
 ---
@@ -39,7 +39,7 @@ forced:
 
 Until an account exists, **every route except `/api/auth/state` and
 `/api/auth/setup` returns `503 {"error":"setup-required"}`**. That is deliberate
-([04 §5.1](design/04-server-multiuser-deployment.md)): combined with the loopback
+([09 §5.1](docs/design/09-server-multiuser-deployment.md)): combined with the loopback
 bind default, it closes the window in which anyone on the network could claim the
 install.
 
@@ -121,7 +121,7 @@ added later cannot leak by default.
 
 **`privateConnections` is enforced where connections resolve** — never at the
 UI, which a user with write file access can bypass
-([04 §4.5](design/04-server-multiuser-deployment.md)). Revoking it stops the
+([09 §4.5](docs/design/09-server-multiuser-deployment.md)). Revoking it stops the
 account's next turn from using its own connections; the files stay on disk, and
 the turn falls back to the system ones. Restoring the capability restores them.
 
@@ -132,7 +132,7 @@ feature does, rather than presenting three switches as though they were equally
 live.
 
 **`setupTokenRequired` says whether creating the first admin needs the token
-from the server's console** (F10, [04 §5.1](design/04-server-multiuser-deployment.md)).
+from the server's console** (F10, [09 §5.1](docs/design/09-server-multiuser-deployment.md)).
 It is true exactly when setup is still needed *and* this process is bound beyond
 loopback. A client cannot work that out for itself — it may be reaching a
 loopback server directly or an exposed one through a proxy — and both guesses
@@ -141,17 +141,17 @@ install makes it look broken. It narrows nothing that this same response does no
 already say, and the token itself never leaves the console.
 
 **`build` is what this build is**, or `null` for one nobody identified — every
-development run ([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Here as well as
+development run ([P6A §1.5](docs/design/workplan/19-p6a-alpha-1.md)). Here as well as
 on the admin notices route, since alpha.2, because the UI says it on every page:
 the footer under login and setup as much as under the library, and the About
 block at the top of Settings, for every account. Unauthenticated on purpose, and
 it narrows nothing: this response already says whether the install is
 unclaimed, the login page is served to anyone who can reach the port, and a
 version is a fact about the software rather than about anybody's data. It is
-also user-facing by design — [04 §7](design/04-server-multiuser-deployment.md)
+also user-facing by design — [09 §7](docs/design/09-server-multiuser-deployment.md)
 makes *what am I running* a question the running version answers for everyone
 who interacts with the server. The name a person reads (*1.0-alpha 2*) is
-derived from the string by [releases §7.1](design/workplan/11-repo-and-releases.md)'s
+derived from the string by [releases §7.1](docs/design/workplan/04-repo-and-releases.md)'s
 rule; the response carries the string.
 
 **`minPasswordLength` is `auth.minPasswordLength`**, the shortest password this
@@ -222,10 +222,10 @@ somewhere.
 
 These are **one handler set, not six**. The registry makes it kind-agnostic —
 every portable object self-describes, so nothing enumerates kinds
-([10 §9](design/10-schemas.md)). Adding a kind should not touch the routes.
+([04 §9](docs/design/04-schemas.md)). Adding a kind should not touch the routes.
 
 **No route takes a handle.** Every one resolves its root from the session,
-because the path is the owner ([04 §4.3](design/04-server-multiuser-deployment.md)).
+because the path is the owner ([09 §4.3](docs/design/09-server-multiuser-deployment.md)).
 Another user's object is `404`, not `403` — confirming the id exists would leak
 the one fact the separation exists to keep.
 
@@ -249,9 +249,9 @@ Every read returns:
 - **`source`** is `"user"` or `"system"`. The list merges a user's library with
   `system/library/`, which ships empty at P1 — the merge is a query rather than a
   special case. The badge needs a second channel beyond colour
-  ([05 §5](design/05-ui-surfaces.md)).
+  ([10 §5](docs/design/10-ui-surfaces.md)).
 - **`shadowed`** means another file holds this id at a lexicographically earlier
-  path ([P1 §1.2](design/workplan/03-p1-implementation.md)). Both are listed; the shadowed
+  path ([P1 §1.2](docs/design/workplan/07-p1-implementation.md)). Both are listed; the shadowed
   one carries a warning. Copying a folder is a feature, so this never blocks.
 - **`slug`** is the folder name, frozen at creation. **Nothing *writes* by it
   and no reference between objects uses it** — resolve by `id`. The one
@@ -263,7 +263,7 @@ Every read returns:
 The kind is a path segment rather than a mode: one handler set answers both, and
 the unfiltered form exists because cross-kind queries — search, counts, an
 export sweep — are a real thing to want. It is not a claim about the UI, which
-browses per kind ([05 §5](design/05-ui-surfaces.md)).
+browses per kind ([10 §5](docs/design/10-ui-surfaces.md)).
 
 ### `GET /api/library/errors`
 
@@ -283,7 +283,7 @@ This exists because the alternative was silence. A hand edit that breaks a file
 is skipped by the index — the last good version stays readable and the write
 path refuses to overwrite bytes it cannot read — but until this route the person
 who saved the file got no error, no toast, and a stale object
-([02 §5.1](design/02-data-model.md)). An entry clears when the file parses again,
+([03 §5.1](docs/design/03-data-model.md)). An entry clears when the file parses again,
 or when it is deleted.
 
 ### `POST /api/library/:kind`
@@ -295,7 +295,7 @@ numeric suffix from `-2`.
 
 **Read-after-write is guaranteed**: a `GET` immediately after this reflects it.
 The server indexes its own writes synchronously; the watcher is only for foreign
-ones ([02 §5.1.1](design/02-data-model.md)). If it ever needs a retry, something
+ones ([03 §5.1.1](docs/design/03-data-model.md)). If it ever needs a retry, something
 is wrong.
 
 ### `GET /api/library/:kind/:id`
@@ -331,13 +331,13 @@ the exit gate should not need one.
 
 **The 412 is the interesting one.** It carries the *current* object so the UI can
 offer reload-and-reapply or save-as-a-copy rather than guessing
-([04 §4.4](design/04-server-multiuser-deployment.md)). It is also the only defence
+([09 §4.4](docs/design/09-server-multiuser-deployment.md)). It is also the only defence
 the hot-reload thesis has against silently eating a hand edit — the likelier
 conflict is not two tabs but one tab and a text editor.
 
 **There is no rename route.** Changing `name` is an ordinary `PUT`. The folder
 keeps the slug it was born with, and the engine never moves a user's directories
-([P1 §1.1](design/workplan/03-p1-implementation.md)).
+([P1 §1.1](docs/design/workplan/07-p1-implementation.md)).
 
 **The 409 exists because these used to be the same answer, and that answer could
 not terminate** (P2C finding 8). *The file changed* and *the file broke* are both
@@ -355,7 +355,7 @@ An object cannot change its `id` or its `schema`. System-owned objects are
 ### `GET /api/library/:kind/:id/rows`
 
 The index rows behind the object — the workbench's projection
-([P3 §7.4](design/workplan/05-p3-implementation.md), decided: best-effort,
+([P3 §7.4](docs/design/workplan/15-p3-implementation.md), decided: best-effort,
 every row).
 
 ```json
@@ -380,7 +380,7 @@ shadowed copies, and any row inside its tombstone settling window
 (`tombstonedAt` in epoch milliseconds, `null` for a live row). Paths are
 portable — root-relative, `/`-separated — never native ones. **Best-effort,
 not a contract**: the index's tables are an implementation detail
-([13 §5](design/13-internal-contracts.md)) and its migration policy is
+([21 §5](docs/design/21-internal-contracts.md)) and its migration policy is
 drop-and-rescan, so after an index schema bump this route may return less
 until the surface catches up. Read-only; the object's contents stay the read
 route's answer.
@@ -397,7 +397,7 @@ to be **undeletable as well as unwritable**, so the one object a person most
 needs to remove was the one this refused to remove (P2C finding 8). The
 `If-Match` check still carries the meaning that matters — *you are deleting what
 you were shown* — and the move is reversible through trash and version history
-([02 §10.2](design/02-data-model.md)), which is why refusing was the more
+([03 §10.2](docs/design/03-data-model.md)), which is why refusing was the more
 destructive option of the two.
 
 ### `POST /api/import/file`
@@ -408,14 +408,14 @@ converted, `200 { item, notes }` when it did not.
 
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
-path ([13 §4.1.1](design/13-internal-contracts.md)). `disposition` is
+path ([21 §4.1.1](docs/design/21-internal-contracts.md)). `disposition` is
 `converted`, `recorded` or `unrecognised`, and the middle one is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
 reported as *not yet* rather than refused as broken. Answering `4xx` would tell
 somebody their file is wrong when the truth is that the build is unfinished.
 
 Notes are `{ key, params, level }` and never sentences — the client composes the
-prose ([P4 §1.4](design/workplan/06-p4-implementation.md)).
+prose ([P4 §1.4](docs/design/workplan/16-p4-implementation.md)).
 
 - `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
   That is what moved the key from `unread` to `applied` after three phases as
@@ -453,7 +453,7 @@ change underneath, and the commit's answer is the real one.
   preferredModelIds, compatKeys }` for a preset, `{ kind: 'sweep' }` for an
   archive or a Marinara envelope, `{ kind: 'opaque', name }` for something that
   converts and has no summary yet, and `null` when nothing would be imported.
-- `compatKeys` carries **names and never values** ([10 §8.4.6](design/10-schemas.md)).
+- `compatKeys` carries **names and never values** ([04 §8.4.6](docs/design/04-schemas.md)).
   A screen that showed what was in the file would show a proxy password to
   whoever was handed the file.
 - `notes` are the converter's, about the file. `advisories` are about **this
@@ -482,7 +482,7 @@ and move the credential rule from the server to the client.
 `{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
 own filesystem and imports what it finds.
 
-**Gated on `fileAccess`**, as [05 §4.2.2](design/05-ui-surfaces.md) widened it —
+**Gated on `fileAccess`**, as [10 §4.2.2](docs/design/10-ui-surfaces.md) widened it —
 `read` is enough, since the sweep never writes to the source. `403
 {"error":"no-file-access"}` without it.
 
@@ -513,7 +513,7 @@ objects are never rewritten and are reported as `unchanged`, which is a differen
 answer from `skipped`.
 
 **Source files in the report are named relative to the root**, never absolutely
-([13 §4.1.1](design/13-internal-contracts.md)) — a review somebody pastes into an
+([21 §4.1.1](docs/design/21-internal-contracts.md)) — a review somebody pastes into an
 issue must not be a description of their filesystem.
 
 The response also carries `suggestions` — see below. A sweep of the wrong folder
@@ -537,7 +537,7 @@ the same vocabulary but are reached on the upload path, never by pointing at a
 folder.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
-build already names in its own source. [05 §4.2.2](design/05-ui-surfaces.md)
+build already names in its own source. [10 §4.2.2](docs/design/10-ui-surfaces.md)
 keeps the sweep's report relative so the review does not become a filesystem map;
 an endpoint that enumerated children would hand back exactly the map that clause
 refuses.
@@ -577,7 +577,7 @@ files the importer will actually open.
 
 **No `fileAccess` gate, and that is the point of the transport.** The sweep reads
 the host's filesystem through the server's own user, which is why
-[05 §4.2.2](design/05-ui-surfaces.md) grants it to *somebody you would give a
+[10 §4.2.2](docs/design/10-ui-surfaces.md) grants it to *somebody you would give a
 shell to*. This reads nothing — the browser opened the folder under the person's
 own credentials, and what arrives is a list of names they chose to send. An
 account that may upload one file may upload a folder of them.
@@ -623,7 +623,7 @@ so any other kind is `404`.
 
 ## Tags
 
-The tag registry — [25](design/25-tagging.md). One document per account, at
+The tag registry — [05](docs/design/05-tagging.md). One document per account, at
 `users/<handle>/tags.json`.
 
 **The registry decorates tag names; it does not own them.** An object may carry
@@ -653,7 +653,7 @@ A tag entry is:
 ```
 
 `swatch` and `folder` are **documented open strings, not closed sets**
-([10 §8.2](design/10-schemas.md)'s rule). A value this build does not recognise
+([04 §8.2](docs/design/04-schemas.md)'s rule). A value this build does not recognise
 renders neutral, or reads as `none`, and is stored back unchanged rather than
 blanked — a newer build wrote it.
 
@@ -679,7 +679,7 @@ just typed `Noir` and can see no `noir`.
 
 **`name` is not accepted here**, and its absence is deliberate. Renaming is not a
 property edit: an entry's `actorTagFilter` naming the old spelling stops matching
-([25 §1](design/25-tagging.md)), so a rename can change which lore fires and owes
+([05 §1](docs/design/05-tagging.md)), so a rename can change which lore fires and owes
 an answer about the gates it found. A `name` in this body is `400` with the field
 named, rather than being applied as if it were a colour.
 
@@ -699,7 +699,7 @@ entry changes what every carrier is called without touching a single object file
 
 **And one question.** A lore entry's `actorTagFilter` holds author-written tag
 *names*, and activation compares them exactly and case-sensitively
-([25 §1](design/25-tagging.md)), so a rename that ignored them would silently
+([05 §1](docs/design/05-tagging.md)), so a rename that ignored them would silently
 change which lore fires. Gates naming the old spelling are reported in
 `gatesFound` **always**, and rewritten only when `rewriteGates` is true. Both
 answers are defensible — an author who wrote a gate on *noir* may have meant that
@@ -741,7 +741,7 @@ error page.
 ## Version history
 
 Every write that changes something snapshots the state it replaced, automatically
-([02 §11](design/02-data-model.md)). A no-op write records nothing. History
+([03 §11](docs/design/03-data-model.md)). A no-op write records nothing. History
 lives inside the object's own folder (`history/index.jsonl` plus
 content-addressed payloads), so it travels with the folder and survives an index
 rebuild. Hand edits get history too: the watcher snapshots the previous state
@@ -768,7 +768,7 @@ before re-indexing a foreign change, with source `external`.
 ```
 
 Newest first. `revision` is append order, oldest = 1 — computed for display,
-never stored ([02 §11.5](design/02-data-model.md)). `authoredAt` is when the
+never stored ([03 §11.5](docs/design/03-data-model.md)). `authoredAt` is when the
 snapshotted state was *written*, not when it was replaced, so a restored
 version keeps its real date. `source.kind` is one of `manual`, `external`,
 `restore`, `assist`, `extension`, `import` — the last three have no writers
@@ -789,7 +789,7 @@ shape as `PUT`, so a client treats it exactly as a save.
 ### `PATCH /api/library/:kind/:id/history/:versionId`
 
 Body `{ reason?, pinned? }` — rename an entry, or pin it so retention pruning
-never takes it ([02 §11.3](design/02-data-model.md)). → `200 { version }`.
+never takes it ([03 §11.3](docs/design/03-data-model.md)). → `200 { version }`.
 
 Retention: history is pruned to `history.keepPerObject` (default 50) per
 object, oldest unpinned first.
@@ -804,7 +804,7 @@ object, oldest unpinned first.
 
 Full-text across all three, because a person looking for *the cathedral* does not
 know or care whether they wrote it in a lorebook, in one entry of one, or said it
-in a turn — [05 §14.5](design/05-ui-surfaces.md)'s *one query, three kinds of
+in a turn — [10 §14.5](docs/design/10-ui-surfaces.md)'s *one query, three kinds of
 hit*.
 
 **`entries` is why the third kind exists.** A match inside a three-hundred-entry
@@ -834,11 +834,11 @@ relevance.
 **Turn text is what was typed and what came back**, not the assembled prompt. A
 search that matched the blocks would return every turn in a session the moment a
 lorebook entry used the word. **Archived sessions are searched**; they are hidden
-from the default list, not gone ([02 §10.3](design/02-data-model.md)), and a
+from the default list, not gone ([03 §10.3](docs/design/03-data-model.md)), and a
 search that skipped them would make archiving a quiet way of losing things.
 Trashed ones are not.
 
-API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation.md)).
+API only at P2 — the UI is P3's ([P3 §4](docs/design/workplan/15-p3-implementation.md)).
 
 ---
 
@@ -860,7 +860,7 @@ hand-editable, so a client must still expect a blank. Rename with `PATCH` below.
 `treatment` and `lore` have been accepted since P5.6 and this line never said
 so. Both are links rather than copies, and neither is validated: an id that
 resolves to nothing is a session with no books, not a rejected request
-([00 §3.3](design/00-stance.md)).
+([00 §3.3](docs/design/00-stance.md)).
 
 `cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
 Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
@@ -878,19 +878,19 @@ exists to keep.
 
 **`preset.modes` is not checked**, deliberately. It is advisory — a preset
 written for a mode you do not have still imports, still shows, and still plays
-if you insist ([10 §8.2](design/10-schemas.md)) — and turning a hint into a gate
+if you insist ([04 §8.2](docs/design/04-schemas.md)) — and turning a hint into a gate
 would be worst in exactly the phase that fills a library with other people's
 presets.
 
 **Copied, never linked**, like the default it replaces: the session owns its
 prompt pack from creation, so editing the library's copy never rewrites a game
-in progress ([02 §8](design/02-data-model.md)). Browsing, previewing and
+in progress ([03 §8](docs/design/03-data-model.md)). Browsing, previewing and
 switching mid-session remain P7's surface.
 
 **An unknown `mode` is refused here rather than resolved to the default.** The
 runner falls back for a session *already* playing a mode this build does not
 know — somebody else's story, which should still open
-([00 §3.3](design/00-stance.md)) — but naming a mode that does not exist when
+([00 §3.3](docs/design/00-stance.md)) — but naming a mode that does not exist when
 creating one is a caller error, and silently substituting would produce a
 session that is not the one that was asked for.
 
@@ -901,7 +901,7 @@ mode seats fewer than the list names.
 
 **Ids, not objects.** A cast entry is a link resolved fresh every turn, so
 improving a character card reaches an ongoing game — the asymmetry with the
-copied preset is deliberate ([02 §8](design/02-data-model.md)).
+copied preset is deliberate ([03 §8](docs/design/03-data-model.md)).
 
 ### `PUT /api/sessions/:sessionId/lore`
 
@@ -919,7 +919,7 @@ both are links a story legitimately changes partway through.
 Ids that resolve to nothing are accepted, exactly as a cast's are. A dangling
 link is a session missing a book, not a rejected request, and the retriever
 reports what it could not read on every turn where somebody playing can see it
-([00 §3.3](design/00-stance.md)).
+([00 §3.3](docs/design/00-stance.md)).
 
 ### `GET /api/sessions/:sessionId`
 
@@ -928,7 +928,7 @@ client reloading mid-turn needs to know there *is* one before it decides whether
 to open a stream or offer an input box.
 
 A session that is not there and one that is not yours are the **same 404**. The
-path is the owner ([04 §4.3](design/04-server-multiuser-deployment.md)), and
+path is the owner ([09 §4.3](docs/design/09-server-multiuser-deployment.md)), and
 confirming an id exists elsewhere would leak the one fact that separation keeps.
 
 ### `PATCH /api/sessions/:sessionId` · `DELETE /api/sessions/:sessionId`
@@ -952,7 +952,7 @@ edit and `PATCH` is what an ordinary property edit is. The same file already
 renames a branch ref through `PATCH …/refs/:refId`.
 
 `DELETE` answers `204` and **moves the folder to the user's trash** rather than
-erasing it ([02 §10.3](design/02-data-model.md)); a session's turns are its history, and
+erasing it ([03 §10.3](docs/design/03-data-model.md)); a session's turns are its history, and
 deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
@@ -962,7 +962,7 @@ in the file. A session is a tree, and a transcript is one walk of it.
 
 `siblings` maps a turn on that path to every child of its parent, in creation
 order, and **only for nodes that have more than one**. History shows the
-selected path only ([09 §6](design/09-branching.md)), so this is how an
+selected path only ([07 §6](docs/design/07-branching.md)), so this is how an
 alternative is reachable at all — a swipe is a sibling nobody named, and without
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
@@ -996,7 +996,7 @@ two tabs on one session look like. An explicit `null` branches from the root —
 One turn at a time still holds: a second submission while a turn is in flight is
 `409 busy` whether it branches or not.
 
-**`rewriteOf` is the difference between rewrite and reroll** ([07 §14.5]). It
+**`rewriteOf` is the difference between rewrite and reroll** ([19 §14.5]). It
 names a turn whose draws this one should replay: the same roll, so the same
 mechanical outcome and different prose. Absent, the turn draws fresh — which is
 reroll, and also every ordinary turn. **A turn id rather than a tape**, because
@@ -1006,10 +1006,10 @@ wishes it had got, and a turn from another session is `404 no-such-turn`.
 Rewrite is the default of the two gestures, which is what stops swiping past a
 failed check from being save-scumming by accident. A turn that consumed no
 draws has nothing to reroll, and the surface must not offer it one
-([07 §14.6]).
+([19 §14.6]).
 
 **`redoOf` is the other half of a redo**
-([03 §5.1](design/03-modes-and-turn-pipeline.md), [09 §7](design/09-branching.md)).
+([06 §5.1](docs/design/06-modes-and-turn-pipeline.md), [07 §7](docs/design/07-branching.md)).
 It names a turn whose words the model is shown as *the previous attempt* — the
 one this submission is redoing — so an instruction in `guidance` has something
 to refer to: "make it rain harder" needs an *it*. The words come from this
@@ -1024,7 +1024,7 @@ with `guidance`; the schema does not couple them.
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
-([03 §5.1](design/03-modes-and-turn-pipeline.md)): typed into the action it lands in history
+([06 §5.1](docs/design/06-modes-and-turn-pipeline.md)): typed into the action it lands in history
 permanently, is summarised as narrative, is scanned by keyword matching, can be
 read back as dialogue, and appears in exports — none of which the person typing
 it intended. It is also **advisory**: it may shape prose and can never reach a
@@ -1056,14 +1056,14 @@ somebody else's session is the same `404` as one that never existed.
 active `job`.
 
 `abandoned` is `{ turns, escapedEffects }` — what the line being left keeps, and
-how many of its effects escaped the session ([09 §7]). Reversibility holds for
+how many of its effects escaped the session ([07 §7]). Reversibility holds for
 channel state and not for what left: a library write or a generated asset cannot
 be un-written by branching, so an abandoned line says how many it still has out
 in the world. **It is zero until something writes an escaped effect**, which
 nothing does yet.
 
 **Moving the head moves no turn data.** It is where you are in the tree
-([09 §3](design/09-branching.md)) — every node on both lines stays exactly where
+([07 §3](docs/design/07-branching.md)) — every node on both lines stays exactly where
 it was, and the write is this session's head pointer, its channel snapshot
 re-derived *at that node*, and the path the move selected.
 
@@ -1074,7 +1074,7 @@ and guessing: a node with two children and no memory of which one you were on is
 where a server would be inventing your story for you.
 
 **Refused while a turn is in flight**, with the job, for the reason
-[P2 §2.10](design/workplan/04-p2-implementation.md) gives about submissions: the
+[P2 §2.10](docs/design/workplan/08-p2-implementation.md) gives about submissions: the
 running turn will set the head when it commits, so a move that raced it would
 either be overwritten without a word or overwrite the turn's own parentage.
 
@@ -1089,14 +1089,14 @@ state; **409 `not-at-tip`** carrying `keys` and `branchFrom`.
 an inverse only while nothing has touched the same key since — apply it after
 something has and you destroy the later change and produce a state no turn ever
 wrote, plausibly enough that nothing surfaces
-([13 §1.2.1](design/13-internal-contracts.md)). So a turn that is no longer the
+([21 §1.2.1](docs/design/21-internal-contracts.md)). So a turn that is no longer the
 tip **for its keys** is refused with the keys that block it and the node to
 branch from instead. *Tip* is per key: a later turn on a different channel
 blocks nothing.
 
 **The undo is an append**, not an erasure — the inverse lands as its own turn,
 attributed to the person, which is why undoing an undo is an ordinary undo.
-Escaped effects are never inverted ([09 §7]): what left the session cannot be
+Escaped effects are never inverted ([07 §7]): what left the session cannot be
 un-written, and saying so is better than pretending.
 
 ### `POST /api/sessions/:sessionId/refs`
@@ -1121,7 +1121,7 @@ the bookmark.
 
 → **200** `{ session }`; **404 `no-such-ref`**.
 
-**A branch ref is a name and nothing more** ([09 §3]) — an id, a name, and the
+**A branch ref is a name and nothing more** ([07 §3]) — an id, a name, and the
 node it bookmarks. There is no `Branch` entity owning turns: a swipe is a
 sibling nobody named and a branch is a sibling somebody did, so promoting one
 writes about fifty bytes and moves no data. **Deleting a ref deletes a name**,
@@ -1135,7 +1135,7 @@ a walk from anything below them. Several refs may name one node.
 ```
 
 What this turn **would** assemble to, if it were taken now — the stateless
-preview ([P3 §1.6](design/workplan/05-p3-implementation.md)). → `200 { preview }`.
+preview ([P3 §1.6](docs/design/workplan/15-p3-implementation.md)). → `200 { preview }`.
 
 ```json
 {
@@ -1195,7 +1195,7 @@ or `no-prose-step`. `notFilled` rides on **both** arms: *why is there no lore in
 this prompt* is answerable without a model.
 
 `lore` rides on both arms for the same reason, and it is what the keyword tester
-([05 §3](design/05-ui-surfaces.md)) is a surface over — *paste sample text, see
+([10 §3](docs/design/10-ui-surfaces.md)) is a surface over — *paste sample text, see
 which entries would fire*, which needs no endpoint of its own because sample
 text **is** an input.
 
@@ -1248,7 +1248,7 @@ resends by itself. The cursor is **exclusive** — it names the last event you
 have — and an unparseable one is treated as *absent* rather than rejected, so a
 bad `Last-Event-ID` cannot brick a reconnect.
 
-`progress` keys are [04 §3.3](design/04-server-multiuser-deployment.md)'s vocabulary:
+`progress` keys are [09 §3.3](docs/design/09-server-multiuser-deployment.md)'s vocabulary:
 `turn.started`, `step.started`, `step.skipped`, `step.failed`, `step.finished`,
 `call.started`, `call.streaming`, `call.finished`, `effect.applied`,
 `turn.finished`. They are **structural** — the client renders them — and carry a
@@ -1261,7 +1261,7 @@ the policy that refused — the same class the turn record keeps
 the record cannot disagree about *why* something was refused.
 
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
-rather than every delta that painted it live, which [P2 §2.10](design/workplan/04-p2-implementation.md)
+rather than every delta that painted it live, which [P2 §2.10](docs/design/workplan/08-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.
 
 The stream authenticates by cookie and requires no CSRF header, because that is
@@ -1279,7 +1279,7 @@ because it is the kind of thing people should read rather than discover:
 > **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
 
 There is no raw-completion path, no instruct templates, no context templates and
-no stop-sequence machinery ([07 §5.5](design/07-tech-stack.md)). A local model
+no stop-sequence machinery ([19 §5.5](docs/design/19-tech-stack.md)). A local model
 is a connection with a `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM
 Studio and KoboldCpp all expose the same shape. A completion-only service needs
 a translating proxy in front of it, which is an off-the-shelf thing to point at
@@ -1288,7 +1288,7 @@ rather than a path this server maintains.
 **Connections are usable but never readable.** A user sees a label, a provider
 type and which models it offers. Not the key, and not the endpoint URL — which
 can itself carry a token or name a private host
-([04 §4.5](design/04-server-multiuser-deployment.md)). There is no
+([09 §4.5](docs/design/09-server-multiuser-deployment.md)). There is no
 copy-to-my-library for a connection, because copying would mean copying the
 credential.
 
@@ -1297,7 +1297,7 @@ credential.
 ## Settings
 
 Everything a signed-in person may change about themselves
-([05 §15.1](design/05-ui-surfaces.md)). Roles, enabled flags and capabilities are
+([10 §15.1](docs/design/10-ui-surfaces.md)). Roles, enabled flags and capabilities are
 somebody else's business and live under Administration.
 
 ### `GET /api/me` · `PATCH /api/me`
@@ -1334,7 +1334,7 @@ want exactly the opposite.
 ### `GET /api/me/prefs` · `PATCH /api/me/prefs`
 
 `{ "prefs": { …namespaced keys } }` — client preferences, stored in
-`users/<handle>/prefs.json` ([06 B13](design/06-open-questions.md), resolved).
+`users/<handle>/prefs.json` ([25 B13](docs/design/25-open-questions.md), resolved).
 
 A patch **merges shallowly** and `null` **deletes**. The response is the whole
 document rather than an acknowledgement, so a client lands on the truth rather
@@ -1358,7 +1358,7 @@ write surface for any signed-in account. A bad key is `400 invalid`; too large i
 Everything under `/api/admin` needs an administrator, enforced by **one
 `onRequest` hook on the prefix** rather than a check per handler — two spellings
 of a guard is how the second one gets missed
-([P2A §2.4](design/workplan/13-p2a-configuration-surface.md)).
+([P2A §2.4](docs/design/workplan/09-p2a-configuration-surface.md)).
 
 - **`401 unauthenticated`** for an anonymous caller.
 - **`403 forbidden`** for a signed-in non-admin. Deliberately *not* the library's
@@ -1381,7 +1381,7 @@ of a guard is how the second one gets missed
 ```
 
 **Counts, never contents.** The warning
-[04 §4.5](design/04-server-multiuser-deployment.md) commissioned — *"2 users have
+[09 §4.5](docs/design/09-server-multiuser-deployment.md) commissioned — *"2 users have
 no usable connection"* — needs a number, not a list of what somebody has
 configured. A connection stays opaque, so nothing here names one.
 
@@ -1390,7 +1390,7 @@ own question, asked through the turn's own resolver, so the capability above is
 honoured by the same code that honours it at call time.
 
 *This counted connection **files** until
-[P2B](design/workplan/14-p2b-provider-configuration.md).4, and that could not
+[P2B](docs/design/workplan/10-p2b-provider-configuration.md).4, and that could not
 witness what the warning is for: a system connection with nothing bound to it
 made every account read as fine while every turn failed `unbound`. Corrected
 rather than patched — a key on disk that no binding points at is exactly the
@@ -1474,7 +1474,7 @@ refuses it is the state of the install.
 
 **The tier table travels as data.** The client may not import from the server
 package, and a duplicated copy would falsify
-[13 §4](design/13-internal-contracts.md)'s claim that the annotation *is* the
+[21 §4](docs/design/21-internal-contracts.md)'s claim that the annotation *is* the
 source — so a key a newer build adds renders with the right badge without a
 client release. `appliers` is the honest half beside it: a tier says what a key
 is *for*, and this says whether anything reads it yet. The two are allowed to
@@ -1503,7 +1503,7 @@ rather than present-and-empty.
 A config file that has changed on disk since this server read it answers
 `412 stale`, carrying `current` (what the file means) and `currentDocument` (what
 it says). That is what makes the form safe against a text editor without a
-watcher — [04 §6.2](design/04-server-multiuser-deployment.md)'s hot-reload claim
+watcher — [09 §6.2](docs/design/09-server-multiuser-deployment.md)'s hot-reload claim
 is about *content*, and config is explicitly not content.
 
 Compared against the file as this process read it, not against the running
@@ -1539,11 +1539,11 @@ will not.
 **The system scope, and only the system scope.** A user's own `connections/` is
 read by the resolver, counted by the delete warning, hand-written by anyone who
 wants one, and reachable from no route here
-([P2B §2.7](design/workplan/14-p2b-provider-configuration.md)).
+([P2B §2.7](docs/design/workplan/10-p2b-provider-configuration.md)).
 
 **Two shapes exist and the boundary between them is the key alone.** What a
 non-admin can reach carries a label, a provider and its models
-([04 §4.5](design/04-server-multiuser-deployment.md)); this adds `baseUrl`,
+([09 §4.5](docs/design/09-server-multiuser-deployment.md)); this adds `baseUrl`,
 because a form that cannot show the URL back is a write-only form — type it,
 save, reopen, and the field is empty.
 
@@ -1555,7 +1555,7 @@ retype it on every edit.
 
 `shadowed` means an earlier file in resolution order already claims this id, so
 nothing will ever resolve to this one. Both are listed and nothing is blocked —
-[P1 §1.2](design/workplan/03-p1-implementation.md)'s posture — but the one that
+[P1 §1.2](docs/design/workplan/07-p1-implementation.md)'s posture — but the one that
 loses says so, or an administrator edits the copy nothing reads and watches the
 change do nothing.
 
@@ -1613,7 +1613,7 @@ second file claiming the same id and lose the key stored in the first.
 
 `204`, and **every file claiming that id is removed**, not the first one found.
 The case is an administrator revoking a leaked key
-([P2B §2.8](design/workplan/14-p2b-provider-configuration.md)) — being told
+([P2B §2.8](docs/design/workplan/10-p2b-provider-configuration.md)) — being told
 *gone* while the connection still resolves from a second file is the worst
 answer available there. Refusing until the directory is tidied by hand is the
 other consistent choice and blocks at exactly the wrong moment.
@@ -1670,7 +1670,7 @@ belong in a URL.
 ```
 
 The install defaults, layered under every account's own
-([07 §5.1](design/07-tech-stack.md)). A whole document rather than a patch per
+([19 §5.1](docs/design/19-tech-stack.md)). A whole document rather than a patch per
 role: eight roles is not a chatty write path, and a wrong binding stops turns
 rather than collapsing a pane.
 
@@ -1689,7 +1689,7 @@ there is nothing on disk to preserve, so a write is a whole rewrite.
 `{ "hi": { "connectionId": "…", "modelId": "…" }, "lo": { … }, "contentHash": "…" }`
 → the same shape `GET /api/admin/bindings` returns.
 
-**Two bindings in, a whole document out** — [07 §5.1]'s *a good one and a cheap
+**Two bindings in, a whole document out** — [19 §5.1]'s *a good one and a cheap
 one*, spread across the roles that have a text fallback. Which role gets which
 is policy — the expensive model writes, everything else uses the cheap one — and
 it stays on the server so that no install ends up with `prose` on the cheap
@@ -1722,9 +1722,9 @@ exactly when somebody else is most likely to have put something there already.
 
 **What every role will do, resolved rather than described.** `via` — which layer
 won — is a local in `resolveRole`, deliberately absent from the turn record
-([13 §1.4](design/13-internal-contracts.md) specifies no such field), and
+([21 §1.4](docs/design/21-internal-contracts.md) specifies no such field), and
 returned by nothing before this. A surface showing it would have had to
-reimplement [07 §5.1]'s layering in the browser, against two binding maps it
+reimplement [19 §5.1]'s layering in the browser, against two binding maps it
 would also have had to fetch: a second copy of the resolution order, in a
 different language from the first.
 
@@ -1736,12 +1736,12 @@ them alike would send an administrator hunting a fault that is not there.
 
 `reason` is `unbound` (nothing is bound) or `dangling` (something is, and the
 connection it names is gone). The remedies differ, so the answers do
-([00 §3.3](design/00-stance.md)).
+([00 §3.3](docs/design/00-stance.md)).
 
 **The install's answer, not the caller's.** It resolves the system bindings
 against the system connections and passes no personal layer, because the
 question this surface asks is *what has the install got*. A user's own view of
-which of their bindings are personal is [05 §15.1](design/05-ui-surfaces.md)'s,
+which of their bindings are personal is [10 §15.1](docs/design/10-ui-surfaces.md)'s,
 and waits with the rest of that half.
 
 ### `GET /api/admin/notices`
@@ -1755,7 +1755,7 @@ and waits with the rest of that half.
 ```
 
 Its own route because the restart banner is on **every** page rather than on the
-settings page ([04 §6.3](design/04-server-multiuser-deployment.md)) — the person
+settings page ([09 §6.3](docs/design/09-server-multiuser-deployment.md)) — the person
 who needs to know is often not the one looking at the form.
 
 Computed per request and stored nowhere, which is what makes it self-healing:
@@ -1765,7 +1765,7 @@ note.
 
 **`build` is what this build is**, or `null` for one nobody identified — which
 is every development run and anything not produced by a release
-([P6A §1.5](design/workplan/23-p6a-alpha-1.md)). Written into the artifact at
+([P6A §1.5](docs/design/workplan/19-p6a-alpha-1.md)). Written into the artifact at
 build time rather than read from the environment, so a container cannot claim to
 be something it is not. `null` rather than `0.0.0` or `"unknown"`: a version
 string that is not a version is the thing a bug report quotes back at you. Since
@@ -1778,7 +1778,7 @@ admin shell asks for on every navigation.
 `canRestart` is `false` and says so rather than being absent. **The server does
 not restart itself**: under no supervisor a restart control leaves the
 administrator with no server and possibly no shell
-([04 §6.4](design/04-server-multiuser-deployment.md)), so it needs supervisor
+([09 §6.4](docs/design/09-server-multiuser-deployment.md)), so it needs supervisor
 detection and a drain, neither of which exists. A notice that invites *"so how do
 I restart it?"* is a worse answer than one that says.
 
@@ -1827,14 +1827,14 @@ development the client runs on Vite's dev server and talks to this over `/api`.
 shipped at P3 as a reader over the turn record and needed no route of its own.
 Import finished at P4.4 and P4.5 — both halves the paragraph below still calls
 missing — and the directory form previews what it would do before it writes.
-Static serving arrived at [P6A.1](design/workplan/23-p6a-alpha-1.md) behind
+Static serving arrived at [P6A.1](docs/design/workplan/19-p6a-alpha-1.md) behind
 `server.clientRoot`, unset in development, so the sentence stays true where it
 was written and is false in a packaged build, where one process serves both
 halves.*
 
 *Mode and preset selection on a session was listed here and shipped at P2.6; it
 is documented under Sessions above. The provider settings surface was listed
-here and shipped at [P2B](design/workplan/14-p2b-provider-configuration.md); it
+here and shipped at [P2B](docs/design/workplan/10-p2b-provider-configuration.md); it
 is documented under Administration above. **Import was listed here and is half
 shipped at P4.1**: single-file upload exists and converts presets, under Library
 above. Cards and lorebooks convert at P4.2 and the directory sweep is P4.4, so
@@ -1851,7 +1851,7 @@ anything useful.*
 **One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
 connection or their own `bindings.json`.** P2B writes the system scope and only
-the system scope ([P2B §2.7](design/workplan/14-p2b-provider-configuration.md)),
-and [05 §15.1](design/05-ui-surfaces.md)'s *your connections* half waits with the
+the system scope ([P2B §2.7](docs/design/workplan/10-p2b-provider-configuration.md)),
+and [10 §15.1](docs/design/10-ui-surfaces.md)'s *your connections* half waits with the
 rest of the user surface. Both files are read by the resolver and hand-written
 by anyone who wants one, exactly as before.

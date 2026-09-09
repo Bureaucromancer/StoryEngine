@@ -178,11 +178,11 @@ describe('the fold', () => {
 });
 
 /**
- * The folder half is behind `fileAccess`, so it says so ([05 §4.2.2]).
+ * The folder half is behind `fileAccess`, so it says so ([10 §4.2.2]).
  *
  * The permission defaults to `none`, so before this most accounts saw a form
  * that could only fail — and the failure arrived as a red string after a round
- * trip. [01 §2.2] forbids a control that does nothing; one guaranteed to refuse
+ * trip. [work plan §2.2] forbids a control that does nothing; one guaranteed to refuse
  * is the same fault with a request attached.
  */
 describe('the folder half, against the permission', () => {

@@ -10,15 +10,15 @@ import { render } from './render.js';
 import type { Candidate } from './types.js';
 
 /**
- * Assembly — [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md),
- * [13 §1.1, §1.5, §2](../../../../docs/design/13-internal-contracts.md).
+ * Assembly — [06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [21 §1.1, §1.5, §2](../../../../docs/design/21-internal-contracts.md).
  *
  * The golden-file suite starts here and is CI from now on: the fake provider
  * records every request, so the last test in this file snapshots the rendered
  * block table as it actually arrived at a provider.
  */
 
-/** A preset that positions a block *inside* the history run — [03 §5]. */
+/** A preset that positions a block *inside* the history run — [06 §5]. */
 function candidates(): Candidate[] {
   return [
     {
@@ -91,7 +91,7 @@ const GENEROUS = {
 
 describe('collect and annotate', () => {
   it('keeps the order the preset positioned, including a block inside history', () => {
-    // The expensive consequence [03 §5] names: history is a splittable source,
+    // The expensive consequence [06 §5] names: history is a splittable source,
     // not an atomic block, because a preset may place a block four messages
     // from the newest. Refusing that would mean importing the existing corpus
     // of presets into something that runs but behaves differently.
@@ -388,7 +388,7 @@ describe('the token estimate', () => {
 
 describe('where a writing sample sits in the order of sacrifice', () => {
   /**
-   * [10 §3.1] and the Scene preset's `se.samples`, which is priority 20.
+   * [04 §3.1] and the Scene preset's `se.samples`, which is priority 20.
    *
    * The number is not arbitrary and it is not obvious: history blocks are
    * emitted at `priority + index` across the window, so Scene's history spans

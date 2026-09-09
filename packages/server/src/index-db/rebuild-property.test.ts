@@ -34,7 +34,7 @@ import { sweep } from '../import/sweep.js';
  *
  * Sharper than one producer agreeing with itself: two independent ways of
  * reaching the same index, held to one answer
- * ([02 §5.1.1](../../../../docs/design/02-data-model.md)). Anything order-dependent,
+ * ([03 §5.1.1](../../../../docs/design/03-data-model.md)). Anything order-dependent,
  * time-dependent or half-applied shows up as a difference.
  */
 
@@ -110,7 +110,7 @@ afterEach(async () => {
  *
  * `copy` is here because it is how a duplicate id happens, and the duplicate
  * rule — earliest path wins — is the part most likely to be reached differently
- * by the two producers ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * by the two producers ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)).
  */
 type Operation =
   | { kind: 'write'; slug: string; name: string }
@@ -410,7 +410,7 @@ function describeDrift(disk: Map<string, string>, index: Map<string, string>): s
  *
  * Which is exactly how it failed: ubuntu CI, seed 352468989, one row in the
  * rebuild and none in the incremental. It reads as index corruption and it was
- * a shared watcher — [12 §4.4](../../../../docs/design/workplan/12-p2-manual-gate.md) named this
+ * a shared watcher — [manual gate §4.4](../../../../docs/design/workplan/11-p2-manual-gate.md) named this
  * file as an unsound poll before it ever went red, and this is the sound
  * version rather than a longer sleep.
  *
@@ -502,7 +502,7 @@ describe('rebuild equals incremental, as a property', () => {
       // Small by default: this is the per-PR tier and every case pays the
       // settle window several times over. The nightly tier is where the same
       // property runs at a corpus size that would make this one slow
-      // ([testing §6](../../../../docs/design/workplan/10-testing.md)).
+      // ([testing §6](../../../../docs/design/workplan/03-testing.md)).
       { numRuns: 12 },
     );
   }, 120_000);
@@ -570,9 +570,9 @@ describe('a rebuild agrees with the index a bulk import built', () => {
   it('matches, after the fixture corpus is swept in', async () => {
     /**
      * **P4 gate step 9**, which was never run
-     * ([P4 §7.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+     * ([P4 §7.3](../../../../docs/design/workplan/16-p4-implementation.md)).
      *
-     * The gate calls this *the best stress the [13 §5] assertion will ever get*,
+     * The gate calls this *the best stress the [21 §5] assertion will ever get*,
      * and the reason is the shape of what import writes rather than its size. A
      * sweep is the only thing in this system that creates **many objects of many
      * kinds in one burst, through both `create` and `update`, with derived ids,
@@ -634,7 +634,7 @@ describe('a rebuild forgets what the disk no longer has', () => {
       expect(objectLines(library.db)).toHaveLength(2);
 
       // The file goes; nothing tells the index. This is the state a rebuild is
-      // the documented remedy for ([02 §5.1]).
+      // the documented remedy for ([03 §5.1]).
       await rm(dirname(library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'elsewhere')), {
         recursive: true,
       });

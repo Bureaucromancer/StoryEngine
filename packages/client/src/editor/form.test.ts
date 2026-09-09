@@ -18,7 +18,7 @@ import {
 
 /**
  * The editor's two promises, tested where they live
- * ([P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md)): unknown fields survive a
+ * ([P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md)): unknown fields survive a
  * round trip through the form, and an unchanged form is detected as unchanged
  * — the client half of the no-op rule.
  */
@@ -74,7 +74,7 @@ describe('the form round trip', () => {
   });
 
   it('preserves the generated provenance map — never authors it', () => {
-    // [05 §11.2]: nothing writes GeneratedFieldProvenance until P2, and the
+    // [10 §11.2]: nothing writes GeneratedFieldProvenance until P2, and the
     // editor must not drop the map on save.
     const base = actorWithUnknowns();
     const form = formFromActor(base);
@@ -234,7 +234,7 @@ describe('writing samples, the first list the form can grow and shrink', () => {
   }
 
   it('leaves an absent list absent rather than writing an empty one', () => {
-    // **The no-op rule where this field would break it** ([02 §11.1]).
+    // **The no-op rule where this field would break it** ([03 §11.1]).
     // Assigning `[]` onto a card that never had the field is a change: the
     // editor would mark a freshly-opened old actor dirty, and the first save
     // would rewrite a file nobody edited. Mutation: assign unconditionally and

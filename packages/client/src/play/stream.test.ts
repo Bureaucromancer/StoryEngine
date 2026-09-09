@@ -10,7 +10,7 @@ import { openTurnStream, type StreamHandlers } from './stream.js';
  * again**.
  *
  * That decision is the entire reason this is a `fetch` loop rather than
- * `EventSource` ([07 §11]): `EventSource` retries everything forever, including
+ * `EventSource` ([19 §11]): `EventSource` retries everything forever, including
  * a 404, and it cannot send `?after=`. So the claims worth testing are the two
  * it exists to make — that a refusal stops, and that a drop resumes *from the
  * cursor* rather than from the beginning.

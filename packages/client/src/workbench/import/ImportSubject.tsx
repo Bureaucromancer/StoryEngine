@@ -8,10 +8,10 @@ import { SubsectionTitle } from '../../ui/Text.js';
 
 /**
  * The workbench's subject over the library **list** — import
- * ([P4 §7.12](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.12](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **This is the arm that used to be the empty state**, and that is the whole
- * argument for it being here. [05 §3](../../../../../docs/design/05-ui-surfaces.md)
+ * argument for it being here. [10 §3](../../../../../docs/design/10-ui-surfaces.md)
  * says the panel's *"subject follows the main view"*, and [P3 §1.3] scoped it to
  * a single object's route because the list has no selection concept — so over
  * `/library` the dock has always shown *nothing here has a record to show*.

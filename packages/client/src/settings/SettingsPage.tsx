@@ -13,8 +13,8 @@ import { Preferences } from './Preferences.js';
 import { UserSettings } from './UserSettings.js';
 
 /**
- * One route, two halves — [05 §15](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.6.
+ * One route, two halves — [10 §15](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md) stage P2A.6.
  *
  * **Absent is implemented as absent**, and that is a mechanism rather than a
  * style choice. The admin sections are not rendered for a non-admin, so their
@@ -29,7 +29,7 @@ import { UserSettings } from './UserSettings.js';
  *
  * The guard here is **not** the security boundary. That is `adminOnly` on the
  * `/api/admin` prefix, and it stays the answer for anyone who types the URL: a
- * UI-level check is a trivial bypass, which is the same argument [04 §4.5] makes
+ * UI-level check is a trivial bypass, which is the same argument [09 §4.5] makes
  * about capabilities.
  */
 export function SettingsPage(): JSX.Element {
@@ -41,7 +41,7 @@ export function SettingsPage(): JSX.Element {
     // ([P3.−1]); this page declared a second one inside it. The column is
     // `page.tooling`: the old `max-w-3xl` was the reading measure by numeric
     // coincidence, a third spelling of a width this tooling surface never
-    // chose ([05 §1.2]).
+    // chose ([10 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-10`}>
       <h1 className="text-title text-ink">Settings</h1>
 

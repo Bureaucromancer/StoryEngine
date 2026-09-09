@@ -52,7 +52,7 @@ const FILES = trackedFiles().map((path) => ({
   text: readFileSync(join(root, path), 'utf8'),
 }));
 
-/** `docs/design/10-schemas.md` → `10`; anything unnumbered → null. */
+/** `docs/design/04-schemas.md` → `04`; anything unnumbered → null. */
 function numberOf(docPath: string): string | null {
   return /(?:^|\/)(\d{2})-[a-z0-9-]+\.md$/.exec(docPath)?.[1] ?? null;
 }
@@ -173,7 +173,7 @@ describe('every citation says which document it means', () => {
    * **(b)** A label that opens with two digits names the number of the file it
    * links to.
    *
-   * [P4](../docs/design/workplan/06-p4-implementation.md) adopted this rule
+   * [P4](../docs/design/workplan/16-p4-implementation.md) adopted this rule
    * after tripping over it, and stated the reason better than this docstring
    * can: *"the label is the thing people quote, so the convention fixes the
    * label."* A link whose text says `10 §5` and whose href goes to the testing
@@ -193,29 +193,29 @@ describe('every citation says which document it means', () => {
   /**
    * **(c)** A work-plan document is cited by name, never by number.
    *
-   * Both READMEs state it and both explain why: the two folders number from
-   * `01`, so a bare `02` means two documents. It is stated, it is heavily used,
-   * and it is broken — which is what this ratchet is counting.
+   * Both READMEs state it and both give the reason: the two folders number
+   * from `01`, so a bare `02` means two documents — and `01-work-plan.md`
+   * itself used to carry a citation labelled `02 §8` pointing at the triage and
+   * one labelled `02 §5.5` pointing at the data model, twenty-nine lines apart.
    *
-   * **Pinned rather than enforced**, because the fix is the renumbering commit
-   * and a gate that fails before its fix lands is a gate somebody disables. The
-   * number goes to zero there, and this assertion becomes the thing that keeps
-   * it there.
+   * **It was broken 527 times when this test landed**, pinned rather than
+   * enforced because a gate that fails before its fix exists is a gate
+   * somebody disables. The renumbering commit took it to zero. This is what
+   * keeps it there, and it is the assertion that makes a work-plan number
+   * pure filing order: nothing cites it, so moving it costs nothing.
    */
-  const NUMERIC_WORKPLAN_CITATIONS = 527;
-
-  it('cites a work-plan document by name — pinned until the renumber', () => {
+  it('cites a work-plan document by name, never by number', () => {
     const numeric = numbered
       .filter((link) => isWorkplan(link.target))
-      .filter((link) => /^\d{2}(?=[\s\]\-—.]|$)/.test(link.label));
+      .filter((link) => /^\d{2}(?=[\s\]\-—.]|$)/.test(link.label))
+      .map((link) => `${link.file}:${String(link.line)} — "${link.label}" → ${link.target}`);
 
     expect(
-      numeric.length,
-      'work-plan citations labelled with a number, which both READMEs forbid',
-    ).toBe(NUMERIC_WORKPLAN_CITATIONS);
+      numeric,
+      `${String(numeric.length)} work-plan citation(s) labelled with a number`,
+    ).toEqual([]);
   });
 });
-
 describe('every bare documentation path resolves', () => {
   /**
    * **(e)** Paths that are not links at all — in `ci.yml`, `eslint.rules.js`,
@@ -244,31 +244,31 @@ describe('every bare documentation path resolves', () => {
   });
 
   /**
-   * **(f)** `docs/design/13 §4` — a folder, a number, and no filename.
+   * **(f)** Nothing names a folder and a number without a filename.
    *
-   * Four of these live in `config.example.json` and nowhere else. No pattern
-   * written for links or for paths catches them, which is exactly why they are
-   * worth their own arm: a renumber would leave all four pointing at whatever
-   * document later took the number.
+   * `docs/design/13 §4` is the one citation shape that cannot be verified:
+   * a checker can confirm that *a* document carries that number, never that it
+   * is the one meant. Four of these lived in `config.example.json` and the
+   * renumber proved the point by mapping two of them to the wrong document —
+   * silently, and passing a check that only asked whether the number existed.
+   *
+   * So the form is forbidden rather than resolved. Write the filename; then
+   * it is an ordinary path and rule (e) checks it.
    */
-  it('resolves a folder-and-number reference with no filename', () => {
-    const missing: string[] = [];
-    let seen = 0;
+  it('never names a folder and a number without a filename', () => {
+    const bare: string[] = [];
 
     for (const { path, text } of FILES) {
       if (path === 'tools/doc-links.test.ts') continue;
-      for (const match of text.matchAll(/docs\/design\/(workplan\/)?(\d{2})(?![\w.-])/g)) {
-        seen += 1;
-        const folder = match[1] === undefined ? 'docs/design' : 'docs/design/workplan';
-        const hit = FILES.some(
-          (file) => file.path.startsWith(`${folder}/`) && numberOf(file.path) === match[2],
-        );
-        if (!hit) missing.push(`${path} → ${match[0]}`);
+      for (const match of text.matchAll(/docs\/design\/(?:workplan\/)?\d{2}(?![\w.-])/g)) {
+        bare.push(`${path} → ${match[0]}`);
       }
     }
 
-    expect(missing, `${String(missing.length)} numbered reference(s) name no document`).toEqual([]);
-    expect(seen, 'the folder-and-number pattern matched nothing').toBeGreaterThan(0);
+    expect(
+      bare,
+      `${String(bare.length)} reference(s) name a number with no filename, which nothing can verify`,
+    ).toEqual([]);
   });
 });
 

@@ -6,7 +6,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The one optimistic mutation in this codebase — [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * The one optimistic mutation in this codebase — [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * Everywhere else this client waits for the server, and the editor goes further:
  * its base is *deliberately unpolled*, so a save presents the hash it read and

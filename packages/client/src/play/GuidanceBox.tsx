@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * The guidance box — [05 §10](../../../../docs/design/05-ui-surfaces.md), [03 §5.1].
+ * The guidance box — [10 §10](../../../../docs/design/10-ui-surfaces.md), [06 §5.1].
  *
  * **Collapsed by default and empty by default.** It is the supported home for
  * the thing people otherwise do by typing `(OOC: keep this short)` into their

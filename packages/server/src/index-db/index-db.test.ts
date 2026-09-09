@@ -17,7 +17,7 @@ import { rebuild } from './rebuild.js';
 import { actorWithId, makeTestLibrary, type TestLibrary } from './test-library.js';
 
 /**
- * The index — docs/design/workplan/03-p1-implementation.md §P1.4.
+ * The index — docs/design/workplan/07-p1-implementation.md §P1.4.
  *
  * The stage plan calls this *"the part of P1 most likely to be got subtly
  * wrong"*, and the six claims below are the ones it names. The first is this
@@ -38,7 +38,7 @@ describe('rebuild-from-disk equals the incremental index', () => {
   it('agrees after a mixed sequence of writes, edits and deletes', async () => {
     // [work plan P1](../../../../docs/design/workplan/01-work-plan.md)'s CI assertion, and sharper than it
     // looks: two independent producers held to one answer, rather than one
-    // producer agreeing with itself ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+    // producer agreeing with itself ([03 §5.1.1](../../../../docs/design/03-data-model.md)).
     const vera = newActor('Vera Solano');
     await library.saveObject(vera, 'vera-solano');
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
@@ -70,7 +70,7 @@ describe('rebuild-from-disk equals the incremental index', () => {
     // The sharp case. Path order is deterministic and identical whichever way
     // the index was reached, which is what makes this hold by construction
     // rather than by luck — an mtime-ordered rule would not
-    // ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
+    // ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)).
     const shared = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
     await library.saveObject(actorWithId('Vera Solano', shared), 'vera-solano');
     await library.saveObject(actorWithId('Vera Solano', shared), 'vera-draft');
@@ -134,7 +134,7 @@ describe('rebuild-from-disk equals the incremental index', () => {
 describe('a foreign write is picked up', () => {
   it('indexes a file the application never wrote', async () => {
     // Hand edits, `git checkout`, a restored backup. The forcing function from
-    // [05 §4.1](../../../../docs/design/05-ui-surfaces.md): if editing a file on disk does
+    // [10 §4.1](../../../../docs/design/10-ui-surfaces.md): if editing a file on disk does
     // not reflect, the storage design has failed on its own terms.
     const path = await library.writeObject(newLorebook('Rain City'), 'rain-city');
     expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(0);
@@ -164,7 +164,7 @@ describe('a self-write does not double-index', () => {
   it('is claimed by the token the write registered', async () => {
     // `write-file-atomic` does temp-then-rename, so chokidar reports an add and
     // an unlink for every save. Without suppression the index does every job
-    // twice ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+    // twice ([03 §5.1.1](../../../../docs/design/03-data-model.md)).
     const registry = new SelfWriteRegistry();
     const own = await makeTestLibrary({ registry });
 
@@ -196,7 +196,7 @@ describe('a self-write does not double-index', () => {
 
 describe('deleting index.sqlite is a non-event', () => {
   it('rebuilds from disk on the next open', async () => {
-    // [13 §5](../../../../docs/design/13-internal-contracts.md). The index's defining
+    // [21 §5](../../../../docs/design/21-internal-contracts.md). The index's defining
     // property: losing it costs time and nothing else.
     await library.saveObject(newActor('Vera Solano'), 'vera-solano');
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
@@ -248,7 +248,7 @@ describe('a foreign rename is a move, not a delete plus a create', () => {
   }
 
   it('keeps the row, its id and its identity, under a new path', async () => {
-    // [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) calls this the part of P1
+    // [P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md) calls this the part of P1
     // most likely to be got subtly wrong, and the only thing that exercises the
     // path-under-a-stable-id machinery — which is the argument for keeping it
     // the *single* way a path ever changes.
@@ -402,7 +402,7 @@ describe('a duplicate id is flagged rather than fatal', () => {
 
 describe('the library merge is a query', () => {
   it('reads a user library and the system one together', async () => {
-    // [02 §5.1](../../../../docs/design/02-data-model.md): same structure means the same
+    // [03 §5.1](../../../../docs/design/03-data-model.md): same structure means the same
     // loader, the same index code and the same UI — the merge is a query, not a
     // special case. Shipped empty at P1, which is why the query is what is
     // tested rather than the content.

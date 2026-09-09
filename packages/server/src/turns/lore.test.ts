@@ -164,7 +164,7 @@ describe('resolveLore', () => {
 
   /**
    * *Exact id, then case-insensitive name, then show as missing and continue* —
-   * the sentence `schema/common.ts`, [02 §11.4] and [10 §8] all state and which
+   * the sentence `schema/common.ts`, [03 §11.4] and [04 §8] all state and which
    * nothing implemented until this stage, because nothing on the server had
    * ever followed a `Ref`.
    *
@@ -389,7 +389,7 @@ describe('resolveLore', () => {
     });
 
     /**
-     * The ownership rule reaching the retriever ([04 §4.3]): another account's
+     * The ownership rule reaching the retriever ([09 §4.3]): another account's
      * book is *not found*, never *forbidden*, because confirming that an id
      * exists elsewhere leaks the one fact separation exists to keep.
      */
@@ -425,7 +425,7 @@ describe('resolveLore', () => {
   });
 
   /**
-   * Everything below arrives by hand-editing `session.json`, which [02 §5] makes
+   * Everything below arrives by hand-editing `session.json`, which [03 §5] makes
    * a supported way to get data in. The never-throws claim in this module's
    * docstring is only true if each of these is guarded, and each of them was a
    * `TypeError` in a turn before the guard existed.
@@ -487,7 +487,7 @@ describe('resolveLore', () => {
  * **No lorebook is active that has not been selected for the session.**
  *
  * [P5.7] admitted books by their own `LoreScope` — `global` everywhere,
- * `linked` wherever one of its actors was cast — reading [02 §3.4]'s union as a
+ * `linked` wherever one of its actors was cast — reading [03 §3.4]'s union as a
  * discovery mechanism. The consequence made the mistake plain: `global` is the
  * factory default *and* the SillyTavern importer's fallback, so every book a
  * person had ever created or imported was in every session's prompt, and the

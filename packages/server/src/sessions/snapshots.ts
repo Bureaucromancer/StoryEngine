@@ -8,24 +8,24 @@ import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import type { ChannelState } from './types.js';
 
 /**
- * The snapshot cache — [09 §4](../../../../docs/design/09-branching.md), [P6.0d].
+ * The snapshot cache — [07 §4](../../../../docs/design/07-branching.md), [P6.0d].
  *
  * **Derived, disposable, never authoritative**, which is the same rule the
- * SQLite index follows ([02 §5.1](../../../../docs/design/02-data-model.md)) and
+ * SQLite index follows ([03 §5.1](../../../../docs/design/03-data-model.md)) and
  * the reason this module is small: deleting every file it writes must cost time
  * and nothing else. Everything here is a cache in front of
  * `replayChannels(walkPath(...))`, and the property test asserts that the two
  * agree at every index — with the cache warm, and again with it deleted.
  *
  * **Why a cache is needed at all**, since replaying is correct: at turn eight
- * hundred it is *"too slow to feel casual"* ([09 §4]), and P5 made that sharper
+ * hundred it is *"too slow to feel casual"* ([07 §4]), and P5 made that sharper
  * than walk depth alone. Every turn touching a lorebook writes one
  * `se.lore.timing` effect per entry whose counters moved, and `applyEffects`
  * copies the whole map per effect — so the fold is turns × effects × keys, and
  * a library of a few hundred entries makes the middle term large. The cache
  * bounds the first factor; nothing bounds the others.
  *
- * **One file per node, named by turn id**, in the location [02 §5.1] already
+ * **One file per node, named by turn id**, in the location [03 §5.1] already
  * fixed — `sessions/<id>/snapshots/`. This stage did not get to choose it.
  */
 
@@ -46,7 +46,7 @@ export function snapshotsRoot(layout: Layout, handle: string, sessionId: string)
  * The path a node's snapshot would have, or null when the id cannot be one.
  *
  * A turn id reaches here from a **record on disk**, and a hand-edited segment is
- * a supported way to get data in ([02 §8.1]) — so an id of `../../session.json`
+ * a supported way to get data in ([03 §8.1]) — so an id of `../../session.json`
  * is a shape this has to answer for rather than assume away. `resolveWithin`
  * refuses it; returning null rather than throwing keeps a cache miss a cache
  * miss, because the fold behind it is still correct for that node.

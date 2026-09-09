@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * The tag registry — [25](../../../docs/design/25-tagging.md).
+ * The tag registry — [05](../../../docs/design/05-tagging.md).
  *
  * **Internal tier, deliberately, and unlike everything under `schema/`.** The
  * same call `turn.ts` makes and for the same reason: `schema/` means portable,
@@ -12,7 +12,7 @@
  * it stop re-declaring the shape.
  *
  * **What the registry is not** is the part worth reading twice
- * ([25 §2](../../../docs/design/25-tagging.md)). It decorates names; it does not
+ * ([05 §2](../../../docs/design/05-tagging.md)). It decorates names; it does not
  * own them. Nothing here validates a tag against it, nothing refuses a name it
  * has not seen, and an object may carry a tag with no entry — that tag renders,
  * filters and gates lore exactly as a registered one does, with no swatch and no
@@ -38,7 +38,7 @@
 export const TAG_REGISTRY_SCHEMA = 'storyengine.tags/1';
 
 /**
- * The palette, by name rather than by colour — [25 §4].
+ * The palette, by name rather than by colour — [05 §4].
  *
  * A swatch id is stored; the colour it resolves to lives in the client's token
  * layer and nowhere else. That is what lets the palette be re-tuned, or a theme
@@ -62,7 +62,7 @@ export const TAG_SWATCHES = [
 export type TagSwatch = (typeof TAG_SWATCHES)[number];
 
 /**
- * How a tag behaves as a folder over a shelf — [25 §5].
+ * How a tag behaves as a folder over a shelf — [05 §5].
  *
  * `closed` hides its members from the ungrouped list until the folder is
  * entered; `open` shows them in both places; `none` is an ordinary tag, which
@@ -74,7 +74,7 @@ export type TagFolder = 'none' | 'open' | 'closed';
  * One tag's decoration.
  *
  * **`swatch` and `folder` are open strings with documented values**, not closed
- * unions — the call [10 §8.2](../../../docs/design/10-schemas.md) makes for
+ * unions — the call [04 §8.2](../../../docs/design/04-schemas.md) makes for
  * `ActorRole`, generalised there into a rule: *a portable enum is a `string`
  * with known values documented, unless the engine truly cannot proceed without
  * understanding it*. Nothing here proceeds on a swatch at all. An unknown one
@@ -91,7 +91,7 @@ export interface TagEntry {
   sortOrder: number;
   /** A {@link TagFolder} value. */
   folder: string;
-  /** Hidden from an object's inline chip strip, and from nowhere else ([25 §5]). */
+  /** Hidden from an object's inline chip strip, and from nowhere else ([05 §5]). */
   hidden: boolean;
   createdAt: string;
 }
@@ -99,7 +99,7 @@ export interface TagEntry {
 /**
  * The whole document.
  *
- * **A list rather than a map keyed by name**, which [25 §4] argues from the file
+ * **A list rather than a map keyed by name**, which [05 §4] argues from the file
  * being hand-editable: an array diffs readably, carries `sortOrder` next to the
  * thing it orders, and survives a duplicated name as two rows somebody can see
  * and repair rather than as a key JSON silently collapsed.
@@ -120,7 +120,7 @@ export function newTagRegistry(): TagRegistry {
  *
  * **Not lower-cased.** Case is the author's — `Noir` and `NPC` are how somebody
  * chose to write them — and folding it here would make the registry decide how
- * names look, which is the one thing [25 §2] says it may not do. Case-insensitive
+ * names look, which is the one thing [05 §2] says it may not do. Case-insensitive
  * *comparison* is {@link sameTag}'s job, which is a different question.
  */
 export function normaliseTagName(raw: string): string {
@@ -235,7 +235,7 @@ export function folderOf(tag: TagEntry): TagFolder {
 }
 
 /**
- * The names an object's tags actually have, now — [25 §3](../../../docs/design/25-tagging.md).
+ * The names an object's tags actually have, now — [05 §3](../../../docs/design/05-tagging.md).
  *
  * **`tagIds` and `tags` are parallel arrays, written together and index-aligned.**
  * That is what lets a dangling id — an entry somebody deleted — fall back to the
@@ -271,7 +271,7 @@ export function resolveTagNames(
 }
 
 /**
- * Whether this object has been adopted — [25 §3].
+ * Whether this object has been adopted — [05 §3].
  *
  * A question rather than a truthiness check, because the answer for an empty
  * array is *yes, and it has no tags*, which is exactly what `tagIds === []`

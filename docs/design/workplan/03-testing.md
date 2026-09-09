@@ -1,6 +1,6 @@
-# 10 — Testing, validation and automation
+# 03 — Testing, validation and automation
 
-**Status: proposal.** Expands [07 §13](../07-tech-stack.md), which is now a pointer
+**Status: proposal.** Expands [19 §13](../19-tech-stack.md), which is now a pointer
 here.
 
 Written for a solo developer and a very small team, which is the constraint that
@@ -18,7 +18,7 @@ leaned on hard.
 **The turn record makes prompt assembly snapshot-testable.** In all three source
 projects, "what did the engine actually send, and why" is the hardest thing to
 verify. Here it is a persisted artefact with every block, its source, its reason,
-its token cost and the budget verdict ([02 §8](../02-data-model.md)). The hardest
+its token cost and the budget verdict ([03 §8](../03-data-model.md)). The hardest
 thing to test becomes the easiest.
 
 **The architecture states unusually crisp invariants.** Several are properties
@@ -26,17 +26,17 @@ rather than examples, and properties make better tests than cases:
 
 | Invariant | Where it comes from |
 |---|---|
-| Rebuild-from-disk index equals the incrementally-maintained index | [02 §5.1](../02-data-model.md) |
-| Replay-from-zero state equals nearest-snapshot-plus-replay, at every turn | [09 §4](../09-branching.md) |
-| Summaries shared across a fork are byte-identical to the parent's | [09 §5](../09-branching.md) |
-| Object → embedded PNG chunk → object is identity | [02 §5.2](../02-data-model.md) |
-| Export → import preserves unknown fields | [10 §2](../10-schemas.md) |
-| No advisory block ever appears in an effect-producing call | [03 §5.2](../03-modes-and-turn-pipeline.md) |
+| Rebuild-from-disk index equals the incrementally-maintained index | [03 §5.1](../03-data-model.md) |
+| Replay-from-zero state equals nearest-snapshot-plus-replay, at every turn | [07 §4](../07-branching.md) |
+| Summaries shared across a fork are byte-identical to the parent's | [07 §5](../07-branching.md) |
+| Object → embedded PNG chunk → object is identity | [03 §5.2](../03-data-model.md) |
+| Export → import preserves unknown fields | [04 §2](../04-schemas.md) |
+| No advisory block ever appears in an effect-producing call | [06 §5.2](../06-modes-and-turn-pipeline.md) |
 | No portable object contains a connection or credential | [00 §3.2](../00-stance.md) |
-| A hook committed or fired on a turn is uncommitted and unfired after a rewind past it | [02 §4.1](../02-data-model.md) |
-| The same path selects the same entrance | [03 §6.1](../03-modes-and-turn-pipeline.md) |
-| A closure walk over a Treatment reaches an actor named only by `introduces` | [10 §9.1](../10-schemas.md) |
-| A fired introduction hook whose arrival was never narrated is not left marked fired | [03 §6.1](../03-modes-and-turn-pipeline.md) |
+| A hook committed or fired on a turn is uncommitted and unfired after a rewind past it | [03 §4.1](../03-data-model.md) |
+| The same path selects the same entrance | [06 §6.1](../06-modes-and-turn-pipeline.md) |
+| A closure walk over a Treatment reaches an actor named only by `introduces` | [04 §9.1](../04-schemas.md) |
+| A fired introduction hook whose arrival was never narrated is not left marked fired | [06 §6.1](../06-modes-and-turn-pipeline.md) |
 
 These are cheap to assert and they fail loudly when a refactor breaks the design
 rather than the code.
@@ -52,28 +52,28 @@ character permanently the first time a narrator ignores its guidance.
 
 ## 2. Encode the day-one checklist as lint rules
 
-[01 §2](01-work-plan.md) lists a couple of dozen decisions that are free early
+[work plan §2](docs/design/workplan/01-work-plan.md) lists a couple of dozen decisions that are free early
 and expensive late. A useful fraction are **mechanically checkable**, and a lint
 rule is worth more than a paragraph in a document nobody re-reads.
 
 | Rule | Enforces |
 |---|---|
-| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [07 §14.4](../07-tech-stack.md) |
-| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [07 §12.6](../07-tech-stack.md) |
-| No sentence assembled from fragments, and no branching on displayed text | [01 §2](01-work-plan.md)'s reduced i18n discipline |
-| No hand-rolled date/relative-time formatting; `Intl` only | [07 §12.6](../07-tech-stack.md) |
+| Ban `Math.random` and direct `node:crypto` random outside the RNG service | [19 §14.4](../19-tech-stack.md) |
+| Ban `margin-left` / `padding-right` / `text-align: left` in CSS — logical properties only | [19 §12.6](../19-tech-stack.md) |
+| No sentence assembled from fragments, and no branching on displayed text | [work plan §2](docs/design/workplan/01-work-plan.md)'s reduced i18n discipline |
+| No hand-rolled date/relative-time formatting; `Intl` only | [19 §12.6](../19-tech-stack.md) |
 | No direct `fs` outside the storage package | keeps the path-resolution helper the only door |
-| `config.example.json` declares every key the schema does | [01 §2.3](01-work-plan.md)'s mechanically checkable core |
+| `config.example.json` declares every key the schema does | [work plan §2.3](docs/design/workplan/01-work-plan.md)'s mechanically checkable core |
 
 **The last row is a test rather than a lint rule**, and it is in this table
 anyway because the table is a list of *claims turned into checks* and that is
 what it is. ESLint cannot compare a schema to a JSON document; a two-line
 assertion beside the config tests can, and it lives at
-[P2A §3](13-p2a-configuration-surface.md). The general shape of
-[01 §2.3](01-work-plan.md) — *does anything this phase built need a value set?*
+[P2A §3](docs/design/workplan/09-p2a-configuration-surface.md). The general shape of
+[work plan §2.3](docs/design/workplan/01-work-plan.md) — *does anything this phase built need a value set?*
 — is not mechanisable and stays a gate question.
 
-**The strings rule is the reduced one, deliberately.** [01 §2](01-work-plan.md)
+**The strings rule is the reduced one, deliberately.** [work plan §2](docs/design/workplan/01-work-plan.md)
 kept the half of i18n discipline that cannot be retrofitted — never build a
 sentence by assembling clauses in code, never branch on a displayed string — and
 moved catalogue extraction to a pre-beta sweep. An earlier draft of this table
@@ -82,11 +82,11 @@ fails on some ninety strings across a client that has no `t()` to put them in,
 and it would be satisfied by wrapping each one in a helper that is a catalogue in
 everything but name. The narrow rule has a handful of violations, each of them
 the thing that actually forecloses translation. Recorded at
-[P2 §1.4](04-p2-implementation.md), because the wider rule was on this list from
+[P2 §1.4](docs/design/workplan/08-p2-implementation.md), because the wider rule was on this list from
 day one and is being narrowed rather than quietly dropped.
 
 **Architectural boundaries deserve the same treatment**, and here it is not
-hygiene but the enforcement of a stated design bet. [07 §10](../07-tech-stack.md)
+hygiene but the enforcement of a stated design bet. [19 §10](../19-tech-stack.md)
 says built-in modes must consume the published SDK exactly as a third party
 would — "a discipline mechanism, not organisation". That only holds if
 `modes/*` importing `server` is a **build error**. `dependency-cruiser` or
@@ -144,7 +144,7 @@ none of which need a model:
 - Ref resolution: id → name-fallback → dangle.
 
 **Path resolution deserves an adversarial corpus of its own.** It is the most
-security-sensitive code in the project ([05 §4.4](../05-ui-surfaces.md)) and it is
+security-sensitive code in the project ([10 §4.4](../10-ui-surfaces.md)) and it is
 pure, so it is cheap to hammer: `..` in every position, symlinks escaping the
 root, absolute paths, UNC paths, Windows reserved device names, alternate data
 streams, unicode normalisation, case-folding collisions, and null bytes.
@@ -164,10 +164,10 @@ regeneration and undo simultaneously.
 
 - Validate every fixture and every shipped system-library object against the
   JSON Schemas, in CI. Free, given schemas are the artefact
-  ([07 §4](../07-tech-stack.md)).
+  ([19 §4](../19-tech-stack.md)).
 - **Schema evolution tests**: an object written against `schema/1` must still
   load once `/2` exists, and unknown fields must survive a round trip
-  ([10 §2](../10-schemas.md)). Most projects skip this and discover the problem from
+  ([04 §2](../04-schemas.md)). Most projects skip this and discover the problem from
   users.
 - A **wild corpus** of real third-party exports that must import without
   crashing. See §5 for the licensing wrinkle.
@@ -179,7 +179,7 @@ catastrophic to break: first-run setup, create an actor, import a card, start a
 session, take a turn, branch, open the workbench.
 
 *"Create an actor" meant through the API when this was written, because the
-browser had no way to. Since [P4.5](06-p4-implementation.md) it does, so the
+browser had no way to. Since [P4.5](docs/design/workplan/16-p4-implementation.md) it does, so the
 journey is a journey: name it on the library page, land in the editor, save.
 The tier is still unbuilt.*
 
@@ -207,7 +207,7 @@ deterministically, including the paths that are hardest to trigger for real:
   ([00 §2.3](../00-stance.md));
 - provider errors, rate limits, timeouts, mid-stream disconnection;
 - prompt-cap overrun and the fragment-dropping behaviour
-  ([07 §5.3](../07-tech-stack.md));
+  ([19 §5.3](../19-tech-stack.md));
 - a step failing without failing the turn.
 
 Because it records requests, it also *is* the golden-file harness from §3.1.
@@ -257,7 +257,7 @@ structural edge cases, keep a handful of explicitly-permissive real ones, and
 maintain a larger private local corpus for manual verification that never enters
 the repository.
 
-**Which corpus CI runs, settled 2026-08-29** ([P4 §1.2](06-p4-implementation.md)
+**Which corpus CI runs, settled 2026-08-29** ([P4 §1.2](docs/design/workplan/16-p4-implementation.md)
 owed this sentence and took it early): **CI runs the in-repo set** — synthesised
 plus permissive — per-PR for schema validation and nightly for the full import
 run. §6's "full wild-corpus import run" cannot mean the private corpus, because
@@ -284,8 +284,8 @@ cover of a test, which is the thing this section exists to prevent.
 
 **A converted card and a converted preset have to meet**, and testing each
 importer alone will not find out whether they do. The card importer routes ST's
-`personality` one way ([02 §2.7](../02-data-model.md)); the preset importer points
-the `charPersonality` slot somewhere ([10 §8.4.1](../10-schemas.md)). Both can be
+`personality` one way ([03 §2.7](../03-data-model.md)); the preset importer points
+the `charPersonality` slot somewhere ([04 §8.4.1](../04-schemas.md)). Both can be
 individually correct and disagree, and an earlier draft of the two did exactly
 that — producing a slot that would have resolved empty forever, hidden by
 `omitWhenEmpty`.
@@ -316,7 +316,7 @@ GitHub Actions, three tiers:
 **On every pull request** — must be fast enough that it is never skipped:
 typecheck, lint including the boundary rules, unit, golden-file, schema
 validation, build. **On both ubuntu and Windows**, from
-[P2 §3](04-p2-implementation.md)'s P2.0 — the paths, the watcher and the layout
+[P2 §3](docs/design/workplan/08-p2-implementation.md)'s P2.0 — the paths, the watcher and the layout
 are exactly the code most likely to be wrong on the platform the CI never ran,
 and F4 is the proof of what that costs. And **the rebuild-equals-incremental
 property test as a named step**, rather than folded anonymously into the suite:
@@ -329,7 +329,7 @@ tier above; what stays here is the same property at a corpus size that would
 make the per-PR tier slow. Small budget every PR, large budget nightly.*
 
 **On tag** — reproducible build, artifact publish, changelog
-([11 §4](11-repo-and-releases.md)). *Built at [P6A.4](23-p6a-alpha-1.md) as
+([releases §4](docs/design/workplan/04-repo-and-releases.md)). *Built at [P6A.4](docs/design/workplan/19-p6a-alpha-1.md) as
 `release.yml`, filtered to `v*`: the image to a private package, the tag checked
 against the root `package.json`, the CHANGELOG checked for the entry. Unrun
 until the first tag, which is Alpha 1's.*
@@ -337,22 +337,22 @@ until the first tag, which is Alpha 1's.*
 Two project-specific automations worth having beyond the usual:
 
 - **Dependency licence scanning.** Dependencies must be AGPL-compatible
-  ([02 §1](02-triage.md)), and SSPL/BUSL/source-available terms appear in this
+  ([triage §1](docs/design/workplan/02-triage.md)), and SSPL/BUSL/source-available terms appear in this
   space. A CI check on the dependency licence set is cheap and catches it at PR
   time rather than at release.
 - **Forward-port check.** Flag any commit on a `release/*` branch with no
   counterpart on `main` — the one failure the branching model is prone to
-  ([11 §3](11-repo-and-releases.md)).
+  ([releases §3](docs/design/workplan/04-repo-and-releases.md)).
 - **Restore test**, nightly, beside the upgrade test. Populate a data directory,
   back it up, restore into a clean install, assert the library and sessions come
-  back. **An untested restore is not a backup** ([06 E6](../06-open-questions.md)),
+  back. **An untested restore is not a backup** ([25 E6](../25-open-questions.md)),
   and this is the whole reason the backup story can stay as small as it is — the
   index being derived means the archive excludes it and the restore rebuilds it.
   **This is a 1.0 requirement rather than an eventual nicety**
-  ([01 §0.5](01-work-plan.md)): backup and restore moved off the feature list and
+  ([work plan §0.5](docs/design/workplan/01-work-plan.md)): backup and restore moved off the feature list and
   into P11, and this test is the half of it that actually establishes anything.
 - **Session export round-trip.** Export ships at 1.0
-  ([06 B12](../06-open-questions.md), [01 §0.5](01-work-plan.md)) and freezes the
+  ([25 B12](../25-open-questions.md), [work plan §0.5](docs/design/workplan/01-work-plan.md)) and freezes the
   turn record when it does. Export a session with branches, `localActors`,
   channel state and renditions; re-import it; assert the tree, the effects and
   the reading order survive. This is the test that makes "the record is frozen"
@@ -364,7 +364,7 @@ Renovate or Dependabot for updates, grouped so the noise stays manageable.
 
 ## 7. The extension test kit
 
-Extensions are third-party code running in our process ([06 A1](../06-open-questions.md)),
+Extensions are third-party code running in our process ([25 A1](../25-open-questions.md)),
 so giving authors the means to test is partly self-defence. Published with the
 SDK:
 
@@ -373,10 +373,10 @@ SDK:
 - **Manifest and channel-schema validation.**
 - **The replay-determinism check** — replay an extension's recorded effects and
   assert its behaviour reproduces. This is what catches unrecorded randomness
-  ([14 §4.5](../14-roadmap.md)), and it is a better guarantee than a lint rule we
+  ([24 §4.5](../24-roadmap.md)), and it is a better guarantee than a lint rule we
   cannot apply to code we do not own.
 
-If the first-party dice and poker extensions ([14 §4.4](../14-roadmap.md)) are
+If the first-party dice and poker extensions ([24 §4.4](../24-roadmap.md)) are
 written against this kit, it stays honest.
 
 ---

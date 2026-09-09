@@ -9,7 +9,7 @@ import type { ConvertedPreset } from './preset.js';
 import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
- * SillyTavern `sysprompt` presets — *"the easy case"* ([10 §8.4.2]).
+ * SillyTavern `sysprompt` presets — *"the easy case"* ([04 §8.4.2]).
  *
  * Two fields: `content` becomes a text block at the top, `post_history` a text
  * block after the history slot.
@@ -97,7 +97,7 @@ export function convertSyspromptPreset(
    * `text-completion.ts` — the same omission, found the same way, fixed in the
    * same change. A sysprompt preset is `{ name, content }` in the ordinary case
    * and so rarely carries one of ST's `sensitiveFields`; *rarely* is not the
-   * standard [10 §8.4.4] sets, and the file this converter is handed is whatever
+   * standard [04 §8.4.4] sets, and the file this converter is handed is whatever
    * somebody uploaded rather than whatever ST would have written.
    */
   const { kept, removed } = stripSensitiveFields(input);

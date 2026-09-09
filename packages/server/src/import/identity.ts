@@ -11,7 +11,7 @@ import { userOwner } from '../storage/layout.js';
 /**
  * Re-import identity — *"nothing doubles silently, which is the whole of what
  * step 6 asks"*
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * A person who imports the same directory twice is not asking for two libraries.
  * Nothing before this stage stopped them getting one: the sweep wrote through
@@ -55,7 +55,7 @@ export type ImportIdentity =
  * and they have been in `Provenance` since P1 with nothing writing them
  * ([P4 §0]). The filename is **source-relative**, never absolute — the
  * foreign-path doctrine applies to what we store as much as to what we log
- * ([13 §4.1.1]).
+ * ([21 §4.1.1]).
  */
 export function stampImported<T extends { provenance: Provenance }>(
   object: T,
@@ -147,7 +147,7 @@ export async function identify(
  * own there, so deriving them from that content is the honest choice as well as
  * the convenient one: the same greeting is the same greeting.
  *
- * `Id` is any non-empty string ([10 §3]), so this is legal — and the prefix
+ * `Id` is any non-empty string ([04 §3]), so this is legal — and the prefix
  * makes it obvious in a stored file that the id was derived rather than
  * allocated.
  */

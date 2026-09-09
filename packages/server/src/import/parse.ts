@@ -4,10 +4,10 @@
 /**
  * What every import parser returns, and the table of malformed inputs every one
  * of them is tested against
- * ([P4 §1.2](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.2](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **A status, never a throw.** The rule comes from
- * [12 §4.2](../../../../docs/design/workplan/12-p2-manual-gate.md) and it is not
+ * [manual gate §4.2](../../../../docs/design/workplan/11-p2-manual-gate.md) and it is not
  * a style preference: a sweep reads thousands of files it did not write, and a
  * parser that throws on the seventh one takes the other six thousand with it.
  * One poisoned file never aborts a sweep, and one poisoned *row* never aborts a

@@ -9,7 +9,7 @@ import type { JSX } from 'react';
 import { useToggleChord } from './useToggleChord.js';
 
 /**
- * The chord hook, alone — [P3.1](../../../../docs/design/workplan/05-p3-implementation.md).
+ * The chord hook, alone — [P3.1](../../../../docs/design/workplan/15-p3-implementation.md).
  *
  * The gate's step 1 claims live here at the mechanism level: the chord fires,
  * typing does not fire it, and an unmounted hook stops answering — the last

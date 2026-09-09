@@ -11,7 +11,7 @@ import type {
 
 /**
  * Budget and admission — steps 2 and 3 of
- * [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md).
+ * [06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md).
  *
  * **One arbiter, one policy, applied to everything** — including the blocks we
  * are confident matter. The output is a verdict per block: included, or dropped
@@ -26,7 +26,7 @@ import type {
  * **Deliberately not a tokenizer.** Bundled tokenizers are discarded
  * ([triage §6.2](../../../../docs/design/workplan/02-triage.md)) and the
  * provider reports the real number afterwards
- * ([13 §1.4](../../../../docs/design/13-internal-contracts.md)) — so this is an
+ * ([21 §1.4](../../../../docs/design/21-internal-contracts.md)) — so this is an
  * estimate used to *decide*, with the measured figure landing on the record and
  * the budgeter's margin covering the gap. Four characters per token is the
  * usual rule of thumb for English prose and is wrong in both directions for
@@ -52,7 +52,7 @@ export interface AssembleOptions {
   /** What the call this context is for produces. Defaults to prose. */
   purpose?: CallPurpose;
   /**
-   * Blocks a producer refused **before** they reached here — [P5.6], [02 §3.2].
+   * Blocks a producer refused **before** they reached here — [P5.6], [03 §3.2].
    *
    * **The two-tier budget arriving at the one arbiter.** [P5 §1.3] asks for
    * per-book `tokenBudget` and `entryLimit` verdicts to feed this one *so that
@@ -199,7 +199,7 @@ export class AdvisoryLeakError extends Error {
     super(
       `Advisory block ${JSON.stringify(blockId)} cannot enter a ${purpose} call. ` +
         'Guidance influences prose and must never reach a systematic outcome ' +
-        '(docs/design/03-modes-and-turn-pipeline.md §5.2).',
+        '(docs/design/06-modes-and-turn-pipeline.md §5.2).',
     );
     this.name = 'AdvisoryLeakError';
   }

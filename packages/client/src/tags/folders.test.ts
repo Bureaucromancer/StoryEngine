@@ -8,7 +8,7 @@ import { folderRows, insideClosedFolder } from './folders.js';
 import type { TagFilters, TagFilterState } from './TagFilterBar.js';
 
 /**
- * Tags used as folders — [25 §5](../../../../docs/design/25-tagging.md).
+ * Tags used as folders — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * **The two modes differ in exactly one way and it is easy to get backwards.**
  * `closed` hides its members from the ungrouped list until it is entered;

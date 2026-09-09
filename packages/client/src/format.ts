@@ -3,7 +3,7 @@
 
 /**
  * Formatting — `Intl` only, from the first component
- * ([07 §12.6](../../../docs/design/07-tech-stack.md)). No hand-rolled "2 minutes ago",
+ * ([19 §12.6](../../../docs/design/19-tech-stack.md)). No hand-rolled "2 minutes ago",
  * and since [P3.2] no hand-rolled `${ms}ms` either: the workbench renders
  * token counts and wall times, and 07 §12.6a classes a hand-rolled duration
  * as a rewrite if deferred.
@@ -52,7 +52,7 @@ export function formatEpochMs(epochMs: number, locale?: string): string {
  * An `Intl` formatter that falls back rather than throwing on a bad locale.
  *
  * `new Intl.DateTimeFormat('not a locale')` throws a `RangeError`, and until
- * [P2A](../../../docs/design/workplan/13-p2a-configuration-surface.md) a locale
+ * [P2A](../../../docs/design/workplan/09-p2a-configuration-surface.md) a locale
  * could only arrive from `Accept-Language` at setup — a header a browser
  * generates. **P2A makes it something a person types into a form**, and the
  * failure mode of the version above was that one bad value took out every date

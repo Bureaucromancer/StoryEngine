@@ -9,7 +9,7 @@ import { CheckboxField, Field, NumberField, SelectField } from './Field.js';
 /**
  * The field primitives, and the thing they were all supposed to be doing.
  *
- * [05 §15.2](../../../../docs/design/05-ui-surfaces.md) asks for the consequence beside the
+ * [10 §15.2](../../../../docs/design/10-ui-surfaces.md) asks for the consequence beside the
  * control, and P2A.6 wrote those sentences into `hint` on every one of these.
  * **Only `CheckboxField` announced them.** `Notes` gave an id to its error and
  * not to its hint, and `Field`/`NumberField` pointed `aria-describedby` at the
@@ -17,7 +17,7 @@ import { CheckboxField, Field, NumberField, SelectField } from './Field.js';
  * explaining what the control does was present for a sighted reader and
  * silently skipped for everyone else.
  *
- * Found by surveying for [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md),
+ * Found by surveying for [P2B](../../../../docs/design/workplan/10-p2b-provider-configuration.md),
  * whose most consequential strings are hints — *empty means OpenAI's own
  * endpoint*, *a key is set, leave blank to keep it* — and worth fixing before
  * three more depend on it.
@@ -129,7 +129,7 @@ describe('ids', () => {
 });
 
 /**
- * Required-ness, marked twice for two readers — [05 §11.1a].
+ * Required-ness, marked twice for two readers — [10 §11.1a].
  *
  * The pair is the point, and each half fails differently if it goes missing: a
  * glyph alone is invisible to a screen reader, and `aria-required` alone is

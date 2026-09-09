@@ -12,7 +12,7 @@ import { migrateState, STATE_SCHEMA_VERSION, STEPS } from './migrations.js';
  * This file's doctrine is that steps are *stepwise and preserving* — each
  * version is a function from the previous one and none may drop a table —
  * because nothing in this store is a restatement of anything on disk
- * ([13 §5.1]). The index can be thrown away and rebuilt; a job in flight and
+ * ([21 §5.1]). The index can be thrown away and rebuilt; a job in flight and
  * the draft of a turn cannot.
  *
  * Until P4.0 there was exactly one step, so the rule had never been exercised:
@@ -96,7 +96,7 @@ describe('the operational store upgrades without losing anything', () => {
    * So **deleting the `insert into import_item_new … select` left the entire
    * suite green** while every upgrading install silently lost every import
    * review and note it had ever recorded — which is exactly the data
-   * [P4 §3](../../../../docs/design/workplan/06-p4-implementation.md)'s gate
+   * [P4 §3](../../../../docs/design/workplan/16-p4-implementation.md)'s gate
    * step 16 is walked against, and exactly what a walk on a fresh store would
    * never notice.
    *

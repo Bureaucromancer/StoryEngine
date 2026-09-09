@@ -21,7 +21,7 @@ import { Layout } from '../storage/layout.js';
 import { type Listener, TurnStream } from './bus.js';
 
 /**
- * The fan-out — [04 §3.1], [07 §8].
+ * The fan-out — [09 §3.1], [19 §8].
  *
  * Two of these tests exist because a design review found the failures first:
  * a listener that throws must not be able to reach the commit protocol, and a

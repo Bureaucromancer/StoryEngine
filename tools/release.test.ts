@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * The packaging artefacts agree about what version this is — [P6A.4],
- * [P6A §1.6](../docs/design/workplan/23-p6a-alpha-1.md),
- * [releases §7](../docs/design/workplan/11-repo-and-releases.md).
+ * [P6A §1.6](../docs/design/workplan/19-p6a-alpha-1.md),
+ * [releases §7](../docs/design/workplan/04-repo-and-releases.md).
  *
  * **Four files name a version and nothing compared them.** The root
  * `package.json` is the source; the CHANGELOG entry, `compose.yaml`'s image tag
@@ -44,7 +44,7 @@ describe('the version this build claims', () => {
 
   it('has a changelog entry', () => {
     // [releases §7]: every release tag needs one, because
-    // [04 §7] makes *what am I running* a user-facing question.
+    // [09 §7] makes *what am I running* a user-facing question.
     expect(read('CHANGELOG.md')).toContain(`## ${version}`);
   });
 
@@ -68,7 +68,7 @@ describe('the version this build claims', () => {
 
 /**
  * Two claims about the release trigger that are cheap to check and expensive to
- * discover — [P6A §3](../docs/design/workplan/23-p6a-alpha-1.md) steps 2 and 12.
+ * discover — [P6A §3](../docs/design/workplan/19-p6a-alpha-1.md) steps 2 and 12.
  */
 describe('the release workflow', () => {
   const workflow = read('.github/workflows/release.yml');
@@ -144,7 +144,7 @@ describe('the release workflow', () => {
  * Two of these are about size and one is not. A developer's `build-info.json`
  * arriving in the context would claim the image is a build it is not, which is
  * the single lie [§1.5] exists to prevent; `data/` is the user's and is
- * canonical ([02 §5]).
+ * canonical ([03 §5]).
  */
 describe('the docker build context', () => {
   const ignored = read('.dockerignore');

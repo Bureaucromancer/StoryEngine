@@ -13,7 +13,7 @@ export type {
 /**
  * Every engine type a mode is allowed to see, in one place.
  *
- * **This file is the relocation.** [P2 §2.4](../../../../docs/design/workplan/04-p2-implementation.md)
+ * **This file is the relocation.** [P2 §2.4](../../../../docs/design/workplan/08-p2-implementation.md)
  * says the Scene mode lives in `server` now and moves behind the SDK at P7
  * *without changing shape* — and the thing that decides whether that is a move
  * or a rewrite is how many engine types the mode reached for. Enumerated here,

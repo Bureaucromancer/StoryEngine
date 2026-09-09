@@ -27,7 +27,7 @@ import {
 
 /**
  * The panel frame over the real router —
- * [P3.1](../../../../docs/design/workplan/05-p3-implementation.md)'s exit
+ * [P3.1](../../../../docs/design/workplan/15-p3-implementation.md)'s exit
  * criteria, most of them the deliberate inverse of the focus-trap tests in
  * `ConflictDialog.test.tsx`: Tab *escapes* the dock, Escape closes it *only*
  * from inside, and `aria-modal` is asserted absent. These are the regressions

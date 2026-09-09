@@ -14,8 +14,8 @@ import {
 } from './types.js';
 
 /**
- * The scripted provider — [testing §4.1](../../../../docs/design/workplan/10-testing.md),
- * [P2 §2.8](../../../../docs/design/workplan/04-p2-implementation.md).
+ * The scripted provider — [testing §4.1](../../../../docs/design/workplan/03-testing.md),
+ * [P2 §2.8](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * **Built beside the first real adapter, not after it.** It is three things at
  * once: the golden-file harness (because it records every request), the E2E
@@ -80,7 +80,7 @@ export interface ScriptedReply {
    *
    * `usage: null` and an absent `usage` are different claims — the first is what
    * a provider that does not report tokens actually returns, and the record is
-   * required to keep it as null rather than synthesise a number ([13 §1.4]).
+   * required to keep it as null rather than synthesise a number ([21 §1.4]).
    * Optional-with-a-null-member cannot express that on its own, so this says it.
    */
   reportsNoUsage?: true;

@@ -3,8 +3,8 @@
 
 /**
  * SillyTavern's own list of preset fields that carry a connection or a
- * credential, vendored ([10 §8.4.4](../../../../../docs/design/10-schemas.md),
- * [P4 §1.1](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * credential, vendored ([04 §8.4.4](../../../../../docs/design/04-schemas.md),
+ * [P4 §1.1](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * Snapshot provenance:
  *   source  SillyTavern/public/scripts/openai.js, `sensitiveFields`
@@ -31,7 +31,7 @@
  * containing someone's credential is worth somebody knowing about.
  *
  * This is also the one class of source field that never lands in `compat`. Every
- * other unrecognised field is preserved verbatim under [10 §2]'s preservation
+ * other unrecognised field is preserved verbatim under [04 §2]'s preservation
  * rule; these are the named exception, and preserving them would defeat the
  * entire point of removing them.
  */

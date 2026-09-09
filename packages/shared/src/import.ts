@@ -13,11 +13,11 @@
  * **Shared rather than server-only** because the client renders it, and the
  * client imports only from here ([P3.0]'s precedent for the turn record). What
  * crosses is *classes and parameters*, never sentences —
- * [P4 §1.4](../../../docs/design/workplan/06-p4-implementation.md) decides that
- * and [06 A2d](../../../docs/design/06-open-questions.md) is why: a report
+ * [P4 §1.4](../../../docs/design/workplan/16-p4-implementation.md) decides that
+ * and [25 A2d](../../../docs/design/25-open-questions.md) is why: a report
  * stored as English is a bug that only shows up when somebody changes language.
  * There is no ICU message layer in this repository yet
- * ([P11 §1.3](../../../docs/design/workplan/22-p11-implementation.md) owns the
+ * ([P11 §1.3](../../../docs/design/workplan/27-p11-implementation.md) owns the
  * catalogue), so the client renders these through the same open-keyed label maps
  * every other class-to-word surface uses. Emitting `{ key, params }` now is what
  * keeps the largest body of user-facing prose any phase has added off that
@@ -66,7 +66,7 @@ export type ImportDisposition =
    * A re-import of something already here, byte-identical to what is stored.
    *
    * **Distinct from `skipped`, which means we chose not to take it.** This one
-   * was taken and turned out to be the same — the no-op rule ([02 §11.1])
+   * was taken and turned out to be the same — the no-op rule ([03 §11.1])
    * extended to import, and the answer somebody re-running a sweep most needs
    * to see, because it is the difference between *nothing happened* and
    * *nothing needed to*.
@@ -94,7 +94,7 @@ export type ImportNoteLevel = 'info' | 'warn';
  *
  * Never a sentence. The params must carry **everything the sentence needs**,
  * because a renderer cannot go back for more — the same requirement
- * [04 §3.4](../../../docs/design/04-server-multiuser-deployment.md) puts on
+ * [09 §3.4](../../../docs/design/09-server-multiuser-deployment.md) puts on
  * notification summaries, and the reason its params are the interesting half.
  */
 export interface ImportNote {
@@ -107,7 +107,7 @@ export interface ImportNote {
 export interface ImportItemReport {
   /**
    * What this was, **named relative to the sweep root** — never absolutely.
-   * [13 §4.1](../../../docs/design/13-internal-contracts.md)'s foreign-path
+   * [21 §4.1](../../../docs/design/21-internal-contracts.md)'s foreign-path
    * doctrine: the root is recorded once, on the job, where the person who typed
    * it can see it. A per-item absolute path turns a report somebody pastes into
    * an issue into a description of their filesystem.

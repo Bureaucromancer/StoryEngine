@@ -8,7 +8,7 @@ import type { StepDefinition } from './steps.js';
 import { callPurposeFor, evaluateCondition, filterReads } from './steps.js';
 
 /**
- * When a step runs, and what it is handed — [03 §6], [12 §3.1].
+ * When a step runs, and what it is handed — [06 §6], [22 §3.1].
  *
  * These exist because an audit measured all three `StepCondition` arms as
  * mutation-insensitive: the runner is the only evaluator, it passes empty sets
@@ -106,7 +106,7 @@ describe('a step is handed only what it declared', () => {
   };
 
   it('withholds history from a step that did not ask for it', () => {
-    // [12 §3.1]'s payload filter, which is also what makes the boundary
+    // [22 §3.1]'s payload filter, which is also what makes the boundary
     // narrow enough to cross a worker hop later.
     expect(filterReads(step(), everything).history).toBeUndefined();
     expect(filterReads(step({ reads: ['history'] }), everything).history).toEqual([]);
@@ -148,7 +148,7 @@ describe('a step is handed only what it declared', () => {
     // The omission is the design: `reads` cannot name guidance, so a step that
     // could receive it would have to be handed it as an ungated extra — and a
     // step holding the text could re-emit it as an ordinary candidate, which
-    // `assemble` would admit ([03 §5.2]).
+    // `assemble` would admit ([06 §5.2]).
     const input = filterReads(step({ reads: ['history', 'guidance', SE_CLOCK] }), everything);
     expect(input).not.toHaveProperty('guidance');
     expect(JSON.stringify(input)).not.toContain('guidance');
@@ -211,7 +211,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
 
   it('names the one thing on StepHost that cannot cross a worker hop', () => {
     // **An honest limit rather than a claim.** `StepHost.rng` is a live class
-    // instance with synchronous methods, and [12 §4] specifies the host API as
+    // instance with synchronous methods, and [22 §4] specifies the host API as
     // async and narrow with `random` supplied by the host. `call` and `signal`
     // cross fine; `rng` does not, and converting it later means touching every
     // step that draws. Recorded here so P7 finds it as a known cost rather than

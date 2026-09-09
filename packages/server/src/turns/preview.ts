@@ -33,7 +33,7 @@ import { gatherAssemblyInputs } from './gather.js';
  * the person is most likely to be looking at it. The head it *did* use is
  * echoed back.
  *
- * **The prose call, and it says which.** [03 §5.2] admits guidance only to a
+ * **The prose call, and it says which.** [06 §5.2] admits guidance only to a
  * call whose purpose is prose, so the prose call is the only one the guidance
  * box can change — which is what makes previewing on a guidance edit
  * coherent. A mode with several calls has several verdicts and one meter; the
@@ -130,7 +130,7 @@ export async function previewAssembly(
    * reproduce. The one case where a tape would belong here is a preview *of a
    * rewrite* — showing the outcome the rewrite will actually get rather than a
    * fresh roll of it — and nothing offers one, because the gestures submit
-   * rather than preview. A guided redo's previous attempt ([03 §5.1]) is
+   * rather than preview. A guided redo's previous attempt ([06 §5.1]) is
    * absent here for the same reason: it belongs to a redo, and a redo is
    * submitted, not previewed.
    */
@@ -204,7 +204,7 @@ export async function previewAssembly(
     // With no model resolved there is no context window, so there is no
     // denominator — which is a true reply to *how full is the context*, not a
     // refused request. `AdvisoryLeakError` is deliberately *not* caught: it is
-    // [03 §5.2]'s structural refusal, and a preview that swallowed it would be
+    // [06 §5.2]'s structural refusal, and a preview that swallowed it would be
     // the one surface able to route around the guarantee.
     if (error instanceof RoleUnresolved) {
       const reason: UnmeasurableReason =

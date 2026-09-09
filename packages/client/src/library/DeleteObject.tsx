@@ -12,7 +12,7 @@ import { Button } from '../ui/Button.js';
  * **Delete, which the server has been able to do since P1 and no surface could
  * reach** ([P4 §1.4]) — reachable now from the read page and from both editors,
  * through the critical-controls strip each of them holds against the bottom of
- * the scrollport ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)).
+ * the scrollport ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)).
  *
  * The import review's whole posture — commit immediately, report loudly, no
  * staging area — rests on a bad import being reversible. That was true on disk
@@ -23,7 +23,7 @@ import { Button } from '../ui/Button.js';
  * Two-step rather than a modal, because a modal for a reversible action is
  * ceremony — and this one *is* reversible: the folder moves to trash and the
  * retention window is what makes the second thought possible
- * ([02 §10.2](../../../../docs/design/02-data-model.md)).
+ * ([03 §10.2](../../../../docs/design/03-data-model.md)).
  *
  * **One control for three surfaces**, which is why it left the detail page's
  * file. The two-step and the refused-412 sentence were each found wrong once

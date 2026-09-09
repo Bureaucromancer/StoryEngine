@@ -11,14 +11,14 @@ import { Fine, Note } from '../ui/Text.js';
 
 /**
  * What this session retrieves from, and the control that changes it —
- * [P6B.0], [P6B §1.1](../../../../docs/design/workplan/24-p6b-playable.md).
+ * [P6B.0], [P6B §1.1](../../../../docs/design/workplan/20-p6b-playable.md).
  *
  * **The gap this closes is the one that kept PLAYABLE from running.**
  * `POST /api/sessions` has accepted a treatment and a book list since P5.6 and
  * `PUT /api/sessions/:id/lore` has always written them, and nothing in the
  * client called either — so every session ever made in the browser resolved
  * zero books, and the whole retrieval half of P5 was unreachable from the
- * product ([P5 §0.5](../../../../docs/design/workplan/07-p5-implementation.md)).
+ * product ([P5 §0.5](../../../../docs/design/workplan/17-p5-implementation.md)).
  *
  * **Here rather than only on the create form**, because the realisation *this
  * book should have been attached* arrives in the middle of a session and
@@ -30,7 +30,7 @@ import { Fine, Note } from '../ui/Text.js';
  * session look like a form. Closed, it still says how many books are attached,
  * which is the one fact worth having without opening.
  *
- * **Not the cast**, deliberately: [P7.2](../../../../docs/design/workplan/18-p7-implementation.md)
+ * **Not the cast**, deliberately: [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)
  * owns that surface and [P7 §1.6] turns `cast` from a field into a channel, so
  * a cast control built here would be built against a shape P7 replaces.
  */
@@ -157,7 +157,7 @@ const LEGEND = 'text-sm font-medium text-ink-muted';
  * What the closed disclosure says.
  *
  * One string from a template literal rather than a sentence assembled around a
- * value in JSX, which is the shape [07 §12.6a] forbids — and the count is worth
+ * value in JSX, which is the shape [19 §12.6a] forbids — and the count is worth
  * having closed, because *no books attached* is the state that made every
  * session before [P6B.0] silent about lore.
  */

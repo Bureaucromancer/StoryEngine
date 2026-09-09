@@ -24,7 +24,7 @@ import { defaultBindings, resolveRole, ROLE_TIER_DEFAULTS } from './roles.js';
 import { MODEL_ROLES } from './types.js';
 
 /**
- * Connections and role bindings — [04 §4.5], [07 §5.1].
+ * Connections and role bindings — [09 §4.5], [19 §5.1].
  *
  * The household case is what these two files exist for: an admin binds the two
  * defaults to system connections and everyone's calls resolve there — *"Dad
@@ -285,11 +285,11 @@ describe('resolving a role', () => {
 });
 
 /**
- * **The install default layer** — [P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md),
- * [07 §5.1](../../../../docs/design/07-tech-stack.md)'s weakest layer, finally present.
+ * **The install default layer** — [P2B §2.1](../../../../docs/design/workplan/10-p2b-provider-configuration.md),
+ * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s weakest layer, finally present.
  *
  * Three documents described a layer of bindings belonging to the install rather
- * than to a person, and [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) said a
+ * than to a person, and [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) said a
  * dangling binding *"falls back to system bindings — the existing non-blocking
  * behaviour, **no new mechanism**"*. There was no second layer, so the fallback
  * that sentence promised could not happen. That is the sentence that hid the
@@ -328,7 +328,7 @@ describe('the install defaults', () => {
     // `default`, not `binding`. The distinction is the whole reason the two maps
     // are not merged before resolution: a merged map answers every resolvable
     // role correctly and cannot say *inherited* against *yours*, which is what
-    // [05 §15.1] asks the surface to show.
+    // [10 §15.1] asks the surface to show.
     expect(result.ok && result.via).toBe('default');
   });
 
@@ -358,7 +358,7 @@ describe('the install defaults', () => {
   });
 
   /**
-   * **`dangling` becomes recoverable**, which is what [04 §4.5] promised all
+   * **`dangling` becomes recoverable**, which is what [09 §4.5] promised all
    * along: an admin removes a connection somebody had bound, and the turn keeps
    * working rather than failing.
    *
@@ -441,7 +441,7 @@ describe('reading bindings from disk', () => {
       JSON.stringify({ prose: { connectionId: 'mine-local', modelId: 'llama-local' } }),
     );
 
-    // The path is the owner ([04 §4.3]): one lives under `system/`, one under
+    // The path is the owner ([09 §4.3]): one lives under `system/`, one under
     // `users/ned/`, and reading either does not reach the other.
     expect((await readSystemBindings(layout)).prose?.connectionId).toBe('house-openai');
     expect((await readBindings(layout, 'ned')).prose?.connectionId).toBe('mine-local');
@@ -463,7 +463,7 @@ describe('reading bindings from disk', () => {
 });
 
 /**
- * The writer — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md) stage
+ * The writer — [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md) stage
  * P2B.1.
  *
  * Until this stage a connection could only be hand-written, which is why a
@@ -621,7 +621,7 @@ describe('deleting a connection', () => {
     await seedConnectionFile(layout.userConnectionsRoot('ned'), MINE);
 
     // The system root is the one being deleted from, and the id lives in the
-    // user's. Scope is the path ([04 §4.3]), so this is a miss rather than a
+    // user's. Scope is the path ([09 §4.3]), so this is a miss rather than a
     // cross-scope delete.
     await expect(
       deleteConnection(layout, layout.systemConnectionsRoot, 'mine-local'),
@@ -659,7 +659,7 @@ describe('what an admin sees', () => {
       shadowed: false,
       contentHash: 'sha256:whatever',
     });
-    // The URL is admin-visible and user-invisible — [04 §4.5]'s *"an admin may
+    // The URL is admin-visible and user-invisible — [09 §4.5]'s *"an admin may
     // opt to show it"* read as narrowly as it goes. The key is neither.
     expect(JSON.stringify(shown)).not.toContain('sk-do-not-leak');
   });
@@ -704,7 +704,7 @@ describe('what an admin sees', () => {
 
 /**
  * **Shadowing is a property of the list**, so it is computed where the list is
- * — [P2B §4](../../../../docs/design/workplan/14-p2b-provider-configuration.md) step 10.
+ * — [P2B §4](../../../../docs/design/workplan/10-p2b-provider-configuration.md) step 10.
  */
 describe('two files claiming one id', () => {
   it('are both read, and the one that loses is the one nothing resolves to', async () => {
@@ -776,7 +776,7 @@ describe('two files claiming one id', () => {
  * **What a hand-written file can contain**, found by a P2B adversarial review
  * probing values the parse accepts and the resolver did not.
  *
- * Both files here are hand-written by design ([05 §4]) — the per-user
+ * Both files here are hand-written by design ([10 §4]) — the per-user
  * `bindings.json` has no writer at all — so "well-formed JSON that means
  * nothing" is not an exotic input. It is the ordinary typo.
  */
@@ -849,7 +849,7 @@ describe('nonsense a person can type', () => {
  * **The capability overrides survive an edit, for the key's own reason.**
  *
  * Found by a readiness survey ahead of P2C rather than by a failure. The form
- * has no field for `capabilities` — [07 §5.3] makes them the operator saying
+ * has no field for `capabilities` — [19 §5.3] makes them the operator saying
  * something about their own endpoint — so it sends none, and a write that took
  * `input.capabilities` alone deleted what was on disk on every rename.
  *

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * What to call a session nobody has named — [02 §8](../../../../docs/design/02-data-model.md).
+ * What to call a session nobody has named — [03 §8](../../../../docs/design/03-data-model.md).
  *
  * A session may be started without a name and renamed whenever its owner knows
  * what to call it, so *unnamed* is an ordinary, first-class state rather than a
@@ -13,7 +13,7 @@
  * **The convention is already the app's**, not something invented here. The
  * library renders *Untitled entry*, *Untitled folder*, *Untitled actor* and
  * *Untitled lorebook* for exactly this state, for exactly this reason
- * ([05 §11.1a](../../../../docs/design/05-ui-surfaces.md)): no portable schema constrains a
+ * ([10 §11.1a](../../../../docs/design/10-ui-surfaces.md)): no portable schema constrains a
  * name's length, so `''` validates and stores everywhere. Sessions join that
  * convention rather than getting a second rule of their own.
  *
@@ -25,7 +25,7 @@
  *
  * The `trim()` is load-bearing rather than defensive tidiness. The route trims
  * what it is sent, but `session.json` is hand-editable by design
- * ([02 §1](../../../../docs/design/02-data-model.md)), so a file with three spaces in its
+ * ([03 §1](../../../../docs/design/03-data-model.md)), so a file with three spaces in its
  * name can reach this function without ever passing through the route that
  * would have cleaned it.
  *

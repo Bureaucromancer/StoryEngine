@@ -8,7 +8,7 @@ import type { AssembledBlock } from '@storyengine/shared';
  * new logic the compare view needs.
  *
  * **The existing object differ cannot do this, and would be silently wrong if
- * asked to.** `diffObjects` pairs arrays *by index* ([05 §11.2a]'s field-level
+ * asked to.** `diffObjects` pairs arrays *by index* ([10 §11.2a]'s field-level
  * diff, which is right for what it does), so a single dropped block shifts
  * every later position and the comparison reports the whole tail as changed.
  * A rendering that looks plausible and is false is the worst outcome available

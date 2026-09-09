@@ -8,9 +8,9 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * SillyTavern world info → `Lorebook`
- * ([P4 §1.11](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.11](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
- * **The activation vocabulary carries as-is** — [10 §5] stores every field P5
+ * **The activation vocabulary carries as-is** — [04 §5] stores every field P5
  * will fire, and P4 only stores them. What the skeleton's *"carried as-is"*
  * glossed is that ST encodes two of those fields as **integers**, and an
  * integer silently reinterpreted is the worst possible import bug: the book
@@ -125,7 +125,7 @@ export function convertLorebook(input: unknown, name: string): ParseOutcome<Conv
   if (!isRecord(input)) return refused('wrong-shape');
 
   // ST writes `entries` as an object keyed by uid; an entry-subset file may
-  // write an array. [10 §5.2] makes an entry subset a lorebook like any other,
+  // write an array. [04 §5.2] makes an entry subset a lorebook like any other,
   // so both shapes are the same thing arriving differently.
   const raw = input['entries'];
   const rows = Array.isArray(raw) ? raw : isRecord(raw) ? Object.values(raw) : null;
@@ -161,8 +161,8 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
 
   return {
     /**
-     * **Entry ids may be renumbered freely** ([10 §5.2], reaffirmed by
-     * [16 §4.1]) — and the same rule is why re-import cannot match *entries* by
+     * **Entry ids may be renumbered freely** ([04 §5.2], reaffirmed by
+     * [11 §4.1]) — and the same rule is why re-import cannot match *entries* by
      * id, which §1.3's object-level rule works around.
      *
      * Derived rather than minted, though, so converting the same book twice
@@ -228,7 +228,7 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
     /** Nothing imported is agent-locked; locking is something a person does. */
     locked: false,
 
-    // [10 §2]'s preservation rule: what we did not recognise survives, so
+    // [04 §2]'s preservation rule: what we did not recognise survives, so
     // nothing is lost even where nothing reads it.
     metadata: Object.fromEntries(
       Object.entries(row).filter(([key]) => !CONSUMED_ENTRY_FIELDS.has(key)),
@@ -276,7 +276,7 @@ function applyBookFields(
 /**
  * **A chat-scoped book imports as `global`, and the review names the drop.**
  *
- * `LoreScope` shipped with two arms rather than [02 §3.4]'s three: session
+ * `LoreScope` shipped with two arms rather than [03 §3.4]'s three: session
  * scoping moved to the session's own lore links, deliberately, because session
  * ids are install-local and a shared book carrying one exports an identifier
  * that is meaningless everywhere else. So an ST book bound to a chat has no
@@ -289,9 +289,9 @@ function applyBookFields(
  * at the factory. While `scope` selected books, an import turned every book in
  * a SillyTavern folder into one that applied to every session — the exact
  * outcome the reversal removed. It is safe now because nothing reads the field
- * ([02 §3.4]): a lorebook reaches a session by being selected and by nothing
+ * ([03 §3.4]): a lorebook reaches a session by being selected and by nothing
  * else. Anything that gives `scope` a consumer again has to revisit this line
- * and [06 §B15](../../../../../docs/design/06-open-questions.md) together —
+ * and [25 §B15](../../../../../docs/design/25-open-questions.md) together —
  * writing the most permissive value into every imported book is a decision, and
  * currently an unexamined one.
  */

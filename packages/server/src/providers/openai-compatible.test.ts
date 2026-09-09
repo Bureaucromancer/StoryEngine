@@ -301,7 +301,7 @@ describe('what the connection decides', () => {
  * never takes. So the boundary every turn actually crosses was covered by
  * nothing, and `FakeProvider.stream` throws a `ProviderError` from *inside* its
  * generator — a shape the real adapter does not have — which is
- * [12 §4.1](../../../../docs/design/workplan/12-p2-manual-gate.md)'s *"a stub agrees with
+ * [manual gate §4.1](../../../../docs/design/workplan/11-p2-manual-gate.md)'s *"a stub agrees with
  * whatever wrote it"* in the one place it costs most.
  *
  * **The tests that matter here fail at the transport rather than in a
@@ -609,7 +609,7 @@ describe('why the model stopped', () => {
 
   /**
    * A content filter is a refusal, not a failure: the call worked and the
-   * provider declined. [13 §1.4] gives `ModelCall.outcome` a `refused` value
+   * provider declined. [21 §1.4] gives `ModelCall.outcome` a `refused` value
    * that had no producer until this.
    */
   it('reads a content filter as a refusal', async () => {

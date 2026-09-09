@@ -4,8 +4,8 @@
 import type { BlockSource } from '@storyengine/shared';
 
 /**
- * The assembly contracts — [02 §8](../../../../docs/design/02-data-model.md),
- * [13 §1.1 and §1.5](../../../../docs/design/13-internal-contracts.md).
+ * The assembly contracts — [03 §8](../../../../docs/design/03-data-model.md),
+ * [21 §1.1 and §1.5](../../../../docs/design/21-internal-contracts.md).
  *
  * **The record-crossing shapes live in `@storyengine/shared` since [P3.0]**
  * (`packages/shared/src/turn.ts`, with the contracts' documentation): what
@@ -60,7 +60,7 @@ export interface Candidate {
   /**
    * **Guidance, and anything else that may influence prose and nothing else.**
    *
-   * [03 §5.2](../../../../docs/design/03-modes-and-turn-pipeline.md) is a
+   * [06 §5.2](../../../../docs/design/06-modes-and-turn-pipeline.md) is a
    * specification rather than a preference: guidance must never be admissible
    * to a call whose output determines a systematic result. The sharp case is a
    * fuzzy rule condition — those are model calls, and *"the player has clearly

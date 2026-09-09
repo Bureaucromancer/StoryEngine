@@ -1,16 +1,16 @@
-# 03 — P1 implementation plan
+# 07 — P1 implementation plan
 
 **Status: ~~plan~~ landed**, merged into `main` 2026-08-16 at `a9a05a0`.
-Expands [01 P1](01-work-plan.md) into something that can be worked from — the
+Expands [work plan P1](docs/design/workplan/01-work-plan.md) into something that can be worked from — the
 first document here that describes *code to write* rather than a design to
 argue with.
 
 **Its gate is the one gate that owes nothing.** P1 exits through the CI step
 that still runs on every push, which is why it is the single row in
-[26 §1](26-manual-testing.md) with no person named beside it.
+[manual testing §1](docs/design/workplan/05-manual-testing.md) with no person named beside it.
 
 *(This status line was written 2026-09-07 at
-[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -18,24 +18,24 @@ rather than what happened.)*
 **P1 delivers:** repo shape, the portable schemas, files on disk, the derived
 index, login, library CRUD, a library list, and a prototype actor editor.
 
-**The demo that defines done**, from [01 P1](01-work-plan.md): *create an actor
+**The demo that defines done**, from [work plan P1](docs/design/workplan/01-work-plan.md): *create an actor
 through the API, see the folder appear, edit the JSON on disk by hand, watch the
 change reflected without a restart.* That last gesture is the whole storage
 thesis — if it does not work, the design has already failed on its own terms
-([05 §4.1](../05-ui-surfaces.md)).
+([10 §4.1](../10-ui-surfaces.md)).
 
 **One correction to the demo before it is attempted.** Actor JSON lives inside
-`card.png` ([02 §5.2](../02-data-model.md)), so "edit the JSON by hand" is PNG chunk
+`card.png` ([03 §5.2](../03-data-model.md)), so "edit the JSON by hand" is PNG chunk
 surgery for exactly the kind the demo names. Do the folder-appears half with an
 **actor** and the hand-edit half with a **lorebook**, which is plain JSON on
 disk.
 
 That is worth more than a note about demo mechanics. **Hand-editing an actor is a
 promise the format does not currently keep**, and the file-access feature
-([05 §4](../05-ui-surfaces.md)) will eventually need an "edit card JSON" action that
+([10 §4](../10-ui-surfaces.md)) will eventually need an "edit card JSON" action that
 splices for the user. Recorded here because P1 is where it becomes visible.
 
-**The discipline this phase runs under** is [01 §2.2](01-work-plan.md):
+**The discipline this phase runs under** is [work plan §2.2](docs/design/workplan/01-work-plan.md):
 *demonstrate minimally, but build nothing whose only purpose is to be replaced.*
 It decides several things below that would otherwise look arbitrary — why auth
 ships whole rather than stubbed (§1.3), why the `Capabilities` record is written
@@ -61,7 +61,7 @@ revision to the work plan's phasing, and one verification.
 
 ### 1.1 Folder names versus identity — the `<slug>` question
 
-The storage layout ([02 §5.1](../02-data-model.md)) uses `actors/<slug>/`,
+The storage layout ([03 §5.1](../03-data-model.md)) uses `actors/<slug>/`,
 `lorebooks/<slug>/` and three more, and **no document says what a slug is**, how
 it is derived, whether it is unique, or what happens on rename. Ids are uuidv7
 and live *inside* the file.
@@ -80,10 +80,10 @@ existing directory with a numeric suffix. Renaming an object changes the name
   A "tidy folder name" action can be offered later; it is not automatic, and it
   is not P1.
 - **Assets are unaffected** by any rename, because the manifest holds paths
-  *relative to the folder* ([02 §5.3](../02-data-model.md)) and the whole directory
+  *relative to the folder* ([03 §5.3](../03-data-model.md)) and the whole directory
   moves together. Worth a test rather than an assumption.
 - **References are unaffected**, because `Ref` resolves by id
-  ([10 §3](../10-schemas.md)). A treatment linking a renamed actor keeps working.
+  ([04 §3](../04-schemas.md)). A treatment linking a renamed actor keeps working.
 
 **Why not auto-rename**, recorded so the question is not reopened by the first
 person who notices a folder whose name has drifted. Tracking the name over time
@@ -152,77 +152,77 @@ Two things this deliberately is not:
 
 ### 1.3 Auth is day-zero, not a stub
 
-Per-user layout is a day-one item ([01 §2](01-work-plan.md)), so P1 writes to
+Per-user layout is a day-one item ([work plan §2](docs/design/workplan/01-work-plan.md)), so P1 writes to
 `users/<handle>/` from the first write. An earlier draft supplied `<handle>` from
 a stub context module returning a fixed `dev` user, with real accounts at P10.
 
-**REVISED: build the real thing in P1**, per [01 §2.2](01-work-plan.md) — the
+**REVISED: build the real thing in P1**, per [work plan §2.2](docs/design/workplan/01-work-plan.md) — the
 stub was a system whose only purpose was to be deleted, and it would have been
 threaded through every route written between here and P10. The reason it is
-affordable is that there is very little "real thing" to build. [04 §4.1](../04-server-multiuser-deployment.md) already
+affordable is that there is very little "real thing" to build. [09 §4.1](../09-server-multiuser-deployment.md) already
 scopes auth to access separation among people who trust each other, and
 explicitly rules out rate limiting, lockout, complexity policy, email
-verification and 2FA. [04 §4.2](../04-server-multiuser-deployment.md) rules out
+verification and 2FA. [09 §4.2](../09-server-multiuser-deployment.md) rules out
 self-registration and identity providers. What is left is roughly the whole of
 what will *ever* ship:
 
-- `Account` per [04 §4.2](../04-server-multiuser-deployment.md), including the
+- `Account` per [09 §4.2](../09-server-multiuser-deployment.md), including the
   `Capabilities` block with defaults. Nothing enforces capabilities in P1 because
   none of the gated features exist yet — but the record is written once rather
   than migrated later.
-- **scrypt** for the password hash ([07 §9](../07-tech-stack.md)) — no native
+- **scrypt** for the password hash ([19 §9](../19-tech-stack.md)) — no native
   dependency, in the standard library.
 - A session cookie with sane flags, and **CSRF on state-changing routes**. Both
-  are named in [04 §4.1](../04-server-multiuser-deployment.md) as the things whose
+  are named in [09 §4.1](../09-server-multiuser-deployment.md) as the things whose
   absence is embarrassing rather than defensible, and both are far cheaper to
   put in before there are routes than after.
 - **First-run creates the first admin.** Safe on the default loopback bind
-  ([04 §5.1](../04-server-multiuser-deployment.md)), which is exactly the window
+  ([09 §5.1](../09-server-multiuser-deployment.md)), which is exactly the window
   that section revised the default to protect.
 
 **Accounts are authoritative state, so they are a file, not an index row** —
 `data/accounts.json`, atomic-written, never derived. Deleting `index.sqlite` must
-stay a non-event ([13 §5](../13-internal-contracts.md)), and it cannot be if
+stay a non-event ([21 §5](../21-internal-contracts.md)), and it cannot be if
 accounts live there. It sits outside every user directory so the file browser
-([05 §4.2](../05-ui-surfaces.md)) can never serve a password hash, whatever
+([10 §4.2](../10-ui-surfaces.md)) can never serve a password hash, whatever
 `fileAccess` a user is granted. It is written through `storage/atomic.ts` like
 everything else, so P1.0's no-direct-`fs` rule needs no exemption for auth.
 
 **What stays out of P1**, so this does not become the auth phase: account
-management UI ([05 §15](../05-ui-surfaces.md)), capability *enforcement*, the
+management UI ([10 §15](../10-ui-surfaces.md)), capability *enforcement*, the
 notification router, deployment and the Tailscale provider seam
-([04 §5.2](../04-server-multiuser-deployment.md)). P10 becomes the multi-user
+([09 §5.2](../09-server-multiuser-deployment.md)). P10 becomes the multi-user
 and deployment phase it is named for, rather than retrofitting an identity into
 a codebase that assumed one.
 
-*The first two of those went to [P2A](13-p2a-configuration-surface.md) rather
+*The first two of those went to [P2A](docs/design/workplan/09-p2a-configuration-surface.md) rather
 than P10, and the correction is worth reading beside the paragraph that made it:
 this section moved auth forward because a stub would have been threaded through
 every route and torn out later. It left management behind on the grounds that it
 was additive — which was true, and missed that the phases in between would each
 ship a feature with nowhere to configure it.
-[01 §2.3](01-work-plan.md) is the rule that came out of noticing.*
+[work plan §2.3](docs/design/workplan/01-work-plan.md) is the rule that came out of noticing.*
 
 **The honest cost.** P1.6 carries a login form and a first-run form on top of the
 list. Cheap, and neither needs anything the field-assist contract provides.
 
 **`system/library/` is loaded and merged from P1 too**, shipped empty. The merge
-is a query, not a special case ([02 §5.1](../02-data-model.md)), and retrofitting it
+is a query, not a special case ([03 §5.1](../03-data-model.md)), and retrofitting it
 into every list endpoint later is the annoying version. It is a scope an admin
 administers and **not** an account — there is no system login
-([04 §4.5](../04-server-multiuser-deployment.md)).
+([09 §4.5](../09-server-multiuser-deployment.md)).
 
 ### 1.4 Verified locally, so the stack choice holds
 
 - **`node:sqlite` has FTS5, with no flag** (Node 26.4, SQLite 3.53.2). This was
-  the live risk in [07 §7](../07-tech-stack.md); the documented fallback to
+  the live risk in [19 §7](../19-tech-stack.md); the documented fallback to
   `better-sqlite3` is not needed. ~~Re-run the probe on whichever LTS gets
   pinned~~ — **settled at P1.0: the pin is 26, which is the LTS this probe was
   always going to be re-run against.** It becomes LTS in October 2026, roughly
   two months after the first commit and well inside P1, so the probe above
   stands as run and there is nothing to repeat. `engines.node` is `>=26.4.0` and
   CI runs the single version; the reasoning is recorded at
-  [07 §2](../07-tech-stack.md).
+  [19 §2](../19-tech-stack.md).
 - **`crypto.randomUUID()` is v4 only.** uuidv7 is ~20 lines — 48-bit millisecond
   timestamp, version nibble, random tail — and goes in `shared` with a
   monotonicity test. Not worth a dependency.
@@ -236,7 +236,7 @@ there is code to be undisciplined with.
 
 ### P1.0 — Repo skeleton
 
-pnpm workspaces per [07 §10](../07-tech-stack.md):
+pnpm workspaces per [19 §10](../19-tech-stack.md):
 
 ```
 packages/shared/     types + schemas, no runtime deps
@@ -246,34 +246,34 @@ packages/client/     React + Vite; list in P1.6, actor editor in P1.7
                      modes/* deferred to P7 — the boundary rules land now
 ```
 
-> **Corrected as built ([04 §1.4](04-p2-implementation.md)):** `shared`
+> **Corrected as built ([P2 §1.4](docs/design/workplan/08-p2-implementation.md)):** `shared`
 > shipped with two runtime deps — TypeBox and Ajv. The dependency is right
 > (one schema technology, five jobs); this line was wrong.
 
 - TypeScript strict, `"type": "module"`, project references.
 - **ESLint flat config with `eslint-plugin-boundaries`**, encoding
-  [10 §2](10-testing.md)'s graph: `modes/* → sdk, shared` (never `server`, never
+  [testing §2](docs/design/workplan/03-testing.md)'s graph: `modes/* → sdk, shared` (never `server`, never
   `client`); `client → shared`; `sdk → shared`.
 
   Rules for `modes/*` are written now, before the directory exists. This is
-  [07 §10](../07-tech-stack.md)'s "discipline mechanism, not organisation" — the
+  [19 §10](../19-tech-stack.md)'s "discipline mechanism, not organisation" — the
   claim that built-in modes consume the published SDK exactly as a third party
   would is only true if violating it is a build error, and a rule added after the
   first mode is written is a rule negotiated with existing code.
 - **Two day-one lint rules that apply immediately**: no direct `fs` outside
   `server/src/storage`, and no `Math.random` or `node:crypto` randomness outside
   the RNG service — which does not exist yet, so the rule bans it everywhere
-  until it does ([07 §14.4](../07-tech-stack.md)).
+  until it does ([19 §14.4](../19-tech-stack.md)).
 - Stylelint with the logical-properties rule, written before there is any CSS.
 - AGPL header check as a lint rule; `LICENSE` is already in place.
 - CI on PR: typecheck, lint, build, test. Fast enough never to be skipped
-  ([10 §6](10-testing.md)).
+  ([testing §6](docs/design/workplan/03-testing.md)).
 
 *Ends at:* `pnpm build && pnpm lint && pnpm test` green, CI green, nothing runs.
 
 ### P1.1 — `shared`: the portable schemas
 
-TypeBox authored, **JSON Schema is the artefact** ([07 §4](../07-tech-stack.md)) —
+TypeBox authored, **JSON Schema is the artefact** ([19 §4](../19-tech-stack.md)) —
 emitted to `packages/shared/schemas/*.json` by a build step, so third-party tools
 can validate without compiling our types.
 
@@ -290,13 +290,13 @@ packages/shared/src/
   schema/preset.ts   incl. SlotBlock / TextBlock / SlotSource / Placement
   schema/package.ts
   schema/registry.ts `schema` string → validator, so containers never
-                     enumerate kinds ([10 §9](../10-schemas.md))
+                     enumerate kinds ([04 §9](../04-schemas.md))
 ```
 
-All six portable kinds, from [10](../10-schemas.md). Pure, no I/O, fully
+All six portable kinds, from [04](../04-schemas.md). Pure, no I/O, fully
 unit-testable — the cheapest place in the project to be thorough.
 
-**The trap, and it is a one-line setting.** [10 §2](../10-schemas.md) requires
+**The trap, and it is a one-line setting.** [04 §2](../04-schemas.md) requires
 readers to *preserve* unknown fields. Ajv's `removeAdditional` does the opposite
 and is exactly the sort of thing switched on for tidiness. It stays off,
 `additionalProperties` stays permissive, and a round-trip test enforces it.
@@ -304,7 +304,7 @@ Silently stripping a field written by a newer version is the failure that strand
 people, and it is invisible until someone downgrades.
 
 *Tests:* round-trip identity per kind; unknown-field preservation
-([10 §1](10-testing.md)); **no portable schema declares a property matching the
+([testing §1](docs/design/workplan/03-testing.md)); **no portable schema declares a property matching the
 connection/credential denylist** — the [00 §3.2](../00-stance.md) invariant, made a
 property over the emitted JSON Schema rather than a habit.
 
@@ -317,11 +317,11 @@ packages/server/src/storage/
   layout.ts    user/system roots, kind dirs, slug resolution (§1.1)
 ```
 
-`paths.ts` is [07 §9](../07-tech-stack.md)'s "single most important piece of
+`paths.ts` is [19 §9](../19-tech-stack.md)'s "single most important piece of
 security code in the project": one resolver, containment-checked against the user
 root, symlink-aware, and the reason the no-direct-`fs` rule from P1.0 exists.
 Asset manifests are relative paths within the folder and never escape it
-([02 §5.3](../02-data-model.md)).
+([03 §5.3](../03-data-model.md)).
 
 *Tests:* traversal attempts — `../`, absolute paths, a symlink pointing out, UNC
 paths, NTFS alternate data streams. Windows is the development platform, so its
@@ -337,20 +337,20 @@ packages/server/src/storage/card.ts
 
 `png-chunks-extract` + `png-chunk-text`. **Splice chunks, never re-encode
 pixels** — re-encoding on every save quietly degrades user art
-([02 §5.2](../02-data-model.md)).
+([03 §5.2](../03-data-model.md)).
 
-Two chunks, per [06 B5](../06-open-questions.md):
+Two chunks, per [25 B5](../25-open-questions.md):
 
 - `tEXt` carrying base64 JSON — simplest, most widely readable by third-party
   tools.
 - A **private binary chunk** for `EmbeddedMedia`: length-prefixed blob index, raw
-  bytes rather than base64 ([02 §5.2.2](../02-data-model.md)).
+  bytes rather than base64 ([03 §5.2.2](../03-data-model.md)).
 
 Written as an **envelope with per-container encoders** from the start
-([02 §5.2](../02-data-model.md)), PNG being the only one implemented — so WebP and
+([03 §5.2](../03-data-model.md)), PNG being the only one implemented — so WebP and
 JPEG are later a codec rather than a migration.
 
-*Tests:* `object → chunk → object` is identity ([10 §1](10-testing.md)); pixel
+*Tests:* `object → chunk → object` is identity ([testing §1](docs/design/workplan/03-testing.md)); pixel
 bytes byte-identical across a save; a V2/V3 `chara` card still parses; an unknown
 ancillary chunk survives a round trip.
 
@@ -365,7 +365,7 @@ packages/server/src/index-db/
   watcher.ts     chokidar + self-write suppression
 ```
 
-The write path is [02 §5.1.1](../02-data-model.md)'s dual model, and it is the part
+The write path is [03 §5.1.1](../03-data-model.md)'s dual model, and it is the part
 of P1 most likely to be got subtly wrong:
 
 - The server indexes **its own writes synchronously**, so the API is
@@ -380,12 +380,12 @@ of P1 most likely to be got subtly wrong:
   `id → path` and keep the row. This is the whole of the rename story — there is
   no rename special case anywhere else, because the engine never renames folders.
 
-Turn text indexing ([07 §7.1](../07-tech-stack.md)) is scaffolded but unused — no
+Turn text indexing ([19 §7.1](../19-tech-stack.md)) is scaffolded but unused — no
 turns exist until P2.
 
 *Tests:* **rebuild-from-disk equals incremental**, this phase's CI gate; a
 foreign write is picked up; a self-write does not double-index; deleting
-`index.sqlite` and restarting is a non-event ([13 §5](../13-internal-contracts.md));
+`index.sqlite` and restarting is a non-event ([21 §5](../21-internal-contracts.md));
 **a foreign rename is a move, not a delete followed by a create** — the row
 survives with its id and a new path (§1.1); a duplicate id is flagged rather than
 fatal, and **the same copy wins after a rebuild as won incrementally** (§1.2).
@@ -402,18 +402,18 @@ packages/server/src/
   routes/library.ts  CRUD over all six kinds, kind-agnostic
 ```
 
-**Config** is [13 §4](../13-internal-contracts.md)'s interface and key table, with
+**Config** is [21 §4](../21-internal-contracts.md)'s interface and key table, with
 the tier annotation as the *source* of the restart-required notice rather than a
-parallel hand-maintained list ([06 D0](../06-open-questions.md)). `server.host`
-defaults to `127.0.0.1` ([04 §5.1](../04-server-multiuser-deployment.md)); ship the
-commented `config.example.json` ([02 §5.4](../02-data-model.md)).
+parallel hand-maintained list ([25 D0](../25-open-questions.md)). `server.host`
+defaults to `127.0.0.1` ([09 §5.1](../09-server-multiuser-deployment.md)); ship the
+commented `config.example.json` ([03 §5.4](../03-data-model.md)).
 
 **Routes are kind-agnostic** — the registry from P1.1 means one handler set, not
 six. List merges user and system libraries with a source badge
-([05 §5](../05-ui-surfaces.md)). Fastify validates against the same JSON Schema the
+([10 §5](../10-ui-surfaces.md)). Fastify validates against the same JSON Schema the
 storage layer uses, which is the fifth job for one schema technology
-([07 §3](../07-tech-stack.md)). *Not delivered as built — params only, no body
-schemas; recorded at [04 §1.4](04-p2-implementation.md) (F2) and repaired at
+([19 §3](../19-tech-stack.md)). *Not delivered as built — params only, no body
+schemas; recorded at [P2 §1.4](docs/design/workplan/08-p2-implementation.md) (F2) and repaired at
 20 P2.0.*
 
 **Every library route resolves its root from the session**, never from a
@@ -424,7 +424,7 @@ the version of the P1.2 check that matters once there is more than one root.
 object's `name`; the folder does not move (§1.1).
 
 **Every read carries a content hash and every write must present one**
-([04 §4.4](../04-server-multiuser-deployment.md)). A stale hash is rejected with the
+([09 §4.4](../09-server-multiuser-deployment.md)). A stale hash is rejected with the
 current object in the response body, so the client can offer a choice rather than
 guess. It lands here rather than in P1.7 because it is a property of the write
 path, not of the UI — and because a rejected write is the only defence the
@@ -432,11 +432,11 @@ hot-reload thesis has against silently eating a hand-edit.
 
 ### P1.6 — The library list, and login
 
-React + Vite + TanStack ([07 §6](../07-tech-stack.md)). Deliberately small: **one
+React + Vite + TanStack ([19 §6](../19-tech-stack.md)). Deliberately small: **one
 surface for all six kinds with a kind filter**, a source badge for user versus
 system, and a detail view. *Built as specified, but the position it was built
-from has since been reversed: [05 §5](../05-ui-surfaces.md) now calls for one panel
-per kind, and the client change is [09 §4](09-polish.md). What P1.6 delivered is
+from has since been reversed: [10 §5](../10-ui-surfaces.md) now calls for one panel
+per kind, and the client change is [polish §4](docs/design/workplan/06-polish.md). What P1.6 delivered is
 unaffected and stays as it is until then.*
 
 **Plus login and first-run** (§1.3): no accounts on disk routes every request to
@@ -447,7 +447,7 @@ stage is not purely read-only.
 deliberate: this one has to be green on its own, because it is what the hot-reload
 demo runs on.
 
-This stage is the model for [01 §2.2](01-work-plan.md)'s good case: **nothing
+This stage is the model for [work plan §2.2](docs/design/workplan/01-work-plan.md)'s good case: **nothing
 here is thrown away.** The list, the detail view, the routing and the login are
 all the real surfaces, scoped small.
 
@@ -457,13 +457,13 @@ demonstration of the storage thesis than a second `curl` returning different
 JSON.
 
 **The day-one client rules start here**, because this is the first stylesheet and
-the first component ([01 §2](01-work-plan.md)):
+the first component ([work plan §2](docs/design/workplan/01-work-plan.md)):
 
 - **CSS logical properties only** — `margin-inline-start`, never `margin-left`.
   Enforced by the Stylelint rule from P1.0, which is why that rule was written
   before there was any CSS to check.
 - **No sentence built from concatenated fragments, and no user-visible string in
-  logic** ([07 §12.6a](../07-tech-stack.md)). Full i18n extraction is a pre-beta
+  logic** ([19 §12.6a](../19-tech-stack.md)). Full i18n extraction is a pre-beta
   sweep rather than a P1 obligation — these two habits are the part that cannot
   be retrofitted.
 - **`Intl` for every date and relative time.** No hand-rolled "2 minutes ago".
@@ -480,9 +480,9 @@ can be *used*, which is a different claim and the one that is easy to defer unti
 it is expensive.
 
 **This reverses an earlier position**, which put all editing out of P1 on the
-grounds of [05 §11](../05-ui-surfaces.md)'s editors-are-not-dumb-forms. That
+grounds of [10 §11](../10-ui-surfaces.md)'s editors-are-not-dumb-forms. That
 argument turns out to prove something narrower than it first appears. Assist is
-what [05 §11](../05-ui-surfaces.md) is about, and assist needs providers, which do
+what [10 §11](../10-ui-surfaces.md) is about, and assist needs providers, which do
 not exist until P2 — so the *assist* half is deferred by dependency, not by
 choice. The **write** half is entirely P1's business, and leaving it unbuilt
 means P1's central claim goes untested in the one condition that matters.
@@ -491,7 +491,7 @@ means P1's central claim goes untested in the one condition that matters.
 
 - **It is the only thing that exercises the write path under contention.** The
   read-only list demonstrates hot reload. An editor demonstrates hot reload
-  *while a user is mid-edit*, which is where [02 §5.1.1](../02-data-model.md)'s dual
+  *while a user is mid-edit*, which is where [03 §5.1.1](../03-data-model.md)'s dual
   write path either holds or does not. The stale-hash rejection from P1.5 is
   unfalsifiable without a UI that can hold a stale hash.
 - **It is the sharpest available test of unknown-field preservation.** P1.1 calls
@@ -503,36 +503,36 @@ means P1's central claim goes untested in the one condition that matters.
   are an assertion until something renders a form from one and writes it back.
 
 **Scope, held down deliberately.** Actor only — the kind with the richest shape
-([10](../10-schemas.md)), so it is the honest test rather than the easy one. Text
+([04](../04-schemas.md)), so it is the honest test rather than the easy one. Text
 and simple structured fields, sections, and the existing avatar shown but not
 replaced. No other kind gets an editor in P1; the list stays read-only for the
 other five.
 
 **Lore media is schema-only in P1.** `Lorebook.media`, `LoreEntry.media` and
-`EmbeddedMedia.tags` ([10 §5.1](../10-schemas.md)) land in P1.1 with the rest of the
+`EmbeddedMedia.tags` ([04 §5.1](../04-schemas.md)) land in P1.1 with the rest of the
 schemas, because the roles are the part that cannot be retrofitted
-([02 §3.6](../02-data-model.md)). Nothing renders them — the lorebook editor is not
+([03 §3.6](../03-data-model.md)). Nothing renders them — the lorebook editor is not
 in P1 — and P1.1's round-trip tests are the whole of their coverage. Worth
 naming so the fields are not mistaken for an unfinished feature.
 
-**Built as the smallest real editor, per [01 §2.2](01-work-plan.md)** — which
+**Built as the smallest real editor, per [work plan §2.2](docs/design/workplan/01-work-plan.md)** — which
 means one specific thing about its shape:
 
 - **A single `Field` primitive** owning label, value, validation and the slot
-  where assist actions will attach. [05 §11](../05-ui-surfaces.md) is explicit that
+  where assist actions will attach. [10 §11](../10-ui-surfaces.md) is explicit that
   assist must be a primitive rather than a per-field bolt-on, so the primitive is
   where the seam belongs. In P1 that slot renders nothing.
 - **The slot is empty, not disabled-with-a-promise.** A greyed "Generate" button
   that cannot work is a placeholder in the §2.2 sense and also a bad UI.
 - **Provenance is preserved, never authored.** `GeneratedFieldProvenance`
-  ([05 §11.2](../05-ui-surfaces.md)) is already in P1.1's `schema/common.ts`. Nothing
+  ([10 §11.2](../10-ui-surfaces.md)) is already in P1.1's `schema/common.ts`. Nothing
   writes it until P2, and the editor must not drop the map on save — which is the
   unknown-field discipline applied to a field we *do* know.
 
 **Version history is part of this stage**, on both sides. The storage half
 belongs with P1.2 — every write snapshots the state it replaces
-([02 §11](../02-data-model.md)) — and the editor is where it becomes visible: a
-history panel with restore and diff ([05 §11.2a](../05-ui-surfaces.md)).
+([03 §11](../03-data-model.md)) — and the editor is where it becomes visible: a
+history panel with restore and diff ([10 §11.2a](../10-ui-surfaces.md)).
 
 That pairing is not decoration, it is what makes a *prototype* editor safe to
 have. An editor built before the assist contract is one people will use on real
@@ -543,12 +543,12 @@ building either alone would suggest.
 
 It also gives the stage a second falsifiable claim: **the `source` field is
 populated correctly.** An edit through the UI records `manual`, a hand-edit on
-disk records `external` ([13 §1.6](../13-internal-contracts.md)). If those come out
+disk records `external` ([21 §1.6](../21-internal-contracts.md)). If those come out
 the same, the watcher is not distinguishing its own writes from foreign ones,
-which is [02 §5.1.1](../02-data-model.md) failing in a way nothing else in P1
+which is [03 §5.1.1](../03-data-model.md) failing in a way nothing else in P1
 surfaces.
 
-**The risk, stated because [01 §2.2](01-work-plan.md) requires it to be.**
+**The risk, stated because [work plan §2.2](docs/design/workplan/01-work-plan.md) requires it to be.**
 Building a field primitive before the assist contract is proven can bake in the
 wrong shape. The mitigation is that P1 commits to a *component boundary*, not to
 the contract: one component, whose interface changes cheaply if P2 shows the four
@@ -595,13 +595,13 @@ pnpm dev    # http://127.0.0.1:8080
 15. With the actor open in the editor, hand-edit the same object on disk, then
     save from the UI → the write is **rejected** on a stale hash and the UI
     offers reload-and-reapply or save-as-a-copy
-    ([04 §4.4](../04-server-multiuser-deployment.md)).
+    ([09 §4.4](../09-server-multiuser-deployment.md)).
 16. Open the actor's history → the edit from step 13 is listed as `manual`, and
-    the hand-edit from step 15 as `external` ([02 §11](../02-data-model.md)). Two
+    the hand-edit from step 15 as `external` ([03 §11](../03-data-model.md)). Two
     entries, correctly attributed; one entry or two identical ones means the
     watcher is not telling its own writes from foreign ones.
 17. Save the actor again without changing anything → **no new version.** The
-    no-op rule ([02 §11.1](../02-data-model.md)), and the difference between a
+    no-op rule ([03 §11.1](../03-data-model.md)), and the difference between a
     history someone reads and one they scroll past.
 18. Restore the step-13 version → the summary reverts, and the state you were on
     is now the newest entry rather than gone.
@@ -610,7 +610,7 @@ pnpm dev    # http://127.0.0.1:8080
 *Automated equivalents of 4 and 7–19 are this phase's CI suite*, plus the
 rebuild-equals-incremental property test. *Overstated as built — steps 16,
 11's login half, DELETE, and the rebuild property test were not automated;
-recorded at [04 §1.4](04-p2-implementation.md) (F11) and completed at
+recorded at [P2 §1.4](docs/design/workplan/08-p2-implementation.md) (F11) and completed at
 20 P2.0.*
 
 **Steps 16–18 are cheap to write and disproportionately worth having**, because
@@ -629,7 +629,7 @@ and both test a claim P1 makes and would otherwise ship unverified: that this
 storage model survives contact with a second writer, and that it does not eat
 data it does not understand.
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits
 with configuration that has no surface.** If this phase built something that
 needs a value set, name where someone sets it before calling the phase done.
 
@@ -640,8 +640,8 @@ needs a value set, name where someone sets it before calling the phase done.
 Named so they do not creep in: **field assist in any form** and **editors for the
 other five kinds** (P1.7 is actor-only); the workbench (P3);
 account management and capability enforcement
-([P2A](13-p2a-configuration-surface.md) — written here as P10's, and moved for
-[01 §2.3](01-work-plan.md)'s reason; login and first-run land now, §1.3);
+([P2A](docs/design/workplan/09-p2a-configuration-surface.md) — written here as P10's, and moved for
+[work plan §2.3](docs/design/workplan/01-work-plan.md)'s reason; login and first-run land now, §1.3);
 deployment (P10); the turn pipeline and providers (P2); import
 (P4); lorebook *activation* semantics — P1 stores lorebooks, it does not retrieve
 from them (P5); and `modes/*` (P7).
@@ -651,6 +651,6 @@ be the editing line, and editing turned out to be defensible on its own terms
 (P1.7). Assist is not, and it will feel like the obvious next thing precisely
 because P1.7 leaves a visible slot for it. The slot is not an invitation. Assist
 needs providers, a context builder over the object and its links, and the four
-operations of [05 §11.1](../05-ui-surfaces.md) — none of which exist before P2, and
+operations of [10 §11.1](../10-ui-surfaces.md) — none of which exist before P2, and
 a version built without them is the per-field bolt-on that section exists to
 prevent.

@@ -9,7 +9,7 @@ import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
  * SillyTavern text-completion presets — params, and a number
- * ([10 §8.4.2](../../../../../docs/design/10-schemas.md)).
+ * ([04 §8.4.2](../../../../../docs/design/04-schemas.md)).
  *
  * These carry no prompt structure at all: they are a backend's sampler panel
  * saved to a file. Most of their fields — `dry_*`, `smoothing_*`, `mirostat_*`,
@@ -19,7 +19,7 @@ import { stripSensitiveFields } from './sensitive-fields.js';
  * **They land in `compat`, not the floor**, and that is a correction §8.4.2 owed:
  * it said they "drop", while `GenerationParams`' own comment says they "land in
  * `compat`". The code comment wins, because it is the reading consistent with
- * [10 §2]'s preservation rule and [00 §2.4]'s *nothing is lost and re-export is
+ * [04 §2]'s preservation rule and [00 §2.4]'s *nothing is lost and re-export is
  * possible*. §8.4.2 is amended in this stage's documentation commit.
  *
  * **The review states the ratio, in as many words** (§8.4.2): *"this preset was
@@ -33,7 +33,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The sampler fields an OpenAI-compatible chat endpoint understands
- * ([07 §5.5]). Everything else about a text-completion preset is `compat`.
+ * ([19 §5.5]). Everything else about a text-completion preset is `compat`.
  */
 const PARAM_FIELDS: Readonly<Record<string, keyof Preset['params']>> = {
   temp: 'temperature',
@@ -68,7 +68,7 @@ export function convertTextCompletionPreset(
    * **The credential rule is unconditional, and this converter was not applying
    * it.**
    *
-   * [10 §8.4.4] says the importer drops ST's `sensitiveFields` from every preset
+   * [04 §8.4.4] says the importer drops ST's `sensitiveFields` from every preset
    * and that there is no *"import as-is"* affordance anywhere. Only
    * `convertChatCompletionPreset` was doing it. This one and the sysprompt
    * converter copied every unconsumed field into `compat` verbatim, so a JSON

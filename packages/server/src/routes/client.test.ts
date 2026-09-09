@@ -11,7 +11,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * The client, served by the server — [P6A.1],
- * [P6A §1.3](../../../../docs/design/workplan/23-p6a-alpha-1.md).
+ * [P6A §1.3](../../../../docs/design/workplan/19-p6a-alpha-1.md).
  *
  * **The claim is one process on one port serving both halves**, which is what
  * turns an image from an API and a 404 into something a person can open. Three
@@ -116,7 +116,7 @@ describe('with a client root configured', () => {
   /**
    * **The shell loads before there is an account**, which is how setup is
    * reached at all. The setup gate refuses every API address until an admin
-   * exists ([04 §5.1]), and it is guarded on `isApi` — so the UI that has to
+   * exists ([09 §5.1]), and it is guarded on `isApi` — so the UI that has to
    * ask for the admin is outside it. That guard predates this stage; what is
    * new is that there is now something on the other side of it to serve.
    */

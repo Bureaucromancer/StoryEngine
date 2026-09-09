@@ -17,7 +17,7 @@ import { NotFilledList } from './NotFilledList.js';
 import { rulesOf } from './rules.js';
 
 /**
- * One model call, whole — [05 §3]'s *"one per model call"*, now that the
+ * One model call, whole — [10 §3]'s *"one per model call"*, now that the
  * record keeps it that way: the call's own block table and verdict first
  * (the primary view), then what was not filled, then the call's facts, then
  * the rendered messages mapped back through their block ids.

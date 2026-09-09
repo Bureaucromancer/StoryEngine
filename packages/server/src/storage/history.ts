@@ -13,7 +13,7 @@ import { KeyedQueue } from './keyed-queue.js';
 import { resolveWithin } from './paths.js';
 
 /**
- * Version history on library objects — [02 §11](../../../../docs/design/02-data-model.md).
+ * Version history on library objects — [03 §11](../../../../docs/design/03-data-model.md).
  *
  * **History lives inside the object's own folder**, not in the index:
  *
@@ -36,7 +36,7 @@ import { resolveWithin } from './paths.js';
 
 /**
  * What made the change this snapshot preserves the state before
- * ([13 §1.6](../../../../docs/design/13-internal-contracts.md)). More things edit objects
+ * ([21 §1.6](../../../../docs/design/21-internal-contracts.md)). More things edit objects
  * here than in the design this is adopted from, and *"who changed my
  * character"* is the question history answers — `assist`, `extension` and
  * `import` have no writers until their phases, but the type is the contract.
@@ -49,7 +49,7 @@ export type VersionSource =
   | { kind: 'external' }
   | { kind: 'restore'; fromVersionId: string };
 
-/** One line of `history/index.jsonl` — [13 §1.6](../../../../docs/design/13-internal-contracts.md). */
+/** One line of `history/index.jsonl` — [21 §1.6](../../../../docs/design/21-internal-contracts.md). */
 export interface VersionRecord {
   id: string;
   /** sha256 of the snapshot payload — the filename under `history/v/`. */
@@ -57,7 +57,7 @@ export interface VersionRecord {
   /**
    * When the snapshotted state was *authored*, not when it was superseded.
    * Taken from the replaced object's `provenance.updatedAt`, so a restored
-   * version keeps its real date in the list ([02 §11.1]).
+   * version keeps its real date in the list ([03 §11.1]).
    */
   authoredAt: string;
   /** When the snapshot was taken. */
@@ -65,9 +65,9 @@ export interface VersionRecord {
   source: VersionSource;
   /** Free text. Sometimes generated, sometimes the user's — renameable later. */
   reason: string;
-  /** The author's own `provenance.version` at the time — theirs, not ours ([02 §11.5]). */
+  /** The author's own `provenance.version` at the time — theirs, not ours ([03 §11.5]). */
   authorVersion: string | null;
-  /** Exempt from retention pruning ([02 §11.3]). */
+  /** Exempt from retention pruning ([03 §11.3]). */
   pinned: boolean;
 }
 
@@ -122,7 +122,7 @@ function provenanceString(payload: unknown, field: 'updatedAt' | 'version'): str
  *
  * A line that does not parse is skipped rather than fatal: the file is
  * append-only precisely so that a corrupted tail costs the newest entry and
- * not the history ([02 §11.2]).
+ * not the history ([03 §11.2]).
  */
 export async function listVersions(objectRoot: string): Promise<VersionRecord[]> {
   const bytes = await readFileBytes(indexFile(objectRoot));
@@ -212,7 +212,7 @@ async function recordVersionUnlocked(
 
 /**
  * Updates the caller-editable half of a record: `reason` (rename) and `pinned`
- * ([05 §11.2a](../../../../docs/design/05-ui-surfaces.md)). Returns the updated record, or
+ * ([10 §11.2a](../../../../docs/design/10-ui-surfaces.md)). Returns the updated record, or
  * null if no entry has that id.
  */
 export async function patchVersion(
@@ -241,7 +241,7 @@ async function patchVersionUnlocked(
 
 /**
  * Prunes to the retention cap: oldest unpinned first, pinned never
- * ([02 §11.3](../../../../docs/design/02-data-model.md)). Payload files no surviving entry
+ * ([03 §11.3](../../../../docs/design/03-data-model.md)). Payload files no surviving entry
  * references are collected; ones still referenced stay, because pruning is
  * bookkeeping and not deletion of content.
  */

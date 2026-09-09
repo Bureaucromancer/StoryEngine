@@ -7,7 +7,7 @@
  * hand-copied approximation of them.
  *
  * That indirection is the whole point. P1.0's deliverable is a set of claims
- * about what is a build error (docs/design/workplan/03-p1-implementation.md §P1.0), and
+ * about what is a build error (docs/design/workplan/07-p1-implementation.md §P1.0), and
  * an untested lint rule is a claim, not a check.
  *
  * The path-dependent rules take a prefix so the tests can root them at a
@@ -48,7 +48,7 @@ const FS_MODULES = [
 
 const FS_MESSAGE =
   'Filesystem access goes through packages/server/src/storage. One audited path ' +
-  'resolver is the only door (docs/design/07-tech-stack.md §9).';
+  'resolver is the only door (docs/design/19-tech-stack.md §9).';
 
 // ---------------------------------------------------------------------------
 // No randomness outside the RNG service
@@ -56,7 +56,7 @@ const FS_MESSAGE =
 
 const RANDOM_MESSAGE =
   'Every random draw comes from the single RNG service and is recorded, or replay ' +
-  'and branching break silently (docs/design/07-tech-stack.md §14). The service ' +
+  'and branching break silently (docs/design/19-tech-stack.md §14). The service ' +
   'is packages/server/src/rng — draw through `rng.at(site, purpose)`, which is ' +
   'what puts the value on the turn tape. An unrecorded draw does not fail here; ' +
   'it fails much later, as a branch that reconstructs wrong.';
@@ -123,7 +123,7 @@ export const restrictedProperties = [
  *   right-* → end-*    border-r-* → border-e-*  rounded-r-* → rounded-e-*
  *
  * Stylelint cannot see any of this, because a utility class is not a
- * declaration — which is why the CSS half of docs/design/07-tech-stack.md
+ * declaration — which is why the CSS half of docs/design/19-tech-stack.md
  * §12.6 needs two rules rather than one.
  *
  * **Why this pattern is exact rather than generous**, which is the part worth
@@ -159,7 +159,7 @@ const PHYSICAL_UTILITY_PATTERN = String.raw`(?:^|\s)(?:[\w[\]-]+:)*-?(?:(?:left|
 const TAILWIND_MESSAGE =
   'Physical-direction utility. Use the logical equivalent (ms/me, ps/pe, ' +
   'start/end, border-s/border-e, rounded-s/rounded-e, text-start/text-end). ' +
-  'RTL is a dir attribute or a rewrite — see docs/design/07-tech-stack.md §12.6.';
+  'RTL is a dir attribute or a rewrite — see docs/design/19-tech-stack.md §12.6.';
 
 /**
  * Builds the `no-restricted-syntax` value. A function for the same reason
@@ -167,7 +167,7 @@ const TAILWIND_MESSAGE =
  * object, and the two exempt files (`ids.ts`, `secrets.ts`) need the Tailwind
  * bans without the Web Crypto ban — `crypto.getRandomValues` is how they draw
  * randomness portably, since `shared` must also run in a browser (the
- * `client → shared` edge in docs/design/workplan/10-testing.md §2).
+ * `client → shared` edge in docs/design/workplan/03-testing.md §2).
  *
  * @param {{ allowRandomness?: boolean }} options
  */
@@ -190,7 +190,7 @@ const TAILWIND_MESSAGE =
  *
  * And note what is deliberately **not** caught: a template literal with a
  * placeholder. One message with a value substituted into it is exactly the
- * shape ICU MessageFormat wants (docs/design/07-tech-stack.md §12.3) and
+ * shape ICU MessageFormat wants (docs/design/19-tech-stack.md §12.3) and
  * exactly what an extraction sweep turns into a catalogue entry. The
  * unretrofittable mistake is the sentence that only exists in pieces, which is
  * why both selectors below are about *joins* rather than about interpolation.
@@ -271,7 +271,7 @@ const CLASS_JOIN_MESSAGE =
 const INTL_MESSAGE =
   'Hand-rolled date, time or number formatting. Use `Intl` — see ' +
   'packages/client/src/format.ts. A locale is a property of the reader, and ' +
-  'a format assembled from parts bakes in one (docs/design/07-tech-stack.md ' +
+  'a format assembled from parts bakes in one (docs/design/19-tech-stack.md ' +
   '§12.6).';
 
 export function restrictedSyntax({
@@ -371,7 +371,7 @@ export function restrictedSyntax({
 // ---------------------------------------------------------------------------
 
 const BOUNDARY_MESSAGE =
-  'Architectural boundary violated. The graph is docs/design/workplan/10-testing.md §2: ' +
+  'Architectural boundary violated. The graph is docs/design/workplan/03-testing.md §2: ' +
   'modes → sdk, shared; client → shared; sdk → shared; server → shared, sdk.';
 
 /** @param {string} type */
@@ -381,11 +381,11 @@ const from = (type) => ({ element: { type } });
 const to = (types) => ({ to: { element: { types: { anyOf: types } } } });
 
 /**
- * The graph from docs/design/workplan/10-testing.md §2, as eslint-plugin-boundaries
+ * The graph from docs/design/workplan/03-testing.md §2, as eslint-plugin-boundaries
  * settings and rules.
  *
  * `modes` is defined here even though `packages/modes/` does not exist. That is
- * deliberate: docs/design/07-tech-stack.md §10 claims built-in modes consume the
+ * deliberate: docs/design/19-tech-stack.md §10 claims built-in modes consume the
  * published SDK exactly as a third party would, and the claim is only true if
  * violating it is a build error. A rule added after the first mode is written is
  * a rule negotiated with existing code.
@@ -461,6 +461,6 @@ export const forbiddenPackages = {
 export function bannedPackagesFor(from) {
   return forbiddenPackages[from].map((name) => ({
     name,
-    message: `${from} may not import ${name}. See docs/design/workplan/10-testing.md §2.`,
+    message: `${from} may not import ${name}. See docs/design/workplan/03-testing.md §2.`,
   }));
 }

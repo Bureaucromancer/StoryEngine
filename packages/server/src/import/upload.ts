@@ -9,8 +9,8 @@ import type { ImportCandidate, SourceItem } from './source.js';
 
 /**
  * One uploaded file, read as an import candidate
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.1](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.1](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **This is the third reader §1.3 promised and P4 never wrote.** The section
  * named three — an ST directory walker, a Marinara store reader, and *an
@@ -68,7 +68,7 @@ const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as 
  * convert.
  *
  * **Recognising is not converting, and the distinction is the whole of this
- * table.** [10 §8.4.5](../../../../docs/design/10-schemas.md) says the block
+ * table.** [04 §8.4.5](../../../../docs/design/04-schemas.md) says the block
  * model is deliberately narrower than ST's in three places — *no character
  * offsets, no instruct templates, no raw completion* — and the sweep's own
  * registry has said `by-position` about the `instruct/` and `context/`
@@ -88,7 +88,7 @@ const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as 
  * `registries.test.ts` holds the two together. Without it the same question —
  * *what becomes of a reasoning template* — would be answered in two places, and
  * the two places already disagreed once: the registry says `skipped`, and
- * [10 §8.4.2] says these *"go to `compat`"*, which cannot be true of a kind that
+ * [04 §8.4.2] says these *"go to `compat`"*, which cannot be true of a kind that
  * produces no `Preset` to be `compat` on. The doc is corrected in this stage.
  *
  * Field shapes vendored from a real install, on the mechanism §1.1 settled for

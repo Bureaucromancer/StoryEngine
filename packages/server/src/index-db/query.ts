@@ -12,9 +12,9 @@ import { ownerKey } from './ingest.js';
  * Reading the index.
  *
  * Everything here is a restatement of what is on disk
- * ([02 §5.1](../../../../docs/design/02-data-model.md)) — **nothing is answerable only from
+ * ([03 §5.1](../../../../docs/design/03-data-model.md)) — **nothing is answerable only from
  * the index**, and a feature that needed something to be would be storing data
- * in the wrong place ([13 §5](../../../../docs/design/13-internal-contracts.md)).
+ * in the wrong place ([21 §5](../../../../docs/design/21-internal-contracts.md)).
  *
  * The merge of a user's library with `system/library/` is a *query*, not a
  * special case, which is the whole reason both have the same layout on disk.
@@ -32,7 +32,7 @@ export interface IndexedObject {
   contentHash: string;
   /**
    * True when another file holds this id at a lexicographically earlier path
-   * ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)).
+   * ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)).
    *
    * Surfaced rather than filtered: the library shows both with a warning on the
    * shadowed one. Refusing to load either would punish a user for copying a
@@ -80,13 +80,13 @@ function hydrate(row: RawRow): IndexedObject {
 export interface ListQuery {
   /**
    * Which libraries to read. Pass the user's *and* the system owner to get the
-   * merged list a library surface shows ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
+   * merged list a library surface shows ([10 §5](../../../../docs/design/10-ui-surfaces.md)).
    */
   owners: LibraryOwner[];
   /**
    * Omit for every kind. Cross-kind reads are a real thing to want — search,
    * counts, an export sweep — and this is not a statement about the browsing
-   * surface, which is per kind ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
+   * surface, which is per kind ([10 §5](../../../../docs/design/10-ui-surfaces.md)).
    */
   schemaId?: PortableSchemaId;
 }
@@ -114,7 +114,7 @@ export function listObjects(db: DatabaseSync, query: ListQuery): IndexedObject[]
 /**
  * The live row for an id, or null.
  *
- * Resolves by **id, never by slug** ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * Resolves by **id, never by slug** ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)).
  * That is what keeps a foreign rename an update to an existing row rather than
  * the creation of a second object, and it is why the folder name is free to
  * drift from the object's name.
@@ -133,14 +133,14 @@ export function findById(db: DatabaseSync, id: string): IndexedObject | null {
 
 /**
  * The object a previous import of the same source file produced, if there is
- * one — [P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)'s
+ * one — [P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)'s
  * re-import identity rule: **same owner, same kind, same
  * `Provenance.originalFilename`.**
  *
  * That triple is the whole rule, and it is deliberately not id-based. Import
  * mints fresh ids ([P4 §1.3]), because carrying a source id through would let
  * one user's import collide with an object of another's that they cannot see —
- * a hole in the anti-leak posture. And [02 §7.2]'s *link or duplicate* is
+ * a hole in the anti-leak posture. And [03 §7.2]'s *link or duplicate* is
  * package posture keyed on shared StoryEngine ids, which foreign files do not
  * carry: a SillyTavern card has no id at all, and a world file's identity *is*
  * its name.
@@ -183,7 +183,7 @@ export function findPriorImport(
  * the folder name, which is the portable half and the same string on both.
  */
 /**
- * The name half of `Ref` resolution — [02 §11.4], [10 §8].
+ * The name half of `Ref` resolution — [03 §11.4], [04 §8].
  *
  * **Case-insensitive in JavaScript rather than in SQL**, which is why this
  * makes two queries instead of one `where lower(name) = lower(?)`. SQLite's
@@ -249,7 +249,7 @@ export function findByPath(db: DatabaseSync, path: string): IndexedObject | null
  * Every row holding an id — the workbench's index-rows projection ([P3.3]).
  *
  * The one reader that does **not** filter tombstones, by decision
- * ([P3 §7.4](../../../../docs/design/workplan/05-p3-implementation.md)): the
+ * ([P3 §7.4](../../../../docs/design/workplan/15-p3-implementation.md)): the
  * projection's job is the index *as it is*, and a row inside its settling
  * window is part of that truth for as long as the window lasts. `body` is
  * deliberately not selected — the object's contents are the read route's
@@ -301,7 +301,7 @@ export function rowsForId(db: DatabaseSync, id: string): IdRow[] {
 /**
  * Full-text search across the indexed objects.
  *
- * FTS5 ([07 §7](../../../../docs/design/07-tech-stack.md)). Turn text joins this at P2 —
+ * FTS5 ([19 §7](../../../../docs/design/19-tech-stack.md)). Turn text joins this at P2 —
  * the table exists, nothing writes to it yet.
  */
 export function search(db: DatabaseSync, term: string, limit = 50): IndexedObject[] {
@@ -324,7 +324,7 @@ export interface LoreEntryHit {
   objectName: string;
   slug: string;
   owner: string;
-  /** The other half — `?entry=` on the book's own page ([05 §5.3]). */
+  /** The other half — `?entry=` on the book's own page ([10 §5.3]). */
   entryId: string;
   entryName: string;
   /** The excerpt around the match, from whichever field matched. */
@@ -333,7 +333,7 @@ export interface LoreEntryHit {
 
 /**
  * Lore entries that match, with the excerpt that makes a hit worth returning —
- * [05 §14.5](../../../../docs/design/05-ui-surfaces.md).
+ * [10 §14.5](../../../../docs/design/10-ui-surfaces.md).
  *
  * *"A result that names the book without showing the matched text is what the
  * index gives today and it is close to useless at book scale."* So this is not
@@ -427,7 +427,7 @@ export function searchLoreEntries(
  * what id, and which of a duplicated pair is shadowed.
  *
  * **And what `object_fts` holds, which this did not cover and had to.**
- * [P5 §1.7](../../../../docs/design/workplan/07-p5-implementation.md) planned to
+ * [P5 §1.7](../../../../docs/design/workplan/17-p5-implementation.md) planned to
  * rest a helper on this property — five separate places delete an object's
  * search row by path, every one needs a sibling when a second table pair
  * arrives, and a missed one leaves a stale row in a store whose whole claim is

@@ -9,7 +9,7 @@ import type { Provider } from './types.js';
  * Connection → provider, memoised.
  *
  * **Keyed by connection id, never by the provider string.** Capability
- * overrides are per connection ([07 §5.3](../../../../docs/design/07-tech-stack.md)) — a limit is
+ * overrides are per connection ([19 §5.3](../../../../docs/design/19-tech-stack.md)) — a limit is
  * a property of *this endpoint* — so a cache keyed by `'openai-compatible'`
  * would hand one machine's context window to another machine that happens to
  * speak the same protocol. Two llama.cpp boxes with different builds is the
@@ -20,7 +20,7 @@ import type { Provider } from './types.js';
  * function is one a test cannot get subtly wrong.
  */
 /**
- * **Callable, with one extra verb** — [P2B §2.4](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ * **Callable, with one extra verb** — [P2B §2.4](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  *
  * A bare function type was right while nothing could change a connection. The
  * moment a form can, the memo below needs invalidating, and a function is not a
@@ -97,7 +97,7 @@ export function canBuild(provider: string): boolean {
 }
 
 function build(connection: Connection, options: ProviderFactoryOptions): Provider {
-  // One adapter kind ships at P2 ([07 §5.5]: if it speaks OpenAI-compatible
+  // One adapter kind ships at P2 ([19 §5.5]: if it speaks OpenAI-compatible
   // chat it works, and if it does not it does not). A connection naming
   // something else is a configuration error the user can fix, so it says which
   // rather than falling back to a protocol the endpoint may not speak.

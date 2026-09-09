@@ -4,7 +4,7 @@
 import { resolveTagNames, type TagList } from '@storyengine/shared';
 
 /**
- * An object's tags, as they are called *now* — [25 §3](../../../../docs/design/25-tagging.md).
+ * An object's tags, as they are called *now* — [05 §3](../../../../docs/design/05-tagging.md).
  *
  * **This is the rule that lets the name copy on disk lag behind a rename.**
  * A rename is one write to the registry; the objects carrying that tag are not

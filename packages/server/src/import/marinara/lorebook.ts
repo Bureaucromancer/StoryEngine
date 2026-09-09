@@ -14,11 +14,11 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * Marinara lorebooks → `Lorebook`
- * ([P4 §1.5](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.5](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Nearly free, as the plan predicted, and for a specific reason**: our
  * `LoreEntry` was ported from Marinara's `types/lorebook.ts` close to unchanged
- * ([02 §3]), so this is mostly a rename. Which makes the two places it is *not*
+ * ([03 §3]), so this is mostly a rename. Which makes the two places it is *not*
  * a rename the dangerous ones, because everything around them reads as a copy.
  *
  * **`position` is numbered differently from SillyTavern's.** Marinara's
@@ -96,7 +96,7 @@ export function convertLorebook(
   lorebook.description = str(book['description']);
   lorebook.enabled = bool(book['enabled'], true);
   // Marinara's *categories* map to `tags`, because `Lorebook.category` was
-  // removed deliberately ([14 §2d]) — an organisational field that affected
+  // removed deliberately ([24 §2d]) — an organisational field that affected
   // nothing, replaced by the general one.
   const category = str(book['category']);
   if (category.length > 0 && category !== 'uncategorized') lorebook.tags = [category];
@@ -130,7 +130,7 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
   }
 
   return {
-    // Renumbered freely ([10 §5.2]) — and derived rather than minted, so a
+    // Renumbered freely ([04 §5.2]) — and derived rather than minted, so a
     // second sweep of the same store produces the same book.
     id: stableId('entry', name, str(row['content'])),
     name,

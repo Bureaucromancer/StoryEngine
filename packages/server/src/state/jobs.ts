@@ -17,7 +17,7 @@ import { inTransaction } from '../storage/transaction.js';
 
 /**
  * Turn jobs, idempotent submission, drafts and progress events —
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md).
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * The section's argument in one line: **any number of clients may observe a
  * session; only one turn may advance it.** Two jobs starting from the same
@@ -71,7 +71,7 @@ export interface SubmitRequest {
    * deliberate branch from a client whose head has moved under it, two tabs
    * submitting against one head would manufacture a branch nobody asked for —
    * exactly what [P2 §2.10] said P2 must not do and P6 must not inherit. The
-   * server does not guess, for the same reason [09 §7] gives for offering redo
+   * server does not guess, for the same reason [07 §7] gives for offering redo
    * and continue-differently as two buttons: guessing is wrong half the time.
    *
    * An explicit `null` is a branch from the root — *start this story again* —

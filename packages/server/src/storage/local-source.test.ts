@@ -10,7 +10,7 @@ import { openLocalSource } from './local-source.js';
 
 /**
  * The server-path transport, and the one refusal that makes
- * [05 §4.2.2]'s widening of `fileAccess` safe rather than merely honest.
+ * [10 §4.2.2]'s widening of `fileAccess` safe rather than merely honest.
  *
  * That section widened a permission scoped to the user's own content so it also
  * covers naming a path for a read-only sweep. **The carve-out is what stops the
@@ -37,7 +37,7 @@ async function open(at = root) {
 
 describe('what it refuses', () => {
   it('refuses a root inside the data directory', async () => {
-    // The line [05 §4.2.2] turns on. Without it, `fileAccess: read` becomes a
+    // The line [10 §4.2.2] turns on. Without it, `fileAccess: read` becomes a
     // way to reach `/data/users/<other>/library/` — which the scope table says
     // `never`.
     const inside = join(dataRoot, 'users', 'someone', 'library');

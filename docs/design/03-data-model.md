@@ -1,9 +1,9 @@
-# 02 — Data model
+# 03 — Data model
 
 **Status: proposal.** Shapes below are sketches for arguing about, and this
 document exists to explain *why* they are shaped as they are.
 
-**For the consolidated, reconciled schemas, see [10](10-schemas.md).** Where the
+**For the consolidated, reconciled schemas, see [04](docs/design/04-schemas.md).** Where the
 two differ, ~~13~~ **10** is current — this document keeps the reasoning, 10
 carries the definitions. *(The sentence pointed at 10 and then named 13, which
 is a different document; corrected at P4.2, having been read wrong at least
@@ -27,7 +27,7 @@ Eight persistent kinds. Everything else is a sub-structure of one of them.
 | **Connection** | **never** | Provider endpoint + credentials. Local, private, never exported. |
 
 The line between the portable kinds and `Connection` is the content/production
-seam from [00 §3.2](00-stance.md). It is enforced by the type system: portable
+seam from [00 §3.2](docs/design/00-stance.md). It is enforced by the type system: portable
 kinds have no field that could hold a connection.
 
 **Setup and Package are deliberately separate**, and an earlier draft conflated
@@ -42,7 +42,7 @@ machinery. See §7.
 
 One card type. This is the largest single divergence from all three sources.
 
-> **Definition: [10 §4](10-schemas.md).** This section covers why it is shaped
+> **Definition: [04 §4](docs/design/04-schemas.md).** This section covers why it is shaped
 > that way.
 
 The card holds identity, not prompt configuration. Beyond the obvious fields it
@@ -55,14 +55,14 @@ That per-field map is Marinara's generation provenance, adopted wholesale and
 widened from scenarios to every authored kind. It records what a model wrote,
 when, with which model and from what input, so an edit can be reverted and a
 machine-written field disclosed as one. See
-[05 §11.2](05-ui-surfaces.md) for why it earns a place in the *data* model
+[10 §11.2](docs/design/10-ui-surfaces.md) for why it earns a place in the *data* model
 rather than being a UI concern.
 
 ### 2.1 The profile
 
 **Decision: there are no fixed prose fields. All prose is sections, and four of
 them are conventional** — `se.summary`, `se.appearance`, `se.voice`,
-`se.background` ([10 §4](10-schemas.md)).
+`se.background` ([04 §4](docs/design/04-schemas.md)).
 
 "Conventional" means everything behaves as though they exist, without the schema
 guaranteeing it: the editor creates all four on a new actor and presents them as
@@ -84,7 +84,7 @@ video pipelines, which need attributes rather than a paragraph.
 
 Deliberately **absent**: `system_prompt`, `post_history_instructions`,
 `depth_prompt`, `talkativeness`, `scenario`. Those are prompt-assembly decisions
-and belong to the preset and the mode. See [00 §2.4](00-stance.md).
+and belong to the preset and the mode. See [00 §2.4](docs/design/00-stance.md).
 
 `mes_example` was on that list, and the note beside it read: ~~dialogue examples
 are a *style sample*, and where they go and how many survive budgeting is a
@@ -92,11 +92,11 @@ preset decision; they belong in `sections` with a disposition, not as a magic
 field~~. **The first half of that was right and became the feature.** Dialogue
 examples *are* a style sample — which is a thing a Treatment and a Lorebook want
 as much as a person does, so it became `writingSamples` on all three
-([10 §3.1](10-schemas.md), [18](18-writing-samples.md)).
+([04 §3.1](docs/design/04-schemas.md), [14](docs/design/14-writing-samples.md)).
 
 What changed is only the container, and the reason is narrow: where a sample goes
 and what survives budgeting is still a preset decision, but a `Section` carries
-no `priority`, and [00 §2.6](00-stance.md) makes "never trim this" a priority
+no `priority`, and [00 §2.6](docs/design/00-stance.md) makes "never trim this" a priority
 value rather than the absence of a budget. A sample that could not rank itself
 could not take part in that rule.
 
@@ -113,7 +113,7 @@ type ActorRole = "persona" | "narrator"   // extensible
   more than a single session's context, it is a short actor card tagged `npc`.
   Nothing in the engine branches on `npc` by name; it drives library filtering
   and editor defaults (a smaller form). An *author* may gate lore on it, or on
-  any other tag, through `LoreEntry.actorTagFilter` — [25 §1](25-tagging.md).
+  any other tag, through `LoreEntry.actorTagFilter` — [05 §1](docs/design/05-tagging.md).
 - **Narrator/GM cards are the same thing too.** Marinara's
   `GameGmMode: "standalone" | "character"` becomes: the narrator slot either
   holds an actor with `roles: ["narrator"]` or holds nothing, in which case the
@@ -155,7 +155,7 @@ Marinara generates a per-game `GameCharacterCard` (class, abilities, strengths,
 weaknesses, attributes, HP, pools) separate from the character card, and
 Aventuras' packs let authors define `RuntimeVariable`s per entity. Both are
 right: **durable identity lives on the actor; per-session numbers live in
-channels** ([03 §4](03-modes-and-turn-pipeline.md)). An actor card must never
+channels** ([06 §4](docs/design/06-modes-and-turn-pipeline.md)). An actor card must never
 carry HP.
 
 The actor may carry a *sheet template* under `modeData` — "this character, in an
@@ -169,7 +169,7 @@ dangerous if done naively — a shared card must not repoint anyone's provider.
 
 A hint names an abstract capability class — `prose`, `fast`, `reasoning`,
 `vision` — plus optional advisory model ids and a free-text note
-([10 §3](10-schemas.md)).
+([04 §3](docs/design/04-schemas.md)).
 
 Resolution is local: the install maps `role` → connection, and
 `preferredModelIds` is consulted only if the user has that model configured. An
@@ -186,9 +186,9 @@ always shorthand for the reserved `se.summary` **section** rather than a field.*
 |---|---|
 | `name`, `description` | `name`, the `se.summary` section body |
 | `personality` | `profile.traits` when list-shaped, otherwise a paragraph of `se.summary` — a heuristic, user-editable, and **the review names which happened** |
-| `scenario` | **Not the actor's.** ~~Offered as a new Treatment draft.~~ **Created as a Treatment and reported**, one per distinct scenario text within a sweep — the post-hoc posture [P4 §1.4](workplan/06-p4-implementation.md) decided leaves nothing to offer it into |
+| `scenario` | **Not the actor's.** ~~Offered as a new Treatment draft.~~ **Created as a Treatment and reported**, one per distinct scenario text within a sweep — the post-hoc posture [P4 §1.4](docs/design/workplan/16-p4-implementation.md) decided leaves nothing to offer it into |
 | `first_mes`, `alternate_greetings` | `openings.written`, first as primary |
-| `mes_example` | `writingSamples`, one entry, enabled ([18](18-writing-samples.md)) |
+| `mes_example` | `writingSamples`, one entry, enabled ([14](docs/design/14-writing-samples.md)) |
 | `system_prompt`, `post_history_instructions`, `depth_prompt`, `talkativeness` | `compat` + surfaced in the importer as "this card wants to override prompts; review" |
 | `character_book` | extracted to a real Lorebook, linked and scoped to the actor it travelled with |
 | `extensions.*` | `compat` verbatim |
@@ -241,7 +241,7 @@ empirical tuning, and it is *good*. The vocabulary:
 - **Outlets** — `position: 7` + `outletName`, making activated content available
   to a `{{outlet::name}}` macro instead of auto-injecting. This is a genuinely
   good idea: it decouples "this entry activated" from "this entry gets pasted
-  here", which is exactly the block-addressing property [00 §2.1](00-stance.md)
+  here", which is exactly the block-addressing property [00 §2.1](docs/design/00-stance.md)
   wants, arrived at from the other direction.
 
 Reasons this should be taken rather than redesigned:
@@ -271,7 +271,7 @@ already the per-block "why was this included" value that
 
 ### 3.2 Take unchanged: budgeting
 
-Also already solved, and solved the way [00 §2.6](00-stance.md) argues for:
+Also already solved, and solved the way [00 §2.6](docs/design/00-stance.md) argues for:
 
 - Two nested budgets — per-lorebook `tokenBudget` + `entryLimit`, and a
   chat-wide total. Both apply; an entry can be blocked by either.
@@ -305,7 +305,7 @@ Aventuras does the same thing more deliberately: its `Entry` unifies lore with
 its history), `adventureState`, `creativeState`.
 
 Both tools pulled state into the lore entry because state had nowhere else to
-live. The channel model gives it somewhere ([03 §4](03-modes-and-turn-pipeline.md)),
+live. The channel model gives it somewhere ([06 §4](docs/design/06-modes-and-turn-pipeline.md)),
 and the decisive argument is **portability**:
 
 > A lorebook you export must not contain your session's quest progress.
@@ -354,7 +354,7 @@ migration that never completed, and the invariant is maintained by code rather
 than by shape.
 
 Collapse to a single three-variant union — global, linked to actors, or scoped to
-sessions ([10 §5](10-schemas.md)). Same three behaviours the docs describe,
+sessions ([04 §5](docs/design/04-schemas.md)). Same three behaviours the docs describe,
 mutual exclusion by construction rather than by a save-time rule, and the persona
 duplication disappears for free once persona is a flag on an actor.
 
@@ -372,27 +372,27 @@ duplication disappears for free once persona is a flag on an actor.
 > union stays, because it is what the format carries and what an import must
 > preserve, but nothing reads it. Giving it a consumer again means designing
 > **inheritance** — something above the session that contributes books, which is
-> a Worlds-shaped concept ([19 §5.3](19-world.md)) — rather than letting a field
+> a Worlds-shaped concept ([15 §5.3](docs/design/15-world.md)) — rather than letting a field
 > on a library object opt itself into somebody's story.
 >
 > **Two questions were left open rather than settled by the reversal**, both
 > recorded so the next person meets them instead of re-deriving them:
-> [06 §B14](06-open-questions.md) — whether `scope` should *narrow* a book the
+> [25 §B14](docs/design/25-open-questions.md) — whether `scope` should *narrow* a book the
 > session has already chosen, which is coherent and was not taken because it
 > introduces a new way for a deliberate choice to go quiet; and
-> [06 §B15](06-open-questions.md) — what a new book's `scope` should default to,
+> [25 §B15](docs/design/25-open-questions.md) — what a new book's `scope` should default to,
 > given that `global` is the widest value in the union and is what both the
 > factory and the importer currently produce.
 
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
-(`category: "world"` against the World concept reserved for [19](19-world.md)),
+(`category: "world"` against the World concept reserved for [15](docs/design/15-world.md)),
 but reopening the field is what condemned it: the values are not one axis
 (`world` and `character` are subject matter, `spellbook` is one genre's
 artefact, `uncategorized` is a null in a value's clothes), `character` and `npc`
 as separate values re-import the split §2.2 removed by unifying actors, and
 `tags` already does organisational classification without a ceiling. Full
-argument at [10 §5](10-schemas.md).
+argument at [04 §5](docs/design/04-schemas.md).
 
 That leaves this section's point about closed vocabularies applying uniformly
 rather than at one level only. The earlier objection to closed type vocabularies
@@ -415,13 +415,13 @@ is the one with the ceiling. Take Marinara's shape — at both levels.
 | Entry `kind` / `tag` | Free string, per Marinara. Not Aventuras' closed union. |
 | Book-level `category` | **Removed.** Closed, mixed-axis, and duplicated by `tags` — §3.4. |
 | Images on the book and on entries | **New.** Not a port — see §3.6. |
-| Import and export of individual entries | **New.** The unit an author moves is often smaller than the book; the exchange file is a lorebook carrying a subset ([10 §5.2](10-schemas.md), [05 §11.2c](05-ui-surfaces.md)). |
-| Reading, browsing and searching the entries | **No schema change.** Every affordance is a rendering of a field that already exists — eleven of them currently have no reader at all. Position in [16](16-lorebooks-as-a-format.md); surfaces in [05 §5.3](05-ui-surfaces.md). |
+| Import and export of individual entries | **New.** The unit an author moves is often smaller than the book; the exchange file is a lorebook carrying a subset ([04 §5.2](docs/design/04-schemas.md), [10 §11.2c](docs/design/10-ui-surfaces.md)). |
+| Reading, browsing and searching the entries | **No schema change.** Every affordance is a rendering of a field that already exists — eleven of them currently have no reader at all. Position in [11](docs/design/11-lorebooks-as-a-format.md); surfaces in [10 §5.3](docs/design/10-ui-surfaces.md). |
 
 ### 3.6 Images on lore
 
 **A lorebook and its entries may carry images.** Definitions in
-[10 §5.1](10-schemas.md); this is why.
+[04 §5.1](docs/design/04-schemas.md); this is why.
 
 The case is simply that world content is often visual and currently has nowhere
 to put it. A place looks like something, an item has a picture, a region has a
@@ -456,7 +456,7 @@ authorial: *winter*, *aerial*, *before the fire*, *by Mireille*.
 **Same division the actor already makes** (§2.2): `ActorRole` is closed and read
 by the engine, `tags` are open and the engine has no built-in meaning for any of
 them. On an actor that is a weaker claim than it sounds — an author may point a
-lore gate at a tag ([25 §1](25-tagging.md)) — while on media nothing reads them
+lore gate at a tag ([05 §1](docs/design/05-tagging.md)) — while on media nothing reads them
 at all.
 
 A gallery of forty images needs finer notation than any role vocabulary should
@@ -472,7 +472,7 @@ recoverable, which makes the taxonomy the part that has to land early even thoug
 the feature does not.
 
 The intended first consumer is rendition conditioning
-([14 §3](14-roadmap.md)), and it is deferred for a real reason rather than a
+([24 §3](docs/design/24-roadmap.md)), and it is deferred for a real reason rather than a
 scheduling one: passing an image to an image model is trivial, but choosing
 *which* image, when six entries and three actors all carry references, is not.
 That wants the location channel to exist and real sessions to tune against.
@@ -492,7 +492,7 @@ never stops, you're a fixer who owes the wrong people", carries
 `lore: [ref("Rain City")]`, and lets the lorebook be the single home for what
 Rain City *is*.
 
-> **Definition: [10 §6](10-schemas.md).**
+> **Definition: [04 §6](docs/design/04-schemas.md).**
 
 It carries `blurb` and `framing`, a `tone` block, links to lorebooks, a `cast`
 of billed actor links, openings, plot hooks (§4.1), and advisory mode hints.
@@ -524,7 +524,7 @@ carries and a step fires at an opportune moment. "X and Y have been having an
 affair and will soon announce their marriage." "The Flower Kingdom will declare
 war over some damned island."
 
-> **Definition: [10 §6.1](10-schemas.md)**, including the note that its
+> **Definition: [04 §6.1](docs/design/04-schemas.md)**, including the note that its
 > `requires` and `onFire` fields are typed against the *unstable* rule
 > vocabulary while its content fields are committed.
 
@@ -536,7 +536,7 @@ so the word means one thing across the portable schemas — mechanical eligibili
 #### Where hooks live
 
 **Treatments are the primary home.** A Setup may add its own on top, a session may
-add its own while running ([03 §6.1](03-modes-and-turn-pipeline.md)), and a
+add its own while running ([06 §6.1](docs/design/06-modes-and-turn-pipeline.md)), and a
 package carries all of them by carrying the objects.
 
 **Lorebooks may also carry hooks, optionally** — and the reason is better than
@@ -565,27 +565,27 @@ are genuinely inseparable from a piece of lore.** Treatments stay the default
 answer to "where do I put this?".
 
 Compatible export to third-party lorebook formats drops them, like everything
-else we add ([10 §2](10-schemas.md)) — worth knowing, not a reason to decline.
+else we add ([04 §2](docs/design/04-schemas.md)) — worth knowing, not a reason to decline.
 
 Session creation copies hooks from all sources, per prefill-not-binding
-([00 §3.1](00-stance.md)).
+([00 §3.1](docs/design/00-stance.md)).
 
 **Which have fired is channel state, not a session field.** *(Correction. This
 said "the session tracks which have fired", and a session-level set is exactly
-what [03 §8](03-modes-and-turn-pipeline.md) demolished for party membership:
+what [06 §8](docs/design/06-modes-and-turn-pipeline.md) demolished for party membership:
 kept outside channels it does not reconstruct at a node, does not appear as an
 effect in the turn record, and does not branch correctly. Fire a hook, rewind
 past it, and the flat set leaves the hook burnt on a line where it never
 happened.)* The **pool** stays session-wide — adding a hook mid-session is an
 authoring act, not a story event, and must survive a rewind — while everything
 about *what has happened to* a hook is per-node and lives in a channel. That
-split is also what makes a committed hook ([03 §6.1](03-modes-and-turn-pipeline.md))
+split is also what makes a committed hook ([06 §6.1](docs/design/06-modes-and-turn-pipeline.md))
 implementable at all: patience, cooldown and un-commit-on-rewind are each
 measured along a path.
 
 **The copy keeps the source hook's `id`.** Not a detail: it is the only thing
 that makes cross-session de-duplication possible later, and a World
-([19 §5.1](19-world.md)) needs it — a hook fired in session one must not fire
+([15 §5.1](docs/design/15-world.md)) needs it — a hook fired in session one must not fire
 again in session two of the same continuity, which is this section's own
 someone-died-four-sessions-ago failure reached by a different route. Minting a
 fresh id on copy would be invisible at 1.0 and unrecoverable afterwards, since
@@ -598,7 +598,7 @@ is worth placing precisely, because it looks like three things it is not:
 |---|---|
 | A lorebook entry | Lore is retrieved by *relevance* to what is being discussed. A hook is selected by *narrative readiness*. Opposite criteria; a hook must stay out of context until it fires. |
 | The Narrative Director's Secret Plot | That is a model-generated hidden arc. This is an author-written pool of discrete, specific events. |
-| An authored rule ([08 §3](08-infinite-worlds.md)) | **A hook is the inverse of a trigger.** A trigger says "when X happens, do Y". A hook is a Y looking for its moment. |
+| An authored rule ([02 §3](docs/design/02-infinite-worlds.md)) | **A hook is the inverse of a trigger.** A trigger says "when X happens, do Y". A hook is a Y looking for its moment. |
 | An `Openings` entry (§6) — for the introduction hook below | An opening is how a *session* starts; an entrance is how a character arrives in a story already running. The substructure is nearly the same and the moment is not, which is why they are two names. |
 
 That last line is the useful framing: rules are condition-first, hooks are
@@ -625,7 +625,7 @@ gone, apply to it exactly as they do here, and for the reason just given.
 
 #### A character as a hook
 
-> **Definition: [10 §6.1a](10-schemas.md).**
+> **Definition: [04 §6.1a](docs/design/04-schemas.md).**
 
 A hook can *be* a character rather than describe an event: the arrival of the
 stranger, the return of the sister, the fixer who turns up when you are already
@@ -649,8 +649,8 @@ the degraded case.
 
 **Firing an introduction hook writes nothing by itself, and cannot.** It is
 tempting to have it add the character to the cast directly, and that is an
-`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([06 C7](06-open-questions.md)).
-The available path is the one [03 §5.2](03-modes-and-turn-pipeline.md) already
+`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([25 C7](docs/design/25-open-questions.md)).
+The available path is the one [06 §5.2](docs/design/06-modes-and-turn-pipeline.md) already
 blesses: the hook contributes guidance, the narrator writes the arrival, and
 presence follows the story like any other model-proposed change. Saying so
 plainly is what stops `onFire` being reintroduced through this feature's side
@@ -665,7 +665,7 @@ once-only it never fires again. So the hook is committed as fired only when the
 extraction pass confirms the character is present, and reverts to eligible
 otherwise, with the attempt recorded. Same asymmetry, and the same answer, as
 flagging a death rather than applying it quietly
-([03 §8.1](03-modes-and-turn-pipeline.md)).
+([06 §8.1](docs/design/06-modes-and-turn-pipeline.md)).
 
 **Firing also has to supply what the assembler cannot.** A character who is not
 in the session cast contributes no block to the prompt and no aliases to the
@@ -699,9 +699,9 @@ thing to want — a Rain City noir and a Rain City comedy drawing on the same
 world — and it creates an ownership question on delete that nobody wants to
 answer.
 
-The concession is `LoreLink.required` ([10 §3](10-schemas.md)): an author can
+The concession is `LoreLink.required` ([04 §3](docs/design/04-schemas.md)): an author can
 mark a link load-bearing, and a consumer warns loudly when it will not resolve.
-It never blocks ([00 §3.3](00-stance.md)). The distinction between "missing a
+It never blocks ([00 §3.3](docs/design/00-stance.md)). The distinction between "missing a
 nice extra" and "missing its world" is worth being able to state, and that is
 all the flag does.
 
@@ -722,9 +722,9 @@ boundary; inside one file it survives only as editor discipline.
 
 What the fold is actually reaching for is two things, and both are answered
 elsewhere: *"here is Rain City and here are the three ways to play it"* is the
-library's backlink panel ([05 §5.2](05-ui-surfaces.md)), and *"send this world
+library's backlink panel ([10 §5.2](docs/design/10-ui-surfaces.md)), and *"send this world
 and its framing as one thing"* is one action on the package
-([10 §9.1](10-schemas.md)).
+([04 §9.1](docs/design/04-schemas.md)).
 
 ---
 
@@ -758,12 +758,12 @@ disposable index**.
         setups/     <slug>/setup.json
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
-      memories/               # auto-maintained, see [11](11-cross-session-memory.md)
+      memories/               # auto-maintained, see [08](docs/design/08-cross-session-memory.md)
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
         session.json
         turns/000001.jsonl …   # append-only segments, never rewritten. §5.5
-        snapshots/             # derived channel state, keyed by TurnId. [09 §4]
+        snapshots/             # derived channel state, keyed by TurnId. [07 §4]
         assets/
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
@@ -771,7 +771,7 @@ disposable index**.
 
 **Every user owns a complete, independent library.** There is no shared *user*
 area and no ownership field — the path is the owner
-([04 §4.3](04-server-multiuser-deployment.md)).
+([09 §4.3](docs/design/09-server-multiuser-deployment.md)).
 
 **`system/library/` is a full library with the same layout**, shipped with the
 app, read-only, and loaded for every user alongside their own. Same structure
@@ -780,7 +780,7 @@ query, not a special case.
 
 Sharing between *users* stays deferred, and this is the shape it will most
 likely take: a third location read the same way. See
-[04 §4.3](04-server-multiuser-deployment.md).
+[09 §4.3](docs/design/09-server-multiuser-deployment.md).
 
 The rule that makes this work: **the index is never authoritative and never the
 only home for a fact.** It exists for search, listing, tag queries, cross-refs
@@ -834,7 +834,7 @@ still storing data in the wrong place; and hand-editing still works, because tha
 is a foreign write and foreign writes are exactly what the watcher is for.
 
 **The CI check gets stronger, not weaker.** "Rebuild-from-disk equals incremental
-index" ([work plan P1](workplan/01-work-plan.md)) now has two producers to hold to one answer,
+index" ([work plan P1](docs/design/workplan/01-work-plan.md)) now has two producers to hold to one answer,
 which is a sharper assertion than one producer agreeing with itself.
 
 *What this costs:* a crash between the file write and the index update leaves a
@@ -873,7 +873,7 @@ document — with per-container encoders: PNG `tEXt`/`iTXt`, WebP `XMP`, JPEG
 #### 5.2.1 Cropping is non-destructive, and still emits a cropped card
 
 The crop is stored as a normalised source rectangle and **never destroys
-anything** ([05 §11.3](05-ui-surfaces.md)). What the card *emits* is a copy that
+anything** ([10 §11.3](docs/design/10-ui-surfaces.md)). What the card *emits* is a copy that
 is only the crop.
 
 So there are two images, both first-class:
@@ -895,7 +895,7 @@ why every tool in this space bolts sprites and galleries onto the side. Here the
 envelope (§5.2 above) carries a **media set** alongside the JSON:
 
 The envelope carries an `EmbeddedMedia[]` alongside the JSON, each entry a
-typed role plus bytes ([10 §3](10-schemas.md)). Roles: `portrait-source`,
+typed role plus bytes ([04 §3](docs/design/04-schemas.md)). Roles: `portrait-source`,
 `reference`, `expression`, `pose`, `style`, `gallery`.
 
 **Roles are typed from the start, and that is the part worth insisting on now.**
@@ -903,7 +903,7 @@ A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([24](24-character-studio.md), 3.0).
+prerequisite for the Character Studio ([17](docs/design/17-character-studio.md), 3.0).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
@@ -942,7 +942,7 @@ from what the two named mechanisms actually are:
 - **macOS bundles** are a Finder presentation convention: a directory with a
   registered UTI is shown as one opaque item. That registration comes from an
   installed application. StoryEngine is a web app with no macOS client
-  ([05 §1](05-ui-surfaces.md)), so nothing on the user's machine would declare
+  ([10 §1](docs/design/10-ui-surfaces.md)), so nothing on the user's machine would declare
   the type, and the folder would present as a folder.
 
 **The mechanism that actually delivers this is a zip with a custom extension**,
@@ -958,8 +958,8 @@ would cost the properties the folder was chosen for, and they are not small:
 
 | Folder | Zipped store |
 |---|---|
-| Hand-editable on disk ([05 §4](05-ui-surfaces.md)) | Requires unzip/rezip to change one field |
-| Watcher-fed index sees per-file changes ([04 §6.2](04-server-multiuser-deployment.md)) | Whole archive re-read on any change |
+| Hand-editable on disk ([10 §4](docs/design/10-ui-surfaces.md)) | Requires unzip/rezip to change one field |
+| Watcher-fed index sees per-file changes ([09 §6.2](docs/design/09-server-multiuser-deployment.md)) | Whole archive re-read on any change |
 | One sprite changes → one file written | One sprite changes → archive rewritten |
 | Git-able with real diffs | Opaque blob, no diffs |
 | Partial write loses one file | Partial write loses the actor |
@@ -1026,20 +1026,20 @@ sessions/<id>/
 ```
 
 **`assets/` is where renditions put their pixels** — illustrations and backdrops
-alike ([03 §10](03-modes-and-turn-pipeline.md)) — and it is the one directory
+alike ([06 §10](docs/design/06-modes-and-turn-pipeline.md)) — and it is the one directory
 here whose contents are **deliberately disposable**. The record of a rendition
 lives in the turn log with its prompt, seed and parameters; the file under
 `assets/` is the output of running them. Deleting one leaves `asset: null` and a
 picture that can be made again, which is what lets an eviction policy be a later
-decision rather than a migration ([06 E3](06-open-questions.md),
-[03 §10.7](03-modes-and-turn-pipeline.md)).
+decision rather than a migration ([25 E3](docs/design/25-open-questions.md),
+[06 §10.7](docs/design/06-modes-and-turn-pipeline.md)).
 
 Two consequences worth stating where the layout is, because both are easy to get
 backwards:
 
 - **The backdrop is not stored anywhere else.** A backdrop shown across fifty
   turns is one file here, pointed at by channel state
-  ([03 §10.1a](03-modes-and-turn-pipeline.md)) — not copied per turn, and not
+  ([06 §10.1a](docs/design/06-modes-and-turn-pipeline.md)) — not copied per turn, and not
   promoted into the library. It is session content, and it travels and deletes
   with the session (§10.3).
 - **Size lands here rather than in the turn log.** §5.5's *keep everything* is a
@@ -1053,7 +1053,7 @@ backwards:
 This is the decision that makes branching a non-issue for storage, and it is
 worth stating because the natural instinct points the other way.
 
-Turns form a tree ([09 §3](09-branching.md)), and the tempting move is to make
+Turns form a tree ([07 §3](docs/design/07-branching.md)), and the tempting move is to make
 storage resemble that — per-branch files, or segments kept in reading order. That
 is where "reconstructing the primary thread of a long, repeatedly branched
 session" becomes genuinely hard.
@@ -1080,11 +1080,11 @@ Consequences worth having:
 
 **Turn storage must tolerate removal** — a tombstone the reader skips, plus a
 compaction pass that rewrites a segment. No UI needs it at 1.0, but pruning a
-branch subtree ([14 §1.4](14-roadmap.md)) does, and retrofitting deletion into a
+branch subtree ([24 §1.4](docs/design/24-roadmap.md)) does, and retrofitting deletion into a
 format that assumed pure append is a migration rather than a feature.
 
 **Retention: keep everything.** No automatic compaction of old records
-([06 B3](06-open-questions.md)). A full record runs roughly 10–100× its message
+([25 B3](docs/design/25-open-questions.md)). A full record runs roughly 10–100× its message
 text, so a thousand-turn session is tens to a couple of hundred megabytes —
 acceptable, and the reason the layout above matters.
 
@@ -1095,7 +1095,7 @@ acceptable, and the reason the layout above matters.
 Requested as two types, each with primary and secondary alternatives. Defined
 once and reused on Actor, Treatment and Package.
 
-> **Definition: [10 §3](10-schemas.md).**
+> **Definition: [04 §3](docs/design/04-schemas.md).**
 
 Two lists — `written` and `seeds` — each with a designated primary.
 
@@ -1116,7 +1116,7 @@ Two lists — `written` and `seeds` — each with a designated primary.
   reusable machinery for generating openings, and a good expansion is worth
   keeping as content. The loop closes — seed → expand → edit → accept → promote —
   and the promoted opening records `fromSeedId` so the lineage stays visible
-  ([10 §3](10-schemas.md)).
+  ([04 §3](docs/design/04-schemas.md)).
 
   Promotion targets the object the seed came from — a treatment, an actor, a setup
   — not the session, which keeps its own copy regardless.
@@ -1125,7 +1125,7 @@ Two lists — `written` and `seeds` — each with a designated primary.
 
 ## 7. Setup and Package — two jobs, split
 
-> **Definitions: [10 §7](10-schemas.md) (Setup), [10 §9](10-schemas.md) (Package).**
+> **Definitions: [04 §7](docs/design/04-schemas.md) (Setup), [04 §9](docs/design/04-schemas.md) (Package).**
 
 An earlier draft had a single `Package` doing both jobs: it carried an `entry`
 block defining the game *and* the bundling machinery for moving objects. Splitting
@@ -1147,7 +1147,7 @@ the Package is the envelope.
   dependency manifest. Under the old shape it did.
 - **It completes a reframe we half-adopted.** Marinara's scenario design
   identified and deferred "make Setting the first-class entity and scenarios its
-  children" ([01 §1](01-source-survey.md)). We took the parent and never built
+  children" ([01 §1](docs/design/01-source-survey.md)). We took the parent and never built
   the child. One Treatment, many Setups: *Rain City* is the world, *Rain City,
   noir* is a treatment of it, *The Fixer's Debt* is a game played under that.
 - **It gives the session-to-setup direction a shape.** Marinara's
@@ -1161,7 +1161,7 @@ Reduced to a container, Package has almost no surface of its own:
 - **Contents are self-describing.** Each object carries its own `schema`, so the
   package does not enumerate kinds — and therefore does not change when a new
   portable kind appears, as Setup just did. This is why
-  [10 §1](10-schemas.md) can now treat it as stable rather than `/0`.
+  [04 §1](docs/design/04-schemas.md) can now treat it as stable rather than `/0`.
 - **No `entry` field.** A package holding one or more Setups is startable; that
   *is* the mechanism. A package with no Setup is a content drop — *"here are five
   characters and a lorebook"* — which is a perfectly reasonable thing to share
@@ -1176,11 +1176,11 @@ Reduced to a container, Package has almost no surface of its own:
   not a hard block.
 - **No production settings, in either object.** No connection ids, no keys, no
   endpoint URLs, no per-install toggles — enforced by there being nowhere to put
-  them ([00 §3.2](00-stance.md)).
+  them ([00 §3.2](docs/design/00-stance.md)).
 - **Filling one is a single action.** Export-as-package walks outbound
   references from whatever you exported and collects the closure — a treatment's
   lorebooks, its cast, the actors' own lorebooks — then shows it for review
-  ([10 §9.1](10-schemas.md)). This is the piece that keeps the object split from
+  ([04 §9.1](docs/design/04-schemas.md)). This is the piece that keeps the object split from
   costing anything at exchange time: a Treatment stays independent of any one
   lorebook (§4) and is still shareable as one self-contained artefact, because
   the bundled form is produced on demand rather than being the storage shape.
@@ -1190,7 +1190,7 @@ Reduced to a container, Package has almost no surface of its own:
 **[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes packages far more powerful and makes
 importing one a code-execution decision. Strong lean: **declare only** at 1.0
-([06 A2](06-open-questions.md)).
+([25 A2](docs/design/25-open-questions.md)).
 
 **[OPEN]** Should a package be able to ship a partially-played session as a
 starting state (a "pre-run prologue")? Attractive for authored content, and it
@@ -1206,8 +1206,8 @@ not a variant of Setup.
 interface Session {
   id, name, createdAt, updatedAt
   // No owner or visibility field: the session lives under its owner's
-  // directory, and there is nobody to share it with. [04 §4.3]
-  participants: UserId[]          // length 1 at 1.0 — see [04 §8]
+  // directory, and there is nobody to share it with. [09 §4.3]
+  participants: UserId[]          // length 1 at 1.0 — see [09 §8]
 
   mode: { id: ModeId; config: unknown }
   preset: Preset                  // resolved copy, not a link
@@ -1220,18 +1220,18 @@ interface Session {
     // Party, control and narrator are NOT here. Like presence and status they
     // change as a result of turns, so they are channels — `se.party`,
     // `se.narrator` — reconstructed per node and branching correctly.
-    // [03 §8, 03 §8.1]
+    // [06 §8, 06 §8.1]
   }
   localActors: Actor[]
   lore: Ref<Lorebook>[]
 
   /** THE HEAD SNAPSHOT, not the source of truth. Channel state is
-   *  reconstructed by replaying effects ([09 §4](09-branching.md)); this is a
+   *  reconstructed by replaying effects ([07 §4](docs/design/07-branching.md)); this is a
    *  materialisation of it at `headTurnId`, derived and regenerable. It lives
    *  here so a human opening the file can read the clock. §8.1 */
   channels: Record<ChannelId, ChannelState>
 
-  // Turns form a tree, not a list — see [09 §3](09-branching.md).
+  // Turns form a tree, not a list — see [07 §3](docs/design/07-branching.md).
   headTurnId: TurnId              // where the user currently is
   branchRefs: BranchRef[]         // names bookmarking nodes; swipes need no record
 }
@@ -1242,11 +1242,11 @@ interface Session {
 `SessionFile` in `packages/server/src/sessions/types.ts`. A session may be started
 without a name and renamed at any time — it is id-addressed, so unlike a library
 object nothing is derived from the name and frozen — and an unnamed one stores
-`""`, which clients render as *Untitled session* ([06 E13](06-open-questions.md)).
+`""`, which clients render as *Untitled session* ([25 E13](docs/design/25-open-questions.md)).
 The rest of this block is older than the implementation in other ways too:
 `participants`, `origin` and `localActors` are not on `SessionFile`.
 
-`origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
+`origin` is provenance only. Per [00 §3.1](docs/design/00-stance.md), editing the source
 treatment later must not affect this session.
 
 ### 8.1 `session.json`'s channel state is the head snapshot
@@ -1254,20 +1254,20 @@ treatment later must not affect this session.
 Worth stating plainly, because the naive reading produces a bug that only
 surfaces at P6 and is expensive by then.
 
-A session is a **tree** ([09 §3](09-branching.md)), so "the channel state of a
+A session is a **tree** ([07 §3](docs/design/07-branching.md)), so "the channel state of a
 session" is not a thing that exists. State exists *at a node*, and is
 reconstructed by replaying effects from the nearest snapshot
-([09 §4](09-branching.md)). A single `channels` map in `session.json` can
+([07 §4](docs/design/07-branching.md)). A single `channels` map in `session.json` can
 therefore only mean **state at `headTurnId`** — and it is derived, exactly like
 the snapshots under `snapshots/` and the SQLite index. Deleting it must cost a
 recomputation and nothing else.
 
 Read as authoritative instead, it becomes a mutable state blob that switching
 branches has to rewrite — which is the same failure
-[09 §5.1](09-branching.md) rules out for rolling summaries, arriving by a
+[07 §5.1](docs/design/07-branching.md) rules out for rolling summaries, arriving by a
 different door.
 
-**So why keep it in the file at all?** Because [00 §3.4](00-stance.md) means
+**So why keep it in the file at all?** Because [00 §3.4](docs/design/00-stance.md) means
 someone will open `session.json`, and a session file that cannot tell you what
 time it is in the story fails the legibility promise the storage design is built
 on. Materialising the head is cheap and it is the one snapshot that is always
@@ -1284,7 +1284,7 @@ user-authored `ChannelEffect` appended at the head** — attributed, visible in 
 turn record, and reversible like any other effect.
 
 - The effect log stays the single source of truth.
-- Editing your own data on disk ([05 §4](05-ui-surfaces.md)) works for sessions
+- Editing your own data on disk ([10 §4](docs/design/10-ui-surfaces.md)) works for sessions
   and not only for library objects, which it otherwise would not.
 - The change survives branching, appears in the workbench, and can be undone.
 - **A stale snapshot is self-healing rather than dangerous**: if the divergence
@@ -1301,7 +1301,7 @@ chat UI" becomes a data-model decision rather than a UI decision.
 
 ```ts
 interface Turn {
-  id: TurnId                     // stable, opaque — never (branch, index); [09 §3]
+  id: TurnId                     // stable, opaque — never (branch, index); [07 §3]
   sessionId: SessionId
   parentTurnId: TurnId | null    // the tree edge. Siblings are swipes/branches.
   createdAt: string
@@ -1323,21 +1323,21 @@ interface Turn {
   output: { text: string; reasoning?: string }
   /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
   status: "complete" | "failed" | "suspended"
-  /** Every draw the turn consumed, keyed by site ([07 §14.6]). */
+  /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape
   /** A tombstone the reader skips. Nothing removes turns at 1.0; pruning a
    *  branch subtree does (§5.5). */
   removed?: true
   /** What each step did — the durable counterpart of the `step.*` progress
-   *  events. [04 §3.3](04-server-multiuser-deployment.md) opens by saying the live view *is*
+   *  events. [09 §3.3](docs/design/09-server-multiuser-deployment.md) opens by saying the live view *is*
    *  this record being built, which only holds if every event has somewhere
    *  durable to land; without this, `step.skipped` and `step.failed` are
    *  live-only and the history view disagrees with the live one about what
    *  happened. Added at P2.5, with the runner that produces them. */
   steps: StepOutcome[]
-  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [13 §1.2.1]
+  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [21 §1.2.1]
   /** Resolved actor mentions in `input.text` and `output.text`, as an overlay.
-   *  The text itself is never rewritten with markup. [03 §8.2, 05 §13.1] */
+   *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1] */
   mentions: MentionSpan[]
   cost: { promptTokens, completionTokens, wallMs, model }
 }
@@ -1350,7 +1350,7 @@ interface MentionSpan {
   end: number
   ref: Ref<Actor>
   /** How it was resolved. Rendered differently per method, because a tentative
-   *  match that looks certain is worse than no highlighting. [05 §13.1] */
+   *  match that looks certain is worse than no highlighting. [10 §13.1] */
   method: "explicit" | "matched" | "proposed"
   /** Only meaningful for "proposed". */
   confidence: number | null
@@ -1361,7 +1361,7 @@ interface AssembledBlock {
   /** The rendered text. Present because the workbench maps every sent byte back
    *  to the block that produced it, which a reference alone cannot do. */
   text: string
-  /** One vocabulary, shared with the preset's slots — [13 §1.1]. Carries the
+  /** One vocabulary, shared with the preset's slots — [21 §1.1]. Carries the
    *  identifier too (*which* lore entry), so provenance is clickable. */
   source: BlockSource
   reason: string                 // "keyword match: 'cathedral'" / "always" / "pinned by user"
@@ -1394,11 +1394,11 @@ be a record claiming a prompt was built. *Absent* and *empty* are different
 claims, and the workbench renders the difference.
 
 **`ModelCall`, `BudgetVerdict`, `ChannelEffect`, `ChannelState` and `BlockSource`
-are defined in [13](13-internal-contracts.md).** They are internal and free to
-migrate ([10 §1](10-schemas.md)); they are written down because the assembler
+are defined in [21](docs/design/21-internal-contracts.md).** They are internal and free to
+migrate ([04 §1](docs/design/04-schemas.md)); they are written down because the assembler
 cannot be built against a reference. `ChannelEffect` is the one worth reading
 before writing any of this — it carries the reversibility
-[09 §2](09-branching.md) depends on.
+[07 §2](docs/design/07-branching.md) depends on.
 
 Aventuras stores a `retrievalSnapshot` annotated "Diagnostic only — nothing reads
 it back", and Marinara has an Active Context popover plus a debug-only Injections
@@ -1408,13 +1408,13 @@ record complete and permanent buys, from one decision:
 - "why did it say that" — fully answerable, after the fact, with no debug flag
 - deterministic replay and regeneration with an edited block
 - honest per-turn cost accounting
-- the prompt workbench in [05](05-ui-surfaces.md), which is otherwise a
+- the prompt workbench in [10](docs/design/10-ui-surfaces.md), which is otherwise a
   reimplementation of the assembler
 - reproducible bug reports that don't require the reporter's library
 
 There is a fifth consequence that only became visible later, and it is the one
 with the sharpest test attached: **`effects` being complete and reversible is
-what makes branching a pointer rather than a copy** ([09 §2](09-branching.md)).
+what makes branching a pointer rather than a copy** ([07 §2](docs/design/07-branching.md)).
 Any change that makes state at turn N unreconstructible from the log breaks
 branch-anywhere, which is a much more concrete failure than "undo would be
 nice".
@@ -1429,9 +1429,9 @@ default, offer compaction, never compact the current branch's tail.
 
 ## 9. References and drift
 
-> **Definition: [10 §3](10-schemas.md).** A `Ref` is `{id, name, fingerprint?}`.
+> **Definition: [04 §3](docs/design/04-schemas.md).** A `Ref` is `{id, name, fingerprint?}`.
 
-Resolution order, everywhere, per [00 §3.3](00-stance.md): exact id →
+Resolution order, everywhere, per [00 §3.3](docs/design/00-stance.md): exact id →
 case-insensitive name → show as missing and continue. `fingerprint` lets the UI
 say "this lorebook has changed since this package was built" without blocking
 anything. Marinara's `resolveGameSetupImport` already does the first two steps
@@ -1442,13 +1442,13 @@ and reports misses as warnings; the third is the addition.
 ## 10. Deletion
 
 Unspecified until now, and it is the most frightening operation in the product.
-[00 §3.3](00-stance.md) makes a broken reference *survivable*, which is necessary
+[00 §3.3](docs/design/00-stance.md) makes a broken reference *survivable*, which is necessary
 and not sufficient: it says the sessions still open after you delete an actor, not
 that you meant to.
 
 The gap is worth naming plainly, because this design otherwise sells safety hard.
-Branching means you can always go back ([09](09-branching.md)); full history means
-nothing is lost to summarisation ([06 E1](06-open-questions.md)); files on disk
+Branching means you can always go back ([07](docs/design/07-branching.md)); full history means
+nothing is lost to summarisation ([25 E1](docs/design/25-open-questions.md)); files on disk
 mean you can always get your data out (§5). Against all of that, an unqualified
 Delete button is the one place where *gone* means gone — and the first person to
 lose a character they had spent an evening writing will not be consoled by the
@@ -1460,7 +1460,7 @@ Two mechanisms, both cheap because the pieces exist already.
 
 The derived index (§5.1) already knows every inbound reference — it exists partly
 to answer "which treatments link this lorebook" for the library's bidirectional link
-view ([05 §5](05-ui-surfaces.md)). Pointing the same query at the delete
+view ([10 §5](docs/design/10-ui-surfaces.md)). Pointing the same query at the delete
 confirmation costs nothing:
 
 > Delete **Vera Kohl**?
@@ -1472,7 +1472,7 @@ informed, and it uses a query that has to exist anyway.
 **It never blocks.** Counts inform; they do not veto. A user deleting something
 with forty references may well be doing exactly what they intend, and a product
 that refuses would be substituting its judgement for theirs — which is also the
-[00 §3.3](00-stance.md) posture applied one step earlier: *visible, and
+[00 §3.3](docs/design/00-stance.md) posture applied one step earlier: *visible, and
 non-blocking*.
 
 ### 10.2 Trash, with a retention window
@@ -1487,7 +1487,7 @@ there past the window.**
 ```
 
 The reason it is nearly free is the same reason the storage design keeps paying:
-**the folder is the object** (§3.4 of [00](00-stance.md), §5.2 here). Deletion is
+**the folder is the object** (§3.4 of [00](docs/design/00-stance.md), §5.2 here). Deletion is
 a move, restoration is a move back, and neither needs a serialisation format, a
 tombstone convention or a schema. The index treats trashed objects as absent —
 they do not appear in the library, do not resolve as references, and do not match
@@ -1499,13 +1499,13 @@ Four properties worth fixing now:
   running this on a NAS with 8TB and someone on a Pi have different opinions and
   both are right.
 - **Trash is per-user**, under the user's own directory, like everything else
-  ([04 §4.3](04-server-multiuser-deployment.md)). No shared trash, no admin
+  ([09 §4.3](docs/design/09-server-multiuser-deployment.md)). No shared trash, no admin
   reviewing other people's deletions.
 - **Purge is available and honest.** *Delete permanently* exists, says so, and
   skips the trash. The point of the window is to make the ordinary path
   recoverable, not to make deletion impossible for someone who means it.
 - **Trash is excluded from export and from backup by default**
-  ([06 E6](06-open-questions.md)) — restoring a backup should not resurrect
+  ([25 E6](docs/design/25-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it.
 
 ### 10.3 Sessions delete the same way, with one addition
@@ -1518,15 +1518,15 @@ Most sessions people stop playing are not sessions they want gone — they are
 sessions they want out of the way, and offering only Delete for that pushes people
 into a destructive action to solve a cosmetic problem. It also pairs with the
 concluded state a finished goal chain produces
-([03 §7.3.4](03-modes-and-turn-pipeline.md)), which is already "over but kept".
+([06 §7.3.4](docs/design/06-modes-and-turn-pipeline.md)), which is already "over but kept".
 
 **What deletion does not do:** it does not reach into other sessions to remove
 what this one wrote. A session that promoted an actor to the library, or wrote a
-cross-session memory ([11](11-cross-session-memory.md)), leaves those behind —
+cross-session memory ([08](docs/design/08-cross-session-memory.md)), leaves those behind —
 they are separate objects, owned by the library, and quietly deleting them because
 their origin was removed would be a much worse surprise than leaving them. Same
 reasoning as the escaped-effects warning on branch pruning
-([09 §7](09-branching.md)), and the delete confirmation should say so when it
+([07 §7](docs/design/07-branching.md)), and the delete confirmation should say so when it
 applies.
 
 ---
@@ -1571,8 +1571,8 @@ text that is sometimes generated (*"Saved before restoring an earlier version"*)
 and sometimes the user's.
 
 `source` earns its place here more than it does in Marinara, because more things
-edit objects in this design: field assists ([05 §11.1](05-ui-surfaces.md)), the
-assistant's proposals ([12 §4](12-extensions.md)), and import. *"Who changed my
+edit objects in this design: field assists ([10 §11.1](docs/design/10-ui-surfaces.md)), the
+assistant's proposals ([22 §4](docs/design/22-extensions.md)), and import. *"Who changed my
 character"* is a question with several possible answers, and the history is where
 it gets one.
 
@@ -1598,7 +1598,7 @@ Four consequences, and the second is the one that makes this design better than
 the database version rather than merely equivalent:
 
 - **History travels with the object.** The folder is the object
-  ([00 §3.4](00-stance.md)), so dragging it out takes the history along. Nothing
+  ([00 §3.4](docs/design/00-stance.md)), so dragging it out takes the history along. Nothing
   extra to export, nothing left behind.
 - **Hand-edits get history for free.** A foreign write — someone editing
   `lorebook.json` in a text editor — reaches the engine through the watcher
@@ -1608,7 +1608,7 @@ the database version rather than merely equivalent:
   It is also the strongest argument for building the mechanism in P1, when the
   watcher exists and no editor does.
 - **Media dedupes automatically.** Snapshots reference embedded media by digest
-  ([10 §3](10-schemas.md)), so forty versions of an actor whose portrait never
+  ([04 §3](docs/design/04-schemas.md)), so forty versions of an actor whose portrait never
   changed store the portrait once. The payloads are JSON and small; without this
   the feature would be unaffordable for actors specifically.
 - **Content-addressed payloads dedupe too.** Edit, revert by hand, edit back —
@@ -1624,7 +1624,7 @@ costs the newest entry rather than the history.
 copied. An agent making a run of small edits can produce hundreds of entries, and
 an unbounded list is a list nobody scrolls.
 
-- **A generous default count, tunable** ([13 §4](13-internal-contracts.md)) —
+- **A generous default count, tunable** ([21 §4](docs/design/21-internal-contracts.md)) —
   prune oldest first, per object.
 - **Pinned versions are never pruned.** Pinning is what a user does to the state
   they might want back in a year, and it is the entire answer to "the cap ate
@@ -1641,9 +1641,9 @@ ask why there are three:
 
 | Scale | Mechanism | Question it answers |
 |---|---|---|
-| **A field** | `generated.original` ([10 §3](10-schemas.md)) | *Undo what the model wrote in this box* |
+| **A field** | `generated.original` ([04 §3](docs/design/04-schemas.md)) | *Undo what the model wrote in this box* |
 | **An object** | Version history — this section | *Put this character back how it was* |
-| **A story** | Branching ([09](09-branching.md)) | *Go back to before that happened* |
+| **A story** | Branching ([07](docs/design/07-branching.md)) | *Go back to before that happened* |
 
 They are genuinely different: field-level revert is about one generated value and
 survives no further edits; object history is about an authored artefact across
@@ -1652,13 +1652,13 @@ at all.
 
 **And they compose without interacting.** Restoring an actor to an older version
 does *not* reach into running sessions — sessions copy from the library at
-creation and hold no live link ([00 §3.1](00-stance.md)). That is worth saying
+creation and hold no live link ([00 §3.1](docs/design/00-stance.md)). That is worth saying
 explicitly, because it is the first thing someone worries about, and the answer
 is a principle that already exists rather than a special case.
 
 ### 11.5 What the author's own version string is, and is not
 
-`Provenance.version` ([10 §3](10-schemas.md)) is free text the *author* sets —
+`Provenance.version` ([04 §3](docs/design/04-schemas.md)) is free text the *author* sets —
 `"1.2"`, `"final-ish"`, whatever they like. Marinara snapshots the equivalent
 field alongside each version and displays both, which is right and worth
 copying.

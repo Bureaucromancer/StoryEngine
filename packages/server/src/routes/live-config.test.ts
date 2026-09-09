@@ -15,7 +15,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * **A `live` key the running server does not actually read** — the failure
- * [13 §4.3](../../../../docs/design/13-internal-contracts.md)'s applier table exists to make
+ * [21 §4.3](../../../../docs/design/21-internal-contracts.md)'s applier table exists to make
  * impossible, arriving through the one door the table cannot watch.
  *
  * `LIVE_APPLIERS` says of every `live` key whether anything reads it. Four rows
@@ -198,7 +198,7 @@ describe('a live key the turn path reads', () => {
  * consumes the key, produced by a save made after the server started.
  *
  * `GET /api/sessions/:id` is the reconstruction, and it is not a contrivance:
- * it reconciles hand edits before answering ([02 §8.1]), which means replaying
+ * it reconciles hand edits before answering ([03 §8.1]), which means replaying
  * the head path, which is the read a person waits for when they open a session.
  */
 describe('a live key the session read path reads', () => {
@@ -274,7 +274,7 @@ describe('a live key the session read path reads', () => {
     // default of ten in force and this set empty.
     expect(await snapshotIds(sessionId)).toEqual(new Set([turns[1], turns[3], turns[5]]));
 
-    // Deleting the cache is a supported gesture ([09 §4], gate step 6), and
+    // Deleting the cache is a supported gesture ([07 §4], gate step 6), and
     // here it is what makes the second reading a fresh one rather than a read
     // that starts from the snapshots the first left behind.
     await rm(snapshotsRoot(new Layout(server.dataDir), HANDLE, sessionId), {

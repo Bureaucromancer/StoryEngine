@@ -1,19 +1,19 @@
 # Changelog
 
-Every release tag has an entry here — [releases §7](docs/design/workplan/11-repo-and-releases.md).
-The reason is not bookkeeping: [04 §7](docs/design/04-server-multiuser-deployment.md)
+Every release tag has an entry here — [releases §7](docs/design/workplan/04-repo-and-releases.md).
+The reason is not bookkeeping: [09 §7](docs/design/09-server-multiuser-deployment.md)
 makes _what am I running_ a user-facing question rather than a maintainer's one,
-and the About surface planned at [P11.6](docs/design/workplan/22-p11-implementation.md)
+and the About surface planned at [P11.6](docs/design/workplan/27-p11-implementation.md)
 links here to answer it.
 
 Versions are [semantic](https://semver.org), with the caveat
-[releases §7](docs/design/workplan/11-repo-and-releases.md) states plainly: before
+[releases §7](docs/design/workplan/04-repo-and-releases.md) states plainly: before
 1.0 they mean little, and **the data formats carry the real compatibility
 story**. Package and card schema versions are independent of the application's
-([02 §7](docs/design/02-data-model.md)).
+([03 §7](docs/design/03-data-model.md)).
 
 Each build also has a name — _1.0-alpha 1_, _1.0-beta 1_, _1.0_ — derived from
-the string by the rule in [releases §7.1](docs/design/workplan/11-repo-and-releases.md)
+the string by the rule in [releases §7.1](docs/design/workplan/04-repo-and-releases.md)
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
@@ -74,7 +74,7 @@ what this release is for.
 - **The pre-P6 walk is in progress, not finished.** Sitting A — a fresh install
   through to a streamed turn and its record — is walked and passed; B through H
   are outstanding
-  ([manual testing](docs/design/workplan/26-manual-testing.md), which that sheet
+  ([manual testing](docs/design/workplan/05-manual-testing.md), which that sheet
   was merged into on 2026-09-08). This image exists so the rest
   of that walk happens against a container rather than a dev server.
 - **No compatibility promise between alpha builds**, unchanged from Alpha 2.
@@ -89,7 +89,7 @@ What the first install of Alpha 1 found, on unraid, and what it asked for.
   _1.0-alpha 2_ — login and setup included, and Settings opens with an About
   block: the name, the version string and the commit, for every account. A
   development run says so instead of inventing a version. The name is derived
-  from the string by [releases §7.1](docs/design/workplan/11-repo-and-releases.md)'s
+  from the string by [releases §7.1](docs/design/workplan/04-repo-and-releases.md)'s
   rule, which is code now, in `@storyengine/shared`, and the headings in this
   file are held to it.
 - **`GET /api/auth/state` carries `build`**, so the pages before sign-in can
@@ -98,7 +98,7 @@ What the first install of Alpha 1 found, on unraid, and what it asked for.
   `storyengine:testing`, and the unraid template follows it, so unraid's update
   check offers each alpha; `compose.yaml` stays pinned to the version. `latest`
   still names nothing
-  ([releases §4](docs/design/workplan/11-repo-and-releases.md)).
+  ([releases §4](docs/design/workplan/04-repo-and-releases.md)).
 
 ### Fixed
 
@@ -124,18 +124,18 @@ can run. This is that state, frozen and named.
 
 **It is an artifact, not a distribution.** The repository is private, the
 registry package is private, and the unraid template is committed rather than
-submitted — so [releases §0](docs/design/workplan/11-repo-and-releases.md)'s
+submitted — so [releases §0](docs/design/workplan/04-repo-and-releases.md)'s
 deferral of release engineering to beta stands untouched, and AGPL §13 does not
-attach ([P6A §0.1](docs/design/workplan/23-p6a-alpha-1.md)). Nobody else is
+attach ([P6A §0.1](docs/design/workplan/19-p6a-alpha-1.md)). Nobody else is
 running it, which is the property that carries every obligation.
 
 **No compatibility promise between alpha builds.**
-[13](docs/design/13-internal-contracts.md) licenses the storage tier to change
+[21](docs/design/21-internal-contracts.md) licenses the storage tier to change
 without migration for exactly as long as nothing leaves the install. What this
 build ships instead of migration machinery is a refusal: a data directory
 carries the build that wrote it, and an older build will not open a directory a
 newer one has touched
-([P6A §1.7](docs/design/workplan/23-p6a-alpha-1.md)).
+([P6A §1.7](docs/design/workplan/19-p6a-alpha-1.md)).
 
 ### Added
 

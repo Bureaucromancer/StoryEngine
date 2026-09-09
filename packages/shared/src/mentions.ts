@@ -5,7 +5,7 @@ import type { Lorebook, LoreEntry } from './schema/lorebook.js';
 
 /**
  * Where one entry's surface forms turn up in another entry's prose —
- * [05 §5.3](../../../docs/design/05-ui-surfaces.md)'s *Mentions* and *Mentioned
+ * [10 §5.3](../../../docs/design/10-ui-surfaces.md)'s *Mentions* and *Mentioned
  * by*.
  *
  * **The idea is right and the inline rendering is wrong**, and §5.3 spends its
@@ -29,7 +29,7 @@ import type { Lorebook, LoreEntry } from './schema/lorebook.js';
  * else, a book whose keys are common words produces a long list, and that is the
  * file being what it is rather than this module hiding it.
  *
- * **This is also [16 §6](../../../docs/design/16-lorebooks-as-a-format.md)'s
+ * **This is also [11 §6](../../../docs/design/11-lorebooks-as-a-format.md)'s
  * sharpest falsification test**, which is why the rule lives here rather than in
  * the page: *"if real books produce empty or absurd lists, then keys were chosen
  * purely to trigger, with no aliasing intent behind them — the keys are index
@@ -105,7 +105,7 @@ function textsOf(value: unknown): string[] {
 }
 
 /**
- * The surface forms of an entry — [16 §2](../../../docs/design/16-lorebooks-as-a-format.md)'s
+ * The surface forms of an entry — [11 §2](../../../docs/design/11-lorebooks-as-a-format.md)'s
  * *soft indexing*: to the engine `keys` and `secondaryKeys` are activation
  * triggers, and to a reader they are the aliases a concept goes by. The name is
  * the third, and §5.3 names it first.

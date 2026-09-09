@@ -10,14 +10,14 @@ import {
 
 /**
  * A synthesised SillyTavern user directory
- * ([P4 §1.2](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.2](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Synthesised, and this is the whole corpus the phase gets.** Character cards
  * are other people's authored content and generally not redistributable
- * ([testing §5](../../../../../docs/design/workplan/10-testing.md)), and there is
+ * ([testing §5](../../../../../docs/design/workplan/03-testing.md)), and there is
  * no used SillyTavern install on hand either — so the in-repo set carries P4,
  * and walking a real library is a named outstanding task owned by
- * [P5 §1.6](../../../../../docs/design/workplan/07-p5-implementation.md).
+ * [P5 §1.6](../../../../../docs/design/workplan/17-p5-implementation.md).
  *
  * **Content, not files.** The tree is a map of relative path to bytes, which a
  * `MemoryFileSource` reads directly and a materialiser writes to disk when a
@@ -80,7 +80,7 @@ const OPENAI_PRESET = {
   openai_max_tokens: 512,
   temperature: 0.9,
   frequency_penalty: 0.1,
-  // Dropped unconditionally and named in the review ([10 §8.4.4]). Present here
+  // Dropped unconditionally and named in the review ([04 §8.4.4]). Present here
   // because gate step 3 is a property over the imported corpus, and a corpus
   // with no credential in it cannot fail that test.
   reverse_proxy: 'https://example.invalid/v1',

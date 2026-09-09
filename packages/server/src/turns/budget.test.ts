@@ -8,7 +8,7 @@ import { CONSERVATIVE_CAPABILITIES } from '../providers/capabilities.js';
 import { budgetPolicyFor, type PresetBudget } from './budget.js';
 
 /**
- * Where the window comes from, and who may narrow it — [13 §1.5], [10 §8.3].
+ * Where the window comes from, and who may narrow it — [21 §1.5], [04 §8.3].
  *
  * This existed with no preset argument at all, so every shipped preset's
  * `contextShare` and `reserveOutputTokens` were written and read by nothing:
@@ -59,7 +59,7 @@ describe('the window', () => {
   });
 
   it('lets a preset cap the window but never raise it', () => {
-    // [10 §8.3]'s whole argument: a preset written against a 4k window must not
+    // [04 §8.3]'s whole argument: a preset written against a 4k window must not
     // silently misbehave at 200k. An absolute value that *won* would reproduce
     // exactly that, which is why it can only narrow.
     const big = { ...CONSERVATIVE_CAPABILITIES, maxContextTokens: 200_000 };

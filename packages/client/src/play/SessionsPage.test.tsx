@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * so every session ever started in the browser resolved zero lorebooks and ran
  * the mode's built-in preset — which made an imported preset unplayable and the
  * retrieval half of P5 unreachable
- * ([P6B §0.1](../../../../docs/design/workplan/24-p6b-playable.md)).
+ * ([P6B §0.1](../../../../docs/design/workplan/20-p6b-playable.md)).
  *
  * The preset is the field with no second chance: a session copies it at
  * creation and no route changes it afterwards, so a session started without one
@@ -159,7 +159,7 @@ describe('starting a session', () => {
    * Start used to read `if (name.trim().length > 0) create.mutate()`, so this
    * exact interaction — press Start, having typed nothing — did nothing at all.
    * Not a refusal and not a prevention, which is the shape
-   * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md) exists to rule out. Asserting on
+   * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md) exists to rule out. Asserting on
    * the argument rather than only on the call matters: sending `{ name: '' }`
    * would also "work", and would put an empty string on the wire as though it
    * were a choice somebody made.

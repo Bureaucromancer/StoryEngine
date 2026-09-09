@@ -8,7 +8,7 @@ import type { FileSource, ImportSourceKind } from './source.js';
 
 /**
  * What the folder somebody picked is, when it is not the folder the importer
- * wants ([P4 §7.11](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * wants ([P4 §7.11](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **`classifyRoot` never fails on a folder that is merely wrong.** Every
  * directory matching no probe — including an empty one — comes back

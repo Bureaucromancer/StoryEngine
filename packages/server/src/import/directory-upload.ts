@@ -6,7 +6,7 @@ import { SILLYTAVERN_DISPOSITIONS } from './registries/sillytavern.js';
 
 /**
  * Which files a browser directory upload actually has to carry
- * ([P4 §7.13](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.13](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **P4 cut this transport and the cut is being reversed, so the reason it was
  * cut matters.** §5 called the browser directory upload *reach, not core* —

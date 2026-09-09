@@ -6,7 +6,7 @@ import type { ServerResponse } from 'node:http';
 import { formatCursor, type StreamFrame } from './attach.js';
 
 /**
- * SSE framing — [07 §8](../../../../docs/design/07-tech-stack.md).
+ * SSE framing — [19 §8](../../../../docs/design/19-tech-stack.md).
  *
  * SSE rather than WebSockets because the traffic is one-directional and because
  * it reconnects by itself: a browser resends `Last-Event-ID` with no code of
@@ -51,7 +51,7 @@ export class SseWriter {
     });
 
     // Told once. A client that loses the connection retries on its own after
-    // this long, which is the reconnection [07 §8] chose SSE for.
+    // this long, which is the reconnection [19 §8] chose SSE for.
     this.#write('retry: 3000\n\n', false);
 
     this.#keepalive = setInterval(() => {

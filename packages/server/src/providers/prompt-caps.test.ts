@@ -7,7 +7,7 @@ import { capabilitiesFor, CONSERVATIVE_CAPABILITIES, isKnownProvider } from './c
 import { budgetFor, capPrompt, type PromptFragment } from './prompt-caps.js';
 
 /**
- * Prompt caps and capability negotiation — [07 §5.3], [13 §3].
+ * Prompt caps and capability negotiation — [19 §5.3], [21 §3].
  *
  * The failure being prevented is silent truncation: the request succeeds, the
  * tail is discarded, and the output is quietly worse. So the assertions here
@@ -112,7 +112,7 @@ describe('capability defaults', () => {
   });
 
   it('records same-role merging as a property of the endpoint', () => {
-    // The decision [13 §2] makes: not a global setting, because providers
+    // The decision [21 §2] makes: not a global setting, because providers
     // differ and some reject consecutive same-role messages outright.
     expect(capabilitiesFor('anthropic').mergeSameRole).toBe('required');
     expect(capabilitiesFor('openai').mergeSameRole).toBe('preferred');

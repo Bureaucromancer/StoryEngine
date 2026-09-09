@@ -11,7 +11,7 @@ import { SseParser, type SseFrame } from './sse.js';
  * browser then retries every three seconds forever behind a UI that cannot say
  * why. Reading `response.status` is the whole difference: a fatal stops, and
  * only a transport failure reconnects — which is what
- * [07 §11](../../../../docs/design/07-tech-stack.md)'s *quiet reconnecting state that resumes
+ * [19 §11](../../../../docs/design/19-tech-stack.md)'s *quiet reconnecting state that resumes
  * rather than erroring out* actually asks for.
  *
  * Nothing about the route changes for this: `fetch` sends cookies same-origin

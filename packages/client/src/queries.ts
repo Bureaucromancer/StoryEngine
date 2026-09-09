@@ -49,13 +49,13 @@ import {
 } from './api.js';
 
 /**
- * Server state, through TanStack Query ([07 §6](../../../docs/design/07-tech-stack.md)):
+ * Server state, through TanStack Query ([19 §6](../../../docs/design/19-tech-stack.md)):
  * nearly all client state *is* server state here, and these hooks are the whole
  * of the client's model layer.
  *
  * Library queries poll. Nothing pushes yet — SSE is P2 — and the watcher's
  * pick-up of a hand edit on disk is the storage thesis's demo
- * ([P1 §3](../../../docs/design/workplan/03-p1-implementation.md) step 8), so the browser has to
+ * ([P1 §3](../../../docs/design/workplan/07-p1-implementation.md) step 8), so the browser has to
  * ask often enough for "without a restart" to read as "by itself".
  */
 
@@ -74,7 +74,7 @@ export const queryClient = new QueryClient({
        * anything. For an app on the public web that is the right trade.
        *
        * Here it is simply wrong. This server is on loopback or on the LAN
-       * ([04 §5.1](../../../docs/design/04-server-multiuser-deployment.md)), and
+       * ([09 §5.1](../../../docs/design/09-server-multiuser-deployment.md)), and
        * `navigator.onLine` describes the *internet*, which has no bearing on
        * whether a box in the next room is reachable. A laptop with its Wi-Fi
        * off can still reach `127.0.0.1:8080` perfectly well.
@@ -233,7 +233,7 @@ export function useRestoreVersion(): UseMutationResult<
       versionId: string;
       contentHash: string;
     }) => api.restoreVersion(input.kind, input.id, input.versionId, input.contentHash),
-    // Same pair as a save — a restore is an ordinary write ([02 §11.1]), and
+    // Same pair as a save — a restore is an ordinary write ([03 §11.1]), and
     // it moves the contentHash just the same.
     onSuccess: (_result, input) => {
       void client.invalidateQueries({ queryKey: ['library'] });
@@ -291,7 +291,7 @@ export function useLogout(): UseMutationResult<undefined, Error, void> {
 }
 
 /**
- * The account's own record — [05 §15.1](../../../docs/design/05-ui-surfaces.md).
+ * The account's own record — [10 §15.1](../../../docs/design/10-ui-surfaces.md).
  *
  * Its own query rather than a read of `['auth', 'state']`, because that entry
  * answers a question about the *install* — is anyone signed in, does setup need
@@ -354,7 +354,7 @@ export function usePrefs(): UseQueryResult<{ prefs: Record<string, unknown> }> {
 }
 
 /**
- * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+ * The tag registry — [05 §4](../../../docs/design/05-tagging.md).
  *
  * One key, because there is one document: every write answers with the whole
  * list, so a mutation seeds the cache from its own response rather than
@@ -388,7 +388,7 @@ export type TagWrite =
  * What a registry write answers with.
  *
  * The whole list always; `gatesFound` only from a rename, which is the one
- * operation with something else to report ([25 §1]). Optional rather than a
+ * operation with something else to report ([05 §1]). Optional rather than a
  * union per verb, because every caller reads `tags` and exactly one reads the
  * rest.
  */
@@ -434,7 +434,7 @@ export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrit
 
 /**
  * **The one optimistic mutation in this codebase**, and the reasons are specific
- * enough to be worth writing down — [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * enough to be worth writing down — [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * Everywhere else this client waits for the server, and the editor goes further:
  * its base is *deliberately unpolled*, so a save presents the hash it read and
@@ -493,7 +493,7 @@ export function usePatchPrefs(): UseMutationResult<
 
 /**
  * The play surface's reads, lifted out of `PlayPage` for the workbench —
- * [P3.1](../../../docs/design/workplan/05-p3-implementation.md).
+ * [P3.1](../../../docs/design/workplan/15-p3-implementation.md).
  *
  * Play's queries were the one inline exception to this file being the model
  * layer, and that was fine while Play was their only mount. The workbench is a
@@ -543,7 +543,7 @@ export function useSetSessionLore(
 }
 
 /**
- * Renaming a session — [02 §8].
+ * Renaming a session — [03 §8].
  *
  * A hook rather than two inline mutations for the reason `useSession`'s own
  * docstring gives: two components spelling the same cache key by hand is how a
@@ -632,7 +632,7 @@ export function useLiveTurn(sessionId: string): UseQueryResult<{ live: LiveTurn 
  * asking separately and showing different numbers. There is one answer, at an
  * address the route names, written by the composer through
  * {@link useRefreshPreview} — which is what lets the panel render a pending
- * turn while staying the reader [05 §2] says it must be. Its subject still
+ * turn while staying the reader [10 §2] says it must be. Its subject still
  * comes from the route and the cache; nothing about the composer is
  * remembered anywhere the panel can reach.
  *
@@ -688,7 +688,7 @@ export function useRefreshPreview(
 }
 
 /**
- * The admin half's queries — [05 §15.2](../../../docs/design/05-ui-surfaces.md).
+ * The admin half's queries — [10 §15.2](../../../docs/design/10-ui-surfaces.md).
  *
  * **These hooks are the mechanism behind "absent, not disabled"** ([P2A §2.6]).
  * The admin sections are not rendered for a non-admin, so these never mount, so
@@ -740,7 +740,7 @@ export function useRemoveAccount(): UseMutationResult<undefined, Error, string> 
 
 /**
  * The system connections, the install bindings, and what every role will do —
- * [P2B §3](../../../docs/design/workplan/14-p2b-provider-configuration.md) stage P2B.3.
+ * [P2B §3](../../../docs/design/workplan/10-p2b-provider-configuration.md) stage P2B.3.
  *
  * **`['admin', 'roles']` is invalidated by every write on this surface**, and
  * that is the point of putting them in one place. A role resolves through the
@@ -891,7 +891,7 @@ export function useWriteConfig(): UseMutationResult<
 /**
  * The restart banner's data.
  *
- * Polled rather than fetched once, because [04 §6.3] wants *every* admin to see
+ * Polled rather than fetched once, because [09 §6.3] wants *every* admin to see
  * the pending list — including one who was already looking at another page when
  * a colleague saved. The interval is generous: this is a banner, not a stream.
  */

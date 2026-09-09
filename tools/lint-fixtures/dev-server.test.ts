@@ -167,7 +167,7 @@ describe('where a relative data directory lands', () => {
      *
      * Without this the server takes the default 8080 and collides with whatever
      * else the suite has running, which showed up as this test failing once in
-     * a full run and passing alone. [12 §4.4](../../docs/design/workplan/12-p2-manual-gate.md)
+     * a full run and passing alone. [manual gate §4.4](../../docs/design/workplan/11-p2-manual-gate.md)
      * calls a load-sensitive suite a defect in the suite; a test that only fails
      * under load is the same defect, arriving one test at a time.
      */

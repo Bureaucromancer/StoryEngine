@@ -6,7 +6,7 @@ import type { ImportItemReport, ImportNote } from '@storyengine/shared';
 /**
  * The seam the whole import phase is built on, and the one thing P4.0 exists to
  * get right before anything is written on top of it
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The unit is a candidate, not a file.** The plan originally said "one sweep
  * engine over an abstract file source with two adapters — a local-path walker

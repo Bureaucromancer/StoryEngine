@@ -9,7 +9,7 @@ import { Badge } from '../../ui/Badge.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
 
 /**
- * The effects, all three outcomes of [05 §3] now renderable from the
+ * The effects, all three outcomes of [10 §3] now renderable from the
  * record's own fields ([P3.0]): applied; rejected with *which* policy
  * refused (the split vocabulary, mapped class-to-sentence with the raw word
  * as the fallback for an extension's own refusal); and superseded — the

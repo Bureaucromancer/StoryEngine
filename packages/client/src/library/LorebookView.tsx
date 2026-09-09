@@ -44,7 +44,7 @@ import { entryMatches, highlight, matches, runsFor } from './search.js';
 type FolderChoice = { id: string | null } | null;
 
 /**
- * The book as a document — [05 §5.3](../../../../docs/design/05-ui-surfaces.md).
+ * The book as a document — [10 §5.3](../../../../docs/design/10-ui-surfaces.md).
  *
  * **Not a new page.** This is what the existing detail route renders when the
  * kind is `lorebooks`, so there stays one detail route and one place the
@@ -55,7 +55,7 @@ type FolderChoice = { id: string | null } | null;
  * reading surface.
  *
  * **It renders configuration and never behaviour**, which is
- * [P5 §1.6](../../../../docs/design/workplan/07-p5-implementation.md)'s line
+ * [P5 §1.6](../../../../docs/design/workplan/17-p5-implementation.md)'s line
  * between the two halves of this phase: nothing here says *will fire*. An
  * entry that is off says so and says which gate did it; whether an active entry
  * ever matches anything is the retriever's to answer, at a surface that has a
@@ -123,7 +123,7 @@ export function LorebookView({
   linkToEntry?: EntryLink;
   /**
    * An *Edit* affordance for one entry, supplied by the page the way
-   * {@link EntryLink} is. [05 §5.3] asks that the read view hold no form state
+   * {@link EntryLink} is. [10 §5.3] asks that the read view hold no form state
    * and that its edit affordance be a link into the editor **at the entrys
    * address** — which the page header cannot be, since that link is one
    * component shared by every kind and passes no search params at all.
@@ -138,7 +138,7 @@ export function LorebookView({
   const [tag, setTag] = useState<string | null>(null);
   const [folder, setFolder] = useState<FolderChoice>(null);
   /**
-   * **Off by default**, which [05 §5.3] says twice — an underline inside a
+   * **Off by default**, which [10 §5.3] says twice — an underline inside a
    * sentence reads as an activation preview, and it only becomes an honest one
    * once somebody has asked for it and been told what it means.
    */
@@ -146,7 +146,7 @@ export function LorebookView({
   const narrowed = query !== '' || key !== null || tag !== null || folder !== null;
 
   /**
-   * **Derived at render and memoised per book** — [05 §5.3], which declines an
+   * **Derived at render and memoised per book** — [10 §5.3], which declines an
    * index for this on the grounds that it would buy nothing and inherit an
    * invalidation problem. Once per book rather than once per entry: the whole
    * pairing is one pass, and computing it inside {@link EntryUnit} would be the
@@ -302,11 +302,11 @@ export function LorebookView({
 }
 
 /**
- * One direction of an entry's mentions — [05 §5.3]'s derived, labelled section.
+ * One direction of an entry's mentions — [10 §5.3]'s derived, labelled section.
  *
  * **Nothing is rendered when there is nothing**, which is the opposite of the
  * by-field view's rule and right for the opposite reason: an unset *field* is a
- * field somebody could fill, and [16 §4.1] wants it visible so that it gets
+ * field somebody could fill, and [11 §4.1] wants it visible so that it gets
  * filled; an empty mention list is not a thing anybody can act on, and a heading
  * over *None* on all three hundred entries of a book whose author did not write
  * that way would be noise in place of a finding.
@@ -380,7 +380,7 @@ function MentionList(props: {
  *
  * **The instrument is not capped**, and that division is the point:
  * `tools/lore-mentions.ts` counts every pair, because
- * [16 §6](../../../../docs/design/16-lorebooks-as-a-format.md)'s test is exactly
+ * [11 §6](../../../../docs/design/11-lorebooks-as-a-format.md)'s test is exactly
  * whether real books produce absurd lists and a truncated count could not say.
  * The page is for reading; the script is for measuring.
  */
@@ -458,7 +458,7 @@ function Marked({
  *
  * *214 entries, 31 off* is the shape of a book's variants, and it is invisible
  * at every surface that exists without it. The activation settings are one
- * quiet strip below: [02 §3.1]'s *each flag is a direct UI control* is
+ * quiet strip below: [03 §3.1]'s *each flag is a direct UI control* is
  * satisfied by **reachable**, not by prominent, and this is the first place
  * that distinction has to be made out loud.
  */
@@ -757,7 +757,7 @@ function EntryUnit(props: {
           </span>
         )}
         {/*
-         * **The edit affordance is a link, at this entry's address** — [05 §5.3]
+         * **The edit affordance is a link, at this entry's address** — [10 §5.3]
          * in its own words, and the reason it lives here rather than only in the
          * page header is that the header's Edit is one component shared by every
          * kind and carries no search params. Without this, the editor's
@@ -774,7 +774,7 @@ function EntryUnit(props: {
 
       {/*
        * **Clicking a key filters the book to the entries carrying it**, which is
-       * the one behaviour §5.3 says turns [16 §2]'s soft indexing from an
+       * the one behaviour §5.3 says turns [11 §2]'s soft indexing from an
        * observation into a working index: keywords stop being trigger
        * configuration the moment they are clickable. Clicking the one already
        * chosen unpicks it, so the chip is also the way back.
@@ -857,7 +857,7 @@ function EntryUnit(props: {
 
       {/*
        * **Mentions, as a labelled list and never as an underline in the prose**
-       * — [05 §5.3](../../../../docs/design/05-ui-surfaces.md), which spends its
+       * — [10 §5.3](../../../../docs/design/10-ui-surfaces.md), which spends its
        * argument on that difference: a name underlined inside a body reads as an
        * activation preview and is not one, because the scanner runs over chat
        * text rather than entry content unless `recursiveScanning` is on, and it
@@ -898,7 +898,7 @@ function EntryUnit(props: {
 
 /**
  * Where the **real matcher** would hit inside one entry's prose — [P5.8],
- * [05 §5.3].
+ * [10 §5.3].
  *
  * §5.3 scheduled inline highlighting rather than refusing it: *once a real
  * matcher exists it stops being a guess about linking and becomes the keyword
@@ -914,7 +914,7 @@ function EntryUnit(props: {
  *
  * **It will sometimes disagree with that list, and the disagreement is the
  * point.** Mentions uses one stated rule — whole-word, no per-entry flags —
- * because [05 §5.3] argues a *list* that approximated thirty rule sets would be
+ * because [10 §5.3] argues a *list* that approximated thirty rule sets would be
  * pretending to be the matcher. This uses each entry's own flags. So the list
  * says a name appears and the highlight says whether the scanner would catch
  * it, and where they differ somebody has learnt something about their book.
@@ -945,7 +945,7 @@ function patternEntryCount(book: Lorebook): number {
 
 /**
  * The switch, and the sentence that makes the highlight honest — [P5.8],
- * [05 §5.3].
+ * [10 §5.3].
  *
  * §5.3's objection to inline highlighting was never that it is uncomputable; it
  * was that *an underlined name inside a body reads as an activation preview and

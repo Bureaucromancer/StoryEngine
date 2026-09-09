@@ -11,17 +11,17 @@ import { MODEL_ROLES } from './types.js';
  * Where a user's role bindings live — `users/<handle>/bindings.json`.
  *
  * **A decision made under silence, and worth flagging as one.**
- * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) and
- * [07 §5.1](../../../../docs/design/07-tech-stack.md) both say a binding points at a
- * connection and neither says where it is written; [02 §5.1](../../../../docs/design/02-data-model.md)'s
+ * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) and
+ * [19 §5.1](../../../../docs/design/19-tech-stack.md) both say a binding points at a
+ * connection and neither says where it is written; [03 §5.1](../../../../docs/design/03-data-model.md)'s
  * tree has no file for it. So: a file in the user's own directory, beside
  * `connections/`, following the same rule everything else does — the path is the
- * owner ([04 §4.3]).
+ * owner ([09 §4.3]).
  *
  * **P2.5 shipped the reader and no writer**, and named the writer's home as P7.
  * That was wrong about the phase rather than about the reasoning: the surface
  * that sets a binding is
- * [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md)'s, which is the phase
+ * [P2B](../../../../docs/design/workplan/10-p2b-provider-configuration.md)'s, which is the phase
  * that makes a fresh install usable at all.
  *
  * **It landed for one of the two files.** `system/bindings.json` has a writer —
@@ -29,13 +29,13 @@ import { MODEL_ROLES } from './types.js';
  * the admin prefix. `users/<handle>/bindings.json` deliberately still has none:
  * [P2B §2.7] draws the line at *the system scope and only the system scope*,
  * and the personal half waits with the rest of
- * [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s user surface. So a personal binding
- * is still hand-written, which is [05 §4](../../../../docs/design/05-ui-surfaces.md) working
+ * [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s user surface. So a personal binding
+ * is still hand-written, which is [10 §4](../../../../docs/design/10-ui-surfaces.md) working
  * exactly as designed rather than a gap — and it is a *smaller* gap than it
  * was, because the layer underneath it now answers.
  *
  * **Two layers, not one.** `system/bindings.json` holds the install defaults
- * everyone inherits and a user's own file overrides it per role — [07 §5.1]'s
+ * everyone inherits and a user's own file overrides it per role — [19 §5.1]'s
  * order, read from the weak end. They are deliberately the *same shape read by
  * the same reader*: merging them before resolution would give the same answer
  * for every role that resolves and lose the one thing the surface needs, which
@@ -71,7 +71,7 @@ export async function readBindings(layout: Layout, handle: string): Promise<Role
  * saying `{"prose": null}` reached `usable.find(c => c.id === binding.connectionId)`
  * and threw. One person's hand-written file answered **500** on an admin page
  * listing everybody — and hand-writing this file is the designed path
- * ([05 §4](../../../../docs/design/05-ui-surfaces.md)) until the surface that writes the
+ * ([10 §4](../../../../docs/design/10-ui-surfaces.md)) until the surface that writes the
  * per-user one exists at all.
  *
  * Found by a P2B review probing what happens to values the parse accepts but

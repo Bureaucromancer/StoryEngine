@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * **The two exit-gate clauses that are about the build rather than about the code.**
  *
- * [P2 §4](../../docs/design/workplan/04-p2-implementation.md) step 1: *"The P1 gate
+ * [P2 §4](../../docs/design/workplan/08-p2-implementation.md) step 1: *"The P1 gate
  * stays green — [P1 §3], automated to the three tiers §3's P2.0 entry defines,
  * **on ubuntu and Windows, as standing regression** (P2.0)."* And step 20, in
  * its second half: *"…and **the rebuild property test is a named CI step on
@@ -50,7 +50,7 @@ import { describe, expect, it } from 'vitest';
  * file says what the file says, and moves whenever the file moves. These
  * assertions hold a promise made *somewhere else* — in the gate above, in [P2
  * §3]'s P2.0 stage ("Windows CI job … `format:check`, `--max-warnings 0`"), and
- * in [testing §6](../../docs/design/workplan/10-testing.md)'s per-PR tier —
+ * in [testing §6](../../docs/design/workplan/03-testing.md)'s per-PR tier —
  * against configuration that is free to drift away from it silently and has
  * exactly one mechanism, this file, that notices. The subject is the promise;
  * the text is only how the promise is read. Prose in a design doc cannot fail.

@@ -12,7 +12,7 @@ import type { Connection } from './connections.js';
  * was nothing to capture the bytes *with*, so the first real exchanges this
  * project ever has would have evaporated as they happened. The adapter is
  * tested against hand-written stubs, and a stub agrees with whatever
- * understanding wrote it ([12 §4.1](../../../../docs/design/workplan/12-p2-manual-gate.md));
+ * understanding wrote it ([manual gate §4.1](../../../../docs/design/workplan/11-p2-manual-gate.md));
  * a cassette is the one artefact the double cannot invent.
  *
  * ## HTTP nouns, never domain nouns

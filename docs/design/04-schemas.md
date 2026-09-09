@@ -1,11 +1,11 @@
-# 10 — Proposed schemas
+# 04 — Proposed schemas
 
 **Status: proposal, but the tightest one here.** These are the structures worth
 agreeing before code, because other people's data ends up in them.
 
 Written as TypeScript for readability. The implementation derives these from
 TypeBox, and **the published artifact is JSON Schema**
-([07 §4](07-tech-stack.md)) — third-party tools need a schema they can validate
+([19 §4](docs/design/19-tech-stack.md)) — third-party tools need a schema they can validate
 against without compiling our types.
 
 ---
@@ -30,7 +30,7 @@ Internal structures can be migrated on upgrade because we own every copy.
 **Preset moved out of the internal tier**, where an earlier draft had it, on the
 grounds that it plainly fails this section's own test: a preset travels between
 installs — it is the object this ecosystem trades most — so calling it internal
-was a contradiction with [02 §1](02-data-model.md), which lists it as portable.
+was a contradiction with [03 §1](docs/design/03-data-model.md), which lists it as portable.
 §8 works through the consequences.
 
 **Package used to be a prototype exception and no longer is.** It was marked
@@ -48,7 +48,7 @@ character.**
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
 will churn. With one horizon worth knowing: session export is wanted eventually
-([06 B12](06-open-questions.md)), and when it ships the turn record becomes a
+([25 B12](docs/design/25-open-questions.md)), and when it ships the turn record becomes a
 portable format and this freedom ends.
 
 ---
@@ -122,7 +122,7 @@ interface Provenance {
 }
 
 /** Retained generated value for one field, so an edit can be reverted and the
- *  source disclosed. Keyed by dotted path in `generated`. [05 §11.2] */
+ *  source disclosed. Keyed by dotted path in `generated`. [10 §11.2] */
 interface GeneratedFieldProvenance {
   /** The generated value. JSON-encoded for non-string fields. */
   original: string
@@ -135,7 +135,7 @@ interface GeneratedFieldProvenance {
 }
 
 /** Two genuinely different things, so two lists rather than one with a flag:
- *  a written opening is content, a seed is an instruction. [02 §6] */
+ *  a written opening is content, a seed is an instruction. [03 §6] */
 interface Openings {
   written: Opening[]
   seeds: Opening[]
@@ -153,18 +153,18 @@ interface Opening {
   /** Author guidance. For a seed, this steers the expansion. */
   note?: string
   /** Set when this written opening was promoted from an expanded seed, so the
-   *  lineage is visible. [02 §6] */
+   *  lineage is visible. [03 §6] */
   fromSeedId?: string
 }
 
 /** Normalised 0..1 rectangle of a source image. Normalised rather than pixels
- *  so it survives the source being resized or re-encoded. [05 §11.3] */
+ *  so it survives the source being resized or re-encoded. [10 §11.3] */
 interface SourceRect {
   x: number; y: number; width: number; height: number
 }
 
 /** Structured appearance for image and video pipelines. Prose `appearance` is
- *  for the narrator; this is for machines. [02 §2.1] */
+ *  for the narrator; this is for machines. [03 §2.1] */
 interface VisualDescriptors {
   face?: string
   hair?: string
@@ -177,7 +177,7 @@ interface VisualDescriptors {
 
 /** Roles are typed from the start. A flat image list forecloses everything
  *  downstream — an image pipeline must know which picture is the canonical
- *  likeness. [02 §5.2.2] */
+ *  likeness. [03 §5.2.2] */
 type MediaRole =
   | "portrait-source"   // the uncropped original behind the card's own pixels
   | "reference"         // canonical likeness — of a person, or of a place
@@ -191,7 +191,7 @@ type MediaRole =
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
 // conditioning generation — which is what lets a later feature treat a
 // location's reference image the way it already treats an actor's
-// ([14 §3](14-roadmap.md)). `map` is the only addition lore needed, because a
+// ([24 §3](docs/design/24-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
 
@@ -213,17 +213,17 @@ interface EmbeddedMedia {
   /** Where the container keeps it. A PNG chunk blob index, a zip entry path, or
    *  a path relative to the object's folder — the container decides, and the
    *  reader resolves it through the same envelope interface
-   *  ([02 §5.2](02-data-model.md)). */
+   *  ([03 §5.2](docs/design/03-data-model.md)). */
   ref: string
   label?: string
   /** Arbitrary, author-defined: "winter", "aerial", "concept art", "before the
    *  fire", "by Mireille". The counterpart to `role`, and the division of
    *  labour is the same one `ActorRole` and `Actor.tags` already make
-   *  ([02 §2.2](02-data-model.md)):
+   *  ([03 §2.2](docs/design/03-data-model.md)):
    *
    *    role — closed union. The engine reads it and acts on it.
    *    tags — open. The engine has no built-in meaning for any of them,
-   *           though an author may gate lore on one ([25 §1](25-tagging.md)).
+   *           though an author may gate lore on one ([05 §1](docs/design/05-tagging.md)).
    *
    *  That split is what keeps the union small without costing authors
    *  precision. A gallery of forty images needs finer notation than six roles
@@ -237,7 +237,7 @@ interface EmbeddedMedia {
 }
 
 /** Bulk asset, stored in the object's folder. Always a relative path inside
- *  that folder — never absolute, never escaping it. [02 §5.3] */
+ *  that folder — never absolute, never escaping it. [03 §5.3] */
 interface AssetRef {
   path: string
   role: MediaRole
@@ -245,7 +245,7 @@ interface AssetRef {
 }
 
 /** A preference, never a binding. An imported card may express what it wants;
- *  it can never repoint anyone's provider. Resolution is local. [02 §2.6] */
+ *  it can never repoint anyone's provider. Resolution is local. [03 §2.6] */
 interface ModelHint {
   role: "prose" | "fast" | "reasoning" | "vision"
   preferredModelIds?: string[]
@@ -256,13 +256,13 @@ interface ModelHint {
 ### 3.1 WritingSample
 
 Prose offered as an exemplar — *show, do not tell*. Carried by Actor, Lorebook
-and Treatment; the full argument is [18](18-writing-samples.md).
+and Treatment; the full argument is [14](docs/design/14-writing-samples.md).
 
 The rest of this design describes style: `tone.styleNotes` says "terse,
 hardboiled", `se.voice` is register and verbal tics and is explicit that it is
 not what somebody sounds like. This is the field that *demonstrates* it — a
 passage from the setting, pasted whole. The precedent is
-[24 §3](24-character-studio.md),
+[17 §3](docs/design/17-character-studio.md),
 which already separated a style exemplar from a likeness for pictures on the
 grounds that style is a property of the production rather than of the person.
 
@@ -289,7 +289,7 @@ against a single block is to drop all of it. **Optional on all three kinds**, so
 it is additive and none of them bumped a version (§2).
 
 **No `maxLength`.** No portable schema carries one, and a sample is the field
-most likely to invite the first — [18 §5](18-writing-samples.md) states the
+most likely to invite the first — [14 §5](docs/design/14-writing-samples.md) states the
 budget consequence instead, which is where it is actually enforced.
 
 ---
@@ -309,10 +309,10 @@ interface Actor {
   pronouns: string | null
 
   /** Flags, not types. Advisory — any actor may be chosen as persona; the flag
-   *  controls what pickers offer first. [02 §2.2] */
+   *  controls what pickers offer first. [03 §2.2] */
   roles: ActorRole[]
   /** "npc" lives here. The engine has no built-in meaning for any tag, though
-   *  an author may gate lore on one ([25 §1](25-tagging.md)). */
+   *  an author may gate lore on one ([05 §1](docs/design/05-tagging.md)). */
   tags: string[]
 
   profile: ActorProfile
@@ -320,7 +320,7 @@ interface Actor {
   /** Prose written *as* this person, offered as an exemplar — §3.1.
    *  Top-level rather than under `profile`, and beside `openings`: the profile
    *  is what somebody is like, while a sample demonstrates how they are
-   *  written, which [24 §3](24-character-studio.md) classes as production. */
+   *  written, which [17 §3](docs/design/17-character-studio.md) classes as production. */
   writingSamples?: WritingSample[]
   lore: Ref[]                      // linked lorebooks, not embedded
 
@@ -332,7 +332,7 @@ interface Actor {
 
   modelHint: ModelHint | null
   /** Namespaced by owning mode or extension. A mode may only read its own key;
-   *  unknown keys survive round trips untouched. [02 §2.4] */
+   *  unknown keys survive round trips untouched. [03 §2.4] */
   modeData: Record<string, unknown>
 
   provenance: Provenance
@@ -393,16 +393,16 @@ list, and a preset can reorder or drop `se.background` without special-casing.
 **Deliberately absent**, and this is most of the design:
 `system_prompt`, `post_history_instructions`, `depth_prompt`, `talkativeness`,
 `scenario`. Prompt assembly is owned by the preset and the mode, not by the
-description of a person ([00 §2.4](00-stance.md)). Per-session numbers — HP,
+description of a person ([00 §2.4](docs/design/00-stance.md)). Per-session numbers — HP,
 inventory — live in channels and must never appear here.
 
 > **`mes_example` left this list.** It was here, and the sentence beside it read
 > ~~"Dialogue examples are a `Section` with `disposition: "on-demand"`"~~. They
-> are now `writingSamples` ([§3.1](#31-writingsample), [18](18-writing-samples.md)).
+> are now `writingSamples` ([§3.1](#31-writingsample), [14](docs/design/14-writing-samples.md)).
 > The reasoning that put them in a Section is unchanged and still holds — the
 > card declares no assembly, and a sample is still positioned and budgeted by a
 > preset slot. What failed was the container: a `Section` has no `priority`, and
-> [00 §2.6](00-stance.md) requires every block to carry one, so a sample in a
+> [00 §2.6](docs/design/00-stance.md) requires every block to carry one, so a sample in a
 > Section could not participate in the rule the budgeter is built on.
 
 ---
@@ -411,7 +411,7 @@ inventory — live in channels and must never appear here.
 
 Entry activation is taken from Marinara close to unchanged, because it is a
 decade of empirical tuning and it is the interchange format
-([02 §3](02-data-model.md)). The changes are ~~four~~ **five**, all scoped —
+([03 §3](docs/design/03-data-model.md)). The changes are ~~four~~ **five**, all scoped —
 corrected at P4.2, where the converter had to enumerate them and the code's own
 header had counted five for some time.
 
@@ -433,13 +433,13 @@ interface Lorebook {
 
   folders: LoreFolder[]
   /** Optional. Hooks genuinely inseparable from this lore — eligible only while
-   *  this lorebook is active. Treatments remain the primary home. [02 §4.1] */
+   *  this lorebook is active. Treatments remain the primary home. [03 §4.1] */
   hooks?: PlotHook[]
   entries: LoreEntry[]
   /** Prose from this world, offered as an exemplar — §3.1. Book-scoped rather
    *  than on an entry: an exemplar that appears only when somebody says a magic
-   *  word is not an exemplar. Overrides [16 §4](16-lorebooks-as-a-format.md)'s
-   *  refusal of new fields; the reasoning is [18 §6.2](18-writing-samples.md). */
+   *  word is not an exemplar. Overrides [11 §4](docs/design/11-lorebooks-as-a-format.md)'s
+   *  refusal of new fields; the reasoning is [14 §6.2](docs/design/14-writing-samples.md). */
   writingSamples?: WritingSample[]
 
   /** Organisational, and the only such axis — a closed `category` union was
@@ -452,7 +452,7 @@ interface Lorebook {
    *  as `Openings` does it (§3), rather than a separate `cover` field —
    *  reordering stays free and the first element is not special. */
   primaryMediaId: string | null
-  /** Bulk, in the folder rather than the manifest. Parity with Actor. [02 §5.3] */
+  /** Bulk, in the folder rather than the manifest. Parity with Actor. [03 §5.3] */
   assets: AssetRef[]
   provenance: Provenance
   generated: Record<string, GeneratedFieldProvenance> | null
@@ -461,9 +461,9 @@ interface Lorebook {
 
 /** One mechanism, three behaviours, mutual exclusion by construction. Replaces
  *  characterId + characterIds + personaId + personaIds + chatId + isGlobal +
- *  scope, and the save-time rule that kept them consistent. [02 §3.4] */
+ *  scope, and the save-time rule that kept them consistent. [03 §3.4] */
 /** Portable scopes only. `global` and `linked` travel — an actor id is portable
- *  and resolves or dangles like any other Ref ([00 §3.3](00-stance.md)). */
+ *  and resolves or dangles like any other Ref ([00 §3.3](docs/design/00-stance.md)). */
 type LoreScope =
   | { kind: "global" }
   | { kind: "linked"; actorIds: string[] }    // personas are actors
@@ -473,7 +473,7 @@ type LoreScope =
 // else — noise on import at best, and a false resolution against an unrelated
 // local session at worst. "This lorebook applies to this session" is a fact
 // about the *session*, so it lives on the session's own lore links
-// ([02 §8](02-data-model.md)), pointing outward at the lorebook rather than the
+// ([03 §8](docs/design/03-data-model.md)), pointing outward at the lorebook rather than the
 // lorebook pointing inward at the session.
 
 // And as of [P5.7]'s reversal, that outward-pointing link is the ONLY way a
@@ -482,11 +482,11 @@ type LoreScope =
 // import because it is part of the format; it selects nothing, because a field
 // on a library object opting itself into somebody's story put every book a
 // person owned into every prompt — `global` being both this schema's factory
-// default and the SillyTavern importer's fallback ([02 §3.4]).
+// default and the SillyTavern importer's fallback ([03 §3.4]).
 //
-// Two questions left open rather than settled, in [06](06-open-questions.md):
+// Two questions left open rather than settled, in [25](docs/design/25-open-questions.md):
 // §B14, may `scope` narrow a book the session already chose; and §B15, what a
-// new book's scope should default to. [19 §5.3](19-world.md) is where a
+// new book's scope should default to. [15 §5.3](docs/design/15-world.md) is where a
 // consumer would come from — inheritance, designed, not inferred from the
 // union's wording.
 
@@ -557,12 +557,12 @@ interface LoreEntry {
 
   // ── The one addition ──
   /** Where a retriever contributed by an extension attaches. Everything
-   *  built in stays a flat field above. [02 §3.1] */
+   *  built in stays a flat field above. [03 §3.1] */
   extensionActivations?: { by: string; config: unknown }[]
 
   /** If this entry tracks state, its shape. The *values* live in a session
    *  channel keyed by entry id — never here, because an exported lorebook must
-   *  not carry somebody's playthrough. [02 §3.3] */
+   *  not carry somebody's playthrough. [03 §3.3] */
   stateSchema?: unknown            // JSON Schema
 
   /** Free string with a suggested vocabulary ("location", "item", "quest"),
@@ -594,7 +594,7 @@ interface LoreFilter {
 otherwise put megabytes of one install's vector arithmetic into every shared
 lorebook), `dynamicState`, quest structures, `relationships`, and
 `activationConditions` / `schedule`. The last two become typed channel
-predicates; the rest become channels ([02 §3.3](02-data-model.md)).
+predicates; the rest become channels ([03 §3.3](docs/design/03-data-model.md)).
 
 
 **Also absent: `category`.** An earlier draft carried Marinara's five-value
@@ -602,7 +602,7 @@ book-level union — `world`, `character`, `npc`, `spellbook`, `uncategorized` �
 described as organisational only and explicitly not affecting activation. It is
 removed rather than renamed, and the reasons compound:
 
-- **It argued against itself.** [02 §3.4](02-data-model.md) rejects closed
+- **It argued against itself.** [03 §3.4](docs/design/03-data-model.md) rejects closed
   vocabularies one paragraph earlier — *"Aventuras' closed `EntryType` union is
   the one with the ceiling. Take Marinara's shape"* — and then kept a closed
   union at book level. `LoreEntry.tag` is free text for exactly this reason.
@@ -610,28 +610,28 @@ removed rather than renamed, and the reasons compound:
   matter; `spellbook` is one genre's artefact; `uncategorized` is a null wearing
   a value's clothes.
 - **`character` and `npc` as separate values contradict the actor model.**
-  Persona and NPC are flags on a single Actor kind ([02 §2.2](02-data-model.md)),
+  Persona and NPC are flags on a single Actor kind ([03 §2.2](docs/design/03-data-model.md)),
   and two book categories for one actor concept re-import the split that
   unification removed.
 - **`tags` already does the job**, openly, and is what the library's filters
   read.
 
 The trigger was the collision — `category: "world"` alongside a reserved World
-concept ([19](19-world.md)) — but the collision only made the field worth
+concept ([15](docs/design/15-world.md)) — but the collision only made the field worth
 reopening. What was found on reopening is why it is gone rather than renamed.
 
 ### 5.1 Images on lore
 
 New territory rather than a port: Marinara carries one `imagePath` per book for
 the library card and nothing per entry, and SillyTavern's World Info has no
-images at all. Reasoning in [02 §3.6](02-data-model.md); the shape is two
+images at all. Reasoning in [03 §3.6](docs/design/03-data-model.md); the shape is two
 `EmbeddedMedia[]` fields, one on the book and one on the entry, both resolving
 into the object's folder.
 
 **Nothing in the engine reads them at 1.0**, and the `⚠` on `LoreEntry.media` is
 the load-bearing part of this addition rather than a caution. What makes it worth
 adding now anyway is that **typed roles cannot be retrofitted**
-([02 §5.2.2](02-data-model.md)) — the same argument made for cards, unchanged.
+([03 §5.2.2](docs/design/03-data-model.md)) — the same argument made for cards, unchanged.
 Adding images later without roles means guessing afterwards what each one was
 for, and the guess is not recoverable.
 
@@ -643,25 +643,25 @@ activation, not about display.** Media is not retrieved, not budgeted and not
 sent, none of which a thumbnail on a browse row breaks, and the corrected
 sentence says *engine* because that is the boundary the warning was always
 drawing. The `⚠` on `LoreEntry.media` is untouched and means exactly what it
-said. The panel that spends `primaryMediaId` is [05 §5.3](05-ui-surfaces.md).
+said. The panel that spends `primaryMediaId` is [10 §5.3](docs/design/10-ui-surfaces.md).
 
 The intended first real consumer is rendition conditioning
-([14 §3](14-roadmap.md)): a location's `reference` image is the same shape of
+([24 §3](docs/design/24-roadmap.md)): a location's `reference` image is the same shape of
 input to *illustrate this scene* that an actor's already is
-([03 §10.3](03-modes-and-turn-pipeline.md)). That is why `reference` carries the
+([06 §10.3](docs/design/06-modes-and-turn-pipeline.md)). That is why `reference` carries the
 same meaning across both kinds rather than lore getting a vocabulary of its own.
 
 ### 5.2 Entry-level exchange
 
 Entries import and export independently of the book they live in, as a routine
-editor action rather than a special case ([05 §11.2c](05-ui-surfaces.md)). The
+editor action rather than a special case ([10 §11.2c](docs/design/10-ui-surfaces.md)). The
 schema pays nothing for it, which is most of the argument for doing it this way.
 
 - **The exchange file is a `Lorebook`.** `entries` holds the selection, `folders`
   holds the ancestors of those entries, and everything else is an ordinary book.
   A `LoreEntry[]` fragment format was considered and rejected: it saves a handful
   of book-level fields and gives up the one property that makes this schema worth
-  taking close to unchanged ([02 §3](02-data-model.md)) — that every tool in the
+  taking close to unchanged ([03 §3](docs/design/03-data-model.md)) — that every tool in the
   ecosystem already reads this shape. A partial export that only our importer
   understands is a worse artefact than a small lorebook that everything does.
 - **Its book-level fields are the source book's, and advisory on arrival.** An
@@ -673,14 +673,14 @@ schema pays nothing for it, which is most of the argument for doing it this way.
   An importer may renumber freely, two books holding the same id is ordinary
   rather than a conflict, and nothing may treat id equality across books as
   identity. The editor's rule that follows from this — add by default, replace
-  only when asked — is at [05 §11.2c](05-ui-surfaces.md).
+  only when asked — is at [10 §11.2c](docs/design/10-ui-surfaces.md).
 - **Nothing session-scoped travels, because nothing session-scoped is present.**
   `stateSchema` is a declaration and belongs to the entry; the values live in a
-  channel keyed by entry id ([02 §3.3](02-data-model.md)) and are not in the book
+  channel keyed by entry id ([03 §3.3](docs/design/03-data-model.md)) and are not in the book
   to leak.
 
 Container rules are unchanged and are the book's: JSON where the selection
-carries no media, the zip form where it does ([02 §5.2.3](02-data-model.md)).
+carries no media, the zip form where it does ([03 §5.2.3](docs/design/03-data-model.md)).
 
 ---
 
@@ -706,7 +706,7 @@ work: a Treatment of Rain City does not describe Rain City.
 > configuration surface, and the collision was already on disk — the kind's
 > library folder was `settings/` while the app's config screen was Settings.
 > **`World` is now reserved** for the 4.0 continuity container over sessions
-> ([19](19-world.md)) and is deliberately not spent on a library label.
+> ([15](docs/design/15-world.md)) and is deliberately not spent on a library label.
 
 ```ts
 interface Treatment {
@@ -748,7 +748,7 @@ interface Treatment {
 
   /** Advisory. Authored prose asking the narrator for turns that stage well —
    *  a property of the material, never derived from the image settings.
-   *  §6.1b, [03 §10.6]. */
+   *  §6.1b, [06 §10.6]. */
   stagingNotes?: string
 
   /** Advisory only. A treatment proposes a mode; it never configures production
@@ -773,7 +773,7 @@ interface CastEntry {
 **Deliberately absent**: key locations, world description, NPC inline snapshots.
 Locations are lorebook entries; the cast links to real actors. This is what
 dissolves the materialise-or-not question Marinara's scenario design spends a
-section on ([02 §4](02-data-model.md)).
+section on ([03 §4](docs/design/03-data-model.md)).
 
 **A Treatment owns no lorebook.** It only links, which is what allows **many
 treatments over one lorebook** — a Rain City noir treatment and a Rain City comedy
@@ -783,7 +783,7 @@ a question nobody wants to answer.
 
 `LoreLink.required` (§3) is the concession: an author can mark a link as load-
 bearing, and a consumer warns loudly when it cannot be resolved. It still never
-blocks ([00 §3.3](00-stance.md)) — the difference between "this treatment is
+blocks ([00 §3.3](docs/design/00-stance.md)) — the difference between "this treatment is
 missing a nice extra" and "this treatment is missing its world" is worth saying
 out loud, and that is all the flag does.
 
@@ -799,7 +799,7 @@ home, and correct.
 
 A pool of authored, discrete plot turns, held out of context until a selector
 judges the moment right. The inverse of a rule: a rule is condition-first, a
-hook is a Y looking for its moment ([02 §4.1](02-data-model.md)).
+hook is a Y looking for its moment ([03 §4.1](docs/design/03-data-model.md)).
 
 ```ts
 interface PlotHook {
@@ -856,7 +856,7 @@ interface Entrance {
 **Fully stable, because the rule-typed fields are gone.** An earlier draft
 carried `requires?: Predicate[]` and `onFire?: Effect[]` with ⚠ warnings, since
 both belonged to the authored-rule vocabulary. That vocabulary is now 6.0
-([work plan §0.4](workplan/01-work-plan.md)), and rather than ship a `/1` schema with two fields
+([work plan §0.4](docs/design/workplan/01-work-plan.md)), and rather than ship a `/1` schema with two fields
 typed against something unwritten, they are removed.
 
 **Little is lost, which is part of why the deferral was affordable.**
@@ -894,7 +894,7 @@ introduction hook is eligible only while its subject is **not** introduced —
 but a subject who is dead is no more introducible than an `involves` cast member
 who is. Exempting the subject from the whole check would fire *"Vera walks into
 the bar"* for a Vera the session recorded dead four sessions ago, which is the
-severe failure [02 §4.1](02-data-model.md) exists to name. So the predicate is
+severe failure [03 §4.1](docs/design/03-data-model.md) exists to name. So the predicate is
 written out rather than described as an inversion:
 
 > Eligible when the subject **resolves**, is **not yet introduced**, carries no
@@ -930,7 +930,7 @@ form.
 the content. The selector's judgement pass is described as reading premises, so
 where there is none it reads the entrance labels.
 
-**Lorebooks may carry these too, with one cost stated.** [02 §4.1](02-data-model.md)'s
+**Lorebooks may carry these too, with one cost stated.** [03 §4.1](docs/design/03-data-model.md)'s
 allowed-but-secondary rule applies unchanged, and *the stranger from the Flower
 Kingdom* is close to its canonical case. It does mean a Lorebook can depend on an
 Actor for the first time — softly, since an unresolvable subject breaks the hook
@@ -944,18 +944,18 @@ type HookPacing = "sparse" | "normal" | "aggressive" | "manual-only"
 ```
 
 Semantics belong to the selector and are specified at
-[03 §6.1](03-modes-and-turn-pipeline.md). What is settled *here* is only where the
+[06 §6.1](docs/design/06-modes-and-turn-pipeline.md). What is settled *here* is only where the
 value may be written down, and the answer is the shape `openings` already uses:
 **a Treatment proposes, a Setup overrides, and the running session owns it.**
 
 **A Treatment may carry it, which is not obvious and is worth the sentence.**
 Pacing looks like a property of a game rather than of a reading of a world, which
 would put it on Setup alone. But a treatment is where hooks primarily live
-([02 §4.1](02-data-model.md)), and *this material wants to be sparse* is a real
+([03 §4.1](docs/design/03-data-model.md)), and *this material wants to be sparse* is a real
 authorial intent that would otherwise be lost the moment somebody builds a Setup
 over it. `modeHints` (§6) is the precedent for an advisory-only field there, and
 the channel that carries the live value already has a *from treatment* init arm
-([03 §4](03-modes-and-turn-pipeline.md)) — so the mechanism exists and declining
+([06 §4](docs/design/06-modes-and-turn-pipeline.md)) — so the mechanism exists and declining
 to use it would be the arbitrary choice.
 
 **Optional on both, because a required field added to a published `/1` is a `/2`
@@ -964,11 +964,11 @@ the session resolves to its own default; it does not mean `normal`.
 
 **Not a production setting**, and it does not become one by being live: it says
 how much authored plot should be pushed at a player, which is authorial, and it
-has nowhere to put an endpoint or a key ([00 §3.2](00-stance.md)).
+has nowhere to put an endpoint or a key ([00 §3.2](docs/design/00-stance.md)).
 
 #### `stagingNotes` is the second field this argument covers
 
-Added when [03 §10.6](03-modes-and-turn-pipeline.md) needed a way for a treatment
+Added when [06 §10.6](docs/design/06-modes-and-turn-pipeline.md) needed a way for a treatment
 to ask the narrator for turns that stage well — *this material wants scenes you
 can see*. Every clause above transfers unchanged: advisory, optional on both for
 the `/1` reason, authorial intent about the material rather than a property of
@@ -981,19 +981,19 @@ wants cinematic staging wants it with illustration switched off, because it is a
 statement about how the prose should read. Marinara runs the coupling the other
 way and substitutes its keyframe count into the narrator's prompt, so changing
 the image budget rewrites the story — which
-[01 §1](01-source-survey.md) already identifies as production and
+[01 §1](docs/design/01-source-survey.md) already identifies as production and
 narrative content confused with each other, one level higher up. Production must
 not reach the prose; a treatment may, because a treatment is prose.
 
 Prose rather than an enum, unlike `hookPacing`, and the difference is real: a
 cadence has levels an engine schedules against
-([03 §6.1](03-modes-and-turn-pipeline.md) puts the numbers in engine code and the
+([06 §6.1](docs/design/06-modes-and-turn-pipeline.md) puts the numbers in engine code and the
 words in the pack), while this one only ever reaches a model. There is nothing
 for the engine to do with it, so there is nothing to enumerate.
 
 ### 6.2 `contentRating` is advisory — and says so
 
-Settled in [06 E8](06-open-questions.md), recorded here because it constrains
+Settled in [25 E8](docs/design/25-open-questions.md), recorded here because it constrains
 every surface that displays the field.
 
 **The rating states the author's intent for the material. It is not a statement
@@ -1011,7 +1011,7 @@ can do honestly: help a human decide what to open.
 prompts** — the layer that shapes model behaviour directly, authored by whoever
 holds the opinion and replaceable by whoever does not. That layer also has the
 better property: its effect is visible in the turn record
-([02 §8](02-data-model.md)) rather than buried in engine logic.
+([03 §8](docs/design/03-data-model.md)) rather than buried in engine logic.
 
 A preset *may* read the field and act on it. That is a preset's choice, made in
 the open, and is the correct place for such a choice to live.
@@ -1049,7 +1049,7 @@ interface Setup {
 
   cast: {
     personaOptions: Ref[]          // offered as the played character
-    partyDefault: Ref[]            // [03 §8] — the party always contains the persona
+    partyDefault: Ref[]            // [06 §8] — the party always contains the persona
     narrator: Ref | null           // null = the mode's default narrator
   }
 
@@ -1079,7 +1079,7 @@ world; *Rain City, noir* is the Treatment — how that world is handled here; *T
 Fixer's Debt*, Freeform, playing Marlow is a Setup — one game played under
 it. This is the reframe Marinara's own scenario design
 identified and deferred — "make Setting the first-class entity and scenarios its
-children" ([01 §1](01-source-survey.md)). We adopted the parent and never built
+children" ([01 §1](docs/design/01-source-survey.md)). We adopted the parent and never built
 the child; Setup is the child.
 
 **A Setup is useful without ever being shared**, which is the strongest argument
@@ -1089,11 +1089,11 @@ copies and a dependency manifest.
 
 **No production settings, still.** No connections, no credentials, no endpoint
 URLs, no per-install toggles — enforced by there being nowhere to put them
-([00 §3.2](00-stance.md)). `mode.config` is opaque to the host but is subject to
+([00 §3.2](docs/design/00-stance.md)). `mode.config` is opaque to the host but is subject to
 the same rule.
 
 **Sessions are created from a Setup by copy**, per prefill-not-binding
-([00 §3.1](00-stance.md)). Editing a Setup afterwards cannot reach a running
+([00 §3.1](docs/design/00-stance.md)). Editing a Setup afterwards cannot reach a running
 session. The reverse operation is also worth having and now has a clean shape:
 **a running session can emit a Setup**, which is Marinara's play-first-share-
 afterwards snapshot as a first-class object rather than a text file.
@@ -1101,7 +1101,7 @@ afterwards snapshot as a first-class object rather than a text file.
 ### 7.1 Goal
 
 What the player is trying to do. Reasoning and the mode behaviour around it are
-in [03 §7.3.3](03-modes-and-turn-pipeline.md); this is the shape.
+in [06 §7.3.3](docs/design/06-modes-and-turn-pipeline.md); this is the shape.
 
 ```ts
 interface Goal {
@@ -1114,19 +1114,19 @@ interface Goal {
    *  so a long one costs nothing per turn. */
   detail: string | null
   /** "hidden" is the GM's arc — same mechanism as a hidden channel
-   *  ([03 §7.3](03-modes-and-turn-pipeline.md)), so the reveal affordance and
+   *  ([06 §7.3](docs/design/06-modes-and-turn-pipeline.md)), so the reveal affordance and
    *  the budgeting are shared rather than reinvented. */
   visibility: "player" | "hidden"
 
   /** "mechanical" — completion computed from channel state — waits on the
    *  authored-rule vocabulary and arrives as a third variant at 6.0
-   *  ([work plan §0.4](workplan/01-work-plan.md)). Adding a variant is additive. */
+   *  ([work plan §0.4](docs/design/workplan/01-work-plan.md)). Adding a variant is additive. */
   completion:
     | { kind: "narrative" }        // an evaluation step judges it
     | { kind: "manual" }           // the player says when
 
   /** Seeds the offer made at completion; never applied without asking
-   *  ([03 §7.3.4](03-modes-and-turn-pipeline.md)). */
+   *  ([06 §7.3.4](docs/design/06-modes-and-turn-pipeline.md)). */
   thenDefault: "continue-open" | "advance" | "end"
   /** Authored successor, for a designed chain. null = ask. */
   next: string | null
@@ -1139,7 +1139,7 @@ earns its place — a quest whose state is real data — but Campaign at 5.0 doe
 *supply* it: a `Goal` lives on Setup, which is authored content, so the condition
 belongs to the author rather than to the mode. The vocabulary therefore lands a
 release later with the rest of the authoring tier
-([work plan §0.6](workplan/01-work-plan.md)), and Campaign ships with narrative
+([work plan §0.6](docs/design/workplan/01-work-plan.md)), and Campaign ships with narrative
 and manual completion, which is what its own quests need.
 
 **Why `Goal` sits on Setup rather than Treatment.** A Treatment is a world and a
@@ -1160,7 +1160,7 @@ not reach pacing at all.
 
 > **[OPEN] Where difficulty's *live* value lives is a question this paragraph does
 > not answer, and did not used to have to.** `mode.config` is opaque to the host
-> by design, while [03 §7.3.1](03-modes-and-turn-pipeline.md) requires difficulty
+> by design, while [06 §7.3.1](docs/design/06-modes-and-turn-pipeline.md) requires difficulty
 > to be *"changeable mid-session, recorded as an effect like anything else"* — and
 > an effect path cannot carry something the host has no schema for. The two
 > statements have coexisted because nothing consumed them together. Hook pacing
@@ -1169,7 +1169,7 @@ not reach pacing at all.
 >
 > **Two dials have arrived since, and neither inherited it** — which is evidence
 > about the shape rather than a resolution. Illustration pacing
-> ([03 §10.6](03-modes-and-turn-pipeline.md)) is a channel for exactly hook
+> ([06 §10.6](docs/design/06-modes-and-turn-pipeline.md)) is a channel for exactly hook
 > pacing's reasons and copies its declaration line for line; `stagingNotes`
 > (§6.1b) is authored prose with no live value to locate at all. So the prediction
 > above has held twice by dials following the precedent rather than by the
@@ -1197,8 +1197,8 @@ round-trip guarantee inverts the priority §1 sets out.
 | Decision | What it hands to this layer |
 |---|---|
 | Content rating is advisory ([§6.2](#62-contentrating-is-advisory--and-says-so)) | *"Where enforcement actually belongs is prompt packs and upstream system prompts"* |
-| Difficulty is a sycophancy dial ([03 §7.3.1](03-modes-and-turn-pipeline.md)) | *"The levels live in the prompt pack, not in engine code"* |
-| Model-behaviour patching ([08 §5](08-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
+| Difficulty is a sycophancy dial ([06 §7.3.1](docs/design/06-modes-and-turn-pipeline.md)) | *"The levels live in the prompt pack, not in engine code"* |
+| Model-behaviour patching ([02 §5](docs/design/02-infinite-worlds.md)) | Sycophancy correction, agency-based evaluation |
 
 Each is a good decision. Together they mean the layer three arguments rest on
 cannot be the one layer left undefined — that is how a delegation becomes a hole.
@@ -1225,7 +1225,7 @@ entries with `marker: true` (`chatHistory`, `worldInfoBefore`, `charDescription`
 `content`. Those are slots and text blocks, in one list, distinguished by a
 boolean. **The prompt manager is a block assembler whose blocks are called
 prompts** — which is a strong independent confirmation of
-[00 §2.1](00-stance.md)'s replacement for the mega-string, arrived at from the
+[00 §2.1](docs/design/00-stance.md)'s replacement for the mega-string, arrived at from the
 other direction by the most-deployed project in the space.
 
 Naming the two kinds explicitly is the improvement. A slot and a text block have
@@ -1261,12 +1261,12 @@ interface Preset {
   modelHint: ModelHint | null
 
   /** Named levels the mode's difficulty treatment resolves against
-   *  ([03 §7.3.1](03-modes-and-turn-pipeline.md)). Omitted = the built-in
+   *  ([06 §7.3.1](docs/design/06-modes-and-turn-pipeline.md)). Omitted = the built-in
    *  pack. Supplied = this preset owns the meaning of "hard". */
   difficultyLevels?: DifficultyLevel[]
 
   /** Author-declared variables the templates interpolate, with defaults and
-   *  help text. The Aventuras `CustomVariable` shape ([05 §6](05-ui-surfaces.md)). */
+   *  help text. The Aventuras `CustomVariable` shape ([10 §6](docs/design/10-ui-surfaces.md)). */
   variables: PresetVariable[]
 
   tags: string[]
@@ -1302,7 +1302,7 @@ interface BlockCommon {
   /** Which kinds of call this block applies to. Empty = all. This is what
    *  dissolves ST's eight special-cased template fields — §8.4.3. */
   appliesTo: CallKind[]
-  /** Guidance-class blocks are refused by effect-producing calls. [03 §5.2] */
+  /** Guidance-class blocks are refused by effect-producing calls. [06 §5.2] */
   advisory: boolean
   /** Drop the block rather than emit a heading with nothing under it. */
   omitWhenEmpty: boolean
@@ -1326,12 +1326,12 @@ type SlotSource =
   | { of: "actor"; sectionId: string }     // "se.summary", "se.appearance", …
   /** Non-prose actor fields. `traits` is a real field rather than a Section
    *  ([§4](#4-actor)), so a slot cannot reach it through `sectionId` — and
-   *  card import puts a legacy `personality` here ([02 §2.7](02-data-model.md)),
+   *  card import puts a legacy `personality` here ([03 §2.7](docs/design/03-data-model.md)),
    *  which makes this the slot ST's `charPersonality` converts to. §8.4.1. */
   | { of: "actor"; field: "traits" | "visual" }
   | { of: "lore"; phase: "before" | "after" }
   | { of: "history" }
-  /** Writing samples — §3.1, [18 §4](18-writing-samples.md). **Renamed from
+  /** Writing samples — §3.1, [14 §4](docs/design/14-writing-samples.md). **Renamed from
    *  `examples`**, which named ST's `mes_example` rather than the thing it
    *  fills; free to rename because this schema is `/0` and no shipped preset
    *  positioned the old arm. `from` absent = every carrier, in the order
@@ -1339,12 +1339,12 @@ type SlotSource =
   | { of: "samples"; from?: "actor" | "treatment" | "lore" }
   | { of: "channel"; channelId: ChannelId }
   | { of: "treatment"; part: "framing" | "tone" }
-  | { of: "goal" }                          // [03 §7.3.3]
-  /** The guidance slot. [03 §5.1] positions this one by preset explicitly; the
+  | { of: "goal" }                          // [06 §7.3.3]
+  /** The guidance slot. [06 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
   | { of: "guidance" }
   /** The previous attempt a guided redo shows the model — the second advisory
-   *  slot, [03 §5.1]. Filled from the server's record of the turn a submission
+   *  slot, [06 §5.1]. Filled from the server's record of the turn a submission
    *  names; which turn is recorded on the block. Forced advisory like
    *  `guidance`, and the one slot that wants a `wrapper`, since bare it is an
    *  unlabelled system message of prose the model itself wrote. */
@@ -1353,7 +1353,7 @@ type SlotSource =
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }
 
-// SlotSource is BlockSource ([13 §1.1](13-internal-contracts.md)) minus its two
+// SlotSource is BlockSource ([21 §1.1](docs/design/21-internal-contracts.md)) minus its two
 // assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
 // contribution did not exist when the preset was authored. One vocabulary, used
@@ -1363,7 +1363,7 @@ type SlotSource =
 /** Prose the preset author wrote. */
 interface TextBlock extends BlockCommon {
   kind: "text"
-  /** Liquid, rendered within the block — never across blocks. [03 §5] */
+  /** Liquid, rendered within the block — never across blocks. [06 §5] */
   template: string
 }
 
@@ -1407,7 +1407,7 @@ run that now has something embedded in it.
 
 Two reasons to accept the cost rather than refuse the placement:
 
-- **It is not what [00 §2.1](00-stance.md) rejects.** That objection is to
+- **It is not what [00 §2.1](docs/design/00-stance.md) rejects.** That objection is to
   *character offsets into an assembled string* — "insert at index 4,182" — which
   is unrepresentable, unreviewable and breaks whenever anything upstream changes
   length. "After the Nth-newest message" is a **structural** position over a list
@@ -1463,13 +1463,13 @@ The marker identifiers map one to one:
 | `scenario` | `{ of: "treatment", part: "framing" }` |
 
 The `scenario` row is the interesting one, and it is the same move
-[02 §2.7](02-data-model.md) makes for card import: ST's scenario is per-character
+[03 §2.7](docs/design/03-data-model.md) makes for card import: ST's scenario is per-character
 text, ours is the treatment's framing, and routing it there is where it always
 wanted to live.
 
 **The `charPersonality` row is the one that has to agree with card import, and
 an earlier draft got it wrong.** It pointed at `se.voice`, which reads sensibly
-in isolation and is broken in practice: [02 §2.7](02-data-model.md) routes a
+in isolation and is broken in practice: [03 §2.7](docs/design/03-data-model.md) routes a
 card's `personality` to `traits` + `summary`, so a converted preset and a
 converted card from the *same* install would have produced a slot that resolves
 to a section nothing ever wrote. Empty forever, and `omitWhenEmpty` would have
@@ -1480,17 +1480,17 @@ hidden it.
 > other*. Verified separately, both look right.
 
 The check is cheap and belongs in the fixture suite
-([testing §5](workplan/10-testing.md)): import a real ST directory, assemble one turn, and
+([testing §5](docs/design/workplan/03-testing.md)): import a real ST directory, assemble one turn, and
 assert that **no slot resolves empty**. It is the kind of failure that produces
 silence rather than an error, which is exactly what a golden-file test is for.
 
 #### 8.4.2 What is lossy, and how each loss is reported
 
-Every item here lands in the import review step ([05 §5](05-ui-surfaces.md)) as a
+Every item here lands in the import review step ([10 §5](docs/design/10-ui-surfaces.md)) as a
 named consequence, never as a silent drop.
 
 - **Macros.** `{{char}}`, `{{user}}`, `{{persona}}`, `{{scenario}}` and friends
-  become Liquid at import, per [00 §2.1](00-stance.md). A closed mapping table
+  become Liquid at import, per [00 §2.1](docs/design/00-stance.md). A closed mapping table
   covers the common set; **an unrecognised macro is preserved verbatim and
   flagged**, because a mangled prompt that looks fine is worse than one that
   visibly needs a look. `{{charIfNotGroup}}` and similar conditionals become
@@ -1499,7 +1499,7 @@ named consequence, never as a silent drop.
   system role"* — a genuinely misleading field name. It carries no meaning here
   and drops.
 - **`forbid_overrides`** governs whether a character card may override a prompt.
-  Cards cannot override prompts at all ([00 §2.4](00-stance.md)), so it is moot
+  Cards cannot override prompts at all ([00 §2.4](docs/design/00-stance.md)), so it is moot
   and drops.
 - **Per-character `prompt_order` entries.** ST keys orderings by
   `character_id`, with `100000` and `100001` as dummy ids for the global and
@@ -1507,10 +1507,10 @@ named consequence, never as a silent drop.
   per-character orders gets **one preset plus a warning naming the characters**,
   rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
-  ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
-  completion, which is unsupported ([07 §5.5](07-tech-stack.md)).
+  ([00 §2.2](docs/design/00-stance.md), [triage §6.1](docs/design/workplan/02-triage.md)). They exist to serve raw
+  completion, which is unsupported ([19 §5.5](docs/design/19-tech-stack.md)).
 
-  *Extended at [P4 §7.17](workplan/06-p4-implementation.md): they are now
+  *Extended at [P4 §7.17](docs/design/workplan/16-p4-implementation.md): they are now
   **recognised** as well as refused, and **recognising is not converting**.* The
   sentence above is unchanged and §8.4.5's *no instruct templates* still holds —
   what changed is the answer a person gets. Uploaded on its own, one of these
@@ -1525,14 +1525,14 @@ named consequence, never as a silent drop.
   backend-specific sampler controls with no chat-API equivalent. *Corrected at
   P4.1:* this said "drop" while `GenerationParams`' own comment said `compat`,
   and the code comment wins — it is the reading consistent with §2's
-  preservation rule and [00 §2.4](00-stance.md)'s *nothing is lost and re-export
+  preservation rule and [00 §2.4](docs/design/00-stance.md)'s *nothing is lost and re-export
   is possible*. Worth stating plainly in the review either way: *"this preset was
   mostly sampler settings for a local backend; 6 of 41 fields carried over."*
 - **Reasoning presets** (`prefix`/`suffix`/`separator`) parse reasoning blocks
   out of output. Nothing at 1.0 consumes them; they ~~go to `compat`~~ **are
   recognised and skipped**.
 
-  *Corrected at [P4 §7.17](workplan/06-p4-implementation.md), and it was a real
+  *Corrected at [P4 §7.17](docs/design/workplan/16-p4-implementation.md), and it was a real
   disagreement rather than a wording slip.* `compat` is a field **on a converted
   object**, and nothing converts a reasoning preset — so there is no `Preset` for
   one to be `compat` on, and there never was. The sweep's own registry has said
@@ -1560,12 +1560,12 @@ in the assembler:
 | `new_group_chat_prompt` | Same, group variant |
 | `new_example_chat_prompt` | A `TextBlock`, `appliesTo: ["example"]` |
 | `continue_nudge_prompt` | A `TextBlock`, `appliesTo: ["continue"]` |
-| `impersonation_prompt` | A `TextBlock`, `appliesTo: ["impersonate"]` — the block behind [03 §3.1](03-modes-and-turn-pipeline.md) |
+| `impersonation_prompt` | A `TextBlock`, `appliesTo: ["impersonate"]` — the block behind [06 §3.1](docs/design/06-modes-and-turn-pipeline.md) |
 
 **Nine fixed fields collapse into two general properties**, and the result is
 strictly more capable: an author can wrap *any* slot, and gate *any* block on
 call kind, rather than being limited to the combinations someone anticipated.
-This is [00 §2.7](00-stance.md)'s "per-mode reimplementation" argument appearing
+This is [00 §2.7](docs/design/00-stance.md)'s "per-mode reimplementation" argument appearing
 in a smaller frame — each of those fields is the same idea implemented again
 because there was no general mechanism.
 
@@ -1574,7 +1574,7 @@ decoration. `continue_nudge_prompt` is why *continue* works at all.
 
 #### 8.4.4 Credentials in shared presets — dropped, never offered
 
-**The finding that most justifies [00 §3.2](00-stance.md), and it is not
+**The finding that most justifies [00 §3.2](docs/design/00-stance.md), and it is not
 hypothetical.** ST's chat-completion preset carries `reverse_proxy`,
 `proxy_password`, `custom_url`, `custom_include_headers`, `azure_base_url`,
 `azure_deployment_name`, `vertexai_express_project_id` and
@@ -1598,7 +1598,7 @@ Three things worth stating about why it is unconditional:
 - **There is nowhere to put them.** `Preset` has no field that could hold an
   endpoint or a credential, so this is not a check that could be forgotten —
   it is the type refusing. That is exactly the structural enforcement
-  [00 §3.2](00-stance.md) argues for, and ST is the counterexample that shows
+  [00 §3.2](docs/design/00-stance.md) argues for, and ST is the counterexample that shows
   what the alternative costs: a runtime field list, two modal flows, and a
   correct outcome only if the user picks the right button.
 - **The person importing is not the person at risk.** A leaked proxy password
@@ -1629,13 +1629,13 @@ promising something that quietly fails.
 presets: the *authored prose survives intact*, the order is preserved,
 depth-injected blocks stay at their depth, and everything that could not be
 carried is named in the review rather than discovered later. That is the same
-bargain [02 §2.7](02-data-model.md) strikes for character cards, and it is the
+bargain [03 §2.7](docs/design/03-data-model.md) strikes for character cards, and it is the
 right one.
 
 #### 8.4.6 What the review may say *before* it commits
 
-**Added at [P4 §7.17](workplan/06-p4-implementation.md).** One hand-picked file
-now gets a look before it lands ([05 §5](05-ui-surfaces.md), narrowed there).
+**Added at [P4 §7.17](docs/design/workplan/16-p4-implementation.md).** One hand-picked file
+now gets a look before it lands ([10 §5](docs/design/10-ui-surfaces.md), narrowed there).
 Everything §8.4.2 lists as lossy is worth reading before pressing something
 rather than after, and two rules govern what that screen may contain.
 
@@ -1656,7 +1656,7 @@ faithfully from a SillyTavern preset, validates, is stored, is shown in the
 editor, and never reaches a model. So §8.4.2's *"6 of 41 fields carried over"*
 was true and misleading for three phases. `FORWARDED_SAMPLER_PARAMS` names the
 narrower set, a test reads it off the outgoing request body rather than off the
-adapter, and closing the gap is [polish §8](workplan/09-polish.md) rather than an
+adapter, and closing the gap is [polish §8](docs/design/workplan/06-polish.md) rather than an
 import change: it needs a provider-specific escape hatch, which is §8.5's third
 open question.
 
@@ -1672,10 +1672,10 @@ unknown-field preservation rule.
 - **Two block kinds**, slot and text. §8.1's argument does not depend on
   anything unbuilt, and ST's independent arrival at the same split is strong
   evidence.
-- **Ordering by constraint, never by character offset** — [00 §2.1](00-stance.md).
+- **Ordering by constraint, never by character offset** — [00 §2.1](docs/design/00-stance.md).
 - **Every block budgeted and priced**, including the ones the author is sure
-  matter — [00 §2.6](00-stance.md).
-- **No production settings**, enforced by absence — [00 §3.2](00-stance.md),
+  matter — [00 §2.6](docs/design/00-stance.md).
+- **No production settings**, enforced by absence — [00 §3.2](docs/design/00-stance.md),
   §8.4.4.
 - **Stable block ids**, so a mode can reference a block, a workbench diff can
   line up across preset versions, and reordering is free.
@@ -1688,7 +1688,7 @@ exist.
 
 **Prompt packs are where model-behaviour opinion belongs**, which is the point
 of the three delegations above. This layer has a property engine code does not:
-its effect is visible in the turn record ([02 §8](02-data-model.md)) as a block
+its effect is visible in the turn record ([03 §8](docs/design/03-data-model.md)) as a block
 with a source and a reason, rather than buried in a conditional. Someone who
 dislikes how "hard" behaves can read the fragment that caused it and change it.
 
@@ -1762,7 +1762,7 @@ made of independently-versioned objects.
 
 Contents are **embedded copies resolved on import**, not links: links inside the
 package resolve within it first, then locally, then dangle visibly
-([00 §3.3](00-stance.md)). `requires` is checked at import and produces a clear
+([00 §3.3](docs/design/00-stance.md)). `requires` is checked at import and produces a clear
 warning with a degraded-start option rather than a hard block where possible.
 
 ### 9.1 One action produces a package
@@ -1790,9 +1790,9 @@ Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be
 answerable before the file exists rather than after.
 
-**Review, for the same reason import is a review step** ([05 §5](05-ui-surfaces.md)).
+**Review, for the same reason import is a review step** ([10 §5](docs/design/10-ui-surfaces.md)).
 Unchecking a `required` link is permitted and warned about, since `required`
-describes the author's intent and never blocks ([00 §3.3](00-stance.md)) — but
+describes the author's intent and never blocks ([00 §3.3](docs/design/00-stance.md)) — but
 it is the one case where the export says plainly that the recipient will be
 missing the world, not a nice extra.
 
@@ -1802,7 +1802,7 @@ capability requirements come from what the collected objects actually reference.
 An author can add to the list and should rarely need to.
 
 **This is what makes the object split free at exchange time.** A Treatment stays
-independent of any one lorebook ([02 §4](02-data-model.md)) and is nonetheless
+independent of any one lorebook ([03 §4](docs/design/03-data-model.md)) and is nonetheless
 shareable as a self-contained artefact, because the bundled form is *produced on
 demand* rather than being the storage shape. The recurring pull toward folding
 world content and framing into one file is, at bottom, a request for this
@@ -1826,9 +1826,9 @@ the diff.
 
 | Structure | Why not |
 |---|---|
-| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [13](13-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
-| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([06 B7](06-open-questions.md)). Shape in [13 §1.3](13-internal-contracts.md). |
-| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
+| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [21](docs/design/21-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
+| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([25 B7](docs/design/25-open-questions.md)). Shape in [21 §1.3](docs/design/21-internal-contracts.md). |
+| **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](docs/design/workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
 
@@ -1836,17 +1836,17 @@ the diff.
 
 ## 11. Open
 
-- **[OPEN]** Embedded-media size cap ([02 §5.2.2](02-data-model.md)). A
+- **[OPEN]** Embedded-media size cap ([03 §5.2.2](docs/design/03-data-model.md)). A
   schema-level `maxBytes` hint versus a policy enforced at write time.
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
-  ([06 B9](06-open-questions.md)).
+  ([25 B9](docs/design/25-open-questions.md)).
 
 **Two entries removed as already answered**, and both had drifted into
 contradicting their own resolutions:
 
 - *Whether `ActorProfile`'s prose fields stay fixed.* Decided in
-  [02 §2.1](02-data-model.md): **there are no fixed prose fields**, all prose is
+  [03 §2.1](docs/design/03-data-model.md): **there are no fixed prose fields**, all prose is
   `Section`s and four are conventional. The entry claimed committing to §4 would
   close it "in favour of fixed", which is the opposite of what §4 now says.
 - *Whether `Treatment` owns a primary lorebook.* Decided in

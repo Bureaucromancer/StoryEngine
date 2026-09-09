@@ -17,7 +17,7 @@ import { dirname } from 'node:path';
  * The veneer is thin on purpose. These are not clever, and the point is not
  * abstraction: it is that there is exactly one directory to audit, one place to
  * add a permission check when `fileAccess`
- * ([05 §4.2](../../../../docs/design/05-ui-surfaces.md)) grows teeth, and no second opinion
+ * ([10 §4.2](../../../../docs/design/10-ui-surfaces.md)) grows teeth, and no second opinion
  * about what "read a file" means.
  *
  * **Paths arriving here are already resolved** by `paths.ts`. Nothing in this
@@ -68,7 +68,7 @@ export async function statFile(path: string): Promise<FileFacts | null> {
  * Appends a line to a file, creating it if it is not there.
  *
  * The one write in this package that is deliberately **not** atomic. An
- * append-only turn segment ([02 §5.5](../../../../docs/design/02-data-model.md))
+ * append-only turn segment ([03 §5.5](../../../../docs/design/03-data-model.md))
  * is never rewritten, and routing an append through temp-then-rename would copy
  * the whole segment on every turn — turning an O(1) write into O(n) and
  * throwing away the immutability the format is built on. A torn append costs
@@ -112,7 +112,7 @@ export async function ensureDirectory(path: string): Promise<void> {
  * A directory this process can write into, or the reason it cannot.
  *
  * **Alpha 1's first install found the shape of this failure**
- * ([P6A §3](../../../../docs/design/workplan/23-p6a-alpha-1.md) step 11): Docker
+ * ([P6A §3](../../../../docs/design/workplan/19-p6a-alpha-1.md) step 11): Docker
  * creates a missing bind-mount source as root, the container runs as uid 1000,
  * and the first write — `mkdir /data/state`, from the stamp — died as an
  * `EACCES` stack trace with the fix nowhere in it. `mkdir -p` alone is not the
@@ -172,7 +172,7 @@ export function describeUnusableDataDirectory(
  * Removes a directory and everything under it.
  *
  * Used for deleting an object, which is a *folder* rather than a file — the
- * card plus its assets travel together ([02 §5.2](../../../../docs/design/02-data-model.md)).
+ * card plus its assets travel together ([03 §5.2](../../../../docs/design/03-data-model.md)).
  * Recursive deletion is the one operation here worth being nervous about, which
  * is why it takes a path that has already been through the resolver and why it
  * lives beside the rest of the filesystem access rather than at a call site.
@@ -206,7 +206,7 @@ export async function unlinkFile(path: string): Promise<void> {
 /**
  * Moves a directory, creating the destination's parent.
  *
- * Deletion is a move ([02 §10.2](../../../../docs/design/02-data-model.md)): `remove()`
+ * Deletion is a move ([03 §10.2](../../../../docs/design/03-data-model.md)): `remove()`
  * sends object folders to the user's trash through this rather than erasing
  * them, history and all. Both ends live under one data directory, so the
  * rename is same-volume by construction; a cross-volume symlink or a handle

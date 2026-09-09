@@ -1,7 +1,7 @@
-# 12 — Extensions: the boundary and the interface
+# 22 — Extensions: the boundary and the interface
 
-**Status: proposal.** Resolves [06 A1](06-open-questions.md) and
-[06 A1c](06-open-questions.md), and expands [03 §9](03-modes-and-turn-pipeline.md).
+**Status: proposal.** Resolves [25 A1](docs/design/25-open-questions.md) and
+[25 A1c](docs/design/25-open-questions.md), and expands [06 §9](docs/design/06-modes-and-turn-pipeline.md).
 
 ---
 
@@ -33,14 +33,14 @@ part that shapes the API — async, serialisable, declared reads — and that sh
 is what cannot be retrofitted.
 
 Authority isolation is deferrable because of one property, not two:
-**extensions are admin-installed** ([06 A1](06-open-questions.md)). Installing
+**extensions are admin-installed** ([25 A1](docs/design/25-open-questions.md)). Installing
 one is a deliberate act by the operator, on the same footing as anything else
 they choose to run on that box. Deferring is a judgement about *that* threat
 model, and tightening later is additive — it removes reachability without
 changing the interface.
 
 **The licence is not part of this argument**, though an earlier draft counted it.
-Extensions being AGPL and therefore source-available ([triage §1.1](workplan/02-triage.md))
+Extensions being AGPL and therefore source-available ([triage §1.1](docs/design/workplan/02-triage.md))
 means auditable *by someone who audits*, which is not a control and stops
 nothing on its own. Treating source availability as mitigation is a common and
 comfortable error, and it would let the deferral look better-supported than it
@@ -58,7 +58,7 @@ The usual reason sandboxing hurts is that the extension surface is
 "arbitrary code doing arbitrary things", and forcing it through a serialisation
 boundary mangles it. **That is not the surface this design has.**
 
-Walk [03 §9](03-modes-and-turn-pipeline.md)'s list of what an extension must be
+Walk [06 §9](docs/design/06-modes-and-turn-pipeline.md)'s list of what an extension must be
 able to do:
 
 | Requirement | What crosses the boundary |
@@ -66,7 +66,7 @@ able to do:
 | Declare channels, schemas, widgets, reducers | **Nothing.** Declarative manifest. |
 | Declare a setup wizard | **Nothing.** A schema the host renders. |
 | Define input kinds, participant policy | **Nothing.** Declarative. |
-| Contribute UI surfaces | **Nothing** — extensions declare widgets, not components ([05 §8](05-ui-surfaces.md)). |
+| Contribute UI surfaces | **Nothing** — extensions declare widgets, not components ([10 §8](docs/design/10-ui-surfaces.md)). |
 | Contribute pipeline steps | A function over serialisable data. |
 | Read library objects | An async host call. |
 | Request a model call | An async host call by role. |
@@ -76,7 +76,7 @@ Five of seven are declarative and cross nothing at all. The remaining two are
 is precisely the shape that survives a worker boundary without complaint.
 
 This is not luck. It is the accumulated effect of decisions made for other
-reasons: declarative modes ([03 §2](03-modes-and-turn-pipeline.md)), declarative
+reasons: declarative modes ([06 §2](docs/design/06-modes-and-turn-pipeline.md)), declarative
 widgets, channels as typed state rather than objects with methods, and a turn
 record that is already serialisable because it is written to disk.
 
@@ -109,7 +109,7 @@ Another mechanism that already existed.
 >   AssembledBlock[]`. A block is what the *assembler* produces; a step
 >   contributes to the input, not the output.
 > - Effects are `EffectProposal` — no `before`, no `applied`, no id. A step
->   proposes; the engine decides and stamps ([13 §1.2]).
+>   proposes; the engine decides and stamps ([21 §1.2]).
 > - `StepHost.rng` is a live `Rng` with synchronous methods, which **cannot
 >   cross a worker hop**. `HostApi` below specifies `random` supplied by the
 >   host and async throughout, and that conversion is P7's — it touches every
@@ -136,7 +136,7 @@ interface StepResult {
   blocks?: AssembledBlock[]
   effects?: ChannelEffect[]
   messages?: Message[]
-  suspend?: InputRequest                // [06 C5]
+  suspend?: InputRequest                // [25 C5]
   diagnostics?: string[]                // surfaced in the workbench
 }
 ```
@@ -148,12 +148,12 @@ interface HostApi {
   library: {
     getActor(id): Promise<Actor | null>
     findLore(query): Promise<LoreEntry[]>
-    propose(change): Promise<ProposalId>   // never a direct write — [03 §7.4]
+    propose(change): Promise<ProposalId>   // never a direct write — [06 §7.4]
   }
   model: {
     call(role: ModelRole, req: ModelRequest): Promise<ModelResponse>
   }
-  random: RandomApi                        // the one RNG source — [07 §11]
+  random: RandomApi                        // the one RNG source — [19 §11]
   storage: ExtensionStorage                // §5
   log(level, message, meta?): void
 }
@@ -164,11 +164,11 @@ earlier draft of this list claimed more than §2 delivers:
 
 - **No connection or credential is *passed* across.** An extension asks for a
   call by *role*; the host resolves the connection and executes it
-  ([07 §5.1](07-tech-stack.md)). Credentials are not in the worker's payload.
+  ([19 §5.1](docs/design/19-tech-stack.md)). Credentials are not in the worker's payload.
 - **No direct library writes *through this API*.** `propose` returns something
-  reviewable ([03 §7.4](03-modes-and-turn-pipeline.md)).
+  reviewable ([06 §7.4](docs/design/06-modes-and-turn-pipeline.md)).
 - **Randomness is *provided* by the host**, which makes
-  [07 §14.4](07-tech-stack.md)'s replay-determinism check pass for free when an
+  [19 §14.4](docs/design/19-tech-stack.md)'s replay-determinism check pass for free when an
   extension uses it.
 
 ### 4.0 What a worker does not stop
@@ -215,7 +215,7 @@ carries the word "sandbox".
 
 ### 4.1 Built-ins go through the same boundary
 
-[07 §10](07-tech-stack.md) says built-in modes must consume the published SDK
+[19 §10](docs/design/19-tech-stack.md) says built-in modes must consume the published SDK
 exactly as a third party would, enforced by package boundaries. **Run them in
 workers too**, by default.
 
@@ -229,7 +229,7 @@ CI running built-ins through the worker path so drift still surfaces.
 
 ## 5. Extension storage — resolving A1c
 
-Noodle surfaced the gap ([14 §4.6](14-roadmap.md)): an extension can own session
+Noodle surfaced the gap ([24 §4.6](docs/design/24-roadmap.md)): an extension can own session
 state via channels and can read the library, but has nowhere to keep durable
 data of its own.
 
@@ -249,7 +249,7 @@ interface ExtensionStorage {
   reach, both by construction rather than by check.
 - **Backed by files on disk** under the user's directory, so it participates in
   the same watcher, index and backup story as everything else
-  ([02 §5.1](02-data-model.md)). The extension never learns the path.
+  ([03 §5.1](docs/design/03-data-model.md)). The extension never learns the path.
 - **Quota'd**, with the limit declared in the manifest and enforced by the host.
 - **Removed on uninstall**, with an explicit "keep the data?" prompt, because
   uninstalling a social-feed extension and silently deleting a year of posts
@@ -292,11 +292,11 @@ before clicking enable.
 ## 7. Lifecycle and failure
 
 - **Install** is admin-only. Enable is per-user.
-- **Update** requires a restart at 1.0 ([04 §6.4](04-server-multiuser-deployment.md)),
+- **Update** requires a restart at 1.0 ([09 §6.4](docs/design/09-server-multiuser-deployment.md)),
   because worker reload with live channel definitions is not worth solving yet.
 - **A worker that throws** fails its step. `StepDefinition.failure` already says
   what that means — `abort`, `warn` or `ignore` — and `warn` with a retry
-  affordance stays the default ([03 §6](03-modes-and-turn-pipeline.md)).
+  affordance stays the default ([06 §6](docs/design/06-modes-and-turn-pipeline.md)).
 - **A worker that hangs** is killed on a per-step deadline. This is the case
   in-process cannot handle at all, and the single most valuable thing fault
   isolation buys.
@@ -319,7 +319,7 @@ Three mitigations, all cheap:
 - **Version the SDK API and widen additively.** Extensions declare a range;
   widening never breaks anyone.
 - **Ship the reference extensions against the same API.** Dice and poker
-  ([14 §4.4](14-roadmap.md)) exist partly to surface gaps before third parties
+  ([24 §4.4](docs/design/24-roadmap.md)) exist partly to surface gaps before third parties
   hit them. Poker in particular reaches for per-actor hidden state and
   multi-participant sequencing, which is where an API is most likely to be found
   wanting.
@@ -358,5 +358,5 @@ extension ever written.**
   it; it should be revisited if extensions ever become installable by
   non-admins.
 - **[OPEN]** Whether widget vocabulary gaps force the sandboxed-iframe escape
-  hatch ([05 §8](05-ui-surfaces.md)) earlier than planned. Tactical combat and
+  hatch ([10 §8](docs/design/10-ui-surfaces.md)) earlier than planned. Tactical combat and
   anything map-shaped are the likely triggers.

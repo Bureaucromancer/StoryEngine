@@ -70,7 +70,7 @@ pattern. Never commit `.env`, keys, or raw captures.
   rules and their tests.
 - Adding a config key is a five-place edit — the schema, `CONFIG_TIERS` and
   `DEFAULT_CONFIG` in `config.ts`, `config.example.json`, and the tier table in
-  `docs/design/13-internal-contracts.md` §4 — and `config.test.ts` fails on any
+  `docs/design/21-internal-contracts.md` §4 — and `config.test.ts` fails on any
   one of them missed. The same test parses §4's environment-variable table, so
   a new `SE_*` variable needs a row there too.
 - Phase branches are bare `pN` (`p5`, `p6`, `p6a`) and merge into `main` with

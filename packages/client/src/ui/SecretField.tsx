@@ -8,7 +8,7 @@ import { useId, type JSX } from 'react';
  *
  * **Its own file rather than a sibling in `Field.tsx`, and that is the point of
  * it.** Every control in that file carries the assist slot
- * ([05 §11](../../../../docs/design/05-ui-surfaces.md)), deliberately, so that *does this field
+ * ([10 §11](../../../../docs/design/10-ui-surfaces.md)), deliberately, so that *does this field
  * have AI assist?* keeps having one answer. A secret is the one input in this
  * application that must never acquire one — so it is not a `Field`, it is not
  * next to the `Field`s, and it does not share their props.
@@ -24,10 +24,10 @@ import { useId, type JSX } from 'react';
  * leaves an empty box meaning either *there is no key, this is a local
  * endpoint* or *there is a key and you are not being shown it* — two states an
  * admin has to tell apart, and the reason `hasKey` exists on the wire at all
- * ([P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md)).
+ * ([P2B §2.2](../../../../docs/design/workplan/10-p2b-provider-configuration.md)).
  *
  * So the note is a **whole sentence supplied by the caller**, not a boolean this
- * component turns into one. [01 §2](../../../../docs/design/workplan/01-work-plan.md)'s rule:
+ * component turns into one. [work plan §2](../../../../docs/design/workplan/01-work-plan.md)'s rule:
  * a sentence assembled around a value cannot be translated, and a component that
  * chose between two hardcoded strings would be that rule broken one level down.
  */

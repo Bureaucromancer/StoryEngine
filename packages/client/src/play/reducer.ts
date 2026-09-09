@@ -313,7 +313,7 @@ function applyToLive(
               call: {
                 ...step.call,
                 // Null rather than zero when the provider reported nothing —
-                // the same distinction the record draws ([13 §1.4]).
+                // the same distinction the record draws ([21 §1.4]).
                 promptTokens: numberOr(params['promptTokens'], null),
                 completionTokens: numberOr(params['completionTokens'], null),
                 ms: numberOr(params['ms'], null),
@@ -350,7 +350,7 @@ function applyToLive(
  * reconnect mid-step land somewhere sensible: the backlog replays from seq 0,
  * so it will normally have the start — but a `skipped` step never emits one
  * at all, and a view that dropped those would silently lose the answer
- * [04 §3.3] names as the whole point of `skipped` being visible.
+ * [09 §3.3] names as the whole point of `skipped` being visible.
  */
 function withStep(
   live: LiveTurn,

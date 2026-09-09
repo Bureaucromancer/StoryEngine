@@ -8,7 +8,7 @@ import type { GenerationParams } from '@storyengine/shared';
  * does not.
  *
  * **Two different subsets, and the gap between them is the point.**
- * `GenerationParams` ([10 §8.4](../../../../docs/design/10-schemas.md)) is the
+ * `GenerationParams` ([04 §8.4](../../../../docs/design/04-schemas.md)) is the
  * portable subset an OpenAI-compatible chat endpoint *could* understand. This is
  * the narrower set that survives the trip through `toSdkParams` and the SDK to
  * the request body. `topK`, `topA`, `minP`, `repetitionPenalty` and `n` are in
@@ -36,9 +36,9 @@ import type { GenerationParams } from '@storyengine/shared';
  *
  * **Named here rather than fixed, deliberately.** Closing the gap means an
  * escape hatch through the adapter's provider-specific body — which is the third
- * of [10 §8.5](../../../../docs/design/10-schemas.md)'s open questions and a
+ * of [04 §8.5](../../../../docs/design/04-schemas.md)'s open questions and a
  * change to the generation path, not to import. It is scheduled at
- * [polish §8](../../../../docs/design/workplan/09-polish.md). What this constant
+ * [polish §8](../../../../docs/design/workplan/06-polish.md). What this constant
  * buys in the meantime is the ability for the import review to *say so*: a
  * review that reports "5 sampler settings carried over" while five of them are
  * inert is a review that lies, and it lied for three phases because nothing

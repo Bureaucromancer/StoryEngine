@@ -6,11 +6,11 @@ import type { AssembledBlock } from './types.js';
 
 /**
  * Step 4 — blocks become provider messages
- * ([03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md),
- * [13 §2](../../../../docs/design/13-internal-contracts.md)).
+ * ([06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md),
+ * [21 §2](../../../../docs/design/21-internal-contracts.md)).
  *
  * **The only place that knows what a chat API looks like.** That is what makes
- * [07 §5.5](../../../../docs/design/07-tech-stack.md)'s chat-only decision cheap
+ * [19 §5.5](../../../../docs/design/19-tech-stack.md)'s chat-only decision cheap
  * to unmake: a completion renderer would be a second implementation of this one
  * function, not a rewrite, because the core representation stays structured.
  *

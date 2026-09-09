@@ -5,7 +5,7 @@ import type { ImportDisposition } from '@storyengine/shared';
 
 /**
  * SillyTavern's per-user directory tree, vendored, and what the sweep does with
- * each part of it ([P4 §1.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * each part of it ([P4 §1.8](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Vendored as a snapshot, on the mechanism §1.1 already decided for
  * credentials**: committed here with the provenance below rather than derived at
@@ -90,15 +90,15 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
   groups: 'recorded',
   'group chats': 'recorded',
   /**
-   * ~~Chat import is closed rather than deferred ([06 E4]), and the review says
+   * ~~Chat import is closed rather than deferred ([25 E4]), and the review says
    * so.~~
    *
    * *Corrected 2026-09-01.* **Conditional, not closed** — and this comment
-   * outlived the decision it cites by a day. [06 E4] was rewritten on
+   * outlived the decision it cites by a day. [25 E4] was rewritten on
    * 2026-08-31 to *"conditional on an interchange format… no longer a flat
    * refusal. The condition is the shape, not the appetite"*; what stood here
    * quoted the version it replaced. The condition is a format that begins at
-   * P11's session export ([06 B12]).
+   * P11's session export ([25 B12]).
    *
    * **The disposition does not move, and is now the right arm rather than an
    * approximate one.** `recorded` means *the machinery belongs to a later phase,
@@ -106,7 +106,7 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    * and is what sat badly against a decision described as closed. The comment
    * was the only wrong part.
    *
-   * [21](../../../../../docs/design/21-session-import.md) surveys what such an
+   * [18](../../../../../docs/design/18-session-import.md) surveys what such an
    * import would meet, including the finding that bears on this row directly: an
    * ST message carries no id, so a re-import has nothing better to key on than
    * its index in the file.

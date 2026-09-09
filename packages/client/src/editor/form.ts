@@ -7,12 +7,12 @@ import type { Actor, Section, WritingSample } from '@storyengine/shared';
  * The mapping between an actor object and the editor's form state — pure, and
  * where the editor's two non-negotiable promises live:
  *
- * - **Unknown fields survive** ([10 §2](../../../../docs/design/10-schemas.md)).
+ * - **Unknown fields survive** ([04 §2](../../../../docs/design/04-schemas.md)).
  *   `applyForm` clones the loaded object and assigns only the fields the form
  *   owns, so anything this build has never heard of — including the
  *   `generated` provenance map nothing writes until P2 — rides through a save
  *   untouched.
- * - **A save that changes nothing is a no-op** ([02 §11.1]). `provenance.updatedAt`
+ * - **A save that changes nothing is a no-op** ([03 §11.1]). `provenance.updatedAt`
  *   is bumped only when the built object actually differs, because stamping a
  *   new timestamp *is* a change and would defeat the server's no-op rule.
  */
@@ -25,7 +25,7 @@ export interface SectionForm {
 }
 
 /**
- * One writing sample as the form holds it — [10 §3.1].
+ * One writing sample as the form holds it — [04 §3.1].
  *
  * `priorityText` rather than `number | undefined` because the field is an
  * input and an input's empty state is a string. Blank means *inherit the slot
@@ -47,7 +47,7 @@ export interface ActorForm {
   /** One entry per line in the editor; empty lines dropped on apply. */
   aliasesText: string;
   /**
-   * **A list, where every other text field here is text** — [25](../../../../docs/design/25-tagging.md).
+   * **A list, where every other text field here is text** — [05](../../../../docs/design/05-tagging.md).
    *
    * The other three are strings because a textarea's *text is the state and the
    * array is derived*: splitting on every keystroke eats the newline somebody
@@ -111,7 +111,7 @@ export function actorFormShape(object: Record<string, unknown>): string | null {
     if (typeof fields['body'] !== 'string') return 'a profile section has no "body" string';
   }
   // Absent is legal and common — every card written before the field existed
-  // has none ([10 §2]). Only a present-but-wrong shape is a refusal.
+  // has none ([04 §2]). Only a present-but-wrong shape is a refusal.
   const samples: unknown = object['writingSamples'];
   if (samples !== undefined) {
     if (!Array.isArray(samples)) return 'its "writingSamples" is not a list';
@@ -182,12 +182,12 @@ export function applyForm(base: Record<string, unknown>, form: ActorForm): Recor
    * Two traps, both of which this handles deliberately:
    *
    * - **Unknown fields inside a sample survive**, via `...before`. The
-   *   module's first promise ([10 §2]) is per-object, and a sample is an
+   *   module's first promise ([04 §2]) is per-object, and a sample is an
    *   object; rebuilding one from the form's five fields would strip anything
    *   a newer build wrote into it.
    * - **An absent list stays absent.** Assigning `[]` onto a card that never
    *   had the field is a change, which would mark a freshly-opened old actor
-   *   dirty and defeat the no-op rule ([02 §11.1]) the moment anybody pressed
+   *   dirty and defeat the no-op rule ([03 §11.1]) the moment anybody pressed
    *   save. So the field is written only when there is something to write or
    *   it was already there.
    */
@@ -235,7 +235,7 @@ export function stampUpdated(object: Record<string, unknown>): Record<string, un
 
 /**
  * The reload-and-reapply merge, for the 412 dialog
- * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)).
  *
  * "Reapply my edits" means the fields the user actually *edited* — the form
  * fields that differ from `pristine`, the form as it read when the stale base

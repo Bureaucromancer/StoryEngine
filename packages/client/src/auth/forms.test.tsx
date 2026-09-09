@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JSX } from 'react';
 
 /**
- * The two forms that exist before a session does — [05 §15](../../../../docs/design/05-ui-surfaces.md).
+ * The two forms that exist before a session does — [10 §15](../../../../docs/design/10-ui-surfaces.md).
  *
  * There was no test file here at all, which is how the setup form's hardcoded
  * `minLength={8}` survived becoming wrong. The claims worth pinning are the two
@@ -69,8 +69,8 @@ describe('the setup form states this install’s rule', () => {
 
 /**
  * The setup token's client half — F10,
- * [04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md),
- * [P6A §1.4](../../../../docs/design/workplan/23-p6a-alpha-1.md).
+ * [09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md),
+ * [P6A §1.4](../../../../docs/design/workplan/19-p6a-alpha-1.md).
  *
  * **The field appears because the server said to.** A client cannot work out
  * whether the install it is talking to is exposed — it may be reaching a

@@ -26,7 +26,7 @@ afterEach(cleanup);
  * guarding every call with a feature check it would never need in a browser.
  * A spy rather than an empty function, so a surface that has to bring something
  * into view — the book page landing on an entry by its address
- * ([05 §5.3](../../../docs/design/05-ui-surfaces.md)) — can be asserted to have
+ * ([10 §5.3](../../../docs/design/10-ui-surfaces.md)) — can be asserted to have
  * asked, which is the only half of it that exists outside a real viewport.
  */
 Element.prototype.scrollIntoView = vi.fn();

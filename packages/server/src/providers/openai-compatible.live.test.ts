@@ -19,7 +19,7 @@ import { createCaptureStore } from '../storage/captures.js';
  * is missing the suite skips — a fresh clone and CI stay green, and a
  * developer with a local model gets a real exchange for the cost of two lines
  * of config. That keeps the per-commit suite deterministic while making the
- * one boundary that is not ours ([15 §0](../../../../docs/design/workplan/15-p2c-first-real-run.md))
+ * one boundary that is not ours ([P2C §0](../../../../docs/design/workplan/12-p2c-first-real-run.md))
  * crossable on demand.
  *
  * **The assertions are structural, deliberately.** A live model's words are

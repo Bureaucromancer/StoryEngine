@@ -10,12 +10,12 @@ import { refuseShortPassword } from '../auth/password-policy.js';
 import { PrefsError } from '../auth/prefs.js';
 
 /**
- * What a signed-in person may change about themselves — [05 §15.1](../../../../docs/design/05-ui-surfaces.md).
+ * What a signed-in person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
  *
  * The user half of the settings surface, and the smaller half by design: a
  * display name, a locale, a password, and a bag of client preferences. Roles,
  * enabled flags and capabilities are somebody else's business and live under
- * `/api/admin` ([P2A §2.4](../../../../docs/design/workplan/13-p2a-configuration-surface.md)).
+ * `/api/admin` ([P2A §2.4](../../../../docs/design/workplan/09-p2a-configuration-surface.md)).
  *
  * **`requireAccount` per handler rather than a prefix hook**, which is the
  * opposite of what the admin half does and deliberately so. Here the account
@@ -57,7 +57,7 @@ const PasswordChange = Type.Object(
 );
 
 /**
- * Preferences are **not** validated beyond their shape — [06 B13](../../../../docs/design/06-open-questions.md).
+ * Preferences are **not** validated beyond their shape — [25 B13](../../../../docs/design/25-open-questions.md).
  *
  * `additionalProperties: true` here is the point rather than a shortcut: the
  * server does not know what a preference means, and a newer client must be able

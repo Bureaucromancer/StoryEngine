@@ -1,14 +1,14 @@
-# 04 — P2 implementation plan
+# 08 — P2 implementation plan
 
 **Status: ~~plan~~ landed**, merged into `main` 2026-08-22 at `6041c8c`.
 
 **Its gate is twenty steps, eight of them automated, and it was walked as far
 as automation goes.** What is left needs a real provider, a real browser and
-both platforms; the list is [12 §2](12-p2-manual-gate.md)’s, and it is counted at
-[26 §3.5](26-manual-testing.md).
+both platforms; the list is [manual gate §2](docs/design/workplan/11-p2-manual-gate.md)’s, and it is counted at
+[manual testing §3.5](docs/design/workplan/05-manual-testing.md).
 
 *(This status line was written 2026-09-07 at
-[P6B.1](24-p6b-playable.md), in the sweep that found five phase documents
+[P6B.1](docs/design/workplan/20-p6b-playable.md), in the sweep that found five phase documents
 still describing themselves as plans. It had said **plan** since before the
 phase shipped, which is how a corpus comes to record what was intended
 rather than what happened.)*
@@ -16,9 +16,9 @@ rather than what happened.)*
 Expanded from the skeleton at the P2 revisit, after P1
 completed and after a code audit of what P1 actually built. Two things changed
 since the skeleton: the leans are now argued decisions, and the plan opens with
-a repair stage — §1 records why. Format follows [03](03-p1-implementation.md).
+a repair stage — §1 records why. Format follows [P1](docs/design/workplan/07-p1-implementation.md).
 
-**P2 delivers**, from [01 P2](01-work-plan.md): the provider layer with model
+**P2 delivers**, from [work plan P2](docs/design/workplan/01-work-plan.md): the provider layer with model
 roles, assembler → budgeter → render, the complete turn record, the turn as a
 resumable server-side job with an SSE event stream, the RNG service, and the
 smallest real Scene mode.
@@ -26,18 +26,18 @@ smallest real Scene mode.
 **The demo that defines done:** *type a message, get a streamed reply, close the
 tab mid-turn, and reattach to the finished result. Read the whole turn record as
 JSON.* The reattach half is the architectural claim
-([04 §2](../04-server-multiuser-deployment.md)) — a turn is a server-side job, not
+([09 §2](../09-server-multiuser-deployment.md)) — a turn is a server-side job, not
 a promise in a browser tab — and the JSON half is the record claim
-([02 §8](../02-data-model.md)): complete from the first turn, because everything
+([03 §8](../03-data-model.md)): complete from the first turn, because everything
 after P2 reads it.
 
-**P2 is where [13](../13-internal-contracts.md) stops being a document.**
+**P2 is where [21](../21-internal-contracts.md) stops being a document.**
 `BlockSource`, `ChannelEffect`, `ChannelState`, `ModelCall`, `BudgetVerdict`,
 `RenderedMessage` and `ProviderCapabilities` all become code here, and the
 discipline is that they become code *as written* — deviations go back into doc
 13 first, because five later phases are specified against it. That discipline
 is already exercised once by this plan: `ChannelEffect` gains a `scope` field
-in [13 §1.2](../13-internal-contracts.md) before any code writes an effect
+in [21 §1.2](../21-internal-contracts.md) before any code writes an effect
 (§2.7).
 
 **And P2 opens by paying P1's debt.** P1 shipped fast with minimal review; a
@@ -49,7 +49,7 @@ hardening stage (P2.0) rather than building on ground known to be soft. The
 rule that keeps repair from becoming refactoring is §2.1.
 
 **CI this phase establishes:** golden-file assembly tests
-([10 §3.1](10-testing.md)) — fixture library + fixture session → assemble →
+([testing §3.1](docs/design/workplan/03-testing.md)) — fixture library + fixture session → assemble →
 snapshot the turn record as a rendered table — **and finishes the P1 gate**:
 the rebuild-equals-incremental *property* test as a named CI step, and a
 Windows job, both owed since P1 (§1, F11/F17).
@@ -76,9 +76,9 @@ add-before-unlink on a rename, the opposite of what P1 §1.1 assumed) found
 and fixed correctly. The path-traversal corpus is thorough and includes the
 subtle cases (drive-relative paths, ADS, reserved device names on the stem).
 The atomic-write kill-safety test SIGKILLs a real child process and guards its
-own vacuous pass. `Config` matches [13 §4](../13-internal-contracts.md)
+own vacuous pass. `Config` matches [21 §4](../21-internal-contracts.md)
 field-for-field with an exhaustiveness test over the tier table. The portable
-schemas have zero field-level drift against [10](../10-schemas.md); uuidv7 is
+schemas have zero field-level drift against [04](../04-schemas.md); uuidv7 is
 bit-correct with monotonicity handled; unknown-field preservation is enforced
 three separate ways. The boundary lint is two-layered and fixture-tested. And
 the phase's most fragile commitment — the empty assist slot — held: no assist
@@ -94,7 +94,7 @@ which is not from the audit at all and says so where it appears.
 - **F3.** The stale-hash check is a TOCTOU: it compares against the index row,
   then awaits three times before writing. It loses against a concurrent `PUT`
   and against a foreign edit younger than the watcher's 150 ms settle window —
-  the exact "eat a hand-edit" failure [04 §4.4](../04-server-multiuser-deployment.md)'s
+  the exact "eat a hand-edit" failure [09 §4.4](../09-server-multiuser-deployment.md)'s
   mechanism exists to prevent.
 - **F5.** Version history's JSONL is appended by one code path and
   whole-file-rewritten by two others (pin/rename, prune) with no
@@ -102,7 +102,7 @@ which is not from the audit at all and says so where it appears.
   also taken *before* the write it protects, so a failed write leaves a
   phantom version.
 - **F6.** `provenance.updatedAt` is stamped only by the React editor, so
-  `VersionRecord.authoredAt` — the subtlety [13 §1.6](../13-internal-contracts.md)
+  `VersionRecord.authoredAt` — the subtlety [21 §1.6](../21-internal-contracts.md)
   exists to preserve — is wrong for every other writer: curl, the SDK, and P4's
   importer.
 - **F9.** Tombstone maturation only runs from the watcher (rows accumulate
@@ -149,12 +149,12 @@ which is not from the audit at all and says so where it appears.
 
 **Test and CI debt**
 
-- **F11.** Exit-gate debt: [P1 §3](03-p1-implementation.md) step 16 (manual vs external
+- **F11.** Exit-gate debt: [P1 §3](docs/design/workplan/07-p1-implementation.md) step 16 (manual vs external
   distinguishable in *one* object's history) is never asserted together;
   rebuild-equals-incremental is three fixed examples, not the property test
   the gate names; step 11's "admin can still log in" half and the whole DELETE
   route are untested.
-- **F15.** Two of [10 §2](10-testing.md)'s five day-one lint rules were never
+- **F15.** Two of [testing §2](docs/design/workplan/03-testing.md)'s five day-one lint rules were never
   written (no bare user-facing strings; `Intl`-only) — and four concatenation
   violations exist that they would catch.
 - **F16.** Vitest includes `.test.ts` but not `.test.tsx` and no DOM
@@ -227,7 +227,7 @@ times to argue about scope is a stage that stops being bounded.
   under SQLite's default BINARY collation, so the byte that decides is the path
   separator: `/` is 0x2F, `\` is 0x5C. Where one slug is a prefix of another —
   `vera` and `vera2` — the winner flips between Linux and Windows. That is
-  precisely [P1 §3](03-p1-implementation.md) step 12's user action, about to run
+  precisely [P1 §3](docs/design/workplan/07-p1-implementation.md) step 12's user action, about to run
   on a Windows job for the first time.
 - **F24.** `--reset-password` given as the final argument yields `undefined`,
   the guard reads it as absent, and **the server boots normally** — no reset, no
@@ -261,19 +261,19 @@ The assignment rule, stated once so it is not renegotiated per finding:
 | F4 | Watcher `ignored` broken on Windows | **Fixed at P1 closeout** | `isContained` over index/state/accounts/config, with a watcher test. The F17 Windows CI job still lands at P2.0 |
 | F5 | History append/rewrite race; phantom version | **Fixed at P1 closeout** | History mutators serialised per object root; `snapshotReplaced` one critical section; write→snapshot→ingest reorder. The queue is the utility P2.3's turn segments reuse |
 | F6 | `authoredAt` correct only via the React editor | **Fixed at P1 closeout** | `provenance.updatedAt` stamped server-side on real changes (§2.3); restore exempt; create exempt (imports keep original authorship) |
-| F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([02 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11**. *Sessions delete the same way at P2.3, plus the archive state [02 §10.3] asks for — this section had said tombstone, and the design section wins* |
-| F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** — *reassigned to [P2A](13-p2a-configuration-surface.md), which found that `pendingRestart` could not have been surfaced as built* |
+| F7 | DELETE destroys history; trash unimplemented | **Split — first half done at P1 closeout** | Delete now *moves* the folder, history and all, to `users/<h>/trash/` ([03 §10.2]'s shape), with tests. Retention sweep and restore UI: defer, **home P11**. *Sessions delete the same way at P2.3, plus the archive state [03 §10.3] asks for — this section had said tombstone, and the design section wins* |
+| F8 | No logging; config tiers data-only | **Scoped in** | Logging lands P2.0 (§2.2); `log.level` becomes the first real live-tier key. Restart-notice UI: defer, **home P10** — *reassigned to [P2A](docs/design/workplan/09-p2a-configuration-surface.md), which found that `pendingRestart` could not have been surfaced as built* |
 | F9 | Tombstone maturation watcher-only; ingest not transactional | **Fixed at P2.3** | Both halves as planned: every filesystem read moved ahead of a `begin immediate`, and `startMaturation` runs once at startup and then on an unref'd timer, wired into `buildServices` so it does not depend on the watcher. Two tests, each verified to fail with its half removed |
 | F10 | Traps: dead `invalidate`, `accountFile`, setup token, `secure=false`, dead FTS, slug race | **Split** | *Slug race and the uncaught accounts `JSON.parse` fixed at P1 closeout; the dead `invalidate` overtaken by `--reset-password` (§1.4) — the method is gone and the forever-cache it lied about is now revalidated per read against `(mtime, size)`, which is the fix, not the docstring honesty this row planned.* P2.0 sweep: `accountFile`/setup token. FTS route: **done at P2.3** — `GET /api/search`, objects and turns together, scoped by the session→scope join. Cookie flags: defer, **home P10** (loopback default makes it safe) |
 | F11 | Exit-gate gaps (step 16, rebuild property, step 11, DELETE) | **P2.0** | This *is* P2.0's exit: the P1 gate automated in full. *DELETE coverage landed at P1 closeout (trash, slug reuse, 404); step 16, the rebuild property test and the login half remain* |
 | F12 | False conflict on the user's own save | **Fixed at P1 closeout** | Editor cache invalidated on save and restore |
 | F13 | Unchecked cast + no error boundary | **Fixed at P1 closeout** | `actorFormShape` guard before every cast + the router's `defaultErrorComponent` |
 | F14 | Silent save-as-copy / bodyless 412 | **Fixed at P1 closeout** | Copy errors render in the dialog; the banner filter excludes only dialog-owned 412s |
-| F15 | Two missing day-one lint rules | **P2.0** | Write both, fix their violations in the same commit; day-one rules get more expensive per day. *The strings rule is [testing §2](10-testing.md)'s narrowed one — §1.4 records why, and why the honest count is two rather than the four the audit found* |
+| F15 | Two missing day-one lint rules | **P2.0** | Write both, fix their violations in the same commit; day-one rules get more expensive per day. *The strings rule is [testing §2](docs/design/workplan/03-testing.md)'s narrowed one — §1.4 records why, and why the honest count is two rather than the four the audit found* |
 | F16 | Component tests silently impossible | **P2.0** | Config + DOM env + one smoke component test proving the pipe, before P2.6 ships the first complex surface |
 | F17 | CI: ubuntu-only, unnamed gate, no format check, warnings can't fail | **P2.0** | All configuration; the Windows job is what would have caught F4 |
-| F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap. *The step-17-via-API test in this row was already written at P1.7 and miscounted as debt — see Appendix A.* `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P11** ([05 §4](05-p3-implementation.md) declines it; [09 §1–§2](09-polish.md) takes its polish half) |
-| F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [05 §5](../05-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [09 §4](09-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
+| F18 | Shared/misc drift | **Split** | P2.0 sweep: Package factory + fixture, denylist over *emitted* JSON, `$id` filenames, fresh-clone dev, focus trap. *The step-17-via-API test in this row was already written at P1.7 and miscounted as debt — see Appendix A.* `se.` enforcement: **P2.4** (first `se.*` ids). Runtime-deps line: recorded in §1.4, not chased. Editor completeness: defer, **home P11** ([P3 §4](docs/design/workplan/15-p3-implementation.md) declines it; [polish §1–§2](docs/design/workplan/06-polish.md) takes its polish half) |
+| F19 | Shadowed duplicate cannot be opened | **P2.0** | Give duplicate rows a stable path/slug discriminator in the read route and client link; keep ordinary references id-only and winner-resolving. *The discriminator belongs to the read route and the link contract, not to the merged list it was found in — [10 §5](../10-ui-surfaces.md) has since reversed to one panel per kind, with that client work at [polish §4](docs/design/workplan/06-polish.md). A fix shaped around the merged list would be rewritten by a reorg P2 does not own* |
 | F20 | Invalid foreign edit remains invisible | **Fixed at P2.3** | A `file_error` table (index schema 2) with `unparsable`/`wrong-kind`/`schema` and the parser's own detail, cleared on a successful ingest **and on deletion** — the plan's test only covered repair, and a deleted broken file left a permanent complaint. `GET /api/library/errors` reads it, scoped like every other read, with the path relative to the data root (F22). Originally: **P2.3, beside F9** — by §1.3's own rule: the closeout's disk re-hash removed the data-loss half, and the debt is against *this* plan's gate step 7, not P1's. P2.3 reworks ingest for F9 anyway; the file-error state lands in the same opening rather than opening ingest twice. Reads name the path/problem; writes stay hash-blocked meanwhile |
 | F21 | `--reset-password`'s CLI wrapper untested | **P2.0** | One test beside the existing `auth/reset.test.ts`: argv parsing, the missing-handle path, exit codes. It rides in the test sweep — a credential-changing entry point is not the place to leave the typed half unasserted |
 | F22 | `PathEscapeError` → 500 disclosing absolute paths; and it aborts a rebuild | **P2.0, first** | A refused path answers **422 `refused-path`**, message naming the reason and the segment and nothing else; a rebuild counts one and steps over it. Ahead of F1 and F19 because both open this code and neither should have to carry it. *The leftover — a rebuild skips such a folder while the watcher indexes it, so the two producers F11's property test holds to one answer disagree — is **P2.7**'s, beside F20: the same question of how the index represents a file it cannot open. A test asserts the divergence so the fix is found by failing* |
@@ -284,16 +284,16 @@ The assignment rule, stated once so it is not renegotiated per finding:
 ### 1.4 Corrections to the record
 
 So the plan of record stays honest — the P1 ones annotated in
-[P1](03-p1-implementation.md) with pointers back here:
+[P1](docs/design/workplan/07-p1-implementation.md) with pointers back here:
 
 - **P1.0's "`shared`: types + schemas, no runtime deps" is false as built.**
   `shared` depends on TypeBox and Ajv at runtime, with the exception argued
   only in a `package.json` note. The dependency is right (one schema
-  technology, five jobs — [07 §3](../07-tech-stack.md)); the doc line was wrong,
+  technology, five jobs — [19 §3](../19-tech-stack.md)); the doc line was wrong,
   and the record is this section, not a JSON comment.
 - **P1.5's "Fastify validates against the same JSON Schema" was not
   delivered** — params only, no body schemas (F2). Repaired at P2.0.
-- **[P1 §3](03-p1-implementation.md)'s "automated equivalents of 4 and 7–19 are
+- **[P1 §3](docs/design/workplan/07-p1-implementation.md)'s "automated equivalents of 4 and 7–19 are
   this phase's CI suite" overstates what P1 automated** — steps 16, 11's login
   half, DELETE, and the rebuild *property* test were not automated (F11).
   Completed at P2.0.
@@ -303,7 +303,7 @@ So the plan of record stays honest — the P1 ones annotated in
   never-invalidated map to a per-read `(mtime, size)` revalidation — closing
   F10's `invalidate()` half outright — and it made a credential-changing CLI
   entry point that F21 now covers. The flag itself is documented at
-  [04 §5.1](../04-server-multiuser-deployment.md), beside the first-run material
+  [09 §5.1](../09-server-multiuser-deployment.md), beside the first-run material
   it belongs with; the record that P2's foundations moved under it is here.
 
 **And four corrections from tracing P2.0 into the code before opening it.** Each
@@ -327,7 +327,7 @@ instructions it enforces are true:
   authorship claim that `assertValidObject` cannot see), and **no
   `schema.response` on any library route** — response serialisation emits only
   declared properties, which would silently strip every unknown field off a
-  portable object on the way out, against [10 §2](../10-schemas.md) and P1 gate
+  portable object on the way out, against [04 §2](../04-schemas.md) and P1 gate
   step 14.
 - **"Body schemas on every object route" over-reaches by one word.** `PUT`,
   `DELETE` and restore all accept the hash in an `If-Match` header — the
@@ -337,18 +337,18 @@ instructions it enforces are true:
   is a body: `POST` and `PUT` carry the object, the rest validate their optional
   `contentHash` and tolerate an absent body.
 - **P2.0's exit is restated in tiers.** "The P1 gate, all nineteen steps" claims
-  more than [P1 §3](03-p1-implementation.md) ever did — it only ever offered
+  more than [P1 §3](docs/design/workplan/07-p1-implementation.md) ever did — it only ever offered
   automated equivalents of 4 and 7–19 — and several steps are browser clauses
   this stage does not fund. The exit is now: every server-observable step as an
   app or watcher test; the client halves of steps 8, 13, 15 and 19 as component
   tests, which is what F16's infrastructure is for; and a Playwright residue of
   about one clause (step 1's first-run landing) that P2.0 explicitly does not
   own. **Step 5 reduces to its server half**, because it asserts the merged
-  library list [05 §5](../05-ui-surfaces.md) has since reversed — F19's own
+  library list [10 §5](../10-ui-surfaces.md) has since reversed — F19's own
   argument, applied to the gate that would otherwise re-encode the old design in
   a slower tier.
-- **[testing §2](10-testing.md)'s strings rule was the unreduced one.** It read
-  "no bare user-facing string literals", which [01 §2](01-work-plan.md) had
+- **[testing §2](docs/design/workplan/03-testing.md)'s strings rule was the unreduced one.** It read
+  "no bare user-facing string literals", which [work plan §2](docs/design/workplan/01-work-plan.md) had
   already narrowed to *never assemble a sentence from fragments, never branch on
   displayed text*, with catalogue extraction moved to P11. The wide rule has
   some ninety violations and no catalogue to land them in; the narrow rule has
@@ -356,7 +356,7 @@ instructions it enforces are true:
   *Corrected again while writing the rule: the count is **two**, not four or
   five. A template literal with a placeholder — `` `${name} (copy)` `` — is one
   message with a value substituted into it, which is precisely the shape ICU
-  MessageFormat wants ([07 §12.3](../07-tech-stack.md)) and precisely what an
+  MessageFormat wants ([19 §12.3](../19-tech-stack.md)) and precisely what an
   extraction sweep turns into a catalogue entry. The audit counted those as
   concatenation; they are not. What is unretrofittable is the sentence that
   exists only in pieces — joined with `+`, or split across JSX children where
@@ -377,8 +377,8 @@ and a stage that inherits a broken pattern copies it. **The pattern must be
 fixed before it is cloned**; that is a sequencing argument, and sequencing is
 what a stage is.
 
-Against a general hardening phase: [01 §1](01-work-plan.md) (slices, not
-layers) and [01 §2.2](01-work-plan.md) (nothing built to be discarded) both cut
+Against a general hardening phase: [work plan §1](docs/design/workplan/01-work-plan.md) (slices, not
+layers) and [work plan §2.2](docs/design/workplan/01-work-plan.md) (nothing built to be discarded) both cut
 against repair becoming refactoring. So the boundary rule:
 
 > **Every P2.0 change traces to a numbered finding. No feature work. No
@@ -387,11 +387,11 @@ against repair becoming refactoring. So the boundary rule:
 What makes the stage cheaper than it looks: the F3/F5/F6 fixes share one
 per-object write-serialization utility — which is exactly the machinery P2.3's
 turn segments and head-snapshot maintenance need anyway. P2.0 builds P2
-infrastructure while paying P1 debt, which is [01 §2.2](01-work-plan.md)'s good
+infrastructure while paying P1 debt, which is [work plan §2.2](docs/design/workplan/01-work-plan.md)'s good
 case.
 
 And it has a crisp exit in P1's own terms: **the P1 exit gate
-([P1 §3](03-p1-implementation.md)) exists as automated tests and is green — on
+([P1 §3](docs/design/workplan/07-p1-implementation.md)) exists as automated tests and is green — on
 Windows CI as well as ubuntu.** The audit converted back into CI. What "the
 gate, automated" means precisely — three tiers, and which clause lands in which
 — is §3's P2.0 entry, restated there because the original wording claimed more
@@ -401,13 +401,13 @@ than P1 ever offered (§1.4).
 
 A resumable server-side job that fails overnight with `console.log` is
 undebuggable by design, and P2's charter is exactly that job. So: Fastify's
-logger on with structured output per [13 §4.1](../13-internal-contracts.md), and
+logger on with structured output per [21 §4.1](../21-internal-contracts.md), and
 `log.level` becomes the **first real consumer of the `live` reload tier** —
 which makes the tier minimally real at the same time
-([01 §2.2](01-work-plan.md) forbids a config key as a false front). P2.5 then
+([work plan §2.2](docs/design/workplan/01-work-plan.md) forbids a config key as a false front). P2.5 then
 threads job and turn ids through log context, which is the payoff. The
 `pendingRestart` notice *surface* stays at P10 with the admin UI it belongs to.
-*Reassigned to [P2A](13-p2a-configuration-surface.md), which is where the admin
+*Reassigned to [P2A](docs/design/workplan/09-p2a-configuration-surface.md), which is where the admin
 UI turned out to belong.*
 
 **Two shapes settled here rather than in code.** The logger is **Fastify's own**
@@ -417,7 +417,7 @@ logging library that no design section names. And `log.format` loses its
 `pretty` value: it was the documented default with no implementation behind it,
 and honouring it means a second dependency and a transport, for an ergonomic
 gain in dev only. JSON everywhere; a terminal that wants it pretty can pipe it.
-[13 §4.1](../13-internal-contracts.md) is where the record's *fields* are
+[21 §4.1](../21-internal-contracts.md) is where the record's *fields* are
 specified, and that section had to be written before this code, because gate
 step 19 asks the log a question it can only answer if the bindings were decided
 in advance.
@@ -429,19 +429,19 @@ remember to extend (F6). The write path stamps it; the client stops being the
 only honest writer; and P4's importer — the next non-UI writer — inherits
 correct history for free. Records written wrong between P1 and this fix never
 heal, which is why this is P2.0 rather than fix-when-touched: the cost of
-deferral accrues daily into persisted data ([01 §2.1](01-work-plan.md)'s first
+deferral accrues daily into persisted data ([work plan §2.1](docs/design/workplan/01-work-plan.md)'s first
 cost shape).
 
 ### 2.4 The Scene mode lives in `server` until P7 — carried
 
 Unchanged from the skeleton, confirmed. The mode is written as data and steps
 against the internal `ModeDefinition` shape
-([03 §2](../03-modes-and-turn-pipeline.md)), lives inside `server`, and
+([06 §2](../06-modes-and-turn-pipeline.md)), lives inside `server`, and
 **relocates** behind the SDK at P7 without changing shape. What keeps it honest
 is the step contract being **async and serialisable from the first step**
-([01 §3](01-work-plan.md)) — if the P2 steps only work because they share
+([work plan §3](docs/design/workplan/01-work-plan.md)) — if the P2 steps only work because they share
 memory with the engine, the P7 move becomes the rewrite
-[01 §2.2](01-work-plan.md) exists to prevent.
+[work plan §2.2](docs/design/workplan/01-work-plan.md) exists to prevent.
 
 Contents: `voice`/`dispatch` fixed to `narrator`/`merged`, one `generate`
 step, history, persona, one actor, a default preset. No channels beyond §2.7,
@@ -451,13 +451,13 @@ wizard.
 ### 2.5 Turn storage lands here, tree-shaped from the first turn — carried
 
 Sessions and turns are P2 storage even though branching is P6. Two things are
-not deferrable, per [01 §2](01-work-plan.md):
+not deferrable, per [work plan §2](docs/design/workplan/01-work-plan.md):
 
 - **`parentTurnId` from the first turn.** The turn store is a tree that P2
   happens to use linearly. Retrofitting the edge at P6 is a migration; writing
   it now is a field.
 - **Append-only JSONL segments in creation order**
-  ([02 §5.5](../02-data-model.md)), rolling on count or byte size, with
+  ([03 §5.5](../03-data-model.md)), rolling on count or byte size, with
   id → `(segment, offset)` in the index, and tolerance for removal designed in.
 
 The skeleton called this "the sessions half of the storage thesis P1 proved
@@ -465,14 +465,14 @@ for library objects." **The audit shows P1 did not fully prove it** — F3 and
 F5 are both failures of that thesis under a second writer — so this stage now
 depends on P2.0 explicitly: sessions clone the *fixed* pattern, built on the
 same serialization utility. Turn text goes into FTS on write as part of the
-same ingest pass ([07 §7.1](../07-tech-stack.md)).
+same ingest pass ([19 §7.1](../19-tech-stack.md)).
 
 ### 2.6 The operational store opens here — carried
 
-`/data/state/state.sqlite` ([13 §5.1](../13-internal-contracts.md)) — jobs,
+`/data/state/state.sqlite` ([21 §5.1](../21-internal-contracts.md)) — jobs,
 idempotency keys, later the notification inbox. P2 is the first phase with
 state that is not derived, so the index/operational split is made now. Job
-durability across restart keeps [04 §2](../04-server-multiuser-deployment.md)'s
+durability across restart keeps [09 §2](../09-server-multiuser-deployment.md)'s
 simple answer: turns are not resumed across a restart; the partial turn is
 recorded failed with its blocks intact, re-runnable rather than lost. Auth
 stays on stateless cookies and does not move here.
@@ -484,21 +484,21 @@ fixed-participant P2 mode nothing ever writes a party effect, so a party
 channel would exercise nothing — a placeholder-shaped channel. The clock
 advances every turn (engine-computed), so it genuinely exercises effect
 application, replay-from-zero, and the head snapshot
-([02 §8.1](../02-data-model.md)) — including
+([03 §8.1](../03-data-model.md)) — including
 hand-edit-divergence-becomes-an-effect, which is the sessions half of the
 storage thesis. `se.party` lands at P7 beside `ParticipantPolicy`, which is
 what gives it semantics. Reconstruction is replay-from-zero only; the snapshot
-*cache* is P6's ([09 §4](../09-branching.md)).
+*cache* is P6's ([07 §4](../07-branching.md)).
 
-**And [08 §1.5](08-p6-implementation.md)'s question is closed the way it
+**And [P6 §1.5](docs/design/workplan/18-p6-implementation.md)'s question is closed the way it
 leaned:** `ChannelEffect` gains `scope: "session" | "escaped"` in
-[13 §1.2](../13-internal-contracts.md) now, and P2 writes only `"session"`. A
+[21 §1.2](../21-internal-contracts.md) now, and P2 writes only `"session"`. A
 field today is cheaper than a migration at P6, and the doc-18-first discipline
 in the header is exercised rather than asserted.
 
 ### 2.8 The fake provider is a P2 deliverable — carried
 
-[10 §4.1](10-testing.md): a scripted implementation of the provider interface,
+[testing §4.1](docs/design/workplan/03-testing.md): a scripted implementation of the provider interface,
 recording every request. It is the golden-file harness, the E2E backend, and
 the only way to test reattach, mid-stream disconnection, malformed structured
 output and the failing-step path deterministically. Built beside the real
@@ -507,11 +507,11 @@ adapter, not after.
 ### 2.9 Guidance: the slot is non-deferrable; the box is the pressure valve
 
 `advisory: true` refused by effect-producing calls is a day-one item
-([01 §2](01-work-plan.md)) enforced in the assembler, so the guidance *block*,
-its exclusion rule ([03 §5.2](../03-modes-and-turn-pipeline.md)), its one-shot
+([work plan §2](docs/design/workplan/01-work-plan.md)) enforced in the assembler, so the guidance *block*,
+its exclusion rule ([06 §5.2](../06-modes-and-turn-pipeline.md)), its one-shot
 record semantics, and the golden test that no advisory block reaches an
 effect-producing call all land here. The input-bar *box*
-([05 §10](../05-ui-surfaces.md)) is a collapsed textarea — and it is this phase's
+([10 §10](../10-ui-surfaces.md)) is a collapsed textarea — and it is this phase's
 named pressure valve: if P2 runs long, the box slips to P3 and guidance is
 exercised via API until then. The slot semantics cannot slip; they are record
 shape.
@@ -543,7 +543,7 @@ three things:
 
 The key is scoped to the account and session and retained long enough for a
 browser retry or reconnect to be harmless. A retry must never make a second
-provider call or charge twice ([13 §5.1](../13-internal-contracts.md)). P6 may turn
+provider call or charge twice ([21 §5.1](../21-internal-contracts.md)). P6 may turn
 the stale-head case into an explicit sibling; P2 must not manufacture one by
 race.
 
@@ -568,7 +568,7 @@ SQLite, a JSONL segment and `session.json`:
 Startup recovery resumes **finalisation**, never generation. A job left running
 becomes a failed terminal draft with the blocks and calls checkpointed so far;
 a job interrupted in steps 2–4 completes those steps idempotently. This closes
-[04 §2](../04-server-multiuser-deployment.md)'s restart question without claiming
+[09 §2](../09-server-multiuser-deployment.md)'s restart question without claiming
 that a provider stream itself can resume. If `state.sqlite` is deleted, an
 uncommitted draft can be lost — the explicit cost of deleting authoritative
 operational state — but a terminal turn already appended to JSONL is reconciled
@@ -584,37 +584,37 @@ delta that painted it live. Reattach reads
 `snapshot + cursor`, then subscribes strictly after that cursor; this ordering
 closes the snapshot/subscribe race. Event rows are ephemeral and may be pruned
 after the terminal record exists, because the turn record is their durable
-meaning ([04 §3.2](../04-server-multiuser-deployment.md)).
+meaning ([09 §3.2](../09-server-multiuser-deployment.md)).
 
 ### 2.11 What stays broken on purpose
 
 Argued once so the deferrals are decisions rather than omissions. **Trash**
-(F7's second half): additive ([01 §2.1](01-work-plan.md)), config key already
+(F7's second half): additive ([work plan §2.1](docs/design/workplan/01-work-plan.md)), config key already
 reserved, home **P11** — but P2.0 stops the destruction of `history/` now,
 which converts hard-delete from unrecoverable to recoverable at near-zero
 cost. **Editor completeness** beyond the P2.0 sweep (section add/remove,
 `visual`/`roles`/`openings`/`lore`/`modelHint`, the undo affordance):
 additive, home **P11**, where editors-are-not-dumb-forms lives — with the
 by-field and *As stored* halves of it already claimed as polish at
-[09 §1–§2](09-polish.md). P3 is the workbench and does not claim this
-([05 §4](05-p3-implementation.md) says so explicitly); the earlier "P3/P11"
+[polish §1–§2](docs/design/workplan/06-polish.md). P3 is the workbench and does not claim this
+([P3 §4](docs/design/workplan/15-p3-implementation.md) says so explicitly); the earlier "P3/P11"
 here was a home that had not agreed to it. **Cookie `secure`/`trustProxy`
 hardening** (F10): ~~home **P10** with deployment~~; the loopback default
-([04 §5.1](../04-server-multiuser-deployment.md)) is what makes deferral safe.
-*Landed at [P6A.2](23-p6a-alpha-1.md) instead, because the deferral was
+([09 §5.1](../09-server-multiuser-deployment.md)) is what makes deferral safe.
+*Landed at [P6A.2](docs/design/workplan/19-p6a-alpha-1.md) instead, because the deferral was
 scheduled against that default rather than against a phase number, and P6A is
 the phase that ships an image binding `0.0.0.0`. `trustProxy` had already
 arrived as a config key at P2A; what P6A.2 owed was `server.cookieSecure`.*
 **Restart-notice UI** (F8's second half): home **P10** with the admin surface.
 *Landed one phase out instead, at
-[P2A](13-p2a-configuration-surface.md) — and P2A found that the notice as built
+[P2A](docs/design/workplan/09-p2a-configuration-surface.md) — and P2A found that the notice as built
 could not have been surfaced anyway, because `applyLiveConfig` overwrites the
 baseline the delta is computed against. Deferring the surface deferred finding
 that out.* Each is named again in §5 so the list survives this section being
 skimmed.
 
 **Accessibility is not on that list, and saying so is the point.**
-[01 §2.1](01-work-plan.md) names accessible markup as one of the three things
+[work plan §2.1](docs/design/workplan/01-work-plan.md) names accessible markup as one of the three things
 that cannot be deferred — a habit, not a feature, retrofitted only by touching
 everything. So every surface P2 ships is accessible as it ships, the P2.0 sweep
 pays the one specific debt found (the conflict dialog's focus trap, F18), and
@@ -673,15 +673,15 @@ because a `.test.tsx` written before it lints, typechecks, and never runs. Then:
   the kind in hand a slug is not unique across kinds.
 - **Filesystem honesty** (F19): shadowed duplicates are individually
   addressable — the discriminator in the read route and the link contract, so
-  it survives [09 §4](09-polish.md)'s per-kind panels — without changing
+  it survives [polish §4](docs/design/workplan/06-polish.md)'s per-kind panels — without changing
   id-based reference resolution.
   (F20, the invalid-file half of this pair, rides with F9's ingest rework at
   P2.3 — §1.3's table records why.)
-- **Logging** (F8): Fastify's logger on, JSON per [13 §4.1](../13-internal-contracts.md),
+- **Logging** (F8): Fastify's logger on, JSON per [21 §4.1](../21-internal-contracts.md),
   `log.level` live-reloadable — the first real live-tier consumer. The config
   *source* consumes self-write suppression rather than reacting to the settings
   UI's own write, and a reload that cannot read a valid file keeps the running
-  config ([13 §4.2](../13-internal-contracts.md)).
+  config ([21 §4.2](../21-internal-contracts.md)).
 - **Test, CI and lint sweep** (F11, F15, F16, F17, F18-subset, F21, F24, F25):
   the P1 gate completed to the exit below — manual-vs-external asserted in one
   history, the rebuild property test (randomised write/edit/rename/delete/copy
@@ -697,7 +697,7 @@ because a `.test.tsx` written before it lints, typechecks, and never runs. Then:
   audit's own inventory. Nothing to write; the row stands as coverage.*
 - **Trap removal** (F10 remainder): `layout.accountFile()` deleted and the setup
   token **removed**, its deferral recorded at
-  [04 §5.1](../04-server-multiuser-deployment.md) — enforcing it is a new
+  [09 §5.1](../09-server-multiuser-deployment.md) — enforcing it is a new
   user-facing field on two auth routes and the setup form, which is feature work
   under a no-feature-work rule, and the consumer that gives the token a job is
   P10's container inversion. *The dead `Accounts.invalidate()` is already gone —
@@ -711,11 +711,11 @@ between the ESLint and Stylelint axis rules, and the dead `formatEpochMs`. Each
 is real; none cites a finding; §2.1 therefore says they stop. They are written
 here rather than left to be rediscovered as "while I'm in here".
 
-*Ends at:* **[P1 §3](03-p1-implementation.md)'s gate, automated, green on both
+*Ends at:* **[P1 §3](docs/design/workplan/07-p1-implementation.md)'s gate, automated, green on both
 OSes, in three tiers** — every server-observable step as an app or watcher test;
 the client halves of steps 8, 13, 15 and 19 as component tests on F16's new
 infrastructure; and step 1's first-run browser landing left to the Playwright
-tier ([testing §3.5](10-testing.md)), which this stage does not stand up. Step 5
+tier ([testing §3.5](docs/design/workplan/03-testing.md)), which this stage does not stand up. Step 5
 is asserted as its server half only, for the reason §1.4 gives. The audit paid,
 in one legible unit.
 
@@ -724,27 +724,27 @@ in one legible unit.
 **Status: built**, with one contract question answered by the SDK rather than
 by us: AI SDK 7 refuses a `system` role inside `messages` and takes
 `instructions` instead. That is `ProviderCapabilities.systemMessage`'s seam
-arriving a layer earlier than [13 §2](../13-internal-contracts.md) expected —
+arriving a layer earlier than [21 §2](../21-internal-contracts.md) expected —
 the engine above the adapter still thinks in `RenderedMessage` including its
 system blocks, because that is what the record shows, and the translation stops
 at the adapter. No doc change: the contract is unaffected, only where it is
-honoured. **[07 §5.1](../07-tech-stack.md)'s `[OPEN]` is closed** as the
+honoured. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
 convenience reading — `hi`/`lo` are the first-run question, not tiers in the
 data model; `roles.ts` records the argument.
 
 `packages/server/src/providers/`: the AI SDK behind the thin internal
-interface ([07 §5](../07-tech-stack.md)); `ProviderCapabilities` per
-[13 §3](../13-internal-contracts.md) with known-provider defaults; model **roles**
-with the hi/lo binding default ([07 §5.1](../07-tech-stack.md)); connections in
-`connections/` per [04 §4.5](../04-server-multiuser-deployment.md) —
+interface ([19 §5](../19-tech-stack.md)); `ProviderCapabilities` per
+[21 §3](../21-internal-contracts.md) with known-provider defaults; model **roles**
+with the hi/lo binding default ([19 §5.1](../19-tech-stack.md)); connections in
+`connections/` per [09 §4.5](../09-server-multiuser-deployment.md) —
 account-scoped plus system scope, never in a portable object; prompt caps as
-ranked-fragment budgets ([07 §5.3](../07-tech-stack.md)). The fake provider
+ranked-fragment budgets ([19 §5.3](../19-tech-stack.md)). The fake provider
 (§2.8) ships here, beside the first real adapter. Chat-completion only
-([07 §5.5](../07-tech-stack.md)) — no completion adapter, no instruct templates,
+([19 §5.5](../19-tech-stack.md)) — no completion adapter, no instruct templates,
 stated in user-facing docs rather than discovered.
 
 *Tests:* capability negotiation and degradation paths against the fake;
-provider conformance is scheduled, not per-commit ([10 §4.2](10-testing.md)).
+provider conformance is scheduled, not per-commit ([testing §4.2](docs/design/workplan/03-testing.md)).
 
 ### P2.2 — RNG service
 
@@ -757,7 +757,7 @@ to pass a key. The tape is keyed, JSON-round-trippable, and carries
 
 `int/float/bool/chance/pick/weightedPick/shuffle/dice`, `node:crypto` uniform
 draws, injectable generator, every draw recorded keyed **by site**
-([07 §14](../07-tech-stack.md)). The tape and replay mode are built now even
+([19 §14](../19-tech-stack.md)). The tape and replay mode are built now even
 though nothing rerolls until P6 — the tape is part of the turn record, and a
 record without it cannot support rewrite later. The P1.0 lint rule stops
 banning randomness everywhere and starts pointing here.
@@ -798,7 +798,7 @@ Six notes on where the work differed from what §1.3 and this section predicted:
   owned by P2.7** — P2.6 opened the same code and did not take it, so leaving it
   pointed at a closed stage is how it becomes nobody's.
 - **"Session delete tombstones" is not what the design says.** This section said
-  tombstone; [02 §10.3](../02-data-model.md) says *a session is a folder too, so
+  tombstone; [03 §10.3](../03-data-model.md) says *a session is a folder too, so
   §10.2 covers it unchanged* — a move to the user's trash. The section wins, and
   it is also the better reading of F7: the finding was a hard delete that took an
   object's history with it, and a session's turns **are** its history. The
@@ -812,7 +812,7 @@ Six notes on where the work differed from what §1.3 and this section predicted:
   recoverable. The two halves are now separately callable and the ordinary append
   is them composed — so the recoverable version cannot drift into a second
   implementation of appending a turn.
-- **A divergence effect needs a turn of its own.** [02 §8.1] says the effect is
+- **A divergence effect needs a turn of its own.** [03 §8.1] says the effect is
   "appended at the head", and a segment is append-only: rewriting the head turn's
   line to carry somebody's edit is exactly what the format forbids. So the edit
   becomes a turn with no calls and no tape, its effects attributed to the user —
@@ -832,7 +832,7 @@ bytes as an object, reads surface it, and the closeout's hash-block keeps
 writes refused meanwhile. Session delete **tombstones** — F7's lesson
 applied to the new kind rather than copied from the old one. Effect
 application and head-snapshot maintenance per §2.7, including
-hand-edit-divergence-becomes-an-effect ([02 §8.1](../02-data-model.md)).
+hand-edit-divergence-becomes-an-effect ([03 §8.1](../03-data-model.md)).
 
 The operational schema also lands here: job, idempotency reservation, in-flight
 turn draft and sequenced progress event. Implement §2.10's terminal commit and
@@ -856,12 +856,12 @@ sections, actor traits, history, guidance and input. In-history placement is
 honoured there too, which is what P2.4's "history is a splittable source from the
 start" was for.
 
-The four steps of [03 §5](../03-modes-and-turn-pipeline.md). Collect from the
+The four steps of [06 §5](../06-modes-and-turn-pipeline.md). Collect from the
 sources that exist (persona, actors, history, preset blocks, the guidance
 block); annotate with `BlockSource` + reason; budget with a full
 `BudgetVerdict` including `nextToDrop`; render to `RenderedMessage[]` with
 `fromBlocks` intact and same-role merging as a provider capability
-([13 §2](../13-internal-contracts.md)). **History is a splittable source** from
+([21 §2](../21-internal-contracts.md)). **History is a splittable source** from
 the start — in-history placement is how real presets work and P4 imports
 them. Lore retrieval is not here (P5); the lore slot exists and resolves
 empty. The `se.` prefix reservation is enforced here (F18), where the first
@@ -876,9 +876,9 @@ the one step P2.5 ships. What is deliberately absent: the collectors beyond
 history/guidance/input (P2.6 — there is no mode, preset, persona or cast to
 collect from yet), `Turn.mentions` (needs a cast to resolve against), a writer
 for role bindings (P7's provider settings surface; the reader ships and
-hand-editing is [05 §4](../05-ui-surfaces.md) working as designed), and the
+hand-editing is [10 §4](../10-ui-surfaces.md) working as designed), and the
 notification stream and its classes (P10 — this stage ships the *session*
-stream, which [04 §3.1](../04-server-multiuser-deployment.md) is explicit is a different
+stream, which [09 §3.1](../09-server-multiuser-deployment.md) is explicit is a different
 thing with a different audience).
 
 Six things the stage settled that the plan had not:
@@ -891,17 +891,17 @@ Six things the stage settled that the plan had not:
   **And guidance never enters `StepInput` at all**: a step handed the text could
   re-emit it as an ordinary candidate, and `assemble` keys its refusal on
   `Candidate.advisory` rather than on where the words came from.
-- **`BlockSource` was missing two members.** [03 §5.1](../03-modes-and-turn-pipeline.md) says
+- **`BlockSource` was missing two members.** [06 §5.1](../06-modes-and-turn-pipeline.md) says
   the guidance block is *positioned by the preset*, which makes it slot-nameable
   — but the only source it could claim was `step`, one of the two `SlotSource`
   excludes. A preset could not position the one block that section says it
   positions. The player's current action had the same problem. Both added, with
   13 §1.1 and 10 §8.2 edited in the same commit.
 - **`CallKind` was two incompatible types under one name** — the assembler's
-  internal one and [10 §8.2]'s portable open string that `appliesTo` filters on.
+  internal one and [04 §8.2]'s portable open string that `appliesTo` filters on.
   A preset importing `appliesTo: ["narrate"]` would have matched no call the
   engine ever makes. The internal one is `CallPurpose` now.
-- **The three failure modes had to be made three.** [03 §6] specifies only
+- **The three failure modes had to be made three.** [06 §6] specifies only
   `warn`; `abort` and `ignore` are now written down there, with the rule that
   `abort` still *commits* the turn — job abandonment writes no turn at all, and
   the partial record is what somebody needs to re-run it.
@@ -913,11 +913,11 @@ Six things the stage settled that the plan had not:
   passed the parameter.
 
 Turn as a job with an id in the operational store; SSE per
-[07 §8](../07-tech-stack.md); the progress-event vocabulary of
-[04 §3.3](../04-server-multiuser-deployment.md) (`turn.started` …
+[19 §8](../19-tech-stack.md); the progress-event vocabulary of
+[09 §3.3](../09-server-multiuser-deployment.md) (`turn.started` …
 `turn.finished`), snapshot-plus-cursor reattach. Step failure per
-[03 §6](../03-modes-and-turn-pipeline.md): `failure: "warn"` does not lose the
-turn. Events carry `{key, params}`, never prose ([01 §2](01-work-plan.md)) —
+[06 §6](../06-modes-and-turn-pipeline.md): `failure: "warn"` does not lose the
+turn. Events carry `{key, params}`, never prose ([work plan §2](docs/design/workplan/01-work-plan.md)) —
 the notification *classes* and router are P10; the event schema they need is
 complete from the first producer. This is where §2.2's logging pays off:
 job-scoped log context, every state transition logged, and the falsifiable
@@ -936,7 +936,7 @@ JSON affordance that P3 replaces — one `<pre>` tag, not a system. The
 component-test infrastructure and the error boundary already exist from P2.0,
 so the first complex surface ships with component tests rather than before
 them. Impersonation and the axis controls are not here —
-[03 §3](../03-modes-and-turn-pipeline.md) ships in Scene at P7/P11 scope.
+[06 §3](../06-modes-and-turn-pipeline.md) ships in Scene at P7/P11 scope.
 
 *Ends at:* the demo.
 
@@ -989,7 +989,7 @@ Steps 8–20 now hold, mutation-proven, in `routes/p2-gate.test.ts`,
 extensions to `routes/recovery.test.ts` and `turns/runner.test.ts`.
 
 What does **not** hold is written down rather than rounded off:
-[12 — what the machine cannot check](12-p2-manual-gate.md) lists the runs that
+[manual gate — what the machine cannot check](docs/design/workplan/11-p2-manual-gate.md) lists the runs that
 need a person (a real provider above all — every test here uses the fake), the
 places where a gate describes behaviour that is not built, and the steps that
 should be tests and are not yet. Read it before calling the phase done.
@@ -1003,7 +1003,7 @@ project's headline demo stopped working, and the client's own 412 recovery path
 was unreachable in a way only a component test could reach. Step 7's error card
 is still not built.
 
-1. **The P1 gate stays green** — [P1 §3](03-p1-implementation.md), automated to
+1. **The P1 gate stays green** — [P1 §3](docs/design/workplan/07-p1-implementation.md), automated to
    the three tiers §3's P2.0 entry defines, on ubuntu and Windows, as standing
    regression (P2.0).
 2. Two concurrent `PUT`s presenting the same valid hash → exactly one wins,
@@ -1028,7 +1028,7 @@ is still not built.
 11. Read the turn record: every block with source and reason, the budget
     verdict with `nextToDrop`, `ModelCall.resolved` naming what actually ran,
     every RNG draw on the tape keyed by site, cost captured. No nulls where
-    [13](../13-internal-contracts.md) says data.
+    [21](../21-internal-contracts.md) says data.
 12. Two clients on one session both see the stream.
 13. Submit the same idempotency key twice → one job id and one provider call.
     Submit two different keys concurrently against one head → one starts and
@@ -1052,13 +1052,13 @@ is still not built.
     rendered block table, and the rebuild property test is a named CI step on
     both OSes (F11, F17).
 
-**And the standing line from [01 §2.3](01-work-plan.md): no phase exits with
+**And the standing line from [work plan §2.3](docs/design/workplan/01-work-plan.md): no phase exits with
 configuration that has no surface.** *Added after the fact, and P2 is the phase
 that failed it — the provider layer shipped with its connections and role
 bindings as hand-written JSON, and nothing in the twenty steps above notices,
 because every step assumes a library and a connection already on disk. That is
-what the rule is for, and [P2A](13-p2a-configuration-surface.md) and
-[P2B](14-p2b-provider-configuration.md) are the repair.*
+what the rule is for, and [P2A](docs/design/workplan/09-p2a-configuration-surface.md) and
+[P2B](docs/design/workplan/10-p2b-provider-configuration.md) are the repair.*
 
 ---
 
@@ -1070,11 +1070,11 @@ snapshots-as-cache, rewrite/reroll surfaces (P6 — but the tape and
 `parentTurnId` are written now); channels beyond `se.clock`, hooks, the mode
 registry, the SDK boundary, setup wizards, `se.party` (P7); summarisation
 (P8); renditions (P9); the restart-notice UI and capability enforcement
-([P2A](13-p2a-configuration-surface.md) — *both were written here as P10's, and
-both moved one phase out rather than eight; see [01 §2.3](01-work-plan.md)*);
+([P2A](docs/design/workplan/09-p2a-configuration-surface.md) — *both were written here as P10's, and
+both moved one phase out rather than eight; see [work plan §2.3](docs/design/workplan/01-work-plan.md)*);
 notification routing and delivery, cookie hardening (P10); trash, editor
 completeness
-([09 §1–§2](09-polish.md) for its polish half) and the systematic a11y audit
+([polish §1–§2](docs/design/workplan/06-polish.md) for its polish half) and the systematic a11y audit
 (P11) — the *habit* of accessible markup being in scope for everything P2
 ships, per §2.11.
 
@@ -1135,7 +1135,7 @@ write path complete with consumed-on-claim tokens and the
 add-before-unlink discovery (ingest.ts:165-203); the traversal corpus incl.
 drive-relative and ADS; kill-safety with a vacuous-pass guard
 (atomic.test.ts:135-234); config exhaustiveness-tested against its tier table;
-zero schema drift vs [10](../10-schemas.md); bit-correct uuidv7 with monotonicity; triple
+zero schema drift vs [04](../04-schemas.md); bit-correct uuidv7 with monotonicity; triple
 unknown-field enforcement; two-layer fixture-tested boundary lint; the assist
 slot still an empty `<span aria-hidden>` with no scaffolding behind it.
 
@@ -1159,6 +1159,6 @@ finding assigned to P2.0 or P2.3 was genuinely open — no P2.0 work had landed
 table in §1.3 is the live status; where a row now says *Fixed at P2.x*, this
 paragraph is the state it was fixed from.
 The three §1.4 corrections are annotated in P1 with pointers back, and
-`ChannelEffect.scope` landed in [13 §1.2](../13-internal-contracts.md) as §2.7
+`ChannelEffect.scope` landed in [21 §1.2](../21-internal-contracts.md) as §2.7
 promised. Two items were **struck** rather than confirmed: the step-17-via-API
 test (already written at P1.7) and F10's dead `invalidate()` (already removed).

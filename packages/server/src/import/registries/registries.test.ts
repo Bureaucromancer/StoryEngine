@@ -12,7 +12,7 @@ import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern
 
 /**
  * **This is what makes *nothing is silently dropped* checkable**
- * ([P4 §1.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.8](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * A review that says everything was accounted for is a promise; a build that
  * fails when a name has no disposition is a mechanism. Both registries are
@@ -111,7 +111,7 @@ describe('the file and the folder say the same thing', () => {
    * somebody uploads one of those files on its own. Two tables answering the
    * same question is how they start drifting — and the answer here has drifted
    * once already, between the registry's `skipped` for reasoning and
-   * [10 §8.4.2]'s claim that reasoning presets go to `compat`.
+   * [04 §8.4.2]'s claim that reasoning presets go to `compat`.
    *
    * So the upload table names the directory it has to agree with, and this
    * checks it. A future change to either row fails here rather than producing a

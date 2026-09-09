@@ -20,7 +20,7 @@ import { createInterface } from 'node:readline';
  *   case refused; see {@link readNewPassword}.
  *
  * Messages here are developer/operator-facing console output, deliberately
- * untranslated ([07 §12.7](../../../../docs/design/07-tech-stack.md)).
+ * untranslated ([19 §12.7](../../../../docs/design/19-tech-stack.md)).
  */
 
 export class ResetAborted extends Error {}
@@ -44,7 +44,7 @@ export interface PromptOutput {
  * **This path enforces no minimum length, and that is the design rather than an
  * omission.** `auth.minPasswordLength` is what the API refuses on; this is the
  * console, and console access is already the highest authority this software
- * recognises ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md))
+ * recognises ([09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md))
  * — someone who can run this binary against the data directory can already read
  * it. A break-glass path that argued with the person holding the machine would
  * only teach them to edit `accounts.json` by hand, which is worse in every way.

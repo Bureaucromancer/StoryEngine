@@ -1,8 +1,8 @@
-# 09 — Polish list
+# 06 — Polish list
 
 **Status: intent, not a proposal.** A running list of things that are worth
 doing and are not feature-list items. The distinction matters, because
-[14](../14-roadmap.md) has a bar — an entry there is a *feature* held out of the
+[24](../24-roadmap.md) has a bar — an entry there is a *feature* held out of the
 committed versions, and it earns its place by being additive to the data model.
 Nothing here clears that bar and nothing here should have to. These are the small differences
 between a surface that works and a surface that is pleasant, and every one of
@@ -12,7 +12,7 @@ and invisible while reading the spec.
 **The house rule for this file:** an item belongs here if it changes what a user
 sees or does, is bounded, and needs no schema change and no new contract. If an
 item turns out to need either, it stops being polish — move it to
-[14](../14-roadmap.md), where it gets a priority tier, or to the phase plan it
+[24](../24-roadmap.md), where it gets a priority tier, or to the phase plan it
 actually belongs to.
 
 Order is intent, not priority. Two of these are arcs and should land in order:
@@ -23,7 +23,7 @@ provide one.
 
 ## 1. A by-field view in the library, without opening the editor
 
-**Landed at [P5.−1](07-p5-implementation.md)**, which is where this item stopped
+**Landed at [P5.−1](docs/design/workplan/17-p5-implementation.md)**, which is where this item stopped
 being a dependency of a phase and became the first stage of one:
 [ByField.tsx](../../../packages/client/src/library/ByField.tsx) renders it, over
 a field description derived at runtime from the schema
@@ -33,7 +33,7 @@ open were closed in the build and a reason is worth least where the argument it
 answers has gone missing.
 
 - **The single description is the schema itself, read at runtime**, which is the
-  only arrangement in which [05 §11.2d](../05-ui-surfaces.md)'s *a field added
+  only arrangement in which [10 §11.2d](../10-ui-surfaces.md)'s *a field added
   to the schema lands in the editor and in §5.3's read-only fold without a
   second edit* is true. Any hand-written list of a kind's fields is the second
   description this item exists to prevent, and the labels come from the field
@@ -42,7 +42,7 @@ answers has gone missing.
   translated ones would be the second description again.
 - **Empty is shown rather than omitted**, which is the branch this item leaves
   open. Shown, because a field nobody can see is a field nobody fills —
-  [16 §4.1](../16-lorebooks-as-a-format.md) makes exactly that argument about
+  [11 §4.1](../11-lorebooks-as-a-format.md) makes exactly that argument about
   `description` — and shown in three words rather than one, since an absent
   value, a blank string and an empty list are three different facts and the
   schemas draw meaning from the difference.
@@ -106,7 +106,7 @@ rendering and a small piece of design.
 **Also worth doing while in there:** the Edit button is currently gated to
 `actors` and `source === 'user'`. As other kinds get editors that condition
 should come from the same place the fields do, rather than growing a second list
-of kinds. *Half paid at [P4.5](06-p4-implementation.md), and by the route this
+of kinds. *Half paid at [P4.5](docs/design/workplan/16-p4-implementation.md), and by the route this
 note predicted: Delete needed the same gate, so rather than a second copy of it
 the ownership half became one predicate both read. What is left is the part this
 note is actually about — the `actors` half, which still names a kind and should
@@ -114,18 +114,18 @@ come from wherever the fields come from.*
 
 ## 2. *As stored*, kept in the library and added to the editor as a pane
 
-**Landed at [P3.3](05-p3-implementation.md)**, as one component on all three
+**Landed at [P3.3](docs/design/workplan/15-p3-implementation.md)**, as one component on all three
 surfaces — the detail page, the workbench's library subject and the editor's
 saved-state pane — collapsed by default, with the open state in the per-user
 `prefs.json` and a copy control over the whole object. This item was struck late,
-at [P5.−1](07-p5-implementation.md), and the lateness is worth a sentence: the
+at [P5.−1](docs/design/workplan/17-p5-implementation.md), and the lateness is worth a sentence: the
 one clause it could not honestly claim was *collapsed by default is correct once
 the by-field view exists*, and §1 is what made that true.
 
 **Keep it.** The `As stored` block on the detail page stays after item 1 lands.
 It is not a placeholder for the by-field view and it is not developer debris —
 it is the surface that teaches the storage model, and that is a deliberate
-position ([05 §5](../05-ui-surfaces.md)): the folder *is* the object, and a user who
+position ([10 §5](../10-ui-surfaces.md)): the folder *is* the object, and a user who
 can see exactly what is on disk is a user who will confidently open the file. It
 is also the only view that shows fields the client does not know how to render
 yet — extension-written keys, newer schema fields, anything a hand edit added.
@@ -137,8 +137,8 @@ is the answer to a whole class of "did that take?" doubt.
 
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
 its state remembered per user rather than per object — which needs somewhere to
-put a preference, and that is [06 B13](../06-open-questions.md), not this item.
-*Unblocked: B13 resolved at [P2A §2.2](13-p2a-configuration-surface.md) and the
+put a preference, and that is [25 B13](../25-open-questions.md), not this item.
+*Unblocked: B13 resolved at [P2A §2.2](docs/design/workplan/09-p2a-configuration-surface.md) and the
 per-user `prefs.json` store shipped with it, so this item no longer waits on
 anything.* In the library that is a
 change from today, where the block is always open — and that is correct once the
@@ -164,10 +164,10 @@ snapshot (`authorVersion` in
 pin, rename and restore
 ([HistoryPanel.tsx](../../../packages/client/src/editor/HistoryPanel.tsx)). The
 version string is theirs, the revision counter is ours, and the two are kept
-apart on purpose ([02 §11.5](../02-data-model.md)).
+apart on purpose ([03 §11.5](../03-data-model.md)).
 
 **What is missing is the gesture that connects pinning to that string.** Pinning
-already means *this one matters, do not prune it* ([02 §11.3](../02-data-model.md)).
+already means *this one matters, do not prune it* ([03 §11.3](../03-data-model.md)).
 In practice the versions people pin are the ones they would also like to *name
 with a number* — "1.0", "1.2", "the one I shared" — and today the only way to
 attach a number is to have happened to set `provenance.version` before making
@@ -202,11 +202,11 @@ document depending on whether you can see only those four.
 
 "Send them 1.2" is the obvious thing to want once versions carry numbers, and it
 is the one part of this item that is not polish — it sets a default on the
-export flow, which is P4's ([06](06-p4-implementation.md)) and belongs in
-[02 §11.6](../02-data-model.md) once settled. The intended shape:
+export flow, which is P4's ([P4](docs/design/workplan/16-p4-implementation.md)) and belongs in
+[03 §11.6](../03-data-model.md) once settled. The intended shape:
 
 - **Native export (`.seactor`, `.sepack`) sends the active version**, with
-  **full history as an opt-in** on the export. This is [02 §11.6](../02-data-model.md)
+  **full history as an opt-in** on the export. This is [03 §11.6](../03-data-model.md)
   unchanged, and its reasons hold: forty drafts make the file large for no
   benefit to most recipients, and a working record carries false starts nobody
   agreed to publish. Sharing is the common case and collaboration is the
@@ -236,11 +236,11 @@ state, and it is what `/` renders on arrival
 object the user has, of every kind, in one table sorted by nothing in
 particular.
 
-**The position is settled and lives in [05 §5](../05-ui-surfaces.md)** — one panel
+**The position is settled and lives in [10 §5](../10-ui-surfaces.md)** — one panel
 per kind, because the kinds are distinct by design and a merged table teaches
 otherwise; the all-kinds view behind a preference, because a cross-kind list is
 a search result rather than a way to browse; and the naming, settled in
-[05 §5.1](../05-ui-surfaces.md), which withdrew the earlier renaming layer — the
+[10 §5.1](../10-ui-surfaces.md), which withdrew the earlier renaming layer — the
 panels are named for the kinds. What is left here is the client work.
 
 **What the change is.**
@@ -249,7 +249,7 @@ panels are named for the kinds. What is left here is the client work.
   them), **named for the kinds** — Actors, Lorebooks, Treatments, Setups,
   Presets, Packages. *Correction:* this bullet read *"using the presented names —
   Actors, Worlds and Games offered, Lorebooks, Presets and Packages reachable"*,
-  which is the renaming layer [05 §5.1](../05-ui-surfaces.md) withdrew — and
+  which is the renaming layer [10 §5.1](../10-ui-surfaces.md) withdrew — and
   which the paragraph immediately above already cited as withdrawn. **The item
   argued against itself**, and the bullet was the stale half.
 - **Shared machinery, per-kind surfaces.** One list component, one set of
@@ -258,27 +258,27 @@ panels are named for the kinds. What is left here is the client work.
   `ObjectTable` is most of that already, with the Kind column falling away
   wherever it is the panel's own kind. **The Lorebooks panel's columns, badges,
   filters and empty state are specified** at
-  [05 §5.3](../05-ui-surfaces.md) — the one kind where the per-panel choice is a
+  [10 §5.3](../10-ui-surfaces.md) — the one kind where the per-panel choice is a
   correction rather than a preference, because its object is a collection
-  ([16](../16-lorebooks-as-a-format.md)). The other five are still this item's to
+  ([11](../11-lorebooks-as-a-format.md)). The other five are still this item's to
   choose.
 - **The all-kinds view moves behind a preference**, off by default, alongside
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
   preference plumbing is what stands between this and shipping. Where a
-  preference persists is [06 B13](../06-open-questions.md), shared with item 2;
-  the surface that eventually shows them is [05 §15.1](../05-ui-surfaces.md).
-  *Both shipped at [P2A](13-p2a-configuration-surface.md), so the escape hatch in
+  preference persists is [25 B13](../25-open-questions.md), shared with item 2;
+  the surface that eventually shows them is [10 §15.1](../10-ui-surfaces.md).
+  *Both shipped at [P2A](docs/design/workplan/09-p2a-configuration-surface.md), so the escape hatch in
   the sentence above — delete the view rather than wait — is no longer needed.*
 - **`/` moves to home** (item 5). Landing on an arbitrarily chosen single kind
   instead — actors, because there are usually most of those — would be a worse
   answer than today's mixed list, not a better one.
 - **Each panel also supplies whether its kind can be made here**, which is the
   fourth thing alongside columns, sort and empty state.
-  [P4.5](06-p4-implementation.md) put a **New actor** control on the merged
+  [P4.5](docs/design/workplan/16-p4-implementation.md) put a **New actor** control on the merged
   list and a sentence in place of one on the five kinds with no editor to land
   in; splitting the list into panels is what turns that sentence into a
-  per-panel property. [05 §5](../05-ui-surfaces.md) carries the rule — create
+  per-panel property. [10 §5](../10-ui-surfaces.md) carries the rule — create
   arrives with the kind's editor, never as a row of six buttons — so a panel
   never has to decide it, only to render it.
 
@@ -288,7 +288,7 @@ decision and should stay one.
 
 **One thing the panels must carry over.** P2.0 makes a shadowed duplicate-id row
 individually addressable — the row links by a path discriminator rather than by
-id alone, because id-addressing always opens the winner ([04 §1.3](04-p2-implementation.md),
+id alone, because id-addressing always opens the winner ([P2 §1.3](docs/design/workplan/08-p2-implementation.md),
 F19). That lives in the read route and the link contract, so the panels inherit
 it by using the same detail route; what would lose it is a panel building its
 own links from `{kind, id}`. The duplicate warning without the link is the bug
@@ -296,7 +296,7 @@ F19 already fixed once.
 
 ## 5. A home, so arrival is not an arbitrary library view
 
-**What home is and what it holds is [05 §2.2](../05-ui-surfaces.md)** — resume,
+**What home is and what it holds is [10 §2.2](../10-ui-surfaces.md)** — resume,
 start, notice, recent work, in that order, and the library not owning arrival.
 This item is the build, and the reason it is urgent is item 4: today `/` answers
 *"what was I doing?"* with a table of everything, and after item 4 there is no
@@ -335,8 +335,8 @@ incompatible spellings, and they differed in *behaviour* rather than only shade:
 the variant the settings surface used had neither a hover nor a disabled state,
 so a button that could not be pressed looked exactly like one that could.
 
-**What it is now.** [05 §1.2](../05-ui-surfaces.md) and
-[07 §6.1](../07-tech-stack.md) carry the design; the enforcement is the part
+**What it is now.** [10 §1.2](../10-ui-surfaces.md) and
+[19 §6.1](../19-tech-stack.md) carry the design; the enforcement is the part
 that matters to this list:
 
 - The palette is `packages/client/src/index.css` and nowhere else. A Tailwind
@@ -350,15 +350,15 @@ that matters to this list:
 surface, and before this the honest estimate for any of them included inventing
 its colours again and getting them slightly different — which is how the play
 surface ended up at 1.01 to 1 against the shell it renders inside
-([P2C](15-p2c-first-real-run.md)). A new surface now inherits a palette, a type
+([P2C](docs/design/workplan/12-p2c-first-real-run.md)). A new surface now inherits a palette, a type
 scale, and a dark theme it does not have to think about.
 
 **What was deliberately not done.**
 
-- **No config file.** [06 E10](../06-open-questions.md) records the reasoning.
+- **No config file.** [25 E10](../25-open-questions.md) records the reasoning.
   The theme *setting* did follow, once both themes were right: light, dark or
-  match my system, in the Preferences pane ([05 §15.1](../05-ui-surfaces.md)),
-  written to the per-user `prefs.json` that [06 B13](../06-open-questions.md)
+  match my system, in the Preferences pane ([10 §15.1](../10-ui-surfaces.md)),
+  written to the per-user `prefs.json` that [25 B13](../25-open-questions.md)
   settled — which makes it the first thing to use that store, and the reason the
   pane exists at all. Note the order, because it is E10's whole argument: the
   surfaces were made correct first, and only then was one of them made
@@ -374,20 +374,20 @@ scale, and a dark theme it does not have to think about.
 ## 7. A filter over the sign-in gallery
 
 **Blocked on the gallery existing.** The opt-in account-gallery arrival
-screen is [15](../15-account-gallery.md), homed at P10; this item is the
+screen is [12](../12-account-gallery.md), homed at P10; this item is the
 escalation that note defers, recorded here so the deferral has an address.
 
 **Today.** There is no gallery yet. When it ships, it is tiles for every
 listed account plus a *Sign in by name* link, and at household scale that is
 the whole answer — single-digit tiles are scanned, not searched
-([15 §7](../15-account-gallery.md)).
+([12 §7](../12-account-gallery.md)).
 
 **What to build, when tile count defeats scanning.** A type-to-filter box on
 the gallery, narrowing the tiles as you type — client-side, over the listing
 the screen already fetched. No schema change, no new contract: squarely
 inside this file's house rule.
 
-**The thing to get right.** [15 §7](../15-account-gallery.md) records the
+**The thing to get right.** [12 §7](../12-account-gallery.md) records the
 intent: once a text entry exists on the gallery, the separate by-name link
 may fold into it — a typed handle that matches no tile *is* the by-name
 case — leaving the screen one text affordance instead of two. Build the
@@ -395,7 +395,7 @@ filter as that, not as a second box beside the link.
 
 ## 8. Five sampler settings the adapter drops
 
-**Found at [P4 §7.17](06-p4-implementation.md), named there and fixed here.** It
+**Found at [P4 §7.17](docs/design/workplan/16-p4-implementation.md), named there and fixed here.** It
 clears this file's bar exactly: it changes what a user sees — their `min_p`
 starts working — it is bounded, and it needs no schema change and no new
 contract. `GenerationParams` already declares every field involved.
@@ -426,7 +426,7 @@ reach for it first and find it already written.
 `repetition_penalty` are understood by llama.cpp, Ollama, KoboldCpp and TabbyAPI
 and not by OpenAI; sending them to an endpoint that refuses unknown body keys
 turns a working preset into a failing turn. So this is the third of
-[10 §8.5](../10-schemas.md)'s open questions arriving in a concrete form —
+[04 §8.5](../04-schemas.md)'s open questions arriving in a concrete form —
 *whether the portable subset holds or needs a provider-specific escape hatch* —
 and it wants a per-connection answer rather than a global one, which is why it
 is a polish item with a design question inside it rather than a patch.
@@ -454,7 +454,7 @@ body and the page is already holding all of it, so this needs nothing from the
 server. Give the generic panel real sorts (name, recently updated) so the
 dropdown is not Lorebooks-only furniture.
 
-**The thing to get right.** [05 §5.3](../05-ui-surfaces.md) names *a search box
+**The thing to get right.** [10 §5.3](../10-ui-surfaces.md) names *a search box
 per kind* as the failure it is preventing, and asks that the input mounted in the
 book panel be "the same component the eventual cross-library box will use". That
 is already satisfied and should stay satisfied the cheap way: the book box is the
@@ -492,12 +492,12 @@ box with a screen-reader-only label, and the button stays disabled until
 something is typed into it. It is a gate in front of a surface built to collect
 exactly that field, and it is the only place in the app where a control is
 disabled with nothing saying why, which is the placeholder
-[work plan §2.2](01-work-plan.md) rejects in general and which
-[05 §11.1a](../05-ui-surfaces.md) has since made a rule.
+[work plan §2.2](docs/design/workplan/01-work-plan.md) rejects in general and which
+[10 §11.1a](../10-ui-surfaces.md) has since made a rule.
 
 **What to build.** A plain button that opens the editor on an unsaved draft. The
 name becomes a marked, required field *in* the editor, which is
-[05 §11.1a](../05-ui-surfaces.md)'s contract rather than a rule invented here —
+[10 §11.1a](../10-ui-surfaces.md)'s contract rather than a rule invented here —
 the item consumes a contract that already exists, which is what keeps it inside
 this file's house rule.
 
@@ -505,7 +505,7 @@ this file's house rule.
 version — mint it immediately under a placeholder name, let the editor rename
 it — is wrong here for a reason particular to this project. The folder name is
 derived from the object's name **once, at creation, and then frozen**
-([02 §5.2](../02-data-model.md)); renaming changes the name inside the file and
+([03 §5.2](../03-data-model.md)); renaming changes the name inside the file and
 never moves the directory. An empty or placeholder name is accepted by the
 server, so that version does not fail — it succeeds, and leaves `untitled`,
 `untitled-2`, `untitled-3` on disk permanently, in the one part of this design

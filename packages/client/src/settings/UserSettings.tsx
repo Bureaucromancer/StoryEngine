@@ -11,7 +11,7 @@ import { page } from '../ui/classes.js';
 import { SecretField } from '../ui/SecretField.js';
 
 /**
- * What a person may change about themselves — [05 §15.1](../../../../docs/design/05-ui-surfaces.md).
+ * What a person may change about themselves — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
  *
  * Deliberately short: a display name, a locale, a password. Everything else on
  * this screen belongs to somebody administering the install, and the difference
@@ -25,7 +25,7 @@ import { SecretField } from '../ui/SecretField.js';
  * Every entry is English, because nothing here is translated. The day somebody
  * writes a translation is the day another language belongs in this list, and not
  * before — an untranslated `de-DE` would promise German and deliver English. What
- * the value does today is set date and number formatting ([07 §12.6] — `Intl`
+ * the value does today is set date and number formatting ([19 §12.6] — `Intl`
  * from the first component), plus the language the server will use for
  * notifications it composes with the app closed.
  *
@@ -112,7 +112,7 @@ export function UserSettings(): JSX.Element {
        * **The form spans the column and its fields do not**, on every form on
        * this page. The action row is `page.actions` — the strip the editors
        * hold their Save in, now held here for the same reason
-       * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)) — and its
+       * ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)) — and its
        * recipe reaches the column's edges by cancelling the column's own
        * padding, which only works from an element as wide as the column. So
        * `max-w-md` moved from the form to a block around the fields, and the
@@ -202,7 +202,7 @@ export function UserSettings(): JSX.Element {
            * **Sessions elsewhere are not ended**, and saying so is the honest
            * thing rather than the tidy one.
            *
-           * Sessions are signed stateless cookies with no denylist ([04 §4.1]),
+           * Sessions are signed stateless cookies with no denylist ([09 §4.1]),
            * so nothing here can revoke one — and a form that quietly implied
            * otherwise would leave somebody believing they had shut out whoever
            * they changed the password because of.

@@ -12,7 +12,7 @@ import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
 import { IndexRowTable } from './IndexRowTable.js';
 
 /**
- * The library subject, rendered — [05 §3]'s *raw truth of that object*: the
+ * The library subject, rendered — [10 §3]'s *raw truth of that object*: the
  * folder path, provenance as rows, the JSON as stored, the read-only
  * revision list, and the index rows. Strictly a reader over what the store
  * answered, like the turn subject beside it; the detail page underneath

@@ -7,8 +7,8 @@ import type { ChannelEffect, ChannelState, Turn } from './types.js';
 
 /**
  * `se.clock`, and the rule that a hand edit is an intent rather than corruption
- * — [P2 §2.7](../../../../docs/design/workplan/04-p2-implementation.md),
- * [02 §8.1](../../../../docs/design/02-data-model.md).
+ * — [P2 §2.7](../../../../docs/design/workplan/08-p2-implementation.md),
+ * [03 §8.1](../../../../docs/design/03-data-model.md).
  *
  * **Why the clock and not the party.** [P2 §2.7] closed the skeleton's open
  * question here: in a fixed-participant P2 mode nothing ever writes a party
@@ -20,11 +20,11 @@ import type { ChannelEffect, ChannelState, Turn } from './types.js';
  */
 
 /**
- * What a channel declares about itself — [13 §1.3](../../../../docs/design/13-internal-contracts.md).
+ * What a channel declares about itself — [21 §1.3](../../../../docs/design/21-internal-contracts.md).
  *
  * **Deliberately short of the documented type.** `init: InitPolicy` and
  * `surface?: WidgetSpec` are in that section and are named in
- * [13 §6](../../../../docs/design/13-internal-contracts.md) as *deliberately still absent* —
+ * [21 §6](../../../../docs/design/21-internal-contracts.md) as *deliberately still absent* —
  * they want the mode contract built first, which is P2.6. Writing a guess at
  * them here would be the one thing worse than leaving them out: a shape other
  * code starts depending on before the section that owns it exists.
@@ -33,7 +33,7 @@ export interface ChannelDefinition {
   id: string;
   /**
    * Who owns this channel — a mode, an extension, or a package
-   * ([03 §4.1](../../../../docs/design/03-modes-and-turn-pipeline.md)).
+   * ([06 §4.1](../../../../docs/design/06-modes-and-turn-pipeline.md)).
    *
    * **Added with the first channel definition, which is what §4.1 asks for.**
    * That section names accepting a package id as one of two things 1.0 owes
@@ -81,11 +81,11 @@ export const SE_LORE_TIMING = 'se.lore.timing';
 
 /**
  * Where a lore entry's `sticky`, `cooldown` and `ephemeral` counters live —
- * [P5 §1.1](../../../../docs/design/workplan/07-p5-implementation.md)'s *one
+ * [P5 §1.1](../../../../docs/design/workplan/17-p5-implementation.md)'s *one
  * real design question in the phase*, answered.
  *
  * Those counters change as a result of turns, which is the definition of a
- * channel ([03 §4]) — so anywhere else and they do not reconstruct at a node,
+ * channel ([06 §4]) — so anywhere else and they do not reconstruct at a node,
  * and a branch inherits the wrong stickiness. The same argument that moved
  * party membership into channels, unchanged.
  *
@@ -125,7 +125,7 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
  * `engine-computed`, so a model proposing a time change must be recorded and
  * refused rather than applied — which needs a definition to consult.
  *
- * P2.6's modes register their own ([03 §4]); this is the built-in set.
+ * P2.6's modes register their own ([06 §4]); this is the built-in set.
  */
 export const CHANNELS: Readonly<Record<string, ChannelDefinition>> = {
   [SE_CLOCK]: CLOCK_CHANNEL,
@@ -140,7 +140,7 @@ export function channelDefinition(id: string): ChannelDefinition | null {
  * The separator between a channel's id and the thing it is scoped to.
  *
  * `#` because no channel id contains one — they are dotted reverse-domain names
- * ([03 §4.1](../../../../docs/design/03-modes-and-turn-pipeline.md)) — and no
+ * ([06 §4.1](../../../../docs/design/06-modes-and-turn-pipeline.md)) — and no
  * scope key does either: an actor id and an entry id are both uuids or import
  * ids, and neither dialect uses it. Named rather than inlined so that the day
  * one does, there is a single line to argue with.
@@ -156,8 +156,8 @@ const SCOPE_SEPARATOR = '#';
  * *"Which value, when the channel is scoped per actor or per entry"* — but
  * `applyEffects` keyed on `channelId` alone, so two scoped values overwrote each
  * other and the vocabulary was a promise nothing kept.
- * [P5 §0.4](../../../../docs/design/workplan/07-p5-implementation.md) found it;
- * [P6 §1.9](../../../../docs/design/workplan/08-p6-implementation.md) asked
+ * [P5 §0.4](../../../../docs/design/workplan/17-p5-implementation.md) found it;
+ * [P6 §1.9](../../../../docs/design/workplan/18-p6-implementation.md) asked
  * which phase pays; the phase order answers that it is this one, because P5.5
  * is the first stage that needs a per-entry value and shipping the lean without
  * this would be shipping a feature that silently clobbers itself.
@@ -200,7 +200,7 @@ export const CLOCK_START: ClockValue = { day: 1, hour: 8, minute: 0 };
  * How far the clock moves per turn.
  *
  * A placeholder with a name rather than a literal in the middle of a function:
- * the mode is what should decide this ([03 §4](../../../../docs/design/03-modes-and-turn-pipeline.md)),
+ * the mode is what should decide this ([06 §4](../../../../docs/design/06-modes-and-turn-pipeline.md)),
  * and there is no mode configuration to read it from until P2.6. Named so the
  * day it becomes configurable is a change of source rather than a search.
  */
@@ -236,7 +236,7 @@ export function advance(clock: ClockValue, minutes: number): ClockValue {
 /**
  * The clock effect a turn carries.
  *
- * `before` is stored rather than derived, which is [13 §1.2]'s most load-bearing
+ * `before` is stored rather than derived, which is [21 §1.2]'s most load-bearing
  * decision: undoing the tip means applying `before`, not replaying 0..N−1.
  */
 export function clockEffect(
@@ -264,13 +264,13 @@ export function clockEffect(
 
 /**
  * The effects that reconcile a hand-edited `session.json` with the effect log —
- * [02 §8.1](../../../../docs/design/02-data-model.md).
+ * [03 §8.1](../../../../docs/design/03-data-model.md).
  *
  * **A user who edits `channels` in the file has expressed an intent, not
  * corrupted a cache.** The snapshot is derived, so the naive responses are both
  * wrong: overwriting the edit throws away what somebody meant, and trusting it
  * makes the snapshot authoritative — which turns it into a mutable state blob
- * that switching branches has to rewrite, the exact failure [09 §5.1] rules out
+ * that switching branches has to rewrite, the exact failure [07 §5.1] rules out
  * for rolling summaries.
  *
  * So the divergence becomes **user-authored effects**, and the effect log stays
@@ -356,7 +356,7 @@ function same(a: unknown, b: unknown): boolean {
 /**
  * The turn that carries a hand edit into the log.
  *
- * **A turn, rather than effects appended to the head turn.** [02 §8.1] says the
+ * **A turn, rather than effects appended to the head turn.** [03 §8.1] says the
  * effect is "appended at the head", and a segment is append-only — rewriting the
  * head turn's line to add effects to it is precisely what the format forbids.
  * So the edit becomes its own turn: no model calls, no tape, `complete`, and its

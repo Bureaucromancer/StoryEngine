@@ -32,11 +32,11 @@ import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilt
  * link like any other.
  *
  * **The position this was built from has since been reversed.**
- * [05 §5](../../../../docs/design/05-ui-surfaces.md) now calls for one panel per kind — the
+ * [10 §5](../../../../docs/design/10-ui-surfaces.md) now calls for one panel per kind — the
  * kinds are distinct by design and a merged table teaches otherwise — with the
  * all-kinds view kept behind a preference. The routing and the shared list
  * machinery here are what that is built out of; see
- * [polish §4](../../../../docs/design/workplan/09-polish.md) for the change.
+ * [polish §4](../../../../docs/design/workplan/06-polish.md) for the change.
  *
  * **Two ways in, and they sit at different heights on purpose.** Import is the
  * bulk path and belongs to the whole library, so it is reached from above the
@@ -89,7 +89,7 @@ export function LibraryPage(): JSX.Element {
  * The create control, or the sentence that says why there is not one.
  *
  * **Offered exactly where an editor exists, and that is the rule rather than a
- * shortcut.** [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) says the
+ * shortcut.** [10 §11.2d](../../../../docs/design/10-ui-surfaces.md) says the
  * first editor owes create; read from the library's side it says the inverse,
  * and the inverse is the constraint here — a *New lorebook* before P5.1 landed
  * somebody on a read-only page holding an empty book they could not fill in.
@@ -136,7 +136,7 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
  *
  * **Nothing is created here any more.** The editor holds a draft and its first
  * Save is the create, which is what keeps the folder name honest: the slug is
- * taken from the name once and then frozen ([02 §5.2]), so an object created
+ * taken from the name once and then frozen ([03 §5.2]), so an object created
  * before it was named would keep `untitled-2` for the rest of its life. It also
  * means opening this and walking away leaves nothing behind, which the old flow
  * could not have offered without leaving something.
@@ -166,7 +166,7 @@ function NewObjectButton(props: { noun: string; route: NewRoute }): JSX.Element 
 /**
  * The way to import, now that the panel lives in the dock.
  *
- * **An entry point has to survive the move.** [05 §5] says the empty library
+ * **An entry point has to survive the move.** [10 §5] says the empty library
  * *"points at import"*, and a feature reachable only by knowing that Ctrl+`
  * opens a panel which happens to show it over this route is not pointed at by
  * anything. So the page keeps a control, and the control's whole job is to open
@@ -223,7 +223,7 @@ function FilterLink(props: {
 
 /**
  * The one list component, driven by whichever panel the kind supplies —
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s *shared
+ * [polish §4](../../../../docs/design/workplan/06-polish.md)'s *shared
  * machinery, per-kind surfaces*, delivered for the first of its six.
  *
  * **The name cell stays here rather than moving into the panel**, and that is
@@ -261,7 +261,7 @@ function ObjectTable(props: {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   /**
-   * The tag filter — [25 §5](../../../../docs/design/25-tagging.md).
+   * The tag filter — [05 §5](../../../../docs/design/05-tagging.md).
    *
    * Beside the search rather than in the panel's `filters`, because tags are on
    * every kind while scope, enabled and source are the lorebook's. The
@@ -271,7 +271,7 @@ function ObjectTable(props: {
   const [tagFilters, setTagFilters] = useState<TagFilters>(new Map());
   const registry = useTags();
   /**
-   * Tags the registry says to keep off cards — [25 §5].
+   * Tags the registry says to keep off cards — [05 §5].
    *
    * Case-folded, because that is how a tag is compared everywhere else. **Only
    * the inline chip strip reads this.** The filter bar below still offers them,
@@ -299,7 +299,7 @@ function ObjectTable(props: {
          * the way *in* differs by kind, which is what makes it one of the four
          * things [polish §4] says a panel supplies. For lorebooks the order is
          * import first and *new book* second, the opposite of the Actors
-         * panel's ([05 §5.3]), and that is why one shared sentence could not
+         * panel's ([10 §5.3]), and that is why one shared sentence could not
          * have covered it.
          */}
         {emptyMessage(props.kind)}
@@ -316,7 +316,7 @@ function ObjectTable(props: {
    */
   /**
    * The folders on this shelf, and which of them the list is standing in —
-   * [25 §5](../../../../docs/design/25-tagging.md).
+   * [05 §5](../../../../docs/design/05-tagging.md).
    *
    * Counted before any narrowing, because a folder row is a way *in*: one that
    * disappeared as soon as a search excluded its members would be a door that
@@ -396,7 +396,7 @@ function ObjectTable(props: {
       {/*
        * The box itself, under the row rather than in it, so a long shelf's
        * controls do not reflow every time it opens. `Field` rather than a
-       * search control of this page's own — [05 §5.3] asks the book panel's box
+       * search control of this page's own — [10 §5.3] asks the book panel's box
        * to be the component a cross-library one would use, and the way to be
        * that is to be the one text control this client already has.
        */}
@@ -461,7 +461,7 @@ function ObjectTable(props: {
                     aria-label={folderLabel(folder.tag.name, folder.open)}
                     onClick={() => {
                       /**
-                       * **Entering a folder is applying its filter** — [25 §5].
+                       * **Entering a folder is applying its filter** — [05 §5].
                        * Not a second navigation model: the shelf already has a
                        * filter, and this is another control that drives it, so
                        * the chip in the bar is both the indicator and the way

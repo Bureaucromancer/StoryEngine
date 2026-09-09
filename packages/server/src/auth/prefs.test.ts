@@ -11,8 +11,8 @@ import { Layout } from '../storage/layout.js';
 import { PrefsError, PrefsStore } from './prefs.js';
 
 /**
- * Client preferences — [06 B13](../../../../docs/design/06-open-questions.md), closed at
- * [P2A §2.2](../../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * Client preferences — [25 B13](../../../../docs/design/25-open-questions.md), closed at
+ * [P2A §2.2](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * B13's answer was a per-user file, and the three details it left open are what
  * these tests are about: that a patch **merges shallowly** so two tabs are not a

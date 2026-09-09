@@ -34,13 +34,13 @@ import {
 import type { ChannelEffect, SessionFile, Turn } from './types.js';
 
 /**
- * `se.clock` and the hand-edit rule — [P2 §2.7], [02 §8.1].
+ * `se.clock` and the hand-edit rule — [P2 §2.7], [03 §8.1].
  *
  * The claim under test is the one that makes the head snapshot safe to keep in
  * a file people can open: **a hand edit is an intent, not corruption.** Get it
  * wrong in one direction and the edit silently vanishes on the next turn; wrong
  * in the other and the snapshot becomes authoritative, which is the branching
- * failure [09 §5.1] rules out arriving by a different door.
+ * failure [07 §5.1] rules out arriving by a different door.
  */
 
 let dataDir: string;
@@ -107,7 +107,7 @@ describe('the clock', () => {
     expect(readClock((await onDisk()).channels)).toEqual({ day: 1, hour: 8, minute: 10 });
     expect(second.effects[0]?.proposedBy).toEqual({ kind: 'engine' });
     // Stored rather than derived, which is what makes undoing the tip an apply
-    // rather than a replay of 0..N−1 ([13 §1.2]).
+    // rather than a replay of 0..N−1 ([21 §1.2]).
     expect(second.effects[0]?.before).toEqual({ day: 1, hour: 8, minute: 5 });
   });
 

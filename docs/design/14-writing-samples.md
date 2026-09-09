@@ -1,4 +1,4 @@
-# 18 — Writing samples
+# 14 — Writing samples
 
 **Status:** position. Adds one shared substructure and one field to three kinds;
 supersedes two standing decisions, both recorded below.
@@ -11,7 +11,7 @@ Everything in this design that touches style **describes** it, and nothing
 **demonstrates** it.
 
 `Treatment.tone.styleNotes` says "terse, hardboiled, present tense". `se.voice`
-is register and verbal tics, and [10 §4](10-schemas.md) is careful that it is
+is register and verbal tics, and [04 §4](docs/design/04-schemas.md) is careful that it is
 "not what they sound like". `tone.genres` and `tone.moods` are vocabulary. Every
 one of these is a *description of prose* handed to a machine that must then infer
 the prose — which is the harder half of the job, done in the harder direction.
@@ -20,7 +20,7 @@ A **writing sample** is the other half: a passage from the setting, or a page in
 a character's voice, pasted whole and offered as *write like this*. Not a
 paraphrase of the register — the register itself.
 
-The distinction is not new to this project. [24 §3](24-character-studio.md)
+The distinction is not new to this project. [17 §3](docs/design/17-character-studio.md)
 already drew it for pictures:
 
 > **Style anchoring.** Style is a property of the *production*, not the person —
@@ -47,12 +47,12 @@ preset slot rather than injected merely by existing.
 - **Not an unbudgeted paste.** See §5.
 - **Not a world fact.** A sample on a Treatment demonstrates how the world is
   *written*; the world itself stays in the linked lorebook, so the §6 invariant
-  in [10](10-schemas.md) — a Treatment of Rain City does not describe Rain City —
+  in [04](docs/design/04-schemas.md) — a Treatment of Rain City does not describe Rain City —
   survives intact.
 
 ## 3. Shape
 
-One shared substructure ([10 §3.1](10-schemas.md)), carried by Actor, Lorebook
+One shared substructure ([04 §3.1](docs/design/04-schemas.md)), carried by Actor, Lorebook
 and Treatment as an optional list:
 
 ```ts
@@ -93,7 +93,7 @@ SillyTavern's `mes_example` and filled by nothing.
 **Renamed rather than added.** `examples` named the source field it was reserved
 for rather than the thing it fills; with a carrier called `writingSamples`, one
 concept under two names is exactly the drift
-[13 §1.1](13-internal-contracts.md) exists to prevent. The rename is free:
+[21 §1.1](docs/design/21-internal-contracts.md) exists to prevent. The rename is free:
 `Preset` is at `/0`, the one schema whose own docstring says the shape will move;
 no shipped preset positioned the old arm; and an unknown slot from a newer build
 is skipped rather than thrown.
@@ -110,7 +110,7 @@ sample as it was actually sent.
 
 ## 5. The budget consequence, which is the whole behaviour
 
-[00 §2.6](00-stance.md) is not negotiable here:
+[00 §2.6](docs/design/00-stance.md) is not negotiable here:
 
 > every block is budgeted, including the ones we are sure are important. "Never
 > trim this" is a priority value, not the absence of a budget
@@ -122,7 +122,7 @@ here rather than discovered later.
 **A long sample at a low priority often will not survive, and it is
 all-or-nothing.** A sample is dropped whole, never truncated — a half-excerpt
 teaches a register that stops mid-sentence. `estimateTokens` is `ceil(len/4)` and
-runs about 10% low ([06 §E5](06-open-questions.md)), so a 3,000-word story costs
+runs about 10% low ([25 §E5](docs/design/25-open-questions.md)), so a 3,000-word story costs
 roughly 4,000 tokens and is *understated*. Against the Scene preset on a 24k
 window (`contextShare` 0.75, 1,024 reserved, so about 17k available) that fits
 comfortably. Against an 8k local model (about 5k available) it does not, and it
@@ -144,7 +144,7 @@ produced them standing.
 
 ### 6.1 Dialogue examples were a `Section`
 
-[02 §2.7](02-data-model.md) and [10 §4](10-schemas.md) route `mes_example` to a
+[03 §2.7](docs/design/03-data-model.md) and [04 §4](docs/design/04-schemas.md) route `mes_example` to a
 `Section` with `disposition: "on-demand"`, on the reasoning that prompt assembly
 belongs to the preset and the mode rather than to the description of a person —
 the card is not a prompt configuration file.
@@ -162,7 +162,7 @@ remain absent; `mes_example` now has a home.
 
 ### 6.2 Lorebooks were to gain no new field
 
-[16 §4](16-lorebooks-as-a-format.md) refuses new lorebook fields by name, and the
+[11 §4](docs/design/11-lorebooks-as-a-format.md) refuses new lorebook fields by name, and the
 argument was a count: eleven activation fields already ship, validate and
 round-trip while nothing reads them as the field they are, so a twelfth would be
 "buying machinery to avoid building a surface".
@@ -228,7 +228,7 @@ P5.9 was a stage of the phase rather than part of P5.6.
   instead.
 - **No excerpting or truncation.** See §5; a sample is dropped whole.
 - **No generation.** Field assists arrive with providers
-  ([05 §11.1](05-ui-surfaces.md)), and "write me a sample of my own setting" is a
+  ([10 §11.1](docs/design/10-ui-surfaces.md)), and "write me a sample of my own setting" is a
   circular request worth refusing until somebody asks for it.
 - **No Treatment or Lorebook editor.** Neither kind has one; both are edited as
   JSON today, and this field does not change that.

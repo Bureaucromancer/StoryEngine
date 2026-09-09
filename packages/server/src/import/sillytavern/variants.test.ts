@@ -11,7 +11,7 @@ import { convertTextCompletionPreset } from './text-completion.js';
 
 /**
  * The two preset kinds that are not chat-completion: the easy case and the one
- * that looks like it worked ([10 §8.4.2]).
+ * that looks like it worked ([04 §8.4.2]).
  */
 
 const SYSPROMPT = {
@@ -102,7 +102,7 @@ describe('a text-completion preset', () => {
 
   it('keeps the backend-specific samplers in compat rather than dropping them', () => {
     // §8.4.2 said these "drop"; `GenerationParams`' own comment says `compat`.
-    // The code comment wins, because it is the reading consistent with [10 §2]'s
+    // The code comment wins, because it is the reading consistent with [04 §2]'s
     // preservation rule and [00 §2.4]'s *nothing is lost*.
     expect(preset.compat?.['mirostat_tau']).toBe(5);
     expect(preset.compat?.['dry_multiplier']).toBe(0.8);
@@ -144,7 +144,7 @@ describe('a text-completion preset', () => {
 
 describe('the credential rule, on the two converters that were not applying it', () => {
   /**
-   * **The gap this closes.** [10 §8.4.4] drops ST's `sensitiveFields` from every
+   * **The gap this closes.** [04 §8.4.4] drops ST's `sensitiveFields` from every
    * preset unconditionally and offers no *"import as-is"* anywhere, but only
    * `convertChatCompletionPreset` was doing it — the other two copied every
    * unconsumed field into `compat` verbatim. `invariants.test.ts` walks schema

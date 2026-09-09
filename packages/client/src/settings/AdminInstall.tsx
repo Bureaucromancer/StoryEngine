@@ -11,16 +11,16 @@ import { page } from '../ui/classes.js';
 import { useAdminConfig, useWriteConfig } from '../queries.js';
 
 /**
- * The install's settings — [05 §15.3](../../../../docs/design/05-ui-surfaces.md).
+ * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md).
  *
  * **Every control is generated from the config the server sent**, including its
- * tier badge, because the tier table travels as data ([13 §4]) and a hand-written
+ * tier badge, because the tier table travels as data ([21 §4]) and a hand-written
  * list of fields here would be a second copy of the schema — wrong the first
  * time somebody adds a key.
  *
  * What the form does *not* offer is [P2A §2.6]'s list, each refused by name:
  * system connections (P2B), the system library panel (there is no action for an
- * admin to take, and [05 §15.4] says a panel without one does not belong),
+ * admin to take, and [10 §15.4] says a panel without one does not belong),
  * extensions (install does not exist), *Restart now* (see the banner), and
  * connectivity state (its producer is P11's update check).
  */
@@ -107,7 +107,7 @@ export function AdminInstall(): JSX.Element {
       {/*
        * The fields in a `max-w-md` block and the form at the column's width,
        * because the action row below is the strip the editors hold their Save
-       * in ([05 §11.6]) and its recipe needs the column's edges —
+       * in ([10 §11.6]) and its recipe needs the column's edges —
        * `UserSettings` has the longer note. This is the form the strip was
        * most owed on this page: a screen and a half of keys with Save at the
        * foot of them is the editor's failure at a smaller scale.
@@ -189,7 +189,7 @@ export function AdminInstall(): JSX.Element {
            * than a flourish. Pinned, the strip covers the foot of the form,
            * which is where this block used to render — so a 412 answered from
            * a pinned Save would have arrived below the fold, out of sight of
-           * the click that provoked it. That is the silent refusal [01 §2.2]
+           * the click that provoked it. That is the silent refusal [work plan §2.2]
            * forbids and this form has already been caught in once, put back
            * by layout.
            */}
@@ -242,7 +242,7 @@ export function AdminInstall(): JSX.Element {
            * **A refused save used to say nothing at all.** The form rendered
            * only success and the 412 block, so a server 400 — an out-of-range
            * value, a key the build does not know — left the page looking exactly
-           * as it had before, which is the failure mode [01 §2.2] is about.
+           * as it had before, which is the failure mode [work plan §2.2] is about.
            *
            * **`conflict === null` is load-bearing rather than tidiness.** The
            * conflict block above is already `role="alert"`, and a second one
@@ -390,7 +390,7 @@ function saveFailure(error: Error): string {
  *
  * Sentence case rather than a lookup table, because a table is the second copy
  * this control was built to delete. The values are lowercase identifiers by
- * construction ([13 §4]), so capitalising the first letter is the whole rule,
+ * construction ([21 §4]), so capitalising the first letter is the whole rule,
  * and a value that needs more than that needs a real name in the schema.
  */
 function labelOf(choice: string): string {

@@ -194,7 +194,7 @@ describe('the Marinara preset is our block model with different field names', ()
   });
 
   it('turns XML wrapping into our one wrapper string', () => {
-    // The same collapse [10 §8.4.3] describes for SillyTavern's nine fixed
+    // The same collapse [04 §8.4.3] describes for SillyTavern's nine fixed
     // fields, arrived at independently by a second source.
     const main = preset().preset.blocks.find((b) => b.id === 'mari.main');
 

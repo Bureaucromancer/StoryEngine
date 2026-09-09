@@ -25,7 +25,7 @@ import {
 import type { ChannelEffect, Turn } from './types.js';
 
 /**
- * The snapshot cache — [09 §4](../../../../docs/design/09-branching.md), [P6.0d].
+ * The snapshot cache — [07 §4](../../../../docs/design/07-branching.md), [P6.0d].
  *
  * **Every test here is about a cache being invisible.** The only thing a
  * snapshot may change is how long a reconstruction takes, so the assertions
@@ -264,7 +264,7 @@ describe('a snapshot that cannot be trusted is a miss', () => {
 
 describe('a fork gets a snapshot the moment it becomes one', () => {
   it('writes at the parent when a second child lands', async () => {
-    // [09 §4]'s cheap win: a node with several children is one whose state will
+    // [07 §4]'s cheap win: a node with several children is one whose state will
     // be materialised once per sibling explored. The falsifying mutation is
     // dropping the sibling count, which makes every branch append pay the whole
     // walk again.

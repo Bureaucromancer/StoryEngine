@@ -36,7 +36,7 @@ export interface PanelProps {
   className?: string;
   /**
    * The element, for a caller that has to reach it — scrolling one into view is
-   * the case this arrived for ([05 §5.3]'s entry address, which lands a link on
+   * the case this arrived for ([10 §5.3]'s entry address, which lands a link on
    * one entry of a few hundred).
    */
   ref?: Ref<HTMLDivElement>;
