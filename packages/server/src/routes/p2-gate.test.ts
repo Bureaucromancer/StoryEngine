@@ -17,7 +17,7 @@ import {
 } from '../test-server.js';
 
 /**
- * The P2 exit gate's stream-shaped steps — [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md),
+ * The P2 exit gate's stream-shaped steps — [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md),
  * steps 9, 12, 13 and 14.
  *
  * The P2 sibling of `gate.test.ts`, and it exists for the same reason that file
@@ -204,7 +204,7 @@ async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Prom
  * mid-generation → reopen → the finished turn is there. The job survived the
  * client."*
  *
- * This is the architectural claim of [04 §2](../../../../docs/design/04-server-multiuser-deployment.md)
+ * This is the architectural claim of [09 §2](../../../../docs/design/09-server-multiuser-deployment.md)
  * stated as a test: a turn is a server-side job, not a promise living in a
  * browser tab. Everything else in P2 — the job table, the commit protocol, the
  * snapshot-and-cursor attach — exists to make this sentence true, so the test
@@ -271,7 +271,7 @@ describe('step 9 — the job survives the client', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output.text).toBe(SLOW_TEXT);
     // The call ran to the end rather than being classified as a failure that
-    // happened to leave text behind ([13 §1.4]).
+    // happened to leave text behind ([21 §1.4]).
     expect(turn.request.calls[0].outcome).toBe('ok');
 
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -308,7 +308,7 @@ describe('step 9 — the job survives the client', () => {
 /**
  * **Gate step 12** — *"Two clients on one session both see the stream."*
  *
- * [04 §3.1](../../../../docs/design/04-server-multiuser-deployment.md) scopes the session stream
+ * [09 §3.1](../../../../docs/design/09-server-multiuser-deployment.md) scopes the session stream
  * to *one session, subscribed while viewing it*, which makes two tabs on one
  * session the ordinary case rather than an exotic one. `sessions.test.ts`
  * already opens two streams and compares their progress keys — and that test
@@ -386,7 +386,7 @@ describe('step 12 — two clients on one session both see the stream', () => {
      * plus every token since. If that reconstructs the committed text for both
      * connections, then no token was lost, duplicated or delivered to only one
      * of them — and the live view and the stored record agree, which is what
-     * [04 §3.3] means by *the live view is the turn record being built*.
+     * [09 §3.3] means by *the live view is the turn record being built*.
      */
     const reconstructed = (snapshot: SseFrame, handle: StreamHandle): string =>
       ((snapshot.data as { text: string | null }).text ?? '') + deltaTextOf(handle);
@@ -409,7 +409,7 @@ describe('step 12 — two clients on one session both see the stream', () => {
  * one starts and the other is rejected with the active job/current head; no
  * implicit sibling turn and no double-applied effect."*
  *
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md) states the rule this
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md) states the rule this
  * enforces in one line: *any number of clients may observe a session; only one
  * turn may advance it.* The failure it prevents is accidental branching — two
  * jobs claiming the same parent, racing the head snapshot and applying two sets
@@ -516,7 +516,7 @@ describe('step 13 — one key, one job, one provider call', () => {
      * turn, so a second job that reached the effect stage would show up here as
      * a clock that had run twice — 8:10 rather than 8:05 — even if its turn had
      * somehow been deduplicated on the way to disk. Asserted through the route
-     * *and* on the record, because the head snapshot is derived ([02 §8.1]) and
+     * *and* on the record, because the head snapshot is derived ([03 §8.1]) and
      * a derived value agreeing is weaker evidence than the log it comes from.
      */
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -556,7 +556,7 @@ describe('step 13 — one key, one job, one provider call', () => {
  *   invisible to an assertion that only checks the sequence is sorted.
  *
  * The header variant is not a duplicate of the query one. A browser resends
- * `Last-Event-ID` by itself, with no code of ours involved — that is why [07 §8]
+ * `Last-Event-ID` by itself, with no code of ours involved — that is why [19 §8]
  * chose SSE — and the only existing test of that header proves a *nonsense*
  * value does not 500. Nothing asserted that a real cursor arriving that way
  * resumes anything.

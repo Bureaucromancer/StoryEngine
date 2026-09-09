@@ -4,7 +4,7 @@
 import type { ProviderCapabilities } from './types.js';
 
 /**
- * Capping a generated prompt — [07 §5.3](../../../../docs/design/07-tech-stack.md).
+ * Capping a generated prompt — [19 §5.3](../../../../docs/design/19-tech-stack.md).
  *
  * **The failure this prevents is not an error, it is silence.** Hand an
  * endpoint more than it accepts and the common behaviour is that the request

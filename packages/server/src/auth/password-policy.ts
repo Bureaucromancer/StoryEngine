@@ -4,7 +4,7 @@
 import type { Config } from '../config.js';
 
 /**
- * The one password rule, checked where a password is set — [04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md).
+ * The one password rule, checked where a password is set — [09 §4.1](../../../../docs/design/09-server-multiuser-deployment.md).
  *
  * **A function rather than the `minLength` in the four schemas it replaces**,
  * and the reason is the tier. Ajv compiles a route schema once, when the route

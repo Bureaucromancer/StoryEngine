@@ -95,7 +95,7 @@ function palette(): Map<string, Rgb> {
 /**
  * Our tokens, per theme, read out of `index.css`.
  *
- * The three blocks are the three states [05 §1.2] commits to: bare `:root` is
+ * The three blocks are the three states [10 §1.2] commits to: bare `:root` is
  * light, the `prefers-color-scheme` block is the system default, and the
  * `[data-theme='dark']` block is an explicit choice. The last two must agree,
  * and a token defined in only one of them is the exact shape of the bug this
@@ -150,7 +150,7 @@ const PAIRS: [ink: string, on: string[]][] = [
   // the surface arrived together rather than one landing on the other.
   ['highlight-ink', ['highlight-surface']],
   /**
-   * Every tag swatch, in both themes — [25 §4](../../../../docs/design/25-tagging.md).
+   * Every tag swatch, in both themes — [05 §4](../../../../docs/design/05-tagging.md).
    *
    * **Spread from the style record rather than listed**, so a ninth swatch is
    * measured because it exists rather than because somebody remembered to add

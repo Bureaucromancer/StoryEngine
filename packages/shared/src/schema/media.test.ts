@@ -9,10 +9,10 @@ import type { Lorebook } from './lorebook.js';
 import { validate } from './registry.js';
 
 /**
- * Images on lore — docs/design/10-schemas.md §5.1, reasoning in
- * [02 §3.6](../../../../docs/design/02-data-model.md).
+ * Images on lore — docs/design/04-schemas.md §5.1, reasoning in
+ * [03 §3.6](../../../../docs/design/03-data-model.md).
  *
- * [P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md) says lore media is
+ * [P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md) says lore media is
  * schema-only at P1 and that *"P1.1's round-trip tests are the whole of their
  * coverage"*. That sentence is what this file exists to make true: every other
  * fixture in the suite round-trips an empty `media: []`, which would leave the
@@ -133,7 +133,7 @@ describe('MediaRole is a closed union', () => {
 
   it('keeps one vocabulary across kinds — reference means the same on an actor', () => {
     // The reason lore did not get a vocabulary of its own: rendition
-    // conditioning ([14 §3](../../../../docs/design/14-roadmap.md)) has to be able to treat
+    // conditioning ([24 §3](../../../../docs/design/24-roadmap.md)) has to be able to treat
     // a location's reference image the way it treats an actor's.
     const actor = { ...newActor('Vera Solano'), media: [media({ role: 'reference' })] };
     expect(validate(actor).valid).toBe(true);

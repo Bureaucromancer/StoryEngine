@@ -130,7 +130,7 @@ function messagesToScan(context: RetrieveContext): string[] {
 }
 
 /**
- * The named haystacks `additionalMatchingSources` can ask for — [10 §5].
+ * The named haystacks `additionalMatchingSources` can ask for — [04 §5].
  *
  * Deliberately a **small, documented set** rather than everything reachable. A
  * source an entry names and this does not supply is *reported* rather than
@@ -210,7 +210,7 @@ function timingFrom(channels: Readonly<Record<string, ChannelState>>): Record<st
  * **Filtered rather than proposed wholesale**, and the difference is the size
  * of the turn record: a library of four hundred entries would otherwise write
  * four hundred no-op effects every single turn, and the effect log is what
- * [09 §4] replays to reconstruct a node. Every one of those would be a real
+ * [07 §4] replays to reconstruct a node. Every one of those would be a real
  * entry in a real file that a person may one day read.
  */
 function timingEffects(

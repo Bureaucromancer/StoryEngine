@@ -6,7 +6,7 @@ import { control, fieldLabel } from './classes.js';
 
 /**
  * The field primitive every editor is built from
- * ([05 §11](../../../../docs/design/05-ui-surfaces.md)): one component owning label,
+ * ([10 §11](../../../../docs/design/10-ui-surfaces.md)): one component owning label,
  * value, validation, and the place assist will attach — so that "does this
  * field have AI assist?" is never a question anyone asks.
  *
@@ -14,7 +14,7 @@ import { control, fieldLabel } from './classes.js';
  * disabled-with-a-promise: a greyed "Generate" button that cannot work is a
  * placeholder in the [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) sense and also a
  * bad UI. What P1 commits to is this *component boundary*, not the assist
- * contract — the four operations of [05 §11.1] attach here when providers
+ * contract — the four operations of [10 §11.1] attach here when providers
  * exist at P2, and if this component starts growing an assist mechanism before
  * then, the rule has been broken and the work should stop.
  */
@@ -32,7 +32,7 @@ export interface FieldProps {
   hint?: string;
   placeholder?: string;
   /**
-   * Marked with a glyph and announced as required — [05 §11.1a].
+   * Marked with a glyph and announced as required — [10 §11.1a].
    *
    * **The glyph is `aria-hidden` and the announcement is `aria-required`**,
    * which is one fact told twice rather than two facts: a reader who can see the
@@ -42,7 +42,7 @@ export interface FieldProps {
    * focus.
    *
    * It does not gate the control. Refusing the save is the editor's job
-   * ([05 §11.6] puts the refusal beside the Save that caused it), because a
+   * ([10 §11.6] puts the refusal beside the Save that caused it), because a
    * field that refuses to hold what somebody typed is worse than one that holds
    * it and says it is not enough.
    */
@@ -129,7 +129,7 @@ export function Field(props: FieldProps): JSX.Element {
  * The same field, holding a number.
  *
  * A sibling in this file rather than a `type` prop on {@link Field}, and the
- * reason is [05 §11]'s: *does this field have assist?* must keep having one
+ * reason is [10 §11]'s: *does this field have assist?* must keep having one
  * answer. A union of props behind one component makes that answer "it depends
  * on the type", and the slot would grow a condition rather than a value.
  *
@@ -181,7 +181,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
 /**
  * A checkbox, with its consequence written beside it.
  *
- * [05 §15.2](../../../../docs/design/05-ui-surfaces.md) asks for the consequence next to each
+ * [10 §15.2](../../../../docs/design/10-ui-surfaces.md) asks for the consequence next to each
  * switch, so `hint` is where that sentence goes and it is not decoration — a
  * capability toggle whose effect is only discoverable by trying it is the thing
  * that section exists to prevent.
@@ -312,8 +312,8 @@ function Notes({
   }
   /**
    * **The hint carries an id too**, because a control has to be able to point at
-   * it — and until [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md) only
-   * `CheckboxField` did. [05 §15.2](../../../../docs/design/05-ui-surfaces.md) asks for the
+   * it — and until [P2B](../../../../docs/design/workplan/10-p2b-provider-configuration.md) only
+   * `CheckboxField` did. [10 §15.2](../../../../docs/design/10-ui-surfaces.md) asks for the
    * consequence beside the switch, and on a text or select field it was there
    * for a sighted reader and announced to nobody: the label read out, the
    * sentence explaining what the control does silently skipped.

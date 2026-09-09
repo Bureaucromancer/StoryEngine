@@ -14,8 +14,8 @@ import type { FileSource } from './source.js';
 
 /**
  * An archive, read as a source
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.5](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.5](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **§1.3's claim, paid a second time.** That section said *an archive is a root
  * read through a different file source*, and the Marinara profile envelope

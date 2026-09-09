@@ -18,10 +18,10 @@ import { panel } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 
 /**
- * Accounts — [05 §15.2](../../../../docs/design/05-ui-surfaces.md).
+ * Accounts — [10 §15.2](../../../../docs/design/10-ui-surfaces.md).
  *
  * **The dead-end warning is the reason this screen exists this phase.**
- * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) commissioned the
+ * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) commissioned the
  * sentence and named this screen as where it appears: an account with no usable
  * connection cannot send a message, and without the warning that arrives as a
  * bug report from the person who cannot play rather than as a line an
@@ -48,7 +48,7 @@ export function AdminAccounts(): JSX.Element {
           /**
            * The count in the heading, and the fix beside it. A number with
            * nothing to point at leaves an administrator counting rows
-           * themselves ([05 §15.4]), so each row says so too — and when there is
+           * themselves ([10 §15.4]), so each row says so too — and when there is
            * no system connection at all, this is one fix rather than n.
            */
           <p role="status" className="mt-1 text-sm text-warn-ink">
@@ -148,7 +148,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
 
             {/**
              * **Moved out of *Recorded for later* at the P4 audit, and relabelled
-             * to name what it actually grants** ([05 §4.2.2]).
+             * to name what it actually grants** ([10 §4.2.2]).
              *
              * It sat in the recorded group with the labels *No file browser* /
              * *May read their own files* / *May edit their own files* for three
@@ -157,7 +157,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
              * browser over that person's own content, and was in fact granting a
              * server-side read of any directory on the host outside `/data`.
              *
-             * [01 §2.2] forbids a control that does nothing. This was its
+             * [work plan §2.2] forbids a control that does nothing. This was its
              * inverse and the more dangerous one — a control that did **more**
              * than its label admitted — and 05 §4.2.2 had already committed the
              * relabel to *ship with the sweep, not after it*.
@@ -187,7 +187,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
          * **Recorded for later**, and the group says so once rather than each
          * switch apologising for itself.
          *
-         * [01 §2.2] forbids a control that does nothing, and a switch labelled
+         * [work plan §2.2] forbids a control that does nothing, and a switch labelled
          * *may add their own provider keys* that added nothing would be exactly
          * that. What makes these honest is the sentence below: the setting is
          * kept and will apply when the feature ships.
@@ -293,7 +293,7 @@ function NewAccount(): JSX.Element {
       {/*
        * Held against the bottom of the scrollport inside this card, like every
        * action row on the settings page — `panel.actions` is the editors'
-       * strip with the card's padding in place of the column's ([05 §11.6]).
+       * strip with the card's padding in place of the column's ([10 §11.6]).
        * Short as this form is, a strip on one form and a plain row on the next
        * would be two things to learn for one job.
        */}
@@ -314,7 +314,7 @@ function NewAccount(): JSX.Element {
 /**
  * Removing an account, which moves their data rather than erasing it.
  *
- * **The sentence is the point.** [02 §10.2](../../../../docs/design/02-data-model.md) requires
+ * **The sentence is the point.** [03 §10.2](../../../../docs/design/03-data-model.md) requires
  * the trash to be honest about what it does, and this is the same obligation one
  * step further: an administrator about to remove somebody should read what
  * actually happens to their library *before* clicking, not discover it
@@ -334,7 +334,7 @@ function RemoveDialog({ handle, onDone }: { handle: string; onDone: () => void }
       {/**
        * **Whole sentences**, because word order differs between languages and
        * a sentence built by concatenation cannot be translated at all
-       * ([01 §2]) — which is why the handle is substituted into each string
+       * ([work plan §2]) — which is why the handle is substituted into each string
        * rather than sitting between two JSX fragments.
        */}
       <p className="text-sm text-ink-muted">
@@ -371,7 +371,7 @@ function RemoveDialog({ handle, onDone }: { handle: string; onDone: () => void }
 /**
  * The user-facing sentences of this screen, each whole.
  *
- * [01 §2](../../../../docs/design/workplan/01-work-plan.md) keeps this part of i18n discipline on
+ * [work plan §2](../../../../docs/design/workplan/01-work-plan.md) keeps this part of i18n discipline on
  * day one because it is the unretrofittable part: word order differs between
  * languages, so a sentence assembled from fragments around a value cannot be
  * translated at all. A helper returning half a phrase is the same mistake with

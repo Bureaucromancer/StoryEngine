@@ -46,7 +46,7 @@ const PREVIEW_DEBOUNCE_MS = 400;
 
 /**
  * The play surface — a deliberately thin chat view
- * ([P2 §3](../../../../docs/design/workplan/04-p2-implementation.md)).
+ * ([P2 §3](../../../../docs/design/workplan/08-p2-implementation.md)).
  *
  * Message list, input, streaming render, reattach on reload, the collapsed
  * guidance box — and, since [P6.2], the two gestures on every turn. What is
@@ -92,7 +92,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
       // One-shot: guidance applies to the turn it was written for and does not
-      // persist ([03 §5.1]).
+      // persist ([06 §5.1]).
       setGuidance('');
       // **The record supersedes the preview** ([P3.4]). Cleared rather than
       // left to be refreshed, so the panel returns to the head at once
@@ -108,7 +108,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   });
 
   /**
-   * Redo — another attempt at a turn, as a sibling of it — [09 §7], [P6.2].
+   * Redo — another attempt at a turn, as a sibling of it — [07 §7], [P6.2].
    *
    * The words are the turn's own rather than the composer's: this is *that turn
    * again*, and taking what is in the box would silently make it a different
@@ -124,15 +124,15 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
    * *editing does not change the reply already on screen*, and the reason to
    * depart from it is that the protection it offered — not losing the thing you
    * were reading — is what the sibling affordance provides visibly, which
-   * Marinara did not have. This is a lean pending PLAYABLE, and [08 §1.8] is
+   * Marinara did not have. This is a lean pending PLAYABLE, and [P6 §1.8] is
    * where it is argued.
    *
    * **A redo may carry an instruction, and then it carries the attempt too**
-   * ([03 §5.1], [09 §7]). `guidance` and `redoOf` travel together or not at
+   * ([06 §5.1], [07 §7]). `guidance` and `redoOf` travel together or not at
    * all: an instruction with nothing to refer to and an attempt with no
    * instruction are each a different feature from *this again, but change
    * X*. With neither, the body is exactly what it was before the field
-   * existed — a plain redo stays *same setup, different words* ([07 §14.6]),
+   * existed — a plain redo stays *same setup, different words* ([19 §14.6]),
    * and the model is not shown a reply it might then avoid or copy.
    */
   const redo = useMutation({
@@ -163,7 +163,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
   });
 
   /**
-   * Continue differently — a new turn *after* this one — [09 §7], [P6.2].
+   * Continue differently — a new turn *after* this one — [07 §7], [P6.2].
    *
    * Moving the head is the whole of it: the composer writes a child of
    * wherever the head is, so pointing at an old message and then typing is
@@ -173,7 +173,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
    * Stepping to a sibling — [§1.2].
    *
    * `resume: true`, so coming back to a line returns to where you were on it
-   * rather than to its first turn ([09 §3]).
+   * rather than to its first turn ([07 §3]).
    */
   const goToSibling = useMutation({
     mutationFn: (turnId: string) => moveHead(sessionId, turnId, true),
@@ -322,7 +322,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
     // none, which is why the transcript's `overflow-y-auto` had never once
     // triggered. The column is `page.reading`, not the tooling width: this is
     // the story surface, and the reading measure is the token's one designed
-    // use ([05 §1.2]).
+    // use ([10 §1.2]).
     <div className={`${page.reading} flex h-full flex-col gap-4`}>
       <div className="flex items-center gap-2">
         {/*
@@ -384,7 +384,7 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
 
         {/* The turn being written. A live region, because its text arrives
             without the reader doing anything — the accessible-markup habit
-            [01 §2.1] calls day-one, applied where it actually matters. */}
+            [work plan §2.1] calls day-one, applied where it actually matters. */}
         {state.text.length > 0 && running ? (
           <li aria-live="polite" aria-busy="true">
             <p className="whitespace-pre-wrap text-story text-ink">{state.text}</p>
@@ -459,10 +459,10 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
 }
 
 /**
- * One turn, with the two gestures on it — [09 §7], [P6.2].
+ * One turn, with the two gestures on it — [07 §7], [P6.2].
  *
  * **On the turn, not on the message.** Under `per-actor` dispatch one turn is
- * several messages, and [09 §7] resolves branching inside a multi-message turn
+ * several messages, and [07 §7] resolves branching inside a multi-message turn
  * to that turn's *node* — which is C11, closed precisely to stop *message*
  * becoming the unit people reach for.
  *
@@ -474,18 +474,18 @@ export function PlayPage({ sessionId }: { sessionId: string }): React.JSX.Elemen
  * two buttons is that a server picking between them is wrong about half the
  * time.
  *
- * **Redo splits into rewrite and reroll where draws exist** ([07 §14.5]).
+ * **Redo splits into rewrite and reroll where draws exist** ([19 §14.5]).
  * *Redo* rewrites: the draws come off this turn's tape, so the mechanical
  * outcome holds and only the prose changes. *Reroll* is the explicit second
  * action that rolls again — and it **only appears when the turn consumed
- * draws**, which is [07 §14.6]'s rule and the reason it is absent from most
+ * draws**, which is [19 §14.6]'s rule and the reason it is absent from most
  * turns: an ordinary turn against an ordinary book draws nothing, and a button
  * offering to re-roll nothing would be a button that lies.
  *
  * Rewrite is the default of the two because the other way round makes swiping
  * past a failed check save-scumming by accident.
  *
- * **Either gesture may carry an instruction** ([03 §5.1], [09 §7]). *Redo with
+ * **Either gesture may carry an instruction** ([06 §5.1], [07 §7]). *Redo with
  * guidance* reveals a field under the turn; what is typed there rides with
  * whichever of the two buttons is pressed next, together with this turn's own
  * words as the attempt the instruction is about. It modifies the gesture
@@ -515,7 +515,7 @@ function TurnView({
   onName: (turnId: string, name: string) => void;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
-  // hand edit ([02 §8.1]) is the one that exists today — so there is nothing to
+  // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
   // attempt again.
   const rerunnable = turn.input !== undefined;
   const rolled = turn.tape.length > 0;
@@ -659,11 +659,11 @@ function TurnView({
 }
 
 /**
- * The inline affordance on a node that has siblings — [§1.2], [09 §6], [P6.3].
+ * The inline affordance on a node that has siblings — [§1.2], [07 §6], [P6.3].
  *
  * **History shows the selected path only**, so this is the whole of how an
  * alternative is reachable: a count, a way to step between them, and a way to
- * give one a name. The full tree visualiser is post-1.0 ([14 §1]) and this is
+ * give one a name. The full tree visualiser is post-1.0 ([24 §1]) and this is
  * deliberately not a small version of it — it answers *there are others* and
  * *take me to one*, which is what a person swiping needs.
  *
@@ -746,7 +746,7 @@ function SiblingStrip({
           </Button>
         </form>
       ) : (
-        // Promoting a swipe writes a name and moves no data ([09 §6]), which is
+        // Promoting a swipe writes a name and moves no data ([07 §6]), which is
         // why this sits beside the count rather than behind a confirmation.
         <Button
           type="button"
@@ -765,7 +765,7 @@ function SiblingStrip({
 /**
  * What the stream is doing, in words rather than only a spinner.
  *
- * `reconnecting` is a real state with its own sentence, because [07 §11] asks
+ * `reconnecting` is a real state with its own sentence, because [19 §11] asks
  * for *a quiet reconnecting state that resumes rather than erroring out* — and
  * a client that showed an error there would be wrong, since the cursor makes
  * the resume lossless.

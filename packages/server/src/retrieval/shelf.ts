@@ -5,7 +5,7 @@ import { estimateTokens } from '../assembly/assemble.js';
 import type { Activation } from './activate.js';
 
 /**
- * The **per-book** budget — [02 §3.2]'s inner tier, and its trim order.
+ * The **per-book** budget — [03 §3.2]'s inner tier, and its trim order.
  *
  * [P5 §1.3] is explicit that the two tiers are not one thing: per-book
  * `tokenBudget` and `entryLimit` are decided here, and the chat-wide cut stays
@@ -17,7 +17,7 @@ import type { Activation } from './activate.js';
  *
  * ## The trim order is a specification, not a preference
  *
- * [02 §3.2] writes it out, and it is taken whole:
+ * [03 §3.2] writes it out, and it is taken whole:
  *
  * > constants first, then entries matching the latest message, then normal
  * > injection order — and the scan continues past a skipped entry, so a small
@@ -140,7 +140,7 @@ export function shelve(input: ShelfInput): ShelfResult {
       continue;
     }
     /**
-     * **Zero is unlimited, not a ceiling of nothing** — [10 §5], the schema's
+     * **Zero is unlimited, not a ceiling of nothing** — [04 §5], the schema's
      * own `0 = unlimited`, and the sibling rule `match.ts` already keeps for
      * `scanDepth`: *zero-as-unlimited is the format's convention and not ours
      * to improve, because the books that carry it were written elsewhere.*
@@ -161,7 +161,7 @@ export function shelve(input: ShelfInput): ShelfResult {
     const budget = book.tokenBudget === 0 ? Infinity : book.tokenBudget;
     if (used.tokens + tokens > budget) {
       /**
-       * Refused, and **the loop goes on** — [02 §3.2]'s *the scan continues
+       * Refused, and **the loop goes on** — [03 §3.2]'s *the scan continues
        * past a skipped entry*. Nothing is marked as full, because a later,
        * smaller entry may still fit in what this one could not use.
        */
@@ -196,7 +196,7 @@ export function shelve(input: ShelfInput): ShelfResult {
  * left implied by a comparator buried in a loop.
  *
  * Exported for the same reason {@link trimRank} is: this list *is* the answer
- * to "what falls out next", which [02 §8]'s `nextToDrop` promises is answerable
+ * to "what falls out next", which [03 §8]'s `nextToDrop` promises is answerable
  * before it happens.
  */
 export function inTrimOrder(activated: readonly Activation[], latestMessage: string): Activation[] {

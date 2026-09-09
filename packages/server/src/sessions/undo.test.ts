@@ -24,7 +24,7 @@ import {
 import type { ChannelEffect, SessionFile, Turn } from './types.js';
 
 /**
- * Undo, and state that differs per line — [§1.4], [13 §1.2.1], [P6 §3] steps 4,
+ * Undo, and state that differs per line — [§1.4], [21 §1.2.1], [P6 §3] steps 4,
  * 5 and 10, [P6.3].
  *
  * **The refusal is the feature.** `before` is an inverse only while nothing has
@@ -111,7 +111,7 @@ async function pathOf(sessionId: string): Promise<Turn[]> {
 describe('undoing the tip', () => {
   it('applies `before`, as its own turn, attributed to the person', async () => {
     // Gate step 4's first half. The undo is an append rather than an erasure:
-    // a segment is never rewritten ([02 §5.5]), so the record says a person
+    // a segment is never rewritten ([03 §5.5]), so the record says a person
     // undid something instead of quietly lacking it.
     const session = await createSession(context, ACCOUNT, 'Rain City');
     const first = await append(session.id, null, (id) => [
@@ -197,7 +197,7 @@ describe('undoing the tip', () => {
 
 describe('undoing anything deeper', () => {
   it('is refused, and the refusal offers the branch', async () => {
-    // Gate step 4's second half, and [13 §1.2.1]'s worked case: HP goes 10 → 8
+    // Gate step 4's second half, and [21 §1.2.1]'s worked case: HP goes 10 → 8
     // at turn N and 8 → 5 later, so applying N's `before: 10` now destroys the
     // later change and produces a state no turn ever wrote. **The falsifying
     // mutation is applying it anyway**, which leaves a plausible number and
@@ -223,7 +223,7 @@ describe('undoing anything deeper', () => {
   });
 
   it('allows a deeper turn whose keys nothing has touched since', async () => {
-    // *Tip* is per key, not per turn — [13 §1.2.1]'s rule is that `before` is
+    // *Tip* is per key, not per turn — [21 §1.2.1]'s rule is that `before` is
     // an inverse while nothing has written the same key, and a later turn on a
     // different channel has not.
     const session = await createSession(context, ACCOUNT, 'Rain City');
@@ -258,7 +258,7 @@ describe('undoing anything deeper', () => {
   });
 
   it('never inverts an escaped effect, and says there was nothing to undo', async () => {
-    // [09 §7]: a library write or a generated asset left the session, and
+    // [07 §7]: a library write or a generated asset left the session, and
     // pretending a branch can un-write it would be worse than saying it cannot.
     const session = await createSession(context, ACCOUNT, 'Rain City');
     const escaped = await append(session.id, null, (id) => [

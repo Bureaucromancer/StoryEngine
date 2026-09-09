@@ -12,7 +12,7 @@ import { Layout } from '../storage/layout.js';
 import { AccountError, Accounts } from './accounts.js';
 
 /**
- * The account store's mutating verbs — [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md),
+ * The account store's mutating verbs — [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md),
  * stage P2A.1.
  *
  * Until this stage the store could create an account and, through the
@@ -21,8 +21,8 @@ import { AccountError, Accounts } from './accounts.js';
  * first-run setup there was no way to change a display name, a locale, a role,
  * an enabled flag or a capability without editing `accounts.json` by hand.
  *
- * These are the verbs [05 §15.1](../../../../docs/design/05-ui-surfaces.md) and
- * [05 §15.2](../../../../docs/design/05-ui-surfaces.md) name, tested here before
+ * These are the verbs [10 §15.1](../../../../docs/design/10-ui-surfaces.md) and
+ * [10 §15.2](../../../../docs/design/10-ui-surfaces.md) name, tested here before
  * any route exists — so the guard that keeps an install from locking itself out
  * lives in one place rather than in whichever handler remembered it.
  */
@@ -220,7 +220,7 @@ describe('the last usable admin', () => {
  * **Removal is a move** — [P2A §2.3], gate step 11.
  *
  * The same position `trashDestination` already takes for objects and sessions
- * ([02 §10.2]), landing somewhere else for one reason: the user's own trash is
+ * ([03 §10.2]), landing somewhere else for one reason: the user's own trash is
  * *inside* the directory being removed.
  *
  * The pair that matters is the handle being free immediately while the old data

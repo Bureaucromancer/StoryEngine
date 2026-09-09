@@ -10,7 +10,7 @@ import { matureTombstones, TOMBSTONE_TTL_MS } from './ingest.js';
  * Tombstone maturation, on a schedule of its own — F9.
  *
  * A tombstone is a row waiting to find out whether it was half of a rename
- * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). After
+ * ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)). After
  * the TTL nothing is coming, and the row is a real deletion that should stop
  * occupying the index.
  *

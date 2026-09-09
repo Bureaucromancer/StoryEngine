@@ -7,8 +7,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The settings surface — [05 §15](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.6.
+ * The settings surface — [10 §15](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md) stage P2A.6.
  *
  * **Absent is implemented as absent**, and [P2A §2.6] calls that directly
  * testable — which is the whole reason it is a mechanism rather than a style
@@ -220,7 +220,7 @@ describe('the build', () => {
 });
 
 /**
- * **"1 person has no usable connection"** — [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)
+ * **"1 person has no usable connection"** — [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md)
  * commissioned this sentence and named this screen as where it appears.
  *
  * It is the reason the phase exists in the shape it does: the surface earns its
@@ -267,7 +267,7 @@ describe('the dead-end warning', () => {
  * Two dishonest options were available and both are refused: inventing a partial
  * enforcement so a switch feels real, and rendering three switches as though
  * they were equally live. The grouping says the other half of the truth
- * [05 §15.2] asks for, which is *when*.
+ * [10 §15.2] asks for, which is *when*.
  */
 describe('the capability groups', () => {
   it('separates the two that bite from the one that does not', async () => {
@@ -298,7 +298,7 @@ describe('the capability groups', () => {
   });
 
   it('says what the grant actually reaches, not what it used to', async () => {
-    // [05 §4.2.2] widened this capability deliberately and bound the relabel to
+    // [10 §4.2.2] widened this capability deliberately and bound the relabel to
     // ship with it. The old labels described a file browser over the user's own
     // directory; the grant is a server-side read of the host. The bar is the
     // design's own sentence rather than a softer paraphrase, so it is asserted.
@@ -317,14 +317,14 @@ describe('the capability groups', () => {
     renderPage('admin');
 
     const now = await screen.findByRole('group', { name: 'In force now' });
-    // [04 §4.5]'s *revoking disables, never deletes*, said where somebody is
+    // [09 §4.5]'s *revoking disables, never deletes*, said where somebody is
     // about to do it rather than in documentation they will not read.
     expect(now.textContent).toContain('stay on disk');
   });
 });
 
 /**
- * **Removal says what it does before it does it** — [P2A §2.3], [02 §10.2].
+ * **Removal says what it does before it does it** — [P2A §2.3], [03 §10.2].
  *
  * The trash's honesty obligation, one step further: an administrator about to
  * remove somebody should read what actually happens to their library *before*
@@ -359,10 +359,10 @@ describe('removing an account', () => {
 });
 
 /**
- * The install form — [05 §15.3], [P2A §2.5] and [P2A §2.6].
+ * The install form — [10 §15.3], [P2A §2.5] and [P2A §2.6].
  *
  * Every control is generated from what the server sent, tier badge included,
- * because the tier table travels as data ([13 §4]) and a hand-written list of
+ * because the tier table travels as data ([21 §4]) and a hand-written list of
  * fields here would be a second copy of the schema — wrong the first time
  * somebody adds a key.
  */
@@ -394,7 +394,7 @@ describe('the install form', () => {
 
   /**
    * **`server.host` carries the binding sentence at the moment of binding** —
-   * [04 §4.1] requires it of every place somebody can bind beyond loopback, and
+   * [09 §4.1] requires it of every place somebody can bind beyond loopback, and
    * this form is the fourth.
    */
   it('warns about binding beyond loopback where the binding happens', async () => {
@@ -510,7 +510,7 @@ describe('the user half', () => {
   /**
    * **Sessions elsewhere survive a password change**, and the form says so.
    *
-   * Sessions are signed stateless cookies with no denylist ([04 §4.1]), so
+   * Sessions are signed stateless cookies with no denylist ([09 §4.1]), so
    * nothing here can revoke one — and a form that quietly implied otherwise
    * would leave somebody believing they had shut out whoever they changed the
    * password because of.
@@ -533,15 +533,15 @@ describe('the user half', () => {
  * read `.current` off *that* — always `undefined`, so *Load what is on disk*
  * was unreachable markup.
  *
- * It matters beyond this screen. [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+ * It matters beyond this screen. [P2B §6](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
  * commits the next phase to the same idiom twice over, for `system/bindings.json`
  * and for a connection, so shipping the dead affordance once would have shipped
  * it three times.
  */
 /**
- * The theme control — [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s
+ * The theme control — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
  * Preferences pane, and the first thing to use the per-user store that
- * [06 B13](../../../../docs/design/06-open-questions.md) settled.
+ * [25 B13](../../../../docs/design/25-open-questions.md) settled.
  *
  * The claim being tested is not that a `<select>` works. It is that *system* is
  * recorded as the **absence** of a preference rather than as a third stored

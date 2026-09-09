@@ -21,19 +21,19 @@ import { contentHashOf } from '../index-db/ingest.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 
 /**
- * The install's settings — [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §2.5](../../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §2.5](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * Registered inside the `/api/admin` plugin, so the guard is the prefix's and
  * nothing here checks a role.
  *
  * **The tier table travels as data.** The client may not import from the server
  * package, and a duplicated copy of `CONFIG_TIERS` would falsify
- * [13 §4](../../../../docs/design/13-internal-contracts.md)'s claim that the
+ * [21 §4](../../../../docs/design/21-internal-contracts.md)'s claim that the
  * annotation *is* the source. Sending it means a key a newer build adds renders
  * with the right badge without a client release — and `LIVE_APPLIERS` travels
  * beside it, because a control that says *live* and is not read yet is the
- * placeholder [01 §2.2] forbids.
+ * placeholder [work plan §2.2] forbids.
  */
 
 /**
@@ -236,7 +236,7 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
   /**
    * The restart banner's data, on its own route.
    *
-   * Separate from `GET /config` because [04 §6.3](../../../../docs/design/04-server-multiuser-deployment.md)
+   * Separate from `GET /config` because [09 §6.3](../../../../docs/design/09-server-multiuser-deployment.md)
    * wants the banner on *every* page rather than on the settings page — so the
    * shell asks for it, and making the shell fetch the whole config on every
    * navigation to learn one array would be the wrong trade.
@@ -253,7 +253,7 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       /**
        * **The server does not restart itself**, and the banner says so in one
        * sentence rather than listing pending changes and offering nothing.
-       * [04 §6.4] is explicit that under no supervisor a restart control leaves
+       * [09 §6.4] is explicit that under no supervisor a restart control leaves
        * the admin with no server and possibly no shell, so it needs supervisor
        * detection and a drain — neither of which exists. A notice that invites
        * *"so how do I restart it?"* is a worse answer than one that says.
@@ -270,7 +270,7 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
        * quotes back at you.
        *
        * Rendered since alpha.2 by the footer on every page and the About block
-       * at the top of Settings ([05 §15.1]), from `GET /api/auth/state`, which
+       * at the top of Settings ([10 §15.1]), from `GET /api/auth/state`, which
        * carries the same value for everyone. This copy stays because this route
        * is the admin shell's *state of this install* answer; the About surface
        * those grow into is [P11.6]'s.

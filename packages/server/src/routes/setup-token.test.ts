@@ -12,9 +12,9 @@ import { makeTestServer, type TestServer } from '../test-server.js';
 
 /**
  * The first-run setup token, and the cookie hardening that travels with it —
- * F10, [04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md),
- * [P6A §1.4](../../../../docs/design/workplan/23-p6a-alpha-1.md),
- * [P10 §1.1](../../../../docs/design/workplan/21-p10-implementation.md).
+ * F10, [09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md),
+ * [P6A §1.4](../../../../docs/design/workplan/19-p6a-alpha-1.md),
+ * [P10 §1.1](../../../../docs/design/workplan/26-p10-implementation.md).
  *
  * **The claim is the check, not the print.** P1 printed a freshly generated
  * token on every non-loopback boot and stored it nowhere, so nothing verified
@@ -28,7 +28,7 @@ import { makeTestServer, type TestServer } from '../test-server.js';
  * which is why the whole existing suite, every test of it driving `inject`,
  * is untouched by a feature gated on being exposed.
  *
- * **Both halves or neither** ([04 §5.1]): the cookie tests at the foot are not
+ * **Both halves or neither** ([09 §5.1]): the cookie tests at the foot are not
  * a separate subject. They rest on the same premise — the loopback default —
  * and shipping one without the other leaves the survivor resting on something
  * that no longer holds, which is worse than shipping neither because it looks
@@ -168,7 +168,7 @@ describe('bound to loopback, which is every development install', () => {
 });
 
 /**
- * The predicate both halves turn on, in one place — [04 §5.1].
+ * The predicate both halves turn on, in one place — [09 §5.1].
  *
  * Two spellings of *is this exposed* would be a security bug rather than an
  * inconsistency, and the two the codebase had were `main.ts`'s
@@ -199,9 +199,9 @@ describe('what counts as loopback', () => {
 
 /**
  * The twin deferral — cookie `secure`, deferred at [P2 §2.11] on the same
- * premise as the token and expiring at the same instant ([04 §5.1]).
+ * premise as the token and expiring at the same instant ([09 §5.1]).
  *
- * **Not derived from the bind, deliberately.** [04 §5.1] blesses plain HTTP on a
+ * **Not derived from the bind, deliberately.** [09 §5.1] blesses plain HTTP on a
  * trusted LAN and refuses to ship self-signed certificates; a `Secure` cookie is
  * not sent back over HTTP, so a rule that turned it on for every non-loopback
  * bind would lock out the LAN install the design endorses — silently, because

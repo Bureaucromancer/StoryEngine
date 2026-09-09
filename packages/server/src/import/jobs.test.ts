@@ -12,7 +12,7 @@ import { importNotesFor } from './jobs.js';
 
 /**
  * **Gate step 11, as written**: *fetch the review report over the API*
- * ([P4 §7.4](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.4](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * The substance of that step held from P4.4 — the report is `{key, params}` and
  * the sentences are composed client-side — but the word *fetch* was not true of
@@ -56,7 +56,7 @@ afterEach(async () => {
   await server.dispose();
 });
 
-/** The sweep needs the capability [05 §4.2.2] widened. */
+/** The sweep needs the capability [10 §4.2.2] widened. */
 async function grantFileAccess(): Promise<void> {
   const accounts = await server.request({ method: 'GET', url: '/api/admin/accounts' });
   const handle = (accounts.body.accounts as { handle: string }[])[0]?.handle ?? 'ned';
@@ -104,7 +104,7 @@ describe('the review has an address', () => {
     }[];
     expect(jobs).toHaveLength(2);
     expect(jobs[0]?.status).toBe('finished');
-    // The absolute root lives here and only here ([13 §4.1.1]) — the person who
+    // The absolute root lives here and only here ([21 §4.1.1]) — the person who
     // typed it can see it, and no per-item row repeats it.
     expect(jobs[0]?.root).toBe(root);
 
@@ -133,7 +133,7 @@ describe('the review has an address', () => {
   });
 
   it('is 404 for somebody else’s import, not 403', async () => {
-    // [04 §4.4]'s posture: an id must not be a probe for what other people have
+    // [09 §4.4]'s posture: an id must not be a probe for what other people have
     // imported, so missing and forbidden are the same answer.
     const swept = await sweepRoot();
     const jobId = swept.body.report.jobId as string;

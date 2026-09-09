@@ -12,7 +12,7 @@ import { TokenField, type TokenOption } from '../ui/TokenField.js';
 import { TagManagerDialog } from './TagManagerDialog.js';
 
 /**
- * The tag field an editor actually mounts — [25](../../../../docs/design/25-tagging.md).
+ * The tag field an editor actually mounts — [05](../../../../docs/design/05-tagging.md).
  *
  * `TokenField` owns the combobox and knows nothing about tags; this owns the
  * policy: **what is offered, how it is matched, and what *create* means.**
@@ -43,7 +43,7 @@ export function TagInput(props: TagInputProps): JSX.Element {
   /**
    * The registry, for **colour only**.
    *
-   * A tag with no entry draws neutral and behaves identically — [25 §2]'s
+   * A tag with no entry draws neutral and behaves identically — [05 §2]'s
    * invariant 4. Nothing here waits on this query, refuses a tag because of it,
    * or treats its absence as an error: if it never loads, every chip is grey and
    * every other thing this field does still works.
@@ -91,7 +91,7 @@ export function TagInput(props: TagInputProps): JSX.Element {
      * It is withheld when a tag differing only in case exists, and the existing
      * spelling is offered instead. `noir` and `Noir` are one tag to a person and
      * two to the engine, which compares tag names exactly when it gates lore
-     * ([25 §1]) — so quietly minting the second spelling would produce two tags
+     * ([05 §1]) — so quietly minting the second spelling would produce two tags
      * that gate differently, which is the failure that section exists to
      * prevent.
      */
@@ -200,7 +200,7 @@ function vocabulary(objects: readonly { object: Record<string, unknown> }[]): st
 /**
  * The matched run marked, using the same `Run` machinery the book search draws
  * with — shared as a function rather than as a widget, which is the shape
- * [05 §5.3] asks for.
+ * [10 §5.3] asks for.
  */
 function marked(name: string, term: string): JSX.Element {
   return (

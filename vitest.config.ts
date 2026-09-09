@@ -63,7 +63,7 @@ export default defineConfig({
      * does not hold a CI leg for a quarter of an hour. Making the suite *fast*
      * is a different job, and one this number must not be mistaken for.
      *
-     * [15 §1.5](docs/design/workplan/15-p2c-first-real-run.md) sizes this at about nine
+     * [P2C §1.5](docs/design/workplan/12-p2c-first-real-run.md) sizes this at about nine
      * tenths of the load ceiling; the remaining tenth was `logging.test.ts`'s
      * own wall-clock poll, fixed beside this.
      */

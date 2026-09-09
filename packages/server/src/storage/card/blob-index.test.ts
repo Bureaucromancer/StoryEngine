@@ -71,7 +71,7 @@ describe('the blob index round-trips', () => {
 describe('the blob index stores bytes raw', () => {
   it('costs almost nothing over the payload itself', () => {
     // The reason this half is not base64 like the JSON half: ~33% on the large
-    // part of a card is worth avoiding ([02 §5.2.2](../../../../../docs/design/02-data-model.md)).
+    // part of a card is worth avoiding ([03 §5.2.2](../../../../../docs/design/03-data-model.md)).
     const payload = new Uint8Array(100_000).fill(0xcd);
     const encoded = encodeBlobIndex(new Map([['big', payload]]));
 

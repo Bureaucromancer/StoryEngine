@@ -3,20 +3,20 @@
 
 /**
  * The CSS half of the logical-properties rule
- * (docs/design/07-tech-stack.md §12.6, docs/design/workplan/01-work-plan.md §2).
+ * (docs/design/19-tech-stack.md §12.6, docs/design/workplan/01-work-plan.md §2).
  *
  * Split out of `stylelint.config.js` for the same reason the ESLint rules are:
  * the fixture tests in `tools/lint-fixtures/` run against these objects.
  *
  * Written before there is any CSS to check, which is the point — this is
- * docs/design/workplan/03-p1-implementation.md §P1.0's ordering, and it is why the first
+ * docs/design/workplan/07-p1-implementation.md §P1.0's ordering, and it is why the first
  * stylesheet in the project could not have been written the wrong way.
  */
 
 const LOGICAL_MESSAGE =
   'Physical property. Use the logical equivalent (margin-inline-start, ' +
   'padding-inline-end, inset-inline-start, border-inline-start…). RTL is a ' +
-  'dir attribute or a rewrite — docs/design/07-tech-stack.md §12.6.';
+  'dir attribute or a rewrite — docs/design/19-tech-stack.md §12.6.';
 
 /**
  * The plugin covers the common declarations. This list is the backstop, in case

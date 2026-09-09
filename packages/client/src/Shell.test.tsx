@@ -7,10 +7,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The restart banner — [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md),
- * [P2A §2.6](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * The restart banner — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
+ * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
- * It lives in the shell rather than on the settings page because [04 §6.3] wants
+ * It lives in the shell rather than on the settings page because [09 §6.3] wants
  * it on **every** page: the person who needs to know a restart is outstanding is
  * often not the person looking at the form.
  *
@@ -127,7 +127,7 @@ describe('the restart banner', () => {
   /**
    * **And says the server will not restart itself.**
    *
-   * [04 §6.4] is explicit that under no supervisor a restart control leaves the
+   * [09 §6.4] is explicit that under no supervisor a restart control leaves the
    * administrator with no server and possibly no shell, so it needs supervisor
    * detection and a drain, neither of which exists. A notice that invites *"so
    * how do I restart it?"* is a worse answer than one that says.
@@ -174,7 +174,7 @@ describe('the navigation', () => {
   });
 
   /**
-   * The two surfaces — [05 §2](../../../docs/design/05-ui-surfaces.md).
+   * The two surfaces — [10 §2](../../../docs/design/10-ui-surfaces.md).
    *
    * Asserted by destination rather than by label, because the label is the part
    * that is safe to change and the address is the part that is not.
@@ -190,7 +190,7 @@ describe('the navigation', () => {
 
   /**
    * **No workbench entry, and this is the assertion that keeps it that way.**
-   * [05 §3] makes the workbench a panel that expands over whichever surface you
+   * [10 §3] makes the workbench a panel that expands over whichever surface you
    * are in. A nav entry would reintroduce exactly the layout claim §2 dropped,
    * and it is the sort of thing that gets added back by someone who reads the
    * header and not the design.
@@ -204,7 +204,7 @@ describe('the navigation', () => {
 
   /**
    * The wordmark is the arrival affordance and becomes home once home exists
-   * ([05 §2.2]). Until then it goes to the library — but it is deliberately
+   * ([10 §2.2]). Until then it goes to the library — but it is deliberately
    * *not* pointed at `/`, because `/` is the address home will take.
    */
   it('points the wordmark at the library, not at the root', async () => {
@@ -230,7 +230,7 @@ describe('the navigation', () => {
 });
 
 /**
- * The visible opener — [P3.1](../../../docs/design/workplan/05-p3-implementation.md).
+ * The visible opener — [P3.1](../../../docs/design/workplan/15-p3-implementation.md).
  * The user's requirement is that the onscreen control be as first-class as
  * the chord, so it lives in the header on every page; and it is a *button*,
  * which is what keeps "offers no workbench entry" above green by

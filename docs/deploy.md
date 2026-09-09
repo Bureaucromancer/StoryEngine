@@ -1,7 +1,7 @@
 # Running a built StoryEngine
 
 **Status: as built at P6A.4.** This describes the image, the compose file and the
-unraid template that [P6A](design/workplan/23-p6a-alpha-1.md) ships — what exists,
+unraid template that [P6A](design/workplan/19-p6a-alpha-1.md) ships — what exists,
 not what is planned.
 
 **Alpha 1 is a build this project made for itself.** The repository is private,
@@ -9,8 +9,8 @@ the registry package is private, and the unraid template is committed rather tha
 submitted. That is a deliberate position rather than a stage on the way to
 something: publishing the image is a decision to publish the repository at the
 same instant, because AGPL §13's source link has to resolve for whoever is
-running it ([04 §7](design/04-server-multiuser-deployment.md)). See
-[P6A §4](design/workplan/23-p6a-alpha-1.md) for what else travels with that
+running it ([09 §7](design/09-server-multiuser-deployment.md)). See
+[P6A §4](design/workplan/19-p6a-alpha-1.md) for what else travels with that
 decision.
 
 So the first thing to know is that **the package will not pull until you are
@@ -29,9 +29,9 @@ Without it, the pull fails with a 404 that reads like a typo in the image name.
 
 The container binds `0.0.0.0`, because a container's own `127.0.0.1` is its own
 loopback and would be unreachable however you mapped the port
-([04 §5.3](design/04-server-multiuser-deployment.md)). That is done by setting
+([09 §5.3](design/09-server-multiuser-deployment.md)). That is done by setting
 `SE_HOST` — the same variable a bare-metal install would use, not a different
-build ([P10 §1.2](design/workplan/21-p10-implementation.md)) — so you can read it
+build ([P10 §1.2](design/workplan/26-p10-implementation.md)) — so you can read it
 in the Dockerfile and override it.
 
 Binding beyond loopback means the create-the-first-admin screen is reachable from
@@ -50,12 +50,12 @@ after that the field is gone and the file is inert.
 
 The console is the channel on purpose. Only somebody with host access reads it,
 and that is exactly the audience entitled to claim an unclaimed install
-([04 §5.1](design/04-server-multiuser-deployment.md)).
+([09 §5.1](design/09-server-multiuser-deployment.md)).
 
 ## The volume
 
 Everything the install is — accounts, library, sessions, `config.json` — is under
-`/data` ([02 §5](design/02-data-model.md)). Back that up; there is nothing else
+`/data` ([03 §5](design/03-data-model.md)). Back that up; there is nothing else
 to back up.
 
 `compose.yaml` uses a named volume because the container runs as uid 1000 and a
@@ -85,7 +85,7 @@ directory, which is empty on a first run:
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
 changing a value in the UI and finding a variable had outranked it would be a bug
-([13 §4](design/13-internal-contracts.md)). The server logs a warning when a
+([21 §4](design/21-internal-contracts.md)). The server logs a warning when a
 variable is set and the file speaks for the same key.
 
 **There is no HTTPS.** On a LAN it cannot be done well without a real domain or a
@@ -108,15 +108,15 @@ docker compose logs storyengine | head -n 5
 
 **An older build will not open a data directory a newer one has written.** It
 refuses and says both versions; it does not migrate. There is no compatibility
-promise between alpha builds — [13](design/13-internal-contracts.md) licenses the
+promise between alpha builds — [21](design/21-internal-contracts.md) licenses the
 storage tier to change without migration for as long as nothing leaves the
-install, and nothing does ([P6A §1.7](design/workplan/23-p6a-alpha-1.md)).
+install, and nothing does ([P6A §1.7](design/workplan/19-p6a-alpha-1.md)).
 
 ## Channels
 
 Every tagged build is pushed under two tags: its version, which never moves,
 and `testing`, which every tagged alpha moves
-([releases §4](design/workplan/11-repo-and-releases.md) — *a chosen commit on
+([releases §4](design/workplan/04-repo-and-releases.md) — *a chosen commit on
 main, gated on a human deciding*, which a tag on main is). The unraid template
 follows `testing`, so unraid's update check offers each new alpha;
 `compose.yaml` pins the version, because it is the build you can go back to. To
@@ -131,10 +131,10 @@ alpha is not something to hand an auto-updater.
 `/boot/config/plugins/dockerMan/templates-user/`. It declares the port, the
 `/data` volume, the WebUI address and the bind variable, and its description
 opens by saying the package is private — because a template that only half-works
-is worse than none ([04 §5.3](design/04-server-multiuser-deployment.md)).
+is worse than none ([09 §5.3](design/09-server-multiuser-deployment.md)).
 
 It is **submitted to no store**. Every package format is a recurring cost rather
-than a one-time build ([04 §5.4](design/04-server-multiuser-deployment.md)), and
+than a one-time build ([09 §5.4](design/09-server-multiuser-deployment.md)), and
 a Community Applications listing adds a moderated presence and a support thread
 to a project with one maintainer and no users yet.
 
@@ -161,7 +161,7 @@ contents of `state/setup.token` under the appdata folder.
    The heading opens with the bare version, then the build's name, then the
    date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
    for the version at the start of the line. The names, and how they follow
-   from the string, are [releases §7.1](design/workplan/11-repo-and-releases.md)'s.
+   from the string, are [releases §7.1](design/workplan/04-repo-and-releases.md)'s.
 3. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
 
 `.github/workflows/release.yml` fires on `v*` — filtered, because the only other

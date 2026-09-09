@@ -14,7 +14,7 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * Marinara prompt presets → `Preset`
- * ([P4 §1.5](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.5](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The plan called this format undocumented and it is not** — it is typed in
  * `Marinara-Engine/packages/shared/src/types/prompt.ts`, and it is the closest
@@ -24,7 +24,7 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
  * an `injectionOrder` for ties. Those are our text block, slot block,
  * `in-sequence` and `in-history` placement, `fromEnd` and `tiebreak`, one for
  * one — unsurprising, because Marinara's prompt manager and SillyTavern's are
- * the same lineage that [10 §8.4] was written against.
+ * the same lineage that [04 §8.4] was written against.
  *
  * So this is a redirection rather than a second conversion, which is what §1.5
  * predicted and why Marinara presets stopped being survey-dependent.
@@ -39,7 +39,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * Ten values. Seven map. `chat_summary` is P8-shaped, and `id_macro_cards` and
  * `agent_data` have no home at all — each recorded with the review class that
  * says *when*, which is the whole difference between "not yet" and "never"
- * ([P4 §1.4], collected into [18 §1.10](../../../../../docs/design/workplan/18-p7-implementation.md)).
+ * ([P4 §1.4], collected into [P7 §1.10](../../../../../docs/design/workplan/23-p7-implementation.md)).
  */
 const MARKERS: Readonly<Record<string, SlotSource>> = {
   character: { of: 'actor', sectionId: 'se.summary' },
@@ -101,7 +101,7 @@ export function convertPreset(
   applyConversationPrompt(presetRow, preset, notes);
   applyVariables(presetRow, choiceBlocks, preset, notes);
 
-  // [10 §2]'s preservation rule. `parameters`, `groupOrder`, `wrapFormat` and
+  // [04 §2]'s preservation rule. `parameters`, `groupOrder`, `wrapFormat` and
   // the rest ride verbatim rather than being dropped.
   preset.compat = Object.fromEntries(
     Object.entries(presetRow).filter(
@@ -173,7 +173,7 @@ function blockFor(
  *
  * A section can ask to be wrapped in a named tag, and the preset carries a
  * default format for all of them. Both become our one `wrapper` string, which is
- * the same collapse [10 §8.4.3] describes for SillyTavern's nine fixed fields —
+ * the same collapse [04 §8.4.3] describes for SillyTavern's nine fixed fields —
  * arrived at independently by a second source, which is worth noticing.
  */
 function wrapperFor(

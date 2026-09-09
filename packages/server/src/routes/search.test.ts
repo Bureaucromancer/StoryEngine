@@ -107,12 +107,12 @@ describe('search', () => {
 });
 
 /**
- * **Exit-gate step 4** — [P5 §3](../../../../docs/design/workplan/07-p5-implementation.md):
+ * **Exit-gate step 4** — [P5 §3](../../../../docs/design/workplan/17-p5-implementation.md):
  * *"A search phrase occurring in exactly one entry returns **that entry** with
  * a snippet, across books."*
  *
  * The phrase is the point: before this, a match inside a three-hundred-entry
- * book returned *the book*, which [05 §14.5] calls "close to useless at book
+ * book returned *the book*, which [10 §14.5] calls "close to useless at book
  * scale". So every assertion here is about the two things that make a hit worth
  * returning — the **address** (`objectId` plus `entryId`, which is exactly what
  * the book page's `?entry=` takes) and the **snippet**.
@@ -182,7 +182,7 @@ describe('a phrase inside one entry of one book', () => {
     expect(hit?.snippet).toContain('crossing');
 
     // And the address is the one the book page already takes: `?entry=` on the
-    // object's own route ([05 §5.3]).
+    // object's own route ([10 §5.3]).
     const book = await server.request({
       method: 'GET',
       url: `/api/library/lorebooks/${String(hit?.objectId)}`,
@@ -194,7 +194,7 @@ describe('a phrase inside one entry of one book', () => {
   });
 
   /**
-   * **All five fields [05 §5.3] names, each proved by a word only it holds.**
+   * **All five fields [10 §5.3] names, each proved by a word only it holds.**
    *
    * The list is not decoration: it is the same one the book page's own
    * within-book box searches, and two surfaces disagreeing about which entries

@@ -8,7 +8,7 @@ import { groupSummary, offDefaults } from './entry-defaults.js';
 import { fieldsOf, groupsOf, loreEntrySchema, type FieldGroup } from './fields.js';
 
 /**
- * The closed-section invariant — [05 §11.2d], and exit-gate step 5's second
+ * The closed-section invariant — [10 §11.2d], and exit-gate step 5's second
  * half: *a collapsed section in the editor names its non-default values*.
  *
  * **Driven by the real schema rather than by hand-built rows.** The groups here
@@ -77,14 +77,14 @@ describe('what is not at its default', () => {
 
 describe('the summary a closed section carries', () => {
   it('reproduces the design’s numeric example exactly', () => {
-    // [05 §11.2d]: "*Timing (sticky 4)*".
+    // [10 §11.2d]: "*Timing (sticky 4)*".
     expect(groupSummary(group('Timing', entry()), entry({ sticky: 4 }))).toBe('Timing (sticky 4)');
   });
 
   it('names all three where the design’s other example counted them', () => {
-    // [05 §11.2d] writes "*Matching (3 set)*", and a count conceals three
+    // [10 §11.2d] writes "*Matching (3 set)*", and a count conceals three
     // values — which is the hidden field the invariant exists to forbid, and
-    // the lossy summary [05 §2.1] forbids by name. Named instead.
+    // the lossy summary [10 §2.1] forbids by name. Named instead.
     expect(
       groupSummary(
         group('Matching', entry()),

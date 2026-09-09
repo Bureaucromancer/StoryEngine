@@ -7,12 +7,12 @@ import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
 
 /**
- * Client preferences, per user — [06 B13](../../../../docs/design/06-open-questions.md),
- * closed at [P2A §2.2](../../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * Client preferences, per user — [25 B13](../../../../docs/design/25-open-questions.md),
+ * closed at [P2A §2.2](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * B13 offered three homes and this is the third: a file beside the user's data
  * rather than `localStorage` or a map on `Account`. The lean was already written
- * into the layout — [04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)'s
+ * into the layout — [09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md)'s
  * canonical per-user block lists `prefs.json` — so closing the question was
  * mostly letting two documents agree.
  *

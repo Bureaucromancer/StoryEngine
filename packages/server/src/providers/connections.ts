@@ -12,7 +12,7 @@ import { canBuild } from './factory.js';
 import type { ProviderCapabilities } from './types.js';
 
 /**
- * Connections — [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md).
+ * Connections — [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md).
  *
  * **They follow exactly the library model**, with one deliberate asymmetry.
  * They live in two scopes and resolve as one merged list, the same shape the
@@ -30,12 +30,12 @@ import type { ProviderCapabilities } from './types.js';
  * - **The key never leaves the server.** {@link presentConnection} is the only
  *   shape that goes to a client, and it has nowhere to put one.
  * - **Nor does the endpoint URL**, which can itself carry a token or reveal a
- *   private host. An admin may opt to show it — [04 §4.5]'s one permission
+ *   private host. An admin may opt to show it — [09 §4.5]'s one permission
  *   here, and {@link AdminConnection} takes it as narrowly as it goes: the
  *   admin who set the URL is the only person shown it, and
  *   {@link PublicConnection} still has nowhere to put one. *(This said P10 was
  *   the phase that would decide it. It was decided at
- *   [P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md), because a
+ *   [P2B §2.2](../../../../docs/design/workplan/10-p2b-provider-configuration.md), because a
  *   form that cannot show a URL back is a write-only form.)*
  * - **There is no fork.** Copy-to-my-library has no analogue here, because
  *   copying would mean copying the credential.
@@ -58,7 +58,7 @@ export interface Connection {
   models: string[];
   /**
    * Per-connection capability overrides, because a limit is a property of *this
-   * endpoint* ([07 §5.3](../../../../docs/design/07-tech-stack.md)).
+   * endpoint* ([19 §5.3](../../../../docs/design/19-tech-stack.md)).
    */
   capabilities?: Partial<ProviderCapabilities>;
 }
@@ -90,7 +90,7 @@ export interface ConnectionResolution {
    * account does not have `privateConnections`.
    *
    * Returned rather than silently dropped: the user is *told* rather than left
-   * wondering why a model call started failing ([04 §4.5]).
+   * wondering why a model call started failing ([09 §4.5]).
    */
   disabled: Connection[];
 }
@@ -100,7 +100,7 @@ export interface ConnectionResolution {
  *
  * **The capability is enforced here, not at creation**, and that is the
  * load-bearing detail. A user with write file access can drop a connection file
- * straight into their own directory ([05 §4](../../../../docs/design/05-ui-surfaces.md)),
+ * straight into their own directory ([10 §4](../../../../docs/design/10-ui-surfaces.md)),
  * so a check in a route or a UI is a trivial bypass — the loader has to be the
  * thing that refuses. It also means extensions are covered for free, since they
  * request calls by role and the host resolves.
@@ -254,7 +254,7 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
 }
 
 /**
- * A connection as an **admin** editing one may see it — [P2B §2.2](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ * A connection as an **admin** editing one may see it — [P2B §2.2](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  *
  * `presentConnection` stays the only shape a non-admin ever sees, and it has
  * nowhere to put a `baseUrl`. That is exactly right for a user and useless for
@@ -273,7 +273,7 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
  * empty password box cannot distinguish them, so the form would either mangle
  * the stored key or make the admin retype it on every edit.
  *
- * **`baseUrl` is admin-visible and user-invisible**, which is [04 §4.5]'s *"an
+ * **`baseUrl` is admin-visible and user-invisible**, which is [09 §4.5]'s *"an
  * admin may opt to show it"* read as narrowly as it goes: the bullet permits
  * showing a user the URL, and the admin who set it is the only person who needs
  * it.
@@ -290,8 +290,8 @@ export interface AdminConnection {
   hasKey: boolean;
   /**
    * True when an earlier file in resolution order already claims this id, so
-   * nothing will ever resolve to this one — [P2B §4](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
-   * step 10, and [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)'s posture: both
+   * nothing will ever resolve to this one — [P2B §4](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+   * step 10, and [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s posture: both
    * are listed and nothing is blocked, but the one that loses says so.
    *
    * **A property of the list, not of the connection**, which is why it is
@@ -364,7 +364,7 @@ export class ConnectionError extends Error {
  *
  * **Derived, never read.** `readConnectionsIn` keeps taking the id from the
  * file's *contents*, so a hand-renamed file goes on working — the same position
- * [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) takes on library slugs and
+ * [P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md) takes on library slugs and
  * for the same reason: the path is a convenience, the id is identity.
  *
  * Which means a delete cannot be a path join alone. Every connection fixture
@@ -447,7 +447,7 @@ export async function writeConnection(
    * key's argument above always covered and this code did not.
    *
    * The form has no field for them — deliberately, since
-   * [07 §5.3](../../../../docs/design/07-tech-stack.md) makes them the operator saying something
+   * [19 §5.3](../../../../docs/design/19-tech-stack.md) makes them the operator saying something
    * about their own endpoint rather than a setting with a sensible default — so
    * it sends none, and a write that took `input.capabilities` alone **deleted
    * whatever was on disk every time somebody renamed a connection.**
@@ -527,7 +527,7 @@ export async function deleteConnection(layout: Layout, root: string, id: string)
  * function must never give.
  *
  * Refusing instead would have been the other consistent choice, and it is the
- * wrong one at this scale: [P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)'s
+ * wrong one at this scale: [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s
  * posture is that duplicate ids are surfaced and nothing is blocked, and an
  * admin who cannot revoke until they have tidied their directory by hand is
  * blocked at exactly the wrong moment.

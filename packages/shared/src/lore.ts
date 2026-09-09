@@ -8,7 +8,7 @@ import type { Lorebook, LoreEntry, LoreFolder } from './schema/lorebook.js';
  * retriever must agree about.
  *
  * **It lives here rather than in the client, and that is the whole point.**
- * [P5 §3](../../../docs/design/workplan/07-p5-implementation.md)'s gate step 13
+ * [P5 §3](../../../docs/design/workplan/17-p5-implementation.md)'s gate step 13
  * asks that where the keyword tester's answer is a gate or a disabled book
  * rather than a match, *it agrees with what the document half already showed*,
  * and P5.7 is told to honour the folder gate in activation "so that the reason
@@ -102,7 +102,7 @@ export function entryGate(book: Lorebook, entry: LoreEntry): EntryGate {
     });
   }
 
-  // Last, and read straight off the entry: [10 §5] is explicit that a folder
+  // Last, and read straight off the entry: [04 §5] is explicit that a folder
   // gate leaves this *preserved rather than mutated*, so an entry inside a
   // closed folder still says `enabled: true` here and the fold still shows it.
   if (!entry.enabled) blockedBy.push({ kind: 'entry-off' });
@@ -114,7 +114,7 @@ export function entryGate(book: Lorebook, entry: LoreEntry): EntryGate {
  * How many of a book's entries are off, for the count beside the book.
  *
  * *214 entries, 31 off* is the shape of a book's variants
- * ([05 §5.3](../../../docs/design/05-ui-surfaces.md)), and it is invisible at
+ * ([10 §5.3](../../../docs/design/10-ui-surfaces.md)), and it is invisible at
  * every surface that exists without this.
  */
 export function offCount(book: Lorebook): number {
@@ -126,7 +126,7 @@ export function offCount(book: Lorebook): number {
  *
  * Null covers two different files and deliberately renders as one node: an
  * entry that says `folderId: null`, and an entry whose `folderId` names a
- * folder the book does not contain. [05 §5.3] insists `folderId: null` gets a
+ * folder the book does not contain. [10 §5.3] insists `folderId: null` gets a
  * real **Ungrouped** node rather than being quietly omitted, "because a
  * nullable field that renders as nothing hides entries" — and an entry pointing
  * at a folder that is not there would be hidden by exactly the same omission.
@@ -145,7 +145,7 @@ export function entriesInFolder(book: Lorebook, folderId: string | null): LoreEn
  * The entries a folder's gate reaches — itself and everything beneath it.
  *
  * **Which is what *governs* means, and the direct count is the wrong number for
- * the panel that word appears in.** [05 §5.3](../../../docs/design/05-ui-surfaces.md)
+ * the panel that word appears in.** [10 §5.3](../../../docs/design/10-ui-surfaces.md)
  * asks for "each folder with its gate and the number of entries it governs",
  * beside a Gate column — and shutting a folder shuts every entry below it, not
  * only the ones filed in it directly. A parent holding sixty entries and one

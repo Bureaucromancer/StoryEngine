@@ -38,11 +38,11 @@ import { PathEscapeError } from '../storage/paths.js';
 import type { Tape } from '../rng/rng.js';
 
 /**
- * Sessions, turns, and the stream — [P2 §2.10], [04 §3.1], [07 §8].
+ * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
  *
  * **Every route resolves its session from the account, never from a parameter.**
  * There is no `:handle` here any more than there is in the library routes: the
- * path is the owner ([04 §4.3]), so a missing session and somebody else's are
+ * path is the owner ([09 §4.3]), so a missing session and somebody else's are
  * the same 404. Confirming that a session id exists elsewhere would leak the one
  * fact the separation exists to keep.
  *
@@ -72,7 +72,7 @@ const TurnParams = Type.Object({ sessionId: Type.String(), turnId: Type.String()
  * mid-session — and this is the minimum that makes PLAYABLE possible at all,
  * because a library full of imported presets that no session can play is a
  * library nobody can evaluate. The session still copies rather than links
- * ([02 §8]): editing a preset must not silently change a game in progress.
+ * ([03 §8]): editing a preset must not silently change a game in progress.
  */
 const CastBody = Type.Object(
   {
@@ -91,7 +91,7 @@ const CreateBody = Type.Object(
      * never runs for one, and nothing anywhere resolves a session by name. So
      * starting one freezes nothing, which is exactly the constraint that made
      * the library defer creation until a name existed
-     * ([25 §3](../../../../docs/design/25-tagging.md) has the contrasting case).
+     * ([05 §3](../../../../docs/design/05-tagging.md) has the contrasting case).
      * Demanding a name here bought a form somebody had to fill in before they
      * could play, and bought it for nothing.
      *
@@ -110,7 +110,7 @@ const CreateBody = Type.Object(
     preset: Type.Optional(Type.String({ maxLength: 200 })),
     cast: Type.Optional(CastBody),
     /**
-     * The world — [P5.6], [02 §8].
+     * The world — [P5.6], [03 §8].
      *
      * **Links, unlike `preset` two fields up**, and validated no harder than
      * `cast` is: an id that resolves to nothing is a session with no books, not
@@ -119,7 +119,7 @@ const CreateBody = Type.Object(
      * retriever reports what it could not read, every turn, where somebody
      * playing can actually see it.
      *
-     * `lore` is extras *beyond* whatever the treatment already links ([02 §7]),
+     * `lore` is extras *beyond* whatever the treatment already links ([03 §7]),
      * so both may be given, and giving neither is the pre-P5.6 session.
      */
     treatment: Type.Optional(Type.String({ maxLength: 200 })),
@@ -136,7 +136,7 @@ const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 
  * What a `PATCH /sessions/:sessionId` may change — archiving, and the name.
  *
  * **Widened rather than joined by a verb**, which is the opposite of the call
- * [25 §4](../../../../docs/design/25-tagging.md) makes for `POST /tags/:id/rename`, and the
+ * [05 §4](../../../../docs/design/05-tagging.md) makes for `POST /tags/:id/rename`, and the
  * difference is worth stating because the two sit one file apart. A tag rename
  * is not a property edit: a lore entry's `actorTagFilter` holds author-written
  * *names*, compared exactly, so renaming one changes which lore fires, reaches
@@ -204,7 +204,7 @@ const PreviewBody = Type.Object(
  * A turn submission — [P2 §2.10].
  *
  * `guidance` is **its own field** and is never concatenated into `input.text`.
- * That is the whole point of the guidance slot ([03 §5.1]): typed into the
+ * That is the whole point of the guidance slot ([06 §5.1]): typed into the
  * action it would land in history permanently, be summarised as narrative,
  * be scanned by keyword matching, be read back as dialogue, and appear in
  * exports — none of which the person typing it intended.
@@ -223,7 +223,7 @@ const SubmitBody = Type.Object(
      */
     parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     /**
-     * Replay this turn's draws — **rewrite** rather than reroll, [07 §14.5],
+     * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5],
      * [P6.2].
      *
      * A turn id rather than a tape: the draws are read from the record on this
@@ -233,7 +233,7 @@ const SubmitBody = Type.Object(
     rewriteOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /**
      * Show this turn's words to the model as the previous attempt — the other
-     * half of a redo, [03 §5.1], [09 §7].
+     * half of a redo, [06 §5.1], [07 §7].
      *
      * A turn id rather than the text, for the reason `rewriteOf` is a turn id
      * rather than a tape: the words are read from this server's record, so the
@@ -275,7 +275,7 @@ const HeadBody = Type.Object(
   { additionalProperties: false },
 );
 
-/** A name, and the node it bookmarks — [09 §3]. */
+/** A name, and the node it bookmarks — [07 §3]. */
 const RefBody = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 200 }),
@@ -344,7 +344,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
     }
 
-    // What the mode says it can seat ([03 §7.2]) — the first real consumer of
+    // What the mode says it can seat ([06 §7.2]) — the first real consumer of
     // `ParticipantPolicy`, which was a declaration nothing read.
     const actors = body.cast?.actors ?? [];
     if (actors.length > mode.definition.participants.maxActors) {
@@ -360,9 +360,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * Read through the ordinary library door, so it is subject to the same
      * ownership rule as everything else: another account's preset is
      * `not-found`, never `forbidden`, because confirming that an id exists
-     * elsewhere leaks the one fact that separation exists to keep ([04 §4.3]).
+     * elsewhere leaks the one fact that separation exists to keep ([09 §4.3]).
      *
-     * `preset.modes` is deliberately **not** checked. It is advisory ([10 §8.2])
+     * `preset.modes` is deliberately **not** checked. It is advisory ([04 §8.2])
      * — a preset written for a mode you do not have still imports, still shows,
      * and still plays if you insist. Refusing here would turn a hint into a
      * gate, and the phase that fills a library with other people's presets is
@@ -381,7 +381,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         }
         throw error;
       }
-      // **Copied, not referenced** ([02 §8]), exactly as the default is: the
+      // **Copied, not referenced** ([03 §8]), exactly as the default is: the
       // session owns its prompt pack from here, so editing the library's copy
       // never rewrites a game in progress.
       preset = structuredClone(row.body) as typeof mode.definition.assembly.defaultPreset;
@@ -391,7 +391,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const session = await createSession(services.sessions, account.handle, {
         // Trimmed here so `{"name": "   "}` cannot produce a session whose
         // list entry is an invisible link. It is not the only guard —
-        // `session.json` is hand-editable by design ([02 §1]), so the client's
+        // `session.json` is hand-editable by design ([03 §1]), so the client's
         // label helper trims too — but it is the one that stops the API being
         // the thing that made the mess.
         name: (body.name ?? '').trim(),
@@ -457,7 +457,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { sessionId } = request.params as { sessionId: string };
       // **Ids, not objects.** A cast entry is a link resolved fresh every turn,
       // so improving a character card reaches an ongoing game — the asymmetry
-      // with the copied preset is the design ([02 §8]).
+      // with the copied preset is the design ([03 §8]).
       const updated = await setCast(services.sessions, account.handle, sessionId, body);
       return reply.send({ session: updated });
     },
@@ -534,7 +534,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       const { sessionId } = request.params as { sessionId: string };
       await deleteSession(services.sessions, account.handle, sessionId);
-      // Moved to the trash rather than erased ([02 §10.3]) — 204 says the session
+      // Moved to the trash rather than erased ([03 §10.3]) — 204 says the session
       // is gone from here, which is what the caller asked about.
       return reply.code(204).send();
     },
@@ -553,7 +553,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const byId = await readTurns(services.sessions, account.handle, session.id);
       // The path from the head, oldest first — not every turn in the file. A
       // session is a tree that P2 happens to use linearly, and a transcript is
-      // one walk of it ([02 §5.5]).
+      // one walk of it ([03 §5.5]).
       const path = walkPath(byId, session.headTurnId);
       const query = request.query as { limit?: string };
       /**
@@ -571,10 +571,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * Which nodes on this path have siblings, and what they are — [§1.2],
        * [P6.3].
        *
-       * **History shows the selected path only** ([09 §6]), so the alternatives
+       * **History shows the selected path only** ([07 §6]), so the alternatives
        * are not in `turns` and must be named some other way or they are
        * unreachable — which is what [P2C §5] meant by *a storage affordance with
-       * no route*, and what [21 §4.3] predicted for an imported chat: swipes
+       * no route*, and what [18 §4.3] predicted for an imported chat: swipes
        * land correctly in the tree and cannot be seen.
        *
        * Only nodes that actually have alternatives appear. A map of every turn
@@ -675,7 +675,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * Where you are in the tree — [09 §3], [P6.1].
+   * Where you are in the tree — [07 §3], [P6.1].
    *
    * **Moving the head moves no turn data.** It re-derives the channel state at
    * the node ([P6.0b], through [P6.0d]'s cache) and records the path it
@@ -723,7 +723,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session.' });
         case 'moved':
-          // With what the line being left still has out in the world — [09 §7]'s
+          // With what the line being left still has out in the world — [07 §7]'s
           // honesty banner. Zero until something writes an escaped effect, and
           // the field is here so the first producer has somewhere to surface.
           return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
@@ -732,7 +732,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * Naming a node, renaming the name, and forgetting it — [09 §6]'s *promote*,
+   * Naming a node, renaming the name, and forgetting it — [07 §6]'s *promote*,
    * [P6.1].
    *
    * Three routes over one array in `session.json`, because that is all a
@@ -744,7 +744,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
   /**
    * Undo — apply an effect's `before`, or refuse and offer the branch —
-   * [§1.4], [13 §1.2.1], [P6.3].
+   * [§1.4], [21 §1.2.1], [P6.3].
    *
    * The refusal is the feature. `before` is an inverse only while nothing has
    * touched the same key since; applying it otherwise destroys the later change
@@ -902,7 +902,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       /**
        * The attempt a guided redo shows the model, read from the record for
-       * the same reason — [03 §5.1], [09 §7]. A guided rewrite names one turn
+       * the same reason — [06 §5.1], [07 §7]. A guided rewrite names one turn
        * twice, once for its draws and once for its words, and the second read
        * is an index hit; sharing the first would save less than it costs in
        * hoisting.
@@ -970,7 +970,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * rebase: resubmit against `head`, or resubmit naming
            * `parentTurnId` and keep the line it was composing on. The refusal
            * is what makes the second one a choice somebody made instead of a
-           * branch the server invented — [08 §1.7].
+           * branch the server invented — [P6 §1.7].
            */
           return reply.code(412).send({
             error: 'stale-head',
@@ -1220,7 +1220,7 @@ async function mine(
   const handle = request.account?.handle ?? '';
 
   /**
-   * **Reconciled before it is answered** — [02 §8.1].
+   * **Reconciled before it is answered** — [03 §8.1].
    *
    * The section says the engine compares the file's channel state against the
    * state replayed at head *on load*, and turns any divergence into a

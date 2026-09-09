@@ -8,7 +8,7 @@ import { createProviderFactory } from './factory.js';
 
 /**
  * The provider memo, and the invalidation the first writer owes it —
- * [P2B §2.4](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ * [P2B §2.4](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  *
  * The memo keys on `connection.id` rather than on the provider *string*, and
  * that reasoning is good: capabilities are per connection, so keying on the

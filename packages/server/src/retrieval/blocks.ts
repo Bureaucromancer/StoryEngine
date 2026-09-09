@@ -24,7 +24,7 @@ import type { Shelved, ShelfResult } from './shelf.js';
  * Every other slot the collector fills is positioned by the preset block that
  * asked for it. Lore is the exception: `position` lives on the **entry**, so
  * one preset slot can emit blocks that belong in four different places. That is
- * [02 §3.1]'s design and it is right — an author writing *this one goes right
+ * [03 §3.1]'s design and it is right — an author writing *this one goes right
  * before the reply* is making a claim about that entry, not about everybody
  * else's preset — but it means the collector cannot treat a lore slot as a slot
  * that produces a run of adjacent blocks, and this module exists to say so in
@@ -93,7 +93,7 @@ export function reasonFor(activation: Activation): string {
       return 'always on';
     case 'sticky': {
       /**
-       * **With the count, which [05 §11] specifies and [P5 §3] step 8 asks
+       * **With the count, which [10 §11] specifies and [P5 §3] step 8 asks
        * for.** Until [P6B.1] this said only that the entry was held, so two
        * sticky entries one turn and four turns from dropping out read
        * identically — and *what is about to fall out of context* is the
@@ -228,7 +228,7 @@ export function loreBlocks(input: BlocksInput): { blocks: LoreBlock[]; unplaced:
  * The chat-wide cut's ordering, carried over from the inner one.
  *
  * **The two budgets must drop lore in the same order or the documented one is
- * a lie.** [02 §3.2] specifies constants, then latest-message matches, then
+ * a lie.** [03 §3.2] specifies constants, then latest-message matches, then
  * injection order; the inner tier walks exactly that, and a chat-wide cut that
  * then dropped whatever came last would undo it for anybody whose prompt is
  * over budget — which is precisely the person the order was written for.

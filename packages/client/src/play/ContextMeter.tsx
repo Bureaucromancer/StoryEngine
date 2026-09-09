@@ -10,7 +10,7 @@ import { headroom } from '../workbench/headroom.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
 
 /**
- * The context-fill meter — [05 §3]'s **[RESOLVED]** answer, built at [P3.4]:
+ * The context-fill meter — [10 §3]'s **[RESOLVED]** answer, built at [P3.4]:
  * *Play keeps one always-visible signal — a context-fill meter — and clicking
  * it opens the panel in place, already on the current turn.*
  *
@@ -29,7 +29,7 @@ import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.j
  * template costs tokens — and the honest response is the word *estimated* in
  * the name, not a fudge factor: a corrected number would disagree with the
  * drops the budgeter actually made, and the margin already lives in
- * `reserveOutputTokens` where [06 E5] put it.
+ * `reserveOutputTokens` where [25 E5] put it.
  *
  * **The denominator is what assembly may spend** — the window minus the
  * completion reserve, which is `headroom()`'s own definition. Using the raw

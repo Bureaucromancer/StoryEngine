@@ -162,7 +162,7 @@ describe('a preview with a model bound', () => {
       })
     ).body.preview as { budget: { spent: number }; pendingInput: boolean };
 
-    // Guidance is a block ([03 §5.1]), so it costs tokens — a meter that
+    // Guidance is a block ([06 §5.1]), so it costs tokens — a meter that
     // ignored it would under-read whenever the box is open.
     expect(with_.budget.spent).toBeGreaterThan(without.budget.spent);
     expect(with_.pendingInput).toBe(true);
@@ -261,7 +261,7 @@ describe('what a preview refuses to touch', () => {
 });
 
 /**
- * **The keyword tester's round trip** — [P5.8], [05 §3].
+ * **The keyword tester's round trip** — [P5.8], [10 §3].
  *
  * *Paste sample text, see which entries would fire.* The tester needs no
  * endpoint of its own, and this test is what makes that claim checkable: the
@@ -410,7 +410,7 @@ describe('writing samples on the preview', () => {
     const preview = response.body.preview as AssembledPreview;
     const samples = preview.blocks.filter((one) => one.source.kind === 'samples');
 
-    // Both carriers, and in [10 §3.1]'s order — the stance, then the world.
+    // Both carriers, and in [04 §3.1]'s order — the stance, then the world.
     expect(samples.map((one) => one.text)).toEqual([
       'The rain never lets up.',
       'Nobody hurries here.',

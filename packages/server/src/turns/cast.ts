@@ -17,7 +17,7 @@ import type { LibraryContext } from '../library.js';
  * half of the same rule F13 fixed in the editor.
  *
  * **Actors are read fresh every turn, and that is correct rather than an
- * oversight.** A cast entry is a *link*; only the preset is a copy ([02 §8]).
+ * oversight.** A cast entry is a *link*; only the preset is a copy ([03 §8]).
  * Improving a character card should reach an ongoing game, while editing a
  * preset must not — the asymmetry is the design. It looks like a
  * prefill-not-binding violation and is exactly the opposite.
@@ -42,7 +42,7 @@ export function resolveCast(
   cast: { persona?: unknown; actors?: unknown } | null | undefined,
   /**
    * The tag registry, so an actor reaches the engine under the names its tags
-   * have *now* — [25 §3](../../../../docs/design/25-tagging.md).
+   * have *now* — [05 §3](../../../../docs/design/05-tagging.md).
    *
    * Passed rather than read here, because this function is synchronous and the
    * registry is a file. `gatherAssemblyInputs` already awaits several per-turn

@@ -10,14 +10,14 @@ import { KIND_LABELS, SourceBadge } from './labels.js';
 
 /**
  * What each kind's panel supplies, which is
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s rule stated as a
+ * [polish §4](../../../../docs/design/workplan/06-polish.md)'s rule stated as a
  * type: *one list component, one set of badges, filters, sorting and actions,
  * one detail route. What each panel supplies is its columns, its sort and its
  * empty state.*
  *
  * **This is the first of that item's six, and it is here rather than there
  * because one kind's panel is a correction rather than a preference.**
- * [05 §5.3](../../../../docs/design/05-ui-surfaces.md) settles the Lorebooks
+ * [10 §5.3](../../../../docs/design/10-ui-surfaces.md) settles the Lorebooks
  * columns in the design, on the grounds that a lorebook is the only library kind
  * whose object is a collection — so a surface addressing only the container is
  * off by one level for this kind and no other. The other five are still that
@@ -160,7 +160,7 @@ function nameBadges(object: LibraryObject): JSX.Element {
 
 /**
  * The two sorts every shelf can answer, whatever kind it holds —
- * [polish §9](../../../../docs/design/workplan/09-polish.md).
+ * [polish §9](../../../../docs/design/workplan/06-polish.md).
  *
  * They exist because the control row is now unconditional: a *Sort by* that
  * appeared on one shelf out of six read as a lorebook feature rather than as
@@ -220,9 +220,9 @@ const GENERIC: KindPanel = {
 };
 
 /**
- * Lorebooks — [05 §5.3](../../../../docs/design/05-ui-surfaces.md)'s table.
+ * Lorebooks — [10 §5.3](../../../../docs/design/10-ui-surfaces.md)'s table.
  *
- * `tags` gets its documented consumer at last: [10 §5] has called it *"what the
+ * `tags` gets its documented consumer at last: [04 §5] has called it *"what the
  * library's filters read"* since it was written, and nothing has ever read it.
  * The entry count earns its place because the generic table cannot tell a
  * three-entry book from a three-hundred-entry one, and almost everything a
@@ -241,7 +241,7 @@ const LOREBOOKS: KindPanel = {
       header: 'Tags',
       /**
        * **Hidden tags are not drawn here, and nowhere else is affected** —
-       * [25 §5](../../../../docs/design/25-tagging.md). The flag exists to quiet
+       * [05 §5](../../../../docs/design/05-tagging.md). The flag exists to quiet
        * bookkeeping tags (`imported-2026-08`, `wip`) that are worth filtering
        * by and not worth reading on every row. A flag that also hid them from
        * the filter bar would be a second, invisible filter state.

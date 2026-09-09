@@ -14,7 +14,7 @@ import {
 /**
  * Date formatting, and the one input that used to take the page down with it.
  *
- * Written for [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md) stage
+ * Written for [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md) stage
  * P2A.2, which makes a locale something **a person types into a form**. Until
  * then it could only arrive from `Accept-Language` at first-run setup — a header
  * a browser generates, and therefore always well formed.
@@ -48,7 +48,7 @@ describe('a locale the browser will not accept', () => {
   });
 
   it('is not repaired by validating the field, because it also comes off disk', () => {
-    // `accounts.json` is hand-editable by design ([04 §4.3]), so the check has
+    // `accounts.json` is hand-editable by design ([09 §4.3]), so the check has
     // to be where the value is *used*. This is that claim as a test: nothing
     // between the file and here is asked to have vetted it.
     expect(() => formatEpochMs(NOON, '')).not.toThrow();

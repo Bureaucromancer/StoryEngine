@@ -11,7 +11,7 @@ import { versionName } from './version.js';
 /**
  * The naming rule, checked against the document that states it.
  *
- * [releases §7.1](../../../docs/design/workplan/11-repo-and-releases.md) carries
+ * [releases §7.1](../../../docs/design/workplan/04-repo-and-releases.md) carries
  * a table pairing every kind of build's name with its string, and this test
  * reads that table rather than restating it — the same contract-by-parsing
  * `config.test.ts` uses for the tier table in 13 §4. A row added to the table
@@ -33,7 +33,7 @@ interface Row {
 
 /** The `| Build | Name | String | Tag |` rows of §7.1, one entry per name. */
 function namingTable(): Row[] {
-  const lines = read('../../../docs/design/workplan/11-repo-and-releases.md').split('\n');
+  const lines = read('../../../docs/design/workplan/04-repo-and-releases.md').split('\n');
   const start = lines.findIndex((line) =>
     /^\|\s*Build\s*\|\s*Name\s*\|\s*String\s*\|\s*Tag\s*\|/.test(line),
   );

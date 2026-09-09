@@ -21,7 +21,7 @@ import {
 } from './test-png.js';
 
 /**
- * The card envelope — docs/design/workplan/03-p1-implementation.md §P1.3.
+ * The card envelope — docs/design/workplan/07-p1-implementation.md §P1.3.
  *
  * Four claims are under test, and they are the four the stage plan names:
  * object → chunk → object is identity, the pixels survive a save byte-identical,
@@ -36,7 +36,7 @@ function roundTrip(payload: unknown, blobs?: BlobStore): ReturnType<typeof codec
 
 describe('object → chunk → object is identity', () => {
   it('carries an actor through unchanged', () => {
-    // [testing §1](../../../../../docs/design/workplan/10-testing.md) lists this as an invariant rather than
+    // [testing §1](../../../../../docs/design/workplan/03-testing.md) lists this as an invariant rather than
     // an example, which is why the property test below exists too.
     const actor = newActor('Vera Solano');
     expect(roundTrip(actor).envelope?.payload).toEqual(actor);
@@ -44,7 +44,7 @@ describe('object → chunk → object is identity', () => {
 
   it('preserves fields the codec has never heard of', () => {
     // The codec does not know what an Actor is and must not start caring
-    // ([10 §2](../../../../../docs/design/10-schemas.md)).
+    // ([04 §2](../../../../../docs/design/04-schemas.md)).
     const payload = { schema: 'storyengine.campaign/1', id: 'x', invented: { deep: [1, null] } };
     expect(roundTrip(payload).envelope?.payload).toEqual(payload);
   });
@@ -106,7 +106,7 @@ describe('object → chunk → object is identity', () => {
 describe('the pixels survive', () => {
   it('is byte-identical across a save', () => {
     // The whole reason this is a chunk splice rather than a decode-and-re-encode
-    // ([02 §5.2](../../../../../docs/design/02-data-model.md)). Re-compressing degrades the
+    // ([03 §5.2](../../../../../docs/design/03-data-model.md)). Re-compressing degrades the
     // user's art a little at a time, invisibly, and `card.png` is the actor —
     // not a thumbnail of it.
     const original = makePng(8, 3);
@@ -141,7 +141,7 @@ describe('a V2/V3 chara card still parses', () => {
   it('reads a V2 chara chunk without converting it', () => {
     // Read, not adopted. Mapping `personality` onto traits and `scenario` onto a
     // Treatment draft is import's job at P4
-    // ([02 §2.7](../../../../../docs/design/02-data-model.md)) — it involves heuristics and a
+    // ([03 §2.7](../../../../../docs/design/03-data-model.md)) — it involves heuristics and a
     // review step, neither of which belongs in a decoder.
     const card = withChunks(makePng(), [base64TextChunk('chara', v2)]);
     const contents = codec.read(card);
@@ -297,7 +297,7 @@ describe('media blobs', () => {
 
   it('stores bytes raw rather than base64', () => {
     // The reason the media half is not base64 like the JSON half: ~33% on the
-    // large part of a card is worth avoiding ([02 §5.2.2]).
+    // large part of a card is worth avoiding ([03 §5.2.2]).
     const one = new Map([['solid', new Uint8Array(10_000).fill(0xab)]]);
     const written = codec.write(makePng(), envelope(newActor('Vera')), one);
     const chunk = decodeChunks(written).find((c) => c.name === CARD_MEDIA_CHUNK);
@@ -353,7 +353,7 @@ describe('refusing what it cannot read', () => {
   it('accepts an envelope from a newer version rather than refusing it', () => {
     // The payload is self-describing and the registry decides whether it can be
     // read, so refusing here would strand a card for a reason this layer cannot
-    // actually judge ([10 §2](../../../../../docs/design/10-schemas.md)).
+    // actually judge ([04 §2](../../../../../docs/design/04-schemas.md)).
     const card = withChunks(makePng(), [
       base64TextChunk(CARD_TEXT_KEYWORD, {
         schema: 'storyengine.card',

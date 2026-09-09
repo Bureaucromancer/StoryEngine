@@ -8,13 +8,13 @@ import { ensureDirectory } from '../storage/files.js';
 import { migrateState, type StateMigrationResult } from './migrations.js';
 
 /**
- * Opening `state/state.sqlite` — [13 §5.1](../../../../docs/design/13-internal-contracts.md).
+ * Opening `state/state.sqlite` — [21 §5.1](../../../../docs/design/21-internal-contracts.md).
  *
  * Same driver as the index and a different set of promises. The index is
  * derived, so it buys speed with `synchronous = normal` and pays for a crash
  * with a rescan. This store is authoritative: a lost transaction here is a lost
  * idempotency reservation, which is the one failure mode
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md) says must never happen —
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md) says must never happen —
  * a retry that makes a second provider call charges the user twice.
  */
 

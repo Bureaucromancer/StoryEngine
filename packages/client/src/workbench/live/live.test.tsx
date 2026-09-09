@@ -118,7 +118,7 @@ describe('a turn being taken', () => {
   });
 
   it('shows a skipped step as itself, which is why the event exists', () => {
-    // [04 §3.3]: *a step whose `when` predicate was false is a common source of
+    // [09 §3.3]: *a step whose `when` predicate was false is a common source of
     // "why didn't that happen?", and silence is the worst possible answer.*
     render(
       <LiveSubject

@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Every note class the server emits has a sentence here
- * ([P4 §1.4](../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.1](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.1](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Written because the map had drifted by twenty-four keys and nothing said
  * so.** The review's whole design is that the server emits `{ key, params }` and

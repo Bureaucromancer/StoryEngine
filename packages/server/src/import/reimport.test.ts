@@ -11,7 +11,7 @@ import type { ConflictPolicy } from './identity.js';
 
 /**
  * **Gate step 6: re-import the same directory, and nothing doubles silently**
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * Until P4.4 the sweep wrote through `create()` alone, so a second run over one
  * directory either collided on the global id check or — because import mints

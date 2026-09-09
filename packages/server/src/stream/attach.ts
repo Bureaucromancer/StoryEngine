@@ -17,8 +17,8 @@ import type { TurnStream } from './bus.js';
 
 /**
  * Snapshot plus cursor, with no gap between them —
- * [04 §3.1](../../../../docs/design/04-server-multiuser-deployment.md),
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md).
+ * [09 §3.1](../../../../docs/design/09-server-multiuser-deployment.md),
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * A client that drops mid-turn and reattaches needs *the turn's state now* plus
  * everything since, not a replay from the beginning. Getting that right is

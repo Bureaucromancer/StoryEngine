@@ -19,7 +19,7 @@ import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
  * 2 is the same number whether it arrives through the API, an import or a
  * fixture.
  *
- * `newActor` is where [10 §4](../../../docs/design/10-schemas.md)'s *"the editor creates
+ * `newActor` is where [04 §4](../../../docs/design/04-schemas.md)'s *"the editor creates
  * all four on a new actor"* actually happens. Conventional sections are enforced
  * at three layers and none of them is the schema, so this is the first of the
  * three.
@@ -100,10 +100,10 @@ export function newLorebook(name: string): Lorebook {
     description: '',
     /**
      * **The widest value in the union, and that is an open question rather
-     * than a considered default** — [06 §B15](../../../docs/design/06-open-questions.md).
+     * than a considered default** — [25 §B15](../../../docs/design/25-open-questions.md).
      *
      * It is harmless today because nothing reads `scope`: a lorebook reaches a
-     * session by being selected and by nothing else ([02 §3.4]). It was not
+     * session by being selected and by nothing else ([03 §3.4]). It was not
      * harmless when [P5.7] briefly gave the field behaviour — this default, plus
      * the SillyTavern importer's identical fallback, is what put every book a
      * person owned into every session's prompt. Anything that gives `scope` a
@@ -132,7 +132,7 @@ export function newLorebook(name: string): Lorebook {
 
 /**
  * A lore entry with the doc's stated defaults
- * ([10 §5](../../../docs/design/10-schemas.md)).
+ * ([04 §5](../../../docs/design/04-schemas.md)).
  *
  * Here for the same reason the others are — the defaults belong to the schema
  * rather than to whatever creates an entry — and it earns its place immediately:
@@ -207,7 +207,7 @@ export function newTreatment(name: string): Treatment {
       pov: 'second',
       tense: 'present',
       // null, not "sfw". Unspecified means *ask*, and the difference is
-      // deliberate ([10 §2](../../../docs/design/10-schemas.md)).
+      // deliberate ([04 §2](../../../docs/design/04-schemas.md)).
       contentRating: null,
       styleNotes: '',
     },
@@ -287,7 +287,7 @@ export function newPreset(name: string): Preset {
  * because that job does not exist yet.
  *
  * `version` is the package's own, not a schema version: two people can ship
- * `v2` of the same bundle ([10 §7](../../../docs/design/10-schemas.md)).
+ * `v2` of the same bundle ([04 §7](../../../docs/design/04-schemas.md)).
  */
 export function newPackage(name: string): Package {
   return {

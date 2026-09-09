@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * finds. What was missing was any way for a person to say which books, so every
  * session in the browser resolved none and two of PLAYABLE's four hypotheses
  * were about a subsystem nothing could reach
- * ([P6B §0.1](../../../../docs/design/workplan/24-p6b-playable.md)).
+ * ([P6B §0.1](../../../../docs/design/workplan/20-p6b-playable.md)).
  *
  * So the assertions are about the join: what the panel shows is what the
  * session holds, and what it sends is what was ticked.

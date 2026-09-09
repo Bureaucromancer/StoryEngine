@@ -4,12 +4,12 @@
 import { Liquid } from 'liquidjs';
 
 /**
- * Block-scoped template rendering — [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md)'s
+ * Block-scoped template rendering — [06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
  * *"Liquid, following Aventuras"*, built at P4.1 because import needs it
- * ([P4 §1.6](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.6](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Why it could not wait.** The macro table converts SillyTavern's macros
- * *into* Liquid ([10 §8.4.2]), and until now nothing rendered Liquid — so a
+ * *into* Liquid ([04 §8.4.2]), and until now nothing rendered Liquid — so a
  * converted preset's `{{char}}` reached the model as literal braces. That fails
  * the phase's own posture in behaviour: *authored prose survives intact* is
  * worthless if it survives as template soup, and PLAYABLE would have been
@@ -19,7 +19,7 @@ import { Liquid } from 'liquidjs';
  * `template` string. A template cannot see another block, cannot see the
  * assembled prompt, and cannot cause a block to exist — because a template that
  * could do any of those is a second assembler, and there is exactly one
- * ([03 §5]).
+ * ([06 §5]).
  *
  * **The namespace is closed and holds names, not bodies** (§1.6's fence). It has
  * what SillyTavern's macros actually name about the *participants*: who the

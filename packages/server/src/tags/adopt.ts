@@ -13,7 +13,7 @@ import { list, LibraryError, update, type LibraryContext } from '../library.js';
 import type { TagStore } from './store.js';
 
 /**
- * Adoption — [25 §3](../../../../docs/design/25-tagging.md).
+ * Adoption — [05 §3](../../../../docs/design/05-tagging.md).
  *
  * **One deliberate, visible pass, and then renaming is free.** An object with no
  * `tagIds` works exactly as it always did, from its names; it just cannot
@@ -89,7 +89,7 @@ export async function adoptLibraryTags(
 
   for (const row of rows) {
     if (row.owner === 'system') {
-      // Read-only and replaced by the next release ([05 §4.2]). Reported rather
+      // Read-only and replaced by the next release ([10 §4.2]). Reported rather
       // than swallowed: a tag used only by the system library is still in use,
       // and somebody counting will want to know why it has no ids.
       if (tagNamesOf(row.body).length > 0) {

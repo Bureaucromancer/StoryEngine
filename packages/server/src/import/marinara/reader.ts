@@ -15,7 +15,7 @@ import type {
 
 /**
  * A Marinara data root, read as candidates
- * ([P4 §1.3](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **This is the reader the seam exists for.** SillyTavern's walker is one file,
  * one candidate; here one *file* holds every character at once and one *object*
@@ -175,7 +175,7 @@ export class MarinaraReader implements SourceReader {
    * first thing a converter written against the table shape gets wrong. A row
    * whose inner parse fails is one `warn` line and the table converts around it:
    * one poisoned *row* never aborts a table, which is the row-level sibling of
-   * the rule F22 already paid for ([13 §4.1.1]).
+   * the rule F22 already paid for ([21 §4.1.1]).
    */
   async *#actors(table: string, format: string): AsyncIterable<SourceItem> {
     const rows = await this.#rows(table);

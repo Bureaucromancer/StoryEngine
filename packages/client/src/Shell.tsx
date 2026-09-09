@@ -75,7 +75,7 @@ export function Shell(): JSX.Element {
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-4">
             {/* Goes to the library for now. It becomes home once home exists
-                ([05 §2.2]) — the wordmark is the arrival affordance, and
+                ([10 §2.2]) — the wordmark is the arrival affordance, and
                 arrival is not the library's job. */}
             <Link to="/library" search={{}} className="text-lg font-semibold">
               StoryEngine
@@ -85,7 +85,7 @@ export function Shell(): JSX.Element {
           {account === null ? null : (
             <div className="flex items-center gap-3">
               {/* The workbench's visible opener — a *button*, never a nav
-                  entry: the panel is not a place ([05 §3]), and the nav's own
+                  entry: the panel is not a place ([10 §3]), and the nav's own
                   docstring below holds that line. `Shell.test.tsx` pins the
                   absence of a workbench *link*; a button keeps that test green
                   by construction, which is correct — do not "fix" the test
@@ -122,7 +122,7 @@ export function Shell(): JSX.Element {
           )}
         </div>
       </header>
-      {/* **Above the outlet, not on the settings page**, because [04 §6.3] wants
+      {/* **Above the outlet, not on the settings page**, because [09 §6.3] wants
           this on every page: the person who needs to know a restart is
           outstanding is often not the person who is looking at the form. And
           outside the scroll container, for the same reason — a banner that
@@ -166,11 +166,11 @@ export function Shell(): JSX.Element {
 }
 
 /**
- * The two surfaces — [05 §2](../../../docs/design/05-ui-surfaces.md).
+ * The two surfaces — [10 §2](../../../docs/design/10-ui-surfaces.md).
  *
  * **Two entries, not three.** The workbench is deliberately absent: it is a
  * panel that expands over whichever surface you are in, not a place to navigate
- * to ([05 §3]), so a nav entry for it would be the layout claim this design
+ * to ([10 §3]), so a nav entry for it would be the layout claim this design
  * dropped. Settings stays on the right with the account, where a preference
  * surface belongs rather than beside the things you work in.
  *
@@ -192,7 +192,7 @@ function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.El
     <Link
       to={props.to}
       search={{}}
-      // `aria-current="page"` as well as the colour, because [05 §1.1] wants the
+      // `aria-current="page"` as well as the colour, because [10 §1.1] wants the
       // second channel to never be the only one — and here the first channel is
       // colour, which a screen reader does not have.
       //
@@ -211,15 +211,15 @@ function SurfaceLink(props: { to: '/play' | '/library'; label: string }): JSX.El
   );
 }
 /**
- * What is waiting for a restart — [04 §6.3](../../../docs/design/04-server-multiuser-deployment.md),
- * [P2A §2.6](../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * What is waiting for a restart — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
+ * [P2A §2.6](../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * **Named changes rather than "restart required"**, because a bare notice
  * invites people to restart and hope — and the list is computed per request
  * from the config this process started with, so undoing a change clears it
  * rather than leaving a banner nobody can dismiss.
  *
- * **And it says the server will not restart itself.** [04 §6.4] is explicit that
+ * **And it says the server will not restart itself.** [09 §6.4] is explicit that
  * under no supervisor a restart control leaves the administrator with no server
  * and possibly no shell, so it needs supervisor detection and a drain, neither
  * of which exists. A notice that invites *"so how do I restart it?"* is a worse

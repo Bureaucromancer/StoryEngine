@@ -10,7 +10,7 @@ import type { Activation } from './activate.js';
 import { inTrimOrder, shelve, trimRank } from './shelf.js';
 
 /**
- * The per-book budget and its trim order — [P5.6], [02 §3.2].
+ * The per-book budget and its trim order — [P5.6], [03 §3.2].
  *
  * The order is copied out of a design note word for word, so these tests are
  * mostly *the note said this*: constants first, then latest-message matches,
@@ -295,7 +295,7 @@ describe('shelve', () => {
      */
     it('accounts for a book whose every entry was refused', () => {
       // A budget of one token rather than zero: zero is the format's
-      // *unlimited* ([10 §5]), and using it here was how the inverted reading
+      // *unlimited* ([04 §5]), and using it here was how the inverted reading
       // came to be pinned by a test — [P5 §0.5]'s first contradiction, settled
       // at [P6B.1]. One token refuses everything just as thoroughly and says
       // what it means.
@@ -315,7 +315,7 @@ describe('shelve', () => {
     });
 
     /**
-     * **Zero is unlimited** — [10 §5] and the schema both say so, and
+     * **Zero is unlimited** — [04 §5] and the schema both say so, and
      * `shelf.ts` read it as a ceiling of nothing until [P6B.1], so a book
      * carrying the convention refused every entry and blamed a budget.
      *

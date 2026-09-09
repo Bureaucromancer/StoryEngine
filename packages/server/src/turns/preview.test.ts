@@ -14,7 +14,7 @@ import { previewStepFor } from './preview.js';
  * The route tests cannot hold this claim: Scene ships exactly one step and it
  * is the prose one, so `steps[0]` and *the first prose step* are the same
  * answer there, and a test written over the real mode passes under either. The
- * distinction is real all the same — [03 §5.2] admits guidance only to a call
+ * distinction is real all the same — [06 §5.2] admits guidance only to a call
  * whose purpose is prose, so the prose call is the only one the guidance box
  * can change, and previewing anything else would measure a prompt the person
  * on the input bar cannot affect. A mode with a pre-step arrives with P7 at

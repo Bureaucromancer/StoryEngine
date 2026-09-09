@@ -46,17 +46,17 @@ import {
 
 /**
  * The first upload route this server has had
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **One file, not a sweep.** A directory sweep is a job with a review report at
  * its own address, and that is P4.4's. This is what somebody does when they have
  * a preset and want it in their library: the thing people use forever after, and
- * what [17 §14](../../../../docs/design/17-write-mode.md)'s content-import
+ * what [13 §14](../../../../docs/design/13-write-mode.md)'s content-import
  * posture later leans on — which is why §5 puts it on the must-not-cut list.
  *
  * **The limit is checked per request, off the live config reference**, which is
  * what flips `limits.maxUploadMb` from `unread` to `applied` after it spent
- * three phases as [13 §4.3]'s standing example of an honestly-unread key.
+ * three phases as [21 §4.3]'s standing example of an honestly-unread key.
  * Fastify's constructor `bodyLimit` stays as the outer bound: it refuses a body
  * before it is read, and this is the number a person actually set.
  */
@@ -242,7 +242,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
 
   /**
    * What that upload *would* do, with nothing written
-   * ([05 §5](../../../../docs/design/05-ui-surfaces.md), as amended).
+   * ([10 §5](../../../../docs/design/10-ui-surfaces.md), as amended).
    *
    * **A POST that writes nothing**, and the two halves of that are separate
    * claims. POST because the body carries a file and because the CSRF header
@@ -287,7 +287,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
    * The server-path sweep — point the server at a data directory
    * ([P4 §1.3]).
    *
-   * **Gated on `fileAccess`, as [05 §4.2.2] widened it**, and the widening is
+   * **Gated on `fileAccess`, as [10 §4.2.2] widened it**, and the widening is
    * only safe because of what `openLocalSource` refuses: a root inside `/data`.
    * Without that, this route would be a way for one account to read another's
    * library, which the scope table says `never`.
@@ -322,7 +322,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         at: Date.now(),
       });
       // The root is named back only in the message a person asked for. It never
-      // reaches a log line or a per-item row ([13 §4.1.1]).
+      // reaches a log line or a per-item row ([21 §4.1.1]).
       return reply
         .code(422)
         .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
@@ -393,7 +393,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
    *
    * **It never lists a directory.** Every answer here is a yes/no probe at a
    * path this build already names in its own source, which is what keeps it on
-   * the right side of [05 §4.2.2]'s line — the sweep report is kept relative so
+   * the right side of [10 §4.2.2]'s line — the sweep report is kept relative so
    * the review does not become a filesystem map, and an endpoint that enumerated
    * children would hand back exactly the map that clause refuses. What a person
    * learns from this is whether the folder they already named is the one to use.
@@ -436,7 +436,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
    *
    * **No `fileAccess` gate here, and that is the point of the transport.** The
    * sweep reads the host's filesystem through the server's own user, which is
-   * why [05 §4.2.2] grants it to *somebody you would give a shell to*. This
+   * why [10 §4.2.2] grants it to *somebody you would give a shell to*. This
    * reads nothing: the browser has already opened the folder under the person's
    * own credentials, and what arrives is a list of names they chose to send. An
    * account that may upload one file may upload a folder of them.
@@ -594,7 +594,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const { id } = request.params as { id: string };
     const report = readImport(services.state.db, account.handle, id);
     if (report === null) {
-      // 404 whether it is missing or somebody else's — [04 §4.4]'s posture,
+      // 404 whether it is missing or somebody else's — [09 §4.4]'s posture,
       // which is what stops an id being a probe for what other people imported.
       return reply.code(404).send({ error: 'not-found', message: 'No such import.' });
     }
@@ -872,7 +872,7 @@ async function importOneFile(
     objectId?: string,
   ): UploadResult => ({
     // Named as it arrived, never as a path: the foreign-path doctrine applies to
-    // a single upload as much as to a sweep ([13 §4.1.1]).
+    // a single upload as much as to a sweep ([21 §4.1.1]).
     item: { source: filename, disposition, notes, ...(objectId ? { objectId } : {}) },
     notes,
   });

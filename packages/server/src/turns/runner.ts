@@ -43,7 +43,7 @@ import { planFor } from '../modes/registry.js';
 import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 /**
- * The step loop — [P2 §2.5], [P2 §2.10], [03 §6].
+ * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
  *
  * A reserved job becomes a committed turn. Between those two points the runner
  * holds a draft `Turn` in memory, checkpoints it as it becomes durable enough to
@@ -60,11 +60,11 @@ import { evaluateCondition, filterReads, type TurnPlan } from './steps.js';
 
 export interface TurnPayload {
   input?: { actorId: string | null; kind: string; text: string; raw: string };
-  /** The guidance box. Its own field, never concatenated into the action ([03 §5.1]). */
+  /** The guidance box. Its own field, never concatenated into the action ([06 §5.1]). */
   guidance?: string;
   /**
-   * The attempt a guided redo is redoing — its words, to show — [03 §5.1],
-   * [09 §7]. The other half of a redo: `replay` below says *whose draws*, this
+   * The attempt a guided redo is redoing — its words, to show — [06 §5.1],
+   * [07 §7]. The other half of a redo: `replay` below says *whose draws*, this
    * says *whose words*, and the two are independent on the wire because a
    * guided reroll wants the second without the first.
    *
@@ -76,7 +76,7 @@ export interface TurnPayload {
    */
   attempt?: { turnId: string; text: string };
   /**
-   * A previous turn's draws, to replay — **rewrite**, [07 §14.5], [P6.2].
+   * A previous turn's draws, to replay — **rewrite**, [19 §14.5], [P6.2].
    *
    * Present means *same mechanical outcome, different prose*: the roll that
    * decided a lore entry's appearance is taken off the tape rather than made
@@ -127,7 +127,7 @@ export class TurnRunner {
    * Hands the runner the app's logger.
    *
    * Set rather than injected because `buildServices` runs before `buildApp`,
-   * and the logger is Fastify's ([13 §4.1] — one mechanism, one format). The
+   * and the logger is Fastify's ([21 §4.1] — one mechanism, one format). The
    * alternative was building the runner lazily on first use, which would make
    * "is there a runner?" a question with a timing-dependent answer.
    */
@@ -148,7 +148,7 @@ export class TurnRunner {
 
     /**
      * **Bound once, where the job comes into existence** —
-     * [13 §4.1](../../../../docs/design/13-internal-contracts.md) says that in as many words,
+     * [21 §4.1](../../../../docs/design/21-internal-contracts.md) says that in as many words,
      * and says why: it is what makes *filter by job id* a complete lifecycle
      * rather than a sample of one.
      *
@@ -409,12 +409,12 @@ export class TurnRunner {
     let running: Record<string, ChannelState> = inputs.channels;
 
     /**
-     * **Revoking disables; it never deletes** ([04 §4.5]).
+     * **Revoking disables; it never deletes** ([09 §4.5]).
      *
      * The files are still on disk and `resolveConnections` has always returned
      * this list — nothing populated it in production, because a literal in the
      * gather's capability line meant the branch that fills it could not be
-     * reached. Logged as a count rather than as names: [04 §4.5] keeps a
+     * reached. Logged as a count rather than as names: [09 §4.5] keeps a
      * connection opaque, and the fact an operator needs when somebody reports
      * "my model stopped working" is that connections were ignored and how many.
      *
@@ -656,7 +656,7 @@ export class TurnRunner {
          * so its cooldown starting is the earlier fact. Through the same
          * `acceptEffect` path as everything else, because a channel written by
          * a second route is a channel whose inverse nobody computed — and the
-         * inverse is what [09 §4] replays.
+         * inverse is what [07 §4] replays.
          */
         for (const proposal of [...loreEffects, ...(result.effects ?? [])]) {
           const effect = acceptEffect(job.turnId, proposal, running);
@@ -738,7 +738,7 @@ export class TurnRunner {
          * `err: error` serialises the error's own enumerable properties, and a
          * `CallFailed` carries `partialText` and `call` — so a failed step wrote
          * **the whole rendered prompt and the model's partial narration** into
-         * the log. [13 §4.1] says portable object bodies never appear there —
+         * the log. [21 §4.1] says portable object bodies never appear there —
          * *a log is not a backup and user prose is not diagnostic* — and it also
          * says a value a later reader filters on is a field rather than a phrase.
          * A blob of prose is neither.
@@ -774,7 +774,7 @@ export class TurnRunner {
 
         // `ignore` says the author already decided this is unremarkable, so no
         // live alarm — but it is still on the record, because silence about a
-        // step that ran is the failure [04 §3.3] calls out for `skipped`.
+        // step that ran is the failure [09 §3.3] calls out for `skipped`.
         if (definition.failure !== 'ignore') write([stepFailed(definition.id, reason, false)]);
         else write();
 
@@ -840,7 +840,7 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     tape: [],
     steps: [],
     // No `request`: nothing has been assembled, and the field's absence is the
-    // claim ([02 §8] — *absent* and *empty* are different claims, and the
+    // claim ([03 §8] — *absent* and *empty* are different claims, and the
     // workbench renders the difference).
   };
 }
@@ -869,7 +869,7 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
 
 /**
  * The most recent same-turn refusal this engine write replaces — [P3.0], and
- * [05 §3]'s third effect outcome. A model that decided it was suddenly
+ * [10 §3]'s third effect outcome. A model that decided it was suddenly
  * midnight was refused with its reason; the engine's own advance landing
  * afterwards is the *override*, and the link is what lets the panel say so
  * rather than inferring it from adjacency. Null when nothing on the channel
@@ -900,7 +900,7 @@ function messageOf(error: unknown): string {
 /**
  * What a step failure is worth saying out loud at.
  *
- * [13 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
+ * [21 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
  * it refused. A cancellation is neither — it is the system doing exactly what
  * was asked — and a step whose author declared `ignore` has said in advance that
  * a failure here is unremarkable.
@@ -919,7 +919,7 @@ function levelFor(
  * `err: error` serialises an error's own enumerable properties, and the same
  * `CallFailed` that carries `partialText` and `call` can reach these paths — so
  * the rule the step-failure line already follows applies here too:
- * [13 §4.1] says portable object bodies never appear in a log.
+ * [21 §4.1] says portable object bodies never appear in a log.
  *
  * The stack stays, because these are the *internal* failures — a store that is
  * gone, a setup that threw — where it is the diagnostic rather than noise.

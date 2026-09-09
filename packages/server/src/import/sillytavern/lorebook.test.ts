@@ -146,7 +146,7 @@ describe('what the book itself carries', () => {
 
   it('takes entries as an object keyed by uid or as an array', () => {
     // ST writes an object; an entry-subset file may write an array, and
-    // [10 §5.2] makes an entry subset a lorebook like any other.
+    // [04 §5.2] makes an entry subset a lorebook like any other.
     const asArray = convertLorebook({ name: 'Rain City', entries: [ENTRY] }, 'fallback');
 
     expect(asArray.ok).toBe(true);

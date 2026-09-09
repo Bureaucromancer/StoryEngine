@@ -20,7 +20,7 @@ import { joinLines, splitLines } from './form.js';
 
 /**
  * One entry, as the schema's own shape —
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md).
+ * [10 §11.2d](../../../../docs/design/10-ui-surfaces.md).
  *
  * **A `LoreEntry` has around forty fields and four of them are what an author
  * came to write**, so the editor has a disclosure problem; §11.2d's answer is
@@ -45,7 +45,7 @@ import { joinLines, splitLines } from './form.js';
 
 /**
  * The five fields this stage writes are the five cases of `EntryRow`'s switch
- * below — [05 §11.2d]'s durable core, verbatim: *"the first editor owes create,
+ * below — [10 §11.2d]'s durable core, verbatim: *"the first editor owes create,
  * rename, delete, and the durable core plus the folder gates, with everything
  * else visible and read-only."*
  *

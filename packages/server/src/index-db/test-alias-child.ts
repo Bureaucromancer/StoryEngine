@@ -24,7 +24,7 @@ import { LibraryWatcher } from './watcher.js';
  * Named `test-alias-child.ts`: vitest collects `*.test.ts` and not this, while
  * eslint's existing `test-*` category grants it the filesystem access every
  * other piece of test scaffolding here already has — no new hole in the rule
- * that keeps one audited path resolver the only door ([07 §9]).
+ * that keeps one audited path resolver the only door ([19 §9]).
  */
 
 const root = process.argv[2];

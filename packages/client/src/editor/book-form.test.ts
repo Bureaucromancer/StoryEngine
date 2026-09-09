@@ -24,7 +24,7 @@ import {
  * **The three claims worth breaking a build over**, and each has a case below
  * that goes red on its own mutation: an edit to one entry leaves every other
  * entry *byte*-identical; a field this build has never heard of survives an
- * edit to the entry carrying it ([10 §2]); and the 412 merge resolves each of
+ * edit to the entry carrying it ([04 §2]); and the 412 merge resolves each of
  * the five three-way cases the way its docstring says, rather than the four
  * easy ones and a guess.
  */
@@ -61,7 +61,7 @@ describe('editing one entry', () => {
   });
 
   /**
-   * [10 §2]'s promise, per object. An entry rebuilt from the fields this build
+   * [04 §2]'s promise, per object. An entry rebuilt from the fields this build
    * knows would strip whatever a newer one wrote into it — which is exactly
    * what a projected form type would have done here, and the reason the draft
    * is the book itself.
@@ -79,7 +79,7 @@ describe('editing one entry', () => {
   });
 
   /**
-   * **Ids are not unique in practice**, whatever [10 §5.2] intends: the
+   * **Ids are not unique in practice**, whatever [04 §5.2] intends: the
    * importers derive one as `stableId('entry', name, content)`, so two entries
    * agreeing on both collide. Editing the first degrades to *one of the two is
    * uneditable*; editing every match would change two entries from one form and
@@ -144,7 +144,7 @@ describe('the folder gate', () => {
   /**
    * Gate step 2's other half, at the surface that can change the answer: the
    * schema says a shut folder leaves each entry's own `enabled` *preserved
-   * rather than mutated*, and [05 §5.3] says turning a folder off must never
+   * rather than mutated*, and [10 §5.3] says turning a folder off must never
    * look like turning its entries off.
    */
   it('writes the folder’s flag and never an entry’s', () => {
@@ -191,7 +191,7 @@ describe('whether anything would be written', () => {
 });
 
 /**
- * The 412 merge, case by case — [04 §4.4].
+ * The 412 merge, case by case — [09 §4.4].
  *
  * Written out as five separate cases rather than one round trip, because the
  * failure this function exists to prevent is *one* of them silently taking the
@@ -347,7 +347,7 @@ describe('moving an entry', () => {
   });
 
   it('leaves `order` alone, because that is injection order and not this', () => {
-    // [05 §5.3]: the list's order is the file's array order, and `order` is
+    // [10 §5.3]: the list's order is the file's array order, and `order` is
     // where an activated entry lands in the prompt. Conflating them is *the
     // kind of small lie that teaches a false model of what the field means* —
     // so the falsifying mutation is a reorder that renumbers.

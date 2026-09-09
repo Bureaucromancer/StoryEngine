@@ -23,18 +23,18 @@ import { sessionLabel } from './session-label.js';
  * [P6B.0] and half of it was the reason PLAYABLE could not run.**
  *
  * The reasoning was right about the cast — that surface is
- * [P7.2](../../../../docs/design/workplan/18-p7-implementation.md)'s and P7
+ * [P7.2](../../../../docs/design/workplan/23-p7-implementation.md)'s and P7
  * turns `cast` into a channel — and wrong about everything a session
  * *retrieves* from. `POST /api/sessions` has accepted `treatment`, `lore` and
  * `preset` since P5.6; this form sent `name` alone, so no session made in the
  * browser ever resolved a lorebook, and the retrieval half of P5 was
  * unreachable from the product
- * ([P5 §0.5](../../../../docs/design/workplan/07-p5-implementation.md),
- * [P6B §0.1](../../../../docs/design/workplan/24-p6b-playable.md)).
+ * ([P5 §0.5](../../../../docs/design/workplan/17-p5-implementation.md),
+ * [P6B §0.1](../../../../docs/design/workplan/20-p6b-playable.md)).
  *
  * **The preset belongs here specifically**, because it is the one field with no
  * route to change it afterwards: a session copies its preset at creation
- * ([P4 §1.9](../../../../docs/design/workplan/06-p4-implementation.md)), so a
+ * ([P4 §1.9](../../../../docs/design/workplan/16-p4-implementation.md)), so a
  * session started without one is permanently on the built-in default and an
  * imported preset is unplayable. Lore is changeable mid-session
  * (`LorePanel`); this is not.
@@ -77,7 +77,7 @@ export function SessionsPage(): React.JSX.Element {
     // ([P3.−1]); this page declared a second one inside it. The column is
     // `page.tooling`, not the reading measure it used to borrow: a
     // list-plus-form management page is tooling, and the reading measure is
-    // the story column's ([05 §1.2]).
+    // the story column's ([10 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-4`}>
       <h1 className="text-section text-ink">Sessions</h1>
 
@@ -91,7 +91,7 @@ export function SessionsPage(): React.JSX.Element {
            * This was `if (name.trim().length > 0) create.mutate()`, so pressing
            * Start with an empty box did nothing at all — not refused, not
            * prevented, just silently ignored, which is the one shape
-           * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md) was written against. The
+           * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md) was written against. The
            * resolution is removing the requirement rather than adding a
            * refusal: a session is id-addressed, so an unnamed one freezes
            * nothing, and the name can arrive later through `RenameSession`.
@@ -193,7 +193,7 @@ export function SessionsPage(): React.JSX.Element {
  * What the closed disclosure says the session will be given.
  *
  * One string rather than a sentence assembled around values in JSX, which is
- * the shape [07 §12.6a] forbids — and it is closed by default, so this line is
+ * the shape [19 §12.6a] forbids — and it is closed by default, so this line is
  * the only thing standing between somebody and a session that retrieves
  * nothing, which is the state every session was in before [P6B.0].
  */

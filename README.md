@@ -4,7 +4,7 @@ A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: alpha, with the first tagged build about to be cut.** The design is
 written down in [`docs/design/`](docs/design/); the code is through
-[P6A](docs/design/workplan/23-p6a-alpha-1.md) — P1 to P6 of the
+[P6A](docs/design/workplan/19-p6a-alpha-1.md) — P1 to P6 of the
 [work plan](docs/design/workplan/01-work-plan.md) and the four lettered phases
 beside them, every one landed. What exists: the storage spine and a derived
 index that can be thrown away and rebuilt from it; accounts and sign-in; the
@@ -19,17 +19,17 @@ admin with a token, and can say which commit it is.
 
 **Alpha 1 is that state, tagged 2026-09-06.** Its version is `1.0.0-alpha.1`,
 named *1.0-alpha 1* — the first prerelease of 1.0, under the scheme
-[releases §7.1](docs/design/workplan/11-repo-and-releases.md) records — in the
+[releases §7.1](docs/design/workplan/04-repo-and-releases.md) records — in the
 root `package.json`, in [`CHANGELOG.md`](CHANGELOG.md) and on the tag
 `v1.0.0-alpha.1`, from which the on-tag workflow built the image on its second
 run: the first stopped at the Dockerfile, because the base image no longer
 ships corepack and nothing had run that file before a daemon did, and the tag
 moved to the fix. The image is private, so nothing pulls it without a login
 ([`docs/deploy.md`](docs/deploy.md)). What has not happened is the walk —
-[P6A §3](docs/design/workplan/23-p6a-alpha-1.md) steps 3 through 12, which
+[P6A §3](docs/design/workplan/19-p6a-alpha-1.md) steps 3 through 12, which
 need a machine with Docker and an unraid host. It is a build the
 project makes for itself, not a distribution: the repository and the registry
-package are private, and [releases §0.1](docs/design/workplan/11-repo-and-releases.md)
+package are private, and [releases §0.1](docs/design/workplan/04-repo-and-releases.md)
 says why that is the point rather than a stage on the way to something.
 
 **The UI browses, plays, reads and configures.** Sign in and browse all six
@@ -59,12 +59,12 @@ only if the session names it or the treatment the session names links it, and
 nothing in the browser sets either — nor does `pnpm seed` — so a session made
 either way resolves no books until the API sets them
 (`PUT /api/sessions/:id/lore`;
-[P5 §0.5](docs/design/workplan/07-p5-implementation.md)).
+[P5 §0.5](docs/design/workplan/17-p5-implementation.md)).
 
 The storage thesis does work end to end: create an actor through the API, watch
 the folder appear, hand-edit a lorebook on disk in a text editor, and see the
 change in the browser without a restart
-([05 §4.1](docs/design/05-ui-surfaces.md)). And it survives a second writer:
+([10 §4.1](docs/design/10-ui-surfaces.md)). And it survives a second writer:
 saving over an object that changed on disk is refused, and the editor offers to
 reload-and-reapply or save as a copy rather than guess.
 
@@ -72,7 +72,7 @@ reload-and-reapply or save as a copy rather than guess.
 ([work plan §4.1](docs/design/workplan/01-work-plan.md)) — the checkpoint where
 one person sits down with an imported library and plays, and the design gets
 tested by use rather than completed on paper. Alpha 1 is being cut before it,
-under the rule [P6A §5](docs/design/workplan/23-p6a-alpha-1.md) sets: *it may
+under the rule [P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets: *it may
 be cut before PLAYABLE; it does not go public before it.*
 
 Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
@@ -81,7 +81,7 @@ if you want to know why.
 
 ## Building it
 
-Alpha distribution is build-it-yourself ([releases §0](docs/design/workplan/11-repo-and-releases.md)).
+Alpha distribution is build-it-yourself ([releases §0](docs/design/workplan/04-repo-and-releases.md)).
 There is one channel, `testing`, which every tagged alpha moves and the unraid
 template follows; no `latest`, and no packages anyone else installs. The one
 artifact, the image, is private and for the project's own use; running one is
@@ -141,7 +141,7 @@ SE_CLIENT_ROOT=packages/client/dist node packages/server/dist/main.js --data ./d
 ```
 
 That is the shape the container runs ([`docs/deploy.md`](docs/deploy.md)), and
-since [P6A.1](docs/design/workplan/23-p6a-alpha-1.md) it runs here too: the
+since [P6A.1](docs/design/workplan/19-p6a-alpha-1.md) it runs here too: the
 server serves the built client from `server.clientRoot` and the API under
 `/api`, on one port, with no proxy between them. The key is unset by default,
 which means *serve nothing* — and set to a directory with no `index.html` in
@@ -153,7 +153,7 @@ answers JSON, whatever the client directory happens to contain.
 to set them in.** `SE_DATA_DIR`, `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT` are
 the keys needed before `config.json` can be read — it lives inside the data
 directory — and they are the only ones that take a variable
-([13 §4](docs/design/13-internal-contracts.md)). The file wins over the
+([21 §4](docs/design/21-internal-contracts.md)). The file wins over the
 environment, because the file is what the settings page writes.
 
 ### Starting from a known install, and keeping the log
@@ -171,7 +171,7 @@ the person rather than to a script, so a seeded install still needs one visit to
 Settings before a turn will run.
 
 **`pnpm dev:logged` exists because `pnpm dev` makes the log unreadable.** The
-log is JSON on stdout by design ([13 §4.1](docs/design/13-internal-contracts.md)),
+log is JSON on stdout by design ([21 §4.1](docs/design/21-internal-contracts.md)),
 and pnpm's recursive reporter prefixes every line with `packages/server dev: ` —
 so each record becomes a string that starts with a package name and then happens
 to contain JSON, which `jq` and everything else refuses. `dev:logged` runs the
@@ -186,7 +186,7 @@ covers each package's *own* sources — editing `shared` or `sdk` needs a
 
 **Loopback is the default deliberately.** Until an admin account exists, anyone
 who can reach the port can claim the install, so LAN exposure is an explicit act
-([04 §5.1](docs/design/04-server-multiuser-deployment.md)). Change it in
+([09 §5.1](docs/design/09-server-multiuser-deployment.md)). Change it in
 **Settings → Install**, which is the surface every config key has, or with
 `SE_HOST` before there is a file to change. **Bound beyond loopback with no
 admin yet, the server asks for a setup token** and prints it to its own console
@@ -207,7 +207,7 @@ worth reading; the settings form is the reason it is not the main path.)
 ### If a password is lost
 
 There is no email here and never will be
-([04 §4](docs/design/04-server-multiuser-deployment.md)), so recovery is always
+([09 §4](docs/design/09-server-multiuser-deployment.md)), so recovery is always
 *someone with authority vouches for you*. The eventual norm is an admin
 resetting the account in the UI; until that arrives — and forever after, for
 the case where no usable admin account exists — the authority is access to the
@@ -253,7 +253,7 @@ defaults.
   prefixed per package. One consequence of two processes under one terminal: a
   signal that does not reach the whole process group can leave a child holding a
   port, and `Port 5173 is in use` on the next start is what that looks like.
-- **The server watches with `tsx`**, per [07 §11](docs/design/07-tech-stack.md),
+- **The server watches with `tsx`**, per [19 §11](docs/design/19-tech-stack.md),
   which names it. Node 26 can strip types unaided, but this codebase imports
   with `.js` specifiers under `NodeNext` and Node will not resolve those onto
   the `.ts` files that actually exist; `tsx` does. It also means dev runs from
@@ -273,10 +273,10 @@ defaults.
 
 The split used to exist because the server could not serve the client's files.
 It can now, and the shipped product is one container, one volume and one port
-([04 §5.3](docs/design/04-server-multiuser-deployment.md)) — so the split is a
+([09 §5.3](docs/design/09-server-multiuser-deployment.md)) — so the split is a
 development convenience rather than a gap: Vite's dev server is what gives hot
 module replacement, and `pnpm dev` not changing was one of
-[P6A](docs/design/workplan/23-p6a-alpha-1.md)'s exit-gate steps rather than an
+[P6A](docs/design/workplan/19-p6a-alpha-1.md)'s exit-gate steps rather than an
 assumption.
 
 Keeping them apart in development also keeps the API honest: nothing in the
@@ -333,25 +333,25 @@ tools/lint-fixtures/ files that violate the day-one rules, so the rules can be
 ```
 
 `packages/modes/` does not exist yet — but the lint rules governing it do, which
-is the point ([07 §10](docs/design/07-tech-stack.md)).
+is the point ([19 §10](docs/design/19-tech-stack.md)).
 
 ## The rules that are build errors
 
 Several claims in the design documents are only true if breaking them fails the
-build ([testing §2](docs/design/workplan/10-testing.md)). Each is enforced, and each has a
+build ([testing §2](docs/design/workplan/03-testing.md)). Each is enforced, and each has a
 fixture test asserting the enforcement actually fires:
 
 - **The dependency graph.** `modes → sdk, shared`; `client → shared`;
   `sdk → shared`; `server → shared, sdk`. Never the other way.
 - **No direct `fs`** outside `packages/server/src/storage`, which keeps one
-  audited path resolver the only door ([07 §9](docs/design/07-tech-stack.md)).
+  audited path resolver the only door ([19 §9](docs/design/19-tech-stack.md)).
 - **No randomness** outside the RNG service (`packages/server/src/rng/`, since
   P2.2) — every draw goes through it and lands on the turn's tape, which is
   what makes a rewrite replay the same dice. Two one-file exemptions, id
   generation and cryptographic secrets, each argued where it is granted in
-  `eslint.config.js` ([07 §14.4](docs/design/07-tech-stack.md)).
+  `eslint.config.js` ([19 §14.4](docs/design/19-tech-stack.md)).
 - **Logical CSS properties only**, in stylesheets *and* in Tailwind utility
-  classes ([07 §12.6](docs/design/07-tech-stack.md)).
+  classes ([19 §12.6](docs/design/19-tech-stack.md)).
 - **An SPDX header** on every source file.
 
 ## Licence

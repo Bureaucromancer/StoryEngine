@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TagManagerDialog } from './TagManagerDialog.js';
 
 /**
- * The tag manager — [25 §5](../../../../docs/design/25-tagging.md).
+ * The tag manager — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * The claim worth the most here is the one that is easy to build wrong: **a tag
  * with no registry entry is a row, not an absence.** That is invariant 1 made
@@ -334,7 +334,7 @@ describe('prune', () => {
 });
 
 /**
- * Renaming, and the question it has to ask first — [25 §1].
+ * Renaming, and the question it has to ask first — [05 §1].
  *
  * A lore entry's `actorTagFilter` holds author-written names and activation
  * compares them exactly, so a rename can stop lore firing with nothing anywhere
@@ -405,7 +405,7 @@ describe('renaming', () => {
 });
 
 /**
- * **The one deliberate write across the library** — [25 §3]. Until it runs a
+ * **The one deliberate write across the library** — [05 §3]. Until it runs a
  * rename reaches nothing, because an object with no ids works from its own
  * names and has no connection to the row that changed.
  */

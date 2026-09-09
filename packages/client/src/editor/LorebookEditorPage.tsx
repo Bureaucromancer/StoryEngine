@@ -47,14 +47,14 @@ import { UnsavedChangesGuard } from './UnsavedChanges.js';
 
 /**
  * The entry editor's minimum —
- * [P5.1](../../../../docs/design/workplan/07-p5-implementation.md),
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md).
+ * [P5.1](../../../../docs/design/workplan/17-p5-implementation.md),
+ * [10 §11.2d](../../../../docs/design/10-ui-surfaces.md).
  *
  * **The page's subject is the book and its unit of work is an entry**, which is
  * not a compromise between the two but what the write path is: an entry has no
  * address on disk, so creating, renaming or deleting one is a write of the whole
  * lorebook through the same route, hash and history every other object uses
- * ([05 §11.2c] says so from the import side — *"the merge goes through the same
+ * ([10 §11.2c] says so from the import side — *"the merge goes through the same
  * write path as every other edit, so the book takes a history entry"*).
  *
  * One entry is edited at a time, named by `?entry=` the way the read page names
@@ -167,7 +167,7 @@ function Unopenable(props: { id: string; problem: string }): JSX.Element {
 }
 
 /**
- * The saved editor, which keeps its selection in the address — [05 §5.3] asks
+ * The saved editor, which keeps its selection in the address — [10 §5.3] asks
  * the read view's edit affordance to be *a link into the editor at the
  * entry's address*, so the write surface has to hold one.
  *
@@ -221,7 +221,7 @@ export function NewLorebookPage(): JSX.Element {
    * else.**
    *
    * The saved editor puts the selection in `?entry=`, because an entry is a
-   * place and [05 §5.3] asks the read view's edit affordance to be a link into
+   * place and [10 §5.3] asks the read view's edit affordance to be a link into
    * one. A draft has no address to put it in — the book has no id until the
    * first Save — so the same state lives in `useState` for exactly as long as
    * the book has no file, and the editor is handed it rather than reaching for
@@ -279,7 +279,7 @@ function Editor(props: EditorProps): JSX.Element {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
   /**
-   * Why the last Save did not write — [05 §11.1a]. `role="alert"` where
+   * Why the last Save did not write — [10 §11.1a]. `role="alert"` where
    * `notice` is `role="status"`, because a refusal interrupts and a progress
    * report does not.
    */
@@ -305,7 +305,7 @@ function Editor(props: EditorProps): JSX.Element {
    */
   const savable = unsaved || changed;
   /**
-   * The required fields this book is not answering — [05 §11.1a].
+   * The required fields this book is not answering — [10 §11.1a].
    *
    * This editor had no such check at all: the book's name could be emptied and
    * saved, and the shelf would then carry a row with nothing in its link. The
@@ -333,8 +333,8 @@ function Editor(props: EditorProps): JSX.Element {
   function handleSave(): void {
     if (!savable) return;
     /**
-     * **Refused rather than prevented** — [05 §11.1a]. Save stays live and this
-     * says what is wrong, beside the Save that caused it ([05 §11.6]).
+     * **Refused rather than prevented** — [10 §11.1a]. Save stays live and this
+     * says what is wrong, beside the Save that caused it ([10 §11.6]).
      */
     if (missing.length > 0) {
       setNotice(null);
@@ -593,7 +593,7 @@ function Editor(props: EditorProps): JSX.Element {
                * Said where the control is, because it is the thing that makes
                * the confirmation mild: nothing has left the file until Save,
                * and after Save the book's own history holds the version that
-               * still had it ([05 §11.2a]).
+               * still had it ([10 §11.2a]).
                */}
               <Fine>Nothing is written until you save, and history keeps the version before.</Fine>
             </div>
@@ -602,7 +602,7 @@ function Editor(props: EditorProps): JSX.Element {
 
         {/*
          * Held at the bottom of the scrollport rather than parked at the foot
-         * of the form — [05 §11.6]. A book with a folder rail, a filter, a list
+         * of the form — [10 §11.6]. A book with a folder rail, a filter, a list
          * and an open entry is several screens tall, and Save was reachable
          * only by scrolling past all of it, which is how an editor teaches
          * people to leave work unsaved.
@@ -1110,7 +1110,7 @@ function EntryList(props: {
                  * **The keyboard's half of the same gesture**, and not an
                  * afterthought: a list that can only be reordered by dragging
                  * cannot be reordered by a keyboard at all, which is the whole
-                 * of [01 §2.1]'s day-one habit failing in one control. Shown on
+                 * of [work plan §2.1]'s day-one habit failing in one control. Shown on
                  * hover and on focus, so a pointer sees them where it is looking
                  * and a tab reaches them where it is.
                  */}
@@ -1166,13 +1166,13 @@ function nameOfEntry(entry: LoreEntry): string {
  *
  * **The gate writes only `folders[].enabled`.** The schema says a shut folder
  * leaves each entry's own `enabled` *preserved rather than mutated*, and
- * [05 §5.3] says turning a folder off must never look like turning its entries
+ * [10 §5.3] says turning a folder off must never look like turning its entries
  * off; a control that also flipped the entries would destroy the variant switch
- * [16 §2] says this field already is.
+ * [11 §2] says this field already is.
  *
  * **The folder's name is a second control**, selecting it: that narrows the
  * entry list and, more importantly, is where a new entry lands. `folderId` is
- * not a field this stage writes ([05 §11.2d]'s minimum), so the place an entry
+ * not a field this stage writes ([10 §11.2d]'s minimum), so the place an entry
  * is filed has to be chosen at the moment it is created or there is nowhere to
  * choose it at all.
  */

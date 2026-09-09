@@ -8,16 +8,16 @@ import type { TSchema } from '@sinclair/typebox';
  *
  * **`LoreEntry` is written under banners** — `── Matching ──`, `── Firing ──`,
  * `── Timing ──` and the rest — and
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) builds the entry
+ * [10 §11.2d](../../../../docs/design/10-ui-surfaces.md) builds the entry
  * editor's disclosures out of them, on the grounds that *the structure already
  * exists, in the schema file, and the only editorial decision left is which
- * groups start open*. [05 §5.3](../../../../docs/design/05-ui-surfaces.md) asks
+ * groups start open*. [10 §5.3](../../../../docs/design/10-ui-surfaces.md) asks
  * the book page's read-only *as configured* fold to render the same groups
  * through the same component.
  *
  * That is a promise a comment cannot keep. A comment is not there at runtime, so
  * a surface reading it has to be told the grouping a second time — and a second
- * telling is the drift [polish §1](../../../../docs/design/workplan/09-polish.md)
+ * telling is the drift [polish §1](../../../../docs/design/workplan/06-polish.md)
  * exists to prevent. So the banner becomes an annotation on the field it
  * introduces, and the comment goes away rather than sitting beside it as the
  * copy that will be the one somebody updates.
@@ -30,7 +30,7 @@ import type { TSchema } from '@sinclair/typebox';
  * there is no list of members to add it to.
  *
  * **It is an annotation, not a field**, which is the test
- * [16 §4](../../../../docs/design/16-lorebooks-as-a-format.md) sets for
+ * [11 §4](../../../../docs/design/11-lorebooks-as-a-format.md) sets for
  * anything new arriving in these schemas: nothing validates differently,
  * nothing round-trips that did not, and no author can write one. It reaches the
  * emitted artefact, where it is documentation a stranger gets for free —

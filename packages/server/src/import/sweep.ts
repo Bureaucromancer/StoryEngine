@@ -35,7 +35,7 @@ import type { FileSource, ImportCandidate, SourceReader, SourceRefusal } from '.
 
 /**
  * Reads a root, writes what it finds, and returns the review
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The pre-flight survey is separate from the reading, and that ordering is the
  * whole safety property**: a refusal after the first object is written is a
@@ -121,7 +121,7 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
 
 /**
  * The sweep's engine, at the scale of one file
- * ([P4 §7.1](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.1](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Exported so the upload route has no converter of its own.** It had one for
  * three stages — three preset shapes and nothing else — and the cost was two
@@ -199,7 +199,7 @@ class Writer {
 
       // Marinara's are redirections rather than a second conversion: a Marinara
       // card is a V2 card, and its preset is the same prompt-manager lineage
-      // [10 §8.4] was written against ([P4 §1.5]).
+      // [04 §8.4] was written against ([P4 §1.5]).
       case 'marinara.character':
         return this.#card(candidate);
       case 'marinara.persona':
@@ -281,7 +281,7 @@ class Writer {
    * `create()` refuse the whole card, so a character was lost over its picture.
    * That is the poisoned-file rule violated one level down — one bad asset never
    * costs the object it belongs to, exactly as one bad file never aborts a
-   * sweep ([13 §4.1.1]).
+   * sweep ([21 §4.1.1]).
    */
   async #createActor(
     candidate: ImportCandidate,
@@ -308,7 +308,7 @@ class Writer {
 
   /**
    * Writes one converted object, through the re-import rule
-   * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+   * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
    *
    * **Every object goes through here**, which is the point: a rule applied at
    * some call sites is a rule that doubles the library at the others. Before
@@ -491,7 +491,7 @@ class Writer {
   /**
    * **A Treatment per distinct scenario text, created eagerly** ([P4 §1.10]).
    *
-   * *"Offered as a new Treatment draft"* ([02 §2.7]) becomes *created and
+   * *"Offered as a new Treatment draft"* ([03 §2.7]) becomes *created and
    * reported* under §1.4's post-hoc posture: there is no staging area to offer
    * anything into, and a three-hundred-card sweep gated per-card on a human is
    * not a review, it is a chore.

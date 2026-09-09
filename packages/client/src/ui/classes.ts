@@ -123,7 +123,7 @@ export const control =
  * The audit found two widths under three spellings: the shell's 56rem three
  * times, and 48rem as both `max-w-reading` and `max-w-3xl`. These are the two,
  * each spelled here and nowhere else. `tooling` is the shell's width —
- * [05 §1.2] names it as the measure the reading column is *against* — and
+ * [10 §1.2] names it as the measure the reading column is *against* — and
  * `reading` is the story column's and nothing else's.
  *
  * **Pages own their column; the shell does not wrap the outlet.** The reason
@@ -141,7 +141,7 @@ export const page = {
    * primary action, and the destructive one — held against the bottom of the
    * scrollport for as long as there is page left below it.
    *
-   * **It began as the editors' Save row** ([05 §11.6]) and became the strip
+   * **It began as the editors' Save row** ([10 §11.6]) and became the strip
    * every surface keeps its critical controls in: the editors' *Back to*,
    * Save, History and Delete; the read page's *Back to the library*, Edit and
    * Delete; and the action row of every form on the settings page. One recipe

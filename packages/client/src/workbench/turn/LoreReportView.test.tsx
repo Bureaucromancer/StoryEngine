@@ -10,7 +10,7 @@ import { NO_LORE_REPORT, type LoreReport, type LoreSkipRow } from '@storyengine/
 import { LoreReportView } from './LoreReportView.js';
 
 /**
- * The keyword test, generalised — [P5.8], [05 §3].
+ * The keyword test, generalised — [P5.8], [10 §3].
  *
  * What is asserted here is almost entirely the **refused** half, because that
  * is the half nothing else in the app could show: an entry that fired is
@@ -202,7 +202,7 @@ describe('the sources nothing supplied', () => {
 /**
  * The budget column, and the one value it could not render — [P6B.1].
  *
- * Zero means unlimited ([10 §5], and the schema annotates it), so the pair that
+ * Zero means unlimited ([04 §5], and the schema annotates it), so the pair that
  * reads correctly for every other book read *41 / 0* on precisely the books
  * that had no limit. The retriever's own reading was settled in the same stage;
  * this is the half a person sees.

@@ -6,7 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { EmbeddedMedia, Id, Metadata, Provenance } from './common.js';
 
 /**
- * Package — docs/design/10-schemas.md §9.
+ * Package — docs/design/04-schemas.md §9.
  *
  * **An arbitrary bundle of portable objects, and nothing else.** With Setup
  * carrying the game definition, a Package is reduced to what it always should

@@ -8,9 +8,9 @@ import type { Config } from '../config.js';
 import type { ProviderCapabilities } from '../providers/types.js';
 
 /**
- * The window a turn gets to spend, and where the number came from — [13 §1.5].
+ * The window a turn gets to spend, and where the number came from — [21 §1.5].
  *
- * The `source` field is not decoration: [05 §7](../../../../docs/design/05-ui-surfaces.md)'s
+ * The `source` field is not decoration: [10 §7](../../../../docs/design/10-ui-surfaces.md)'s
  * budget panel says *why* something was dropped, and "your context limit" and
  * "this endpoint's limit" are different sentences with different remedies.
  *
@@ -19,7 +19,7 @@ import type { ProviderCapabilities } from '../providers/types.js';
  * cannot verify — so without the config default every turn would be
  * unbudgetable. A per-connection override reads as `provider` instead, and that
  * is also true: it is a statement about *that endpoint*, which is what
- * [07 §5.3](../../../../docs/design/07-tech-stack.md) says a capability override is.
+ * [19 §5.3](../../../../docs/design/19-tech-stack.md) says a capability override is.
  */
 export interface PresetBudget {
   contextShare: number;
@@ -37,7 +37,7 @@ export function budgetPolicyFor(
    * The ceiling, resolved in the order the design gives.
    *
    * The endpoint knows best, then the config's ceiling. **A preset's
-   * `maxContextTokens` is a cap on that, not a substitute for it** — [10 §8.3]'s
+   * `maxContextTokens` is a cap on that, not a substitute for it** — [04 §8.3]'s
    * whole argument is that a preset written against a 4k window must not
    * silently misbehave at 200k, which is what an absolute value from the preset
    * *winning* would reproduce. So it can only narrow.
@@ -60,11 +60,11 @@ export function budgetPolicyFor(
       : { tokens: preset.maxContextTokens, source: 'preset' as const };
 
   /**
-   * And the share the preset is willing to spend on context — [10 §8.3]'s
+   * And the share the preset is willing to spend on context — [04 §8.3]'s
    * *shares and floors against the resolved window*, which is what makes a
    * preset portable across window sizes at all. Recorded as `share` beside the
    * untouched `ceiling` rather than by relabelling `source` — the relabel was
-   * the lie [13 §1.5] existed to prevent: three-quarters of the live-editable
+   * the lie [21 §1.5] existed to prevent: three-quarters of the live-editable
    * config default reading as the preset's own number, hiding the one remedy
    * a person can actually reach.
    */

@@ -525,7 +525,7 @@ describe('reconstruction from zero', () => {
 
   it('answers the same through the snapshot cache, warm and with every one deleted', async () => {
     /**
-     * [09 §4](../../../../docs/design/09-branching.md) asks CI for exactly this
+     * [07 §4](../../../../docs/design/07-branching.md) asks CI for exactly this
      * — *replay-from-zero must equal snapshot-plus-replay at every index* — and
      * [P6 §3] step 6 asks for the other half: delete every snapshot and
      * everything still works, slower. Both are here rather than beside the

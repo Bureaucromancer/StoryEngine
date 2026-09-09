@@ -16,7 +16,7 @@ import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * Branching through the route — [P6.0c], and [08 §1.7]'s stale-head decision.
+ * Branching through the route — [P6.0c], and [P6 §1.7]'s stale-head decision.
  *
  * **The decision, so a reader does not have to reconstruct it from the code:**
  * a submission names the node it attaches to, and naming one that is not the
@@ -219,7 +219,7 @@ describe('a turn submitted against an old node', () => {
   });
 
   it('charges once for a branch that is submitted twice', async () => {
-    // [13 §5.1]: a retry must never make a second provider call. Branching does
+    // [21 §5.1]: a retry must never make a second provider call. Branching does
     // not get its own path through the reservation, and this is what says so.
     const sessionId = await createSession();
     const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
@@ -265,7 +265,7 @@ describe('moving the head, through the routes', () => {
   }
 
   it('makes history the path to the new head, and nothing else', async () => {
-    // Proof obligation (ii): *history shows the selected path only* ([09 §6]).
+    // Proof obligation (ii): *history shows the selected path only* ([07 §6]).
     // The transcript route walks from the head, so moving the head is the whole
     // of switching lines — no turn is rewritten and no list is reordered.
     const sessionId = await createSession();
@@ -416,7 +416,7 @@ describe('moving the head, through the routes', () => {
 });
 
 /**
- * Rewrite and reroll — [07 §14.5], [P6 §3] step 3, [P6.2].
+ * Rewrite and reroll — [19 §14.5], [P6 §3] step 3, [P6.2].
  *
  * **The fixture has to be built to roll**, which [P6 §0.1a] found the hard way:
  * the production draw sites are `lore.probability` and `lore.group`, so a turn
@@ -548,7 +548,7 @@ describe('rewrite replays the draws, and reroll does not', () => {
   });
 
   /**
-   * Either may carry an instruction — [03 §5.1], [09 §7]. A guided redo names
+   * Either may carry an instruction — [06 §5.1], [07 §7]. A guided redo names
    * the attempt it is redoing (`redoOf`) so the model is shown it beside the
    * instruction; the words half and the draws half are independent, which is
    * what the last two tests pin.
@@ -669,7 +669,7 @@ describe('rewrite replays the draws, and reroll does not', () => {
       });
       const redo = await turnOnDisk(sessionId, plain.body.turnId as string);
 
-      // A plain redo is *same setup, different words* ([07 §14.6]): the model
+      // A plain redo is *same setup, different words* ([19 §14.6]): the model
       // is not shown a reply it might then avoid or copy. The route inventing
       // `redoOf` from `rewriteOf` is the mutation, and it fills the slot.
       expect(attemptBlocksOf(redo)).toEqual([]);

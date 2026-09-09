@@ -29,7 +29,7 @@ import { budgetPolicyFor, type PresetBudget } from './budget.js';
 import { callPurposeFor, type StepCallRequest, type StepDefinition } from './steps.js';
 
 /**
- * One model call, and the record of it — [13 §1.4].
+ * One model call, and the record of it — [21 §1.4].
  *
  * Everything a call needs to become a `ModelCall` happens here: resolving the
  * role, budgeting against the endpoint that answered, assembling, rendering,
@@ -56,7 +56,7 @@ export class RoleUnresolved extends Error {
  * The turn was stopped. Distinct from a provider failure, and never retried.
  *
  * **Carries the interrupted call when there was one** — finding 2 in
- * [16](../../../../docs/design/workplan/16-p2c-log.md). Stop is the
+ * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). Stop is the
  * most-pressed button in a manual phase against real latency, and until this
  * carried a record, the failure a tester produced most often was the one the
  * record said least about: `request.calls: []`, no connection id, no model, no
@@ -147,7 +147,7 @@ export interface CallOutcome {
  * The randomness rule bans `Math.random` and `node:crypto` outside `rng/`, and
  * drawing backoff through `rng.at()` would put a scheduling artefact on the
  * replay tape. The tape is for draws that affect *outcome*
- * ([07 §14.6](../../../../docs/design/07-tech-stack.md)); a sleep is not one. A named
+ * ([19 §14.6](../../../../docs/design/19-tech-stack.md)); a sleep is not one. A named
  * constant follows `MINUTES_PER_TURN`'s precedent and costs no config key.
  */
 const RETRY_BACKOFF_MS = [250, 1000] as const;
@@ -244,7 +244,7 @@ export interface CallPlan {
   /**
    * The connection the role resolved to. **What dispatch needs and the record
    * never keeps** — a `Connection` holds `apiKey` and `baseUrl`, and the
-   * record is a line in a JSONL file on somebody's disk ([13 §1.4]). Handed
+   * record is a line in a JSONL file on somebody's disk ([21 §1.4]). Handed
    * back rather than re-derived, so `performCall` cannot resolve the role a
    * second time and get a second answer.
    */
@@ -256,7 +256,7 @@ export interface CallPlan {
  *
  * Both of its throws are load-bearing and stay throws: `RoleUnresolved` is how
  * the preview learns there is no denominator to measure against, and
- * `AdvisoryLeakError` is [03 §5.2]'s structural guarantee, which a preview
+ * `AdvisoryLeakError` is [06 §5.2]'s structural guarantee, which a preview
  * must not be able to route around. [P3 §1.7]'s *assemble-without-dispatch as
  * a parameterised function* is this function.
  */
@@ -284,7 +284,7 @@ export function planCall(
 
   const provider = context.providers(resolution.connection);
   // A step's own request wins over the preset's defaults, and the preset's win
-  // over nothing — which is the layering [10 §8] describes for everything else.
+  // over nothing — which is the layering [04 §8] describes for everything else.
   const params: GenerationParams = { ...context.preset?.params, ...request.params };
   const policy = budgetPolicyFor(
     provider.capabilities,
@@ -295,7 +295,7 @@ export function planCall(
 
   // **The purpose comes from the definition, not from the request.** A step
   // that could name its own would be one honest declaration away from walking
-  // an advisory block into an effect-producing call ([03 §5.2]). Computed
+  // an advisory block into an effect-producing call ([06 §5.2]). Computed
   // once, because it is also stamped on every record this call can leave
   // ([P3.0] — the invariant's committed half).
   const purpose = callPurposeFor(definition);
@@ -531,7 +531,7 @@ export class CallFailed extends Error {
    * an operator what to change never left the adapter.
    *
    * For the log only, never rendered as UI copy — same terms as
-   * {@link ProviderError.detail}, which [07 §12.7] keeps untranslated.
+   * {@link ProviderError.detail}, which [19 §12.7] keeps untranslated.
    */
   readonly detail: string | undefined;
   readonly partialText: string;

@@ -3,9 +3,9 @@
   SPDX-License-Identifier: AGPL-3.0-or-later
   Copyright (C) 2026 StoryEngine contributors
 
-  The unraid template — docs/design/workplan/23-p6a-alpha-1.md §2, P6A.4.
+  The unraid template — docs/design/workplan/19-p6a-alpha-1.md §2, P6A.4.
 
-  **Committed, and submitted to nobody.** docs/design/04-server-multiuser-deployment.md
+  **Committed, and submitted to nobody.** docs/design/09-server-multiuser-deployment.md
   §5.3's [OPEN] on the Community Applications store closes here as a recorded
   deferral, for §5.4's own reason: every package format is a recurring cost
   rather than a one-time build, and a store listing adds a moderated presence
@@ -67,7 +67,7 @@
     favicon.svg, the wordmark's initial on a typewriter key), but unraid fetches
     an Icon URL over HTTP and a raw URL into a private repository is a 404 — the
     half-working template §5.3 refuses. It goes in with publication, which
-    docs/design/workplan/23-p6a-alpha-1.md §4 makes one decision rather than a
+    docs/design/workplan/19-p6a-alpha-1.md §4 makes one decision rather than a
     registry toggle. Confirmed by the first install, 2026-09-07: the container
     list shows no icon, and the operator agreed that is the right absence.
   -->

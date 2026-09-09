@@ -15,7 +15,7 @@ import { stripSensitiveFields } from './sensitive-fields.js';
 
 /**
  * SillyTavern chat-completion presets → `Preset`
- * ([10 §8.4](../../../../../docs/design/10-schemas.md)).
+ * ([04 §8.4](../../../../../docs/design/04-schemas.md)).
  *
  * **The structural distance is small and most of this is renaming** (§8.1).
  * ST's prompt manager is a block assembler; what it does not have is a general
@@ -42,7 +42,7 @@ const note = (
  *
  * *Two corrections to that table, both because the code moved after it was
  * written.* `dialogueExamples` maps to `samples`, not `examples` — the arm was
- * renamed when dialogue examples stopped being a `Section` ([10 §3.1]), and the
+ * renamed when dialogue examples stopped being a `Section` ([04 §3.1]), and the
  * schema says so beside it. And `scenario` maps to `treatment`, which the marker
  * table always spelled correctly and the code only caught up with at P4.0.
  */
@@ -199,7 +199,7 @@ export function convertChatCompletionPreset(
   applyBudget(kept, preset, notes);
   applyModelHint(kept, preset);
 
-  // [10 §2]'s preservation rule: everything unrecognised is kept verbatim, so
+  // [04 §2]'s preservation rule: everything unrecognised is kept verbatim, so
   // nothing is lost even where nothing reads it. The credentials above are the
   // one named exception and are already gone by here.
   preset.compat = compatOf(kept);
@@ -294,7 +294,7 @@ function blockFor(
     enabled: entry.enabled,
     placement: placementOf(prompt),
     priority: DEFAULT_PRIORITY,
-    // `CallKind` is an open string by rule ([10 §8.2]), so an unmapped trigger
+    // `CallKind` is an open string by rule ([04 §8.2]), so an unmapped trigger
     // rides through and renders as a `not-applicable` skip in a mode that never
     // makes such a call — visible in `notFilled` rather than lost.
     appliesTo: prompt.injection_trigger ?? [],
@@ -422,7 +422,7 @@ function applyModelHint(body: Readonly<Record<string, unknown>>, preset: Preset)
   if (ids.length === 0) return;
   // `role: 'prose'` because that is what a chat-completion preset is for, and
   // the field is required. The ids are the wish; resolution stays local, so a
-  // preset can never repoint anybody's provider ([10 §3]).
+  // preset can never repoint anybody's provider ([04 §3]).
   preset.modelHint = { role: 'prose', preferredModelIds: [...new Set(ids)] };
 }
 

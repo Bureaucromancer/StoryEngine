@@ -42,7 +42,7 @@ describe('the tag swatches', () => {
 });
 
 /**
- * The open-string promise, from [25 §4](../../../../docs/design/25-tagging.md):
+ * The open-string promise, from [05 §4](../../../../docs/design/05-tagging.md):
  * a swatch this build has never heard of costs one grey chip, not a file that
  * will not load. The hand-edited case is the whole reason `swatch` is a string
  * rather than a union, so it is worth a test rather than a comment.

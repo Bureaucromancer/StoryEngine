@@ -7,7 +7,7 @@ import type { FileSource, ImportSourceKind } from '../source.js';
 /**
  * Marinara's single-file export formats
  * ([survey §1](../../../../../docs/design/01-source-survey.md),
- * [P4 §1.3](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * [P4 §1.3](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * An `ExportEnvelope` is `{ type, version, exportedAt, data }` over eight
  * `ExportType` values. Two of them matter here and the rest are named so the

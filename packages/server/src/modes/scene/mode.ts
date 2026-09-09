@@ -9,7 +9,7 @@ import { SCENE_PRESET } from './preset.js';
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
  *
- * [P2 §5](../../../../../docs/design/workplan/04-p2-implementation.md) draws the line in as many
+ * [P2 §5](../../../../../docs/design/workplan/08-p2-implementation.md) draws the line in as many
  * words: *a second step, a channel with a widget, a participant policy — each is
  * small and each belongs to P7, where the contract is tested by two real modes
  * rather than grown one convenience at a time.* So the interesting thing about
@@ -30,7 +30,7 @@ export const NARRATE: StepDefinition = {
    * `contributes: 'messages'` with an empty `writes` is what makes
    * `callPurposeFor` yield `prose` and admit the guidance block. **One entry in
    * `writes` would turn every guidance-carrying turn into an
-   * `AdvisoryLeakError` abort** — which is [03 §5.2] working exactly as
+   * `AdvisoryLeakError` abort** — which is [06 §5.2] working exactly as
    * designed, and worth knowing before somebody adds a channel here.
    */
   writes: [],
@@ -63,7 +63,7 @@ export const SCENE: ModeDefinition = {
   voice: 'narrator',
   dispatch: 'merged',
   /**
-   * Empty by fact rather than by omission. [03 §1] names presets for Adventure;
+   * Empty by fact rather than by omission. [06 §1] names presets for Adventure;
    * Scene has no second way to be configured, and minting `scene.default` would
    * create a permanent content identifier for a distinction nothing makes.
    */
@@ -87,7 +87,7 @@ export const SCENE: ModeDefinition = {
    * input-kind selector, which is a surface this stage does not build.
    */
   inputs: ['do'],
-  /** [05 §8] has extensions declare widgets; that machinery is P7's. */
+  /** [10 §8] has extensions declare widgets; that machinery is P7's. */
   surfaces: [],
   setup: { kind: 'none' },
 };

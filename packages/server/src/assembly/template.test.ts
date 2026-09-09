@@ -25,7 +25,7 @@ describe('rendering a block template', () => {
   });
 
   it('runs conditionals, which is what charIfNotGroup converts into', () => {
-    // [10 §8.4.2] names this specifically: those macros become Liquid
+    // [04 §8.4.2] names this specifically: those macros become Liquid
     // conditionals rather than being dropped.
     const template = '{% if char == "Vera Solano" %}She knows the docks.{% endif %}';
 
@@ -53,7 +53,7 @@ describe('rendering a block template', () => {
   it('hands back the source when a template will not compile, rather than throwing', () => {
     // A preset is somebody else's authored file. One bad block must not take
     // the turn down with it, and literal braces in the prompt are the visible
-    // failure [10 §8.4.2] prefers to a mangled one that looks fine.
+    // failure [04 §8.4.2] prefers to a mangled one that looks fine.
     const broken = 'Before {% if %} after';
     const result = renderTemplate(broken, CONTEXT);
 

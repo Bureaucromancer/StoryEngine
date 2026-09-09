@@ -3,7 +3,7 @@
 
 /**
  * The workbench's preferences —
- * [P3.1a](../../../../docs/design/workplan/05-p3-implementation.md), through
+ * [P3.1a](../../../../docs/design/workplan/15-p3-implementation.md), through
  * the store whose own docstring gives *"whether a pane is collapsed"* as its
  * motivating example. This module is the same shape as `ui/theme.ts`: the key
  * spelled once, a read helper and a patch helper as a pair, and the default

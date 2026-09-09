@@ -10,7 +10,7 @@ import { Badge, type BadgeTone } from '../../ui/Badge.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
 
 /**
- * The steps, including skipped and failed — [04 §3.3]'s durable half: a
+ * The steps, including skipped and failed — [09 §3.3]'s durable half: a
  * history view that hid a skip or a failure would silently disagree with the
  * live one about what happened.
  */

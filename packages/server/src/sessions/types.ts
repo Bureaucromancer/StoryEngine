@@ -4,8 +4,8 @@
 import type { BranchRef, ChannelState, Preset } from '@storyengine/shared';
 
 /**
- * Sessions and turns on disk — [02 §5.5](../../../../docs/design/02-data-model.md),
- * [13 §1](../../../../docs/design/13-internal-contracts.md).
+ * Sessions and turns on disk — [03 §5.5](../../../../docs/design/03-data-model.md),
+ * [21 §1](../../../../docs/design/21-internal-contracts.md).
  *
  * **The turn record's shapes live in `@storyengine/shared` since [P3.0]** —
  * `packages/shared/src/turn.ts`, which carries the contracts' documentation
@@ -43,7 +43,7 @@ export type {
  * `session.json` — metadata, cast, the lore links, named branch refs, and the
  * head channel snapshot.
  *
- * **The snapshot is derived, not authoritative** ([02 §8.1]). A session is a
+ * **The snapshot is derived, not authoritative** ([03 §8.1]). A session is a
  * tree, so "the channel state of a session" is not a thing that exists: state
  * exists *at a node*. A single `channels` map here can therefore only mean
  * state at `headTurnId`, and deleting it must cost a recomputation and nothing
@@ -67,7 +67,7 @@ export interface SessionFile {
   /** State at `headTurnId`. Derived. Hand-editing it writes an effect. */
   channels: Record<string, ChannelState>;
   /**
-   * Which mode this session plays, and how it was configured — [03 §1].
+   * Which mode this session plays, and how it was configured — [06 §1].
    *
    * Optional because every session written by P2.3 to P2.5 predates it, and a
    * read that healed the file would need the session lock, which is not
@@ -75,7 +75,7 @@ export interface SessionFile {
    */
   mode?: { id: string; config: unknown };
   /**
-   * The session's own copy of its prompt pack — [02 §8].
+   * The session's own copy of its prompt pack — [03 §8].
    *
    * **A copy, not a link**, and the asymmetry with `cast` is deliberate:
    * editing a preset must not silently change how an ongoing game is assembled,
@@ -89,12 +89,12 @@ export interface SessionFile {
   cast?: { persona: string | null; actors: string[] };
   /**
    * The treatment this session is played under, and the lorebooks the retriever
-   * scans — [02 §8], added at [P5.6] because before it a session referenced
+   * scans — [03 §8], added at [P5.6] because before it a session referenced
    * **neither object at all** and a retriever with no books has nothing to do.
    *
    * **Links, like `cast`, and for `cast`'s reason.** Fixing a typo in the world
    * should reach the story being told in it. The full argument — including how
-   * a session naming its own treatment squares with [02 §8]'s *editing the
+   * a session naming its own treatment squares with [03 §8]'s *editing the
    * source treatment later must not affect this session*, which is about the
    * `origin` provenance chain rather than about this field — is in
    * `turns/lore.ts`, next to the code that acts on it.
@@ -104,10 +104,10 @@ export interface SessionFile {
    * Absent reads as *no treatment, no books*, which is what those sessions had.
    */
   treatment?: string | null;
-  /** Extras beyond whatever the treatment already links — [02 §7]. */
+  /** Extras beyond whatever the treatment already links — [03 §7]. */
   lore?: string[];
   /**
-   * Named bookmarks on nodes — [09 §3], added at [P6.1].
+   * Named bookmarks on nodes — [07 §3], added at [P6.1].
    *
    * **A list of names, and no turn data.** Creating one writes a name and an
    * id; deleting one deletes a name. Nothing in this array owns a turn, and
@@ -117,13 +117,13 @@ export interface SessionFile {
    */
   branchRefs?: BranchRef[];
   /**
-   * Which child a node was last continued through — [09 §3]'s
+   * Which child a node was last continued through — [07 §3]'s
    * `lastSelectedChildId`, *"purely so that navigating back and then forward
    * again resumes where you were rather than guessing"*.
    *
    * **A map here rather than a field on the turn, and that is forced.** The
    * design says *a node may record* it, but a turn is a line in an append-only
-   * segment that is never rewritten ([02 §5.5]) — so a field on the record
+   * segment that is never rewritten ([03 §5.5]) — so a field on the record
    * could only be written once, at creation, when the answer is not yet known.
    * The mutable half of a session lives in this file; this is the mutable fact
    * about a node, keyed by the node's id.
@@ -137,7 +137,7 @@ export interface SessionFile {
   lastSelectedChild?: Record<string, string>;
 
   /**
-   * Set when the session is archived — [02 §10.3].
+   * Set when the session is archived — [03 §10.3].
    *
    * **Archive is not deletion**, and it is here because most sessions people
    * stop playing are not sessions they want gone; they are sessions they want

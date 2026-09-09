@@ -29,7 +29,7 @@ import {
 import type { ChannelEffect, Turn } from './types.js';
 
 /**
- * Session and turn storage — [02 §5.5], [02 §8.1].
+ * Session and turn storage — [03 §5.5], [03 §8.1].
  *
  * The two claims worth testing hardest are the ones that only bite later:
  * **file order is creation order and reading order is a tree walk**, which is
@@ -109,7 +109,7 @@ async function aSessionOf(count: number): Promise<{ sessionId: string; turns: Tu
 describe('one turn by id', () => {
   /**
    * [P3.0]'s read: the location index finally doing the job its header
-   * promised, with the cold read behind it because [13 §5] makes the index
+   * promised, with the cold read behind it because [21 §5] makes the index
    * derived — deleting it costs a rescan and nothing else, and a route that
    * 404'd on a missing row would make it load-bearing.
    */
@@ -124,7 +124,7 @@ describe('one turn by id', () => {
 
   it('falls back to the cold read when the index has no row', async () => {
     // The falsifying mutation is returning null on an index miss — the
-    // derived index becomes load-bearing exactly the way [13 §5] forbids.
+    // derived index becomes load-bearing exactly the way [21 §5] forbids.
     const { sessionId, turns } = await aSessionOf(2);
     index.db.prepare('delete from turn').run();
 
@@ -279,7 +279,7 @@ describe('the head snapshot', () => {
   });
 
   it('is derived — deleting it costs a recomputation and nothing else', async () => {
-    // The claim [02 §8.1] makes, tested rather than asserted: state exists at a
+    // The claim [03 §8.1] makes, tested rather than asserted: state exists at a
     // *node*, and `session.json`'s map can only ever mean state at the head.
     const { sessionId, turns } = await aSessionOf(3);
 
@@ -386,7 +386,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
     // F7's lesson applied rather than re-learned. The finding was a hard delete
     // that took an object's *history* with it — and a session's turns are its
     // history, so an erasure here would be the same bug in the kind that has
-    // more to lose. [02 §10.3] settles it: a session is a folder too.
+    // more to lose. [03 §10.3] settles it: a session is a folder too.
     const { sessionId, turns } = await aSessionOf(2);
 
     expect(await deleteSession(context, 'ned', sessionId)).toBe(true);
@@ -421,7 +421,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
 
   it('hides an archived session from the default list, intact', async () => {
     // Most sessions people stop playing are not sessions they want gone — they
-    // are sessions they want out of the way ([02 §10.3]).
+    // are sessions they want out of the way ([03 §10.3]).
     const { sessionId, turns } = await aSessionOf(2);
     await createSession(context, 'ned', 'Still Playing');
 
@@ -440,7 +440,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
   });
 
   /**
-   * Renaming — [02 §8].
+   * Renaming — [03 §8].
    *
    * The interesting assertions are the ones about what *did not* move. A
    * session's name is behaviour-inert: nothing resolves a session by it, so a

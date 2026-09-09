@@ -5,13 +5,13 @@ import type { LoreEntry } from '@storyengine/shared';
 
 /**
  * `sticky`, `cooldown`, `delay` and `ephemeral` — the four behaviours
- * [02 §3.1](../../../../docs/design/02-data-model.md) insists are four rather
+ * [03 §3.1](../../../../docs/design/03-data-model.md) insists are four rather
  * than four takes on one, and where their counters live.
  *
  * **The state home is the decision [P5 §1.1] calls the one real design question
  * in the phase**, and this stage is where it gets answered rather than leaned
  * towards. The counters change as a result of turns, which is the definition of
- * a channel ([03 §4]) — so if they live anywhere else they do not reconstruct
+ * a channel ([06 §4]) — so if they live anywhere else they do not reconstruct
  * at a node and a branch inherits the wrong stickiness, which is the same
  * argument that moved party membership into channels.
  *
@@ -25,7 +25,7 @@ import type { LoreEntry } from '@storyengine/shared';
  * written and `ChannelEffect.scopeKey` was declared for exactly this, but
  * `applyEffects` keyed on the channel id alone — so two entries' timing states
  * would have overwritten each other, silently. [P5 §0.4] found it,
- * [P6 §1.9](../../../../docs/design/workplan/08-p6-implementation.md) asked
+ * [P6 §1.9](../../../../docs/design/workplan/18-p6-implementation.md) asked
  * which phase pays, and the phase order answers that it is this one: the
  * alternative was shipping a feature that clobbers itself and leaving P6 to
  * repair it. `channelKey` in `sessions/channels.ts` is the whole of the change.

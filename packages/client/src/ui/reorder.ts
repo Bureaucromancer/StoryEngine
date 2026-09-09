@@ -8,7 +8,7 @@
  * They were spelled inline in the lorebook editor, with a comment saying so:
  * *only what a design decision shares is lifted, and a token used once is a
  * second place to look*. That was right while the entry list was the only list
- * anybody could drag. The tag manager ([25 §5](../../../../docs/design/25-tagging.md))
+ * anybody could drag. The tag manager ([05 §5](../../../../docs/design/05-tagging.md))
  * is the second, so this is the threshold `useFocusTrap`'s own extraction
  * records — two spellings of a gesture is how one of them ends up with a
  * different drop rule, and the drop rule is the part a person feels.
@@ -46,7 +46,7 @@ export function landing(from: number, at: number): 'before' | 'after' {
  *
  * They are not a convenience. A list that can only be reordered by dragging is
  * a list somebody using a keyboard cannot reorder at all, which is the whole of
- * [01 §2.1]'s day-one habit failing in one control.
+ * [work plan §2.1]'s day-one habit failing in one control.
  */
 export const nudge =
   'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';

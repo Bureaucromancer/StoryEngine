@@ -219,7 +219,7 @@ describe('submitting', () => {
 /**
  * The turn under construction — [P3.5].
  *
- * The stage decided [04 §3.3] against its own *one component live and
+ * The stage decided [09 §3.3] against its own *one component live and
  * historical* claim: the live view is the **progress events** rendered, not
  * the record rendered early. So these assert what the feed says and nothing
  * more — no field here is inferred, and none is borrowed from the draft the
@@ -282,7 +282,7 @@ describe('the live turn', () => {
   });
 
   it('keeps a skipped step, which never announces itself first', () => {
-    // [04 §3.3]: *a step whose `when` predicate was false is a common source of
+    // [09 §3.3]: *a step whose `when` predicate was false is a common source of
     // "why didn't that happen?", and silence is the worst possible answer.*
     // `step.skipped` arrives with no preceding `step.started`, so a fold that
     // required one would drop exactly the answer the event exists to give.

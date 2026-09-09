@@ -14,7 +14,7 @@ import { makeTestServer, setUpAdmin } from './test-server.js';
 
 /**
  * Build identity and the data-directory stamp — [P6A.3],
- * [P6A §1.5 and §1.7](../../../docs/design/workplan/23-p6a-alpha-1.md).
+ * [P6A §1.5 and §1.7](../../../docs/design/workplan/19-p6a-alpha-1.md).
  *
  * **The comparator is the part that can be quietly wrong**, and quietly wrong
  * here means opening a directory a newer build has migrated in place. So it is

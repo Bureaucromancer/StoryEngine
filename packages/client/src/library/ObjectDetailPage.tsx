@@ -30,11 +30,11 @@ import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 /**
  * The detail view. Read-only at this stage — editing is P1.7, and keeping the
  * stages separate is deliberate: this one is what the hot-reload demo runs on
- * ([P1 §P1.6](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * ([P1 §P1.6](../../../../docs/design/workplan/07-p1-implementation.md)).
  *
  * The disk layout is shown on purpose. The folder *is* the object, and exposing
  * that is how a user learns the storage model is theirs to touch
- * ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
+ * ([10 §5](../../../../docs/design/10-ui-surfaces.md)).
  */
 
 const routeApi = getRouteApi('/library/$kind/$id');
@@ -107,7 +107,7 @@ function ObjectDetail(props: {
  * behind both Edit and Delete.
  *
  * One predicate rather than two spellings, which is
- * [polish §1](../../../../docs/design/workplan/09-polish.md)'s closing note taken at its
+ * [polish §1](../../../../docs/design/workplan/06-polish.md)'s closing note taken at its
  * word: the Edit condition was written out inline, Delete grew a second and
  * shorter hand-written copy of it, and the two had already drifted by the time
  * they were put side by side.
@@ -121,7 +121,7 @@ function ObjectDetail(props: {
  * catch it, because from the server's side the request is perfectly
  * well-formed. The affordance is withheld rather than made to lie; resolving a
  * duplicate stays a file-system job until there is a surface for it
- * ([02 §5.1](../../../../docs/design/02-data-model.md)).
+ * ([03 §5.1](../../../../docs/design/03-data-model.md)).
  */
 function mutable(object: LibraryObject): boolean {
   return object.source === 'user' && !object.shadowed;
@@ -155,11 +155,11 @@ function ObjectView(props: {
       {/*
        * **The fields first, and the storage facts under a heading below them.**
        * Reordered here rather than left where it was, because
-       * [polish §1](../../../../docs/design/workplan/09-polish.md)'s complaint
+       * [polish §1](../../../../docs/design/workplan/06-polish.md)'s complaint
        * is that this page answers *where is this file* when the question was
        * *what does it say* — and a build of that item which left seven rows of
        * path and hash above the prose would have answered in the same order.
-       * The block is not demoted out of sight: [05 §5] wants the disk layout
+       * The block is not demoted out of sight: [10 §5] wants the disk layout
        * legible, and a heading is what turns a lead paragraph into a section.
        */}
       <ObjectBody object={object} kind={kind} search={props.search} />
@@ -196,7 +196,7 @@ function ObjectView(props: {
       <Controls>
         {/*
          * The kind gate comes from the same place the fields do
-         * ([polish §1](../../../../docs/design/workplan/09-polish.md)), and it
+         * ([polish §1](../../../../docs/design/workplan/06-polish.md)), and it
          * carries the address with it: this branch used to name `actors`
          * twice — once in the condition and once in the route — so widening
          * one without the other would have opened a lorebook in the actor
@@ -225,11 +225,11 @@ function ObjectView(props: {
  *
  * **One route, two bodies, and the second is not a promotion.** A lorebook is
  * the only library kind whose object is a collection
- * ([16 §1.1](../../../../docs/design/16-lorebooks-as-a-format.md)), so a
+ * ([11 §1.1](../../../../docs/design/11-lorebooks-as-a-format.md)), so a
  * by-field rendering of it is off by one level — a three-hundred-element array
  * under a label is not a reading surface. Every other kind is unchanged, and
  * lorebooks keep this route, its header, its storage block and its *As stored*
- * fold ([05 §5.3](../../../../docs/design/05-ui-surfaces.md): *not a new page*).
+ * fold ([10 §5.3](../../../../docs/design/10-ui-surfaces.md): *not a new page*).
  *
  * **A book this build cannot read falls back rather than failing.** A
  * hand-edited file is the storage thesis working, so the guard runs first and
@@ -314,7 +314,7 @@ function LorebookBody(props: { object: LibraryObject; search: ObjectSearch }): J
 
 /**
  * The page's critical controls, held against the bottom of the scrollport
- * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md) — the read page's half
+ * ([10 §11.6](../../../../docs/design/10-ui-surfaces.md) — the read page's half
  * of it): the way up, then Edit and Delete when the object can be written.
  *
  * **Last in the column, and the column is what holds it**, where the editors

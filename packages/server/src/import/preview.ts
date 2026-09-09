@@ -26,7 +26,7 @@ import type { ImportCandidate } from './source.js';
  * asserts the negative first and loudest, because it is the property a later
  * convenience is most likely to cost and the one nobody would notice losing.
  *
- * **Why this exists at all**, given that [05 §5](../../../../docs/design/05-ui-surfaces.md)
+ * **Why this exists at all**, given that [10 §5](../../../../docs/design/10-ui-surfaces.md)
  * struck *"let the user fix it before committing"*: P4 §1.4's three arguments
  * are about scale and staging — a staging area is a second library, dangling
  * references are survivable by stance, a three-hundred-object sweep gated
@@ -49,7 +49,7 @@ export interface PreviewRequest {
   library: LibraryContext;
   /** Whose library the re-import question is asked about. */
   handle: string;
-  /** The file as it arrived. Never a path ([13 §4.1.1]). */
+  /** The file as it arrived. Never a path ([21 §4.1.1]). */
   filename: string;
   candidate: ImportCandidate;
   /**
@@ -139,7 +139,7 @@ export async function previewOne(request: PreviewRequest): Promise<ImportPreview
       preferredModelIds: preset.modelHint?.preferredModelIds ?? [],
       /**
        * **Names, never values** — the rule that keeps this screen from being the
-       * *"import as-is"* affordance [10 §8.4.4] refuses to have anywhere. The
+       * *"import as-is"* affordance [04 §8.4.4] refuses to have anywhere. The
        * converters strip credentials before this point, so it is belt as well as
        * braces; the property worth having is that no route here carries a value,
        * not that something upstream was careful.

@@ -17,7 +17,7 @@ import {
  * ids inside objects; both come from the shared registry, so the client never
  * maintains its own list of kinds. Adding a kind should not touch this file.
  *
- * CSRF is double-submit ([04 §4.1](../../../docs/design/04-server-multiuser-deployment.md)):
+ * CSRF is double-submit ([09 §4.1](../../../docs/design/09-server-multiuser-deployment.md)):
  * the `se_csrf` cookie is script-readable precisely so this file can echo it in
  * the `x-csrf-token` header on anything state-changing.
  */
@@ -64,7 +64,7 @@ export interface AuthState {
   setupRequired: boolean;
   /**
    * Whether creating the first admin needs the token from the server console
-   * (F10, [04 §5.1]).
+   * (F10, [09 §5.1]).
    *
    * The client cannot work this out: it may be reaching a loopback server
    * directly or an exposed one through a proxy, and those look identical from
@@ -131,7 +131,7 @@ export class ApiError extends Error {
   /**
    * On a 412, the thing as it is *now* (docs/api.md). Carried so the UI can
    * offer reload-and-reapply or save-as-a-copy rather than guessing
-   * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
+   * ([09 §4.4](../../../docs/design/09-server-multiuser-deployment.md)).
    *
    * **Deliberately `unknown` rather than `LibraryObject`.** Three routes speak
    * this idiom now and they carry three different shapes — a library object, a
@@ -294,7 +294,7 @@ export interface ImportReport {
  * **Counts and not items.** A sweep of a real library is thousands of rows, and
  * a list that inlined them would be a page nobody could load in order to find
  * the one they wanted. `root` is the absolute path, which lives on this row and
- * nowhere else ([13 §4.1.1]) — the person who typed it can see it, and no
+ * nowhere else ([21 §4.1.1]) — the person who typed it can see it, and no
  * per-file row repeats it.
  */
 export interface ImportJob {
@@ -368,7 +368,7 @@ export const api = {
 
   logout: (): Promise<undefined> => request('POST', '/api/auth/logout'),
 
-  // The user half of the settings surface ([05 §15.1]). `readMe` is deliberately
+  // The user half of the settings surface ([10 §15.1]). `readMe` is deliberately
   // separate from `authState`: that call answers *is anyone signed in and does
   // setup need running*, and a settings form refetching it would make every save
   // re-answer a question about the whole install.
@@ -385,7 +385,7 @@ export const api = {
     request('POST', '/api/me/password', input),
 
   /**
-   * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+   * The tag registry — [05 §4](../../../docs/design/05-tagging.md).
    *
    * Every one of these answers with the **whole list**, not with the row it
    * touched, so a client lands on the truth rather than on its own guess about
@@ -403,7 +403,7 @@ export const api = {
   ): Promise<{ tags: TagEntry[] }> =>
     request('PATCH', `/api/tags/${encodeURIComponent(id)}`, patch),
 
-  /** The entry only. Objects carrying the tag are untouched ([25 §2]). */
+  /** The entry only. Objects carrying the tag are untouched ([05 §2]). */
   deleteTag: (id: string): Promise<{ tags: TagEntry[] }> =>
     request('DELETE', `/api/tags/${encodeURIComponent(id)}`),
 
@@ -412,7 +412,7 @@ export const api = {
 
   /**
    * One registry write, and an answer about the lore gates naming the old
-   * spelling — [25 §1](../../../docs/design/25-tagging.md). `rewriteGates` is
+   * spelling — [05 §1](../../../docs/design/05-tagging.md). `rewriteGates` is
    * off unless asked, because both answers are defensible.
    */
   renameTag: (
@@ -496,7 +496,7 @@ export const api = {
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
 
   /**
-   * What that file *would* become, with nothing written ([05 §5], as amended).
+   * What that file *would* become, with nothing written ([10 §5], as amended).
    *
    * The bytes are sent twice — once here and again to `importFile` on confirm —
    * because there is no staging area and the confirm has to re-derive from the
@@ -699,7 +699,7 @@ export interface SessionSummary {
  */
 export interface NewSession {
   /**
-   * Optional, because Start no longer demands one — [02 §8].
+   * Optional, because Start no longer demands one — [03 §8].
    *
    * A session is id-addressed and nothing resolves one by name, so starting
    * unnamed freezes nothing and the name can arrive whenever its owner knows
@@ -738,7 +738,7 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
 }
 
 /**
- * Renames a session — [02 §8].
+ * Renames a session — [03 §8].
  *
  * The same `PATCH` that archives, because a session name is an ordinary
  * property: nothing resolves a session by it, so this is one JSON write and one
@@ -782,7 +782,7 @@ export function readSession(
  *
  * `siblings` maps a turn on the path to every child of its parent, in creation
  * order, and only for nodes that have more than one. History shows the selected
- * path only ([09 §6]), so this is how an alternative is reachable at all.
+ * path only ([07 §6]), so this is how an alternative is reachable at all.
  */
 export function readTranscript(
   sessionId: string,
@@ -791,7 +791,7 @@ export function readTranscript(
 }
 
 /**
- * Name a node — [09 §6]'s *promote*. A name and nothing more: no turn moves,
+ * Name a node — [07 §6]'s *promote*. A name and nothing more: no turn moves,
  * and deleting one later deletes a name.
  */
 export function createBranchRef(
@@ -831,7 +831,7 @@ export interface SubmitTurn {
   idempotencyKey: string;
   headTurnId: string | null;
   text: string;
-  /** Its own field, never folded into the action — [03 §5.1]. */
+  /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
    * Attach this turn to a node other than the head — [P6.0c].
@@ -842,14 +842,14 @@ export interface SubmitTurn {
    */
   parentTurnId?: string | null;
   /**
-   * Replay this turn's draws — **rewrite** rather than reroll, [07 §14.5].
+   * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5].
    *
    * A turn id, not a tape: the server reads the draws from its own record.
    */
   rewriteOf?: string;
   /**
    * Show this turn's words to the model as the previous attempt — the other
-   * half of a redo, [03 §5.1]. A turn id, not the text: the server reads the
+   * half of a redo, [06 §5.1]. A turn id, not the text: the server reads the
    * words from its own record. Sent with `guidance` or not at all, which is
    * the play surface's rule rather than the server's.
    */
@@ -873,7 +873,7 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
 }
 
 /**
- * Where you are in the tree — [09 §3], [P6.1].
+ * Where you are in the tree — [07 §3], [P6.1].
  *
  * Moving the head moves no turn data: it is the selection, and the transcript
  * is the path to it. `resume` follows what was last selected forward, which is
@@ -938,7 +938,7 @@ export interface AccountPatch {
   capabilities?: Partial<Account['capabilities']>;
 }
 
-/** The tier table and the appliers, sent as data rather than duplicated ([13 §4]). */
+/** The tier table and the appliers, sent as data rather than duplicated ([21 §4]). */
 export interface ConfigView {
   config: Record<string, unknown>;
   path: string;
@@ -964,7 +964,7 @@ export interface ConfigView {
  * **The key is not here and there is nowhere to put it.** `hasKey` is the whole
  * of what a client learns about it, because *a key is set* and *no key, this is
  * a local endpoint* are different states an empty password box cannot tell
- * apart. `baseUrl` is admin-visible and user-invisible: [04 §4.5]'s *"an admin
+ * apart. `baseUrl` is admin-visible and user-invisible: [09 §4.5]'s *"an admin
  * may opt to show it"* read as narrowly as it goes.
  */
 export interface AdminConnection {
@@ -1029,7 +1029,7 @@ export interface RoleRow {
    *
    * `unset` is policy, not a fault: there is no sensible text model for an
    * image, so `image`, `video` and `speech` stay unbound until something can
-   * actually serve them ([07 §5.1]).
+   * actually serve them ([19 §5.1]).
    */
   tier: 'hi' | 'lo' | 'unset';
   ok: boolean;
@@ -1089,7 +1089,7 @@ export const adminApi = {
   deleteConnection: (id: string): Promise<undefined> =>
     request('DELETE', `/api/admin/connections/${id}`),
 
-  /** How many bindings point at a connection. Counts, never contents ([04 §4.5]). */
+  /** How many bindings point at a connection. Counts, never contents ([09 §4.5]). */
   connectionBindings: (id: string): Promise<{ bindings: number }> =>
     request('GET', `/api/admin/connections/${id}/bindings`),
 
@@ -1112,7 +1112,7 @@ export const adminApi = {
    * The first run's two answers, spread across the roles by the *server*.
    *
    * Two bindings rather than eight, because which role gets which is policy
-   * ([07 §5.1]: the expensive model writes, everything else uses the cheap one)
+   * ([19 §5.1]: the expensive model writes, everything else uses the cheap one)
    * and a client free to spread them differently is an install that can end up
    * with `prose` on the cheap model without anybody having chosen that.
    */

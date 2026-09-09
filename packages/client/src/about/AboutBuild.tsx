@@ -10,7 +10,7 @@ import { buildLine } from './labels.js';
 
 /**
  * What build this is, at the top of Settings — the first content of the About
- * surface [04 §7] and P11.6 plan, pulled forward at alpha.2 because a build
+ * surface [09 §7] and P11.6 plan, pulled forward at alpha.2 because a build
  * nobody can name from inside the app is a bug report nobody can file.
  *
  * On the user half, for every account: the data is `auth/state`'s, not the
@@ -21,7 +21,7 @@ import { buildLine } from './labels.js';
  * two cannot disagree; beneath it the string and the commit, which is what a
  * bug report needs in one copy-paste. The §13 source link and the licence
  * boundary are not here: the link goes in the footer when publication brings it
- * ([05 §15.1]).
+ * ([10 §15.1]).
  */
 export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.Element | null {
   if (props.build === undefined) return null;

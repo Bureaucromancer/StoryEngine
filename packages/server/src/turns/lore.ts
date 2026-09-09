@@ -28,7 +28,7 @@ import type { LibraryContext } from '../library.js';
  * field — **"copy or live link"**, in its words — under the constraint that
  * `gather.ts` reads only from `(account, sessionId, parentTurnId)`.
  *
- * **Live links, both of them.** That is [02 §8]'s own shape for the lore half:
+ * **Live links, both of them.** That is [03 §8]'s own shape for the lore half:
  * the session carries `lore: Ref<Lorebook>[]`, alongside a `cast` of links and
  * a `preset` that is a resolved *copy*. The asymmetry is the design, and
  * `cast.ts` states it — improving a character card should reach an ongoing
@@ -37,9 +37,9 @@ import type { LibraryContext } from '../library.js';
  * without abandoning the story being told in it.
  *
  * **The treatment half is where two notes have to be read together, so the
- * reading is written down rather than assumed.** [02 §8] gives the session no
+ * reading is written down rather than assumed.** [03 §8] gives the session no
  * treatment field, only `origin: Provenance`, and says of it: *"editing the
- * source treatment later must not affect this session."* Meanwhile [18 §7]
+ * source treatment later must not affect this session."* Meanwhile [14 §7]
  * schedules the treatment arm of writing samples for P5 on the grounds that *"a
  * session references neither object today"*, and [P5 §1.10] asks for Treatment
  * and Lorebooks together. Those reconcile on one reading, and it is the reading
@@ -57,7 +57,7 @@ import type { LibraryContext } from '../library.js';
  * ## Order, and why the treatment's books come first
  *
  * Books arrive from two places — the treatment's `lore: LoreLink[]`, and the
- * session's own list, which [02 §7] describes as extras *beyond whatever the
+ * session's own list, which [03 §7] describes as extras *beyond whatever the
  * treatment already links*. They are concatenated in that order and
  * **deduplicated by the object each link resolved to, first mention winning**,
  * because a book linked twice is one book: scanning it twice would double every
@@ -92,7 +92,7 @@ import type { LibraryContext } from '../library.js';
  * ~~[P5.7] also admitted books by their own `LoreScope` — `global` applying
  * everywhere, `linked` applying wherever one of its actors is cast.~~
  * **Reversed, and it was a mistake rather than a scheduling decision.** Read
- * literally, [02 §3.4]'s union does describe where a book *applies*, and P5.7
+ * literally, [03 §3.4]'s union does describe where a book *applies*, and P5.7
  * took that as a discovery mechanism. The consequence made the error plain:
  * `global` is the factory default *and* the SillyTavern importer's fallback, so
  * every book a person had ever created or imported was in every session's
@@ -264,7 +264,7 @@ interface LoreWant {
  * **Typed rather than guarded, and that is a finding rather than a shortcut.**
  * This began as a tolerant reader — `Array.isArray(lore)`, a shape check per
  * link, a *drop a ref with neither half* rule — on the reasoning that
- * hand-editing is supported ([02 §5.1]) so anything can arrive. Mutation
+ * hand-editing is supported ([03 §5.1]) so anything can arrive. Mutation
  * testing found all three unreachable and `ingest.ts` says why: a file that
  * fails `validate` is **skipped** and surfaces as a file error (F20), so it
  * never becomes an index row at all. Nothing invalid can reach this. The guards

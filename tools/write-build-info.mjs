@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Writes `packages/server/build-info.json` — [P6A §1.5](../docs/design/workplan/23-p6a-alpha-1.md).
+ * Writes `packages/server/build-info.json` — [P6A §1.5](../docs/design/workplan/19-p6a-alpha-1.md).
  *
  * **Run by the release build, not by `pnpm build`.** That is the line that keeps
  * development identity-free: a build nobody released has no version to claim,
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
  *
  * **The version is the root `package.json`'s**, which is the one place a human
  * edits it, and it has to equal the tag the release is cut at
- * ([P6A §1.6](../docs/design/workplan/23-p6a-alpha-1.md) fixes that as `v` plus
+ * ([P6A §1.6](../docs/design/workplan/19-p6a-alpha-1.md) fixes that as `v` plus
  * this string). The changelog entry names the same version, so the three agree
  * or the release is wrong in a way somebody will notice.
  *

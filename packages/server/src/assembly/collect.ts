@@ -16,13 +16,13 @@ import type { LoreBlock } from '../retrieval/blocks.js';
 import type { Candidate, NotFilledReason, NotFilledSlot } from './types.js';
 
 /**
- * Step 1 of [03 §5](../../../../docs/design/03-modes-and-turn-pipeline.md) — collect.
+ * Step 1 of [06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md) — collect.
  *
  * P2.4 built steps 2 to 4 (annotate, budget, render) and left this one until
  * there was a preset to drive it. This is that: the preset supplies the blocks,
  * in the order it declares them, and the engine fills each one.
  *
- * **It lives in `assembly/` rather than on a mode.** [03 §5] says the assembly
+ * **It lives in `assembly/` rather than on a mode.** [06 §5] says the assembly
  * plan *does not build strings*, and this builds strings — so a `collect()`
  * hanging off a mode would be the back door §2 rules out, and would also make
  * the collector P4 needs for imported presets a second implementation. One
@@ -44,7 +44,7 @@ export interface CollectContext {
   guidance?: string;
   /**
    * The attempt a guided redo is redoing — its output, and which turn it was
-   * ([03 §5.1], [09 §7]).
+   * ([06 §5.1], [07 §7]).
    *
    * **Handed in by the runner, never by a step**, for the reason `StepInput`
    * withholds guidance: a step handed the text could re-emit it as an ordinary
@@ -68,7 +68,7 @@ export interface CollectContext {
    */
   lore?: readonly LoreBlock[];
   /**
-   * The objects that carry writing samples — [P5.9], [10 §3.1].
+   * The objects that carry writing samples — [P5.9], [04 §3.1].
    *
    * **Separate from `lore` above, and the separation is the stage's point.** A
    * sample rides with its carrier the way `media` does: a book's samples are
@@ -79,7 +79,7 @@ export interface CollectContext {
    *
    * The actors are not here because they are already above: the cast has been
    * gathered since P2.6 and this stage added nothing to it, which is exactly
-   * why [18 §7] could ship the actor arm two phases early.
+   * why [14 §7] could ship the actor arm two phases early.
    */
   carriers?: SampleCarriers;
 }
@@ -119,7 +119,7 @@ export function collectCandidates(context: CollectContext): Collected {
       continue;
     }
     // Empty means all — which is what dissolves the eight special-cased
-    // template fields [10 §8.4.3] describes.
+    // template fields [04 §8.4.3] describes.
     if (block.appliesTo.length > 0 && !block.appliesTo.includes(context.callKind)) {
       skipped(block, 'not-applicable');
       continue;
@@ -144,7 +144,7 @@ export function collectCandidates(context: CollectContext): Collected {
     /**
      * **Lore is the one slot whose blocks are not all in one place.**
      *
-     * `position` lives on the *entry* ([02 §3.1]), so a single lore slot can
+     * `position` lives on the *entry* ([03 §3.1]), so a single lore slot can
      * emit blocks belonging in four places — and `at_depth` is one of them,
      * which means some of this slot's output belongs in the history splice
      * that the loop has already decided this block is not part of. Every other
@@ -250,7 +250,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
 }
 
 /**
- * Puts in-history blocks where the preset asked for them — [10 §8.2].
+ * Puts in-history blocks where the preset asked for them — [04 §8.2].
  *
  * **The one placement that is not just list order.** `fromEnd: 0` goes after
  * the newest turn, `fromEnd: k` before the k-th from the end. P2.4 promised
@@ -325,7 +325,7 @@ function renderContextOf(context: CollectContext): RenderContext {
 function fill(block: PresetBlock, context: CollectContext): Candidate[] {
   if (block.kind === 'text') {
     /**
-     * **Liquid, rendered within the block — never across blocks** ([03 §5]).
+     * **Liquid, rendered within the block — never across blocks** ([06 §5]).
      * Built at P4.1, because the macro table converts SillyTavern's macros
      * *into* Liquid and until then a converted preset's `{{char}}` reached the
      * model as literal braces ([P4 §1.6]).
@@ -439,15 +439,15 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        *
        * `assemble`'s refusal keys on the candidate's flag and not on where the
        * words came from, so a preset declaring `advisory: false` on its guidance
-       * slot would walk guidance straight into an effects call. [03 §5.2] says
+       * slot would walk guidance straight into an effects call. [06 §5.2] says
        * enforce it *structurally*; a flag an author can clear is not structural.
        */
       return emit(block, context.guidance ?? '', { kind: 'guidance', producer: 'user' }, undefined);
 
     case 'attempt':
       /**
-       * The previous attempt a guided redo shows the model — [03 §5.1],
-       * [09 §7]. Advisory is forced in `emit` for this slot as it is for
+       * The previous attempt a guided redo shows the model — [06 §5.1],
+       * [07 §7]. Advisory is forced in `emit` for this slot as it is for
        * guidance, and the reason is sharper here: the text is the model's own
        * discarded reply, and an extractor that saw it would record the events
        * of a reply nobody kept as having happened.
@@ -474,18 +474,18 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
 
     case 'samples': {
       /**
-       * Writing samples — [10 §3.1]. Prose offered as an exemplar of tone
+       * Writing samples — [04 §3.1]. Prose offered as an exemplar of tone
        * rather than a description of it.
        *
        * ~~**Only the actor carrier can produce anything yet, and the other two
        * return nothing for the reason `lore` does.** A session references
        * neither a Treatment nor a Lorebook, so those arms have no object to
        * read.~~ **All three are live at [P5.9]**, because [P5.6] gave a session
-       * both objects — which is the whole reason [18 §7] scheduled these two
+       * both objects — which is the whole reason [14 §7] scheduled these two
        * arms for this phase rather than shipping them dark.
        *
        * **The order is the preset's, and `from` absent means all three** in the
-       * fixed order treatment → lore → actor: [10 §3.1]'s *the stance on the
+       * fixed order treatment → lore → actor: [04 §3.1]'s *the stance on the
        * material, then the world, then the person*, which is the order they
        * narrow in. A preset that wants one carrier elsewhere names it.
        *
@@ -613,7 +613,7 @@ function emit(
    *
    * `String.replace` with a string pattern fills only the *first* `{{content}}`,
    * so a wrapper naming it twice — which a converted `scenario_format` may
-   * ([10 §8.4.2]) — left the second as literal braces in the prompt.
+   * ([04 §8.4.2]) — left the second as literal braces in the prompt.
    *
    * The sharper bug is that a *string* replacement interprets `$&`, `` $` ``,
    * `$'` and `$1` in the replacement as patterns. `text` here is the filled
@@ -630,7 +630,7 @@ function emit(
   // The union, not the special case: an author- or import-declared advisory
   // block is advisory too, or the firewall only covers the one slot somebody
   // remembered. Two slots are forced rather than one since the previous
-  // attempt joined guidance ([03 §5.1]): both carry words that may shape prose
+  // attempt joined guidance ([06 §5.1]): both carry words that may shape prose
   // and must never reach a verdict, and a preset clearing the flag on either
   // changes nothing.
   const advisory =
@@ -667,7 +667,7 @@ function actorText(actor: Actor, source: { sectionId?: string; field?: string })
   if (source.sectionId !== undefined) {
     return actor.profile.sections.find((section) => section.id === source.sectionId)?.body ?? '';
   }
-  // `visual` is structured data for an image pipeline ([10 §4]) with no prose
+  // `visual` is structured data for an image pipeline ([04 §4]) with no prose
   // renderer specified, so only `traits` has a text form.
   return source.field === 'traits' ? actor.profile.traits.join(', ') : '';
 }
@@ -721,7 +721,7 @@ function splitByDepth(
 }
 
 /**
- * The carriers a bare `samples` slot reads, in the order [10 §3.1] fixes:
+ * The carriers a bare `samples` slot reads, in the order [04 §3.1] fixes:
  * **the stance on the material, then the world, then the person**, which is the
  * order they narrow in.
  *

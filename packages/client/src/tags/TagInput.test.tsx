@@ -11,7 +11,7 @@ import { TagInput } from './TagInput.js';
 
 /**
  * The tag half of the input — what is offered, and the one case where *create*
- * is deliberately withheld ([25 §1](../../../../docs/design/25-tagging.md)).
+ * is deliberately withheld ([05 §1](../../../../docs/design/05-tagging.md)).
  *
  * `TokenField` owns the keyboard and is tested next to itself; everything here
  * is policy.
@@ -120,7 +120,7 @@ describe('what the field offers', () => {
 });
 
 /**
- * **The case that keeps lore firing** — [25 §1].
+ * **The case that keeps lore firing** — [05 §1].
  *
  * `LoreEntry.actorTagFilter` compares tag names exactly and case-sensitively,
  * so `noir` and `Noir` are one tag to a person and two to the engine. Minting

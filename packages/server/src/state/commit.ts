@@ -15,7 +15,7 @@ import { checkpoint, type Job, type JobContext, readDraft, readJob } from './job
 
 /**
  * Terminal commit and startup reconciliation —
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md).
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md).
  *
  * A turn ends across three stores: the operational draft, an append-only JSONL
  * segment, and `session.json`'s head. There is no transaction across those, and
@@ -36,7 +36,7 @@ import { checkpoint, type Job, type JobContext, readDraft, readJob } from './job
  * be resumed and nothing here claims otherwise: a job that died mid-generation
  * becomes a *failed* terminal turn carrying whatever was checkpointed — a
  * re-runnable record rather than a silent loss
- * ([04 §2](../../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §2](../../../../docs/design/09-server-multiuser-deployment.md)).
  */
 
 /** The number of steps in the protocol above. A job at this step is committed. */
@@ -140,7 +140,7 @@ export async function advanceCommit(
       // **Step 4 — the job is done and says so.** `turn.finished` is published
       // last, after the record it announces is durable in all three places: a
       // client that receives it and immediately re-reads the session must find
-      // the turn there ([04 §3.3]).
+      // the turn there ([09 §3.3]).
       checkpoint(
         context,
         job.id,
@@ -148,7 +148,7 @@ export async function advanceCommit(
         now,
       );
       /**
-       * **The session and the account too** — [13 §4.1].
+       * **The session and the account too** — [21 §4.1].
        *
        * This carried `jobId` and `turnId` alone, and the id a person can see is
        * the session's, because it is the one in the URL. So the line that says
@@ -331,7 +331,7 @@ export async function reconcile(
  * The rule is narrow on purpose: advance the head over turns whose parent *is*
  * the current head, one link at a time, and stop at the first ambiguity. A
  * session with two children of the head is a branch, and P2 has no semantics for
- * choosing between them ([09 §4](../../../../docs/design/09-branching.md)) — guessing there
+ * choosing between them ([07 §4](../../../../docs/design/07-branching.md)) — guessing there
  * would silently pick somebody's story for them.
  */
 export async function reconcileSession(

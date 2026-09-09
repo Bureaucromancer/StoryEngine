@@ -16,7 +16,7 @@ import { SILLYTAVERN_DISPOSITIONS } from '../registries/sillytavern.js';
 
 /**
  * The SillyTavern tree, read as candidates
- * ([P4 §1.3](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The degenerate case, and that is the point.** One file yields zero or one
  * candidate here, which is what a directory of files means — and it is the
@@ -42,7 +42,7 @@ export class SillyTavernReader implements SourceReader {
 
   /**
    * **The walker serves two roots, and it now knows which one it is on**
-   * ([P4 §7.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+   * ([P4 §7.8](../../../../../docs/design/workplan/16-p4-implementation.md)).
    *
    * `loose-files` is what `classifyRoot` returns when no probe matches, and
    * `sweep.ts` has always handed it here on the reasoning that *a folder of
@@ -103,7 +103,7 @@ export class SillyTavernReader implements SourceReader {
       };
     } catch {
       // A broken settings file costs the personas and nothing else. One poisoned
-      // file never aborts a sweep ([13 §4.1.1]).
+      // file never aborts a sweep ([21 §4.1.1]).
       return { names: {}, descriptions: {} };
     }
   }
@@ -160,7 +160,7 @@ export class SillyTavernReader implements SourceReader {
 
   /**
    * A loose root's only rule: **ask the file**
-   * ([P4 §7.8](../../../../../docs/design/workplan/06-p4-implementation.md)).
+   * ([P4 §7.8](../../../../../docs/design/workplan/16-p4-implementation.md)).
    *
    * **The disposition table is not consulted here at all**, and the first
    * version of this repair got that wrong in a way its own comment contradicted.

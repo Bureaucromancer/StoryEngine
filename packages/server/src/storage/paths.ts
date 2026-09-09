@@ -8,9 +8,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 /**
  * **The audited path helper.**
  *
- * [07 §9](../../../../docs/design/07-tech-stack.md) calls this *"the single most important
+ * [19 §9](../../../../docs/design/19-tech-stack.md) calls this *"the single most important
  * piece of security code in the project"*, and
- * [05 §4.4](../../../../docs/design/05-ui-surfaces.md) is why: every filesystem-touching
+ * [10 §4.4](../../../../docs/design/10-ui-surfaces.md) is why: every filesystem-touching
  * route resolves through here, so containment is a property of one function
  * rather than a habit spread across handlers. The no-direct-`fs` lint rule from
  * P1.0 exists to keep it that way — see the README beside this file.
@@ -91,7 +91,7 @@ function segmentsOf(relative: string): string[] {
  * Rejects a single path segment.
  *
  * Exported because the same rules apply to a slug being minted
- * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)) and to a handle being
+ * ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)) and to a handle being
  * accepted at first run — and a check that lives in two places drifts.
  */
 export function assertSafeSegment(segment: string, whole: string = segment): void {
@@ -241,7 +241,7 @@ async function realpathOfNearestExisting(target: string): Promise<string> {
  * reports and asserts the result still starts with the string it was handed
  * (`src\win\fs-event.c:72`) — and when it does not, the assert is a native
  * `abort()`. No JS frame, nothing to catch, and the server dies before it
- * listens. [02 §5.1](../../../../docs/design/02-data-model.md) makes the index derived and
+ * listens. [03 §5.1](../../../../docs/design/03-data-model.md) makes the index derived and
  * disposable precisely so its watcher failing is a recoverable event; it can
  * never be a dead process.
  *
@@ -342,7 +342,7 @@ export async function resolveWithinReal(root: string, ...segments: string[]): Pr
 }
 
 /**
- * The asset-manifest rule from [02 §5.3](../../../../docs/design/02-data-model.md): a
+ * The asset-manifest rule from [03 §5.3](../../../../docs/design/03-data-model.md): a
  * manifest holds *relative paths within the object's folder*, never absolute and
  * never escaping it.
  *

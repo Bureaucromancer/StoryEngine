@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
  * through), and **focus returns to whatever opened it**.
  *
  * Extracted from the conflict dialog at
- * [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md) so the
+ * [P2A §3](../../../docs/design/workplan/09-p2a-configuration-surface.md) so the
  * settings surface's two dialogs can use it rather than growing a second
  * spelling. The extraction was safe to make because that dialog's tests already
  * pinned all three behaviours — which is the only reason it happened in a commit

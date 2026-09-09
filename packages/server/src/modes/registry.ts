@@ -6,7 +6,7 @@ import { SCENE_ID, SCENE_MODE } from './scene/mode.js';
 import type { Mode } from './types.js';
 
 /**
- * Which modes this build knows — [03 §2].
+ * Which modes this build knows — [06 §2].
  *
  * A frozen record and a lookup, mirroring `sessions/channels.ts`'s `CHANNELS`,
  * and deliberately **not** a `registerMode` API. Dynamic registration is what an

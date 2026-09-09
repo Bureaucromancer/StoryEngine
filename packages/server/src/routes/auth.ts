@@ -21,7 +21,7 @@ import type { AppServices } from '../app.js';
 /**
  * Login, logout, and first-run setup.
  *
- * **Auth ships whole rather than stubbed** ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)),
+ * **Auth ships whole rather than stubbed** ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)),
  * and the reason it is affordable is that there is very little of it: doc 04
  * §4.1 already rules out rate limiting, lockout, complexity policy, email
  * verification and 2FA, and §4.2 rules out self-registration and identity
@@ -74,7 +74,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
    * behave as a live one, which is the sort of drift the tier annotation exists
    * to prevent.
    *
-   * Still `false` by default: [04 §5.1] blesses plain HTTP on a trusted LAN, and
+   * Still `false` by default: [09 §5.1] blesses plain HTTP on a trusted LAN, and
    * a `Secure` cookie is not sent back over HTTP — so a default derived from the
    * bind would lock out the LAN install the design endorses, silently, because
    * the browser declines without telling anyone.
@@ -125,7 +125,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
        * already says whether the install is unclaimed, the login page is served
        * to anyone who can reach the port, and a version is a fact about the
        * software rather than about anybody's data — the same audience can read
-       * the client bundle. It is also user-facing by design: [04 §7] makes
+       * the client bundle. It is also user-facing by design: [09 §7] makes
        * *what am I running* a question the running version answers for
        * everyone who interacts with the server, and this route is that everyone.
        *
@@ -146,7 +146,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
     };
 
     /**
-     * **The check P1 never made** — F10, [04 §5.1], [P10 §1.1].
+     * **The check P1 never made** — F10, [09 §5.1], [P10 §1.1].
      *
      * Only when this process is exposed *and* still unclaimed: `setupToken` is
      * null on a loopback bind, and `needsSetup` is re-read here rather than
@@ -178,9 +178,9 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
       const account = await services.accounts.createFirstAdmin({
         handle: body.handle,
         password: body.password,
-        // Defaulted from Accept-Language, per [04 §4.2]. The server localises
+        // Defaulted from Accept-Language, per [09 §4.2]. The server localises
         // notifications with the app closed, so it has to know
-        // ([07 §12.5](../../../../docs/design/07-tech-stack.md)).
+        // ([19 §12.5](../../../../docs/design/19-tech-stack.md)).
         locale: localeFrom(request.headers['accept-language']),
         ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
       });

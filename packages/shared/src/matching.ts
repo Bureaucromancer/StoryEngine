@@ -24,9 +24,9 @@ import type { LoreEntry } from './schema/lorebook.js';
  * bound a computation should not start one.
  *
  * **`mentions.ts` keeps its own rule**, and that is not an oversight either.
- * [05 §5.3] argues it into one stated rule — whole-word matching, no
+ * [10 §5.3] argues it into one stated rule — whole-word matching, no
  * per-entry flags — because a *list* that approximated thirty rule sets would
- * be pretending to be the matcher, and because it is [16 §6]'s falsification
+ * be pretending to be the matcher, and because it is [11 §6]'s falsification
  * instrument, where changing the rule changes what the measurement means. The
  * list and the highlight can therefore disagree, and the disagreement is
  * informative: the list says a name appears, the highlight says whether the

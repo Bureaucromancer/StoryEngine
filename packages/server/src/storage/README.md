@@ -7,7 +7,7 @@ That is a lint rule, not a convention — see the `no-restricted-imports` block 
 tree reaches the filesystem through the helpers that will live here.
 
 The rule exists ahead of the code it guards because the code it guards is
-[07 §9](../../../../docs/design/07-tech-stack.md)'s *"single most important piece
+[19 §9](../../../../docs/design/19-tech-stack.md)'s *"single most important piece
 of security code in the project"*: one audited path resolver, containment-checked
 against the requesting user's root, symlink-aware. A rule written after the first
 route touches `fs` is a rule negotiated with existing code.
@@ -39,12 +39,12 @@ and not the other is a portability bug waiting to become a support thread.
 `(path, mtime, size)` rather than on the path alone, so a *foreign* write to a
 file we also wrote is not swallowed by our own token — which is the difference
 between suppressing an echo and losing an edit
-([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+([03 §5.1.1](../../../../docs/design/03-data-model.md)).
 
 **`card/` splices chunks and never re-encodes pixels.** A PNG is a list of typed
 chunks, so writing a card rewrites the *list* — drop ours, append fresh ones,
 re-serialise — and `IHDR`/`IDAT` pass through byte-identical. `card.png` is the
-actor ([02 §5.2](../../../../docs/design/02-data-model.md)), not a thumbnail of
+actor ([03 §5.2](../../../../docs/design/03-data-model.md)), not a thumbnail of
 it, and decode-then-recompress would degrade the user's art a little on every
 save, invisibly.
 
@@ -59,14 +59,14 @@ time a kind gained a field.
 The JSON rides base64 in a `tEXt` chunk so any tool that lists PNG text can read
 it; the media rides raw bytes in a private `seMd` chunk, because ~33% on the
 large half of a card is worth avoiding
-([06 B5](../../../../docs/design/06-open-questions.md)).
+([25 B5](../../../../docs/design/25-open-questions.md)).
 
 **`files.ts` exists because of the rule rather than in spite of it.** The index
 at `../index-db` needs to read files, and the answer to *"may it import
 `node:fs`?"* is no — it asks here. The veneer is thin on purpose: the point is
 not abstraction but that there is exactly one directory to audit, and one place
 to add a permission check when `fileAccess`
-([05 §4.2](../../../../docs/design/05-ui-surfaces.md)) grows teeth.
+([10 §4.2](../../../../docs/design/10-ui-surfaces.md)) grows teeth.
 
 Tests are exempt, and that is deliberate too: a storage test is playing the part
 of the user with a file manager — renaming a folder, hand-editing a card — which

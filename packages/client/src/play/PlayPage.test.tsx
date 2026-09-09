@@ -21,8 +21,8 @@ import type { StreamHandlers } from './stream.js';
  *
  * Two of P2's claims are only checkable at this level, which is why they had
  * no test before this file: guidance travels in its own field and does not
- * survive the turn ([03 §5.1]), and a reconnect is a status and not an error
- * ([07 §11]). The third this file used to hold — the raw record behind a
+ * survive the turn ([06 §5.1]), and a reconnect is a status and not an error
+ * ([19 §11]). The third this file used to hold — the raw record behind a
  * disclosure — left with the disclosure itself: since [P3.2] the record is
  * the workbench's subject, and `dock.test.tsx` owns that claim.
  *
@@ -201,7 +201,7 @@ describe('submitting a turn', () => {
   });
 
   /**
-   * **Guidance is one-shot** ([03 §5.1]): it applies to the turn it was written
+   * **Guidance is one-shot** ([06 §5.1]): it applies to the turn it was written
    * for. A box that kept its text would silently steer every later turn, which
    * is the failure the design calls out by name — so the clearing is asserted,
    * not just the sending.
@@ -254,7 +254,7 @@ describe('the stream', () => {
   });
 
   /**
-   * A reconnect is **not** an error ([07 §11]). The cursor makes the resume
+   * A reconnect is **not** an error ([19 §11]). The cursor makes the resume
    * lossless, so the surface says so quietly — `role="status"`, which a screen
    * reader announces without interrupting, rather than the `alert` a real
    * failure gets.
@@ -682,7 +682,7 @@ describe('the context meter', () => {
 });
 
 /**
- * The two gestures — [09 §7], [07 §14.5–14.6], [P6.2].
+ * The two gestures — [07 §7], [19 §14.5–14.6], [P6.2].
  *
  * What only shows at this level is which request each button makes, and — the
  * one the design states as a rule rather than a preference — that **the reroll
@@ -751,7 +751,7 @@ describe('the two gestures', () => {
   });
 
   it('offers no reroll on a turn that consumed no draws', async () => {
-    // [07 §14.6]'s rule. `TURN` has an empty tape, which is what every turn
+    // [19 §14.6]'s rule. `TURN` has an empty tape, which is what every turn
     // against a book with nothing probabilistic in it has.
     readTranscript.mockResolvedValue({ turns: [TURN] });
     renderPage();
@@ -811,7 +811,7 @@ describe('the two gestures', () => {
   });
 
   /**
-   * Either gesture may carry an instruction — [03 §5.1], [09 §7]. What these
+   * Either gesture may carry an instruction — [06 §5.1], [07 §7]. What these
    * pin is the pairing rule: `guidance` and `redoOf` travel together or not at
    * all, and a plain gesture's body is exactly what it was.
    */
@@ -941,7 +941,7 @@ describe('the two gestures', () => {
 });
 
 /**
- * The inline sibling affordance and undo — [§1.2], [§1.4], [09 §6], [P6.3].
+ * The inline sibling affordance and undo — [§1.2], [§1.4], [07 §6], [P6.3].
  *
  * History shows the selected path only, so what is being checked here is that
  * the alternatives are *reachable at all*: a count on the node that has them,
@@ -985,7 +985,7 @@ describe('siblings and undo', () => {
 
     await waitFor(() => {
       // `true` is the resume flag: coming back to a line returns to where you
-      // were on it rather than to its first turn ([09 §3]).
+      // were on it rather than to its first turn ([07 §3]).
       expect(moveHead).toHaveBeenCalledWith(SESSION.id, SIBLING, true);
     });
   });
@@ -1017,7 +1017,7 @@ describe('siblings and undo', () => {
     await waitFor(() => {
       expect(createBranchRef).toHaveBeenCalledWith(SESSION.id, 'The way in', TURN.id);
     });
-    // Promoting a swipe writes about fifty bytes and moves no data ([09 §6]),
+    // Promoting a swipe writes about fifty bytes and moves no data ([07 §6]),
     // so nothing was submitted and no head moved.
     expect(submitTurn).not.toHaveBeenCalled();
     expect(moveHead).not.toHaveBeenCalled();

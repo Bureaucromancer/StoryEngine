@@ -10,7 +10,7 @@ import { Dialog } from './Dialog.js';
 import { TokenField, type TokenOption } from './TokenField.js';
 
 /**
- * The combobox contract — [25](../../../../docs/design/25-tagging.md).
+ * The combobox contract — [05](../../../../docs/design/05-tagging.md).
  *
  * Nearly every test here is a **key**, because the keyboard is the half of this
  * component that cannot be seen and therefore the half that rots without being

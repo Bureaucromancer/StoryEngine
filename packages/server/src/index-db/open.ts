@@ -10,9 +10,9 @@ import { migrate, type MigrationResult } from './migrations.js';
 /**
  * Opening the derived index.
  *
- * **`node:sqlite`, not `better-sqlite3`.** [07 §7](../../../../docs/design/07-tech-stack.md)
+ * **`node:sqlite`, not `better-sqlite3`.** [19 §7](../../../../docs/design/19-tech-stack.md)
  * preferred it *if it held up*, and the live risk was FTS5 —
- * [P1 §1.4](../../../../docs/design/workplan/03-p1-implementation.md) verified it does, unflagged, on
+ * [P1 §1.4](../../../../docs/design/workplan/07-p1-implementation.md) verified it does, unflagged, on
  * the pinned runtime. Removing the project's only unavoidable native dependency
  * materially simplifies the container build, and the derived-index design is
  * what makes the bet cheap: a driver bug costs a rebuild, not data.
@@ -60,7 +60,7 @@ function applyPragmas(db: DatabaseSync): void {
   // WAL: a reader is never blocked by the writer, which matters because the
   // watcher and the request path both touch this database and the watcher's
   // timing is not something a request should be able to feel
-  // ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+  // ([03 §5.1.1](../../../../docs/design/03-data-model.md)).
   db.exec('pragma journal_mode = wal');
 
   // `normal` rather than `full`. A crash can lose the last transaction, and for

@@ -26,7 +26,7 @@ import {
 } from './paths.js';
 
 /**
- * The data directory, from [02 §5.1](../../../../docs/design/02-data-model.md).
+ * The data directory, from [03 §5.1](../../../../docs/design/03-data-model.md).
  *
  * ```
  * /data
@@ -35,18 +35,18 @@ import {
  *   system/library/        shipped, read-only, loaded for everyone
  *   users/<handle>/library/…
  *   index/index.sqlite     derived. Deleting it must be a non-event.
- *   state/state.sqlite     operational. Deleting it is *not* a non-event — [13 §5.1]
+ *   state/state.sqlite     operational. Deleting it is *not* a non-event — [21 §5.1]
  * ```
  *
  * **The path is the owner.** No stored object carries an owner field and there
  * is no shared user area
- * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), which is why every
+ * ([09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md)), which is why every
  * route resolves its root from the session rather than from a parameter — and
  * why `userRoot` treats its handle as hostile input. `LibraryOwner` below is
  * the *argument* that selects a tree, never a property of what is in it.
  *
  * `system/library/` has the same shape as a user's, so the merge is a query
- * rather than a special case ([02 §5.1](../../../../docs/design/02-data-model.md)). That is
+ * rather than a special case ([03 §5.1](../../../../docs/design/03-data-model.md)). That is
  * the entire reason `LibraryOwner` exists instead of two sets of functions.
  */
 
@@ -63,7 +63,7 @@ export function userOwner(handle: string): LibraryOwner {
  *
  * Actors are the odd one out and deliberately so: `card.png` is canonical, not a
  * mirror of a JSON file, because two sources of truth is the failure mode being
- * avoided ([02 §5.2](../../../../docs/design/02-data-model.md)).
+ * avoided ([03 §5.2](../../../../docs/design/03-data-model.md)).
  */
 export const OBJECT_FILENAMES = {
   [ACTOR_SCHEMA]: 'card.png',
@@ -71,7 +71,7 @@ export const OBJECT_FILENAMES = {
   [TREATMENT_SCHEMA]: 'treatment.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
-  // [02 §5.1](../../../../docs/design/02-data-model.md) gives packages a folder and defers
+  // [03 §5.1](../../../../docs/design/03-data-model.md) gives packages a folder and defers
   // its contents to §7, which describes the *format* rather than the on-disk
   // shape. A stored package also holds embedded copies of its contents, so this
   // filename is the manifest rather than the whole object — and the arrangement
@@ -87,7 +87,7 @@ export const OBJECT_FILENAMES = {
  *
  * Stricter than `slugify` produces, on purpose: this is the one user-supplied
  * string that becomes a path component at first-run
- * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)), and the cost of a mistake is
+ * ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)), and the cost of a mistake is
  * one account reaching another's directory.
  */
 const HANDLE_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -117,7 +117,7 @@ export function assertValidHandle(handle: string): void {
  * Every path in the data directory, derived from one root.
  *
  * A class rather than loose functions taking `dataRoot` everywhere, because the
- * root comes from config ([13 §4](../../../../docs/design/13-internal-contracts.md)) and
+ * root comes from config ([21 §4](../../../../docs/design/21-internal-contracts.md)) and
  * threading it through every call site is how one caller ends up using a
  * default and writing somewhere nobody expects.
  */
@@ -131,7 +131,7 @@ export class Layout {
      * chokidar builds every path it reports by concatenating onto the string it
      * was handed, so the root's spelling is the spelling of everything that
      * comes back out: the index's primary keys
-     * ([02 §5.1](../../../../docs/design/02-data-model.md)), the self-write registry's keys,
+     * ([03 §5.1](../../../../docs/design/03-data-model.md)), the self-write registry's keys,
      * and what {@link parseObjectPath} has to recognise. Normalising at the
      * watcher alone leaves all three disagreeing with a layout that still holds
      * the alias — the watcher stops aborting and starts silently ignoring every
@@ -161,14 +161,14 @@ export class Layout {
     await assertRealContained(this.dataRoot, path);
   }
 
-  /** `data/config.json` — commented example shipped alongside ([02 §5.4]). */
+  /** `data/config.json` — commented example shipped alongside ([03 §5.4]). */
   get configFile(): string {
     return resolveWithin(this.dataRoot, 'config.json');
   }
 
   /**
    * `data/accounts.json`. Authoritative state, so a file and never an index row
-   * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)) — and deliberately outside
+   * ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)) — and deliberately outside
    * every user directory, so the file browser can never serve a password hash
    * whatever `fileAccess` a user is granted.
    */
@@ -181,7 +181,7 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'index');
   }
 
-  /** Derived and disposable. Deleting it must be a non-event ([13 §5]). */
+  /** Derived and disposable. Deleting it must be a non-event ([21 §5]). */
   get indexFile(): string {
     return resolveWithin(this.indexRoot, 'index.sqlite');
   }
@@ -189,7 +189,7 @@ export class Layout {
   /**
    * Operational state: jobs, idempotency keys, the notification inbox. **Not**
    * derived, not rebuildable, and therefore not in the index
-   * ([13 §5.1](../../../../docs/design/13-internal-contracts.md)).
+   * ([21 §5.1](../../../../docs/design/21-internal-contracts.md)).
    */
   get stateRoot(): string {
     return resolveWithin(this.dataRoot, 'state');
@@ -204,7 +204,7 @@ export class Layout {
    *
    * Operational rather than derived, by the same test: losing it would surprise
    * a user — everyone is logged out. Not in `config.json`, which has nowhere to
-   * put a credential ([13 §4]), and not in the index, which is deletable
+   * put a credential ([21 §4]), and not in the index, which is deletable
    * without consequence.
    */
   get sessionKeyFile(): string {
@@ -212,7 +212,7 @@ export class Layout {
   }
 
   /**
-   * The first-run setup token ([04 §5.1], F10).
+   * The first-run setup token ([09 §5.1], F10).
    *
    * Beside the session key and operational for the same reason, with one of its
    * own: it is written when the bind is exposed and no admin exists, and a
@@ -240,27 +240,27 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'system');
   }
 
-  /** Admin-managed. Usable by all, readable by none ([04 §4.5]). */
+  /** Admin-managed. Usable by all, readable by none ([09 §4.5]). */
   get systemConnectionsRoot(): string {
     return resolveWithin(this.systemRoot, 'connections');
   }
 
   /**
    * `system/bindings.json` — the install defaults everyone inherits
-   * ([P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md)).
+   * ([P2B §2.1](../../../../docs/design/workplan/10-p2b-provider-configuration.md)).
    *
    * **The same shape as a user's, read by the same reader, layered under it.**
    * Three documents describe this layer and none of them had a path:
-   * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md) says a dangling binding
-   * *"falls back to system bindings"*, [05 §15.3](../../../../docs/design/05-ui-surfaces.md) calls
+   * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) says a dangling binding
+   * *"falls back to system bindings"*, [10 §15.3](../../../../docs/design/10-ui-surfaces.md) calls
    * system connections *"the default role bindings everyone inherits"*, and
-   * [07 §5.1](../../../../docs/design/07-tech-stack.md) puts *install default* at the weak end of
+   * [19 §5.1](../../../../docs/design/19-tech-stack.md) puts *install default* at the weak end of
    * the resolution order. What shipped was one layer, so the fallback those
    * sentences promise could not happen — which is why [P2B §1.2] calls
    * *"no new mechanism"* the sentence that hid the work.
    *
    * Beside `connections/` in `system/` rather than in a user's directory,
-   * because the path is the owner ([04 §4.3]) and this belongs to the install.
+   * because the path is the owner ([09 §4.3]) and this belongs to the install.
    */
   get systemBindingsFile(): string {
     return resolveWithin(this.systemRoot, 'bindings.json');
@@ -274,7 +274,7 @@ export class Layout {
    * Where a removed account's directory goes — `data/removed/`.
    *
    * **Deleting an account is a move**, which is the position `trashDestination`
-   * already takes for objects and sessions ([02 §10.2]). What is different is
+   * already takes for objects and sessions ([03 §10.2]). What is different is
    * where it lands: the user's own trash is inside the directory being removed,
    * so a removal that used it would be moving a folder into itself.
    *
@@ -303,7 +303,7 @@ export class Layout {
   }
 
   /**
-   * `users/<handle>/prefs.json` — client preferences ([06 B13]).
+   * `users/<handle>/prefs.json` — client preferences ([25 B13]).
    *
    * A per-user file rather than `localStorage` or a map on `Account`: pane
    * state that does not survive a move to another browser is not state anybody
@@ -319,7 +319,7 @@ export class Layout {
   }
 
   /**
-   * `users/<handle>/tags.json` — the tag registry ([25 §4](../../../../docs/design/25-tagging.md)).
+   * `users/<handle>/tags.json` — the tag registry ([05 §4](../../../../docs/design/05-tagging.md)).
    *
    * Beside `prefs.json` and deliberately not inside it. The preferences file
    * carries a decision that it is a bag the server does not validate, and the
@@ -361,14 +361,14 @@ export class Layout {
     return resolveWithin(this.userRoot(handle), 'memories');
   }
 
-  /** Deleted objects awaiting the retention window ([02 §10.2]). */
+  /** Deleted objects awaiting the retention window ([03 §10.2]). */
   trashRoot(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'trash');
   }
 
   /**
    * Where a deleted object's folder lands — deletion is a move, not an
-   * erasure ([02 §10.2]). The suffix keeps delete-recreate-delete from
+   * erasure ([03 §10.2]). The suffix keeps delete-recreate-delete from
    * colliding; retention and restore are P11's.
    */
   trashDestination(
@@ -389,7 +389,7 @@ export class Layout {
    *
    * `trash/sessions/<id>-<suffix>` — beside the library kinds rather than inside
    * one, because a session is not a library object and the trash is organised
-   * the way the live tree is ([02 §10.3](../../../../docs/design/02-data-model.md)).
+   * the way the live tree is ([03 §10.3](../../../../docs/design/03-data-model.md)).
    */
   sessionTrashDestination(handle: string, sessionId: string, suffix: string): string {
     return resolveWithin(this.trashRoot(handle), 'sessions', `${sessionId}-${suffix}`);
@@ -414,7 +414,7 @@ export class Layout {
     return resolveWithin(this.objectRoot(owner, schemaId, slug), OBJECT_FILENAMES[schemaId]);
   }
 
-  /** Bulk assets, relative to the object folder and never escaping it ([02 §5.3]). */
+  /** Bulk assets, relative to the object folder and never escaping it ([03 §5.3]). */
   assetsRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
     return resolveWithin(this.objectRoot(owner, schemaId, slug), 'assets');
   }
@@ -511,7 +511,7 @@ function relativeWithin(root: string, path: string): string | null {
  *
  * **Derived at creation and then frozen** — renaming an object changes the name
  * *inside the file* and the folder keeps the name it was born with
- * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). The engine never moves the
+ * ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)). The engine never moves the
  * user's directories, so this runs exactly once per object and is the only place
  * a slug is chosen.
  *

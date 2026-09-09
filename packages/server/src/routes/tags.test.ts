@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestServer, routesUnder, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * The tag registry through the API — [25](../../../../docs/design/25-tagging.md).
+ * The tag registry through the API — [05](../../../../docs/design/05-tagging.md).
  *
- * The subject is the **verb split** ([25 §2], invariant 4). A `DELETE` here
+ * The subject is the **verb split** ([05 §2], invariant 4). A `DELETE` here
  * removes a registry entry and nothing else; the objects carrying that tag are
  * untouched and go on filtering and gating lore, having lost a colour. The two
  * operations that do reach the user's files are `POST`s with a verb in the path,
@@ -126,7 +126,7 @@ describe('PATCH /api/tags/:id', () => {
 
   /**
    * **Renaming is not a property edit**, and this is where that is enforced.
-   * [25 §1]: an `actorTagFilter` naming the old spelling stops matching, so a
+   * [05 §1]: an `actorTagFilter` naming the old spelling stops matching, so a
    * rename can change which lore fires. It gets its own verb and its own answer
    * about the gates it found; a `name` arriving here is refused with the field
    * named rather than quietly applied as if it were a colour.
@@ -214,7 +214,7 @@ describe('PUT /api/tags/order', () => {
 
 /*
  * **Per-account isolation is asserted one layer down**, in `tags/store.test.ts`,
- * because that is where it lives: the path is the owner ([04 §4.3]) and these
+ * because that is where it lives: the path is the owner ([09 §4.3]) and these
  * handlers do nothing with the handle but pass it to the store. Proving it again
  * here would need a second signed-in account, and `setUpAdmin` is first-run
  * setup — it can only be called once per server. Scaffolding a second identity

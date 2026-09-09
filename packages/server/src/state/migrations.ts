@@ -7,7 +7,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * Schema versioning for the operational store — the opposite discipline to the
  * index's.
  *
- * [13 §5.1](../../../../docs/design/13-internal-contracts.md) draws the line: the index is a
+ * [21 §5.1](../../../../docs/design/21-internal-contracts.md) draws the line: the index is a
  * restatement of what is on disk, so a schema change there throws the old file
  * away and rescans. **Nothing in here is a restatement of anything.** A job in
  * flight, the idempotency key that stops a retry charging twice, the draft of a
@@ -23,7 +23,7 @@ import type { DatabaseSync } from 'node:sqlite';
  *
  * The one thing this file must never grow is a `dropAll`. The index has one
  * because deleting the index is a non-event; deleting this is
- * [P2 §2.10](../../../../docs/design/workplan/04-p2-implementation.md)'s explicitly-costed loss of an
+ * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md)'s explicitly-costed loss of an
  * uncommitted draft.
  */
 
@@ -85,7 +85,7 @@ create index job_by_session on job(session_id, created_at);
 --
 -- A browser retry, a reconnect, a double-click. The key names the job it
 -- created, so a repeat submission returns that job — queued, running or
--- terminal — rather than making a second provider call ([13 §5.1]).
+-- terminal — rather than making a second provider call ([21 §5.1]).
 create table idempotency (
   account     text not null,
   session_id  text not null,
@@ -114,7 +114,7 @@ create table draft (
 -- Sequenced per job, in the same transaction as the draft change they describe,
 -- which is what makes snapshot-plus-cursor reattach exact ([P2 §2.10]).
 --
--- A message key and its params, never prose ([01 §2](../../../../docs/design/workplan/01-work-plan.md)) — the
+-- A message key and its params, never prose ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)) — the
 -- server does not know the reader's language and an event carrying English is a
 -- string that cannot be translated later.
 create table event (
@@ -142,7 +142,7 @@ create table import_job (
   id           text primary key,
   account      text not null,
   -- **Where the sweep was pointed, recorded once and here.**
-  -- [13 §4.1](../../../../docs/design/13-internal-contracts.md)'s foreign-path
+  -- [21 §4.1](../../../../docs/design/21-internal-contracts.md)'s foreign-path
   -- doctrine: source files are named relative to this root everywhere else — in
   -- the review, in the log, in \`VersionRecord.from\` — because the log is the
   -- thing people paste into issues. The absolute path lives on the job record,
@@ -203,7 +203,7 @@ create table import_event (
 create table import_item (
   job_id      text not null references import_job(id) on delete cascade,
   seq         integer not null,
-  -- Relative to the sweep root, never absolute ([13 §4.1.1]). The root lives
+  -- Relative to the sweep root, never absolute ([21 §4.1.1]). The root lives
   -- once on the job, where the person who typed it can see it.
   source      text not null,
   disposition text not null,

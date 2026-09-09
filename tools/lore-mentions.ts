@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { mentionIndex, LOREBOOK_SCHEMA, type Lorebook } from '../packages/shared/dist/index.js';
 
 /**
- * [16 §6](../docs/design/16-lorebooks-as-a-format.md)'s two counts, over
+ * [11 §6](../docs/design/11-lorebooks-as-a-format.md)'s two counts, over
  * whatever library is to hand.
  *
  * **The sharpest test this project has against its own warrant.** §2 claims that
@@ -36,7 +36,7 @@ import { mentionIndex, LOREBOOK_SCHEMA, type Lorebook } from '../packages/shared
  * no used SillyTavern or Marinara install is on hand: the premise is a claim
  * about *how real authors chose keys*, and a corpus we wrote cannot answer it
  * either way. So the counts are deferred until a real library exists rather than
- * skipped, and [P5.3](../docs/design/workplan/07-p5-implementation.md) owes the
+ * skipped, and [P5.3](../docs/design/workplan/17-p5-implementation.md) owes the
  * script and a reading over whatever is to hand — which is the **control** the
  * real reading gets compared with, and worth nothing on its own.
  *

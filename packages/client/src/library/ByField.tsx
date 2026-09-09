@@ -18,7 +18,7 @@ import {
 
 /**
  * The object, field by field, read-only —
- * [polish §1](../../../../docs/design/workplan/09-polish.md).
+ * [polish §1](../../../../docs/design/workplan/06-polish.md).
  *
  * **What it removes is a gesture, not a rendering.** To read an actor's
  * greeting the answer was *open the editor*, which is wrong in three ways that
@@ -42,13 +42,13 @@ import {
  * value is drawn is decided by looking at the value, because nothing in the
  * schema distinguishes a name from a page of prose — and a `format` keyword
  * invented to say so would be schema written to serve a rendering, which
- * [16 §4](../../../../docs/design/16-lorebooks-as-a-format.md) refuses by name.
+ * [11 §4](../../../../docs/design/11-lorebooks-as-a-format.md) refuses by name.
  *
  * **Empty is shown rather than omitted**, which is the branch
- * [polish §1](../../../../docs/design/workplan/09-polish.md) leaves open
+ * [polish §1](../../../../docs/design/workplan/06-polish.md) leaves open
  * ("either omitted or shown as explicitly empty"). Shown, because a field
  * nobody can see is a field nobody fills, and
- * [16 §4.1](../../../../docs/design/16-lorebooks-as-a-format.md) makes exactly
+ * [11 §4.1](../../../../docs/design/11-lorebooks-as-a-format.md) makes exactly
  * that argument about `description`: *a field nobody fills is a field that does
  * not work when its real consumer arrives.* Three words rather than one, since
  * an absent value, a blank string and an empty list are three different facts
@@ -74,7 +74,7 @@ export function ByField({ schemaId, value }: { schemaId: string; value: unknown 
 
 /**
  * The same rendering over a value whose schema is known rather than named — the
- * book page's *as configured* fold ([05 §5.3](../../../../docs/design/05-ui-surfaces.md)),
+ * book page's *as configured* fold ([10 §5.3](../../../../docs/design/10-ui-surfaces.md)),
  * which renders one entry.
  *
  * `omit` is what makes it a fold rather than a repetition: §5.3 renders an
@@ -216,7 +216,7 @@ function LabelledValue(props: {
 /**
  * One field, read-only, laid out the way `Field` lays out a control — for a
  * write surface rendering the fields it does not own
- * ([05 §11.2d](../../../../docs/design/05-ui-surfaces.md)'s *everything else
+ * ([10 §11.2d](../../../../docs/design/10-ui-surfaces.md)'s *everything else
  * visible and read-only*).
  *
  * `depth` is pinned at zero rather than forwarded: the editor renders one flat

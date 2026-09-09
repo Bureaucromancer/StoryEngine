@@ -17,14 +17,14 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * **Exit-gate step 17**, verbatim from
- * [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md):
+ * [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md):
  *
  * > Type guidance → it appears as an advisory block in the record, does not
  * > enter history, and the golden suite asserts no advisory block ever reaches
  * > an effect-producing call (§2.9).
  *
  * **What this file adds that the three unit halves cannot.** The firewall
- * [03 §5.2](../../../../docs/design/03-modes-and-turn-pipeline.md) demands is enforced three
+ * [06 §5.2](../../../../docs/design/06-modes-and-turn-pipeline.md) demands is enforced three
  * derivations deep, and each layer already has its own test: `collect.test.ts`
  * proves `collectCandidates` forces `advisory: true` on a guidance slot even
  * when the preset says otherwise, `steps.test.ts` proves `callPurposeFor`
@@ -229,7 +229,7 @@ function carriedGuidanceBlock(request: RecordedRequest): boolean {
 
 describe('step 17 (a) — guidance appears in the turn record as its own block', () => {
   it('records one guidance-sourced block, included, with the text the player typed', async () => {
-    // **The block, through the route the workbench will read.** [02 §8] makes
+    // **The block, through the route the workbench will read.** [03 §8] makes
     // the record complete from the first turn *because everything after P2 reads
     // it*, so the assertion that matters is what `GET /turns` serves, not what
     // `collectCandidates` returns in isolation.
@@ -245,7 +245,7 @@ describe('step 17 (a) — guidance appears in the turn record as its own block',
     expect(guidance).toHaveLength(1);
 
     const block = guidance[0];
-    // `producer` is the field [03 §5.1] needs because one slot has several
+    // `producer` is the field [06 §5.1] needs because one slot has several
     // producers — the user's box, a rule's `giveGuidance`, a Narrative Director
     // push. Asserting the kind alone would pass for a rule-authored block, which
     // is a different thing with different consequences for who is responsible
@@ -267,7 +267,7 @@ describe('step 17 (a) — guidance appears in the turn record as its own block',
   });
 
   it('names the guidance block in the budget verdict, with the rule that kept it', async () => {
-    // [13 §1.5]: *every* block appears in `decisions`, including the included
+    // [21 §1.5]: *every* block appears in `decisions`, including the included
     // ones — a verdict listing only drops cannot answer "what falls out next".
     // A guidance block silently absent from the verdict would look identical to
     // one that was never considered.
@@ -328,7 +328,7 @@ describe('step 17 (b) — guidance does not enter history', () => {
   });
 
   it('is one-shot: a later turn assembles history without it', async () => {
-    // **The half [03 §5.1] is actually about.** Guidance kept out of `input` but
+    // **The half [06 §5.1] is actually about.** Guidance kept out of `input` but
     // folded into the previous turn's *text* would pass the test above and fail
     // here: the cost the box exists to avoid is guidance living in history
     // permanently — summarised as narrative, keyword-matched, read back as
@@ -510,7 +510,7 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
     await runBothKinds();
     const record = await readNewestTurn();
 
-    // Named on the record, not merely absent from the wire. [04 §3.3] wants the
+    // Named on the record, not merely absent from the wire. [09 §3.3] wants the
     // live view and the history view to agree about what happened, and a call
     // that was refused with nothing written down is a step that silently did
     // less than it declared.
@@ -560,7 +560,7 @@ describe('step 17 (c) — no advisory block reaches an effect-producing call', (
   });
 
   /**
-   * The second advisory slot, under the same pair — [03 §5.1]. Run **without
+   * The second advisory slot, under the same pair — [06 §5.1]. Run **without
    * guidance**, because with both blocks present a refusal could be either's,
    * and this is the claim that the attempt alone is enough to be refused.
    */

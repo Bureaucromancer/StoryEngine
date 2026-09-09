@@ -127,7 +127,7 @@ describe('the channels the collector is given', () => {
     const { sessionId, head } = await aSessionOf(3);
 
     // The ternary's live branch, and the reason it exists: the effect log is
-    // the source of truth and the head snapshot is *derived* ([02 §5.5]), so
+    // the source of truth and the head snapshot is *derived* ([03 §5.5]), so
     // a session whose file is unreadable still assembles against the right
     // clock rather than against nothing. The falsifying mutation is dropping
     // `replayChannels` and trusting the file unconditionally, which turns an
@@ -251,7 +251,7 @@ describe('what the gather resolves without a job', () => {
   it('resolves an account that does not exist to no capabilities, not to the defaults', async () => {
     const { sessionId, head } = await aSessionOf(1);
 
-    // [04 §4.5]: a deleted account's queued turn must not run with more
+    // [09 §4.5]: a deleted account's queued turn must not run with more
     // authority than a live one whose capability was revoked. Reaching the
     // personal-connection branch needs a connection on disk; what is asserted
     // here is that the read completes and offers none.

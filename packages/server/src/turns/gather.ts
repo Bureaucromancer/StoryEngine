@@ -92,7 +92,7 @@ export async function gatherAssemblyInputs(
    * This preferred `session.channels` whenever the file could be read, which
    * assembles this history against *another* node's state the moment anything
    * asks for a node that is not the head. The effect log is the single source
-   * of truth either way ([02 §5.5]), so the replay is the general case and the
+   * of truth either way ([03 §5.5]), so the replay is the general case and the
    * file's map is the cheap answer for the one node it describes.
    *
    * **The same rule as `advanceHead`'s, and that is load-bearing rather than
@@ -106,10 +106,10 @@ export async function gatherAssemblyInputs(
     : await reconstructAlong(context.sessions, request.account, request.sessionId, history);
 
   /**
-   * **The capability, not a literal** — [P2A §2.1], [04 §4.5].
+   * **The capability, not a literal** — [P2A §2.1], [09 §4.5].
    *
    * This passed `{ privateConnections: true }` from P2.5 until P3, which
-   * defeated the one check [04 §4.5] calls load-bearing. It calls it that
+   * defeated the one check [09 §4.5] calls load-bearing. It calls it that
    * precisely because the alternative — hiding personal connections in the
    * UI — is a trivial bypass for anyone with `fileAccess: "write"`, and a
    * turn is where a connection is actually *used*.
@@ -157,7 +157,7 @@ export async function gatherAssemblyInputs(
   /**
    * Read once per turn, beside the bindings and connections this function
    * already awaits. The cast needs it so an actor reaches activation under the
-   * names its tags have *now* — [25 §3](../../../../docs/design/25-tagging.md).
+   * names its tags have *now* — [05 §3](../../../../docs/design/05-tagging.md).
    */
   const tags = await readRegistry(context.sessions.layout, request.account);
   const cast = resolveCast(library, request.account, session?.cast, tags);

@@ -7,7 +7,7 @@ import { control, fieldLabel } from './classes.js';
 
 /**
  * A list of committed values, typed into one at a time — the input half of
- * [25](../../../../docs/design/25-tagging.md), and generic because it knows
+ * [05](../../../../docs/design/05-tagging.md), and generic because it knows
  * nothing about tags.
  *
  * **It is a real combobox**, not a text box with a menu drawn under it. The

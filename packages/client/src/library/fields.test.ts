@@ -113,7 +113,7 @@ describe('the field list is the schema, read at runtime', () => {
   });
 
   /**
-   * An unknown kind is not an error ([10 §2]): a package may carry one a newer
+   * An unknown kind is not an error ([04 §2]): a package may carry one a newer
    * build wrote. With no schema to be the authority on what belongs, the
    * object's own keys are the only description there is — the record case, and
    * a strictly better page than the metadata block alone.
@@ -155,7 +155,7 @@ describe('which kinds have an editor, asked in one place', () => {
   });
 
   /**
-   * [05 §5]'s rule — *create arrives with the kind's editor and never before
+   * [10 §5]'s rule — *create arrives with the kind's editor and never before
    * it* — as an assertion over the whole key set rather than over the two rows
    * somebody remembered. The tables are typed to make the mismatch a
    * compile error; this is the same claim where a reader can see it.

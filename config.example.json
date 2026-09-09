@@ -5,7 +5,7 @@
 // what you need.
 //
 // JSON does not have comments, so this file is not loadable as-is. That is the
-// one real cost of JSON everywhere (docs/design/02-data-model.md §5.4), and this
+// one real cost of JSON everywhere (docs/design/03-data-model.md §5.4), and this
 // commented example is how it is paid: strip the comments, or use the settings
 // UI, which is the primary path.
 //
@@ -16,7 +16,7 @@
 //   restart   anything establishing a listener or a file handle
 //
 // The server derives its own "restart required" notice from these tiers rather
-// than from a list someone maintains by hand — see docs/design/13 §4.
+// than from a list someone maintains by hand — see docs/design/21-internal-contracts.md §4.
 
 {
   // restart — where everything lives. Relative paths resolve against the
@@ -29,7 +29,7 @@
     // Until you create the first admin account, whoever can reach this port can
     // claim it. Binding 127.0.0.1 means that window is only open to this
     // machine. Set "0.0.0.0" when you want the rest of the house to reach it —
-    // and know that you are doing it (docs/design/04 §5.1).
+    // and know that you are doing it (docs/design/09-server-multiuser-deployment.md §5.1).
     //
     // You can set it without this file at all: SE_HOST=0.0.0.0. Four keys take
     // an environment variable — SE_DATA_DIR, SE_HOST, SE_PORT and
@@ -65,7 +65,7 @@
     // signing in fail with no error anywhere — the browser just declines.
     //
     // It is not derived from the bind address on purpose. Plain HTTP on a LAN
-    // you trust is a supported way to run this (docs/design/04 §5.1), and a
+    // you trust is a supported way to run this (docs/design/09-server-multiuser-deployment.md §5.1), and a
     // rule that hardened the cookie whenever you bound 0.0.0.0 would lock out
     // exactly that install.
     "cookieSecure": false,
@@ -99,7 +99,7 @@
     //
     // --reset-password on the console honours no minimum at all, including this
     // one. Access to the host is already the highest authority this software
-    // recognises (docs/design/04 §5.1), so the break-glass path takes what it
+    // recognises (docs/design/09-server-multiuser-deployment.md §5.1), so the break-glass path takes what it
     // is given.
     "minPasswordLength": 8
   },

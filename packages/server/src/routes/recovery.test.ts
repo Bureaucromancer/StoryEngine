@@ -337,7 +337,7 @@ describe('a turn killed mid-generation', () => {
     expect(rerun.output.text).toBe('the next one');
     expect(rerun.id).toBe(next.body.turnId);
     // The chain, which is what makes the failed turn part of the story rather
-    // than a thing the re-run stepped over ([09 §4] — a re-run is a child, and
+    // than a thing the re-run stepped over ([07 §4] — a re-run is a child, and
     // `parentTurnId` is written now so branching has something to read later).
     expect(rerun.parentTurnId).toBe(recovered.id);
 
@@ -406,8 +406,8 @@ describe('a turn killed mid-generation', () => {
      *
      * `blocks.length > 0` — which is what the sibling test above asserts — is
      * satisfied by a checkpoint that kept the array and lost everything that
-     * makes a block legible. [13 §1.1] makes the source one vocabulary the
-     * record and the preset both speak, and [03 §5] makes the reason *"a
+     * makes a block legible. [21 §1.1] makes the source one vocabulary the
+     * record and the preset both speak, and [06 §5] makes the reason *"a
      * product feature, not a debug string"* — gate 11 reads both off this very
      * field. So what is checked here is that the *player's own message* is in
      * the recovered prompt, attributed, with the budgeter's verdict beside it.
@@ -438,7 +438,7 @@ describe('a turn killed mid-generation', () => {
     expect(budget?.limit.source).toBe('user');
     expect(budget?.limit.share).toBe(SCENE_PRESET.budget.contextShare);
     expect(budget?.spent).toBeGreaterThan(0);
-    // Every block ruled on, including the kept ones ([13 §1.5]) — a verdict
+    // Every block ruled on, including the kept ones ([21 §1.5]) — a verdict
     // listing only the drops cannot answer "what falls out next", which is what
     // `nextToDrop` is.
     expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
@@ -537,7 +537,7 @@ describe('the log alone reconstructs a killed turn', () => {
   });
 
   it('carries no output text, no guidance and no absolute path', async () => {
-    // [13 §4.1]'s three prohibitions. The first is one well-meant debug of the
+    // [21 §4.1]'s three prohibitions. The first is one well-meant debug of the
     // draft away, and none of them was enforced or tested before this.
     server = await start([{ text: 'the-secret-narration' }]);
     const sessionId = await seedAccount();
@@ -608,7 +608,7 @@ describe('the log alone reconstructs a killed turn', () => {
      * would buy a stronger-looking assertion and pay for it with a test that
      * fails on a busy machine.
      *
-     * **And the chain starts one step later than [13 §4.1] describes.** That
+     * **And the chain starts one step later than [21 §4.1] describes.** That
      * section says the job binds `jobId` *"when the job is created"* — but
      * `submitTurn` reserves the job, writes its idempotency row and returns a
      * 202 without logging anything, and the first line carrying the id is
@@ -643,7 +643,7 @@ describe('the log alone reconstructs a killed turn', () => {
      * this line is the only place the answer exists.
      *
      * `model` is pinned to the *resolved* model id rather than to the role,
-     * which is [13 §1.4]'s point about `ModelCall.resolved` one layer down:
+     * which is [21 §1.4]'s point about `ModelCall.resolved` one layer down:
      * steps name roles, so a line logging `prose` would name the binding and
      * never the endpoint, and *what actually ran* is the first question anyone
      * asks about a turn that came out wrong. `fake-hi` is what `bindings.json`
@@ -666,7 +666,7 @@ describe('the log alone reconstructs a killed turn', () => {
     expect(lineFor(mine, 'job.committed')['status']).toBe('failed');
 
     /**
-     * **4. The pivot keys.** [13 §4.1] makes `jobId` the binding gate 19 turns
+     * **4. The pivot keys.** [21 §4.1] makes `jobId` the binding gate 19 turns
      * on, and names `sessionId` and `turnId` beside it — because a job id is
      * what an alert carries and a turn record is what a human wants to read, so
      * the log has to be the bridge. Asserted against the id of the turn actually
@@ -684,7 +684,7 @@ describe('the log alone reconstructs a killed turn', () => {
      * assertion used to be the divergence rather than the contract.
      *
      * It read `toMatchObject({ turnId })` with a docstring explaining that
-     * [13 §4.1] asks for more and the code did not do it — *asserted as the code
+     * [21 §4.1] asks for more and the code did not do it — *asserted as the code
      * behaves and reported as a finding*. That was honest and it was also the
      * shape that lets a divergence sit for four phases: a test agreeing with the
      * bug, in the file whose whole subject is that a lifecycle can be filtered

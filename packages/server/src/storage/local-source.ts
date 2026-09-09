@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 /**
  * A real directory, read as an import source
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **In `storage/` because that is where the filesystem lives.** The import
  * module cannot import `node:fs` — one audited path resolver is the only door —
@@ -70,7 +70,7 @@ export interface LocalSource {
  * Opens a directory as a source, or refuses it.
  *
  * **`/data` is carved out, in code, and this is the line that makes
- * [05 §4.2.2]'s widening safe.** `fileAccess` was a permission over the user's
+ * [10 §4.2.2]'s widening safe.** `fileAccess` was a permission over the user's
  * *own* content, scoped by a table of roots under their handle; P4 widened it to
  * cover naming a path for a read-only sweep. Without this refusal that widening
  * would be a route to `/data/users/<other>/library/` — which the table says
@@ -121,7 +121,7 @@ export async function openLocalSource(
    * `data/accounts.json`, `data/system/connections/*.json` and
    * `data/users/<someone-else>/library/actors/<slug>/actor.json` — object slugs
    * being name-derived, so another person's character and lorebook names were
-   * disclosed in the review. [05 §4.2] marks that reach `never`.
+   * disclosed in the review. [10 §4.2] marks that reach `never`.
    *
    * Reproduced before fixing: an ancestor root opened `ok`, listed those paths,
    * and `read('data/accounts.json')` returned the file's bytes. The walker's

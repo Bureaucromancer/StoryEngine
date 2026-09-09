@@ -18,7 +18,7 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Treatment — docs/design/10-schemas.md §6.
+ * Treatment — docs/design/04-schemas.md §6.
  *
  * Carries tone, framing and *links* — never world facts. The rule that makes it
  * work: a Treatment of Rain City does not describe Rain City. Locations are
@@ -62,13 +62,13 @@ export const TreatmentTone = Type.Object(
     tense: Type.Union([Type.Literal('past'), Type.Literal('present')]),
     /**
      * **Advisory.** Authorial intent, not a promise about model behaviour
-     * ([10 §6.2](../../../../docs/design/10-schemas.md)). Nothing in the engine gates on it:
+     * ([04 §6.2](../../../../docs/design/04-schemas.md)). Nothing in the engine gates on it:
      * no step refuses to run, no lorebook entry is withheld, no connection is
      * blocked — because enforcement here would be a promise that cannot be kept,
      * and making it badly is worse than not making it.
      *
      * `null` means *unspecified, ask the user*. Absent means the same, for
-     * compatibility. **Neither means "sfw"** ([10 §2](../../../../docs/design/10-schemas.md)).
+     * compatibility. **Neither means "sfw"** ([04 §2](../../../../docs/design/04-schemas.md)).
      */
     contentRating: Type.Union([Type.Literal('sfw'), Type.Literal('nsfw'), Type.Null()]),
     styleNotes: Type.String(),

@@ -5,7 +5,7 @@ import type { StepFailureReason, StepSkipReason, StepStage } from '../sessions/t
 import type { ModelRole } from '../providers/types.js';
 
 /**
- * The progress vocabulary — [04 §3.3](../../../../docs/design/04-server-multiuser-deployment.md).
+ * The progress vocabulary — [09 §3.3](../../../../docs/design/09-server-multiuser-deployment.md).
  *
  * That section prints eleven event names, and this is them as a closed union
  * with a constructor each. `ProgressEvent.key` in the store is a bare `string`
@@ -16,10 +16,10 @@ import type { ModelRole } from '../providers/types.js';
  * **Progress events are structural, and carry no prose.** §3.3 is explicit that
  * they need no `{key, params}` summary the way a *notification* does — the
  * client renders them — but the shared rule still binds: the server does not
- * know the reader's language ([01 §2](../../../../docs/design/workplan/01-work-plan.md)), so a
+ * know the reader's language ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)), so a
  * failure travels as a **class** and never as `ProviderError.message` (English)
  * or `.detail` (the provider's own words). Those go to the log, which
- * [07 §12.7](../../../../docs/design/07-tech-stack.md) keeps deliberately untranslated.
+ * [19 §12.7](../../../../docs/design/19-tech-stack.md) keeps deliberately untranslated.
  *
  * It lives here rather than under `turns/` so that `jobs.ts` and `commit.ts`
  * can name an event without importing the runner.
@@ -109,7 +109,7 @@ export const callFinished = (
   params: {
     stepId,
     // Null rather than zero when the provider does not report. A zero here
-    // would be a measurement nobody made ([13 §1.4]).
+    // would be a measurement nobody made ([21 §1.4]).
     promptTokens: usage?.promptTokens ?? null,
     completionTokens: usage?.completionTokens ?? null,
     ms,

@@ -14,7 +14,7 @@ import { readUpload } from './upload.js';
 
 /**
  * What a commit would do, worked out without doing it
- * ([05 §5](../../../../docs/design/05-ui-surfaces.md), as amended).
+ * ([10 §5](../../../../docs/design/10-ui-surfaces.md), as amended).
  *
  * **The first describe is the whole feature and the rest is presentation.**
  * Everything about a preview that a person can see — the block list, the params,
@@ -200,7 +200,7 @@ describe('what the preview says about a preset', () => {
 describe('the preview never shows what was in the file', () => {
   /**
    * **The rule that keeps this from being the *"import as-is"* affordance
-   * [10 §8.4.4] refuses to have anywhere.** A screen that showed the file's
+   * [04 §8.4.4] refuses to have anywhere.** A screen that showed the file's
    * contents would show a proxy password to whoever was handed the file.
    */
   it('names the compat fields and carries none of their values', async () => {

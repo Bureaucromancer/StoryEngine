@@ -56,7 +56,7 @@ import {
  * Library CRUD, one handler set rather than six.
  *
  * **The registry is what makes this kind-agnostic**
- * ([10 §9](../../../docs/design/10-schemas.md)): every portable object self-describes, so
+ * ([04 §9](../../../docs/design/04-schemas.md)): every portable object self-describes, so
  * nothing here enumerates kinds. Adding Campaign at 2.0 should not touch this
  * file.
  *
@@ -64,16 +64,16 @@ import {
  * properties of the *write path* and a route is only one caller of it:
  *
  * - **The server indexes its own writes synchronously**, so a `GET` after a
- *   `POST` reflects it ([02 §5.1.1](../../../docs/design/02-data-model.md)). The watcher
+ *   `POST` reflects it ([03 §5.1.1](../../../docs/design/03-data-model.md)). The watcher
  *   is for foreign writes and has no such guarantee, nor needs one.
  * - **Every read carries a content hash and every write must present one**
- *   ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)). A stale hash is
+ *   ([09 §4.4](../../../docs/design/09-server-multiuser-deployment.md)). A stale hash is
  *   rejected with the current object, so the caller can offer a choice rather
  *   than guess. It is also the only defence the hot-reload thesis has against
  *   silently eating a hand edit.
  * - **A rename is an ordinary write.** Changing `name` changes the field inside
  *   the file; the folder keeps the slug it was born with
- *   ([P1 §1.1](../../../docs/design/workplan/03-p1-implementation.md)). There is no rename route
+ *   ([P1 §1.1](../../../docs/design/workplan/07-p1-implementation.md)). There is no rename route
  *   and there is nothing here that moves a directory.
  */
 
@@ -125,7 +125,7 @@ export class LibraryError extends Error {
 export interface LibraryContext {
   db: DatabaseSync;
   layout: Layout;
-  /** Retention cap for version history, from `history.keepPerObject` ([02 §11.3]). */
+  /** Retention cap for version history, from `history.keepPerObject` ([03 §11.3]). */
   keepHistoryPerObject: number;
   /** Test seam: a failing writer proves the write→snapshot ordering. */
   write?: typeof writeAtomic;
@@ -157,7 +157,7 @@ export interface StoredObject {
  * The owners a request may read: the caller's own library and the system one.
  *
  * **`system/library/` is loaded and merged from P1**, shipped empty
- * ([P1 §1.3](../../../docs/design/workplan/03-p1-implementation.md)). The merge is a query rather
+ * ([P1 §1.3](../../../docs/design/workplan/07-p1-implementation.md)). The merge is a query rather
  * than a special case, and retrofitting it into every list endpoint later is the
  * annoying version — so it lands now, with nothing in it.
  */
@@ -181,7 +181,7 @@ export function list(
  *
  * The reason this is a *read* rather than a log line: the failure belongs to the
  * person who made the edit, and they are looking at the app, not at the server's
- * stdout. [02 §5.1](../../../docs/design/02-data-model.md) promises that hand-editing is
+ * stdout. [03 §5.1](../../../docs/design/03-data-model.md) promises that hand-editing is
  * supported; a promise like that is only kept if a typo says so out loud.
  *
  * `path` is portable — relative to the data root — for the same reason every
@@ -217,11 +217,11 @@ export function fileErrors(context: LibraryContext, handle: string): LibraryFile
 
 /**
  * The index rows for an id, as the panel shows them — [P3.3]'s projection,
- * with [P3 §7.4](../../../docs/design/workplan/05-p3-implementation.md) decided
+ * with [P3 §7.4](../../../docs/design/workplan/15-p3-implementation.md) decided
  * 2026-08-27: **every row the index holds for the id**, shadowed and
  * tombstoned included, and the projection is **best-effort rather than a
  * contract** — it restates the derived index, whose tables stay an
- * implementation detail ([13 §5](../../../docs/design/13-internal-contracts.md)),
+ * implementation detail ([21 §5](../../../docs/design/21-internal-contracts.md)),
  * so after an index schema bump it may return less until this surface
  * catches up.
  *
@@ -320,7 +320,7 @@ export function read(
   const row = findById(context.db, id);
   if (!row || !readableOwners(handle).some((owner) => ownerKeyOf(owner) === row.owner)) {
     // Not-found rather than forbidden for another user's object: the handle is
-    // the owner ([04 §4.3]), and confirming that an id exists elsewhere would
+    // the owner ([09 §4.3]), and confirming that an id exists elsewhere would
     // leak the one fact this separation exists to keep.
     throw new LibraryError('not-found', `No object with id ${id}.`);
   }
@@ -335,8 +335,8 @@ export function read(
  * case-insensitive name, then missing — and never blocking.**
  *
  * That sentence is written in three places — `schema/common.ts`'s own
- * description of `Ref`, [02 §11.4](../../../docs/design/02-data-model.md), and
- * [10 §8](../../../docs/design/10-schemas.md) — and until [P5.6] it was
+ * description of `Ref`, [03 §11.4](../../../docs/design/03-data-model.md), and
+ * [04 §8](../../../docs/design/04-schemas.md) — and until [P5.6] it was
  * implemented in none, because nothing on the server had ever followed a `Ref`.
  * The session's lorebook links are the first, so the promise comes due here.
  *
@@ -404,10 +404,10 @@ function ownerKeyOf(owner: LibraryOwner): string {
  *
  * The actor is the only kind that is not plain JSON, and the card is spliced
  * into whatever pixels are already there — never re-encoded
- * ([02 §5.2](../../../docs/design/02-data-model.md)).
+ * ([03 §5.2](../../../docs/design/03-data-model.md)).
  *
  * Encoding is separate from writing so the caller can apply the no-op rule
- * ([02 §11.1](../../../docs/design/02-data-model.md)): a save that changes nothing must
+ * ([03 §11.1](../../../docs/design/03-data-model.md)): a save that changes nothing must
  * produce neither a write nor a history entry, and the only honest way to know
  * is to build the exact bytes and compare.
  */
@@ -460,7 +460,7 @@ async function encodeObject(
  * The pixels a brand-new card starts with: 1×1, fully transparent.
  *
  * Deliberately not a generated placeholder portrait. The card's pixels are *the
- * portrait as intended* ([02 §5.2.1](../../../docs/design/02-data-model.md)) — what any
+ * portrait as intended* ([03 §5.2.1](../../../docs/design/03-data-model.md)) — what any
  * tool that only knows "a card is a picture" will render — so inventing one
  * would put a face nobody chose in front of every such tool. An empty card is
  * honest; a stock avatar is a small lie that travels with the file.
@@ -520,7 +520,7 @@ function assertValidObject(object: unknown): PortableSchemaId {
  * blank and nothing accepted a canvas. The alternative was an importer that
  * wrote the file itself, which would have bypassed the kind queue, the
  * id-conflict check, `writeAtomic` and the synchronous ingest that makes
- * read-after-write hold ([13 §5]). Those four are not incidental to `create()`;
+ * read-after-write hold ([21 §5]). Those four are not incidental to `create()`;
  * they are what it is.
  *
  * The codec splices our envelope into the pixels and never re-encodes them, so
@@ -638,7 +638,7 @@ export interface ChangeAttribution {
   /**
    * Whether the server stamps `provenance.updatedAt` on a real change.
    * Defaults on: `authoredAt` correctness must not depend on the client
-   * remembering to stamp ([13 §1.6]). Restore turns it off — restoring is not
+   * remembering to stamp ([21 §1.6]). Restore turns it off — restoring is not
    * authoring, and stamping would change the restored bytes and so break
    * "restoring the state you are on is a no-op".
    */
@@ -664,7 +664,7 @@ function stampProvenance(object: unknown): unknown {
  * second tab, a hand edit, the file browser — the write is refused and the
  * *current* object comes back with the error, so the UI can offer reload-and-
  * reapply or save-as-a-copy rather than guessing
- * ([04 §4.4](../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §4.4](../../../docs/design/09-server-multiuser-deployment.md)).
  */
 export async function update(
   context: LibraryContext,
@@ -685,7 +685,7 @@ export async function update(
 
     if (current.owner === 'system') {
       // App-shipped and read-only; an update would be overwritten by the next
-      // release anyway ([05 §4.2]). Copy-to-my-library is the intended move.
+      // release anyway ([10 §4.2]). Copy-to-my-library is the intended move.
       throw new LibraryError('read-only', 'System library objects cannot be edited.');
     }
     if (current.schemaId !== schemaId) {
@@ -765,7 +765,7 @@ export async function update(
       existingBytes,
     );
 
-    // **The no-op rule** ([02 §11.1]). A write that changes nothing produces no
+    // **The no-op rule** ([03 §11.1]). A write that changes nothing produces no
     // write and no version — without this, every round-trip through an editor
     // adds an identical history entry, and a restore to the current state
     // duplicates it. Byte equality, via the hash, is the honest comparison: it
@@ -819,7 +819,7 @@ export async function update(
 
 /**
  * Restores an earlier version — **an ordinary write, not a special one**
- * ([02 §11.1](../../../docs/design/02-data-model.md)): it goes through `update`, so the
+ * ([03 §11.1](../../../docs/design/03-data-model.md)): it goes through `update`, so the
  * current state is snapshotted first and going back never destroys what you
  * were on. Restoring the state you are already on falls into the no-op rule
  * and records nothing.
@@ -866,7 +866,7 @@ export async function restoreVersion(
 
 /**
  * The versions of an object, oldest first. Position is the revision number —
- * computed for display, never stored ([02 §11.5]).
+ * computed for display, never stored ([03 §11.5]).
  */
 export async function versionsOf(
   context: LibraryContext,
@@ -911,7 +911,7 @@ export async function versionPayload(
 }
 
 /**
- * Renames (sets `reason`) or pins a version record ([05 §11.2a]).
+ * Renames (sets `reason`) or pins a version record ([10 §11.2a]).
  */
 export async function amendVersion(
   context: LibraryContext,
@@ -939,7 +939,7 @@ export async function amendVersion(
 
 /**
  * The raw stored bytes of an actor's card — the avatar the editor shows and
- * does not replace ([P1 §P1.7](../../../docs/design/workplan/03-p1-implementation.md)). Only
+ * does not replace ([P1 §P1.7](../../../docs/design/workplan/07-p1-implementation.md)). Only
  * actors have pixels; any other kind is not-found rather than empty.
  */
 export async function readCardPixels(
@@ -962,7 +962,7 @@ export async function readCardPixels(
 
 /**
  * Removes an object — by moving its folder, history and all, to the user's
- * trash. Deletion is a move, not an erasure ([02 §10.2]): the retention sweep
+ * trash. Deletion is a move, not an erasure ([03 §10.2]): the retention sweep
  * and a restore surface are P11's, but nothing should be unrecoverable in the
  * meantime, least of all the history whose whole purpose is recovering from a
  * regretted action.
@@ -1024,7 +1024,7 @@ export async function remove(
      * decode are damage, and the delete is the documented repair — the If-Match
      * check above still carries the meaning that matters, *you are deleting the
      * object you were shown*, and the move is reversible through trash and
-     * version history ([02 §10.2]).
+     * version history ([03 §10.2]).
      */
     const onDisk = await readFileBytes(current.path);
     if (onDisk !== null && contentHashOf(onDisk) !== current.contentHash) {

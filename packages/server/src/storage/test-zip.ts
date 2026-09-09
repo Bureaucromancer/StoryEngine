@@ -5,7 +5,7 @@ import { deflateRawSync } from 'node:zlib';
 
 /**
  * Builds real zip archives, for tests
- * ([P4 §7.5](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.5](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **A writer in the test tree rather than a fixture blob**, and the reasoning is
  * `card/test-png.ts`'s exactly: a checked-in binary is a thing nobody can read
@@ -24,7 +24,7 @@ import { deflateRawSync } from 'node:zlib';
 export interface ZipInput {
   name: string;
   body: Uint8Array | string;
-  /** Deflate it. Default is stored, which is what [02 §5.2] specifies for ours. */
+  /** Deflate it. Default is stored, which is what [03 §5.2] specifies for ours. */
   deflate?: boolean;
 }
 

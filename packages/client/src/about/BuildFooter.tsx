@@ -20,9 +20,9 @@ import { buildLine } from './labels.js';
  * — and renders nothing rather than a placeholder that would be wrong for the
  * length of a request. `null` is known: a build nobody identified.
  *
- * The AGPL §13 source link, when publication brings it ([04 §7]), goes here:
+ * The AGPL §13 source link, when publication brings it ([09 §7]), goes here:
  * it is required to be visible to every logged-in user without hunting, which
- * a settings page is not ([05 §15.1]).
+ * a settings page is not ([10 §15.1]).
  */
 export function BuildFooter(props: { build: BuildInfo | null | undefined }): JSX.Element | null {
   if (props.build === undefined) return null;

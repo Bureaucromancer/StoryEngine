@@ -12,13 +12,13 @@ import { renameTag } from '../tags/rename.js';
 import { TagsError } from '../tags/store.js';
 
 /**
- * The tag registry's API — [25](../../../../docs/design/25-tagging.md).
+ * The tag registry's API — [05](../../../../docs/design/05-tagging.md).
  *
  * **The verb split is the safety property**, and it is worth reading before the
  * routes. `DELETE /tags/:id` removes a *registry entry* and touches nothing
  * else: the objects carrying that tag keep carrying it, and it goes on
  * filtering and gating lore exactly as before, having lost only its colour and
- * its place in the order ([25 §2] invariant 4). Anything that reaches the user's
+ * its place in the order ([05 §2] invariant 4). Anything that reaches the user's
  * files is a `POST` with a verb in the path — `/adopt` and `/:id/rename`.
  *
  * That is why deleting is safe enough to need no confirmation from this layer.
@@ -39,7 +39,7 @@ const TagBody = Type.Object(
 /**
  * **`name` is not here, and its absence is the point.**
  *
- * Renaming is not a property edit: it is the operation [25 §1] says can change
+ * Renaming is not a property edit: it is the operation [05 §1] says can change
  * which lore fires, because an `actorTagFilter` naming the old spelling stops
  * matching. It gets its own verb, with its own answer about the gates it found.
  * A `name` arriving in this body is refused by `additionalProperties: false`
@@ -71,7 +71,7 @@ const RenameBody = Type.Object(
      * **Off by default, and asked rather than assumed.** Both answers are
      * defensible — an author who wrote a gate on *noir* may have meant that tag,
      * or may have meant that word — so the surface reports what it found and
-     * lets somebody decide ([25 §1]).
+     * lets somebody decide ([05 §1]).
      */
     rewriteGates: Type.Optional(Type.Boolean()),
   },
@@ -177,7 +177,7 @@ export function registerTagRoutes(app: FastifyInstance, services: AppServices): 
   /**
    * **Removes the decoration, never the tag.**
    *
-   * Objects carrying it are untouched, which is [25 §2]'s invariant 4: losing a
+   * Objects carrying it are untouched, which is [05 §2]'s invariant 4: losing a
    * registry entry must never lose data. The tag reappears in the manager as
    * one in use with no entry, and one click adopts it again.
    */
@@ -210,7 +210,7 @@ export function registerTagRoutes(app: FastifyInstance, services: AppServices): 
    *
    * The write is O(1): an adopted object references the entry, so changing the
    * entry changes what every carrier is called without touching an object file.
-   * The question is [25 §1]'s — a lore entry's `actorTagFilter` holds author-
+   * The question is [05 §1]'s — a lore entry's `actorTagFilter` holds author-
    * written *names*, and activation compares them exactly, so a rename that
    * ignored them would silently change which lore fires. Gates are reported
    * always and rewritten only when asked.
@@ -252,7 +252,7 @@ export function registerTagRoutes(app: FastifyInstance, services: AppServices): 
 
   /**
    * **Adoption — one deliberate write across the library**, after which renaming
-   * is free ([25 §3]).
+   * is free ([05 §3]).
    *
    * A route somebody presses rather than a migration on startup. Every object it
    * touches gains a history entry, and a server that did that on first boot

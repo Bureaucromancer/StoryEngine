@@ -12,7 +12,7 @@ import { list, LibraryError, update, type LibraryContext } from '../library.js';
 import { TagsError, type TagStore } from './store.js';
 
 /**
- * Renaming a tag — [25 §1](../../../../docs/design/25-tagging.md) and §5.
+ * Renaming a tag — [05 §1](../../../../docs/design/05-tagging.md) and §5.
  *
  * **The registry write is one write, and that is the whole point of ids.** An
  * adopted object references the entry, so changing the entry changes what every

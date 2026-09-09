@@ -102,7 +102,7 @@ describe('reasonFor', () => {
   });
 
   /**
-   * **[P5 §3] step 8, and the number was always there** — [05 §11] asks the
+   * **[P5 §3] step 8, and the number was always there** — [10 §11] asks the
    * block list for *"sticky, 2 messages remaining"*, and until [P6B.1] the
    * count lived in `ScanResult.timing` and never travelled with the
    * activation. Two entries one turn and four turns from dropping out read

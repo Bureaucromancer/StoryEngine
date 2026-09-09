@@ -9,7 +9,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 
 /**
- * Login and first-run setup ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * Login and first-run setup ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)).
  *
  * Which one renders is the server's call, via `GET /api/auth/state` — no
  * accounts on disk routes every request to create-the-first-admin. Neither form

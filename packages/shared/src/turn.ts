@@ -4,24 +4,24 @@
 import type { GenerationParams } from './schema/preset.js';
 
 /**
- * The turn record — [02 §8](../../../docs/design/02-data-model.md),
- * [13 §1](../../../docs/design/13-internal-contracts.md) — as plain types the
+ * The turn record — [03 §8](../../../docs/design/03-data-model.md),
+ * [21 §1](../../../docs/design/21-internal-contracts.md) — as plain types the
  * server writes and the client reads.
  *
  * **Internal tier, deliberately, and unlike everything under `schema/`.**
- * [13 §1] and [10 §1] put these shapes in the *free to move* tier: no `schema`
+ * [21 §1] and [04 §1] put these shapes in the *free to move* tier: no `schema`
  * field, no `$id`, no entry in `PORTABLE_SCHEMAS`, no emitted JSON Schema, no
  * validation on import — changing any of it is a refactor, not a
  * compatibility event, because a turn record never crosses an install
  * boundary. They live in this package only so the client can stop re-declaring
  * them ([P3.0] — the workbench is the first surface that needs more of them
- * than a chat view does). **Session export ([06 B12]) is the event that ends
+ * than a chat view does). **Session export ([25 B12]) is the event that ends
  * this freedom**: the day a stored turn becomes a portable artefact, these
  * graduate to `schema/` and the registry, and not before.
  *
- * **`mentions` is the one field of [02 §8] still absent**, and deliberately:
+ * **`mentions` is the one field of [03 §8] still absent**, and deliberately:
  * it is an overlay of resolved actor spans over `input.text` and
- * `output.text` ([03 §8.2]), and resolving mentions is an `extract` step —
+ * `output.text` ([06 §8.2]), and resolving mentions is an `extract` step —
  * fenced to P7. Re-pointed here rather than left to be rediscovered.
  *
  * Pure types plus one constant, per this package's header rule: no I/O and no
@@ -31,7 +31,7 @@ import type { GenerationParams } from './schema/preset.js';
 
 /**
  * The roles a step can ask for. Steps name roles, never models —
- * [07 §5.1](../../../docs/design/07-tech-stack.md) — which is what makes an
+ * [19 §5.1](../../../docs/design/19-tech-stack.md) — which is what makes an
  * install portable and an extension safe to share.
  */
 export const MODEL_ROLES = [
@@ -48,7 +48,7 @@ export const MODEL_ROLES = [
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
 /**
- * A rendered message, on its way to a provider — [13 §2].
+ * A rendered message, on its way to a provider — [21 §2].
  *
  * `fromBlocks` is the requirement merging must not break: the workbench maps
  * every sent byte back to the block that produced it, and a merge that
@@ -72,7 +72,7 @@ export interface TokenUsage {
  * How a call failed, in the vocabulary the record and the UI both use.
  *
  * The class is what lets the UI offer the right recovery rather than surfacing
- * a provider string ([13 §1.4]).
+ * a provider string ([21 §1.4]).
  */
 export type ErrorClass = 'transient' | 'retryable' | 'terminal';
 
@@ -81,7 +81,7 @@ export type ErrorClass = 'transient' | 'retryable' | 'terminal';
  *
  * Narrower than any SDK's, deliberately: this is what reaches a turn record
  * and eventually a person, and a class travels where a provider's own string
- * must not ([13 §1.4]).
+ * must not ([21 §1.4]).
  */
 export type FinishReason = 'stop' | 'length' | 'filtered' | 'tool' | 'unknown';
 
@@ -89,7 +89,7 @@ export type DrawKind =
   'int' | 'float' | 'bool' | 'chance' | 'pick' | 'weightedPick' | 'shuffle' | 'dice';
 
 /**
- * One recorded draw — [07 §14.6](../../../docs/design/07-tech-stack.md).
+ * One recorded draw — [19 §14.6](../../../docs/design/19-tech-stack.md).
  *
  * `detail` is what makes the workbench legible: `skill-check:persuasion d20 →
  * 7` rather than an anonymous list of numbers.
@@ -114,7 +114,7 @@ export type Tape = Draw[];
 
 /**
  * Where a block came from — **one vocabulary, used from both ends**
- * ([13 §1.1]). A preset slot names a source, the assembler fills it, and the
+ * ([21 §1.1]). A preset slot names a source, the assembler fills it, and the
  * resulting block records where it came from: same names, both ends. The
  * identifiers are what make provenance clickable — *which* lore entry, not "a
  * lore entry".
@@ -149,7 +149,7 @@ export type BlockSource =
    */
   | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
   /**
-   * One writing sample, from whichever kind carried it — [10 §3.1].
+   * One writing sample, from whichever kind carried it — [04 §3.1].
    *
    * `owner` rather than a bare `actorId` because the sample slot outgrew the
    * actor: a Treatment and a Lorebook carry samples too, and the block table
@@ -171,13 +171,13 @@ export type BlockSource =
   | { kind: 'treatment'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
   /**
-   * The guidance slot — [03 §5.1]. `producer` because one slot has several
+   * The guidance slot — [06 §5.1]. `producer` because one slot has several
    * producers — the user's box, a rule's `giveGuidance`, a Narrative Director
    * push — and the workbench should say which.
    */
   | { kind: 'guidance'; producer: 'user' | 'rule' | 'step' }
   /**
-   * The previous attempt a guided redo showed the model — [03 §5.1], [09 §7].
+   * The previous attempt a guided redo showed the model — [06 §5.1], [07 §7].
    *
    * `turnId` names the sibling whose output was shown, which is what makes
    * *what did the instruction refer to* answerable from the record rather than
@@ -198,7 +198,7 @@ export type BlockSource =
    * A block the preset authored, rather than a slot it positioned.
    *
    * `presetId` is optional and arrived at P4.4 ([P4 §2]): a session's pack is a
-   * *copy* ([02 §8]), so for a long time there was nothing on the other end of a
+   * *copy* ([03 §8]), so for a long time there was nothing on the other end of a
    * link — but a copy keeps the id of the object it was copied from, which
    * means an **imported** preset's blocks can point back at the file they came
    * out of. That is what the phase's demo turns on: reading a converted preset's
@@ -213,7 +213,7 @@ export type BlockSource =
   | { kind: 'step'; stepId: string };
 
 /**
- * A call's declared appetite — [03 §6]. `effects` and `verdict` are the two
+ * A call's declared appetite — [06 §6]. `effects` and `verdict` are the two
  * that may not see advisory content. (`CallPurpose`, not `CallKind` — that
  * name is taken by the portable `appliesTo` vocabulary in `schema/preset`.)
  */
@@ -254,7 +254,7 @@ export interface NotFilledSlot {
   reason: NotFilledReason;
 }
 
-/** A candidate the budgeter has ruled on — [02 §8]. */
+/** A candidate the budgeter has ruled on — [03 §8]. */
 export interface AssembledBlock {
   id: string;
   source: BlockSource;
@@ -278,7 +278,7 @@ export interface AssembledBlock {
 
 /**
  * The window a turn may spend, and the honest account of where it came from —
- * [13 §1.5], reshaped by [P3.0]. `source` names the origin of the **ceiling**
+ * [21 §1.5], reshaped by [P3.0]. `source` names the origin of the **ceiling**
  * — whichever side won: the endpoint's declared window, the preset's absolute
  * cap, or the config default (`'user'`, live-editable). The preset's
  * `contextShare` narrows the ceiling to `tokens` without relabelling it.
@@ -296,7 +296,7 @@ export interface BudgetLimit {
   share?: number;
 }
 
-/** [13 §1.5]. */
+/** [21 §1.5]. */
 export interface BudgetVerdict {
   limit: BudgetLimit;
   /** Held back for the completion. */
@@ -321,7 +321,7 @@ export interface BudgetVerdict {
 }
 
 /**
- * One model call — [13 §1.4].
+ * One model call — [21 §1.4].
  *
  * `resolved` records what the role actually became, because the binding can
  * change between turns and *"why is this turn different"* needs an answer.
@@ -337,7 +337,7 @@ export interface ModelCall {
    * **The four fields below arrived together at [P3.0], and are optional for
    * one reason: a record on disk may be older than this build.**
    *
-   * *Free to move* ([10 §1]) says the shape may change without ceremony, and
+   * *Free to move* ([04 §1]) says the shape may change without ceremony, and
    * it does — but it never said the files vanish. Every install that ran P2
    * has turns whose calls predate this repair sitting in its data directory,
    * and a reader is a reader over **what is on disk**, not over what today's
@@ -348,7 +348,7 @@ export interface ModelCall {
    * The alternative — backfilling `[]` on read — was refused: it would say
    * *this call assembled no blocks*, a claim about the prompt, when the truth
    * is *nobody recorded them*, a claim about the build. That is exactly the
-   * absent-versus-empty line [02 §8] draws and the workbench is built on.
+   * absent-versus-empty line [03 §8] draws and the workbench is built on.
    *
    * **This build always writes all four**; the runner mints a `ModelCall`
    * only downstream of assembly, including the provisional in-flight entry it
@@ -366,7 +366,7 @@ export interface ModelCall {
   resolved: { connectionId: string; modelId: string };
   /**
    * The blocks this call assembled and the verdict that ruled them — [P3.0],
-   * making [05 §3]'s *"one per model call"* the shape rather than a promise.
+   * making [10 §3]'s *"one per model call"* the shape rather than a promise.
    * The turn's blocks are a derived union — readers fold over
    * `request.calls`; nothing stores the union.
    */
@@ -410,14 +410,14 @@ export interface ModelCall {
 export type StepFailureReason =
   ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
 
-/** Why a step did not run. [03 §6]'s three condition arms, from the other side. */
+/** Why a step did not run. [06 §6]'s three condition arms, from the other side. */
 export type StepSkipReason = 'cadence' | 'stage' | 'not-armed';
 
 export type StepStage = 'pre' | 'assemble' | 'generate' | 'extract' | 'post';
 
 /**
  * What one step did — the durable counterpart of the `step.*` progress
- * events. [04 §3.3] opens by saying the live view **is** the turn record
+ * events. [09 §3.3] opens by saying the live view **is** the turn record
  * being built, which only holds if every progress event has somewhere durable
  * to land.
  */
@@ -434,7 +434,7 @@ export interface StepOutcome {
 }
 
 /**
- * What was assembled and asked for — [02 §8]'s `request`.
+ * What was assembled and asked for — [03 §8]'s `request`.
  *
  * Just the calls since [P3.0]: each carries its own blocks and verdict, so a
  * turn-level table would be either a copy or a lie. Absent on the turn when
@@ -458,7 +458,7 @@ export interface TurnCost {
 }
 
 /**
- * One effect on one channel — [13 §1.2], the most load-bearing type in that
+ * One effect on one channel — [21 §1.2], the most load-bearing type in that
  * document. It carries reversibility, it crosses the worker boundary, it is
  * what a branch replays and what undo inverts — which is why `before` is
  * stored rather than derived.
@@ -487,7 +487,7 @@ export interface ChannelEffect {
    */
   rejectedReason: string | null;
   /**
-   * The effect this one replaced — [P3.0], and [05 §3]'s third outcome: when
+   * The effect this one replaced — [P3.0], and [10 §3]'s third outcome: when
    * the engine's own computation lands on a channel a same-turn proposal was
    * refused for, this carries the refusal's id. Null is data: this effect
    * superseded nothing.
@@ -509,7 +509,7 @@ export type EffectOp =
   | { type: 'append'; path: string }
   | { type: 'increment'; path: string; by: number };
 
-/** [13 §1.3]. */
+/** [21 §1.3]. */
 export interface ChannelState {
   /** Which schema version the value was written against. */
   version: number;
@@ -518,7 +518,7 @@ export interface ChannelState {
    * Set when load-time validation failed and the value was quarantined.
    *
    * **No writer exists yet, and that is a recorded decision** ([P3.0]):
-   * `ChannelDefinition` ships without `schema` ([13 §6] refuses to invent it
+   * `ChannelDefinition` ships without `schema` ([21 §6] refuses to invent it
    * ahead of the mode contract), so a guard on a validation that cannot fail
    * would be dead code impersonating a mechanism. The writer arrives with the
    * first `ChannelDefinition.schema`; the panel renders the field whenever
@@ -528,7 +528,7 @@ export interface ChannelState {
 }
 
 /**
- * One turn, as it is written to a segment — [02 §8].
+ * One turn, as it is written to a segment — [03 §8].
  *
  * `parentTurnId` from the very first turn: the turn store is a tree that P2
  * happens to use linearly. `request`, `output`, `cost` and `steps` are
@@ -549,14 +549,14 @@ export interface Turn {
   cost?: TurnCost;
   steps?: StepOutcome[];
   effects: ChannelEffect[];
-  /** Every draw the turn consumed, keyed by site ([07 §14.6]). */
+  /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;
   /** A tombstone the reader skips. */
   removed?: true;
 }
 
 /**
- * A name bookmarking a node — [09 §3](../../../docs/design/09-branching.md), and
+ * A name bookmarking a node — [07 §3](../../../docs/design/07-branching.md), and
  * *a name, nothing more*.
  *
  * **There is no `Branch` entity owning turns**, which is the decision that

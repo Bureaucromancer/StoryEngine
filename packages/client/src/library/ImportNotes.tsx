@@ -45,7 +45,7 @@ export function ImportNotes({ rows }: { rows: ObjectImportNotes[] }): JSX.Elemen
             <Panel key={row.jobId} variant="inset">
               {/*
                * The file it came from, named relative to the sweep root — never
-               * absolutely, which is [13 §4.1]'s foreign-path doctrine: the root
+               * absolutely, which is [21 §4.1]'s foreign-path doctrine: the root
                * is recorded once, on the job, and a per-item absolute path turns
                * a page somebody screenshots into a description of their disk.
                */}

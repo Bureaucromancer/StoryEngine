@@ -18,7 +18,7 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Lorebook — docs/design/10-schemas.md §5.
+ * Lorebook — docs/design/04-schemas.md §5.
  *
  * Entry activation is taken from Marinara close to unchanged, because it is a
  * decade of empirical tuning and it is the interchange format. The changes are
@@ -26,8 +26,8 @@ import { PlotHook } from './hook.js';
  * activation hook, `stateSchema`, and images (§5.1).
  *
  * **The comment banners over `LoreEntry`'s field groups are annotations now**,
- * not comments — see [banners.ts](./banners.ts). [05 §11.2d] builds the entry
- * editor's disclosures from them and [05 §5.3] renders the same groups in the
+ * not comments — see [banners.ts](./banners.ts). [10 §11.2d] builds the entry
+ * editor's disclosures from them and [10 §5.3] renders the same groups in the
  * book page's read-only fold, and a comment cannot be read at runtime, so the
  * grouping would otherwise have had to be written down a second time. The
  * banner sits on the field that opens each group, which is where the comment
@@ -66,10 +66,10 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * something above the session ever contributes books — a Worlds concept, with
  * inheritance — that is the shape that would give this field a consumer again,
  * and it should be designed rather than inferred from the union's wording.
- * [19 §5.3](../../../../docs/design/19-world.md) is where that gets decided.
+ * [15 §5.3](../../../../docs/design/15-world.md) is where that gets decided.
  *
  * **Two questions are open and written down rather than left to be
- * re-derived**, both in [06](../../../../docs/design/06-open-questions.md):
+ * re-derived**, both in [25](../../../../docs/design/25-open-questions.md):
  *
  * - **§B14** — may this field *narrow* a book the session has already chosen?
  *   A `linked` book that a session selected could reasonably go quiet when none
@@ -247,7 +247,7 @@ export const LoreEntry = Type.Object(
 
     /**
      * Pictures of the thing this entry describes
-     * ([10 §5.1](../../../../docs/design/10-schemas.md)).
+     * ([04 §5.1](../../../../docs/design/04-schemas.md)).
      *
      * ⚠ **MEDIA DOES NOT ACTIVATE.** An entry firing on a keyword contributes
      * its *text*. Its images are not retrieved, not budgeted and not sent — at
@@ -304,7 +304,7 @@ export const Lorebook = Type.Object(
      * Prose from this world, offered as an exemplar — §WritingSample.
      *
      * **This field overrides a standing refusal, and the override is recorded
-     * rather than quietly taken.** [16 §4](../../../../docs/design/16-lorebooks-as-a-format.md)
+     * rather than quietly taken.** [11 §4](../../../../docs/design/11-lorebooks-as-a-format.md)
      * refuses new lorebook fields by name, and the argument was a count: eleven
      * activation fields already ship, validate and round-trip while nothing
      * reads them as the field they are, so adding a twelfth would be "buying
@@ -333,7 +333,7 @@ export const Lorebook = Type.Object(
 
     /**
      * Organisational, and the only such axis — a closed `category` union was
-     * removed rather than renamed ([02 §3.4](../../../../docs/design/02-data-model.md)).
+     * removed rather than renamed ([03 §3.4](../../../../docs/design/03-data-model.md)).
      * Free text, per the same argument that keeps `LoreEntry.tag` open.
      */
     tags: Type.Array(Type.String()),
@@ -341,7 +341,7 @@ export const Lorebook = Type.Object(
     tagIds: Type.Optional(TagIdList),
     /**
      * The book's gallery — maps, establishing shots, style references for the
-     * world as a whole ([10 §5.1](../../../../docs/design/10-schemas.md)).
+     * world as a whole ([04 §5.1](../../../../docs/design/04-schemas.md)).
      */
     media: Type.Array(EmbeddedMedia),
     /**
@@ -358,7 +358,7 @@ export const Lorebook = Type.Object(
      * Bulk, in the folder rather than the manifest. Parity with Actor, and the
      * schema catching up to a layout that already listed
      * `lorebooks/<slug>/lorebook.json + assets/`
-     * ([02 §5.1](../../../../docs/design/02-data-model.md)).
+     * ([03 §5.1](../../../../docs/design/03-data-model.md)).
      */
     assets: Type.Array(AssetRef),
     provenance: Provenance,

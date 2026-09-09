@@ -11,7 +11,7 @@ import { table } from '../../ui/classes.js';
 import { Fine } from '../../ui/Text.js';
 
 /**
- * **The keyword test, generalised** — [P5.8], [05 §3].
+ * **The keyword test, generalised** — [P5.8], [10 §3].
  *
  * §3 describes Marinara's panel as *paste sample text, see which entries would
  * fire*, and asks for it *as a workbench feature over the whole assembly,
@@ -216,10 +216,10 @@ function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
 /**
  * Tokens spent against the book's allowance — [P6B.1].
  *
- * **Zero is unlimited** ([10 §5], and the schema says so), so the pair that
+ * **Zero is unlimited** ([04 §5], and the schema says so), so the pair that
  * reads correctly everywhere else reads *412 / 0* on exactly the books that had
  * no limit at all. One string rather than a cell assembled around two values,
- * which is the shape [07 §12.6a] forbids and also the only way to make the
+ * which is the shape [19 §12.6a] forbids and also the only way to make the
  * denominator conditional without splitting the sentence.
  */
 export function budgetCell(spent: number, budget: number): string {

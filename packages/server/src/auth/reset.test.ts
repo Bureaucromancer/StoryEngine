@@ -105,7 +105,7 @@ describe('readNewPassword', () => {
   });
 
   it('accepts a password no web form would', async () => {
-    // The console enforces no minimum, including the configured one ([04 §5.1]).
+    // The console enforces no minimum, including the configured one ([09 §5.1]).
     // Whoever can run this against the data directory can already read it, so a
     // length argument here would only send them to `accounts.json` by hand.
     const input = new PassThrough();

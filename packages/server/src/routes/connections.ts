@@ -23,8 +23,8 @@ import { readFileBytes } from '../storage/files.js';
 
 /**
  * System connections and the install default bindings —
- * [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md) stage P2B.2.
+ * [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md) stage P2B.2.
  *
  * Registered inside the `/api/admin` plugin, so the guard is the prefix's and
  * nothing here checks a role — [P2A §2.4] commits to never adding a per-handler
@@ -57,7 +57,7 @@ const CONNECTION_FIELDS = {
 const ConnectionBody = Type.Object(CONNECTION_FIELDS, { additionalProperties: false });
 
 /**
- * An edit presents what it read — [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ * An edit presents what it read — [P2B §6](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  *
  * Required rather than optional, because an optional guard is not one: a client
  * that omitted it would get the old behaviour, which is the behaviour this
@@ -78,7 +78,7 @@ const EditBody = Type.Object(
 const IdParams = Type.Object({ id: Type.String({ minLength: 1, maxLength: 200 }) });
 
 /**
- * The two models a first run answers with — [07 §5.1](../../../../docs/design/07-tech-stack.md)'s
+ * The two models a first run answers with — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
  * *a good one and a cheap one*.
  *
  * Sent as two bindings rather than as eight, because the eight are policy
@@ -109,7 +109,7 @@ const DefaultsBody = Type.Object(
 );
 
 /**
- * The whole document, under a hash — [P2B §6](../../../../docs/design/workplan/14-p2b-provider-configuration.md).
+ * The whole document, under a hash — [P2B §6](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  *
  * A whole document rather than a patch per role: eight roles is not a chatty
  * write path, and a wrong binding stops turns rather than collapsing a pane. The
@@ -308,7 +308,7 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
       });
       /**
        * **A refused key is not an unreachable endpoint** — finding 5 in
-       * [16](../../../../docs/design/workplan/16-p2c-log.md). Both answered
+       * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). Both answered
        * `502 unreachable`, and the remedies point in opposite directions: an
        * admin told *unreachable* checks the URL and the network, when what is
        * wrong is the one field this response cannot name. Adding a connection
@@ -345,14 +345,14 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
   });
 
   /**
-   * What every role will do — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+   * What every role will do — [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
    * stage P2B.3, and the route the role table could not be built without.
    *
    * **Which layer won is computed here, because it is only computable here.**
    * It is a local in `resolveRole`, it is deliberately absent from the turn
-   * record ([13 §1.4] specifies no such field), and before this nothing
+   * record ([21 §1.4] specifies no such field), and before this nothing
    * returned it — so a table showing it would have had to reimplement
-   * [07 §5.1]'s layering in the browser, against two binding maps it would also
+   * [19 §5.1]'s layering in the browser, against two binding maps it would also
    * have had to fetch. That is a second copy of the resolution order living in
    * a different language from the first.
    *

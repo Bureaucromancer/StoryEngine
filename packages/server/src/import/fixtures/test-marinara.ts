@@ -5,7 +5,7 @@ import { makePng } from '../../storage/card/test-png.js';
 
 /**
  * A synthesised Marinara data root
- * ([P4 §1.2](../../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.2](../../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **A data root rather than a folder of files**, because that is what a Marinara
  * library is: a relational store written as JSON, where one file holds many rows

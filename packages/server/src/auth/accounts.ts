@@ -17,16 +17,16 @@ import { assertValidHandle, type Layout } from '../storage/layout.js';
 import { hashPassword, verifyPassword } from './secrets.js';
 
 /**
- * Accounts — docs/design/04-server-multiuser-deployment.md §4.2.
+ * Accounts — docs/design/09-server-multiuser-deployment.md §4.2.
  *
  * **Authoritative state, so a file and never an index row**
- * ([P1 §1.3](../../../../docs/design/workplan/03-p1-implementation.md)). Deleting `index.sqlite` has
- * to stay a non-event ([13 §5](../../../../docs/design/13-internal-contracts.md)), and it
+ * ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)). Deleting `index.sqlite` has
+ * to stay a non-event ([21 §5](../../../../docs/design/21-internal-contracts.md)), and it
  * cannot be if losing it logs everyone out — or worse, loses the only admin.
  *
  * It sits at `data/accounts.json`, **outside every user directory**, so the file
  * browser can never serve a password hash whatever `fileAccess` a user is
- * granted ([05 §4.2.1](../../../../docs/design/05-ui-surfaces.md)). That section is worth
+ * granted ([10 §4.2.1](../../../../docs/design/10-ui-surfaces.md)). That section is worth
  * reading: an earlier draft rooted file access at the user's own directory and
  * thereby handed anyone with write access a one-line path to `role: "admin"`.
  *
@@ -36,34 +36,34 @@ import { hashPassword, verifyPassword } from './secrets.js';
 
 /**
  * Flat, enumerated, and deliberately not a role system
- * ([04 §4.2.1](../../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §4.2.1](../../../../docs/design/09-server-multiuser-deployment.md)).
  *
  * The record was written at P1 because it is a persisted shape, and a persisted
  * shape added later is a migration over user data
  * ([work plan §2.1](../../../../docs/design/workplan/01-work-plan.md)). Enforcement was deferred on the
  * same reasoning — it is additive — and this comment said so until
- * [P2A](../../../../docs/design/workplan/13-p2a-configuration-surface.md) made the deferral false.
+ * [P2A](../../../../docs/design/workplan/09-p2a-configuration-surface.md) made the deferral false.
  *
  * **`privateConnections` is enforced now**, in `turns/runner.ts`, where
- * connections resolve. Never at the UI: [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)
+ * connections resolve. Never at the UI: [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md)
  * calls the loader-level check the load-bearing one precisely because a
  * UI-level one is a trivial bypass for anyone with `fileAccess: "write"`.
  *
  * The move was forced rather than opportunistic. A screen that *grants* a
- * capability changes the argument, because [01 §2.2] forbids building a system
+ * capability changes the argument, because [work plan §2.2] forbids building a system
  * whose only purpose is to be replaced — and a switch labelled *may add their
  * own provider keys* that adds nothing is not a small version of the real
  * thing, it is a false front.
  *
  * ~~**`fileAccess` and `enableExtensions` still gate nothing**~~ **`fileAccess`
- * gates the import sweep, since P4.4** ([05 §4.2.2](../../../../docs/design/05-ui-surfaces.md)).
+ * gates the import sweep, since P4.4** ([10 §4.2.2](../../../../docs/design/10-ui-surfaces.md)).
  * `routes/import.ts` refuses `POST /api/import/sweep` when it reads `none`, so
  * the capability is enforced at the route the way `privateConnections` is
  * enforced at the loader — which is what moved it out of the settings surface's
  * *recorded for later* group at the P4 audit, three weeks after the enforcement
  * landed without it.
  *
- * The widening is deliberate and is argued in [05 §4.2.2] rather than implied
+ * The widening is deliberate and is argued in [10 §4.2.2] rather than implied
  * here: the capability was written for a file browser over the user's **own**
  * directory, and it now also permits naming a path **outside** `/data` for a
  * read-only sweep. `storage/local-source.ts` carves `/data` out so the two
@@ -86,8 +86,8 @@ export const Capabilities = Type.Object(
      */
     privateConnections: Type.Boolean({ default: true }),
     /**
-     * Two grants under one name ([05 §4.2](../../../../docs/design/05-ui-surfaces.md),
-     * [§4.2.2](../../../../docs/design/05-ui-surfaces.md)): an in-UI file
+     * Two grants under one name ([10 §4.2](../../../../docs/design/10-ui-surfaces.md),
+     * [§4.2.2](../../../../docs/design/10-ui-surfaces.md)): an in-UI file
      * browser over their own directory, which is unbuilt, and — for anything
      * above `none` — naming a host path outside `/data` for a read-only import
      * sweep, which ships. The second is why the default is `none` and why the
@@ -96,7 +96,7 @@ export const Capabilities = Type.Object(
     fileAccess: Type.Union([Type.Literal('none'), Type.Literal('read'), Type.Literal('write')], {
       default: 'none',
     }),
-    /** May enable installed extensions. Installing stays admin-only ([12 §7]). */
+    /** May enable installed extensions. Installing stays admin-only ([22 §7]). */
     enableExtensions: Type.Boolean({ default: false }),
   },
   { title: 'Capabilities' },
@@ -123,7 +123,7 @@ export const Account = Type.Object(
      *
      * Here at P1 because push notifications are rendered by the server with the
      * app closed, so it must know each user's language
-     * ([07 §12.5](../../../../docs/design/07-tech-stack.md)) — cheap now, a migration later.
+     * ([19 §12.5](../../../../docs/design/19-tech-stack.md)) — cheap now, a migration later.
      */
     locale: Type.Union([Type.String(), Type.Null()]),
     capabilities: Capabilities,
@@ -254,7 +254,7 @@ export class Accounts {
    *
    * **First-run setup gates everything** — until an admin account exists, every
    * route except setup returns the setup flow
-   * ([04 §5.1](../../../../docs/design/04-server-multiuser-deployment.md)). Combined with
+   * ([09 §5.1](../../../../docs/design/09-server-multiuser-deployment.md)). Combined with
    * the loopback default this closes the claim window on bare-metal installs.
    */
   async needsSetup(): Promise<boolean> {
@@ -290,7 +290,7 @@ export class Accounts {
     capabilities?: Partial<Capabilities>;
   }): Promise<PublicAccount> {
     // The handle becomes a directory name, so it is checked here rather than
-    // trusted from wherever it arrived ([04 §4.3]: the path is the owner).
+    // trusted from wherever it arrived ([09 §4.3]: the path is the owner).
     assertValidHandle(input.handle);
 
     const file = await this.#read();
@@ -343,7 +343,7 @@ export class Accounts {
   }
 
   /**
-   * What an account may change about **itself** — [05 §15.1].
+   * What an account may change about **itself** — [10 §15.1].
    *
    * A separate method from {@link update} rather than one method with a flag,
    * and the difference is the type: this signature *cannot express* a role,
@@ -374,7 +374,7 @@ export class Accounts {
   }
 
   /**
-   * What an admin may change about anyone — [05 §15.2].
+   * What an admin may change about anyone — [10 §15.2].
    *
    * Everything {@link updateSelf} covers, plus the three fields that are
    * somebody else's business: the role, the enabled flag, and the capability
@@ -479,7 +479,7 @@ export class Accounts {
    * **The break-glass path.** Its only caller is the `--reset-password` flag
    * on the server binary, which means the authority behind it is host access —
    * and anyone who can read `data/` owns the install already
-   * ([04 §4.1](../../../../docs/design/04-server-multiuser-deployment.md)), so this adds no
+   * ([09 §4.1](../../../../docs/design/09-server-multiuser-deployment.md)), so this adds no
    * authority that did not exist. At 1.0 the *norm* is an admin resetting an
    * account through the UI (P10); this remains the rung beneath it, for when
    * no usable admin account exists.

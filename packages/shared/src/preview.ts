@@ -33,7 +33,7 @@ export type UnmeasurableReason = 'role-unbound' | 'role-dangling' | 'no-prose-st
 /**
  * What the retriever did, and — mostly — what it declined to do.
  *
- * **This is the whole substance of [P5.8]'s keyword tester**, which [05 §3]
+ * **This is the whole substance of [P5.8]'s keyword tester**, which [10 §3]
  * describes as *paste sample text, see which entries would fire*, generalised
  * to the whole assembly. The tester needs no endpoint of its own: sample text
  * *is* an input, so it previews with it, and what it renders is this.
@@ -81,7 +81,7 @@ export interface LoreBookRow {
    * nobody selected is not in the prompt, whatever its own fields say.
    */
   by: 'treatment' | 'session';
-  /** What its own two limits allowed and what they spent — [02 §3.2]. */
+  /** What its own two limits allowed and what they spent — [03 §3.2]. */
   tokenBudget: number;
   tokensSpent: number;
   entryLimit: number;

@@ -18,7 +18,7 @@ import {
 } from './tags.js';
 
 /**
- * The tag registry's vocabulary — [25](../../../docs/design/25-tagging.md).
+ * The tag registry's vocabulary — [05](../../../docs/design/05-tagging.md).
  *
  * The subject throughout is **tolerance**. This document is hand-editable by
  * design, like everything else in the data directory, and what it holds is
@@ -47,7 +47,7 @@ describe('a tag name', () => {
 
   /**
    * **Case is the author's.** Folding it here would make the registry decide
-   * how names look, which is the one thing [25 §2] says it may not do — and it
+   * how names look, which is the one thing [05 §2] says it may not do — and it
    * would silently rewrite `NPC` to `npc` on the way to disk.
    */
   it('keeps the case it was written in', () => {
@@ -159,8 +159,8 @@ describe('reading a registry off disk', () => {
 });
 
 /**
- * Open strings, read through helpers — [25 §4], and the rule
- * [10 §8.2](../../../docs/design/10-schemas.md) generalises: a portable enum is
+ * Open strings, read through helpers — [05 §4], and the rule
+ * [04 §8.2](../../../docs/design/04-schemas.md) generalises: a portable enum is
  * a documented string, not an `enum`, unless the engine cannot proceed without
  * understanding it. Nothing proceeds on a swatch or a folder mode.
  */
@@ -196,7 +196,7 @@ describe('looking a tag up', () => {
 
   /**
    * **Null, not a throw, and not a minted entry.** A tag an object carries with
-   * no registry row is [25 §2]'s invariant 4 — normal, not an error — so the
+   * no registry row is [05 §2]'s invariant 4 — normal, not an error — so the
    * lookup has to have a quiet answer for it.
    */
   it('answers null for a tag it does not know', () => {
@@ -206,7 +206,7 @@ describe('looking a tag up', () => {
 });
 
 /**
- * Resolution — [25 §3](../../../docs/design/25-tagging.md), and the rule that
+ * Resolution — [05 §3](../../../docs/design/05-tagging.md), and the rule that
  * lets a name copy lag safely behind a rename.
  *
  * Every case here is a way the two arrays can disagree, because that is the

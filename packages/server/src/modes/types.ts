@@ -6,7 +6,7 @@ import type { Preset } from '@storyengine/shared';
 import type { ChannelDefinition, StepDefinition, StepImplementation } from './contract.js';
 
 /**
- * A mode's manifest — [03 §2](../../../../docs/design/03-modes-and-turn-pipeline.md).
+ * A mode's manifest — [06 §2](../../../../docs/design/06-modes-and-turn-pipeline.md).
  *
  * **Not one function anywhere on this type, and that is the contract rather
  * than a style.** §2 says a built-in mode needing a back door means the contract
@@ -17,7 +17,7 @@ import type { ChannelDefinition, StepDefinition, StepImplementation } from './co
  * implementation of the same thing.
  *
  * So a mode is data. What it *runs* is named by step id and looked up
- * separately, which is the split [12 §3] draws and what becomes a worker
+ * separately, which is the split [22 §3] draws and what becomes a worker
  * dispatch table at P7.
  */
 export interface ModeDefinition {
@@ -34,7 +34,7 @@ export interface ModeDefinition {
   displayName: string;
 
   /**
-   * [03 §3]'s two axes, fixed per mode at P2.6 ([P2 §2.4] names both).
+   * [06 §3]'s two axes, fixed per mode at P2.6 ([P2 §2.4] names both).
    *
    * **Neither has an engine consumer at this stage, and saying so is the point.**
    * §2.4 enumerates them as part of what the mode declares, and §3 makes them a
@@ -48,7 +48,7 @@ export interface ModeDefinition {
   dispatch: 'merged' | 'per-actor';
 
   /**
-   * **Named configurations of this mode** — [03 §1]'s *freeform* / *campaign*.
+   * **Named configurations of this mode** — [06 §1]'s *freeform* / *campaign*.
    *
    * Not the portable prompt-pack `Preset`: two different things one word apart,
    * and the same collision that forced the assembler's `CallKind` to be renamed
@@ -59,7 +59,7 @@ export interface ModeDefinition {
   participants: ParticipantPolicy;
   assembly: AssemblyPlan;
   steps: readonly StepDefinition[];
-  /** Channels this mode **enables**. It does not implement them ([03 §4]). */
+  /** Channels this mode **enables**. It does not implement them ([06 §4]). */
   channels: readonly ChannelDefinition[];
   /**
    * Input kinds this mode accepts — `do`, `say`, `think`, `story`, `choice`.
@@ -72,7 +72,7 @@ export interface ModeDefinition {
   setup: SetupSchema;
 }
 
-/** `config` is opaque and never interpreted by the host ([10 §7]). */
+/** `config` is opaque and never interpreted by the host ([04 §7]). */
 export interface ModePreset {
   id: string;
   config: unknown;
@@ -85,7 +85,7 @@ export interface ModePreset {
  * `select: 'fixed'` is load-bearing rather than decorative: it is **the
  * declaration that the cast cannot change as an outcome of a turn**, which is
  * what licenses a plain `cast` field on the session instead of an `se.party`
- * channel — the channel [P2 §2.7] rejected as placeholder-shaped. [03 §7.2]'s
+ * channel — the channel [P2 §2.7] rejected as placeholder-shaped. [06 §7.2]'s
  * fuller taxonomy adds arms here at P7; it does not change this shape.
  */
 export interface ParticipantPolicy {
@@ -94,7 +94,7 @@ export interface ParticipantPolicy {
 }
 
 /**
- * [03 §5]: declares ordering constraints and budget policy, and does not build
+ * [06 §5]: declares ordering constraints and budget policy, and does not build
  * strings.
  *
  * Both live in the preset — the order *is* the block order, the budget *is*
@@ -112,12 +112,12 @@ export interface AssemblyPlan {
 }
 
 /**
- * The wizard, declared rather than coded ([03 §2]).
+ * The wizard, declared rather than coded ([06 §2]).
  *
  * A real state, and session creation is its consumer: POST /api/sessions
  * resolves the mode and writes a null config without asking anybody anything,
  * which is exactly what a no-wizard mode means. The field vocabulary a *real*
- * wizard needs is P7's, and guessing it is what [13 §6] refuses to do for
+ * wizard needs is P7's, and guessing it is what [21 §6] refuses to do for
  * `WidgetSpec`.
  */
 export interface NoSetup {
@@ -132,8 +132,8 @@ export interface NoSetup {
 export type SetupSchema = NoSetup;
 
 /**
- * [03 §9]'s three regions. What a contribution *renders* is a `WidgetSpec`,
- * which [13 §6] keeps deliberately absent — so this names the slot and carries
+ * [06 §9]'s three regions. What a contribution *renders* is a `WidgetSpec`,
+ * which [21 §6] keeps deliberately absent — so this names the slot and carries
  * no payload.
  */
 export interface SurfaceContribution {
@@ -141,7 +141,7 @@ export interface SurfaceContribution {
 }
 
 /**
- * The manifest, plus what its declared step ids actually run — [12 §3]'s split.
+ * The manifest, plus what its declared step ids actually run — [22 §3]'s split.
  *
  * `definition` crosses any boundary unchanged; `run` is the half that becomes a
  * dispatch table when steps move to a worker. The built-in mode goes through the

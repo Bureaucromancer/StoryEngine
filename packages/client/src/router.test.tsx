@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { router, validateObjectSearch } from './router.js';
 
 /**
- * The library moved from `/` to `/library` — [05 §2.2] makes `/` the address
+ * The library moved from `/` to `/library` — [10 §2.2] makes `/` the address
  * home will take, and the library is explicitly not the answer to arrival.
  *
  * Driving the real router rather than asserting on the route table: the table
@@ -34,7 +34,7 @@ describe('the root address', () => {
  * The object route's search params — [P5.0], and the first test this file has
  * ever had about one.
  *
- * **Two jobs in one bag**, which [05 §5.3] asks be said out loud where it is
+ * **Two jobs in one bag**, which [10 §5.3] asks be said out loud where it is
  * read: `slug` and `source` name *which copy* of a duplicated id (F19), and
  * `entry` names *which part* of that object. A reader who takes `entry` for a
  * third disambiguator will be wrong quietly, so the shapes are pinned here as

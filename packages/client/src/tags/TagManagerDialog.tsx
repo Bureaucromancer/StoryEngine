@@ -15,7 +15,7 @@ import { TagChip } from '../ui/TagChip.js';
 import { TAG_SWATCH_STYLES, tagClassFor } from '../ui/tag-colors.js';
 
 /**
- * The tag manager — [25 §5](../../../../docs/design/25-tagging.md).
+ * The tag manager — [05 §5](../../../../docs/design/05-tagging.md).
  *
  * **Tags in use with no registry entry are rows too**, listed after the
  * registered ones. That is invariant 1 made visible rather than merely
@@ -23,7 +23,7 @@ import { TAG_SWATCH_STYLES, tagClassFor } from '../ui/tag-colors.js';
  * opinions about, and the way to give one an opinion is a button rather than a
  * migration.
  *
- * **Renaming asks about lore before it happens.** It is the operation [25 §1]
+ * **Renaming asks about lore before it happens.** It is the operation [05 §1]
  * says can change which lore fires, because an entry's `actorTagFilter` holds
  * author-written names and activation compares them exactly. So the surface
  * finds the gates first, says how many, and only rewrites them if told to —
@@ -43,7 +43,7 @@ const SORTS: readonly (readonly [TagSortMode, string])[] = [
   ['count', 'Most used'],
 ];
 
-/** The three folder modes, cycled by one control ([25 §5]). */
+/** The three folder modes, cycled by one control ([05 §5]). */
 const FOLDER_NEXT: Record<TagFolder, TagFolder> = {
   none: 'open',
   open: 'closed',
@@ -89,7 +89,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
    * Manual order is the stored order; the other two are views over it.
    *
    * Which view you are looking at is a preference and never touches the
-   * document — [25 §5]'s split, and what keeps a glance at *most used* from
+   * document — [05 §5]'s split, and what keeps a glance at *most used* from
    * silently rewriting somebody's arrangement.
    */
   const shown = useMemo(() => {
@@ -162,7 +162,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
       ) : null}
 
       {/*
-       * **[25 §1]'s answer, shown rather than acted on.** A gate naming the old
+       * **[05 §1]'s answer, shown rather than acted on.** A gate naming the old
        * spelling stops matching, and activation says nothing when it does — so
        * the count is reported and the rewrite is a separate, deliberate press.
        */}
@@ -394,7 +394,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
             {pruneLabel(unused.length)}
           </Button>
           {/*
-           * **The one deliberate write across the library** — [25 §3]. Until it
+           * **The one deliberate write across the library** — [05 §3]. Until it
            * runs, a rename reaches nothing: an object with no ids works from its
            * own names and has no connection to the row that changed. Afterwards
            * every rename is one registry write.

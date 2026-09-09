@@ -5,8 +5,8 @@ import { inflateRawSync } from 'node:zlib';
 
 /**
  * A zip archive, read as bytes, with bounds
- * ([P4 §1.3](../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.5](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.3](../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.5](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **Written rather than depended on**, for the same reason `card/png.ts` is:
  * what this needs from zip is a small, fixed, forty-year-old subset — walk the

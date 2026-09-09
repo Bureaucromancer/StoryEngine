@@ -25,7 +25,7 @@ import { inTransaction } from '../storage/transaction.js';
  *
  * Two things live here that look small and are the whole of P1.4's risk.
  *
- * **Tombstone-and-match** ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)). The
+ * **Tombstone-and-match** ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)). The
  * engine never renames a user's folders, so the only way a path under a stable
  * id changes is a *foreign* rename — and a foreign rename reaches us as an
  * unlink followed by an add, in that order, with nothing connecting them. So an
@@ -34,7 +34,7 @@ import { inTransaction } from '../storage/transaction.js';
  * mechanism, one caller: there is no rename special case anywhere else in the
  * system, and a rename through the API is an ordinary write.
  *
- * **Duplicate ids** ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)). Folders
+ * **Duplicate ids** ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)). Folders
  * are copy-pasteable, which is a feature, so two files may claim one uuid. The
  * lexicographically first path wins, the other is flagged, and nothing blocks.
  * Path order rather than mtime because mtime is unstable in exactly the ways
@@ -50,7 +50,7 @@ import { inTransaction } from '../storage/transaction.js';
  * checkout`, short enough that a genuine delete does not linger. Erring long is
  * the safe direction: a stale tombstone costs a row nobody can see, whereas
  * maturing too early turns a rename into a delete followed by a create — which
- * is precisely the flicker [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md) exists
+ * is precisely the flicker [P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md) exists
  * to prevent.
  */
 export const TOMBSTONE_TTL_MS = 5000;
@@ -108,7 +108,7 @@ export function contentHashOf(bytes: Uint8Array): string {
  * Reads whatever the kind keeps on disk and hands back the portable object.
  *
  * The actor is the only kind that is not plain JSON — `card.png` is canonical
- * rather than a mirror ([02 §5.2](../../../../docs/design/02-data-model.md)) — so this is
+ * rather than a mirror ([03 §5.2](../../../../docs/design/03-data-model.md)) — so this is
  * where the card codec attaches. Everything else is a file read and a parse.
  */
 export function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unknown {
@@ -125,7 +125,7 @@ export function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unkno
  * Indexes one file.
  *
  * Called synchronously by the application's own write path, so that a `GET`
- * after a `POST` reflects it ([02 §5.1.1](../../../../docs/design/02-data-model.md)), and
+ * after a `POST` reflects it ([03 §5.1.1](../../../../docs/design/03-data-model.md)), and
  * asynchronously by the watcher for foreign writes. Same function both times —
  * the two writers share the loader, the schema and the index, which is what
  * makes hand-editing safe rather than merely tolerated.
@@ -386,11 +386,11 @@ export function listFileErrors(db: DatabaseSync, owners: readonly string[]): Fil
  * unlink-first; this handles add-first, by asking the only question that
  * actually distinguishes a move from a copy — **is the other file still
  * there?** A copied folder has both, and stays a flagged duplicate
- * ([P1 §1.2](../../../../docs/design/workplan/03-p1-implementation.md)); a renamed one does not.
+ * ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)); a renamed one does not.
  *
  * It is also a quiet repair for a row whose file vanished without an event at
  * all, which is the kind of divergence a crash between write and index leaves
- * behind ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+ * behind ([03 §5.1.1](../../../../docs/design/03-data-model.md)).
  */
 async function findVanishedDuplicates(
   db: DatabaseSync,
@@ -411,7 +411,7 @@ async function findVanishedDuplicates(
 
 /**
  * **Every derived row an object's path owns, in one place** —
- * [P5 §1.7](../../../../docs/design/workplan/07-p5-implementation.md)'s
+ * [P5 §1.7](../../../../docs/design/workplan/17-p5-implementation.md)'s
  * mitigation, and the only reason it is worth a two-line function.
  *
  * `object_fts` was deleted by path in five separate places before this. That is
@@ -419,7 +419,7 @@ async function findVanishedDuplicates(
  * moment there are two: every site needs a sibling, missing one leaves a stale
  * row in a store whose entire claim is that it is derived and trustworthy, and
  * the failure is silent and survives a restart —
- * [13 §5](../../../../docs/design/13-internal-contracts.md)'s invariants exist
+ * [21 §5](../../../../docs/design/21-internal-contracts.md)'s invariants exist
  * to forbid exactly that. So the knowledge of *which tables an object writes
  * into* lives here, and a table added later is one line rather than a search
  * for call sites somebody has to get complete.
@@ -496,7 +496,7 @@ function writeSearchRows(db: DatabaseSync, row: ObjectRow, payload: unknown): vo
  * a lorebook.
  *
  * **The only place a schema id appears in the ingest path**, and
- * [05 §14.5](../../../../docs/design/05-ui-surfaces.md)'s rule is what both
+ * [10 §14.5](../../../../docs/design/10-ui-surfaces.md)'s rule is what both
  * justifies and bounds it: *a fragment is indexable when it has an address*. A
  * lore entry has `id`; an actor's greetings and a preset's block text do not,
  * so they get no branch here and the special case cannot spread by analogy.
@@ -511,7 +511,7 @@ function writeSearchRows(db: DatabaseSync, row: ObjectRow, payload: unknown): vo
  *
  * **The position travels with the entry, and that is the part to keep.**
  * `position` claims to be the index into the file's own `entries` array — which
- * is what [05 §5.3](../../../../docs/design/05-ui-surfaces.md) makes the read
+ * is what [10 §5.3](../../../../docs/design/10-ui-surfaces.md) makes the read
  * view's default order, and what the locator's key rests on. Returning a
  * *filtered* array and numbering it at the call site would quietly renumber
  * every entry after a skipped one, so the pairs are built here where the

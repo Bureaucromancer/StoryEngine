@@ -21,7 +21,7 @@ import {
 } from './common.js';
 
 /**
- * Actor — docs/design/10-schemas.md §4.
+ * Actor — docs/design/04-schemas.md §4.
  *
  * One card type. Personas and NPCs are flags and tags, not separate types.
  */
@@ -45,7 +45,7 @@ export const ActorRole = Type.String({
 export type ActorRole = Static<typeof ActorRole>;
 
 /**
- * Reserved section ids ([10 §4](../../../../docs/design/10-schemas.md)). "Conventional" is
+ * Reserved section ids ([04 §4](../../../../docs/design/04-schemas.md)). "Conventional" is
  * enforced by the editor, by generation, and by the default preset — never by
  * this schema. Structurally nothing prevents a user deleting one, and missing
  * must mean empty rather than an error.
@@ -121,13 +121,13 @@ export const Actor = Type.Object(
      *
      * **Top-level rather than under `profile`, and beside `openings` on
      * purpose.** `profile` is what someone is like; a sample is a demonstration
-     * of how they are written, which [14 §2.4] classes as production rather
+     * of how they are written, which [P2B §2.4] classes as production rather
      * than identity. `openings` is the existing field with exactly that
      * character — prose that shows rather than states — so the two belong
      * together.
      *
      * Optional because it is additive: a card written before this field existed
-     * must still validate, which [10 §2] makes the price of not bumping to
+     * must still validate, which [04 §2] makes the price of not bumping to
      * `/2`. Absent and empty mean the same thing here, deliberately — there is
      * no "this character has declined to have samples" to express.
      */

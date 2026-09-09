@@ -11,7 +11,7 @@ import type { ImportNote } from '@storyengine/shared';
  * without a converter knowing. This is where the words live.
  *
  * **It moved out of `ImportPanel` at [P5.0], and the move is the point.**
- * [05 §5.3] puts the facts an import established on the *book*, not only in the
+ * [10 §5.3] puts the facts an import established on the *book*, not only in the
  * sweep that created them: somebody debugging an entry six months later will
  * not think to look for the review. So there are two renderers now, and a
  * catalogue private to one of them would have meant the second either importing

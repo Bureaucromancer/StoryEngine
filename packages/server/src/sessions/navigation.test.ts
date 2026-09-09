@@ -26,7 +26,7 @@ import {
 import type { ChannelEffect, SessionFile } from './types.js';
 
 /**
- * Navigation — [09 §3](../../../../docs/design/09-branching.md), [P6.1].
+ * Navigation — [07 §3](../../../../docs/design/07-branching.md), [P6.1].
  *
  * **Moving the head is the first gesture that is not a turn**, and the two
  * claims under it are the ones the tree model rests on: the state at the new
@@ -258,7 +258,7 @@ describe('back and forward resumes rather than guesses', () => {
 
 describe('a branch ref is a name and nothing more', () => {
   it('creates, renames and forgets one without touching a turn', async () => {
-    // Proof obligation (iv). [09 §6]: *promoting a swipe writes about fifty
+    // Proof obligation (iv). [07 §6]: *promoting a swipe writes about fifty
     // bytes and moves no data*, and deleting the name deletes no turns.
     const { sessionId, t2, s2 } = await aFork();
     const before = await readTurns(context, ACCOUNT, sessionId);
@@ -322,7 +322,7 @@ describe('a tombstoned turn is not a sibling', () => {
     // [P6 §2]'s last hygiene item: tombstone skipping in the turn reader,
     // verified where this phase newly depends on it. Nothing removes turns at
     // 1.0 and compaction stays unbuilt — the format tolerates removal so that
-    // pruning is possible later without a migration ([02 §5.5]).
+    // pruning is possible later without a migration ([03 §5.5]).
     //
     // What is new is that navigation asks the turn reader *who are this node's
     // children*, and a tombstone that reached that answer would put a turn

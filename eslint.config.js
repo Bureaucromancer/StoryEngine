@@ -183,7 +183,7 @@ export default tseslint.config(
 
   // Build scripts. The fs rule exists to keep one audited path resolver the only
   // door to *user data*, reached from a request whose user is the thing being
-  // checked (docs/design/07-tech-stack.md §9). A script that emits build
+  // checked (docs/design/19-tech-stack.md §9). A script that emits build
   // artefacts into the repository never sees a request and has no user root to
   // be contained within, so the rule has nothing to say about it.
   //
@@ -211,7 +211,7 @@ export default tseslint.config(
   // **`.ts` as well as `.mjs` since P5.3**, because the argument above was never
   // about the extension and the file that widened it is one whose output is
   // *evidence*: `lore-mentions.ts` produces the count
-  // [16 §6](docs/design/16-lorebooks-as-a-format.md) uses to decide whether that
+  // [11 §6](docs/design/11-lorebooks-as-a-format.md) uses to decide whether that
   // document's warrant holds, so it is the last script that should be the
   // unchecked kind. `tsconfig.tools.json` already includes `tools/**/*.ts`, so
   // the typecheck was there and only the lint rule was not.
@@ -293,7 +293,7 @@ export default tseslint.config(
 
   // Id generation. The randomness rule protects replay and branching: every
   // draw that can change what happens must be recorded, or a reconstructed
-  // branch silently diverges (docs/design/07-tech-stack.md §14.1). A uuidv7 is
+  // branch silently diverges (docs/design/19-tech-stack.md §14.1). A uuidv7 is
   // not a draw — nothing replays it, no outcome depends on its value, and it is
   // written into the object it identifies before anything else sees it.
   //
@@ -343,7 +343,7 @@ export default tseslint.config(
    *
    * Not to the server, and that is a decision rather than an oversight: its
    * strings are log lines and error messages, which
-   * docs/design/07-tech-stack.md §12.7 keeps deliberately untranslated. A rule
+   * docs/design/19-tech-stack.md §12.7 keeps deliberately untranslated. A rule
    * that fired on `Refused path (${reason})` would teach people to work around
    * it, and a day-one rule that gets worked around is worse than none.
    */

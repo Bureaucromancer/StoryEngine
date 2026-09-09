@@ -14,12 +14,12 @@ import type { LibraryKind } from '../api.js';
 
 /**
  * **One description of a kind's fields**, which is
- * [polish §1](../../../../docs/design/workplan/09-polish.md)'s whole design
+ * [polish §1](../../../../docs/design/workplan/06-polish.md)'s whole design
  * constraint stated as a module: *one description of a kind's fields, two
  * renderings of it.*
  *
  * The description is **the schema itself**, read at runtime. That is the only
- * arrangement in which [05 §11.2d](../../../../docs/design/05-ui-surfaces.md)'s
+ * arrangement in which [10 §11.2d](../../../../docs/design/10-ui-surfaces.md)'s
  * promise holds — *a field added to the schema lands in the editor and in
  * §5.3's read-only fold without a second edit* — because any hand-written list
  * of a kind's fields is a second description, and a second description is the
@@ -79,7 +79,7 @@ const SHOWN_AS_STORAGE = new Set(['schema', 'id']);
  * whose fields somebody has described for writing* — and that is why it lives
  * beside the description rather than inside a page.
  *
- * [polish §1](../../../../docs/design/workplan/09-polish.md)'s closing clause
+ * [polish §1](../../../../docs/design/workplan/06-polish.md)'s closing clause
  * asks for exactly this: the Edit gate *"should come from the same place the
  * fields do, rather than growing a second list of kinds"*. The ownership half
  * of that clause was paid at [P4.5] — one `mutable` predicate behind both Edit
@@ -87,7 +87,7 @@ const SHOWN_AS_STORAGE = new Set(['schema', 'id']);
  *
  * ~~The library's create control is the next reader and is deliberately not one
  * yet.~~ **It is one now, at P5.1**, and it arrived the way
- * [05 §5](../../../../docs/design/05-ui-surfaces.md) said it would: create and
+ * [10 §5](../../../../docs/design/10-ui-surfaces.md) said it would: create and
  * edit are one question, so a kind becomes creatable in the same edit that
  * gives it an editor and never before. What that clause did *not* anticipate is
  * that it would arrive before the panels split — P5.0 built the Lorebooks panel
@@ -111,7 +111,7 @@ const EDITOR_ROUTES = {
  *
  * **Typed `Record<EditorKind, …>` on purpose**, so the two tables cannot drift:
  * a kind added above without a row here fails to typecheck, which is
- * [05 §5](../../../../docs/design/05-ui-surfaces.md)'s rule — *create arrives
+ * [10 §5](../../../../docs/design/10-ui-surfaces.md)'s rule — *create arrives
  * with the kind's editor and never before it* — enforced by the compiler rather
  * than remembered. It is also the reason this is a second table and not a
  * second *list*: the key set is the one above.
@@ -132,7 +132,7 @@ const NEW_OBJECTS: Record<
 
 /**
  * Where a new one of each kind is *written*, before it exists —
- * [polish §10](../../../../docs/design/workplan/09-polish.md).
+ * [polish §10](../../../../docs/design/workplan/06-polish.md).
  *
  * A second table rather than a suffix on `EDITOR_ROUTES`, because these two
  * addresses do different things: one opens a file, and one opens a form over
@@ -146,7 +146,7 @@ const NEW_ROUTES = {
 
 /**
  * The fields a person has to fill in before this kind can be saved —
- * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md).
  *
  * **A curated set rather than a reading of the schema**, and that is the part
  * worth writing down, because the schema is right there and the rest of this
@@ -181,9 +181,9 @@ export function newRouteFor(kind: LibraryKind): NewRoute | null {
  * longer in doubt.
  *
  * The name is empty on purpose. It is the one field the editor will refuse to
- * save without ([05 §11.1a]), and a placeholder here would be a name somebody
+ * save without ([10 §11.1a]), and a placeholder here would be a name somebody
  * did not choose — which, because the folder is slugged from it once and then
- * frozen ([02 §5.2]), would be a name they could never take back.
+ * frozen ([03 §5.2]), would be a name they could never take back.
  */
 export function blankFor(kind: EditorKind): Record<string, unknown> {
   return NEW_OBJECTS[kind].make('');
@@ -265,7 +265,7 @@ function asNode(value: unknown): SchemaNode | undefined {
  *
  * Through `isKnownSchema` rather than a hand-rolled key test, because that
  * predicate is the registry's own answer to *do we know this kind* and an
- * unknown one is not an error ([10 §2]) — a package may legitimately carry a
+ * unknown one is not an error ([04 §2]) — a package may legitimately carry a
  * kind a newer build wrote. Undefined here means the page falls back to no
  * field list rather than to a broken one.
  */
@@ -298,13 +298,13 @@ export function labelFor(key: string): string {
  * a preference.** A schema that declares `properties` supplies the whole list,
  * in its own order, including fields the value has not got — an absent optional
  * field is a field, and rendering it as unset is what gets it written
- * ([16 §4.1](../../../../docs/design/16-lorebooks-as-a-format.md) makes that
+ * ([11 §4.1](../../../../docs/design/11-lorebooks-as-a-format.md) makes that
  * argument about `description` specifically). A schema that declares none is a
  * record — `metadata`, `modeData`, `compat` — whose keys *are* its content, so
  * the value supplies them, in the file's own order.
  *
  * **What is deliberately not here: keys the schema does not declare.**
- * [polish §2](../../../../docs/design/workplan/09-polish.md) already assigns
+ * [polish §2](../../../../docs/design/workplan/06-polish.md) already assigns
  * those to *As stored*, which it calls "the only view that shows fields the
  * client does not know how to render yet". Rendering them here as unlabelled
  * rows would take that job without doing it as well.
@@ -329,7 +329,7 @@ export function fieldsOf(schema: SchemaNode | undefined, value: unknown): FieldR
  * The same list for a whole object, minus what the page has already said.
  *
  * A kind this build does not know falls through to the record case above and is
- * read by its own keys, which is deliberate: [10 §2] makes an unknown `schema`
+ * read by its own keys, which is deliberate: [04 §2] makes an unknown `schema`
  * a normal thing to meet rather than an error, and with no declaration to be
  * the authority on what belongs, the file is the only description there is.
  */
@@ -359,7 +359,7 @@ export interface FieldGroup {
  * banners in the schema file did and is why a field added under one needs no
  * edit here. Fields before the first banner are the head group and carry no
  * title — `LoreEntry`'s identity fields, which
- * [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) leaves deliberately
+ * [10 §11.2d](../../../../docs/design/10-ui-surfaces.md) leaves deliberately
  * un-bannered.
  *
  * A schema with no banners comes back as one untitled group, so every kind but

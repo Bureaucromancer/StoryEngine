@@ -12,7 +12,7 @@ import { readSession, readTurns } from '../sessions/store.js';
 import { readableOwners } from '../library.js';
 
 /**
- * Search — [07 §7](../../../../docs/design/07-tech-stack.md), and F10's answer.
+ * Search — [19 §7](../../../../docs/design/19-tech-stack.md), and F10's answer.
  *
  * The finding was that `search()` existed, was tested, and had **no caller**: an
  * FTS index maintained on every write that nothing could ever query. This route
@@ -21,7 +21,7 @@ import { readableOwners } from '../library.js';
  * cathedral" does not know or care whether they wrote it in a lorebook or said
  * it in a turn.
  *
- * **API only at P2.** The UI is P3's ([05 §4](../../../../docs/design/workplan/05-p3-implementation.md)), and
+ * **API only at P2.** The UI is P3's ([P3 §4](../../../../docs/design/workplan/15-p3-implementation.md)), and
  * [P2 §2.9] names this route as the phase's second pressure valve — it is a
  * reader, so it can slip without anything else moving. It did not need to.
  */
@@ -57,7 +57,7 @@ function resultLimit(raw: string | undefined): number {
 
 /**
  * Whether each turn hit is on the line its session is currently on — [§1.6],
- * [07 §7.1], [P6.3].
+ * [19 §7.1], [P6.3].
  *
  * **Labelled, never hidden and never passed off as current.** A hit on an
  * abandoned line is a real thing somebody wrote and is exactly what *I know I
@@ -123,7 +123,7 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
       objects = search(services.index.db, q, limit);
       turns = searchTurns(services.index.db, owners, q, limit);
       /**
-       * The third kind of hit — [05 §14.5]'s *one query, three kinds*.
+       * The third kind of hit — [P3 §14.5]'s *one query, three kinds*.
        *
        * **Scoped in its own SQL, where `objects` is scoped below.** The comment
        * on that filter argues against giving `search` owners, and it still
@@ -174,7 +174,7 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
       objects: objects
         // Scoped after the query rather than inside it: `search` is the library's
         // and takes no owners, and giving it some for this one caller would put
-        // the containment rule in two places ([04 §4.3]).
+        // the containment rule in two places ([09 §4.3]).
         .filter((row) => owners.includes(row.owner))
         .map((row) => ({
           id: row.id,
@@ -196,7 +196,7 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
        * *One thing a reader of this response has to know*, and it belongs in
        * the API docs rather than only here: a phrase that occurs in one entry
        * matches the **book** too, because `object_fts` indexes the whole
-       * serialised object. Two keys, one match. That is [05 §14.5]'s *one
+       * serialised object. Two keys, one match. That is [P3 §14.5]'s *one
        * query, three kinds of hit* working rather than a duplicate — the ranks
        * are per table and not comparable across them either.
        */

@@ -4,7 +4,7 @@
 import { TAG_SWATCHES, type TagSwatch } from '@storyengine/shared';
 
 /**
- * What a swatch id looks like — [25 §4](../../../../docs/design/25-tagging.md).
+ * What a swatch id looks like — [05 §4](../../../../docs/design/05-tagging.md).
  *
  * The registry stores a **name**; this is the only place that turns one into a
  * colour, which is what lets the palette move without touching stored data.
@@ -102,7 +102,7 @@ export const NEUTRAL_TAG_CLASS = 'bg-badge-surface text-badge-ink';
  * The classes for a stored swatch value.
  *
  * **An unknown value is neutral, not an error.** `swatch` is an open string
- * ([25 §4]) precisely so a hand-edited typo costs one grey chip instead of a
+ * ([05 §4]) precisely so a hand-edited typo costs one grey chip instead of a
  * file that will not load, and this is the function that keeps that promise.
  */
 export function tagClassFor(swatch: string | null): string {

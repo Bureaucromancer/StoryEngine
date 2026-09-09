@@ -7,7 +7,7 @@ import { createContext, runInContext, type Context } from 'node:vm';
  * Running a pattern somebody else wrote, without giving them the server.
  *
  * **This is P5.4's first commit and it is deliberately alone**
- * ([P5 §1.10](../../../../docs/design/workplan/07-p5-implementation.md)):
+ * ([P5 §1.10](../../../../docs/design/workplan/17-p5-implementation.md)):
  * `LoreEntry.useRegex` has been stored since P1 and read by nothing, P4 filled
  * the library with patterns nobody here wrote, and a matcher that runs one of
  * those unbounded is **a denial-of-service on your own server, triggered by a
@@ -54,7 +54,7 @@ import { createContext, runInContext, type Context } from 'node:vm';
  * endpoint is genuinely slower than any default, and nobody can know their
  * regex is genuinely slower than fifty milliseconds. A number a person could
  * raise is a number that reopens the thing this file exists to close, and
- * [01 §2.3](../../../../docs/design/workplan/01-work-plan.md) would then be owed
+ * [work plan §2.3](../../../../docs/design/workplan/01-work-plan.md) would then be owed
  * a surface for it.
  */
 export const PATTERN_TIMEOUT_MS = 50;

@@ -85,7 +85,7 @@ async function eventually(check: () => Promise<boolean>, timeoutMs = 8000): Prom
  * ceiling**, and it failed in the way a deadline always does: not because the
  * behaviour was wrong but because a loaded machine took longer than eight
  * seconds to deliver an event that was always going to arrive.
- * [15 §1.5](../../../docs/design/workplan/15-p2c-first-real-run.md) named it before it went
+ * [P2C §1.5](../../../docs/design/workplan/12-p2c-first-real-run.md) named it before it went
  * red, and it went red anyway — once in three runs on an idle machine while
  * this very fix was being written.
  *
@@ -145,7 +145,7 @@ describe('the log record', () => {
     const [line] = capture.lines();
     expect(line).toBeDefined();
     // Parsing succeeded, which is the assertion: `pretty` would not parse, and
-    // it is why the format union has one value ([13 §4.1]).
+    // it is why the format union has one value ([21 §4.1]).
     expect(line?.['msg']).toBe('a thing happened');
     expect(line?.['level']).toBe(30);
     // Bindings are fields, not phrases inside the message — this is what makes
@@ -269,7 +269,7 @@ describe('the live tier, with its first real consumer', () => {
    * Change it back and the banner should empty, because what is pending is the
    * difference between the port this process bound and the port on disk — a
    * property of the process. A stored pending-set would accumulate, and
-   * [13 §4] argues against a second source of truth for a derived value at
+   * [21 §4] argues against a second source of truth for a derived value at
    * length.
    */
   /**
@@ -409,7 +409,7 @@ describe('the live tier, with its first real consumer', () => {
     await app.close();
 
     // The specific keys, because a bare "restart required" invites people to
-    // restart and hope ([04 §6.3]). `history.keepPerObject` is live and so is
+    // restart and hope ([09 §6.3]). `history.keepPerObject` is live and so is
     // not in the list.
     expect(pending).toEqual(['server.port']);
   });

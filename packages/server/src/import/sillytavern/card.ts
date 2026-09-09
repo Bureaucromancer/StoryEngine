@@ -15,15 +15,15 @@ import { convertLorebook } from './lorebook.js';
 
 /**
  * SillyTavern V2/V3 character cards → `Actor`
- * ([P4 §1.10](../../../../../docs/design/workplan/06-p4-implementation.md),
- * rewriting [02 §2.7]'s table in the shipped schema's own terms).
+ * ([P4 §1.10](../../../../../docs/design/workplan/16-p4-implementation.md),
+ * rewriting [03 §2.7]'s table in the shipped schema's own terms).
  *
  * **The row that matters most is `personality`**, because it is where this
  * converter and the preset converter meet. The preset's `charPersonality`
  * marker points at `profile.traits`; if this routed `personality` anywhere else,
  * the two would each be individually correct and produce a slot that resolves
  * empty forever, hidden by `omitWhenEmpty`. That pair is what
- * [testing §5.1](../../../../../docs/design/workplan/10-testing.md) exists to
+ * [testing §5.1](../../../../../docs/design/workplan/03-testing.md) exists to
  * catch and what the fixture-pair gate asserts.
  */
 
@@ -210,7 +210,7 @@ function applyOpenings(card: Readonly<Record<string, unknown>>, actor: Actor): v
 /**
  * `mes_example` → **one writing sample**, enabled, titled from the card.
  *
- * The destination moved after [02 §2.7] was written: dialogue examples stopped
+ * The destination moved after [03 §2.7] was written: dialogue examples stopped
  * being a `Section`, because a `Section` carries no `priority` and [00 §2.6]
  * requires one. A redirect rather than new import surface — still one row, still
  * one destination ([P4 §1.10]).

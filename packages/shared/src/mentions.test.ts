@@ -8,8 +8,8 @@ import { mentionIndex } from './mentions.js';
 import type { Lorebook, LoreEntry } from './schema/lorebook.js';
 
 /**
- * The mention rule — [05 §5.3] renders it and
- * [16 §6](../../../docs/design/16-lorebooks-as-a-format.md) counts it, so it is
+ * The mention rule — [10 §5.3] renders it and
+ * [11 §6](../../../docs/design/11-lorebooks-as-a-format.md) counts it, so it is
  * one rule tested once.
  *
  * **What these assert is the shape of the rule rather than the shape of the
@@ -55,7 +55,7 @@ describe('what counts as a mention', () => {
   });
 
   it('reads secondary keys as surface forms too', () => {
-    // [16 §2] makes its soft-indexing argument about the pair, and the book
+    // [11 §2] makes its soft-indexing argument about the pair, and the book
     // page's own search already covers both.
     const harbour = entry('Harbour', { secondaryKeys: ['quayside'], content: 'Cranes.' });
     const ferryman = entry('The Ferryman', { content: 'The quayside is quiet at dawn.' });

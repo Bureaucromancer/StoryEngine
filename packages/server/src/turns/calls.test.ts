@@ -23,7 +23,7 @@ import { planCall, RoleUnresolved, type PlanContext } from './calls.js';
  *
  * Both throws are asserted deliberately. They are not failure modes the
  * preview works around — they are the two answers it forwards: no denominator
- * to measure against, and [03 §5.2]'s structural refusal.
+ * to measure against, and [06 §5.2]'s structural refusal.
  */
 
 const CONNECTION: Connection = {
@@ -96,7 +96,7 @@ describe('planning a call', () => {
     expect(call.budget.limit.tokens).toBeGreaterThan(0);
     expect(call.messages.length).toBeGreaterThan(0);
     // The connection travels beside the record rather than inside it: it holds
-    // `apiKey` and `baseUrl` ([13 §1.4]).
+    // `apiKey` and `baseUrl` ([21 §1.4]).
     expect(connection.id).toBe(CONNECTION.id);
     expect(call.resolved.connectionId).toBe(CONNECTION.id);
     expect(call).not.toHaveProperty('connection');

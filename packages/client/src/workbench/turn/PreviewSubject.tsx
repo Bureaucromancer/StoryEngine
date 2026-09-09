@@ -16,7 +16,7 @@ import { rulesOf } from './rules.js';
  * The turn about to be taken — [P3.4], the other half of the meter.
  *
  * *"Clicking it opens the panel in place, already on the current turn"*
- * ([05 §3]), and the current turn is the one being composed: a panel that
+ * ([10 §3]), and the current turn is the one being composed: a panel that
  * opened on the last *committed* turn would contradict the meter that opened
  * it, which is the staleness [P3 §1.6] says the meter exists to end.
  *
@@ -77,7 +77,7 @@ export function PreviewSubject({
       <BudgetVerdictView verdict={preview.budget} locale={locale} />
       <NotFilledList notFilled={preview.notFilled} />
       {/*
-       * **The keyword test, generalised** — [P5.8], [05 §3]. Below the block
+       * **The keyword test, generalised** — [P5.8], [10 §3]. Below the block
        * table on purpose: what *fired* is up there with the key that did it,
        * and this is the half nothing could show. Reading downward is therefore
        * *what is in the prompt*, then *what is not and why*, which is the order

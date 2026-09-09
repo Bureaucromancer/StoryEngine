@@ -16,13 +16,13 @@ import { OUTCOME_LABELS } from '../workbench/turn/labels.js';
 
 /**
  * Two turns of one session, side by side — [P3.6], and this phase's **one
- * addressable exception** to [05 §3](../../../../docs/design/05-ui-surfaces.md)'s
+ * addressable exception** to [10 §3](../../../../docs/design/10-ui-surfaces.md)'s
  * rule that the workbench is a panel rather than a place.
  *
  * **The address is the whole argument.** §3 escalated comparison out of the
  * panel on the grounds that a panel *"has one subject by construction"* — an
- * argument [P3 §1.5](../../../../docs/design/workplan/05-p3-implementation.md)
- * found does not carry, because [05 §11.2a] already ships a two-payload diff
+ * argument [P3 §1.5](../../../../docs/design/workplan/15-p3-implementation.md)
+ * found does not carry, because [10 §11.2a] already ships a two-payload diff
  * *inside* a panel and cites §3 as its precedent. What actually forces a full
  * view is that a comparison has to be **bookmarkable, pasteable into a bug
  * report, and reopenable after the head has moved past both turns**, and a

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 StoryEngine contributors
 #
 # Tier 1 is "the image plus a compose file"
-# (docs/design/04-server-multiuser-deployment.md §5.4), so this is inside the
+# (docs/design/09-server-multiuser-deployment.md §5.4), so this is inside the
 # deliverable rather than beside it — the image alone is not the artifact that
 # section names.
 #
@@ -10,7 +10,7 @@
 # read packages, or the pull fails with a 404 that reads like a typo. That is not
 # a temporary state: Alpha 1 is a build this project made for itself, and
 # publishing it is a decision to publish the repository at the same instant
-# (docs/design/workplan/23-p6a-alpha-1.md §4).
+# (docs/design/workplan/19-p6a-alpha-1.md §4).
 #
 #   docker compose up -d
 #   docker compose logs storyengine     # the setup token, on every start until
@@ -40,7 +40,7 @@ services:
     environment:
       # Both of these are the documented variables, not container-only settings
       # — the same names work on a bare-metal install
-      # (docs/design/13-internal-contracts.md §4).
+      # (docs/design/21-internal-contracts.md §4).
       #
       # Uncomment when there is TLS in front of this. A Secure cookie is not sent
       # back over plain HTTP, so turning it on without HTTPS makes signing in

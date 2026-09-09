@@ -11,7 +11,7 @@ import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
 /**
  * The turn being taken, as the progress events describe it — [P3.5].
  *
- * **This is the stage's decision, on screen.** [04 §3.3] asserts the live view
+ * **This is the stage's decision, on screen.** [09 §3.3] asserts the live view
  * *is* the turn record rendered while it is still being written, "one
  * component rather than a live view and a separate history view that
  * disagree". P3.5 decided that the other way, because the wire does not carry
@@ -29,7 +29,7 @@ import { Fine, Note, SubsectionTitle } from '../../ui/Text.js';
  * arrives whole when the turn commits**, in `TurnSubject`, and the two views
  * are never on screen at once.
  *
- * What the events buy, which [04 §3.3] names and the record cannot show until
+ * What the events buy, which [09 §3.3] names and the record cannot show until
  * afterwards: failure attached to a *step* rather than to the turn, a skipped
  * step visible rather than silent, and timing per step while it is happening.
  */

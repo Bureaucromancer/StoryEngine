@@ -37,19 +37,19 @@ import { PathEscapeError } from '../storage/paths.js';
  *
  * The registry from P1.1 is what makes that true: every portable object
  * self-describes, so nothing here enumerates kinds
- * ([10 §9](../../../../docs/design/10-schemas.md)). The `kind` in the URL is a *filter*, and
+ * ([04 §9](../../../../docs/design/04-schemas.md)). The `kind` in the URL is a *filter*, and
  * the object's own `schema` field is what decides how it is stored.
  *
  * **Every route resolves its root from the session, never from a parameter.**
  * There is no `:handle` anywhere below. The path is the owner
- * ([04 §4.3](../../../../docs/design/04-server-multiuser-deployment.md)), and a route that
+ * ([09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md)), and a route that
  * accepted a handle would be one forgotten check away from serving somebody
  * else's library — which is the version of the P1.2 containment check that
  * actually matters once there is more than one root.
  *
  * **There is no rename route.** A name change is an ordinary write of the
  * object's `name`; the folder does not move
- * ([P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * ([P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md)).
  */
 
 /** `actors` → `storyengine.actor/1`. The URL speaks folders; the store speaks schemas. */
@@ -135,10 +135,10 @@ const WriteBody = Type.Object(
  * The public shape of an indexed object.
  *
  * Carries `contentHash` because **every read carries one and every write must
- * present one** ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)), and
+ * present one** ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)), and
  * `source` because the list merges the user's library with the system one and
  * the badge needs a second channel beyond colour
- * ([05 §5](../../../../docs/design/05-ui-surfaces.md)).
+ * ([10 §5](../../../../docs/design/10-ui-surfaces.md)).
  */
 /**
  * @param registry resolves tag names, or `null` to answer with the file's own.
@@ -153,7 +153,7 @@ function present(row: IndexedObject, registry: TagList | null): Record<string, u
     contentHash: row.contentHash,
     shadowed: row.shadowed,
     /**
-     * **Tag names resolved on the way out** — [25 §3]. A rename is one write to
+     * **Tag names resolved on the way out** — [05 §3]. A rename is one write to
      * the registry and touches no object, so a carrier's stored `tags` still say
      * the old thing until it is next saved. This is the boundary that makes that
      * safe: nothing downstream sees the stale name.
@@ -281,7 +281,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   /**
    * The index rows behind an object — the workbench's projection ([P3.3]).
    *
-   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [13 §5] keeps
+   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [21 §5] keeps
    * the index's tables an implementation detail and the migration policy is
    * drop-and-rescan, so this route *restates* rather than promises — after an
    * index schema bump it may return less until the surface catches up. What it
@@ -365,10 +365,10 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * The version history routes — [02 §11](../../../../docs/design/02-data-model.md).
+   * The version history routes — [03 §11](../../../../docs/design/03-data-model.md).
    *
    * Newest first, with the revision number computed from append order rather
-   * than stored ([02 §11.5]). The *current* state is not an entry: the client
+   * than stored ([03 §11.5]). The *current* state is not an entry: the client
    * pins it at the top of the panel itself, because "current" is a fact about
    * the object, not about its history.
    */
@@ -467,7 +467,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     },
   );
 
-  /** Rename (set `reason`) and pin — the two caller-editable fields ([05 §11.2a]). */
+  /** Rename (set `reason`) and pin — the two caller-editable fields ([10 §11.2a]). */
   app.patch(
     '/library/:kind/:id/history/:versionId',
     { schema: { params: VersionParams, body: VersionPatch } },
@@ -501,7 +501,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
 
   /**
    * The card's pixels, for the editor to show and not replace
-   * ([P1 §P1.7](../../../../docs/design/workplan/03-p1-implementation.md)). Actors only — no other
+   * ([P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md)). Actors only — no other
    * kind has an image that *is* the object.
    */
   app.get(
@@ -562,7 +562,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
 /**
  * A version record as the client sees it. `revision` is the entry's position
  * in append order, oldest = 1 — computed here for display and never stored
- * ([02 §11.5](../../../../docs/design/02-data-model.md)).
+ * ([03 §11.5](../../../../docs/design/03-data-model.md)).
  */
 function presentVersion(record: VersionRecord, position?: number): Record<string, unknown> {
   return {
@@ -636,7 +636,7 @@ function refusedPathMessage(error: PathEscapeError): string {
  *
  * The interesting one is `stale` → **412 with the current object in the body**.
  * That is what lets the UI offer reload-and-reapply or save-as-a-copy rather
- * than guessing ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)) — and
+ * than guessing ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)) — and
  * it is the only defence the hot-reload thesis has against silently eating a
  * hand edit.
  *

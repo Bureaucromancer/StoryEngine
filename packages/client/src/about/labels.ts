@@ -12,7 +12,7 @@ import type { BuildInfo } from '../api.js';
  *
  * One string from a template literal rather than a sentence assembled around a
  * value in JSX: `<p>StoryEngine {name}</p>` is the shape the assembly rule
- * forbids ([07 §12.6a]), and a message with a value substituted into it is the
+ * forbids ([19 §12.6a]), and a message with a value substituted into it is the
  * shape a catalogue entry takes.
  *
  * The name, not the string: *1.0-alpha 2* is what a person calls a build

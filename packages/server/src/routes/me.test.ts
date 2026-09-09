@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
- * The user half of the settings surface — [05 §15.1](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.2.
+ * The user half of the settings surface — [10 §15.1](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md) stage P2A.2.
  *
  * The stage's ending is one sentence: *a signed-in person changes their display
  * name, locale and password through the API, cannot change their role by asking,
@@ -176,7 +176,7 @@ describe('POST /api/me/password', () => {
 });
 
 /**
- * Preferences — [06 B13](../../../../docs/design/06-open-questions.md), through the route.
+ * Preferences — [25 B13](../../../../docs/design/25-open-questions.md), through the route.
  *
  * The store's own tests cover the merge, the deletion and the queue. What is
  * only checkable here is the claim the stage ends on: **a preference survives a

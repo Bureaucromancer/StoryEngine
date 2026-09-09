@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 StoryEngine contributors
 #
-# The on-tag tier — docs/design/workplan/10-testing.md §6, and the half of
-# docs/design/workplan/11-repo-and-releases.md §8's open question that P6A moved.
+# The on-tag tier — docs/design/workplan/03-testing.md §6, and the half of
+# docs/design/workplan/04-repo-and-releases.md §8's open question that P6A moved.
 # `ci.yml` says this file is "still absent, still deliberately"; it is absent no
 # longer, and the nightly tier still is.
 #
 # **Filtered to `v*`, and that filter is load-bearing.** The only tag in this
 # repository is `p1`, a bare phase marker
-# (docs/design/workplan/23-p6a-alpha-1.md §0.6), and phase tags are a habit this
+# (docs/design/workplan/19-p6a-alpha-1.md §0.6), and phase tags are a habit this
 # project already has. An unfiltered trigger would try to cut a release from the
 # next one. Gate step 2 checks exactly that by pushing a non-`v` tag and watching
 # nothing happen.
@@ -16,7 +16,7 @@
 # **It publishes to a private package**, which is not a temporary state. Alpha 1
 # is a build this project made for itself; the moment the image goes public the
 # repository must go with it, because AGPL §13's source link has to resolve for
-# whoever is running it (docs/design/04-server-multiuser-deployment.md §7). §4 of
+# whoever is running it (docs/design/09-server-multiuser-deployment.md §7). §4 of
 # the phase plan names that as one decision rather than two, so that it cannot
 # happen by way of a registry visibility toggle.
 
@@ -62,7 +62,7 @@ jobs:
       # `github.repository_owner` keeps the owner's case; the first draft of
       # this file said "lowercased" beside an expression that did not, which the
       # push would have refused. Found at P6A's close by reading the two files
-      # together (docs/design/workplan/23-p6a-alpha-1.md, the P6A.4 record).
+      # together (docs/design/workplan/19-p6a-alpha-1.md, the P6A.4 record).
       - name: The version and the owner, as the registry wants them
         id: names
         run: |
@@ -84,7 +84,7 @@ jobs:
             VERSION=${{ steps.names.outputs.version }}
           # **Two tags: the immutable version, and `testing`.** The version tag
           # is the build you can go back to; `testing` is the channel
-          # docs/design/workplan/11-repo-and-releases.md §4 defines as *a chosen
+          # docs/design/workplan/04-repo-and-releases.md §4 defines as *a chosen
           # commit on main, gated on a human deciding* — and a tag on main is
           # that decision, so every tagged alpha moves it (decided 2026-09-07,
           # as of 1.0.0-alpha.2, after the first unraid install asked for a
@@ -92,7 +92,7 @@ jobs:
           # compose.yaml pins the version. `latest` still moves nowhere: unraid's
           # auto-update and watchtower both track that alias, `updates.channel`
           # defaults to it, and an alpha is not something to hand an auto-updater
-          # (docs/design/workplan/23-p6a-alpha-1.md §1.6).
+          # (docs/design/workplan/19-p6a-alpha-1.md §1.6).
           tags: |
             ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}
             ghcr.io/${{ steps.names.outputs.owner }}/storyengine:testing
@@ -103,7 +103,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       # A tag with no changelog entry is a release nobody can read
-      # (docs/design/workplan/11-repo-and-releases.md §7). Checked after the
+      # (docs/design/workplan/04-repo-and-releases.md §7). Checked after the
       # image so a missing entry does not hide a build failure, and before
       # anything else could depend on the tag being good.
       - name: The tag has a changelog entry

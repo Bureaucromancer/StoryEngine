@@ -8,12 +8,12 @@ import { SelectField } from '../ui/Field.js';
 import { themeFromPrefs, themePatch, applyTheme, type ThemeChoice } from '../ui/theme.js';
 
 /**
- * Preferences — [05 §15.1](../../../../docs/design/05-ui-surfaces.md).
+ * Preferences — [10 §15.1](../../../../docs/design/10-ui-surfaces.md).
  *
  * The pane that section describes, with the first thing that belongs in it. Its
  * persistence question closed at [P2A §2.2] *"before the first preference
  * shipped"*, and this is that preference: `ui.theme` in a per-user `prefs.json`
- * ([06 B13](../../../../docs/design/06-open-questions.md)), which until now was
+ * ([25 B13](../../../../docs/design/25-open-questions.md)), which until now was
  * a store with a route, a hook, four tests and no consumer.
  *
  * **Separate from *You* above**, and the line is where the value lives rather

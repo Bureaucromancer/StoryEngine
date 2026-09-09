@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { sessionLabel } from './session-label.js';
 
 /**
- * The fallback every session name is rendered through — [02 §8].
+ * The fallback every session name is rendered through — [03 §8].
  *
  * Cheap to test and easy to get subtly wrong, which is the combination worth
  * covering: the `??` this replaced at `PlayPage.tsx` looked right and only

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * The embedded card envelope — [02 §5.2](../../../../../docs/design/02-data-model.md).
+ * The embedded card envelope — [03 §5.2](../../../../../docs/design/03-data-model.md).
  *
  * **Envelope, not format.** PNG `tEXt` is PNG-specific and it would be a mistake
  * to bake it in, so the thing that travels is a `{schema, version, payload}`
@@ -16,13 +16,13 @@
  * - **The container carries the bytes.** Media travels beside the envelope as
  *   opaque blobs keyed by id, because `EmbeddedMedia` is a *manifest* — it holds
  *   a digest, a mime type and a container-relative `ref`, never the bytes
- *   ([10 §3](../../../../../docs/design/10-schemas.md)). A PNG private chunk, a zip entry and a
+ *   ([04 §3](../../../../../docs/design/04-schemas.md)). A PNG private chunk, a zip entry and a
  *   folder all satisfy that reference the same way.
  *
  * **A codec does not understand the payload.** It does not validate it, does not
  * read its `media` array, and does not check that every `ref` has a blob. That
  * belongs to whoever is writing the object, which has the registry
- * ([10 §9](../../../../../docs/design/10-schemas.md)) and the context to report a problem
+ * ([04 §9](../../../../../docs/design/04-schemas.md)) and the context to report a problem
  * usefully. A codec that started inspecting payloads would need updating every
  * time a kind gained a field.
  */
@@ -49,7 +49,7 @@ export interface CardEnvelope {
  *
  * A `Map` rather than an object so a blob id can be any string without
  * colliding with `Object.prototype`, and so size is O(1) for the cap the design
- * still owes ([02 §5.2.2](../../../../../docs/design/02-data-model.md)).
+ * still owes ([03 §5.2.2](../../../../../docs/design/03-data-model.md)).
  */
 export type BlobStore = Map<string, Uint8Array>;
 
@@ -60,7 +60,7 @@ export interface LegacyCard {
    * The decoded JSON, exactly as it was written.
    *
    * **Not converted.** Mapping a V2 card onto an Actor is import's job
-   * ([02 §2.7](../../../../../docs/design/02-data-model.md)) and lands at P4 — routing
+   * ([03 §2.7](../../../../../docs/design/03-data-model.md)) and lands at P4 — routing
    * `scenario` to a Treatment draft and `personality` to traits is a set of
    * judgement calls with a review step, not a decoding concern.
    */
@@ -96,7 +96,7 @@ export interface CardCodec {
    *
    * Takes the original file rather than producing one, because **the pixels are
    * the user's art and must survive untouched** — re-encoding on every save
-   * quietly degrades it ([02 §5.2](../../../../../docs/design/02-data-model.md)). A codec
+   * quietly degrades it ([03 §5.2](../../../../../docs/design/03-data-model.md)). A codec
    * splices; it never re-compresses.
    */
   write(bytes: Uint8Array, envelope: CardEnvelope, blobs?: BlobStore): Uint8Array;
@@ -127,7 +127,7 @@ export function envelope(payload: unknown): CardEnvelope {
  * Deliberately tolerant of a *newer* `version`: the payload is self-describing
  * and the registry decides whether it can be read, so refusing here would
  * strand a card for a reason the envelope layer cannot actually judge
- * ([10 §2](../../../../../docs/design/10-schemas.md)).
+ * ([04 §2](../../../../../docs/design/04-schemas.md)).
  */
 export function isCardEnvelope(value: unknown): value is CardEnvelope {
   if (typeof value !== 'object' || value === null) return false;

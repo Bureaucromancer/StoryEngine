@@ -29,7 +29,7 @@ import { openIndex, type OpenedIndex } from './open.js';
 /**
  * A real data directory on disk, for the index tests.
  *
- * **The filesystem is not mocked** ([testing §8](../../../../docs/design/workplan/10-testing.md)): the
+ * **The filesystem is not mocked** ([testing §8](../../../../docs/design/workplan/03-testing.md)): the
  * storage layer *is* the thing under test, so these use temporary directories.
  * A mock would let the index agree with a fiction.
  */

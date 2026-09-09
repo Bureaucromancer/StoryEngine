@@ -41,7 +41,7 @@ and should be read as such — a promise this document previously made in the fo
 *"and marked as such"*, which it never kept: no claim anywhere below carries an
 inference marker. Stating the caveat once here is honest; the per-claim version
 was not. (The Noodle subsystem was on this list until it was read; the notes are
-at [14 §4.6](14-roadmap.md), and [02 §9](workplan/02-triage.md) had already
+at [24 §4.6](24-roadmap.md), and [triage §9](workplan/02-triage.md) had already
 struck it here.)
 
 ---
@@ -153,7 +153,7 @@ content/production split half-solved.
 **GM Mode as a modal distinction**: `GameGmMode = "standalone" | "character"` —
 a synthesised narrator versus one of your own cards *acting as* narrator. This is
 the narrator/embodied distinction the requirements ask for, and it should be
-generalised (see [03 §3](03-modes-and-turn-pipeline.md)).
+generalised (see [06 §3](06-modes-and-turn-pipeline.md)).
 
 **`gameExperienceId` + `experienceConfig`** (`types/game.ts:201-207`) — a game
 may be driven by an installed package that "draws its own surface over the shared
@@ -181,7 +181,7 @@ badly; and — in §3.3 — the explicitly deferred reframe:
 > plus a lorebook.
 
 Quoted verbatim; *Setting* is Marinara's word. StoryEngine adopted the reframe and
-renamed the object **Treatment** ([10 §6](10-schemas.md)) — the parent here is the
+renamed the object **Treatment** ([04 §6](04-schemas.md)) — the parent here is the
 stance on a world, not the world, and every material-word invited the opposite
 reading.
 
@@ -258,7 +258,7 @@ compiled prompt.
 `{{gameStoryboardKeyframeCount}}` — *"Aim to include N strong visual anchor
 moments when the scene and pacing support them"* — so the production setting
 this section already criticises `GameSetupConfig` for mixing in with narrative
-content also steers the prose. [03 §10.6](03-modes-and-turn-pipeline.md) declines
+content also steers the prose. [06 §10.6](06-modes-and-turn-pipeline.md) declines
 that coupling and says why.
 
 **Timing.** The planner call blocks the HTTP request; image rendering is detached
@@ -301,7 +301,7 @@ disposition, a −100..100 relationship level and history; `LocationEntryState`;
 `ItemEntryState`; …), plus injection rules, plus mode-specific state slices
 (`adventureState` / `creativeState`). "A lorebook entry and the thing that tracks
 its state are the same object" is a genuinely good idea and it is the seed of the
-channel model in [03](03-modes-and-turn-pipeline.md).
+channel model in [06](06-modes-and-turn-pipeline.md).
 
 **Branching with copy-on-write and tombstones.** Entities carry
 `branchId`, `overridesId` (COW parent) and `deleted` (COD tombstone), with a
@@ -344,7 +344,7 @@ consumes" structure is sound.
 **Diagnostic honesty.** `EntryMetadata.retrievalSnapshot` is annotated
 "Diagnostic only — nothing reads it back". Storing what retrieval put in the
 prompt, per turn, is exactly right — StoryEngine should promote it from
-diagnostic to first-class (see [05](05-ui-surfaces.md)).
+diagnostic to first-class (see [10](10-ui-surfaces.md)).
 
 ### What it gets wrong and we should not copy
 
@@ -396,7 +396,7 @@ prompt **as a string and appears nowhere else in the program**. The result is
 sorted by `priority` and every scene is queued — no slice, no threshold — and
 `priority` is not persisted on the record. Ask for three, get eight, pay for
 eight; and the field that would have chosen between them survives only as queue
-order. [03 §10.4](03-modes-and-turn-pipeline.md) takes the opposite rule from
+order. [06 §10.4](06-modes-and-turn-pipeline.md) takes the opposite rule from
 this.
 
 **`inline` — the narrative model decides, in the same call, and here the cap is
@@ -407,8 +407,8 @@ enforcement is then a matter of counting tags in a string, it is enforced twice 
 during streaming and again on rescan, the second counting existing rows so the
 budget is per message rather than per call. The mode that trusts the model least
 is the one that constrains it best. It is also markup inside the stored prose,
-which is why [03 §10.4](03-modes-and-turn-pipeline.md) declines it and
-[05 §13.1](05-ui-surfaces.md) supplies the rule.
+which is why [06 §10.4](06-modes-and-turn-pipeline.md) declines it and
+[10 §13.1](10-ui-surfaces.md) supplies the rule.
 
 **Nothing else gates a story image.** No scene-change detection, no importance
 threshold, no cooldown, no minimum turns between images, no per-session cap, no
@@ -422,7 +422,7 @@ separate phase asks a model for
 entries, with explicit criteria — *"A location change warrants a new background
 only if the physical environment fundamentally shifts"*, and minor movement or
 dialogue does not. It fails closed. This is independent confirmation that
-[03 §10.1a](03-modes-and-turn-pipeline.md)'s *not every turn* requirement is
+[06 §10.1a](06-modes-and-turn-pipeline.md)'s *not every turn* requirement is
 real; note only that StoryEngine answers the same question by diffing the
 assembled fragments, which costs no call and caches on the recipe digest
 besides.
@@ -446,7 +446,7 @@ and — notably — three SSO paths (Authelia, Authentik, and generic
 allowlist validated by `ip-matching`.
 
 That header-auth-behind-a-trusted-proxy pattern is directly reusable for the
-Tailscale integration in [04](04-server-multiuser-deployment.md).
+Tailscale integration in [09](09-server-multiuser-deployment.md).
 
 **Per-user directory tree** (`USER_DIRECTORY_TEMPLATE`, `src/constants.js:16`) —
 thirty named subdirectories per user (`characters`, `chats`, `groups`,
@@ -501,7 +501,7 @@ multi-user, mobile and resumability limitations.
 **Per-user islands with no sharing.** ~~For a household LAN server this is the
 wrong default.~~ **Revised**: per-user stores are the right *default* and
 StoryEngine now adopts essentially this model
-([04 §4.3](04-server-multiuser-deployment.md)) — merging separate stores later
+([09 §4.3](09-server-multiuser-deployment.md)) — merging separate stores later
 is mechanical, whereas splitting a shared one is adjudication. What SillyTavern
 actually lacks is not per-user isolation but any *path* to sharing: no stable
 object identity across users, no provenance to dedupe on, and a directory layout
@@ -548,4 +548,4 @@ right call and both codebases are evidence for it.
 **Nobody has solved NPC promotion.** Marinara's scenario plan considers and
 explicitly rejects automatic promotion of an inline NPC into a real card,
 concluding the judgement "is agentic, not algorithmic". Worth reading before
-designing the NPC-to-actor path in [02 §2.5](02-data-model.md).
+designing the NPC-to-actor path in [03 §2.5](03-data-model.md).

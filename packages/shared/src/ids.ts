@@ -6,18 +6,18 @@
  *
  * The two are deliberately unrelated. The uuid inside the file is identity; the
  * slug is a human-readable folder name that is frozen at creation and never
- * resolved against (docs/design/workplan/03-p1-implementation.md §1.1). A renamed folder
+ * resolved against (docs/design/workplan/07-p1-implementation.md §1.1). A renamed folder
  * is an update to an existing row, not a second object, precisely because
  * nothing here derives one from the other.
  *
  * This is the one file exempt from the randomness rule
- * (docs/design/07-tech-stack.md §14.4), and the exemption is argued in
+ * (docs/design/19-tech-stack.md §14.4), and the exemption is argued in
  * eslint.config.js: an id is not a draw. Nothing replays it and no outcome
  * depends on its value.
  *
  * The randomness comes from the **Web Crypto global**, not `node:crypto`:
  * `shared` is on the client's side of the boundary graph (client → shared,
- * docs/design/workplan/10-testing.md §2), and a `node:crypto` import is the one thing
+ * docs/design/workplan/03-testing.md §2), and a `node:crypto` import is the one thing
  * that would make this package unloadable in a browser.
  */
 
@@ -45,7 +45,7 @@ function randomCounterSeed(): number {
  * remember the last millisecond it emitted and how far into that millisecond it
  * has counted. That is worth making explicit rather than hiding in a module,
  * for the same reason the RNG service takes its source by injection
- * (docs/design/07-tech-stack.md §14.3) — a caller that needs a fresh sequence,
+ * (docs/design/19-tech-stack.md §14.3) — a caller that needs a fresh sequence,
  * or a test that needs one uncontaminated by whatever ran before it, can have
  * one. `uuidv7` below is the shared instance almost everything should use.
  */
@@ -182,7 +182,7 @@ const WINDOWS_RESERVED = new Set([
  * Derives a folder name from an object's name.
  *
  * **Derived once, at creation, and then frozen**
- * (docs/design/workplan/03-p1-implementation.md §1.1). Renaming an object changes the
+ * (docs/design/workplan/07-p1-implementation.md §1.1). Renaming an object changes the
  * name inside the file; the folder keeps the name it was born with, and the
  * engine never moves the user's directories. Drift is bounded and legible: the
  * folder reads the way the library did when the object was created.

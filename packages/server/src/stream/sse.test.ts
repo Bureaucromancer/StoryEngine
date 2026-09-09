@@ -8,7 +8,7 @@ import type { ProgressEvent } from '../state/jobs.js';
 import { SseWriter } from './sse.js';
 
 /**
- * The writer's backpressure policy — [07 §8], and exit gate 14.
+ * The writer's backpressure policy — [19 §8], and exit gate 14.
  *
  * The interesting behaviour is entirely in what happens when a client stops
  * reading: which frames may be dropped, which may not, and — the one that

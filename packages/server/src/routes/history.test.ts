@@ -12,7 +12,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * Version history through the HTTP surface — the CI equivalents of exit-gate
- * steps 13–19 ([P1 §3](../../../../docs/design/workplan/03-p1-implementation.md)).
+ * steps 13–19 ([P1 §3](../../../../docs/design/workplan/07-p1-implementation.md)).
  *
  * Each of these fails silently otherwise: mis-attributed sources look like a
  * working feature, no-op suppression is invisible until the list is unusable,
@@ -105,7 +105,7 @@ describe('every edit snapshots the state it replaces', () => {
     await saveSummary(created.id, created.contentHash, 'Edited.');
 
     const versions = await listHistory(created.id);
-    // [02 §11.1]: a restored version keeps its real date in the list.
+    // [03 §11.1]: a restored version keeps its real date in the list.
     expect(versions[0]!.authoredAt).toBe(before['provenance'].updatedAt);
   });
 
@@ -119,7 +119,7 @@ describe('the no-op rule', () => {
     const created = await createActor();
     const first = await saveSummary(created.id, created.contentHash, 'One real edit.');
 
-    // Save the identical object again — [02 §11.1], exit-gate step 17.
+    // Save the identical object again — [03 §11.1], exit-gate step 17.
     const { object } = await readEnvelope(created.id);
     const again = await server.request({
       method: 'PUT',

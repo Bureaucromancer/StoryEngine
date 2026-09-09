@@ -5,8 +5,8 @@ import { newLoreEntry, type LoreEntry, type LoreFolder } from '@storyengine/shar
 
 /**
  * The lorebook editor's edits, as functions over the object
- * ([05 §11.2d](../../../../docs/design/05-ui-surfaces.md),
- * [P5.1](../../../../docs/design/workplan/07-p5-implementation.md)).
+ * ([10 §11.2d](../../../../docs/design/10-ui-surfaces.md),
+ * [P5.1](../../../../docs/design/workplan/17-p5-implementation.md)).
  *
  * **The draft is the book, not a projection of it**, and that is the one
  * structural difference from [form.ts](./form.ts) beside it. `ActorForm` exists
@@ -16,7 +16,7 @@ import { newLoreEntry, type LoreEntry, type LoreFolder } from '@storyengine/shar
  * would be a forty-field parallel copy of the object built to carry six of them,
  * and every field it forgot would be a field a save silently dropped.
  *
- * Holding the object itself makes [10 §2](../../../../docs/design/10-schemas.md)'s
+ * Holding the object itself makes [04 §2](../../../../docs/design/04-schemas.md)'s
  * promise structural rather than remembered: a field this build has never heard
  * of survives because nothing ever took it out. What the functions below
  * guarantee is narrower and is the part worth testing — that an edit to one
@@ -43,7 +43,7 @@ function foldersOf(book: Draft): LoreFolder[] {
   return (book['folders'] ?? []) as unknown as LoreFolder[];
 }
 
-/** The entry this id names, or undefined — ids are book-local ([10 §5.2]). */
+/** The entry this id names, or undefined — ids are book-local ([04 §5.2]). */
 export function entryOf(book: Draft, id: string): LoreEntry | undefined {
   return entriesOf(book).find((candidate) => candidate.id === id);
 }
@@ -57,7 +57,7 @@ export function entryList(book: Draft): LoreEntry[] {
  * The book with one entry's fields changed.
  *
  * **Spread over the entry rather than rebuilt from it**, for the same reason
- * `applyForm` spreads over a writing sample: an entry is an object, [10 §2]'s
+ * `applyForm` spreads over a writing sample: an entry is an object, [04 §2]'s
  * promise is per-object, and an entry rebuilt from the fields this build knows
  * would strip whatever a newer one wrote into it. The array is copied rather
  * than spliced because a React state update that mutates in place is a render
@@ -66,7 +66,7 @@ export function entryList(book: Draft): LoreEntry[] {
 export function withEntry(book: Draft, id: string, patch: Partial<LoreEntry>): Draft {
   /**
    * **The first match, not every match**, and that is a defence rather than a
-   * micro-optimisation. [10 §5.2] says an entry id is unique within its book,
+   * micro-optimisation. [04 §5.2] says an entry id is unique within its book,
    * but that is an intent and not an enforced invariant: the importers derive
    * one as `stableId('entry', name, content)`
    * (`packages/server/src/import/sillytavern/lorebook.ts`), so two entries that
@@ -96,7 +96,7 @@ export function withEntry(book: Draft, id: string, patch: Partial<LoreEntry>): D
  * non-defaults it has not got.
  *
  * **Appended rather than inserted by `order`.** `order` is injection order and
- * has nothing to do with reading order ([05 §5.3]); a new entry belongs where
+ * has nothing to do with reading order ([10 §5.3]); a new entry belongs where
  * the author will look for it, which is where they were.
  */
 export function withNewEntry(book: Draft, name: string): { book: Draft; id: string } {
@@ -114,7 +114,7 @@ export function withoutEntry(book: Draft, id: string): Draft {
  *
  * The gate and the entries beneath it stay independent: the schema says a shut
  * folder leaves each entry's own `enabled` *"preserved rather than mutated"*,
- * and [16 §2](../../../../docs/design/16-lorebooks-as-a-format.md) calls that
+ * and [11 §2](../../../../docs/design/11-lorebooks-as-a-format.md) calls that
  * the format's variant switch. A control that also flipped the entries would
  * destroy the thing being switched.
  */
@@ -134,9 +134,9 @@ export function bookChanges(base: Draft, draft: Draft): boolean {
 
 /**
  * The book with one entry moved to sit immediately before another — the entry
- * list's reordering gesture ([05 §5.3], [05 §11.2c]).
+ * list's reordering gesture ([10 §5.3], [10 §11.2c]).
  *
- * **This moves reading order, and it never touches `order`.** [05 §5.3] is
+ * **This moves reading order, and it never touches `order`.** [10 §5.3] is
  * explicit that the list's default order is the file's array order and that
  * `order` is *injection* order — where an activated entry lands in the prompt —
  * and that conflating them *"is the kind of small lie that teaches a false model
@@ -213,13 +213,13 @@ function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
 
 /**
  * The reload-and-reapply merge, for the 412 dialog
- * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
+ * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)).
  *
  * **Per entry, keyed on id, and resolved against `pristine`** — the draft as it
  * read when the stale base was loaded. That is finer than the coarse
  * take-one-side-whole that `reapplyEdits` uses for an actor's writing samples,
  * and what lets it be finer is a fact about lorebooks rather than a better idea:
- * an entry id is a uuid, book-local and never reused ([10 §5.2]), so *was this
+ * an entry id is a uuid, book-local and never reused ([04 §5.2]), so *was this
  * in the book when I opened it* is answerable here.
  *
  * The three cases, each of which wants a different answer and gets one:
@@ -256,7 +256,7 @@ function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
  *
  * Everything outside `entries` and `folders` takes the newer object's value,
  * which is correct **only while this editor writes nothing else** — the book's
- * own name, description and budgets are read-only at this stage ([05 §11.2d]'s
+ * own name, description and budgets are read-only at this stage ([10 §11.2d]'s
  * minimum), so there is no edit of mine to those that could be lost here. An
  * editor that gains a writable book-level field gains a line in this function,
  * and that is the coupling to watch.

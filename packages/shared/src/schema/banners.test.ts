@@ -16,7 +16,7 @@ import { LoreEntry, Lorebook } from './lorebook.js';
  * like anything else that a surface reads.
  *
  * **Two of these are the interesting ones.** That the group vocabulary is
- * pinned, because [05 §11.2d](../../../../docs/design/05-ui-surfaces.md) builds
+ * pinned, because [10 §11.2d](../../../../docs/design/10-ui-surfaces.md) builds
  * the entry editor's disclosures out of it and renaming a group is a change to
  * what a reader is shown — deliberate, or not at all. And that the **emitted
  * artefact** carries them: the client reads the TypeBox objects, so a stripped
@@ -29,7 +29,7 @@ const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'sc
 /**
  * The groups, in field order, with the field each one opens.
  *
- * Six of them are [05 §11.2d]'s, named there and quoted from the file it was
+ * Six of them are [10 §11.2d]'s, named there and quoted from the file it was
  * written against. The seventh is P5.0's, and it replaced a banner reading
  * *the one addition* — a remark about the schema's history standing where a
  * reader needed the name of a group.

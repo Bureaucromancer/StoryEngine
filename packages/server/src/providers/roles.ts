@@ -5,7 +5,7 @@ import type { Connection } from './connections.js';
 import { type ModelRole, MODEL_ROLES } from './types.js';
 
 /**
- * Role bindings — [07 §5.1](../../../../docs/design/07-tech-stack.md).
+ * Role bindings — [19 §5.1](../../../../docs/design/19-tech-stack.md).
  *
  * **Steps never name a model. They name a role, and the install binds roles to
  * connections.** Nothing in a mode, step or extension refers to a provider or a
@@ -91,11 +91,11 @@ export function defaultBindings(hi: Binding, lo: Binding): RoleBindings {
  * and never see the rest.
  *
  * `'default'` is the install layer, added at
- * [P2B §2.1](../../../../docs/design/workplan/14-p2b-provider-configuration.md). Recorded rather
+ * [P2B §2.1](../../../../docs/design/workplan/10-p2b-provider-configuration.md). Recorded rather
  * than merged into `'binding'`, and that is the whole reason the two binding
  * maps stay separate: a merged map answers every resolvable role correctly and
  * cannot say *inherited from the install* against *yours*, which is the
- * substance of [05 §15.1](../../../../docs/design/05-ui-surfaces.md)'s one place a user sees
+ * substance of [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s one place a user sees
  * which of their bindings are personal. This type would have been lied to.
  *
  * `'session'` and `'step'` still have no caller outside tests — they are P7's,
@@ -135,11 +135,11 @@ export type RoleResolution =
     };
 
 /**
- * One row of the role table — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
+ * One row of the role table — [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
  * stage P2B.3, and the answer to *"why did this turn use that model"* before
  * anybody has to ask it.
  *
- * **It carries the resolution rather than re-deriving it.** [07 §5.1]'s
+ * **It carries the resolution rather than re-deriving it.** [19 §5.1]'s
  * layering lives in {@link resolveRole} and nowhere else; a surface that
  * inspected the two binding maps and worked out which one would win would be a
  * second implementation of the resolution order, wrong the first time a layer
@@ -213,7 +213,7 @@ export function resolveRole(options: ResolveOptions): RoleResolution {
    * Typed `unknown` rather than `Binding | undefined`, which is not
    * defensiveness for its own sake.
    *
-   * Two of these come from **hand-written JSON** ([05 §4]), and a reader that
+   * Two of these come from **hand-written JSON** ([10 §4]), and a reader that
    * hands back the file's own shape can hand back anything the parse accepted —
    * `{"prose": null}` is well-formed JSON. `readBindingsAt` now drops entries
    * that are not `{connectionId, modelId}`, so in practice this loop is handed
@@ -233,7 +233,7 @@ export function resolveRole(options: ResolveOptions): RoleResolution {
    *
    * This used to take the strongest binding and then fail if its connection was
    * gone, which made `dangling` terminal — and left
-   * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)'s promise that a removed
+   * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md)'s promise that a removed
    * system connection *"falls back to system bindings"* describing something the
    * code could not do, because there was no second layer to fall back to
    * ([P2B §1.2]).

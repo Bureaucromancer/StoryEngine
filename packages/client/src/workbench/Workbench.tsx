@@ -30,8 +30,8 @@ import { PreviewSubject } from './turn/PreviewSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
 
 /**
- * The workbench frame — [05 §3](../../../../docs/design/05-ui-surfaces.md),
- * built by [P3.1](../../../../docs/design/workplan/05-p3-implementation.md):
+ * The workbench frame — [10 §3](../../../../docs/design/10-ui-surfaces.md),
+ * built by [P3.1](../../../../docs/design/workplan/15-p3-implementation.md):
  * a non-modal `<aside>` docked at the shell's inline end, whose subject is
  * whatever the main view is showing. The subject over Play is the head turn
  * rendered by `TurnSubject` — the block table, budget verdict and call
@@ -62,7 +62,7 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * panel is a reader with no state of its own; deriving the subject from the
  * router is what keeps that true, and the empty state over subjectless routes
  * is [P3 §7.3]'s interim answer — remembering the last subject would quietly
- * make the reader stateful, which [05 §2] forbids.
+ * make the reader stateful, which [10 §2] forbids.
  *
  * **[P3.4] widened what the subject over Play *is*, and left the rule
  * alone.** It is now the turn about to be taken, falling back to the head
@@ -71,7 +71,7 @@ import { TurnSubject } from './turn/TurnSubject.js';
  * contradict the control that opened it. The panel still holds no state: it
  * chooses on the route and on one cache entry whose reader provably cannot
  * fetch, and that entry is dropped at submit and again on leave. Written back
- * into [05 §3] rather than left as an implicit reinterpretation.
+ * into [10 §3] rather than left as an implicit reinterpretation.
  */
 export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
   const play = useMatch({ from: '/play/$sessionId', shouldThrow: false });
@@ -317,7 +317,7 @@ function PlaySubject({ sessionId }: { sessionId: string }): JSX.Element {
    * there is nothing to compose (the input is disabled) and the head is about
    * to be superseded, so the honest subject is the one thing that is actually
    * happening. It is the event feed rendered rather than the record rendered
-   * early, which is the decision the stage made about [04 §3.3]; the record
+   * early, which is the decision the stage made about [09 §3.3]; the record
    * takes over the moment the turn commits and the transcript refetches.
    */
   const live = liveTurn.data?.live;

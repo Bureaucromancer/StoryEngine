@@ -236,7 +236,7 @@ describe('retrieve', () => {
 
     /**
      * A library of four hundred entries would otherwise write four hundred
-     * no-op effects every turn, and the effect log is what [09 §4] replays.
+     * no-op effects every turn, and the effect log is what [07 §4] replays.
      * Every one would be a real line in a real file somebody may read.
      */
     it('proposes nothing for an entry whose counters did not move', () => {

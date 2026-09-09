@@ -19,7 +19,7 @@ import { ConflictDialog } from './ActorEditorPage.js';
  * complex screen.
  *
  * The subject is the conflict dialog because that is the flagship P1 mechanism
- * ([04 §4.4]): the refusal that keeps a hot-reloading server from silently
+ * ([09 §4.4]): the refusal that keeps a hot-reloading server from silently
  * eating a hand edit. It is also where F18's focus trap will land, and this is
  * what will catch a regression when it does.
  */

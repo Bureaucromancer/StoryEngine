@@ -15,7 +15,7 @@ import type { ModelCall, Turn } from './sessions/types.js';
  * threw `call.blocks.filter` on the first P2-era turn somebody opened.
  * Backfilling `[]` on read was refused on the same grounds — *nobody recorded
  * them* is a claim about the build and *this call assembled nothing* is a claim
- * about the prompt, and [02 §8] is the line between them.
+ * about the prompt, and [03 §8] is the line between them.
  *
  * **A test over a turn this process just produced sits on the other side of
  * that line.** These suites run a turn into a fresh `mkdtemp` directory and

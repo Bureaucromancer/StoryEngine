@@ -38,7 +38,7 @@ import { SE_LORE_TIMING } from '../sessions/channels.js';
 import { TurnRunner } from './runner.js';
 
 /**
- * The step loop — [P2 §2.5], [03 §6].
+ * The step loop — [P2 §2.5], [06 §6].
  *
  * Driven directly rather than through HTTP: what these assert are properties of
  * the *pipeline* — that a failure mode does what it says, that an advisory block
@@ -135,7 +135,7 @@ let logLines: Record<string, unknown>[] = [];
  * A `Logger` that keeps its lines, bindings merged in.
  *
  * Structural rather than a pino instance writing to a stream: `Logger` is four
- * methods ([13 §4.1] keeps it that small on purpose), and going through a real
+ * methods ([21 §4.1] keeps it that small on purpose), and going through a real
  * logger would mean asserting against a serialiser instead of against what the
  * runner passed. The bindings matter — `child()` is how a job id reaches every
  * line — so they are merged rather than dropped.
@@ -144,7 +144,7 @@ let logLines: Record<string, unknown>[] = [];
  * The runner's logger seam, recording **which level** as well as what.
  *
  * All three used to share one writer, which made the level unobservable — and
- * [13 §4.1] draws a boundary there that matters: `error` is what the server
+ * [21 §4.1] draws a boundary there that matters: `error` is what the server
  * could not do, `warn` what it refused. A user pressing Stop is neither, and
  * logging it at `error` was most of what a session's log contained.
  */
@@ -247,7 +247,7 @@ describe('a turn goes all the way through', () => {
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
     expect(turn.steps).toMatchObject([{ stepId: 'se.narrate', state: 'ok' }]);
     // What was assembled, with provenance — the thing that makes the workbench
-    // able to answer "why is this in the prompt?" ([02 §8]).
+    // able to answer "why is this in the prompt?" ([03 §8]).
     // Bound once, and read from that binding below. Two spellings of the same
     // call — a narrowed one here and `turn.request?.calls[0]?.` on the next
     // lines — both survive tsc, which is precisely why they drift: a reader has
@@ -278,7 +278,7 @@ describe('a turn goes all the way through', () => {
     expect(serialised).not.toContain('secret-host.invalid');
     expect(serialised).not.toContain('apiKey');
     expect(serialised).not.toContain('baseUrl');
-    // And the id, which is what [13 §1.4] says the record may carry, is there —
+    // And the id, which is what [21 §1.4] says the record may carry, is there —
     // so this is not passing because nothing was recorded at all.
     expect(serialised).toContain(CONNECTION_ID);
   });
@@ -351,7 +351,7 @@ describe('guidance is advisory, structurally', () => {
   });
 
   it('cannot reach a call that writes a channel, and costs zero provider requests', async () => {
-    // [03 §5.2], enforced by derivation rather than by anybody remembering: the
+    // [06 §5.2], enforced by derivation rather than by anybody remembering: the
     // step declares `contributes: 'effects'`, so `callPurposeFor` yields
     // `effects`, and `assemble` refuses the advisory block outright.
     makeRunner({
@@ -387,7 +387,7 @@ describe('guidance is advisory, structurally', () => {
   });
 
   it('never enters the history later turns assemble from', async () => {
-    // [03 §5.1]: guidance is one-shot. Its cost is that it lands in history
+    // [06 §5.1]: guidance is one-shot. Its cost is that it lands in history
     // permanently if it is concatenated into the action — which is the habit
     // the box exists to replace.
     const first = await reserve('a');
@@ -436,7 +436,7 @@ describe('the three failure modes are three', () => {
    * `err: error` serialises an error's own enumerable properties, and a
    * `CallFailed` carries `partialText` and `call` — so a failed step wrote **the
    * whole rendered prompt and the model's partial narration** into the log.
-   * [13 §4.1] says portable object bodies never appear there: *a log is not a
+   * [21 §4.1] says portable object bodies never appear there: *a log is not a
    * backup and user prose is not diagnostic.*
    *
    * The assertion is on the *absence of prose*, which is the thing that has to
@@ -470,7 +470,7 @@ describe('the three failure modes are three', () => {
   });
 
   /**
-   * [13 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
+   * [21 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
    * what it refused. **A user pressing Stop is neither** — it is the system
    * doing exactly what was asked — and Stop is the most-pressed button in a
    * session against real latency, so logging it at `error` was most of what a
@@ -613,7 +613,7 @@ describe('the three failure modes are three', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
     expect(turn.steps?.[0]).toMatchObject({ state: 'failed', failure: 'warn' });
-    // "Does not lose the turn" is only half of it — [04 §3.3] also requires the
+    // "Does not lose the turn" is only half of it — [09 §3.3] also requires the
     // failure to be attached to the step on the live stream.
     expect(readEvents(commit, job.id).map((event) => event.key)).toContain('step.failed');
   });
@@ -669,7 +669,7 @@ describe('what the provider did, and what it cost', () => {
 
     expect(turn.status).toBe('complete');
     // One `ModelCall` for one logical call, with the attempts counted on it —
-    // which is where [13 §1.4] puts them.
+    // which is where [21 §1.4] puts them.
     expect(turn.request?.calls).toHaveLength(1);
     expect(turn.request?.calls[0]?.retries).toBe(1);
     expect(provider.requests).toHaveLength(2);
@@ -734,7 +734,7 @@ describe('cancellation', () => {
 
   /**
    * **The interrupted call is on the record** — finding 2 in
-   * [16](../../../../docs/design/workplan/16-p2c-log.md).
+   * [P2C log](../../../../docs/design/workplan/14-p2c-log.md).
    *
    * Stop is the most-pressed button in a manual phase against real latency,
    * and the failure a tester produced most often was the one the record said
@@ -917,7 +917,7 @@ describe('the record says why a slot is empty', () => {
 
 describe('the engine says what it overrode', () => {
   /**
-   * [05 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
+   * [10 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
    * step proposes a clock value, the engine-computed policy refuses it, and
    * the engine's own advance then lands carrying the refusal's id. The
    * falsifying mutation is stamping `supersedes: null` unconditionally at the
@@ -1111,7 +1111,7 @@ describe('a turn that cannot even be set up', () => {
     // process restarted, and it presented to a test as a well-behaved refusal.
     //
     // A hand-edited `accounts.json` reaches it, and hand-editing is a
-    // first-class gesture in this project rather than a contrivance ([04 §4.3]).
+    // first-class gesture in this project rather than a contrivance ([09 §4.3]).
     //
     // **It used to be a hand-edited `session.json`, and that stopped being
     // true.** The session reader and `resolveCast` both became tolerant of a
@@ -1160,7 +1160,7 @@ describe('a turn that cannot even be set up', () => {
    * neither the session nor the account.
    *
    * **The id a person actually has is the session's**, because it is the one in
-   * the URL. [13 §4.1] asks for the bindings to be set once where the subject
+   * the URL. [21 §4.1] asks for the bindings to be set once where the subject
    * comes into existence, and that is `start()` rather than `#body`.
    */
   it('names the session on the line that says a turn never started', async () => {
@@ -1184,7 +1184,7 @@ describe('a turn that cannot even be set up', () => {
     });
     // And a shape rather than the error object: the same `CallFailed` that
     // carries `partialText` and the rendered prompt can reach this path, and
-    // [13 §4.1] says portable object bodies never appear in a log.
+    // [21 §4.1] says portable object bodies never appear in a log.
     expect(JSON.stringify(line)).not.toContain('partialText');
   });
 
@@ -1299,7 +1299,7 @@ describe('a preset block can be scoped to a kind of call', () => {
     const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
     const samples = blocks.filter((one) => one.source.kind === 'samples');
 
-    // Both carriers, in [10 §3.1]'s declared order: the stance, then the person.
+    // Both carriers, in [04 §3.1]'s declared order: the stance, then the person.
     expect(samples.map((one) => one.text)).toEqual([
       'The rain never lets up.',
       'She says less than she knows.',
@@ -1433,7 +1433,7 @@ describe('a preset block can be scoped to a kind of call', () => {
    * The counters are a channel ([P5.5]), so a turn that fires an entry has to
    * leave an effect behind — otherwise nothing reconstructs at a node and a
    * branch inherits the wrong stickiness. Asserted on the effect log rather
-   * than on the session's snapshot, because the log is what [09 §4] replays.
+   * than on the session's snapshot, because the log is what [07 §4] replays.
    */
   it('records the timing of an entry that fired as an entry-scoped effect', async () => {
     const book = newLorebook('Rain City');
@@ -1617,7 +1617,7 @@ describe("the preset's own settings reach the call", () => {
   });
 
   it('records the params it actually used on the call', async () => {
-    // [13 §1.4]: the record answers "why is this turn different", which it
+    // [21 §1.4]: the record answers "why is this turn different", which it
     // cannot do if the params it names are not the params that were sent.
     const { turn } = await runTurn();
     expect(turn.request?.calls[0]?.params).toEqual(provider.requests[0]?.params);
@@ -1627,7 +1627,7 @@ describe("the preset's own settings reach the call", () => {
 describe('the turn record answers what actually ran — gate step 11', () => {
   it('gives every block a source and a reason, universally', async () => {
     // `toContain` on one kind passed while most blocks carried neither. The
-    // record's whole job is answering *why is this in the prompt* ([02 §8]), and
+    // record's whole job is answering *why is this in the prompt* ([03 §8]), and
     // one block without provenance is one the workbench cannot explain.
     const { turn } = await runTurn();
     const blocks = turn.request?.calls[0]?.blocks ?? [];
@@ -1695,7 +1695,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * `costOf` used to sum over the calls that happened to report, so a turn where
    * none did recorded `promptTokens: 0`. That is a fabricated total in a record
    * whose sibling `ModelCall.cost` is hard-coded null precisely to avoid
-   * fabricating one, and [13 §1.4] is *provider-reported, not estimated* —
+   * fabricating one, and [21 §1.4] is *provider-reported, not estimated* —
    * a zero is an estimate with a confident face.
    *
    * It went unnoticed because the only assertion over `turn.cost` read `model`
@@ -1803,7 +1803,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * So the figures here are ones that cannot arise by accident. 137 and 42 are
    * not defaults, not lengths of anything in this file, and not derivable from
    * the prompt; 0.0012 USD is a price no estimator in this repo computes,
-   * because there is no estimator — [13 §1.4] says `usage` is
+   * because there is no estimator — [21 §1.4] says `usage` is
    * *provider-reported, not estimated*, and `cost` is the field that says the
    * same about money. `cost` in particular had **nothing asserting it reached
    * the record**: the repository's only other mention of the field is
@@ -1844,7 +1844,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.cost?.model).toBe('fake-hi');
     expect(turn.cost?.wallMs).toBeGreaterThan(0);
 
-    // …and the same numbers on the call itself, which is where [13 §1.4] puts
+    // …and the same numbers on the call itself, which is where [21 §1.4] puts
     // them. The turn total is a fold over these; asserting only the fold would
     // pass with the per-call record emptied.
     const call = turn.request?.calls[0];
@@ -1963,12 +1963,12 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    *   question is asked. `readAllTurns` parses the JSONL, which is the same
    *   round trip.
    * - The first turn of a session has legitimately empty state:
-   *   `parentTurnId` is null by [02 §8], and the clock effect's `before` is
+   *   `parentTurnId` is null by [03 §8], and the clock effect's `before` is
    *   null because the channel had no value yet. Walking turn two puts real
    *   data in both, so **neither needs a place on the allowlist** — which turns
    *   two excuses into two assertions: that a turn names its parent, and that
    *   the clock effect records the time it moved from. An effect that cannot
-   *   state where it came from is not invertible, which is [13 §1.2.1].
+   *   state where it came from is not invertible, which is [21 §1.2.1].
    *
    * Mutation this catches: any production change that starts writing `null`
    * into the record — a `resolved` that stops carrying its `modelId`, a
@@ -1976,9 +1976,9 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * a block whose `source` is not filled in — including on a field added after
    * this test was written, which is the property a spot check cannot have.
    */
-  it('carries no null where [13 §1] says data, on the record as it comes off disk', async () => {
+  it('carries no null where [21 §1] says data, on the record as it comes off disk', async () => {
     // Scripted, so `usage` and `cost` carry figures. They are *allowed* to be
-    // null by [13 §1.4], and are therefore on the allowlist — which means the
+    // null by [21 §1.4], and are therefore on the allowlist — which means the
     // walk alone cannot notice them going missing. The explicit assertion below
     // is what stops the allowlist from becoming a place to hide a regression.
     makeRunner({
@@ -2037,9 +2037,9 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       .map(([path]) => path)
       .filter((path) => !NULL_IS_DATA.has(generalise(path)));
 
-    expect(offending, `null where [13 §1] says data: ${offending.join(', ')}`).toEqual([]);
+    expect(offending, `null where [21 §1] says data: ${offending.join(', ')}`).toEqual([]);
 
-    // The allowlist's two escape hatches, closed for this turn. [13 §1.4]
+    // The allowlist's two escape hatches, closed for this turn. [21 §1.4]
     // permits both to be null — that is what "provider-reported" means when a
     // provider reports nothing — but this provider reported, so a record that
     // dropped the figures would be a regression the allowlist would otherwise
@@ -2093,22 +2093,22 @@ function generalise(path: string): string {
  * arriving null is a failure until somebody decides it is a contract and adds
  * it here, and adding it here is a visible act.
  *
- * - `input.actorId` — [02 §8]: an input not attributed to an actor. Scene has
+ * - `input.actorId` — [03 §8]: an input not attributed to an actor. Scene has
  *   a fixed participant and never attributes one.
- * - `effects[*].scopeKey` — [13 §1.2]: *which value, when the channel is scoped
+ * - `effects[*].scopeKey` — [21 §1.2]: *which value, when the channel is scoped
  *   per actor or per entry*. `se.clock` declares `scope: 'session'`, so there
  *   is no key to name.
- * - `effects[*].rejectedReason` — [13 §1.2]: *present when `applied` is false*.
+ * - `effects[*].rejectedReason` — [21 §1.2]: *present when `applied` is false*.
  *   The clock effect is engine-proposed against an `engine-computed` channel,
  *   so it is admitted and there is no refusal to state.
- * - `request.calls[*].usage` and `.cost` — [13 §1.4]: provider-*reported*, and
+ * - `request.calls[*].usage` and `.cost` — [21 §1.4]: provider-*reported*, and
  *   a provider that reports nothing must be recorded as having reported nothing
  *   rather than as having reported zero. The turn under test scripts both, so
  *   the walk's caller closes these two by hand — an allowlist entry is a
  *   permission, not a place to hide a regression.
- * - `request.calls[*].error` — [13 §1.4]: the classified failure, null on a
+ * - `request.calls[*].error` — [21 §1.4]: the classified failure, null on a
  *   call that succeeded.
- * - `effects[*].supersedes` — [13 §1.2] via [P3.0]: the refusal an engine
+ * - `effects[*].supersedes` — [21 §1.2] via [P3.0]: the refusal an engine
  *   write replaced. Null is "this effect superseded nothing", which is the
  *   ordinary clock advance on a turn where nothing proposed against it —
  *   exactly this turn.
@@ -2116,8 +2116,8 @@ function generalise(path: string): string {
  * **Two permissions the doc grants and this record does not need**, which is
  * why they are absent and each absence is an extra assertion. Both are granted
  * *for the first turn of a session*, and the walk deliberately runs on the
- * second: `parentTurnId` ([02 §8] — null for the first turn, every other turn
- * names its parent) and `effects[*].before` ([13 §1.2.1] — the state the effect
+ * second: `parentTurnId` ([03 §8] — null for the first turn, every other turn
+ * names its parent) and `effects[*].before` ([21 §1.2.1] — the state the effect
  * inverts back to, which does not exist before the channel has a value).
  *
  * **And one that stopped being expressible at all** ([P3.0]): the old
@@ -2138,12 +2138,12 @@ const NULL_IS_DATA = new Set([
 ]);
 
 /**
- * **Capability enforcement** — [P2A §2.1](../../../../docs/design/workplan/13-p2a-configuration-surface.md),
- * [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md), gate step 6.
+ * **Capability enforcement** — [P2A §2.1](../../../../docs/design/workplan/09-p2a-configuration-surface.md),
+ * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md), gate step 6.
  *
  * From P2.5 until P2A the runner passed `{ privateConnections: true }` into
  * `resolveConnections` as a **literal**, which defeated the one check
- * [04 §4.5] calls load-bearing. It calls it that precisely because the
+ * [09 §4.5] calls load-bearing. It calls it that precisely because the
  * alternative — hiding personal connections in the UI — is a trivial bypass for
  * anyone with `fileAccess: "write"`, and a turn is where a connection is
  * actually used.
@@ -2178,7 +2178,7 @@ describe('the privateConnections capability', () => {
   /**
    * **The count, and only the count.**
    *
-   * [04 §4.5] keeps a connection opaque, so the line says how many were ignored
+   * [09 §4.5] keeps a connection opaque, so the line says how many were ignored
    * rather than which — and that is the fact an operator needs when somebody
    * reports "my model stopped working". Without it the symptom is a turn that
    * fails with a role it cannot resolve, and nothing anywhere connecting that
@@ -2240,7 +2240,7 @@ describe('the privateConnections capability', () => {
    * written without anybody noticing, because that spelling reads as harmless.
    *
    * Reached by hand-editing `accounts.json`, which is a first-class gesture in
-   * this project rather than a contrivance ([04 §4.3]) — and the only way to
+   * this project rather than a contrivance ([09 §4.3]) — and the only way to
    * reach it, since `Accounts.remove` takes the user's directory with it and
    * the turn would then fail earlier, for a different reason, at the session
    * read.
@@ -2259,8 +2259,8 @@ describe('the privateConnections capability', () => {
 });
 
 /**
- * **The install default, through a real turn** — [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md)
- * stage P2B.0's ending, and [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md)'s
+ * **The install default, through a real turn** — [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md)
+ * stage P2B.0's ending, and [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md)'s
  * fallback finally happening rather than being described.
  *
  * The unit tests above pin `resolveRole`'s layering. What only a turn can show
@@ -2271,7 +2271,7 @@ describe('the privateConnections capability', () => {
  * **`via` is not on the record**, and it is worth saying so where somebody would
  * assume otherwise. `ModelCall` carries `resolved: { connectionId, modelId }` —
  * what the role became — and nothing about which layer decided it;
- * [13 §1.4](../../../../docs/design/13-internal-contracts.md) specifies it that way. So these
+ * [21 §1.4](../../../../docs/design/21-internal-contracts.md) specifies it that way. So these
  * assert the connection, and the layer is a live answer the role table shows
  * rather than a recorded one. Putting `via` on the record is a contract change,
  * which means the document first.
@@ -2300,7 +2300,7 @@ describe('the install default bindings', () => {
   });
 
   /**
-   * **A dangling personal binding falls through** — the sentence [04 §4.5] has
+   * **A dangling personal binding falls through** — the sentence [09 §4.5] has
    * carried since P1 and the code could not perform, because there was nothing
    * to fall through *to*.
    */

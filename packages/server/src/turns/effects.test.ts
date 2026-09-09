@@ -16,7 +16,7 @@ import type { ChannelState } from '../sessions/types.js';
 import { acceptEffect, type EffectProposal } from './effects.js';
 
 /**
- * The engine decides, and records the decision either way — [13 §1.2].
+ * The engine decides, and records the decision either way — [21 §1.2].
  *
  * The claim under test is that `ChannelDefinition.update` finally means
  * something. It has been a declared field with no consumer since P2.3; a

@@ -20,7 +20,7 @@ import { LibraryWatcher, type WatcherOptions, type WatchEvent } from './watcher.
  *
  * Slower than the rest of the suite and worth it: **this is the path the P1
  * demo's central gesture runs through** — hand-edit a file on disk, watch the
- * change appear without a restart. [05 §4.1](../../../../docs/design/05-ui-surfaces.md) is
+ * change appear without a restart. [10 §4.1](../../../../docs/design/10-ui-surfaces.md) is
  * blunt about the stakes: *if editing a file on disk does not reflect, the
  * storage design has already failed on its own terms.* Testing the ingest
  * function alone would leave the half that actually notices untested.
@@ -168,7 +168,7 @@ describe('the watcher ignores its own writes', () => {
   it('suppresses a write the application made', async () => {
     // Atomic writes are temp-then-rename, so chokidar reports an add and an
     // unlink for every save. Without suppression the index does every job twice
-    // ([02 §5.1.1](../../../../docs/design/02-data-model.md)).
+    // ([03 §5.1.1](../../../../docs/design/03-data-model.md)).
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
 
     await eventually(() => events.some((event) => event.type === 'suppressed'));
@@ -202,7 +202,7 @@ describe('the watcher ignores its own writes', () => {
 });
 
 describe('a hand edit leaves history behind', () => {
-  // [02 §11.2]: hand-edits get history for free, which is a promise a
+  // [03 §11.2]: hand-edits get history for free, which is a promise a
   // database-backed history structurally cannot make — and the strongest
   // argument for building the mechanism in P1, while the watcher exists and no
   // editor does.
@@ -210,7 +210,7 @@ describe('a hand edit leaves history behind', () => {
    * **The retention cap is read when a snapshot is taken, not when the watcher
    * was built** — [P2A §2.5].
    *
-   * `history.keepPerObject` is tiered `live` ([13 §4]), and the watcher used to
+   * `history.keepPerObject` is tiered `live` ([21 §4]), and the watcher used to
    * copy it into a private field at construction — so on a running server the
    * routes' write path and the watcher's could be trimming one object's history
    * to two different depths, and a change to the setting reached neither. The
@@ -377,7 +377,7 @@ describe('a file that cannot be read says so', () => {
 
 describe('a foreign rename through the watcher', () => {
   it('is a move, and the row keeps its id', async () => {
-    // The end-to-end form of [P1 §1.1](../../../../docs/design/workplan/03-p1-implementation.md).
+    // The end-to-end form of [P1 §1.1](../../../../docs/design/workplan/07-p1-implementation.md).
     // Renaming a folder in a file manager reaches the watcher as an unlink and
     // an add with nothing connecting them, and the tombstone is what connects
     // them — including across the ordering chokidar happens to deliver.
@@ -404,7 +404,7 @@ describe('a foreign rename through the watcher', () => {
  * *target's* paths while the layout holds the *link's*, so `isContained` fails,
  * `parseObjectPath` returns null, and every event is filed as `ignored`. The
  * watcher runs, reports healthy, and indexes nothing — which is
- * [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s central gesture failing silently.
+ * [10 §4.1](../../../../docs/design/10-ui-surfaces.md)'s central gesture failing silently.
  *
  * A separate watcher rather than the shared one, because the root has to differ.
  * Runs on both platforms: `junction` is ignored on POSIX, where Node makes an
@@ -421,7 +421,7 @@ describe('a foreign rename through the watcher', () => {
  * The index recorded it and `GET /api/library/errors` exposed it, and nothing
  * logged it while no client read the route — so a hand-edit that failed to
  * parse was invisible to the person who made it *and* invisible afterwards.
- * [12 §2.1](../../../../docs/design/workplan/12-p2-manual-gate.md) step 8 tells a tester to do
+ * [manual gate §2.1](../../../../docs/design/workplan/11-p2-manual-gate.md) step 8 tells a tester to do
  * exactly this, which is how it would have been met.
  *
  * The card is [P2 §4] step 7 and still unbuilt; this is the half that makes
@@ -446,7 +446,7 @@ it('says so when a hand-edited file cannot be read', async () => {
   });
 
   const line = lines.find((entry) => entry['event'] === 'library.invalid');
-  // Relative to the data root, which is what [13 §4.1] requires of a path in
+  // Relative to the data root, which is what [21 §4.1] requires of a path in
   // a log — the log is the thing people paste into issues.
   expect(String(line?.['path'])).not.toContain(library.layout.dataRoot);
   expect(String(line?.['path'])).toContain('rain-city');

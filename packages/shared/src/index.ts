@@ -5,7 +5,7 @@
  * Portable types and schemas, shared by server, client and the SDK.
  *
  * Authored as TypeBox; **the published artefact is JSON Schema**
- * (docs/design/07-tech-stack.md §4), emitted to `schemas/` by
+ * (docs/design/19-tech-stack.md §4), emitted to `schemas/` by
  * `pnpm --filter @storyengine/shared emit-schemas` so that third-party tools can
  * validate a card or a package without compiling our types.
  *
@@ -21,7 +21,7 @@ export * from './factories.js';
 export * from './turn.js';
 // The tag registry — internal tier, beside the turn record and for the same
 // reason: it decorates names inside one install and never crosses a boundary
-// ([25](../../../docs/design/25-tagging.md)).
+// ([05](../../../docs/design/05-tagging.md)).
 export * from './tags.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.
@@ -38,7 +38,7 @@ export * from './schema/banners.js';
 // and adds no field to it, and both halves of P5 must compute it the same way.
 export * from './lore.js';
 // Where an entry's surface forms turn up in another entry's prose. Here for the
-// same reason `lore.ts` is, doubled: the book page renders it and [16 §6]'s
+// same reason `lore.ts` is, doubled: the book page renders it and [11 §6]'s
 // falsification script counts it, and an instrument that measured a different
 // rule from the one on screen would be measuring nothing anybody sees.
 export * from './mentions.js';

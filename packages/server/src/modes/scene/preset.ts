@@ -24,7 +24,7 @@ import type { Preset } from '@storyengine/shared';
  *
  * It goes through `validate()` in a test — the same validator a user's write
  * goes through — which is the assertion that caught `SlotSource` missing the
- * `guidance` arm that [03 §5.1] requires a preset to be able to position.
+ * `guidance` arm that [06 §5.1] requires a preset to be able to position.
  */
 
 /** Fixed, so a golden snapshot over this object is reproducible. */
@@ -243,7 +243,7 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * Writing samples — [10 §3.1].
+     * Writing samples — [04 §3.1].
      *
      * **Priority 20 puts it between history's floor and lore**, and the
      * arithmetic is worth stating because it is not obvious. History blocks are
@@ -255,7 +255,7 @@ export const SCENE_PRESET: Preset = {
      *
      * **Not advisory.** A sample is content a model may see on any call;
      * marking it advisory would bar it from every effects and verdict call
-     * ([03 §6]), which is not what an exemplar is for.
+     * ([06 §6]), which is not what an exemplar is for.
      *
      * `from` is omitted, so it names every carrier. Only the actor arm produces
      * anything today; the block is positioned now so that P5 wiring the other
@@ -314,7 +314,7 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * The previous attempt a guided redo shows the model — [03 §5.1], [09 §7].
+     * The previous attempt a guided redo shows the model — [06 §5.1], [07 §7].
      *
      * **The first shipped block with a `wrapper`, and it needs one.** Bare,
      * the slot is a system message holding prose the model itself wrote, with

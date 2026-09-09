@@ -12,7 +12,7 @@ import { Layout } from '../storage/layout.js';
 import { TagsError, TagStore } from './store.js';
 
 /**
- * The tag registry on disk — [25 §4](../../../../docs/design/25-tagging.md).
+ * The tag registry on disk — [05 §4](../../../../docs/design/05-tagging.md).
  *
  * Three claims, and each of them is the store's rather than the shared module's:
  * that a **write is validated** where a read is tolerant, that **two writers do

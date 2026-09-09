@@ -37,7 +37,7 @@ export interface DialogProps {
   /**
    * `wide` for a dialog carrying a form rather than a question; `large` for one
    * carrying a *table* — the tag manager, whose rows are seven controls across
-   * ([25 §5](../../../../docs/design/25-tagging.md)) and which folds onto two
+   * ([05 §5](../../../../docs/design/05-tagging.md)) and which folds onto two
    * lines at a form's width.
    */
   size?: 'default' | 'wide' | 'large';

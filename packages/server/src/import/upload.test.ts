@@ -7,7 +7,7 @@ import { readUpload, type ProbeConfidence } from './upload.js';
 
 /**
  * What one uploaded file is, decided by its content
- * ([P4 §7.1](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.1](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The probe had no test file of its own until this one**, which is how the
  * ordering claims in its comment stayed claims. It was exercised incidentally

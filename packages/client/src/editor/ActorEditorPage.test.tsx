@@ -12,7 +12,7 @@ import { CONVENTIONAL_SECTION_IDS, newActor } from '@storyengine/shared';
 import { ApiError, type Account, type LibraryObject } from '../api.js';
 
 /**
- * **Exit-gate step 8** — [P2 §4](../../../../docs/design/workplan/04-p2-implementation.md):
+ * **Exit-gate step 8** — [P2 §4](../../../../docs/design/workplan/08-p2-implementation.md):
  * *"Save in the editor, navigate away and back, save again → no conflict
  * dialog for your own change (F12)."*
  *
@@ -429,7 +429,7 @@ describe('a save over a change that really did arrive from elsewhere', () => {
    * editor's key on save is a small step from refetching it on a timer, and
    * a base that quietly followed the file would make the 412 unreachable and
    * hand the hot-reload thesis the silent overwrite it was built to prevent
-   * ([04 §4.4](../../../../docs/design/04-server-multiuser-deployment.md)).
+   * ([09 §4.4](../../../../docs/design/09-server-multiuser-deployment.md)).
    *
    * Mutation caught: dropping the `onError` branch in `handleSave`, or
    * loosening `useEditorBase`'s `staleTime: Infinity` into a poll.
@@ -459,7 +459,7 @@ describe('a save over a change that really did arrive from elsewhere', () => {
 });
 
 /**
- * Leaving with unsaved changes — [05 §11.6](../../../../docs/design/05-ui-surfaces.md).
+ * Leaving with unsaved changes — [10 §11.6](../../../../docs/design/10-ui-surfaces.md).
  *
  * One test, where the lorebook editor beside this one has five. The guard is a
  * single shared component and its behaviour is proved there; what is unproved
@@ -488,7 +488,7 @@ describe('leaving the actor editor with unsaved changes', () => {
 
 /**
  * Delete from the editor — the third control in the critical-controls strip
- * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)), and the one exit
+ * ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)), and the one exit
  * the unsaved-changes guard must not stand in front of. The draft it would
  * offer to keep is of a file that is now in the trash; *Keep editing* would
  * keep it, in a form whose next Save the server refuses.
@@ -523,7 +523,7 @@ describe('deleting the actor from its editor', () => {
 
 /**
  * What a save says is said where Save is
- * ([05 §11.6](../../../../docs/design/05-ui-surfaces.md)). The notice used to
+ * ([10 §11.6](../../../../docs/design/10-ui-surfaces.md)). The notice used to
  * render above the form, which with the strip pinned halfway down a long card
  * is as far out of sight as the foot of the page. jsdom cannot see a strip
  * pin, so the claim is asserted as structure: the status stands inside the
@@ -570,7 +570,7 @@ describe("the editor's as-stored pane", () => {
 
 /**
  * A save that cannot proceed is **refused, not prevented** —
- * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ * [10 §11.1a](../../../../docs/design/10-ui-surfaces.md).
  *
  * This editor used to disable Save while the name was empty, which meant the
  * submit never fired and there was nowhere for the refusal to be said. The
@@ -638,7 +638,7 @@ describe('a save with a required field empty', () => {
  * the create happens here, so the claims moved with it rather than being
  * dropped: the object posted is the **factory's**, the id routed on is the
  * **server's**, and a nameless actor is **refused** — which is the same refusal
- * the list used to make, in the place [05 §11.1a] says it belongs.
+ * the list used to make, in the place [10 §11.1a] says it belongs.
  *
  * The fourth claim is the one the old flow could not make at all: opening the
  * page writes nothing.
@@ -680,7 +680,7 @@ describe('a new actor', () => {
   /**
    * **The four conventional sections, not the name.** A name-and-schema check
    * would pass over a page that hand-built a minimal literal, and that literal
-   * is the failure worth catching: [10 §4] requires all four on a new actor,
+   * is the failure worth catching: [04 §4] requires all four on a new actor,
    * `newActor` is the one place they come from, and an actor made in the
    * browser has to be the object one made with `curl` is.
    */

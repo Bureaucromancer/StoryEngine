@@ -15,10 +15,10 @@ import {
 } from '../test-server.js';
 
 /**
- * Administration — [05 §15.2](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §3](../../../../docs/design/workplan/13-p2a-configuration-surface.md) stage P2A.4.
+ * Administration — [10 §15.2](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §3](../../../../docs/design/workplan/09-p2a-configuration-surface.md) stage P2A.4.
  *
- * The stage's ending is three clauses: *every account operation [05 §15.2] names
+ * The stage's ending is three clauses: *every account operation [10 §15.2] names
  * is reachable, admin-only **by prefix rather than by remembering**, and no
  * admin can lock the install out.* The middle one is what the route-table test
  * below is for, and it is the reason that test enumerates Fastify's own routing
@@ -168,7 +168,7 @@ describe('the account list', () => {
 });
 
 /**
- * **"2 users have no usable connection"** — [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md),
+ * **"2 users have no usable connection"** — [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md),
  * which commissioned that sentence and named this screen as where it appears.
  *
  * This is the clause the phase's demo turns on: *create an account, sign in as
@@ -245,7 +245,7 @@ describe('the dead-end summary', () => {
 
     expect(response.body.withoutUsableConnection).toBe(2);
     // Inline on the row too: a count in a heading with nothing to point at
-    // leaves an admin counting rows themselves ([05 §15.4]).
+    // leaves an admin counting rows themselves ([10 §15.4]).
     for (const row of response.body.accounts as AccountRow[]) {
       expect(row.hasUsableConnection).toBe(false);
     }
@@ -258,7 +258,7 @@ describe('the dead-end summary', () => {
    * `deadEnds` counted `.json` files in `system/connections/`, so this exact
    * install — one system connection, no bindings anywhere — reported *zero
    * dead ends* while every turn failed `unbound`. That made
-   * [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md).4's stated ending
+   * [P2B](../../../../docs/design/workplan/10-p2b-provider-configuration.md).4's stated ending
    * unable to witness itself: it would have gone green over an install nobody
    * could send a message on.
    *
@@ -332,7 +332,7 @@ describe('the dead-end summary', () => {
     expect(usable.body.withoutUsableConnection).toBe(1);
 
     // Revoked: the file is still there and is no longer usable, so the account
-    // is a dead end again — which is the state [04 §4.5] wants named rather
+    // is a dead end again — which is the state [09 §4.5] wants named rather
     // than discovered.
     await server.services.accounts.update('mara', {
       capabilities: { privateConnections: false },
@@ -344,7 +344,7 @@ describe('the dead-end summary', () => {
   });
 
   /**
-   * **Counts, never contents.** A connection stays opaque ([04 §4.5]) — an admin
+   * **Counts, never contents.** A connection stays opaque ([09 §4.5]) — an admin
    * who can enumerate another account's connections is one step from the
    * disclosure that document declines, and the warning needs a number rather
    * than a list.

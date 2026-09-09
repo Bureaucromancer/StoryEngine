@@ -17,7 +17,7 @@ import {
 import { PlotHook } from './hook.js';
 
 /**
- * Setup — docs/design/10-schemas.md §7.
+ * Setup — docs/design/04-schemas.md §7.
  *
  * **Treatment is to Setup as a reading of a world is to a game played under it.**
  * One Treatment, many Setups: *Rain City, noir* is the reading; *The Fixer's
@@ -112,7 +112,7 @@ export const Setup = Type.Object(
     cast: Type.Object({
       /** Offered as the played character. */
       personaOptions: Type.Array(Ref),
-      /** The party always contains the persona ([03 §8](../../../../docs/design/03-modes-and-turn-pipeline.md)). */
+      /** The party always contains the persona ([06 §8](../../../../docs/design/06-modes-and-turn-pipeline.md)). */
       partyDefault: Type.Array(Ref),
       /** null = the mode's default narrator. */
       narrator: Type.Union([Ref, Type.Null()]),

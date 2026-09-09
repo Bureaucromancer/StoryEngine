@@ -20,11 +20,11 @@ import {
 
 /**
  * The first real adapter — the AI SDK behind the thin interface
- * ([07 §5](../../../../docs/design/07-tech-stack.md)).
+ * ([19 §5](../../../../docs/design/19-tech-stack.md)).
  *
  * **One adapter, not eight.** The supported surface is stated in a line:
  * *if it speaks OpenAI-compatible chat, it works; if it does not, it does not*
- * ([07 §5.5](../../../../docs/design/07-tech-stack.md)). That covers the hosted
+ * ([19 §5.5](../../../../docs/design/19-tech-stack.md)). That covers the hosted
  * providers and it covers a local model, which is a connection with a
  * `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM Studio and KoboldCpp
  * all expose it. Provider-specific adapters can join later without changing
@@ -64,7 +64,7 @@ export class OpenAICompatibleProvider implements Provider {
        * `stream_options: {include_usage: true}` only when told to, and without
        * it the final chunk carries no usage block at all — so `usage` was null
        * on every streamed turn no matter what the capabilities said, and
-       * [13 §1.4](../../../../docs/design/13-internal-contracts.md)'s
+       * [21 §1.4](../../../../docs/design/21-internal-contracts.md)'s
        * *provider-reported, not estimated* had nothing to report.
        *
        * Harmless where it is not supported: an endpoint that does not know the
@@ -149,7 +149,7 @@ export class OpenAICompatibleProvider implements Provider {
      * Measured, before the fix: a 401, a 429, a 502 with an HTML body and a
      * refused connection produced **one identical error** reading *"No output
      * generated. Check the stream for errors."* Every deliberate breakage
-     * [12 §2.2](../../../../docs/design/workplan/12-p2-manual-gate.md) asks a tester to make
+     * [manual gate §2.2](../../../../docs/design/workplan/11-p2-manual-gate.md) asks a tester to make
      * returned the same wrong answer, and a 429 was never retried because
      * nothing could see it was a 429.
      */
@@ -170,7 +170,7 @@ export class OpenAICompatibleProvider implements Provider {
    * Two gates, and both matter: a provider that declares it does not report
    * usage must not appear to, and a provider that declares it does can still
    * answer with nothing. `ModelCall.usage` is *"provider-reported, not
-   * estimated"* ([13 §1.4](../../../../docs/design/13-internal-contracts.md)),
+   * estimated"* ([21 §1.4](../../../../docs/design/21-internal-contracts.md)),
    * and the budgeter's margin is what covers the gap.
    */
   #usage(
@@ -270,7 +270,7 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
 
 /**
  * Classifies a failure so the UI can offer the right recovery rather than
- * surfacing a provider string ([13 §1.4]).
+ * surfacing a provider string ([21 §1.4]).
  *
  * Deliberately coarse. Providers signal this inconsistently — a clear 400 from
  * one, a generic error from another — and a classifier that pretended to more

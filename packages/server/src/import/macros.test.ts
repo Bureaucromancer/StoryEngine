@@ -7,7 +7,7 @@ import { renderTemplate } from '../assembly/template.js';
 import { convertMacros, KNOWN_MACROS } from './macros.js';
 
 /**
- * **The closed mapping table [10 §8.4.2] promised and did not contain.**
+ * **The closed mapping table [04 §8.4.2] promised and did not contain.**
  *
  * Three outcomes, and the tests are mostly about keeping them three: mapped,
  * refused-with-a-reason, unrecognised. Collapsing refused into unrecognised
@@ -40,7 +40,7 @@ describe('converting SillyTavern macros', () => {
   });
 
   it('leaves an unrecognised macro exactly as it was', () => {
-    // [10 §8.4.2]'s rule, and it looks like a bug until the reason is said: a
+    // [04 §8.4.2]'s rule, and it looks like a bug until the reason is said: a
     // mangled prompt that looks fine is worse than one that visibly needs a
     // look. The review carries the flag; the file carries the evidence.
     const { template, seen } = convertMacros('Roll for {{fictitious_macro}} now.');

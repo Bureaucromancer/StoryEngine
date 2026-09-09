@@ -13,8 +13,8 @@ import {
 
 /**
  * The review report, kept
- * ([P4 §1.4](../../../../docs/design/workplan/06-p4-implementation.md),
- * [§7.4](../../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md),
+ * [§7.4](../../../../docs/design/workplan/16-p4-implementation.md)).
  *
  * **The cut that came back.** §1.4 specified the review as *post-hoc,
  * addressable, structured*, and P4.4 shipped the first and third of those and
@@ -32,7 +32,7 @@ import {
  *
  * **Written after the sweep, in one transaction, not streamed.** A sweep is
  * fast, synchronous and already atomic from the caller's side; the progress
- * emitter [13 §5]'s `job.progress` key was left open for belongs to a *long*
+ * emitter [21 §5]'s `job.progress` key was left open for belongs to a *long*
  * import — the zip of somebody's entire Marinara install — and that is a
  * different feature with a different surface. Recording the outcome is what
  * makes the report addressable; recording it live is what makes a progress bar,
@@ -68,7 +68,7 @@ export interface RecordedJob {
 /**
  * Stores a completed sweep and returns the job id.
  *
- * The **absolute root is stored here and only here**, which is [13 §4.1.1]'s
+ * The **absolute root is stored here and only here**, which is [21 §4.1.1]'s
  * foreign-path doctrine written into the schema rather than trusted to callers:
  * every item names its file relative to this row, so the report can be shown,
  * logged and pasted into an issue without becoming a map of somebody's disk.
@@ -179,7 +179,7 @@ export function listImports(db: DatabaseSync, account: string, limit = 50): Reco
  * *fetch the review report over the API* — rather than as something adjacent.
  *
  * Scoped by account in the query rather than checked after, so a job belonging
- * to somebody else is indistinguishable from one that does not exist ([04 §4.4]'s
+ * to somebody else is indistinguishable from one that does not exist ([09 §4.4]'s
  * 404-for-everything posture).
  */
 export function readImport(db: DatabaseSync, account: string, id: string): ImportReport | null {
@@ -250,7 +250,7 @@ export function readImport(db: DatabaseSync, account: string, id: string): Impor
  * module that reaches rows by something other than a job id, so it is the one
  * where forgetting the join is possible. Joined rather than checked after, the
  * way `readImport` does it, so somebody else's row is indistinguishable from a
- * row that is not there ([04 §4.4]).
+ * row that is not there ([09 §4.4]).
  */
 export function importNotesFor(
   db: DatabaseSync,

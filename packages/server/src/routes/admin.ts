@@ -15,8 +15,8 @@ import { registerConfigRoutes } from './config.js';
 import { registerConnectionRoutes } from './connections.js';
 
 /**
- * Administration — [05 §15.2](../../../../docs/design/05-ui-surfaces.md),
- * [P2A §2.4](../../../../docs/design/workplan/13-p2a-configuration-surface.md).
+ * Administration — [10 §15.2](../../../../docs/design/10-ui-surfaces.md),
+ * [P2A §2.4](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * **The guard is a prefix, not a habit.** `adminOnly` is an `onRequest` hook on
  * an encapsulated `/api/admin` plugin, and this file commits to never adding a
@@ -119,14 +119,14 @@ const AdminPassword = Type.Object(
 );
 
 /**
- * Who cannot send a message, and how many of them there are — [04 §4.5](../../../../docs/design/04-server-multiuser-deployment.md).
+ * Who cannot send a message, and how many of them there are — [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md).
  *
  * The sentence that document commissioned is *"2 users have no usable
  * connection"*, and it named the admin screen as where it appears. This is the
  * data behind it, and the phase exists partly to make it appear at all: without
  * it the state arrives as a bug report from somebody who cannot play.
  *
- * **Counts, never contents.** A connection stays opaque ([04 §4.5]) — the
+ * **Counts, never contents.** A connection stays opaque ([09 §4.5]) — the
  * warning needs a number, not a list of what somebody has configured, and an
  * admin who can enumerate another account's connections is one step from the
  * disclosure that document declines.
@@ -136,7 +136,7 @@ const AdminPassword = Type.Object(
  * **This used to count `.json` files and stop there**, which made the count
  * unable to witness the thing it is for. A system connection with no bindings
  * pointing at it gave every account `hasUsableConnection: true` while every
- * turn failed `unbound` — so [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md).4's
+ * turn failed `unbound` — so [P2B](../../../../docs/design/workplan/10-p2b-provider-configuration.md).4's
  * stated ending, *the account list reports zero dead ends*, would have gone
  * green over an install nobody could play a turn on. Found by walking the gate
  * rather than by a failure, because there was nothing to go red.
@@ -148,7 +148,7 @@ const AdminPassword = Type.Object(
  * broken.
  *
  * And through `resolveConnections` rather than a directory listing, because the
- * capability is enforced *there* ([04 §4.5]) — a revoked account's personal
+ * capability is enforced *there* ([09 §4.5]) — a revoked account's personal
  * files are on disk and do not resolve, so counting files would have called
  * that account fine while its turns failed.
  *
@@ -158,7 +158,7 @@ const AdminPassword = Type.Object(
  * connections directory — `resolveConnections` reads both scopes before it
  * looks at the capability, so revoking does not save the read. On a household
  * install that is single-digit reads per account and the page is dense by
- * design ([05 §15.4]); it is genuinely O(n), and the reason to pay it is that
+ * design ([10 §15.4]); it is genuinely O(n), and the reason to pay it is that
  * the cheaper answer was wrong.
  */
 async function deadEnds(
@@ -206,7 +206,7 @@ export function registerAdminRoutes(app: FastifyInstance, services: AppServices)
       accounts: accounts.map((account) => ({
         ...account,
         // Inline on the row, because a count in a heading with nothing to point
-        // at leaves an admin counting rows themselves ([05 §15.4]).
+        // at leaves an admin counting rows themselves ([10 §15.4]).
         hasUsableConnection: !handles.has(account.handle),
       })),
       // The heading's number, and the fact that explains it: with no system

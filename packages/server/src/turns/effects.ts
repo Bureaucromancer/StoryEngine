@@ -7,10 +7,10 @@ import { channelDefinition, channelKey } from '../sessions/channels.js';
 import type { ChannelEffect, ChannelState, EffectOp } from '../sessions/types.js';
 
 /**
- * Turning a proposal into a recorded effect — [13 §1.2](../../../../docs/design/13-internal-contracts.md).
+ * Turning a proposal into a recorded effect — [21 §1.2](../../../../docs/design/21-internal-contracts.md).
  *
  * A step or a model *proposes*; the engine decides. The decision is recorded
- * either way, because [13 §1.2] is explicit that a refused effect stays in the
+ * either way, because [21 §1.2] is explicit that a refused effect stays in the
  * record: the model tried to give itself forty gold and the engine said no, and
  * a system that dropped the attempt would leave the workbench unable to explain
  * why nothing happened.

@@ -6,7 +6,7 @@ import { resolveWithin } from '../storage/paths.js';
 import type { Turn } from './types.js';
 
 /**
- * Append-only turn segments — [02 §5.5](../../../../docs/design/02-data-model.md).
+ * Append-only turn segments — [03 §5.5](../../../../docs/design/03-data-model.md).
  *
  * ```
  * sessions/<id>/

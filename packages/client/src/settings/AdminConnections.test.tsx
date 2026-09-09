@@ -7,8 +7,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The connections surface — [05 §15.3](../../../../docs/design/05-ui-surfaces.md),
- * [P2B §3](../../../../docs/design/workplan/14-p2b-provider-configuration.md) stages P2B.3
+ * The connections surface — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
+ * [P2B §3](../../../../docs/design/workplan/10-p2b-provider-configuration.md) stages P2B.3
  * and P2B.4.
  *
  * **Its own file rather than more of `SettingsPage.test.tsx`**, because what is
@@ -218,7 +218,7 @@ describe('the stale check', () => {
 describe('asking an endpoint for its models', () => {
   /**
    * **A refused key gets its own sentence** — finding 5 in
-   * [16](../../../../docs/design/workplan/16-p2c-log.md). Both failures used
+   * [P2C log](../../../../docs/design/workplan/14-p2c-log.md). Both failures used
    * to read *did not answer with a model list*, which sends an admin to the
    * URL and the network — and the one case where that is exactly wrong is the
    * endpoint answering perfectly well that the key is bad.
@@ -421,7 +421,7 @@ describe('the first-run offer', () => {
       expect(writeDefaultBindings).toHaveBeenCalled();
     });
     // Two bindings, not eight: which role gets which is the server's policy
-    // ([07 §5.1]), so a client that posted a whole document could put `prose`
+    // ([19 §5.1]), so a client that posted a whole document could put `prose`
     // on the cheap model without anybody having chosen that.
     expect(writeDefaultBindings.mock.calls[0]?.[0]).toEqual({
       hi: { connectionId: 'house', modelId: 'gpt-hi' },

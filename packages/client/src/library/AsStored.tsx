@@ -9,8 +9,8 @@ import { Panel } from '../ui/Panel.js';
 import { Note } from '../ui/Text.js';
 
 /**
- * The object's bytes, behind a fold — [polish §2](../../../../docs/design/workplan/09-polish.md)'s
- * component, built at [P3.3](../../../../docs/design/workplan/05-p3-implementation.md)
+ * The object's bytes, behind a fold — [polish §2](../../../../docs/design/workplan/06-polish.md)'s
+ * component, built at [P3.3](../../../../docs/design/workplan/15-p3-implementation.md)
  * and discharging that item: one component wherever stored JSON is shown back
  * (the detail page, the workbench's library subject, the editor's saved-state
  * pane), or several ship and disagree about wrapping and copy — which is not a

@@ -15,10 +15,10 @@ import { indexSession, indexTurn } from './sessions.js';
 
 /**
  * Full scan from disk — the startup option
- * ([02 §5.1](../../../../docs/design/02-data-model.md)).
+ * ([03 §5.1](../../../../docs/design/03-data-model.md)).
  *
  * This is what makes deleting `index.sqlite` a non-event
- * ([13 §5](../../../../docs/design/13-internal-contracts.md)), and it is also half of this
+ * ([21 §5](../../../../docs/design/21-internal-contracts.md)), and it is also half of this
  * phase's CI gate: **rebuild-from-disk equals the incrementally maintained
  * index**. Two producers held to one answer is a sharper assertion than one
  * producer agreeing with itself, and it is the reason the duplicate-id rule is
@@ -103,7 +103,7 @@ export async function rebuild(
 
     // Sessions are a user's, never the system's — and a rebuild has to cover
     // them or *rebuild equals incremental* stops being true the moment anyone
-    // plays a turn ([13 §5]).
+    // plays a turn ([21 §5]).
     if (owner.kind === 'user') {
       const found = await rebuildSessions(db, layout, owner.handle);
       result.sessions += found.sessions;

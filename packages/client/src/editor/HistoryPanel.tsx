@@ -16,7 +16,7 @@ import {
 } from '../queries.js';
 
 /**
- * The history panel — [05 §11.2a](../../../../docs/design/05-ui-surfaces.md), interaction
+ * The history panel — [10 §11.2a](../../../../docs/design/10-ui-surfaces.md), interaction
  * copied closely from the source it credits. The *list* itself lives in
  * `library/RevisionList.tsx` since [P3.3] split one component across two
  * hosts; this is the powered host — restore, rename, pin, and diff — and the

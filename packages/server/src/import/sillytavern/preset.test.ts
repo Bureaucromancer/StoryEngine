@@ -10,7 +10,7 @@ import { convertChatCompletionPreset } from './preset.js';
 import { SILLYTAVERN_SENSITIVE_FIELDS } from './sensitive-fields.js';
 
 /**
- * SillyTavern chat-completion presets → `Preset` ([10 §8.4]).
+ * SillyTavern chat-completion presets → `Preset` ([04 §8.4]).
  *
  * The assertions follow the conversion's own risk order: what must never
  * survive, what must survive exactly, and what must be *reported* rather than
@@ -268,7 +268,7 @@ describe('conversions this build makes and the source did not', () => {
     const { preset } = convert();
 
     expect(preset.modelHint?.preferredModelIds).toEqual(['gpt-4']);
-    // [10 §2]'s preservation rule: unrecognised fields survive in `compat`, so
+    // [04 §2]'s preservation rule: unrecognised fields survive in `compat`, so
     // nothing is lost even where nothing reads it.
     expect(preset.compat?.['chat_completion_source']).toBe('openai');
   });
