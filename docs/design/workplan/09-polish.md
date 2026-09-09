@@ -435,3 +435,86 @@ is a polish item with a design question inside it rather than a patch.
 as it is and make the *editor* say what the preview now says, so a number nobody
 sends is at least labelled everywhere it appears rather than only at import.
 That is strictly worse than sending them and strictly better than today.
+
+---
+
+## 9. Search and sort on every library shelf, not just Lorebooks
+
+**The library cannot be searched at all.** A book can be searched from the inside
+([§1](#1-a-by-field-view-in-the-library-without-opening-the-editor)'s neighbour,
+`LorebookView`), and the shelf holding it cannot. The sort control has the same
+shape of gap for a different reason: it renders only when the current panel
+declares sorts, and only Lorebooks does, so five of the six shelves show no
+controls whatsoever — not an empty control row, no row.
+
+**What to build.** A control row that is always there: a search toggle, a sort
+dropdown, then whatever filters the panel declares. The search is a live filter
+over the shelf already in memory — `GET /api/library` ships every object's full
+body and the page is already holding all of it, so this needs nothing from the
+server. Give the generic panel real sorts (name, recently updated) so the
+dropdown is not Lorebooks-only furniture.
+
+**The thing to get right.** [05 §5.3](../05-ui-surfaces.md) names *a search box
+per kind* as the failure it is preventing, and asks that the input mounted in the
+book panel be "the same component the eventual cross-library box will use". That
+is already satisfied and should stay satisfied the cheap way: the book box is the
+plain field primitive, because a second component whose only job was to be shared
+later would be machinery built ahead of its second caller, and the matching and
+the marked runs are shared as *functions* rather than as a widget
+([search.ts](../../../packages/client/src/library/search.ts)).
+
+**So this item does not extract a `SearchField`.** What the library box adds is a
+toggle that reveals and clears, and it adds it in one place — the other two
+inputs are always visible and want no toggle at all. A shared widget for a
+behaviour with one caller would be the same mistake §5.3 refused, wearing the
+other hat. It becomes worth extracting when something else needs to reveal a
+search, and not before.
+
+**Four smaller things that will bite.**
+
+- **Closing the search must clear the query**, or the shelf stays filtered with
+  nothing on screen explaining why.
+- **There is a third empty state now.** *Nothing on this shelf matches these
+  filters* is filter-specific wording and stops being true the moment a search
+  term can also empty the list.
+- **A lorebook's whole entry array is in the object.** Searching it finds a book
+  by an entry inside it, which is probably wanted, and is a decision rather than
+  a default — and it wants memoising, because the shelf re-polls every two
+  seconds and the array identity changes each time.
+- **The narrowing state belongs to the page, not the table.** It is local to the
+  table today and survives a change of kind, which is already wrong and is
+  invisible only because one panel has sorts.
+
+## 10. *New actor* is a button, not a form
+
+**The name is collected in the list, before the editor opens**, in an inline text
+box with a screen-reader-only label, and the button stays disabled until
+something is typed into it. It is a gate in front of a surface built to collect
+exactly that field, and it is the only place in the app where a control is
+disabled with nothing saying why, which is the placeholder
+[work plan §2.2](01-work-plan.md) rejects in general and which
+[05 §11.1a](../05-ui-surfaces.md) has since made a rule.
+
+**What to build.** A plain button that opens the editor on an unsaved draft. The
+name becomes a marked, required field *in* the editor, which is
+[05 §11.1a](../05-ui-surfaces.md)'s contract rather than a rule invented here —
+the item consumes a contract that already exists, which is what keeps it inside
+this file's house rule.
+
+**The thing to get right: do not create the object first.** The obvious cheap
+version — mint it immediately under a placeholder name, let the editor rename
+it — is wrong here for a reason particular to this project. The folder name is
+derived from the object's name **once, at creation, and then frozen**
+([02 §5.2](../02-data-model.md)); renaming changes the name inside the file and
+never moves the directory. An empty or placeholder name is accepted by the
+server, so that version does not fail — it succeeds, and leaves `untitled`,
+`untitled-2`, `untitled-3` on disk permanently, in the one part of this design
+that is meant to be legible to a person with a file browser. So nothing is
+written until the first Save, and the first Save is a create.
+
+**What that costs.** The editors learn a create-versus-update branch and an
+unsaved-draft state, and *leaving discards it* has to be what the unsaved-changes
+guard says for a draft that has never existed on disk. The three tests that pin
+the current gate — including the one that proves a name of only spaces is
+refused — are rewritten rather than deleted: the refusal moves from the list to
+the editor, and it should still be proved.

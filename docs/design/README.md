@@ -101,8 +101,9 @@ were written in. **Start with 00, then 01.**
 | [24-character-studio.md](24-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
 | [21-session-import.md](21-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
 | [22-randomizers.md](22-randomizers.md) | Two agentic addons — a plot randomizer that draws an outcome before narration, and an appearance randomizer that draws descriptors before the model writes — and the eight things they ask of the design |
+| [25-tagging.md](25-tagging.md) | Tagging: what a tag is now that lore can gate on one, and a registry that decorates names without owning them |
 
-15 through 22 and 24 sit after 14 by number only — the slots beneath them were
+15 through 22, 24 and 25 sit after 14 by number only — the slots beneath them were
 taken when they were written. 15 reads beside 04 and 05; 16 reads after 02 and 05,
 whose lorebook and library sections it takes a position about and whose surfaces
 carry the specifications; 17 reads after 03 and 05, whose mode contract it
@@ -112,7 +113,8 @@ extensibility tiers it completes; 21 reads after 01 and 06, whose source survey
 it extends into the session half and whose E4 it makes checkable; 22 reads after
 03, 07 and 05, whose step contract, RNG service and field-assist path it
 arranges into two features; 24 reads after 02 and 05, whose media model and
-editor surfaces it turns into a release. Which is why they are all indexed here.
+editor surfaces it turns into a release; 25 reads after 02 and 10, whose
+position on tags it corrects. Which is why they are all indexed here.
 
 **19, 20 and 24 were promoted out of [14](14-roadmap.md)** when their subjects
 acquired releases. That is the pattern rather than an accident: the feature list

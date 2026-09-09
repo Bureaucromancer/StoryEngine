@@ -34,9 +34,30 @@ export interface DialogProps {
   labelledBy: string;
   onDismiss: () => void;
   children: ReactNode;
-  /** `wide` for a dialog carrying a form rather than a question. */
-  size?: 'default' | 'wide';
+  /**
+   * `wide` for a dialog carrying a form rather than a question; `large` for one
+   * carrying a *table* — the tag manager, whose rows are seven controls across
+   * ([25 §5](../../../../docs/design/25-tagging.md)) and which folds onto two
+   * lines at a form's width.
+   */
+  size?: 'default' | 'wide' | 'large';
 }
+
+/**
+ * One record rather than a ternary that grew a third arm — the shape `Badge`
+ * and `Button` already use, and each entry one whole class literal because
+ * Tailwind emits only names that appear verbatim in the source it scans.
+ *
+ * `large` also gains a height cap and its own scroll: a registry of forty tags
+ * is taller than the viewport, and a dialog that grows past the scrollport puts
+ * its own controls where nothing can reach them.
+ */
+const SIZE: Record<'default' | 'wide' | 'large', string> = {
+  default: 'w-full max-w-md rounded-panel border border-line bg-surface p-6',
+  wide: 'flex w-full max-w-lg flex-col gap-4 rounded-panel border border-line bg-surface p-6',
+  large:
+    'flex max-h-full w-full max-w-3xl flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
+};
 
 export function Dialog({
   role,
@@ -55,15 +76,7 @@ export function Dialog({
       ref={surface}
       className="fixed inset-0 flex items-center justify-center bg-overlay p-4"
     >
-      <div
-        className={
-          size === 'wide'
-            ? 'flex w-full max-w-lg flex-col gap-4 rounded-panel border border-line bg-surface p-6'
-            : 'w-full max-w-md rounded-panel border border-line bg-surface p-6'
-        }
-      >
-        {children}
-      </div>
+      <div className={SIZE[size]}>{children}</div>
     </div>
   );
 }

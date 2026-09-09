@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  type TagEntry,
   LIBRARY_DIRECTORIES,
   type ImportPreview,
   type NearMissOffer,
@@ -383,6 +384,51 @@ export const api = {
   changePassword: (input: { currentPassword: string; newPassword: string }): Promise<undefined> =>
     request('POST', '/api/me/password', input),
 
+  /**
+   * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+   *
+   * Every one of these answers with the **whole list**, not with the row it
+   * touched, so a client lands on the truth rather than on its own guess about
+   * what its write did. That is `patchPrefs`' reasoning one shelf along, and it
+   * is what lets the manager render straight from the response.
+   */
+  readTags: (): Promise<{ tags: TagEntry[] }> => request('GET', '/api/tags'),
+
+  createTag: (body: { name: string; swatch?: string | null }): Promise<{ tags: TagEntry[] }> =>
+    request('POST', '/api/tags', body),
+
+  patchTag: (
+    id: string,
+    patch: { swatch?: string | null; folder?: string; hidden?: boolean },
+  ): Promise<{ tags: TagEntry[] }> =>
+    request('PATCH', `/api/tags/${encodeURIComponent(id)}`, patch),
+
+  /** The entry only. Objects carrying the tag are untouched ([25 §2]). */
+  deleteTag: (id: string): Promise<{ tags: TagEntry[] }> =>
+    request('DELETE', `/api/tags/${encodeURIComponent(id)}`),
+
+  orderTags: (ids: string[]): Promise<{ tags: TagEntry[] }> =>
+    request('PUT', '/api/tags/order', { ids }),
+
+  /**
+   * One registry write, and an answer about the lore gates naming the old
+   * spelling — [25 §1](../../../docs/design/25-tagging.md). `rewriteGates` is
+   * off unless asked, because both answers are defensible.
+   */
+  renameTag: (
+    id: string,
+    body: { to: string; rewriteGates?: boolean },
+  ): Promise<{ tags: TagEntry[]; gatesFound: { book: string; entry: string }[] }> =>
+    request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
+
+  /** The one deliberate write across the library, after which renaming is free. */
+  adoptTags: (): Promise<{
+    tags: TagEntry[];
+    adopted: unknown[];
+    minted: string[];
+    skipped: { name: string; reason: string }[];
+  }> => request('POST', '/api/tags/adopt'),
+
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
   /** A shallow merge; `null` deletes. The response is the whole document. */
@@ -652,7 +698,14 @@ export interface SessionSummary {
  * the session then owns.
  */
 export interface NewSession {
-  name: string;
+  /**
+   * Optional, because Start no longer demands one — [02 §8].
+   *
+   * A session is id-addressed and nothing resolves one by name, so starting
+   * unnamed freezes nothing and the name can arrive whenever its owner knows
+   * what it is. `sessionLabel` is what renders the gap in the meantime.
+   */
+  name?: string;
   treatment?: string;
   lore?: string[];
   preset?: string;
@@ -674,11 +727,32 @@ export function createSession(input: NewSession): Promise<{ session: SessionSumm
   // an empty list would be a session that has decided to retrieve nothing,
   // which is a different claim from one that was never asked.
   return request('POST', '/api/sessions', {
-    name: input.name,
+    // A name that is absent and one that is blank mean the same thing, so only
+    // one of them is sent. The route would store `''` for either — this keeps
+    // the wire honest about the fact that nothing was chosen.
+    ...(input.name === undefined || input.name.trim() === '' ? {} : { name: input.name }),
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
     ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
   });
+}
+
+/**
+ * Renames a session — [02 §8].
+ *
+ * The same `PATCH` that archives, because a session name is an ordinary
+ * property: nothing resolves a session by it, so this is one JSON write and one
+ * index row, with no report to read and no second question to answer. Compare
+ * `renameTag`, which is a `POST` to a verb precisely because it is not that.
+ *
+ * An empty name is a legitimate value — it is the state a session may have
+ * started in — so this does not refuse one.
+ */
+export function renameSession(
+  sessionId: string,
+  name: string,
+): Promise<{ session: SessionSummary }> {
+  return request('PATCH', `/api/sessions/${encodeURIComponent(sessionId)}`, { name });
 }
 
 /**

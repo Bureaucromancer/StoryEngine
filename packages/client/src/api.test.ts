@@ -11,6 +11,7 @@ import {
   isLibraryKind,
   kindOfSchema,
   LIBRARY_KINDS,
+  renameSession,
   setSessionLore,
 } from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
@@ -132,6 +133,46 @@ describe('the session write bodies', () => {
     // *unset*, and a session that has decided to retrieve nothing is a
     // different claim from one that was never asked.
     expect(seen[0]?.body).toEqual({ name: 'A wet week' });
+  });
+
+  /**
+   * A session need not be named — [02 §8].
+   *
+   * Absent and blank mean the same thing, so only one spelling reaches the
+   * wire. The route would store `''` for either; this is about not putting an
+   * empty string on the wire as though somebody had chosen it.
+   */
+  it('sends no name at all when there is none', async () => {
+    const seen = capture();
+
+    await createSession({});
+    await createSession({ name: '' });
+    await createSession({ name: '   ' });
+
+    expect(seen.map((each) => each.body)).toEqual([{}, {}, {}]);
+  });
+
+  it('renames a session through the patch that archives, with the id escaped', async () => {
+    const seen = capture();
+
+    await renameSession('a b', 'Rain City, after the fire');
+
+    expect(seen[0]?.url).toBe('/api/sessions/a%20b');
+    expect(seen[0]?.body).toEqual({ name: 'Rain City, after the fire' });
+  });
+
+  /**
+   * Clearing a name is a legitimate edit — it puts a session back in the state
+   * it may have started in — so unlike `createSession` this one does send the
+   * empty string. The difference is that here it is an instruction rather than
+   * the absence of one.
+   */
+  it('sends an empty name when a rename is a clearing', async () => {
+    const seen = capture();
+
+    await renameSession('s-1', '');
+
+    expect(seen[0]?.body).toEqual({ name: '' });
   });
 
   it('carries the treatment, the books and the preset when they were chosen', async () => {

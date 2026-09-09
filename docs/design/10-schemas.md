@@ -222,7 +222,8 @@ interface EmbeddedMedia {
    *  ([02 §2.2](02-data-model.md)):
    *
    *    role — closed union. The engine reads it and acts on it.
-   *    tags — open. Nothing in the engine branches on them.
+   *    tags — open. The engine has no built-in meaning for any of them,
+   *           though an author may gate lore on one ([25 §1](25-tagging.md)).
    *
    *  That split is what keeps the union small without costing authors
    *  precision. A gallery of forty images needs finer notation than six roles
@@ -310,7 +311,8 @@ interface Actor {
   /** Flags, not types. Advisory — any actor may be chosen as persona; the flag
    *  controls what pickers offer first. [02 §2.2] */
   roles: ActorRole[]
-  /** "npc" lives here. Nothing in the engine branches on it. */
+  /** "npc" lives here. The engine has no built-in meaning for any tag, though
+   *  an author may gate lore on one ([25 §1](25-tagging.md)). */
   tags: string[]
 
   profile: ActorProfile

@@ -115,7 +115,23 @@ function turnsRoot(layout: Layout, handle: string, sessionId: string): string {
  * swapping it would silently rewrite how the whole session assembles.
  */
 export interface NewSession {
-  name: string;
+  /**
+   * Optional, and stored as `''` when it is not given.
+   *
+   * **Not an optional field on `SessionFile`**, which is the tempting next
+   * step and would be a mistake: the index column is `name text not null` in a
+   * `strict` table, so `undefined` on that bind throws from *inside* a write
+   * lock, after the file has already been written. Keeping the stored type
+   * non-optional is what makes the compiler keep proving the column can be
+   * filled, at every writer that reindexes.
+   *
+   * It also costs nothing to give up. The only distinction optionality would
+   * buy is *never named* versus *named and then emptied*, and nothing consumes
+   * it — the deferred derive-a-name feature ([06 E13]) has to treat both as
+   * blank, or clearing a name would permanently disable derivation for that
+   * session.
+   */
+  name?: string;
   mode?: { id: string; config: unknown };
   /** Copied in whole. [02 §8]: the session owns its prompt pack from here on. */
   preset?: Preset;
@@ -137,7 +153,7 @@ export async function createSession(
   const session: SessionFile = {
     schema: 'storyengine.session/1',
     id: uuidv7(),
-    name: spec.name,
+    name: spec.name ?? '',
     createdAt: now,
     updatedAt: now,
     headTurnId: null,
@@ -253,6 +269,42 @@ export async function setArchived(
       updatedAt: new Date().toISOString(),
       ...(archived ? { archivedAt: new Date().toISOString() } : {}),
     };
+    await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
+    indexSession(context.index, scopeOf(context, handle), next);
+    return next;
+  });
+}
+
+/**
+ * Renames a session — [02 §8](../../../../docs/design/02-data-model.md).
+ *
+ * One JSON write and one index upsert, because that is genuinely all a session
+ * name is. Nothing resolves a session by it: the folder is the uuidv7, and
+ * `resolveFreeSlug` — which freezes a library object's folder against its name
+ * at creation — is never called for a session. So unlike a library object,
+ * whose folder keeps the name it was born with, a session carries no record of
+ * what it used to be called and needs none.
+ *
+ * **The `indexSession` line is the one that fails silently if it is dropped.**
+ * `session.name` is denormalised into the index, so without it the file would
+ * be right, the list would be right, and only search would disagree — which
+ * nobody notices until they search. It is why `sessions.test.ts` reindexes a
+ * renamed session and compares a rebuild-from-disk against the incremental
+ * index rather than trusting the returned object.
+ *
+ * An empty name is allowed, and is the same state a session starts in.
+ */
+export async function setName(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  name: string,
+): Promise<SessionFile | null> {
+  return withSessionLock(sessionId, async () => {
+    const session = await readSession(context, handle, sessionId);
+    if (session === null) return null;
+
+    const next: SessionFile = { ...session, updatedAt: new Date().toISOString(), name };
     await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
     indexSession(context.index, scopeOf(context, handle), next);
     return next;

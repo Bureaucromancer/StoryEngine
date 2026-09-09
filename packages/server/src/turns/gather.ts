@@ -12,6 +12,7 @@ import { walkPath } from '../sessions/segments.js';
 import { readSession, readTurns, reconstructAlong, snapshotIsAt } from '../sessions/store.js';
 import type { SessionContext } from '../sessions/store.js';
 import type { ChannelState, SessionFile, Turn } from '../sessions/types.js';
+import { readRegistry } from '../tags/store.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -153,7 +154,13 @@ export async function gatherAssemblyInputs(
     layout: context.sessions.layout,
     keepHistoryPerObject: 0,
   };
-  const cast = resolveCast(library, request.account, session?.cast);
+  /**
+   * Read once per turn, beside the bindings and connections this function
+   * already awaits. The cast needs it so an actor reaches activation under the
+   * names its tags have *now* — [25 §3](../../../../docs/design/25-tagging.md).
+   */
+  const tags = await readRegistry(context.sessions.layout, request.account);
+  const cast = resolveCast(library, request.account, session?.cast, tags);
   /**
    * The cast is deliberately *not* passed: nothing about who is in the scene
    * decides which books are in play. A book is here because this session, or

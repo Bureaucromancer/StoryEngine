@@ -24,6 +24,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const listSessions = vi.fn();
 const createSession = vi.fn();
 const listLibrary = vi.fn();
+const renameSession = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -31,6 +32,7 @@ vi.mock('../api.js', async (importOriginal) => {
     ...actual,
     listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
     createSession: (...a: unknown[]) => createSession(...a) as unknown,
+    renameSession: (...a: unknown[]) => renameSession(...a) as unknown,
     api: { ...actual.api, listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown },
   };
 });
@@ -40,6 +42,16 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 const { SessionsPage, setupLine } = await import('./SessionsPage.js');
+
+function aSession(id: string, name: string) {
+  return {
+    id,
+    name,
+    createdAt: '2026-09-08T00:00:00Z',
+    updatedAt: '2026-09-08T00:00:00Z',
+    headTurnId: null,
+  };
+}
 
 function libraryObject(id: string, name: string, schema: string) {
   return {
@@ -104,7 +116,10 @@ describe('starting a session', () => {
   it('sends the name alone when nothing else was chosen', async () => {
     renderPage();
 
-    await userEvent.type(screen.getByLabelText('Name for the new session'), 'A wet week');
+    await userEvent.type(
+      screen.getByLabelText('Name for the new session, if you have one'),
+      'A wet week',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
 
     // Absent rather than empty: the route's optional fields mean *unset*, and
@@ -117,7 +132,10 @@ describe('starting a session', () => {
   it('sends the treatment, the books and the preset that were chosen', async () => {
     renderPage();
 
-    await userEvent.type(screen.getByLabelText('Name for the new session'), 'A wet week');
+    await userEvent.type(
+      screen.getByLabelText('Name for the new session, if you have one'),
+      'A wet week',
+    );
     await userEvent.click(await screen.findByText(/Nothing chosen yet/));
 
     await userEvent.selectOptions(screen.getByLabelText('Treatment'), 'treat-wet');
@@ -135,15 +153,105 @@ describe('starting a session', () => {
     });
   });
 
+  /**
+   * **The change this whole workstream is.**
+   *
+   * Start used to read `if (name.trim().length > 0) create.mutate()`, so this
+   * exact interaction — press Start, having typed nothing — did nothing at all.
+   * Not a refusal and not a prevention, which is the shape
+   * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md) exists to rule out. Asserting on
+   * the argument rather than only on the call matters: sending `{ name: '' }`
+   * would also "work", and would put an empty string on the wire as though it
+   * were a choice somebody made.
+   */
+  it('starts a session with nothing typed at all', async () => {
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith({});
+    });
+  });
+
   it('says so when the server refuses', async () => {
     createSession.mockRejectedValue(new Error('No such preset.'));
     renderPage();
 
-    await userEvent.type(screen.getByLabelText('Name for the new session'), 'A wet week');
+    await userEvent.type(
+      screen.getByLabelText('Name for the new session, if you have one'),
+      'A wet week',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('No such preset.');
     });
+  });
+});
+
+describe('a session that has not been named', () => {
+  /**
+   * A bug that predates unnamed sessions being reachable from the form: the
+   * list rendered `{session.name}` bare, so a session whose name is `''` — one
+   * hand-edit away, since `session.json` is meant to be edited — produced a
+   * link with no accessible name and nothing to click. Queried by role rather
+   * than by text, because *findable and clickable* is the actual claim.
+   */
+  it('is labelled, and its link can still be found and followed', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', '')] });
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Untitled session' })).toBeTruthy();
+  });
+
+  /**
+   * The rename box opens on the *stored* name, not on the label. Seeding it
+   * with *Untitled session* is how a placeholder becomes somebody's real
+   * session name the first time they press Save without reading it.
+   */
+  it('opens its rename box empty rather than seeded with the placeholder', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', '')] });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Untitled session' }));
+
+    const box = screen.getByRole('textbox', { name: 'Session name' });
+    expect((box as HTMLInputElement).value).toBe('');
+  });
+});
+
+describe('renaming a session from the list', () => {
+  it('sends the id and the typed name, and shows the result', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renameSession.mockImplementation((_id: string, name: string) => {
+      // The list refetches on success, so the mock has to start answering with
+      // the new name — otherwise this would pass on a stale cache and prove
+      // nothing about the invalidation.
+      listSessions.mockResolvedValue({ sessions: [aSession('s-1', name)] });
+      return Promise.resolve({ session: aSession('s-1', name) });
+    });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), ', after the fire');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(renameSession).toHaveBeenCalledWith('s-1', 'Rain City, after the fire');
+    });
+    expect(await screen.findByRole('link', { name: 'Rain City, after the fire' })).toBeTruthy();
+  });
+
+  it('leaves the name alone when the rename is cancelled', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), ' burned');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Rain City' })).toBeTruthy();
   });
 });

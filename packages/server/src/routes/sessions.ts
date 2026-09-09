@@ -25,6 +25,7 @@ import {
   readTurns,
   readTurnById,
   setArchived,
+  setName,
   undoTurn,
   type BranchRefOutcome,
 } from '../sessions/store.js';
@@ -83,7 +84,23 @@ const CastBody = Type.Object(
 
 const CreateBody = Type.Object(
   {
-    name: Type.String({ minLength: 1, maxLength: 200 }),
+    /**
+     * **Optional, and `''` means the same thing as absent.**
+     *
+     * A session is id-addressed — its folder is the uuidv7, `resolveFreeSlug`
+     * never runs for one, and nothing anywhere resolves a session by name. So
+     * starting one freezes nothing, which is exactly the constraint that made
+     * the library defer creation until a name existed
+     * ([25 §3](../../../../docs/design/25-tagging.md) has the contrasting case).
+     * Demanding a name here bought a form somebody had to fill in before they
+     * could play, and bought it for nothing.
+     *
+     * `minLength` goes as well as the field becoming optional, deliberately:
+     * a caller sending `{"name": ""}` and one sending `{}` mean the same
+     * thing, and a 400 for one of them would be the API drawing a distinction
+     * the product does not.
+     */
+    name: Type.Optional(Type.String({ maxLength: 200 })),
     mode: Type.Optional(Type.String({ maxLength: 100 })),
     /**
      * A preset from the library, copied instead of the mode's default
@@ -115,7 +132,35 @@ const ListQuery = Type.Object({ archived: Type.Optional(Type.String()) });
 const TurnsQuery = Type.Object({ limit: Type.Optional(Type.String({ pattern: '^[0-9]{1,4}$' })) });
 const StreamQuery = Type.Object({ after: Type.Optional(Type.String({ maxLength: 200 })) });
 
-const ArchiveBody = Type.Object({ archived: Type.Boolean() }, { additionalProperties: false });
+/**
+ * What a `PATCH /sessions/:sessionId` may change — archiving, and the name.
+ *
+ * **Widened rather than joined by a verb**, which is the opposite of the call
+ * [25 §4](../../../../docs/design/25-tagging.md) makes for `POST /tags/:id/rename`, and the
+ * difference is worth stating because the two sit one file apart. A tag rename
+ * is not a property edit: a lore entry's `actorTagFilter` holds author-written
+ * *names*, compared exactly, so renaming one changes which lore fires, reaches
+ * the user's object files, and has to answer with a report. A verb is right
+ * when an operation has consequences beyond *here is the new state*.
+ *
+ * A session name has none of that. Nothing resolves a session by it, nothing
+ * matches on it, and it lives in exactly two places — the JSON field and the
+ * denormalised index column. That is an ordinary property edit, and `PATCH` is
+ * what an ordinary property edit is. This file already renames a branch ref
+ * through `PATCH .../refs/:refId`, so a session's name arriving at a different
+ * *kind* of endpoint would be an inconsistency with nothing behind it.
+ *
+ * `minProperties: 1` so that `PATCH {}` is refused rather than answering 200
+ * to a request that did nothing — `archived` relaxing from required to
+ * optional is what makes an empty body expressible at all.
+ */
+const SessionPatch = Type.Object(
+  {
+    archived: Type.Optional(Type.Boolean()),
+    name: Type.Optional(Type.String({ maxLength: 200 })),
+  },
+  { additionalProperties: false, minProperties: 1 },
+);
 
 /** What a session plays with — the same two links `CreateBody` takes. */
 const LoreBody = Type.Object(
@@ -277,7 +322,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     if (!account) return;
 
     const body = request.body as {
-      name: string;
+      name?: string;
       mode?: string;
       preset?: string;
       cast?: { persona: string | null; actors: string[] };
@@ -344,7 +389,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
     try {
       const session = await createSession(services.sessions, account.handle, {
-        name: body.name,
+        // Trimmed here so `{"name": "   "}` cannot produce a session whose
+        // list entry is an invisible link. It is not the only guard —
+        // `session.json` is hand-editable by design ([02 §1]), so the client's
+        // label helper trims too — but it is the one that stops the API being
+        // the thing that made the mess.
+        name: (body.name ?? '').trim(),
         mode: { id: mode.definition.id, config: null },
         preset,
         ...(body.cast === undefined ? {} : { cast: body.cast }),
@@ -443,15 +493,33 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
   app.patch(
     '/sessions/:sessionId',
-    { schema: { params: SessionParams, body: ArchiveBody } },
+    { schema: { params: SessionParams, body: SessionPatch } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { archived } = request.body as { archived: boolean };
+      const body = request.body as { archived?: boolean; name?: string };
       const { sessionId } = request.params as { sessionId: string };
-      const session = await setArchived(services.sessions, account.handle, sessionId, archived);
+
+      /**
+       * Two fields, two writes, on purpose rather than by accident.
+       *
+       * `withSessionLock` is not reentrant, so these cannot be nested, and
+       * combining them would mean reimplementing `setArchived`'s
+       * delete-then-maybe-re-add of `archivedAt` — which has other callers and
+       * is the fiddly half. The cost is two `updatedAt` bumps and two index
+       * upserts for a request no caller actually makes: every client sends one
+       * field or the other. Sequential is honest about what they are, which is
+       * two independent facts about a session.
+       */
+      let session = null;
+      if (body.name !== undefined) {
+        session = await setName(services.sessions, account.handle, sessionId, body.name.trim());
+      }
+      if (body.archived !== undefined) {
+        session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
+      }
       return reply.send({ session });
     },
   );

@@ -17,6 +17,7 @@ import { createValidator } from '@storyengine/shared';
 
 import { Accounts, type PublicAccount } from './auth/accounts.js';
 import { PrefsStore } from './auth/prefs.js';
+import { TagStore } from './tags/store.js';
 import { loadOrCreateSetupToken } from './auth/setup-token.js';
 import {
   CSRF_COOKIE,
@@ -39,6 +40,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerMeRoutes } from './routes/me.js';
+import { registerTagRoutes } from './routes/tags.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { listSessions, type SessionContext } from './sessions/store.js';
@@ -208,6 +210,16 @@ export interface AppServices {
    * one silently.
    */
   prefs: PrefsStore;
+  /**
+   * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+   *
+   * Beside `prefs` and for the same structural reason: it owns a write queue,
+   * because every change to it is a read-modify-write across an `await`. It is
+   * a *separate* store rather than a key in that one because it has a schema
+   * and validates, which is exactly what [06 B13] decided the preferences bag
+   * would not do.
+   */
+  tags: TagStore;
 }
 
 export interface BuildAppOptions {
@@ -445,6 +457,7 @@ async function assembleWithState(
     watcher,
     maturation,
     prefs: new PrefsStore(layout),
+    tags: new TagStore(layout),
     build,
     sessionKey: await loadOrCreateSessionKey(layout),
     /**
@@ -727,6 +740,7 @@ export async function buildApp(
     (api, _options, done) => {
       registerAuthRoutes(api, services);
       registerMeRoutes(api, services);
+      registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerImportRoutes(api, services);
       registerSearchRoutes(api, services);

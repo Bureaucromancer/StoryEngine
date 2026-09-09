@@ -11,6 +11,8 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
+import type { TagEntry } from '@storyengine/shared';
+
 import type { LiveTurn } from './play/reducer.js';
 import {
   adminApi,
@@ -19,6 +21,7 @@ import {
   readSession,
   readTranscript,
   readTurn,
+  renameSession,
   setSessionLore,
   type Account,
   type AccountPatch,
@@ -351,6 +354,85 @@ export function usePrefs(): UseQueryResult<{ prefs: Record<string, unknown> }> {
 }
 
 /**
+ * The tag registry — [25 §4](../../../docs/design/25-tagging.md).
+ *
+ * One key, because there is one document: every write answers with the whole
+ * list, so a mutation seeds the cache from its own response rather than
+ * invalidating and refetching what the server has already sent.
+ */
+export function useTags(): UseQueryResult<{ tags: TagEntry[] }> {
+  return useQuery({ queryKey: ['tags'], queryFn: api.readTags });
+}
+
+/**
+ * Every registry write, behind one hook.
+ *
+ * A single mutation with a discriminated action rather than five hooks: they
+ * differ only in which call they make, they all answer with the same shape, and
+ * they all want the same `onSuccess`. Five copies of that would be five places
+ * for the cache-seeding to drift.
+ */
+export type TagWrite =
+  | { kind: 'create'; name: string; swatch?: string | null }
+  | {
+      kind: 'patch';
+      id: string;
+      patch: { swatch?: string | null; folder?: string; hidden?: boolean };
+    }
+  | { kind: 'delete'; id: string }
+  | { kind: 'order'; ids: string[] }
+  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean }
+  | { kind: 'adopt' };
+
+/**
+ * What a registry write answers with.
+ *
+ * The whole list always; `gatesFound` only from a rename, which is the one
+ * operation with something else to report ([25 §1]). Optional rather than a
+ * union per verb, because every caller reads `tags` and exactly one reads the
+ * rest.
+ */
+export interface TagWriteResult {
+  tags: TagEntry[];
+  gatesFound?: { book: string; entry: string }[];
+}
+
+export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrite> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: TagWrite) => {
+      if (write.kind === 'create') {
+        return api.createTag({
+          name: write.name,
+          ...(write.swatch === undefined ? {} : { swatch: write.swatch }),
+        });
+      }
+      if (write.kind === 'patch') return api.patchTag(write.id, write.patch);
+      if (write.kind === 'delete') return api.deleteTag(write.id);
+      if (write.kind === 'rename') {
+        return api.renameTag(write.id, { to: write.to, rewriteGates: write.rewriteGates });
+      }
+      if (write.kind === 'adopt') return api.adoptTags();
+      return api.orderTags(write.ids);
+    },
+    onSuccess: (result, write) => {
+      // Seeded from the answer rather than invalidated: the server just sent
+      // the whole document, so a refetch would ask for what is already here.
+      client.setQueryData(['tags'], { tags: result.tags });
+      /**
+       * **The two writes that reach the library invalidate it.** A rename
+       * changes what every carrier is *called* without touching any of them, so
+       * nothing would refetch on its own and the shelf would go on showing the
+       * old name until something else happened to reload it.
+       */
+      if (write.kind === 'rename' || write.kind === 'adopt') {
+        void client.invalidateQueries({ queryKey: ['library'] });
+      }
+    },
+  });
+}
+
+/**
  * **The one optimistic mutation in this codebase**, and the reasons are specific
  * enough to be worth writing down — [P2A §3](../../../docs/design/workplan/13-p2a-configuration-surface.md).
  *
@@ -456,6 +538,32 @@ export function useSetSessionLore(
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+/**
+ * Renaming a session — [02 §8].
+ *
+ * A hook rather than two inline mutations for the reason `useSession`'s own
+ * docstring gives: two components spelling the same cache key by hand is how a
+ * cache splits, and this one has two callers from the day it lands — the list,
+ * and the play heading.
+ *
+ * **`previewKey` is deliberately not reset.** A session name reaches no
+ * assembled prompt, so unlike `useSetSessionLore` there is nothing here that
+ * could change what the next turn would send. Both list and detail are
+ * invalidated, because the name is denormalised into the list rows.
+ */
+export function useRenameSession(
+  sessionId: string,
+): UseMutationResult<{ session: SessionSummary }, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => renameSession(sessionId, name),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 }

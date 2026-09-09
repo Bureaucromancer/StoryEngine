@@ -70,6 +70,13 @@
         "type": "string"
       }
     },
+    "tagIds": {
+      "type": "array",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      }
+    },
     "profile": {
       "title": "ActorProfile",
       "type": "object",

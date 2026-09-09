@@ -7,6 +7,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { TAG_SWATCH_STYLES } from './tag-colors.js';
+
 /**
  * **Every ink token is legible on every surface it is used on, in both themes.**
  *
@@ -147,6 +149,22 @@ const PAIRS: [ink: string, on: string[]][] = [
   // A search hit has to be readable, and it is the one pair where the ink and
   // the surface arrived together rather than one landing on the other.
   ['highlight-ink', ['highlight-surface']],
+  /**
+   * Every tag swatch, in both themes — [25 §4](../../../../docs/design/25-tagging.md).
+   *
+   * **Spread from the style record rather than listed**, so a ninth swatch is
+   * measured because it exists rather than because somebody remembered to add
+   * a row here. That is the whole reason the record carries its tokens: the
+   * thing that draws the chip and the thing that measures it read one source.
+   *
+   * This is also what makes the curated palette worth choosing over a colour
+   * picker. A picker cannot be held to a floor; eight pairs can, from the day
+   * they land and every time anybody re-tunes them.
+   */
+  ...Object.values(TAG_SWATCH_STYLES).map((style): [string, string[]] => [
+    style.inkToken,
+    [style.surfaceToken],
+  ]),
 ];
 
 describe('the palette is legible', () => {

@@ -517,6 +517,7 @@ So:
   connections/
   memories/
   prefs.json
+  tags.json                  the tag registry (25)
 ```
 
 - **Every user has a complete, independent library.** No `owner` field, no

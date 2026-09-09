@@ -35,7 +35,16 @@ export interface PanelColumn {
   /** Stable, and never the header: nothing branches on a displayed string. */
   id: string;
   header: string;
-  cell: (object: LibraryObject, locale: string | undefined) => ReactNode;
+  /**
+   * `hidden` is the case-folded names the registry says to keep off cards.
+   * Passed rather than looked up, because a column that fetched the registry
+   * would be a column that could be pending.
+   */
+  cell: (
+    object: LibraryObject,
+    locale: string | undefined,
+    hidden?: ReadonlySet<string>,
+  ) => ReactNode;
   /** A count. Right-aligned and tabular, so a column of them compares by eye. */
   numeric?: boolean;
 }
@@ -95,7 +104,7 @@ function entryCount(object: LibraryObject): number {
   return Array.isArray(entries) ? entries.length : 0;
 }
 
-function tagsOf(object: LibraryObject): string[] {
+export function tagsOf(object: LibraryObject): string[] {
   const tags = field(object, 'tags');
   return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
 }
@@ -149,6 +158,48 @@ function nameBadges(object: LibraryObject): JSX.Element {
   );
 }
 
+/**
+ * The two sorts every shelf can answer, whatever kind it holds —
+ * [polish §9](../../../../docs/design/workplan/09-polish.md).
+ *
+ * They exist because the control row is now unconditional: a *Sort by* that
+ * appeared on one shelf out of six read as a lorebook feature rather than as
+ * the library's. Every object has a name and a `provenance.updatedAt`, so
+ * these two are the ones no panel has to opt into.
+ *
+ * The Lorebooks panel keeps its own list rather than extending this one — it
+ * puts entry count in the middle, and a shared array with a per-panel insert
+ * would be harder to read than two literals.
+ */
+const COMMON_SORTS: PanelSort[] = [
+  { id: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
+  {
+    id: 'updated',
+    label: 'Recently updated',
+    // Newest first, and an object with no stamp sorts last rather than first:
+    // "never updated" is not "updated a long time ago".
+    compare: (a, b) => (updatedAt(b) ?? '').localeCompare(updatedAt(a) ?? ''),
+  },
+];
+
+/**
+ * What a live search reads — [polish §9].
+ *
+ * **Name and tags, and deliberately not the whole object.** The row shows a
+ * name; the tags are what the shelf is organised by and what somebody is most
+ * likely to be reaching for when the name will not come. Serialising the object
+ * would pull a lorebook's entire entry array into every keystroke's haystack,
+ * which is a different feature (finding a *book* by an entry inside it) with a
+ * cost — memoising against a list that re-polls every two seconds — and it
+ * should be chosen rather than arrived at.
+ *
+ * The scope is said in the control's own hint, because a search that quietly
+ * reads less than a person assumes is one they stop trusting.
+ */
+export function searchText(object: LibraryObject): string {
+  return [object.name, ...tagsOf(object)].join(' ');
+}
+
 /** The columns every panel has had since P1.6, for the five with no opinion. */
 const GENERIC: KindPanel = {
   columns: [
@@ -162,7 +213,7 @@ const GENERIC: KindPanel = {
     },
     { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
   ],
-  sorts: [],
+  sorts: COMMON_SORTS,
   filters: [],
   empty:
     'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.',
@@ -185,7 +236,21 @@ const LOREBOOKS: KindPanel = {
       numeric: true,
       cell: (object, locale) => formatCount(entryCount(object), locale),
     },
-    { id: 'tags', header: 'Tags', cell: (object) => tagsOf(object).join(', ') },
+    {
+      id: 'tags',
+      header: 'Tags',
+      /**
+       * **Hidden tags are not drawn here, and nowhere else is affected** —
+       * [25 §5](../../../../docs/design/25-tagging.md). The flag exists to quiet
+       * bookkeeping tags (`imported-2026-08`, `wip`) that are worth filtering
+       * by and not worth reading on every row. A flag that also hid them from
+       * the filter bar would be a second, invisible filter state.
+       */
+      cell: (object, _locale, hidden) =>
+        tagsOf(object)
+          .filter((tag) => !(hidden ?? new Set<string>()).has(tag.toLowerCase()))
+          .join(', '),
+    },
     { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
     {
       id: 'updated',
@@ -208,15 +273,6 @@ const LOREBOOKS: KindPanel = {
     { id: 'entries', label: 'Entry count', compare: (a, b) => entryCount(b) - entryCount(a) },
   ],
   filters: [
-    {
-      id: 'tag',
-      label: 'Tag',
-      // From the shelf, sorted, deduplicated — a tag filter offering tags
-      // nobody has used is a list of dead ends.
-      optionsFor: (objects) =>
-        [...new Set(objects.flatMap(tagsOf))].sort().map((tag) => [tag, tag] as const),
-      matches: (object, value) => tagsOf(object).includes(value),
-    },
     {
       id: 'scope',
       label: 'Scope',

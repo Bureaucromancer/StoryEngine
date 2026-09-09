@@ -82,6 +82,7 @@ const ACCOUNT: Account = {
 function makeLibrary() {
   let stored: Record<string, unknown> = structuredClone(makeBook());
   let revision = 0;
+  const creates: { kind: unknown; object: Record<string, unknown> }[] = [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
   const envelope = (): LibraryObject => ({
@@ -111,11 +112,19 @@ function makeLibrary() {
      * navigation out of this editor that must not be stopped by the
      * unsaved-changes guard.
      */
+    /** What the fake was asked to file — a copy, or a book that is new. */
+    creates,
     createObject: (
-      _kind: unknown,
+      kind: unknown,
       object: Record<string, unknown>,
-    ): Promise<{ id: string; slug: string; contentHash: string }> =>
-      Promise.resolve({ id: object['id'] as string, slug: 'ardent-copy', contentHash: hash() }),
+    ): Promise<{ id: string; slug: string; contentHash: string }> => {
+      creates.push({ kind, object: structuredClone(object) });
+      return Promise.resolve({
+        id: object['id'] as string,
+        slug: 'ardent-copy',
+        contentHash: hash(),
+      });
+    },
     updateObject(
       _kind: unknown,
       _id: unknown,
@@ -1078,5 +1087,121 @@ describe('the critical controls in the lorebook editor', () => {
     expect(status.closest('form')).toBe(
       screen.getByRole('button', { name: 'Save' }).closest('form'),
     );
+  });
+});
+
+/**
+ * The book's name is required, and until now it was not —
+ * [05 §11.1a](../../../../docs/design/05-ui-surfaces.md).
+ *
+ * This editor had no field check of any kind: the name could be emptied and
+ * saved, and the shelf would then carry a row whose link had nothing to click.
+ * The actor editor next door had refused that since P1.5, and §11.1a exists
+ * because a rule kept in one editor by hand is a rule the next editor does not
+ * have.
+ *
+ * Reddened by dropping the check, by disabling Save instead of refusing (the
+ * button assertion), by refusing silently (the alert), or by refusing without
+ * moving the cursor.
+ */
+describe('a save with the book name empty', () => {
+  it('is refused, and says so beside the Save that caused it', async () => {
+    renderApp();
+    await openEditor();
+
+    const name = screen.getByRole('textbox', { name: 'Book name' });
+    expect(name.getAttribute('aria-required')).toBe('true');
+
+    await userEvent.clear(name);
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    await userEvent.click(save);
+
+    // The file still says what it said.
+    expect(server.stored().name).toBe('Ardent');
+
+    const refusal = await screen.findByText('Book name cannot be empty.');
+    expect(refusal.getAttribute('role')).toBe('alert');
+    expect(refusal.closest('form')).toBe(save.closest('form'));
+
+    expect(document.activeElement).toBe(name);
+  });
+
+  it('lets the save through once the name is answered', async () => {
+    renderApp();
+    await openEditor();
+
+    const name = screen.getByRole('textbox', { name: 'Book name' });
+    await userEvent.clear(name);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(server.stored().name).toBe('Ardent');
+
+    await userEvent.type(name, 'Ardent Harbour');
+    expect(screen.queryByText('Book name cannot be empty.')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    expect(server.stored().name).toBe('Ardent Harbour');
+  });
+});
+
+/**
+ * A new lorebook, which does not exist until it is saved — [polish §10].
+ *
+ * The actor editor's twin of this carries the full argument. What is worth
+ * asserting separately is the branch: this editor's \`handleSave\` sends the
+ * draft to **create** rather than to update, and a book that reached the update
+ * path would present a \`contentHash\` of \`''\` against a file that does not
+ * exist — a 412 blaming the user for a conflict with nothing.
+ */
+describe('a new lorebook', () => {
+  async function openNew(): Promise<void> {
+    await act(async () => {
+      await router.navigate({ to: '/library/lorebooks/new' });
+    });
+    await screen.findByRole('textbox', { name: 'Book name' });
+  }
+
+  it('writes nothing until it is saved, and offers nothing that reads a file', async () => {
+    renderApp();
+    await openNew();
+
+    expect(server.creates).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('refuses a nameless book rather than filing one', async () => {
+    renderApp();
+    await openNew();
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    await userEvent.click(save);
+
+    expect(server.creates).toEqual([]);
+    expect(await screen.findByText('Book name cannot be empty.')).toBeDefined();
+  });
+
+  it('files the factory-built book once it has a name', async () => {
+    renderApp();
+    await openNew();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), 'Ardent');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(server.creates).toHaveLength(1);
+    });
+
+    const filed = server.creates[0];
+    expect(filed?.kind).toBe('lorebooks');
+    expect(filed?.object['name']).toBe('Ardent');
+    // The factory's shape, not a literal: a book arrives with its entry list
+    // and its scan settings, the same as one made with `curl`.
+    expect(filed?.object['entries']).toEqual([]);
   });
 });

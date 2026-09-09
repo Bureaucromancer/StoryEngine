@@ -543,6 +543,13 @@
         "type": "string"
       }
     },
+    "tagIds": {
+      "type": "array",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      }
+    },
     "media": {
       "type": "array",
       "items": {

@@ -3,7 +3,7 @@
 
 import { type Static, Type } from '@sinclair/typebox';
 
-import { Compat, GeneratedMap, Id, Metadata, ModelHint, Provenance } from './common.js';
+import { TagIdList, Compat, GeneratedMap, Id, Metadata, ModelHint, Provenance } from './common.js';
 
 /**
  * Preset — docs/design/10-schemas.md §8. **The prompt pack.**
@@ -462,6 +462,8 @@ export const Preset = Type.Object(
     variables: Type.Array(PresetVariable),
 
     tags: Type.Array(Type.String()),
+    /** See {@link TagIdList} — the registry side of `tags`. */
+    tagIds: Type.Optional(TagIdList),
     provenance: Provenance,
     generated: GeneratedMap,
     /** Unrecognised fields from an import, verbatim. */

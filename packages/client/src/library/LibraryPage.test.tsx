@@ -5,8 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS, LOREBOOK_SCHEMA } from '@storyengine/shared';
-
 /**
  * **A hand edit reaches the browser without a restart** — the client half of P1
  * gate step 7–8, and [05 §4.1](../../../../docs/design/05-ui-surfaces.md)'s blunt statement of
@@ -131,12 +129,9 @@ async function settled(): Promise<void> {
  * here are a change and a submit, with no pointer or focus behaviour that
  * user-event would model better.
  */
-async function nameItAndSubmit(name: string): Promise<void> {
-  act(() => {
-    fireEvent.change(screen.getByLabelText('Name for the new actor'), { target: { value: name } });
-  });
+async function clickNew(noun: string): Promise<void> {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'New actor' }));
+    fireEvent.click(screen.getByRole('button', { name: `New ${noun}` }));
     await vi.advanceTimersByTimeAsync(0);
   });
 }
@@ -195,76 +190,45 @@ describe('the library list', () => {
 
 describe('making an actor', () => {
   /**
-   * **The assertion is the four conventional sections, not the name.**
+   * **Nothing is created here any anymore** — [polish §10].
    *
-   * A name-and-schema check would pass over a page that hand-built a minimal
-   * literal, and a hand-built literal is exactly the failure worth catching:
-   * [10 §4](../../../../docs/design/10-schemas.md) requires *the editor creates all four on a
-   * new actor*, `newActor` is the one place that happens, and an actor made in
-   * the browser has to be the same object as one made with `curl`.
-   */
-  it('posts what the factory builds, conventional sections and all', async () => {
-    renderPage();
-    await settled();
-
-    await nameItAndSubmit('Vera Kohl');
-
-    expect(createObject).toHaveBeenCalledTimes(1);
-    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
-    expect(call[0]).toBe('actors');
-    expect(call[1]['schema']).toBe(ACTOR_SCHEMA);
-    expect(call[1]['name']).toBe('Vera Kohl');
-
-    const profile = call[1]['profile'] as { sections: { id: string }[] };
-    expect(profile.sections.map((section) => section.id).sort()).toEqual(
-      Object.values(CONVENTIONAL_SECTION_IDS).toSorted(),
-    );
-  });
-
-  /**
-   * The id routed on is the server's, not the one minted client-side. They
-   * agree in production — `create()` echoes what it was posted — so only a test
-   * that hands back a *different* id can tell which one the page used.
-   */
-  it('lands in the editor at the id the server answered with', async () => {
-    renderPage();
-    await settled();
-
-    await nameItAndSubmit('Vera Kohl');
-
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/library/actors/$id/edit',
-      params: { id: '01b11111-2222-7333-8444-555566667777' },
-      search: {},
-    });
-  });
-
-  /**
-   * **Both guards, because the disabled button is not one of them.**
+   * The control used to collect a name and post an object. It now opens an
+   * editor over a draft, and the create happens on that editor's first Save,
+   * which is what keeps the folder name honest: the slug is taken from the name
+   * once and frozen ([02 §5.2]), so an object created before it was named would
+   * keep `untitled-2` for good.
    *
-   * Asserting the disabled attribute and clicking is a test that passes itself:
-   * the click never reaches the handler, so deleting the handler's own
-   * `!ready` check leaves it green. The submit is dispatched at the form to get
-   * past the button and reach the code that actually decides.
+   * The claims this test used to make — that the posted object is the
+   * factory's, four conventional sections and all, and that the id routed on is
+   * the server's — moved with the behaviour, to
+   * [ActorEditorPage.test.tsx](../editor/ActorEditorPage.test.tsx). They are
+   * still made; they are made where the create is.
    */
-  it('trims, and will not post a name that is only spaces', async () => {
+  it('creates nothing, and opens the editor over a draft instead', async () => {
     renderPage();
     await settled();
 
-    act(() => {
-      fireEvent.change(screen.getByLabelText('Name for the new actor'), {
-        target: { value: '   ' },
-      });
-    });
-
-    expect(screen.getByRole('button', { name: 'New actor' })).toHaveProperty('disabled', true);
-
-    await act(async () => {
-      fireEvent.submit(screen.getByRole('button', { name: 'New actor' }).closest('form')!);
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    await clickNew('actor');
 
     expect(createObject).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({ to: '/library/actors/new' });
+  });
+
+  /**
+   * **No name to fill in, and no disabled button either.**
+   *
+   * The old control refused a name of only spaces, in two places, and the test
+   * for it dispatched a submit at the form to get past a button that was
+   * disabled anyway. Both are gone: there is no box, so there is nothing here
+   * to refuse. The refusal did not disappear — it moved into the editor, where
+   * [05 §11.1a] puts it, and is asserted there.
+   */
+  it('asks for nothing before it opens the editor', async () => {
+    renderPage();
+    await settled();
+
+    expect(screen.queryByLabelText('Name for the new actor')).toBeNull();
+    expect(screen.getByRole('button', { name: 'New actor' })).toHaveProperty('disabled', false);
   });
 
   it('offers the form on the actors filter', async () => {
@@ -305,32 +269,17 @@ describe('making an actor', () => {
    * literal, and a second creatable kind against a hard-coded `/library/actors`
    * would have posted a lorebook and then opened the actor editor over it.
    */
-  it('offers a lorebook now that lorebooks have an editor, and lands in it', async () => {
+  it('offers a lorebook now that lorebooks have an editor, and lands in its own route', async () => {
     search = { kind: 'lorebooks' };
     renderPage();
     await settled();
 
     expect(screen.getByRole('button', { name: 'New lorebook' })).toBeTruthy();
 
-    act(() => {
-      fireEvent.change(screen.getByLabelText('Name for the new lorebook'), {
-        target: { value: 'Ardent' },
-      });
-    });
-    await act(async () => {
-      fireEvent.submit(screen.getByRole('button', { name: 'New lorebook' }).closest('form')!);
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    await clickNew('lorebook');
 
-    const call = createObject.mock.calls[0] as [string, Record<string, unknown>];
-    expect(call[0]).toBe('lorebooks');
-    expect(call[1]['schema']).toBe(LOREBOOK_SCHEMA);
-    expect(call[1]['entries']).toEqual([]);
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/library/lorebooks/$id/edit',
-      params: { id: '01b11111-2222-7333-8444-555566667777' },
-      search: {},
-    });
+    expect(createObject).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({ to: '/library/lorebooks/new' });
   });
 });
 
@@ -582,16 +531,18 @@ describe('the Lorebooks panel', () => {
       });
     }
 
-    it('narrows by a tag, and offers only tags the shelf actually uses', async () => {
+    /**
+     * **Tags moved out of this panel** — [25 §5](../../../../docs/design/25-tagging.md).
+     * They are on every kind while scope, enabled and source are the lorebook's,
+     * so the single-select this block used to drive is now a three-state chip
+     * bar on the page. Its own tests are in `tags/TagFilterBar.test.tsx`; what
+     * is left here is that this panel no longer offers a second answer to the
+     * same question.
+     */
+    it('no longer offers a tag control of its own', async () => {
       await shelved();
 
-      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
-        (node) => node.textContent,
-      );
-      expect(options).toEqual(['Any', 'city', 'noir']);
-
-      choose('Tag', 'noir');
-      expect(names()).toEqual(['Ardent']);
+      expect(screen.queryByLabelText('Tag')).toBeNull();
     });
 
     it('narrows by scope', async () => {
@@ -620,12 +571,12 @@ describe('the Lorebooks panel', () => {
      */
     it('keeps every filter offering the whole shelf’s values', async () => {
       await shelved();
-      choose('Tag', 'noir');
+      choose('Enabled', 'off');
 
-      const options = [...screen.getByLabelText('Tag').querySelectorAll('option')].map(
+      const options = [...screen.getByLabelText('Scope').querySelectorAll('option')].map(
         (node) => node.textContent,
       );
-      expect(options).toEqual(['Any', 'city', 'noir']);
+      expect(options).toEqual(['Any', 'Global', 'Linked']);
     });
 
     /**
@@ -635,7 +586,7 @@ describe('the Lorebooks panel', () => {
      */
     it('says the filters are the reason, rather than telling you to import', async () => {
       await shelved();
-      choose('Tag', 'noir');
+      choose('Scope', 'linked');
       choose('Enabled', 'off');
 
       expect(names()).toEqual([]);
@@ -669,5 +620,136 @@ describe('the Lorebooks panel', () => {
 
     const cached = client.getQueryData<{ objects: { name: string }[] }>(['library', 'lorebooks']);
     expect(cached?.objects.map((entry) => entry.name)).toEqual(['Ardent', 'Rain City']);
+  });
+});
+
+/**
+ * Search and sort on every shelf — [polish §9].
+ *
+ * The control row used to render only for a panel that declared sorts or
+ * filters, which was Lorebooks and nothing else: five shelves out of six had no
+ * controls whatsoever. Search is the one control every kind can answer, so the
+ * condition had nothing left to be about.
+ *
+ * `fireEvent` rather than `userEvent` throughout, which this file's header
+ * explains: user-event's inter-keystroke delay deadlocks against the fake
+ * timers the two-second poll needs, and a typing test is where that bites.
+ */
+describe('searching a shelf', () => {
+  function book(name: string, over: Record<string, unknown> = {}, slug = name.toLowerCase()) {
+    return {
+      ...object(name),
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.lorebook/1',
+        name,
+        enabled: true,
+        scope: { kind: 'global' },
+        tags: [],
+        entries: [],
+        provenance: { updatedAt: '2026-08-30T10:00:00Z' },
+        ...over,
+      },
+    };
+  }
+
+  function shelf() {
+    return [book('Ardent', { tags: ['noir'] }), book('Rain City', { tags: ['city'] }, 'rain-city')];
+  }
+
+  function names(): (string | null)[] {
+    return [...document.querySelectorAll('tbody tr')].map(
+      (row) => row.querySelector('td a')?.textContent ?? null,
+    );
+  }
+
+  async function shelved(): Promise<void> {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({ objects: shelf() });
+    renderPage();
+    await settled();
+  }
+
+  function type(value: string): void {
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Search this shelf'), { target: { value } });
+    });
+  }
+
+  function toggle(): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    });
+  }
+
+  it('is behind a toggle, and the box is not there until it is asked for', async () => {
+    await shelved();
+
+    expect(screen.queryByLabelText('Search this shelf')).toBeNull();
+
+    toggle();
+
+    expect(screen.getByLabelText('Search this shelf')).toBeTruthy();
+  });
+
+  it('narrows the shelf as it is typed', async () => {
+    await shelved();
+    toggle();
+
+    type('rain');
+
+    expect(names()).toEqual(['Rain City']);
+  });
+
+  it('reads tags as well as names, which is what the hint promises', async () => {
+    await shelved();
+    toggle();
+
+    // Nothing is called "noir"; the book carrying that tag is.
+    type('noir');
+
+    expect(names()).toEqual(['Ardent']);
+  });
+
+  /**
+   * **Closing clears.** A hidden box holding a live query leaves the shelf
+   * narrowed with nothing on screen to explain it — the reason SillyTavern
+   * clears its own in two places. Reddened by dropping the `setQuery('')`.
+   */
+  it('clears the query when the box is closed', async () => {
+    await shelved();
+    toggle();
+    type('rain');
+    expect(names()).toEqual(['Rain City']);
+
+    toggle();
+
+    expect(names()).toEqual(['Ardent', 'Rain City']);
+  });
+
+  /**
+   * A third empty state. The old sentence was filter-specific and stopped being
+   * true the moment a search could empty the list too — and *widen a filter* is
+   * unhelpful advice to somebody who has mistyped a name.
+   */
+  it('says it was the search, not the filters, that emptied the shelf', async () => {
+    await shelved();
+    toggle();
+
+    type('nothing here is called this');
+
+    expect(screen.getByText('Nothing on this shelf matches that search.')).toBeTruthy();
+    expect(screen.queryByText('Nothing on this shelf matches these filters.')).toBeNull();
+  });
+
+  it('offers Sort by on a shelf that used to have no controls at all', async () => {
+    search = { kind: 'actors' };
+    listLibrary.mockResolvedValue({ objects: [object('Vera')] });
+    renderPage();
+    await settled();
+
+    expect(screen.getByLabelText('Sort by')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
   });
 });

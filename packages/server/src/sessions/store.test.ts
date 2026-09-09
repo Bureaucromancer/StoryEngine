@@ -23,6 +23,7 @@ import {
   readTurns,
   replayChannels,
   setArchived,
+  setName,
   type SessionContext,
 } from './store.js';
 import type { ChannelEffect, Turn } from './types.js';
@@ -436,6 +437,45 @@ describe('deleting a session is a move, and archiving is neither', () => {
     // it did.
     expect(archived?.headTurnId).toBe(turns.at(-1)?.id);
     expect(await readTurns(context, 'ned', sessionId)).toHaveLength(2);
+  });
+
+  /**
+   * Renaming — [02 §8].
+   *
+   * The interesting assertions are the ones about what *did not* move. A
+   * session's name is behaviour-inert: nothing resolves a session by it, so a
+   * rename that disturbed the head, the channels or the turns would be doing
+   * something nobody asked for.
+   */
+  it('renames a session without disturbing anything else', async () => {
+    const { sessionId, turns } = await aSessionOf(2);
+    const before = await readSession(context, 'ned', sessionId);
+
+    const renamed = await setName(context, 'ned', sessionId, 'Rain City, after the fire');
+
+    expect(renamed?.name).toBe('Rain City, after the fire');
+    expect(renamed?.headTurnId).toBe(turns.at(-1)?.id);
+    expect(renamed?.channels).toEqual(before?.channels);
+    expect(await readTurns(context, 'ned', sessionId)).toHaveLength(2);
+
+    // Written, not merely returned.
+    expect((await readSession(context, 'ned', sessionId))?.name).toBe('Rain City, after the fire');
+  });
+
+  it('accepts an empty name, which is where a session may have started', async () => {
+    const unnamed = await createSession(context, 'ned', { mode: { id: 'scene', config: null } });
+    expect(unnamed.name).toBe('');
+
+    const named = await setName(context, 'ned', unnamed.id, 'Rain City');
+    expect(named?.name).toBe('Rain City');
+
+    // And back again. A rule that let you never name a session but never
+    // un-name one would be arbitrary in a way somebody would have to discover.
+    expect((await setName(context, 'ned', unnamed.id, ''))?.name).toBe('');
+  });
+
+  it('reports a session that was not there rather than throwing, when renaming', async () => {
+    expect(await setName(context, 'ned', uuidv7(), 'Nowhere')).toBeNull();
   });
 
   it('unarchives by removing the field, not by writing a false', async () => {

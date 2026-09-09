@@ -6,6 +6,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import { banner } from './banners.js';
 
 import {
+  TagIdList,
   AssetRef,
   EmbeddedMedia,
   GeneratedMap,
@@ -336,6 +337,8 @@ export const Lorebook = Type.Object(
      * Free text, per the same argument that keeps `LoreEntry.tag` open.
      */
     tags: Type.Array(Type.String()),
+    /** See {@link TagIdList} — the registry side of `tags`. */
+    tagIds: Type.Optional(TagIdList),
     /**
      * The book's gallery — maps, establishing shots, style references for the
      * world as a whole ([10 §5.1](../../../../docs/design/10-schemas.md)).

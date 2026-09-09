@@ -111,8 +111,9 @@ type ActorRole = "persona" | "narrator"   // extensible
   persona for a session, the flag just controls what the picker shows first.
 - **NPCs are a tag, not a role or a type.** Per the requirement: once an NPC is
   more than a single session's context, it is a short actor card tagged `npc`.
-  Nothing in the engine branches on that tag; it drives library filtering and
-  editor defaults (a smaller form).
+  Nothing in the engine branches on `npc` by name; it drives library filtering
+  and editor defaults (a smaller form). An *author* may gate lore on it, or on
+  any other tag, through `LoreEntry.actorTagFilter` — [25 §1](25-tagging.md).
 - **Narrator/GM cards are the same thing too.** Marinara's
   `GameGmMode: "standalone" | "character"` becomes: the narrator slot either
   holds an actor with `roles: ["narrator"]` or holds nothing, in which case the
@@ -453,10 +454,14 @@ for a diagram, `gallery` for pictures without a claim. `tags` are arbitrary and
 authorial: *winter*, *aerial*, *before the fire*, *by Mireille*.
 
 **Same division the actor already makes** (§2.2): `ActorRole` is closed and read
-by the engine, `tags` are open and nothing branches on them. A gallery of forty
-images needs finer notation than any role vocabulary should try to carry, and
-every attempt to express that *through* roles ends with a union nobody can choose
-from.
+by the engine, `tags` are open and the engine has no built-in meaning for any of
+them. On an actor that is a weaker claim than it sounds — an author may point a
+lore gate at a tag ([25 §1](25-tagging.md)) — while on media nothing reads them
+at all.
+
+A gallery of forty images needs finer notation than any role vocabulary should
+try to carry, and every attempt to express that *through* roles ends with a union
+nobody can choose from.
 
 #### Why now, given nothing consumes it
 
@@ -1199,7 +1204,7 @@ not a variant of Setup.
 
 ```ts
 interface Session {
-  id, title, createdAt, updatedAt
+  id, name, createdAt, updatedAt
   // No owner or visibility field: the session lives under its owner's
   // directory, and there is nobody to share it with. [04 §4.3]
   participants: UserId[]          // length 1 at 1.0 — see [04 §8]
@@ -1231,6 +1236,15 @@ interface Session {
   branchRefs: BranchRef[]         // names bookmarking nodes; swipes need no record
 }
 ```
+
+**The field shipped as `name`, and it is optional to fill in.** This sketch said
+`title` and nothing ever recorded the rename; the shape actually on disk is
+`SessionFile` in `packages/server/src/sessions/types.ts`. A session may be started
+without a name and renamed at any time — it is id-addressed, so unlike a library
+object nothing is derived from the name and frozen — and an unnamed one stores
+`""`, which clients render as *Untitled session* ([06 E13](06-open-questions.md)).
+The rest of this block is older than the implementation in other ways too:
+`participants`, `origin` and `localActors` are not on `SessionFile`.
 
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 treatment later must not affect this session.

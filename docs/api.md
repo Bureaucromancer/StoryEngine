@@ -621,6 +621,123 @@ so any other kind is `404`.
 
 ---
 
+## Tags
+
+The tag registry — [25](design/25-tagging.md). One document per account, at
+`users/<handle>/tags.json`.
+
+**The registry decorates tag names; it does not own them.** An object may carry
+a tag the registry has never heard of, and that tag renders, filters and gates
+lore exactly as a registered one does — it simply has no colour and no place in
+the manual order. Nothing here validates a tag against the registry, nothing
+refuses a name it has not seen, and no route rejects an object because of what
+is or is not in this document.
+
+**The verb split is the safety property.** `DELETE /api/tags/:id` removes an
+*entry* and touches no object: the tag survives on everything carrying it. Any
+operation that would rewrite the user's files is a `POST` with a verb in the
+path, and none of those exists yet.
+
+A tag entry is:
+
+```jsonc
+{
+  "id": "01930f...", // stable across renames
+  "name": "noir",
+  "swatch": "rose", // a palette name, or null for the neutral chip
+  "sortOrder": 0, // manual order, dense within a registry
+  "folder": "none", // "none" | "open" | "closed"
+  "hidden": false, // hidden from an object's inline chip strip, and nowhere else
+  "createdAt": "2026-09-08T10:00:00Z"
+}
+```
+
+`swatch` and `folder` are **documented open strings, not closed sets**
+([10 §8.2](design/10-schemas.md)'s rule). A value this build does not recognise
+renders neutral, or reads as `none`, and is stored back unchanged rather than
+blanked — a newer build wrote it.
+
+### `GET /api/tags`
+
+`{ tags }`, in stored order.
+
+**No counts.** `GET /api/library` already ships every object's body, so how many
+objects carry a tag is one pass over data the client is holding; a second answer
+computed here would eventually disagree with the first.
+
+### `POST /api/tags`
+
+`{ name, swatch?, folder?, hidden? }` → `201` with the whole list.
+
+`409` when the name is an existing tag in any case, and the message names the
+spelling that exists — *noir is already a tag* is unhelpful to somebody who has
+just typed `Noir` and can see no `noir`.
+
+### `PATCH /api/tags/:id`
+
+`{ swatch?, folder?, hidden? }` → the whole list.
+
+**`name` is not accepted here**, and its absence is deliberate. Renaming is not a
+property edit: an entry's `actorTagFilter` naming the old spelling stops matching
+([25 §1](design/25-tagging.md)), so a rename can change which lore fires and owes
+an answer about the gates it found. A `name` in this body is `400` with the field
+named, rather than being applied as if it were a colour.
+
+### `DELETE /api/tags/:id`
+
+Removes the entry. **Objects are untouched** — the tag goes on being carried,
+filtered and gated on, and reappears in the manager as a tag in use with no
+entry. Losing a registry row must never lose data.
+
+### `POST /api/tags/:id/rename`
+
+`{ to, rewriteGates? }` → the whole list, plus what it found.
+
+**One registry write.** An adopted object references the entry, so changing the
+entry changes what every carrier is called without touching a single object file
+— which is the whole reason `tagIds` exists.
+
+**And one question.** A lore entry's `actorTagFilter` holds author-written tag
+*names*, and activation compares them exactly and case-sensitively
+([25 §1](design/25-tagging.md)), so a rename that ignored them would silently
+change which lore fires. Gates naming the old spelling are reported in
+`gatesFound` **always**, and rewritten only when `rewriteGates` is true. Both
+answers are defensible — an author who wrote a gate on *noir* may have meant that
+tag, or may have meant that word — so the server reports and lets somebody
+decide.
+
+`409` when the new name is another tag: merging is a different operation with a
+different answer about what happens to the objects.
+
+### `POST /api/tags/adopt`
+
+→ the whole list, plus `{ adopted, minted, skipped, unchanged }`.
+
+**One deliberate write across the library**, after which renaming is free. It
+mints a registry entry for every tag name in use that has none, then stamps
+`tagIds` alongside each object's `tags`, index-aligned.
+
+A route somebody presses rather than a migration on startup: every object it
+touches gains a history entry, and a server that did that on first boot after an
+upgrade would be rewriting a person's files without being asked.
+
+**Idempotent.** A second run mints nothing and writes nothing, so a partial first
+run is simply repeated. System-library objects cannot be written and are reported
+in `skipped` rather than swallowed — a tag used only by the system library is
+still in use.
+
+### `PUT /api/tags/order`
+
+`{ ids }` → the whole list, renumbered densely from zero.
+
+The whole order, not a patch of positions: two reorders in flight are two whole
+answers and the later one wins, where two position patches could produce an order
+neither client asked for. Ids the registry does not know are ignored rather than
+refused, so a stale tab reordering a list somebody has since pruned is not an
+error page.
+
+---
+
 ## Version history
 
 Every write that changes something snapshots the state it replaced, automatically
@@ -729,8 +846,21 @@ API only at P2 — the UI is P3's ([05 §4](design/workplan/05-p3-implementation
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name, mode?, preset?, cast? }` → `201 { session }`, and a list. **`archived`
-is the string `"true"`, not a boolean** — see the note under the turn routes.
+`{ name?, mode?, preset?, cast?, treatment?, lore? }` → `201 { session }`, and a
+list. **`archived` is the string `"true"`, not a boolean** — see the note under
+the turn routes.
+
+**`name` is optional, and an empty one means the same as none**: both store
+`""`, which clients render as *Untitled session*. A session is id-addressed —
+its folder is the uuidv7 and nothing resolves a session by name — so starting
+one unnamed freezes nothing, which is why this route can be relaxed where the
+library's create routes could not. It is trimmed here, but `session.json` is
+hand-editable, so a client must still expect a blank. Rename with `PATCH` below.
+
+`treatment` and `lore` have been accepted since P5.6 and this line never said
+so. Both are links rather than copies, and neither is validated: an id that
+resolves to nothing is a session with no books, not a rejected request
+([00 §3.3](design/00-stance.md)).
 
 `cast` is `{ persona: string | null, actors: string[] }`, at most 32 actors.
 Both it and `mode` are optional, and both arrived at P2.6 — they are what makes
@@ -803,10 +933,27 @@ confirming an id exists elsewhere would leak the one fact that separation keeps.
 
 ### `PATCH /api/sessions/:sessionId` · `DELETE /api/sessions/:sessionId`
 
-`{ archived: boolean }` toggles archive — hidden from the default list, fully
-intact, restorable, never swept. `DELETE` answers `204` and **moves the folder
-to the user's trash** rather than erasing it ([02 §10.3](design/02-data-model.md)); a
-session's turns are its history, and deletion is a move.
+`{ archived?: boolean, name?: string }` → `200 { session }`. At least one field
+is required; `{}` is a `400`, so a patch that asks for nothing is refused rather
+than answered with a 200 that did nothing.
+
+`archived` toggles archive — hidden from the default list, fully intact,
+restorable, never swept. `name` renames, and `""` un-names, which is the state
+a session may have started in.
+
+**A rename is one write and answers with no report**, which is why it lives here
+rather than behind a verb. Compare
+[`POST /api/tags/:id/rename`](#post-apitagsidrename): a tag rename reaches the
+user's object files and changes which lore fires, because a lore entry's
+`actorTagFilter` holds author-written *names* compared exactly — so it has to
+report what it found and offer a second action. A session name matches nothing
+and is denormalised into exactly one index row, so it is an ordinary property
+edit and `PATCH` is what an ordinary property edit is. The same file already
+renames a branch ref through `PATCH …/refs/:refId`.
+
+`DELETE` answers `204` and **moves the folder to the user's trash** rather than
+erasing it ([02 §10.3](design/02-data-model.md)); a session's turns are its history, and
+deletion is a move.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 

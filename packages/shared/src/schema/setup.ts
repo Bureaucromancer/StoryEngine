@@ -4,6 +4,7 @@
 import { type Static, Type } from '@sinclair/typebox';
 
 import {
+  TagIdList,
   EmbeddedMedia,
   GeneratedMap,
   Id,
@@ -130,6 +131,8 @@ export const Setup = Type.Object(
     goals: Type.Array(Goal),
 
     tags: Type.Array(Type.String()),
+    /** See {@link TagIdList} — the registry side of `tags`. */
+    tagIds: Type.Optional(TagIdList),
     media: Type.Array(EmbeddedMedia),
     provenance: Provenance,
     generated: GeneratedMap,

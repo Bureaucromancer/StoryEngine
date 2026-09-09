@@ -2,18 +2,29 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useId, useMemo, useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { useAuthState, useCreateObject, useLibrary, usePatchPrefs, usePrefs } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import { useAuthState, useLibrary, usePatchPrefs, usePrefs, useTags } from '../queries.js';
+import { formatCount } from '../format.js';
 import { Button } from '../ui/Button.js';
-import { control, link, page, table } from '../ui/classes.js';
-import { SelectField } from '../ui/Field.js';
+import { TagChip } from '../ui/TagChip.js';
+import { link, page, table } from '../ui/classes.js';
+import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
-import { editorRouteFor, newObjectFor } from './fields.js';
+import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
-import { emptyMessage, panelFor, panelNameBadges, type PanelColumn } from './panels.js';
+import {
+  emptyMessage,
+  panelFor,
+  panelNameBadges,
+  searchText,
+  tagsOf,
+  type PanelColumn,
+} from './panels.js';
+import { matches } from './search.js';
+import { folderRows, insideClosedFolder } from '../tags/folders.js';
+import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -68,7 +79,7 @@ export function LibraryPage(): JSX.Element {
         </p>
       ) : null}
       {library.data !== undefined ? (
-        <ObjectTable objects={library.data.objects} kind={search.kind} />
+        <ObjectTable key={search.kind ?? 'all'} objects={library.data.objects} kind={search.kind} />
       ) : null}
     </div>
   );
@@ -102,7 +113,8 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
   // split: a panel is a kind, so its create control has no choice to make.
   const kind = props.kind ?? 'actors';
   const blank = newObjectFor(kind);
-  if (blank !== null) return <NewObjectForm kind={kind} noun={blank.noun} make={blank.make} />;
+  const route = newRouteFor(kind);
+  if (blank !== null && route !== null) return <NewObjectButton noun={blank.noun} route={route} />;
   return (
     <p className="mb-6 text-sm text-ink-subtle">
       This kind has no editor yet, so nothing here can make one: it would land on a page that cannot
@@ -112,84 +124,41 @@ function MakeSomething(props: { kind: LibraryKind | undefined }): JSX.Element {
 }
 
 /**
- * Name it, and you are in the editor.
+ * A button, and you are in the editor — [polish §10].
  *
- * The shape is [SessionsPage](../play/SessionsPage.tsx)'s deliberately — one
- * field and one button, inline above the list rather than behind a modal —
- * because it is the same job, and because it survives
- * [polish §4](../../../../docs/design/workplan/09-polish.md)'s per-kind panels
- * unchanged: when *Actors* is a panel rather than a filter, this form is
- * already that panel's.
+ * **It used to collect the name first**, in an inline box, with the button
+ * disabled until something was typed into it. That was a gate in front of the
+ * one surface built to collect that field, and a disabled control saying
+ * nothing about why is the placeholder
+ * [work plan §2.2](../../../../docs/design/workplan/01-work-plan.md) rejects —
+ * the same argument the sentence below this control already makes about kinds
+ * with no editor.
  *
- * **Nothing here builds an object by hand.** The factory is the shared one the
- * API's own create path calls, so an actor's four conventional sections
- * ([10 §4](../../../../docs/design/10-schemas.md)) — and a lorebook's scan depth
- * and budgets — are the same on one made in the browser as on one made with
- * `curl` or one that arrived through an import. A local literal would be a
- * second definition of *what a new one is*, and the one that drifted.
+ * **Nothing is created here any more.** The editor holds a draft and its first
+ * Save is the create, which is what keeps the folder name honest: the slug is
+ * taken from the name once and then frozen ([02 §5.2]), so an object created
+ * before it was named would keep `untitled-2` for the rest of its life. It also
+ * means opening this and walking away leaves nothing behind, which the old flow
+ * could not have offered without leaving something.
  *
- * **And the address comes from the table too.** Navigating by a literal was
- * safe while there was one editor and is exactly the failure
- * [fields.ts](./fields.ts) records at its other call site: a second kind and a
- * hard-coded route send the new lorebook to the actor editor.
+ * **The address comes from the table**, as the editor address did before it:
+ * navigating by a literal was safe while there was one editor and is exactly
+ * the failure [fields.ts](./fields.ts) records at its other call site.
  */
-function NewObjectForm(props: {
-  kind: LibraryKind;
-  noun: string;
-  make: (name: string) => Record<string, unknown>;
-}): JSX.Element {
+function NewObjectButton(props: { noun: string; route: NewRoute }): JSX.Element {
   const navigate = useNavigate();
-  const create = useCreateObject();
-  const [name, setName] = useState('');
-  const ready = name.trim().length > 0;
-  const route = editorRouteFor(props.kind);
 
   return (
     <div className="mb-6">
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!ready || create.isPending || route === null) return;
-          create.mutate(
-            { kind: props.kind, object: props.make(name.trim()) },
-            {
-              // The id the *server* answered with, not the one minted above.
-              // They agree today — `create()` echoes what it was posted — and
-              // routing on the response is what keeps that an implementation
-              // detail rather than something this page depends on.
-              onSuccess: (result) => {
-                setName('');
-                void navigate({ to: route, params: { id: result.id }, search: {} });
-              },
-            },
-          );
+      <Button
+        type="button"
+        variant="primary"
+        onClick={() => {
+          void navigate({ to: props.route });
         }}
       >
-        <label className="flex-1">
-          <span className="sr-only">{`Name for the new ${props.noun}`}</span>
-          <input
-            className={control}
-            value={name}
-            placeholder={`A new ${props.noun}`}
-            onChange={(event) => {
-              setName(event.target.value);
-            }}
-          />
-        </label>
-        <Button type="submit" variant="primary" disabled={!ready || create.isPending}>
-          {`New ${props.noun}`}
-        </Button>
-      </form>
-
-      {create.isError ? (
-        // Shown rather than swallowed. A factory-built object should never be
-        // refused as invalid, which is exactly why a refusal here has to be
-        // visible: it means the schema and the factory have parted company.
-        <Alert tone="error" role="alert" className="mt-2">
-          {create.error.message}
-        </Alert>
-      ) : null}
+        {`New ${props.noun}`}
+      </Button>
     </div>
   );
 }
@@ -273,6 +242,52 @@ function ObjectTable(props: {
   const locale = auth.data?.account?.locale ?? undefined;
   const [sortId, setSortId] = useState<string>(panel.sorts[0]?.id ?? '');
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  /**
+   * The live search, and whether its box is on screen — [polish §9].
+   *
+   * **Two pieces of state rather than one**, because *closed* and *empty* are
+   * different: closing the box clears the query, and it has to, or the shelf
+   * stays narrowed with nothing on screen saying why. Keeping the query in the
+   * same state as the visibility would make that rule an accident of how it
+   * happens to be written rather than something a reader can see.
+   *
+   * Both are local, and the whole component is keyed on the kind, so switching
+   * shelves puts the controls back to their defaults. That is deliberate: a
+   * search for a name that exists among actors is not a search anybody meant to
+   * run against presets, and the state used to survive the change only because
+   * one panel had any.
+   */
+  const searchId = useId();
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  /**
+   * The tag filter — [25 §5](../../../../docs/design/25-tagging.md).
+   *
+   * Beside the search rather than in the panel's `filters`, because tags are on
+   * every kind while scope, enabled and source are the lorebook's. The
+   * single-select the Lorebooks panel used to declare is gone: two tag controls
+   * on one shelf would be two answers to one question.
+   */
+  const [tagFilters, setTagFilters] = useState<TagFilters>(new Map());
+  const registry = useTags();
+  /**
+   * Tags the registry says to keep off cards — [25 §5].
+   *
+   * Case-folded, because that is how a tag is compared everywhere else. **Only
+   * the inline chip strip reads this.** The filter bar below still offers them,
+   * the search still matches them, and the manager still lists them — a flag
+   * that also hid a tag from the bar would be a second, invisible filter state,
+   * and would make objects unreachable without saying so.
+   */
+  const hiddenTags = useMemo(
+    () =>
+      new Set(
+        (registry.data?.tags ?? [])
+          .filter((tag) => tag.hidden)
+          .map((tag) => tag.name.toLowerCase()),
+      ),
+    [registry.data],
+  );
   const sort = panel.sorts.find((candidate) => candidate.id === sortId);
 
   if (props.objects.length === 0) {
@@ -299,11 +314,29 @@ function ObjectTable(props: {
    * scope list quietly loses the values it no longer offers, so unpicking is
    * the only way back to a shelf you could see a moment ago.
    */
-  const matching = props.objects.filter((object) =>
-    panel.filters.every((filter) => {
-      const value = chosen[filter.id] ?? '';
-      return value === '' || filter.matches(object, value);
-    }),
+  /**
+   * The folders on this shelf, and which of them the list is standing in —
+   * [25 §5](../../../../docs/design/25-tagging.md).
+   *
+   * Counted before any narrowing, because a folder row is a way *in*: one that
+   * disappeared as soon as a search excluded its members would be a door that
+   * vanishes when you reach for it.
+   */
+  const folders = folderRows(
+    registry.data?.tags ?? [],
+    props.objects.map((object) => tagsOf(object)),
+    tagFilters,
+  );
+
+  const matching = props.objects.filter(
+    (object) =>
+      matches(searchText(object), query) &&
+      passesTagFilters(tagsOf(object), tagFilters) &&
+      !insideClosedFolder(tagsOf(object), registry.data?.tags ?? [], tagFilters) &&
+      panel.filters.every((filter) => {
+        const value = chosen[filter.id] ?? '';
+        return value === '' || filter.matches(object, value);
+      }),
   );
 
   // A copy: the array belongs to the query cache, and sorting in place would
@@ -312,32 +345,79 @@ function ObjectTable(props: {
 
   return (
     <>
-      {panel.sorts.length === 0 && panel.filters.length === 0 ? null : (
-        <div className="mb-4 flex flex-wrap gap-4">
-          {panel.sorts.length === 0 ? null : (
-            <div className="min-w-40">
-              <SelectField
-                label="Sort by"
-                value={sortId}
-                options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
-                onChange={setSortId}
-              />
-            </div>
-          )}
-          {panel.filters.map((filter) => (
-            <div key={filter.id} className="min-w-40">
-              <SelectField
-                label={filter.label}
-                value={chosen[filter.id] ?? ''}
-                options={[['', 'Any'], ...filter.optionsFor(props.objects)]}
-                onChange={(value) => {
-                  setChosen((current) => ({ ...current, [filter.id]: value }));
-                }}
-              />
-            </div>
-          ))}
+      {/*
+       * **Always rendered now**, where it used to appear only for a panel that
+       * declared sorts or filters — which was Lorebooks and nothing else, so
+       * five shelves out of six had no controls at all, not even an empty row.
+       * Search is the control every kind can answer, so the condition had
+       * nothing left to be about.
+       */}
+      <div className="mb-4 flex flex-wrap items-end gap-4">
+        <Button
+          type="button"
+          aria-expanded={searching}
+          aria-controls={searchId}
+          onClick={() => {
+            setSearching((open) => {
+              if (open) setQuery('');
+              // Closing clears. A hidden box holding a live query is a shelf
+              // narrowed for a reason nobody on screen can see.
+
+              return !open;
+            });
+          }}
+        >
+          {searching ? 'Hide search' : 'Search'}
+        </Button>
+        {panel.sorts.length === 0 ? null : (
+          <div className="min-w-40">
+            <SelectField
+              label="Sort by"
+              value={sortId}
+              options={panel.sorts.map((candidate) => [candidate.id, candidate.label] as const)}
+              onChange={setSortId}
+            />
+          </div>
+        )}
+        {panel.filters.map((filter) => (
+          <div key={filter.id} className="min-w-40">
+            <SelectField
+              label={filter.label}
+              value={chosen[filter.id] ?? ''}
+              options={[['', 'Any'], ...filter.optionsFor(props.objects)]}
+              onChange={(value) => {
+                setChosen((current) => ({ ...current, [filter.id]: value }));
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/*
+       * The box itself, under the row rather than in it, so a long shelf's
+       * controls do not reflow every time it opens. `Field` rather than a
+       * search control of this page's own — [05 §5.3] asks the book panel's box
+       * to be the component a cross-library one would use, and the way to be
+       * that is to be the one text control this client already has.
+       */}
+      <TagFilterBar
+        names={tagNames(props.objects)}
+        registry={registry.data}
+        filters={tagFilters}
+        onChange={setTagFilters}
+      />
+
+      {searching ? (
+        <div id={searchId} className="mb-4">
+          <Field
+            label="Search this shelf"
+            value={query}
+            onChange={setQuery}
+            placeholder="Name or tag"
+            hint="Names and tags, on this shelf only. Nothing is sent anywhere."
+          />
         </div>
-      )}
+      ) : null}
 
       {/*
        * **Distinct from the empty shelf, and the difference is what a person
@@ -348,7 +428,11 @@ function ObjectTable(props: {
        * above this, because they are the way out of it.
        */}
       {shown.length === 0 ? (
-        <p className="text-ink-subtle">Nothing on this shelf matches these filters.</p>
+        <p className="text-ink-subtle">
+          {query === ''
+            ? 'Nothing on this shelf matches these filters.'
+            : 'Nothing on this shelf matches that search.'}
+        </p>
       ) : (
         <table className={table.root}>
           <thead>
@@ -368,6 +452,35 @@ function ObjectTable(props: {
             </tr>
           </thead>
           <tbody>
+            {folders.map((folder) => (
+              <tr key={`folder:${folder.tag.id}`} className={table.row}>
+                <td className={table.cell} colSpan={panel.columns.length + 1}>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-sm text-ink"
+                    aria-label={folderLabel(folder.tag.name, folder.open)}
+                    onClick={() => {
+                      /**
+                       * **Entering a folder is applying its filter** — [25 §5].
+                       * Not a second navigation model: the shelf already has a
+                       * filter, and this is another control that drives it, so
+                       * the chip in the bar is both the indicator and the way
+                       * back out.
+                       */
+                      const key = folder.tag.name.toLowerCase();
+                      const updated = new Map(tagFilters);
+                      if (folder.open) updated.delete(key);
+                      else updated.set(key, 'selected');
+                      setTagFilters(updated);
+                    }}
+                  >
+                    <span aria-hidden="true">{folder.open ? '▾' : '▸'}</span>
+                    <TagChip name={folder.tag.name} swatch={folder.tag.swatch} />
+                    <span className="text-ink-subtle">{formatCount(folder.count, locale)}</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
             {shown.map((object) => (
               <ObjectRow
                 key={`${object.source}:${object.id}:${object.slug}`}
@@ -375,6 +488,7 @@ function ObjectTable(props: {
                 kind={props.kind}
                 columns={panel.columns}
                 locale={locale}
+                hidden={hiddenTags}
               />
             ))}
           </tbody>
@@ -389,6 +503,8 @@ function ObjectRow(props: {
   kind: LibraryKind | undefined;
   columns: PanelColumn[];
   locale: string | undefined;
+  /** Tag names to keep out of an inline chip strip — see `hiddenTags`. */
+  hidden: ReadonlySet<string>;
 }): JSX.Element {
   const kind = kindOfSchema(props.object.schema);
   return (
@@ -426,9 +542,36 @@ function ObjectRow(props: {
             column.numeric === true ? table.cellNumeric : `${table.cell} text-sm text-ink-subtle`
           }
         >
-          {column.cell(props.object, props.locale)}
+          {column.cell(props.object, props.locale, props.hidden)}
         </td>
       ))}
     </tr>
   );
+}
+
+/**
+ * Every tag name on this shelf, in the spelling first seen, deduplicated
+ * case-insensitively.
+ *
+ * The bar offers what the shelf actually carries — the rule the single-select
+ * tag filter stated before it: *a tag filter offering tags nobody has used is a
+ * list of dead ends*, and one missing a tag somebody added yesterday is worse.
+ */
+function tagNames(objects: readonly LibraryObject[]): string[] {
+  const seen = new Map<string, string>();
+  for (const object of objects) {
+    for (const tag of tagsOf(object)) {
+      const key = tag.toLowerCase();
+      if (!seen.has(key)) seen.set(key, tag);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
+ * The folder row's whole phrase, built here rather than in the JSX — a sentence
+ * split across children is what the assembly rule reports.
+ */
+function folderLabel(name: string, open: boolean): string {
+  return open ? `Leave the ${name} folder` : `Open the ${name} folder`;
 }

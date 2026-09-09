@@ -1498,6 +1498,10 @@ assistance in the two or three places someone got round to, and a plain textarea
 everywhere else. They should be **primitives the editors are built from**, so
 that "does this field have AI assist?" is never a question anyone asks.
 
+A third joined them later, from the other direction — not a capability a field
+offers but an answer it owes ([§11.1a](#111a-the-required-field-contract)). It
+is in this section because it failed in exactly the way this section predicts.
+
 ### 11.1 The field assist contract
 
 Four operations on any text field:
@@ -1520,6 +1524,55 @@ assist that receives only the field label produces generic slop and trains
 people not to use it. The assist call therefore needs a context builder over the
 object being edited and its links — which is a small, reusable thing, but it is
 real work and it is why this must be a primitive rather than a per-field bolt-on.
+
+### 11.1a The required-field contract
+
+The third thing that belongs to every editor rather than to particular ones, and
+it arrives late for the reason the section opener predicts: it was retrofitted
+field by field, so it exists in exactly the one place somebody got round to. The
+actor editor spells out *An actor needs a name* and disables Save; the lorebook
+editor beside it lets you empty the book's name and save that. Neither field is
+marked. The rule is the opener's sentence with a different capability in it —
+**"is this field required?" is never a question anyone has to answer by trying
+it.**
+
+**Required is a curated set, not a schema fact.** The tempting move is to read
+it off the schema, since the by-field description is already derived at runtime
+([§11.2d](#112d-the-entry-editors-shape-is-the-schemas-shape)). It does not
+work: JSON Schema `required` means *the property is present*, not *a person must
+fill it in*, and these schemas make nearly everything required-and-emptiable —
+an actor's only optional property is `writingSamples`. Marking from that would
+mark every field, which is the same as marking none.
+
+Nor does the server back the rule up. No portable schema constrains a string's
+length except an id, so `name: ""` validates and stores. **This is a client
+convention with nothing underneath it**, which is the argument for keeping the
+set very small — [10 §6.1a](10-schemas.md) makes the same point from the other
+side, that a required field with no good answer is what makes an author distrust
+the form. A name, and little else.
+
+**Marked, not merely enforced**, and marked twice over: a glyph beside the label
+for a reader who can see it, and the control announcing itself required for a
+reader who cannot. Not the same mark spelled twice — the glyph is hidden from
+assistive technology and the state is carried as `aria-required`, so nobody is
+read the word "asterisk" and nobody hears "required" twice. It lives in the
+label row, where the assist slot already sits, because that row is the one part
+of a field that is always rendered whatever the control underneath it is.
+
+**A save that cannot proceed is refused, not prevented**, and the distinction is
+the whole of this paragraph. A disabled Save is a control that does nothing and
+says nothing about why — the placeholder
+[work plan §2.2](workplan/01-work-plan.md) rejects in general, because it
+promises a control that cannot work and teaches nothing. So the button stays
+live, the write is refused, focus moves to the first field that needs an answer,
+and the refusal is a sentence. Where that sentence goes is already settled —
+[§11.6](#116-saving-is-explicit-so-the-two-edges-of-that-have-to-be-built) puts a
+refused write in the pinned action row beside the Save that caused it, with
+everything else a save can say.
+
+The live per-field error stays as well. The two are complementary: the field
+error is for the person filling the form in, and the refusal is for the person
+who pressed Save anyway.
 
 ### 11.2 Provenance, taken from Marinara
 

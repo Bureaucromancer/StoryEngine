@@ -1232,3 +1232,47 @@ a new kind. It is not ([17 §9](17-write-mode.md)), and the reopening condition 
 a lore entry gaining a portable cross-install identity
 ([16 §4.1](16-lorebooks-as-a-format.md)) — is recorded there rather than here.
 *[17 §§4.5, 5.4, 9.2, 11.1]*
+
+### E13. Deriving a session's name from what was played — deferred, and unnamed is fine
+
+**Position: a session may have no name, indefinitely.** `POST /api/sessions`
+takes an optional name, `PATCH` renames whenever its owner knows what to call
+it, and until then the client shows *Untitled session* over a stored `""` — the
+same convention the library already uses for *Untitled entry* and *Untitled
+actor* ([05 §11.1a](05-ui-surfaces.md)). Nothing is derived, and nothing is
+pending.
+
+Settled, and not worth relitigating: unnamed is `""` on disk rather than an
+absent field, because the index column is `name text not null` in a `strict`
+table and the only distinction optionality would buy — *never named* versus
+*named and then emptied* — is one nothing consumes. A rename is one JSON write
+plus one index upsert, because a session is id-addressed and a session name
+matches nothing, unlike a tag ([25 §1](25-tagging.md)) or a lore entry name
+([16](16-lorebooks-as-a-format.md)).
+
+**Why not derive one now.** The cheap derivations are all worse than blank
+exactly where it matters: the first line of the first turn is usually a stage
+direction, the treatment's name gives every session started from it the same
+title, and a date is what the list already sorts by. A model-derived title would
+be better and costs a call — which makes it an offer and never a requirement,
+since [05 §11.1](05-ui-surfaces.md) holds that nothing may require a model call
+to proceed. P8's `fast`-role summarisation is the natural thing to ride when it
+lands, and the corpus's standing position on deriving structure from content is
+propose, never impose. E1 makes chapterisation manual with agentic advice, and
+[19 §7](19-world.md) makes *not automatic* an explicit non-goal on the ground
+that a human knows where a continuity's edges are and a heuristic does not —
+which is the same sentence about a name as it is about a boundary.
+
+**The strongest argument is not that the material is thin — it is that deriving
+would destroy evidence.** [19 §8](19-world.md) makes session names the
+falsification test for World: *watch what people put in session names; if they
+are hand-encoding continuity — 'Rain City 3', 'Rain City 4' — that is the
+feature asking to exist, and it is also the cheapest possible evidence for it.*
+A name the product wrote is not evidence of anything. Leaving the field optional
+and renamable **strengthens** that test, because what somebody types into an
+empty box is a signal and what they leave in a generated one is not.
+
+Reopening conditions: a surface that lists many sessions at once, where a column
+of *Untitled session* stops being honest and starts being useless; and session
+export (B12), where a file leaving the install wants a name a human chose.
+*[02 §8, 05 §11.1a, 19 §8]*

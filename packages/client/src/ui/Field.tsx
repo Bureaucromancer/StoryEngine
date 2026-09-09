@@ -32,6 +32,22 @@ export interface FieldProps {
   hint?: string;
   placeholder?: string;
   /**
+   * Marked with a glyph and announced as required — [05 §11.1a].
+   *
+   * **The glyph is `aria-hidden` and the announcement is `aria-required`**,
+   * which is one fact told twice rather than two facts: a reader who can see the
+   * label gets the mark, a reader who cannot gets the state, and neither gets
+   * the word "asterisk". Spelling it into the label text instead would put
+   * "required" in the accessible name and have it read out again on every
+   * focus.
+   *
+   * It does not gate the control. Refusing the save is the editor's job
+   * ([05 §11.6] puts the refusal beside the Save that caused it), because a
+   * field that refuses to hold what somebody typed is worse than one that holds
+   * it and says it is not enough.
+   */
+  required?: boolean;
+  /**
    * Renders the control read-only, with this as the reason.
    *
    * **A reason rather than a boolean**, because a field a person cannot edit and
@@ -74,13 +90,7 @@ export function Field(props: FieldProps): JSX.Element {
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <label htmlFor={controlId} className={LABEL_CLASS}>
-          {props.label}
-        </label>
-        {/* The assist slot. Empty in P1 — see the header comment. */}
-        <span aria-hidden="true" />
-      </div>
+      <Label htmlFor={controlId} text={props.label} required={props.required} />
       {props.multiline === true ? (
         <textarea
           id={controlId}
@@ -90,6 +100,7 @@ export function Field(props: FieldProps): JSX.Element {
           onChange={(event) => {
             props.onChange(event.target.value);
           }}
+          aria-required={props.required === true ? true : undefined}
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
@@ -103,6 +114,7 @@ export function Field(props: FieldProps): JSX.Element {
           onChange={(event) => {
             props.onChange(event.target.value);
           }}
+          aria-required={props.required === true ? true : undefined}
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
@@ -143,7 +155,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
 
   return (
     <div>
-      <Label htmlFor={controlId} text={props.label} />
+      <Label htmlFor={controlId} text={props.label} required={props.required} />
       <input
         id={controlId}
         type="number"
@@ -156,6 +168,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
         onChange={(event) => {
           props.onChange(event.target.value);
         }}
+        aria-required={props.required === true ? true : undefined}
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? errorId : note === undefined ? undefined : hintId}
         placeholder={props.placeholder}
@@ -251,11 +264,26 @@ export function SelectField(props: SelectFieldProps): JSX.Element {
 }
 
 /** The label row, including the assist slot every field carries. */
-function Label({ htmlFor, text }: { htmlFor: string; text: string }): JSX.Element {
+function Label({
+  htmlFor,
+  text,
+  required,
+}: {
+  htmlFor: string;
+  text: string;
+  /** `| undefined` because `exactOptionalPropertyTypes` is on and this is
+   *  forwarded from an optional prop rather than spelled at the call site. */
+  required?: boolean | undefined;
+}): JSX.Element {
   return (
     <div className="mb-1 flex items-center justify-between gap-2">
       <label htmlFor={htmlFor} className={LABEL_CLASS}>
         {text}
+        {required === true ? (
+          <span aria-hidden="true" className="ms-0.5">
+            *
+          </span>
+        ) : null}
       </label>
       {/* The assist slot. Empty — see the header comment. */}
       <span aria-hidden="true" />

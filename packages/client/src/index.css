@@ -94,6 +94,37 @@
   --color-highlight-surface: var(--color-sky-100);
   --color-highlight-ink: var(--color-sky-900);
 
+  /* The tag palette — [25 §4](../../../../docs/design/25-tagging.md).
+
+     Eight pairs, and every one of them the same two ramp steps `highlight` and
+     `provenance` already use: 100 on 900 in light, inverted in dark. That is not
+     a coincidence to be tidied away — it is why these arrived clearing the
+     floor rather than needing to be measured into it, and `contrast.test.ts`
+     holds them to it in both themes from the day they land.
+
+     **The names carry no digits**, which is what keeps `bg-tag-rose-surface`
+     legal in a component while `bg-rose-100` stays a build error: the palette
+     rule in `eslint.rules.js` matches a trailing `-<number>`. The indirection
+     is the point either way — a swatch is stored by *name*
+     ([shared/tags.ts](../../shared/src/tags.ts)), so the colour it resolves to
+     can move without rewriting anybody's data. */
+  --color-tag-rose-surface: var(--color-rose-100);
+  --color-tag-rose-ink: var(--color-rose-900);
+  --color-tag-amber-surface: var(--color-amber-100);
+  --color-tag-amber-ink: var(--color-amber-900);
+  --color-tag-lime-surface: var(--color-lime-100);
+  --color-tag-lime-ink: var(--color-lime-900);
+  --color-tag-teal-surface: var(--color-teal-100);
+  --color-tag-teal-ink: var(--color-teal-900);
+  --color-tag-sky-surface: var(--color-sky-100);
+  --color-tag-sky-ink: var(--color-sky-900);
+  --color-tag-violet-surface: var(--color-violet-100);
+  --color-tag-violet-ink: var(--color-violet-900);
+  --color-tag-fuchsia-surface: var(--color-fuchsia-100);
+  --color-tag-fuchsia-ink: var(--color-fuchsia-900);
+  --color-tag-stone-surface: var(--color-stone-100);
+  --color-tag-stone-ink: var(--color-stone-900);
+
   /* One radius, named twice, so a control and a panel can diverge later without
      every call site being revisited to work out which was meant. */
   --radius-control: var(--radius-md);
@@ -245,6 +276,25 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --color-badge-ink: var(--color-slate-300);
     --color-highlight-surface: var(--color-sky-900);
     --color-highlight-ink: var(--color-sky-100);
+
+    /* The tag palette, inverted. Both dark blocks say the same thing, and
+       contrast.test.ts fails when only one of them is edited. */
+    --color-tag-rose-surface: var(--color-rose-900);
+    --color-tag-rose-ink: var(--color-rose-100);
+    --color-tag-amber-surface: var(--color-amber-900);
+    --color-tag-amber-ink: var(--color-amber-100);
+    --color-tag-lime-surface: var(--color-lime-900);
+    --color-tag-lime-ink: var(--color-lime-100);
+    --color-tag-teal-surface: var(--color-teal-900);
+    --color-tag-teal-ink: var(--color-teal-100);
+    --color-tag-sky-surface: var(--color-sky-900);
+    --color-tag-sky-ink: var(--color-sky-100);
+    --color-tag-violet-surface: var(--color-violet-900);
+    --color-tag-violet-ink: var(--color-violet-100);
+    --color-tag-fuchsia-surface: var(--color-fuchsia-900);
+    --color-tag-fuchsia-ink: var(--color-fuchsia-100);
+    --color-tag-stone-surface: var(--color-stone-900);
+    --color-tag-stone-ink: var(--color-stone-100);
   }
 }
 
@@ -307,4 +357,22 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
   --color-badge-ink: var(--color-slate-300);
   --color-highlight-surface: var(--color-sky-900);
   --color-highlight-ink: var(--color-sky-100);
+
+  /* The tag palette, inverted. */
+  --color-tag-rose-surface: var(--color-rose-900);
+  --color-tag-rose-ink: var(--color-rose-100);
+  --color-tag-amber-surface: var(--color-amber-900);
+  --color-tag-amber-ink: var(--color-amber-100);
+  --color-tag-lime-surface: var(--color-lime-900);
+  --color-tag-lime-ink: var(--color-lime-100);
+  --color-tag-teal-surface: var(--color-teal-900);
+  --color-tag-teal-ink: var(--color-teal-100);
+  --color-tag-sky-surface: var(--color-sky-900);
+  --color-tag-sky-ink: var(--color-sky-100);
+  --color-tag-violet-surface: var(--color-violet-900);
+  --color-tag-violet-ink: var(--color-violet-100);
+  --color-tag-fuchsia-surface: var(--color-fuchsia-900);
+  --color-tag-fuchsia-ink: var(--color-fuchsia-100);
+  --color-tag-stone-surface: var(--color-stone-900);
+  --color-tag-stone-ink: var(--color-stone-100);
 }

@@ -74,3 +74,51 @@ describe('addressing one object, one copy of it, and one entry inside it', () =>
     expect(Object.keys(validateObjectSearch({ slug: 'rain-city' }))).toEqual(['slug']);
   });
 });
+
+/**
+ * `/library/actors/new` is three segments, and so is `/library/$kind/$id` —
+ * [polish §10].
+ *
+ * The new-object routes are a literal address in the shape of the read route,
+ * so which one wins is a question about **route ranking** rather than about
+ * anything either route declares. TanStack ranks a static segment above a
+ * dynamic one, so `actors`/`new` beats `$kind`/`$id` here and nowhere else.
+ *
+ * Asserted rather than trusted, because the failure is quiet in the worst way:
+ * *New actor* would open the **read** page for an object that has never
+ * existed, and the 404 it produced would look like the server's fault. Driving
+ * the real router for the same reason the redirect test above does — the table
+ * saying a route is configured is not the claim.
+ */
+describe('the new-object addresses', () => {
+  it('beat the read route they share a shape with', async () => {
+    await router.navigate({ to: '/library/actors/new' });
+    await router.invalidate();
+
+    expect(router.state.location.pathname).toBe('/library/actors/new');
+    expect(router.state.matches.at(-1)?.routeId).toBe('/library/actors/new');
+  });
+
+  it('does the same for the other kind that has an editor', async () => {
+    await router.navigate({ to: '/library/lorebooks/new' });
+    await router.invalidate();
+
+    expect(router.state.matches.at(-1)?.routeId).toBe('/library/lorebooks/new');
+  });
+
+  /**
+   * The other side of the same ranking: a real id still reaches the read page.
+   * A fix for the above that reordered the table could satisfy it by breaking
+   * this.
+   */
+  it('leaves an ordinary object address on the read route', async () => {
+    await router.navigate({
+      to: '/library/$kind/$id',
+      params: { kind: 'actors', id: '01a008de-7e08-70d0-899c-f6869d6b9aeb' },
+      search: {},
+    });
+    await router.invalidate();
+
+    expect(router.state.matches.at(-1)?.routeId).toBe('/library/$kind/$id');
+  });
+});

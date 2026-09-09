@@ -18,8 +18,10 @@ import { ApiError, type LibraryObject } from '../api.js';
 import { formatCount } from '../format.js';
 import { AsStored } from '../library/AsStored.js';
 import { DeleteObject } from '../library/DeleteObject.js';
+import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { lorebookShape } from '../library/LorebookView.js';
 import { matches } from '../library/search.js';
+import { landing, nudge } from '../ui/reorder.js';
 import { useAuthState, useCreateObject, useEditorBase, useSaveObject } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
@@ -115,7 +117,7 @@ function EditorLoader(props: { id: string }): JSX.Element {
   if (problem !== null) {
     return <Unopenable id={props.id} problem={problem} />;
   }
-  return <Editor initial={base.data} />;
+  return <SavedEditor initial={base.data} id={props.id} />;
 }
 
 /**
@@ -165,6 +167,35 @@ function Unopenable(props: { id: string; problem: string }): JSX.Element {
 }
 
 /**
+ * The saved editor, which keeps its selection in the address — [05 §5.3] asks
+ * the read view's edit affordance to be *a link into the editor at the
+ * entry's address*, so the write surface has to hold one.
+ *
+ * Split out so `Editor` itself takes the selection as a prop: the draft route
+ * has no address to keep it in, and a component that reached for
+ * `routeApi.useSearch()` directly would throw the moment it rendered anywhere
+ * but here.
+ */
+function SavedEditor(props: { initial: LibraryObject; id: string }): JSX.Element {
+  const search = routeApi.useSearch();
+  const navigate = useNavigate();
+
+  return (
+    <Editor
+      initial={props.initial}
+      selectedEntry={search.entry}
+      onSelectEntry={(entry) => {
+        void navigate({
+          to: '/library/lorebooks/$id/edit',
+          params: { id: props.id },
+          search: entry === undefined ? {} : { entry },
+        });
+      }}
+    />
+  );
+}
+
+/**
  * The book's name, read the way everything else here reads the draft: through
  * `unknown`, because the premise of the guard above is that the file may not be
  * what the type says. The shape check does not police `name`, since a book
@@ -179,7 +210,61 @@ function nameOf(book: Draft): string {
 /** Which folder the entry list is standing in — `{ id: null }` is *Ungrouped*. */
 type FolderChoice = { id: string | null } | null;
 
-function Editor(props: { initial: LibraryObject }): JSX.Element {
+/**
+ * A new lorebook, which does not exist yet — [polish §10]. The actor editor's
+ * `NewActorPage` carries the argument for why nothing is written until the
+ * first Save; this is the same route for the other kind that has an editor.
+ */
+export function NewLorebookPage(): JSX.Element {
+  /**
+   * **Which entry is open is local here, where it is an address everywhere
+   * else.**
+   *
+   * The saved editor puts the selection in `?entry=`, because an entry is a
+   * place and [05 §5.3] asks the read view's edit affordance to be a link into
+   * one. A draft has no address to put it in — the book has no id until the
+   * first Save — so the same state lives in `useState` for exactly as long as
+   * the book has no file, and the editor is handed it rather than reaching for
+   * a route API that this route is not.
+   */
+  const [selectedEntry, setSelectedEntry] = useState<string | undefined>(undefined);
+  const [draft] = useState<LibraryObject>(() => {
+    const object = blankFor('lorebooks');
+    return {
+      id: object['id'] as string,
+      schema: object['schema'] as string,
+      name: '',
+      slug: '',
+      contentHash: '',
+      source: 'user',
+      shadowed: false,
+      object,
+    };
+  });
+
+  return (
+    <Editor
+      initial={draft}
+      unsaved
+      selectedEntry={selectedEntry}
+      onSelectEntry={setSelectedEntry}
+    />
+  );
+}
+
+/**
+ * What the editor needs that differs between a book with a file and one
+ * without: where the selection lives, and whether there is anything on disk.
+ */
+interface EditorProps {
+  initial: LibraryObject;
+  unsaved?: boolean;
+  /** The entry open right now — from `?entry=` when saved, from state when not. */
+  selectedEntry: string | undefined;
+  onSelectEntry: (id: string | undefined) => void;
+}
+
+function Editor(props: EditorProps): JSX.Element {
   const [base, setBase] = useState(props.initial);
   const [draft, setDraft] = useState<Draft>(() => structuredClone(props.initial.object));
   /**
@@ -193,35 +278,88 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
+  /**
+   * Why the last Save did not write — [05 §11.1a]. `role="alert"` where
+   * `notice` is `role="status"`, because a refusal interrupts and a progress
+   * report does not.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /** The form, so a refusal can put the cursor where the answer goes. */
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
   const save = useSaveObject();
-  const createCopy = useCreateObject();
+  const create = useCreateObject();
+
+  /** Never written, so there is nothing on disk for any of this to be about. */
+  const unsaved = props.unsaved === true;
   const navigate = useNavigate();
-  const search = routeApi.useSearch();
+  const search = { entry: props.selectedEntry };
 
   const book = draft as unknown as Lorebook;
   const changed = bookChanges(base.object, draft);
+  /**
+   * Whether Save has anything to do — see `NewActorPage`'s twin of this. A
+   * draft nobody has typed into has no changes and still has a create to make.
+   */
+  const savable = unsaved || changed;
+  /**
+   * The required fields this book is not answering — [05 §11.1a].
+   *
+   * This editor had no such check at all: the book's name could be emptied and
+   * saved, and the shelf would then carry a row with nothing in its link. The
+   * actor editor beside it has refused an empty name since P1.5, which is the
+   * asymmetry §11.1a exists to end.
+   */
+  const missing = missingRequired('lorebooks', { name: nameOf(draft) });
   const selected = search.entry === undefined ? undefined : entryOf(draft, search.entry);
 
   function edit(next: Draft): void {
     setDraft(next);
     setNotice(null);
+    setRefusal(null);
   }
 
-  /** Selecting an entry is an address, so it goes through the router. */
+  /**
+   * Selecting an entry is an address when there is one to put it in — the
+   * caller decides which, because only it knows whether this book has a file.
+   */
   function select(id: string | undefined): void {
     setConfirmingDelete(false);
-    void navigate({
-      to: '/library/lorebooks/$id/edit',
-      params: { id: base.id },
-      search: id === undefined ? {} : { entry: id },
-    });
+    props.onSelectEntry(id);
   }
 
   function handleSave(): void {
-    if (!changed) return;
+    if (!savable) return;
+    /**
+     * **Refused rather than prevented** — [05 §11.1a]. Save stays live and this
+     * says what is wrong, beside the Save that caused it ([05 §11.6]).
+     */
+    if (missing.length > 0) {
+      setNotice(null);
+      setRefusal(refusalFor(missing, { name: 'Book name' }));
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
+    setRefusal(null);
+    /** The first save of a draft is a create — the only place a book is filed. */
+    if (unsaved) {
+      create.mutate(
+        { kind: 'lorebooks', object: draft },
+        {
+          onSuccess: (result) => {
+            void navigate({
+              to: '/library/lorebooks/$id/edit',
+              params: { id: result.id },
+              search: {},
+              ignoreBlocker: true,
+            });
+          },
+        },
+      );
+      return;
+    }
     /**
      * **Sent unstamped**, unlike the actor editor beside this one. The server
      * stamps `provenance.updatedAt` itself on any real change, and it decides
@@ -283,7 +421,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
     const copy = structuredClone(draft);
     copy['id'] = uuidv7();
     copy['name'] = `${nameOf(draft)} (copy)`;
-    createCopy.mutate(
+    create.mutate(
       { kind: 'lorebooks', object: copy },
       {
         onSuccess: (result) => {
@@ -312,16 +450,21 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       ? entries
       : entries.filter((entry) => resolvedFolderId(book, entry) === folder.id);
 
+  /** A name for the page before there is one for the book — see the actor's. */
+  const heading =
+    nameOf(draft).trim() === '' ? (unsaved ? 'New lorebook' : 'Untitled lorebook') : nameOf(draft);
+
   return (
     <>
       <header className="mb-6">
-        <h1 className="text-title text-ink">{nameOf(draft)}</h1>
+        <h1 className="text-title text-ink">{heading}</h1>
         <p className="text-sm text-ink-subtle">
           {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
         </p>
       </header>
 
       <form
+        ref={formRef}
         className="flex flex-col gap-8"
         onSubmit={(event) => {
           event.preventDefault();
@@ -340,6 +483,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onChange={(name) => {
             edit({ ...draft, name });
           }}
+          required={isRequiredField('lorebooks', 'name')}
+          error={missing.includes('name') ? 'A lorebook needs a name.' : null}
           hint="What the library shelf calls it. Renaming does not move the file."
         />
 
@@ -474,15 +619,25 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
          * question says so while there are edits nothing has written.
          */}
         <div className={page.actions}>
-          <Link
-            to="/library/$kind/$id"
-            params={{ kind: 'lorebooks', id: base.id }}
-            search={{}}
-            className={link.back}
+          {unsaved ? (
+            <Link to="/library" search={{ kind: 'lorebooks' }} className={link.back}>
+              Back to the library
+            </Link>
+          ) : (
+            <Link
+              to="/library/$kind/$id"
+              params={{ kind: 'lorebooks', id: base.id }}
+              search={{}}
+              className={link.back}
+            >
+              Back to the lorebook
+            </Link>
+          )}
+          <Button
+            type="submit"
+            disabled={!savable || save.isPending || create.isPending}
+            variant="primary"
           >
-            Back to the lorebook
-          </Link>
-          <Button type="submit" disabled={!changed || save.isPending} variant="primary">
             Save
           </Button>
           {/*
@@ -510,6 +665,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
                 {save.error.message}
               </span>
             ) : null}
+            {refusal !== null ? (
+              <span role="alert" className="text-danger-ink">
+                {refusal}
+              </span>
+            ) : null}
             {notice !== null ? (
               <span role="status" className="text-ink-subtle">
                 {notice}
@@ -518,32 +678,37 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
               <span className="text-ink-faint">No changes to save.</span>
             )}
           </span>
-          <span className="ms-auto flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              aria-expanded={historyOpen}
-              onClick={() => {
-                setHistoryOpen((open) => !open);
-              }}
-            >
-              History
-            </Button>
-            <DeleteObject
-              kind="lorebooks"
-              id={base.id}
-              contentHash={base.contentHash}
-              unsaved={changed}
-            />
-          </span>
+          {/* Both ask about a file, and a draft has not made one. */}
+          {unsaved ? null : (
+            <span className="ms-auto flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                aria-expanded={historyOpen}
+                onClick={() => {
+                  setHistoryOpen((open) => !open);
+                }}
+              >
+                History
+              </Button>
+              <DeleteObject
+                kind="lorebooks"
+                id={base.id}
+                contentHash={base.contentHash}
+                unsaved={changed}
+              />
+            </span>
+          )}
         </div>
       </form>
 
-      <div className="mt-6">
-        <AsStored
-          value={base.object}
-          caption="The saved book, not the form's working state — what a reload would find."
-        />
-      </div>
+      {unsaved ? null : (
+        <div className="mt-6">
+          <AsStored
+            value={base.object}
+            caption="The saved book, not the form's working state — what a reload would find."
+          />
+        </div>
+      )}
 
       {historyOpen ? (
         <div className="mt-6">
@@ -580,8 +745,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onCancel={() => {
             setConflict(null);
           }}
-          copyPending={createCopy.isPending}
-          copyError={createCopy.isError ? createCopy.error.message : null}
+          copyPending={create.isPending}
+          copyError={create.isError ? create.error.message : null}
         />
       ) : null}
     </>
@@ -641,35 +806,6 @@ function GateNote({ book, entry }: { book: Lorebook; entry: LoreEntry }): JSX.El
  * over the same object is the thing not to build. Finding an entry *by what it
  * says* is the read page's job, and it has the Edit link that lands here.
  */
-/**
- * The two nudge buttons, which are one row tall and carry no label text.
- *
- * Inline rather than a token in `classes.ts`, following this package's rule
- * that only what a design decision *shares* is lifted: these are one control in
- * one list, and a token used once is a second place to look.
- */
-const nudge =
-  'rounded-control px-1 text-sm text-ink-muted hover:bg-surface-muted disabled:opacity-40';
-
-/**
- * Which edge of the row at `at` a row dragged from `from` lands on.
- *
- * Dropping on a row above puts the entry in front of it; dropping on one below
- * puts it behind — the rule every list with this gesture uses, and the only one
- * where the row ends up where the pointer left it. It is decided by where the
- * drag *came from* and not by where in the row the pointer is: a row one line
- * tall has no room for two targets, and an edge that flipped as the pointer
- * crossed the middle would be a decision made by a tremor.
- *
- * One function for the drop and for the line drawn before it, so the two cannot
- * disagree: a change to this comparison moves the line and the drop together,
- * and the tests are written against the line because the line is the promise
- * the drop then has to keep.
- */
-function landing(from: number, at: number): 'before' | 'after' {
-  return from > at ? 'before' : 'after';
-}
-
 /**
  * How near the list's top or bottom edge a hovering drag has to be before the
  * list scrolls itself, in pixels, and the most it moves per frame once there.

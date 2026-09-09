@@ -19,6 +19,10 @@ export * from './factories.js';
 // The turn record — internal tier, deliberately outside `schema/`: no $id, no
 // registry entry, no emitted artefact. `turn.ts` carries the argument.
 export * from './turn.js';
+// The tag registry — internal tier, beside the turn record and for the same
+// reason: it decorates names inside one install and never crosses a boundary
+// ([25](../../../docs/design/25-tagging.md)).
+export * from './tags.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.
 export * from './preview.js';

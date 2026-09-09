@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useRef, useState, type JSX } from 'react';
 
 import { uuidv7 } from '@storyengine/shared';
 
@@ -23,7 +23,9 @@ import { link, page } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { SubsectionTitle } from '../ui/Text.js';
+import { TagInput } from '../tags/TagInput.js';
 import { AsStored } from '../library/AsStored.js';
+import { blankFor, isRequiredField, missingRequired, refusalFor } from '../library/fields.js';
 import { DeleteObject } from '../library/DeleteObject.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { UnsavedChangesGuard } from './UnsavedChanges.js';
@@ -108,7 +110,44 @@ function EditorLoader(props: { id: string }): JSX.Element {
   return <Editor initial={base.data} />;
 }
 
-function Editor(props: { initial: LibraryObject }): JSX.Element {
+/**
+ * A new actor, which does not exist yet — [polish §10].
+ *
+ * **Nothing is written until the first Save**, and that is the whole point of
+ * the route. The obvious cheaper version — create it under a placeholder name
+ * and let the editor rename it — is wrong here because the folder is slugged
+ * from the name once, at creation, and then frozen ([02 §5.2]): an object made
+ * before it was named keeps `untitled-3` on disk for the rest of its life, in
+ * the part of this design meant to be legible to somebody with a file browser.
+ *
+ * The envelope is synthetic and the `contentHash` is empty, which is what
+ * `unsaved` tells the editor rather than something it sniffs — a hash that
+ * happened to be empty for another reason should not silently mean *this has
+ * never been written*.
+ *
+ * `useState` with an initialiser rather than a plain call, so the id is minted
+ * once. Re-minting it on every render would be invisible right up until a save
+ * raced a re-render.
+ */
+export function NewActorPage(): JSX.Element {
+  const [draft] = useState<LibraryObject>(() => {
+    const object = blankFor('actors');
+    return {
+      id: object['id'] as string,
+      schema: object['schema'] as string,
+      name: '',
+      slug: '',
+      contentHash: '',
+      source: 'user',
+      shadowed: false,
+      object,
+    };
+  });
+
+  return <Editor initial={draft} unsaved />;
+}
+
+function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Element {
   const [base, setBase] = useState(props.initial);
   const [form, setForm] = useState<ActorForm>(() => formFromActor(props.initial.object));
   /**
@@ -122,22 +161,97 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
   const [conflict, setConflict] = useState<LibraryObject | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /**
+   * Why the last Save did not write — [05 §11.1a].
+   *
+   * Separate from `notice`, which is `role="status"`: a refusal is not a
+   * progress report and has to interrupt. Cleared by the next edit, like the
+   * notice, because the thing it is complaining about is the thing being edited.
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /**
+   * The form, so a refusal can put the cursor where the answer goes. Queried
+   * rather than held per field: `Field` owns its own control id, and the first
+   * `aria-invalid` inside the form is by construction the first field a reader
+   * would have reached anyway.
+   */
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
   const save = useSaveObject();
-  const createCopy = useCreateObject();
+  const create = useCreateObject();
   const navigate = useNavigate();
 
+  /** Never written, so there is nothing on disk for any of this to be about. */
+  const unsaved = props.unsaved === true;
+
   const changed = formChanges(base.object, form);
+  /**
+   * Whether Save has anything to do — which is not the same question as
+   * *are there unsaved edits*, and the difference is this route.
+   *
+   * A draft nobody has typed into has no changes and still has a create to
+   * make, so Save stays live and refuses with the reason ([05 §11.1a]) rather
+   * than greying out and saying *No changes to save.* about an actor that does
+   * not exist. The guard below keeps asking the narrower question, because
+   * leaving an untouched blank form should cost nobody a dialog.
+   */
+  const savable = unsaved || changed;
+
+  /**
+   * The required fields this form is not currently answering — [05 §11.1a].
+   *
+   * Derived on every render rather than computed at submit, because the same
+   * answer drives the field's own error and the refusal in the strip, and two
+   * spellings of *is this empty* is how they end up disagreeing.
+   */
+  const missing = missingRequired('actors', { name: form.name });
 
   function patchForm(patch: Partial<ActorForm>): void {
     setForm((previous) => ({ ...previous, ...patch }));
     setNotice(null);
+    setRefusal(null);
   }
 
   function handleSave(): void {
-    if (!changed) return;
+    if (!savable) return;
+    /**
+     * **Refused here rather than prevented by a disabled button** — [05 §11.1a]
+     * and [work plan §2.2]. The button that cannot be pressed is the one that
+     * teaches nothing about why, so Save stays live and this says what is
+     * wrong, beside the Save that caused it ([05 §11.6]), with the cursor moved
+     * to the field that has to answer.
+     */
+    if (missing.length > 0) {
+      setNotice(null);
+      setRefusal(refusalFor(missing, { name: 'Name' }));
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
+    setRefusal(null);
+    /**
+     * The first save of a draft is a **create**, and the only place the object
+     * gets a folder — named, by then, because the refusal above is what makes
+     * sure of it. `ignoreBlocker` for the same reason *save as a copy* needs
+     * it: the edits have just been written, and the guard is measuring them
+     * against a base this route never had.
+     */
+    if (unsaved) {
+      create.mutate(
+        { kind: 'actors', object: applyForm(base.object, form) },
+        {
+          onSuccess: (result) => {
+            void navigate({
+              to: '/library/actors/$id/edit',
+              params: { id: result.id },
+              ignoreBlocker: true,
+            });
+          },
+        },
+      );
+      return;
+    }
     // `updatedAt` is stamped only on a real change — stamping a no-op save
     // would itself be a change, and would defeat the server's no-op rule.
     const object = stampUpdated(applyForm(base.object, form));
@@ -199,7 +313,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
     const object = stampUpdated(applyForm(base.object, form));
     object['id'] = uuidv7();
     object['name'] = `${form.name} (copy)`;
-    createCopy.mutate(
+    create.mutate(
       { kind: 'actors', object },
       {
         onSuccess: (result) => {
@@ -218,18 +332,33 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
     );
   }
 
+  /**
+   * A name for the page before there is one for the actor.
+   *
+   * The entry list has said *Untitled entry* since P5.1 for the same reason: a
+   * heading that renders an empty string is a heading somebody reads as a
+   * broken page rather than as an unanswered field.
+   */
+  const heading = form.name.trim() === '' ? (unsaved ? 'New actor' : 'Untitled actor') : form.name;
+
   return (
     <>
       <header className="mb-6 flex items-center gap-4">
         {/* Shown, never replaced here — the card's pixels are the portrait as
-            intended, and replacing them is not this stage's business. */}
-        <img
-          src={api.avatarUrl(base.id, base.contentHash)}
-          alt=""
-          className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
-        />
+            intended, and replacing them is not this stage's business. A draft
+            has no card to show, and asking for one by an id the server has
+            never heard of would be a 404 rendered as a broken image. */}
+        {unsaved ? (
+          <div className="h-20 w-20 rounded-md border border-line bg-surface-muted" />
+        ) : (
+          <img
+            src={api.avatarUrl(base.id, base.contentHash)}
+            alt=""
+            className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
+          />
+        )}
         <div>
-          <h1 className="text-title text-ink">{form.name}</h1>
+          <h1 className="text-title text-ink">{heading}</h1>
           <p className="text-sm text-ink-subtle">
             The card image travels with the file; this editor shows it and does not replace it.
           </p>
@@ -237,6 +366,7 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
       </header>
 
       <form
+        ref={formRef}
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -249,7 +379,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onChange={(name) => {
             patchForm({ name });
           }}
-          error={form.name.trim() === '' ? 'An actor needs a name.' : null}
+          required={isRequiredField('actors', 'name')}
+          error={missing.includes('name') ? 'An actor needs a name.' : null}
         />
         <Field
           label="Pronouns"
@@ -269,15 +400,13 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           rows={3}
           hint="One per line. Also the default keyword set for lore matching."
         />
-        <Field
+        <TagInput
           label="Tags"
-          value={form.tagsText}
-          onChange={(tagsText) => {
-            patchForm({ tagsText });
+          values={form.tags}
+          onChange={(tags) => {
+            patchForm({ tags });
           }}
-          multiline
-          rows={3}
-          hint="One per line."
+          hint="Type to search what the library already uses, or to make a new one. Never sent to the model."
         />
         <Field
           label="Traits"
@@ -442,16 +571,22 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
             for any of them to be out of reach. Delete moves the actor as
             saved, and says so while there are edits nothing has written. */}
         <div className={page.actions}>
-          <Link
-            to="/library/$kind/$id"
-            params={{ kind: 'actors', id: base.id }}
-            className={link.back}
-          >
-            Back to the actor
-          </Link>
+          {unsaved ? (
+            <Link to="/library" search={{ kind: 'actors' }} className={link.back}>
+              Back to the library
+            </Link>
+          ) : (
+            <Link
+              to="/library/$kind/$id"
+              params={{ kind: 'actors', id: base.id }}
+              className={link.back}
+            >
+              Back to the actor
+            </Link>
+          )}
           <Button
             type="submit"
-            disabled={!changed || save.isPending || form.name.trim() === ''}
+            disabled={!savable || save.isPending || create.isPending}
             variant="primary"
           >
             Save
@@ -481,6 +616,11 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
                 {save.error.message}
               </span>
             ) : null}
+            {refusal !== null ? (
+              <span role="alert" className="text-danger-ink">
+                {refusal}
+              </span>
+            ) : null}
             {notice !== null ? (
               <span role="status" className="text-ink-subtle">
                 {notice}
@@ -489,35 +629,43 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
               <span className="text-ink-faint">No changes to save.</span>
             )}
           </span>
-          <span className="ms-auto flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              aria-expanded={historyOpen}
-              onClick={() => {
-                setHistoryOpen((open) => !open);
-              }}
-            >
-              History
-            </Button>
-            <DeleteObject
-              kind="actors"
-              id={base.id}
-              contentHash={base.contentHash}
-              unsaved={changed}
-            />
-          </span>
+          {/* Both of these ask about a file, and a draft has not made one:
+              there are no versions to list and nothing to delete. Absent
+              rather than disabled, which is the same call [05 §11.1a] makes
+              about Save — a control that cannot work explains nothing. */}
+          {unsaved ? null : (
+            <span className="ms-auto flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                aria-expanded={historyOpen}
+                onClick={() => {
+                  setHistoryOpen((open) => !open);
+                }}
+              >
+                History
+              </Button>
+              <DeleteObject
+                kind="actors"
+                id={base.id}
+                contentHash={base.contentHash}
+                unsaved={changed}
+              />
+            </span>
+          )}
         </div>
       </form>
 
       {/* The saved state, not the form's — [polish §2]'s editor pane, and the
           caption is its required honesty: showing unsaved form state as "as
           stored" would be a lie in the one place a user came for the truth. */}
-      <div className="mt-6">
-        <AsStored
-          value={base.object}
-          caption="The saved object, not the form's working state — what a reload would find."
-        />
-      </div>
+      {unsaved ? null : (
+        <div className="mt-6">
+          <AsStored
+            value={base.object}
+            caption="The saved object, not the form's working state — what a reload would find."
+          />
+        </div>
+      )}
 
       {historyOpen ? (
         <div className="mt-6">
@@ -550,8 +698,8 @@ function Editor(props: { initial: LibraryObject }): JSX.Element {
           onCancel={() => {
             setConflict(null);
           }}
-          copyPending={createCopy.isPending}
-          copyError={createCopy.isError ? createCopy.error.message : null}
+          copyPending={create.isPending}
+          copyError={create.isError ? create.error.message : null}
         />
       ) : null}
     </>

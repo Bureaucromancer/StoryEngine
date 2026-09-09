@@ -13,6 +13,7 @@ import {
   createSession,
   deleteSession,
   setArchived,
+  setName,
   type SessionContext,
 } from '../sessions/store.js';
 import type { Turn } from '../sessions/types.js';
@@ -131,23 +132,51 @@ describe('a session is indexed as it is written', () => {
 });
 
 describe('rebuild-from-disk equals the incremental index, for sessions too', () => {
-  it('agrees after writes, an archive and a delete', async () => {
+  /**
+   * **The test a missing `indexSession` fails.**
+   *
+   * A rename writes the file and denormalises the name into the `session` row.
+   * Drop the reindex from `setName` and the file is right, `listSessionFiles`
+   * is right, and only the index disagrees — so this is asserted through two
+   * doors that both read the index and neither reads the file: the list rows,
+   * and a turn search, whose `sessionName` is a live join onto the same row.
+   *
+   * A search that kept labelling hits with a session's old name is the kind of
+   * wrongness nobody reports, because nobody searches for the thing they just
+   * renamed.
+   */
+  it('relabels a renamed session, in the rows and in search', async () => {
+    const sessionId = await aSessionWith('Rain City', ['The cathedral was three streets east.']);
+
+    await setName(context, ACCOUNT, sessionId, 'Rain City, after the fire');
+
+    expect(listSessionRows(index.db, [`user:${ACCOUNT}`]).map((row) => row.name)).toEqual([
+      'Rain City, after the fire',
+    ]);
+    expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'cathedral')[0]).toMatchObject({
+      sessionName: 'Rain City, after the fire',
+    });
+  });
+
+  it('agrees after writes, an archive, a rename and a delete', async () => {
     // The same assertion the library is held to, and it is what keeps the
     // session rows honest about being derived ([13 §5]).
     await aSessionWith('Rain City', ['The rain had not stopped in nine days.', 'Nor had she.']);
     const archived = await aSessionWith('Old Game', ['Once.']);
     const doomed = await aSessionWith('A Mistake', ['Never mind.']);
+    const renamed = await aSessionWith('Working Title', ['Something.']);
 
     await setArchived(context, ACCOUNT, archived, true);
+    await setName(context, ACCOUNT, renamed, 'Rain City, after the fire');
     await deleteSession(context, ACCOUNT, doomed);
 
     const incremental = sessionSnapshot(index.db);
     await rebuild(index.db, context.layout);
 
     expect(sessionSnapshot(index.db)).toEqual(incremental);
-    // Two sessions and three turns — the deleted one is absent from both.
-    expect(incremental.filter((line) => line.startsWith('session'))).toHaveLength(2);
-    expect(incremental.filter((line) => line.startsWith('turn'))).toHaveLength(3);
+    // Three sessions and four turns — the deleted one is absent from both.
+    expect(incremental.filter((line) => line.startsWith('session'))).toHaveLength(3);
+    expect(incremental.filter((line) => line.startsWith('turn'))).toHaveLength(4);
   });
 
   it('forgets a session whose folder is gone', async () => {

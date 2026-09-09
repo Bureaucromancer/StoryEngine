@@ -4,6 +4,7 @@
 import { type Static, Type } from '@sinclair/typebox';
 
 import {
+  TagIdList,
   AssetRef,
   Compat,
   EmbeddedMedia,
@@ -110,6 +111,8 @@ export const Actor = Type.Object(
     roles: Type.Array(ActorRole),
     /** "npc" lives here. Nothing in the engine branches on it. */
     tags: Type.Array(Type.String()),
+    /** See {@link TagIdList} — the registry side of `tags`. */
+    tagIds: Type.Optional(TagIdList),
 
     profile: ActorProfile,
     openings: Openings,
