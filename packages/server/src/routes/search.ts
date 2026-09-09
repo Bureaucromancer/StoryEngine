@@ -21,7 +21,7 @@ import { readableOwners } from '../library.js';
  * cathedral" does not know or care whether they wrote it in a lorebook or said
  * it in a turn.
  *
- * **API only at P2.** The UI is P3's ([05 §4](../../../../docs/design/05-p3-implementation.md)), and
+ * **API only at P2.** The UI is P3's ([05 §4](../../../../docs/design/workplan/05-p3-implementation.md)), and
  * [P2 §2.9] names this route as the phase's second pressure valve — it is a
  * reader, so it can slip without anything else moving. It did not need to.
  */

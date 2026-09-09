@@ -230,7 +230,7 @@ describe('the navigation', () => {
 });
 
 /**
- * The visible opener — [P3.1](../../docs/design/workplan/05-p3-implementation.md).
+ * The visible opener — [P3.1](../../../docs/design/workplan/05-p3-implementation.md).
  * The user's requirement is that the onscreen control be as first-class as
  * the chord, so it lives in the header on every page; and it is a *button*,
  * which is what keeps "offers no workbench entry" above green by

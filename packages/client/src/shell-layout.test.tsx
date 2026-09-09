@@ -11,7 +11,7 @@ import { newActor } from '@storyengine/shared';
 import type { Account, TurnRecord } from './api.js';
 
 /**
- * One main view — [P3.−1](../../docs/design/workplan/05-p3-implementation.md).
+ * One main view — [P3.−1](../../../docs/design/workplan/05-p3-implementation.md).
  *
  * The audit found four `<main>` elements in the routed app: the shell's, and a
  * second one nested inside it on Play, Sessions and Settings — with no

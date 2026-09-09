@@ -95,6 +95,30 @@ export default defineConfig({
           ...TIMEOUTS,
           root: '.',
           include: ['tools/*.test.ts'],
+          // The documentation checker is a named project of its own, below, for
+          // the reason the gate is: CI has to be able to say which step failed.
+          // Excluded here because an `include` elsewhere does not remove a file
+          // from this one, and vitest runs a file once *per matching project*.
+          exclude: ['**/node_modules/**', 'tools/doc-links.test.ts'],
+          environment: 'node',
+        },
+      },
+
+      /**
+       * **Every citation in the repository resolves, as a named step.**
+       *
+       * A link into `docs/` sat broken for twenty-three days through every
+       * CI run, because nothing in the repository was capable of looking. Named
+       * rather than folded into `release` for the reason `ci.yml` gives twice:
+       * a gate folded anonymously into the suite is one a `test.skip` can
+       * retire without anyone noticing (F11, F17).
+       */
+      {
+        test: {
+          name: 'docs',
+          ...TIMEOUTS,
+          root: '.',
+          include: ['tools/doc-links.test.ts'],
           environment: 'node',
         },
       },

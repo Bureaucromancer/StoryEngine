@@ -117,3 +117,13 @@ jobs:
       # choice of adding the step or dropping the word. This is the step.
       - name: A converted card, preset and lorebook agree
         run: pnpm test:fixture-pair
+
+      # Named for the third time and the same reason. A link into docs/ sat
+      # broken for twenty-three days through every run of this workflow,
+      # because nothing here looked: `format:check` formats markdown without
+      # resolving a link, and `lint` does not read strings. The commit that
+      # created that breakage reports its own link checker finding "1279
+      # links, 0 broken" — and never committed it, which is how a stated
+      # citation convention could then rot in five hundred places unseen.
+      - name: Every documentation link resolves and is labelled with its target
+        run: pnpm test:docs

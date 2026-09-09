@@ -94,7 +94,7 @@
   --color-highlight-surface: var(--color-sky-100);
   --color-highlight-ink: var(--color-sky-900);
 
-  /* The tag palette — [25 §4](../../../../docs/design/25-tagging.md).
+  /* The tag palette — [25 §4](../../../docs/design/25-tagging.md).
 
      Eight pairs, and every one of them the same two ramp steps `highlight` and
      `provenance` already use: 100 on 900 in light, inverted in dark. That is not

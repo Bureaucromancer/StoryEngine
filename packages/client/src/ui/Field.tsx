@@ -312,8 +312,8 @@ function Notes({
   }
   /**
    * **The hint carries an id too**, because a control has to be able to point at
-   * it — and until [P2B](../../../docs/design/workplan/14-p2b-provider-configuration.md) only
-   * `CheckboxField` did. [05 §15.2](../../../docs/design/05-ui-surfaces.md) asks for the
+   * it — and until [P2B](../../../../docs/design/workplan/14-p2b-provider-configuration.md) only
+   * `CheckboxField` did. [05 §15.2](../../../../docs/design/05-ui-surfaces.md) asks for the
    * consequence beside the switch, and on a text or select field it was there
    * for a sighted reader and announced to nobody: the label read out, the
    * sentence explaining what the control does silently skipped.

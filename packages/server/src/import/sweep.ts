@@ -121,7 +121,7 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
 
 /**
  * The sweep's engine, at the scale of one file
- * ([P4 §7.1](../../../docs/design/workplan/06-p4-implementation.md)).
+ * ([P4 §7.1](../../../../docs/design/workplan/06-p4-implementation.md)).
  *
  * **Exported so the upload route has no converter of its own.** It had one for
  * three stages — three preset shapes and nothing else — and the cost was two

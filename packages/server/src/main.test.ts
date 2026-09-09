@@ -196,7 +196,7 @@ describe('--reset-password', () => {
 
 /**
  * **A missing config file announces itself in the voice of a problem** —
- * finding 9 in [16](../../../../docs/design/workplan/16-p2c-log.md).
+ * finding 9 in [16](../../../docs/design/workplan/16-p2c-log.md).
  *
  * It is an ordinary state on a first boot and an alarming one on every boot
  * after: a teardown that takes `config.json` reverts the port and the data
@@ -268,7 +268,7 @@ describe('the config-file line', () => {
 
   /**
    * **The environment layer, where it actually has to work** — [P6A.0],
-   * [P6A §1.2], [P10 §1.2](../../../../docs/design/workplan/21-p10-implementation.md).
+   * [P6A §1.2], [P10 §1.2](../../../docs/design/workplan/21-p10-implementation.md).
    *
    * `config.test.ts` proves the resolver: what the layers are and which wins.
    * What it cannot prove is that this entry point *uses* it, and that is the

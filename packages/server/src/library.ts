@@ -217,11 +217,11 @@ export function fileErrors(context: LibraryContext, handle: string): LibraryFile
 
 /**
  * The index rows for an id, as the panel shows them — [P3.3]'s projection,
- * with [P3 §7.4](../../docs/design/workplan/05-p3-implementation.md) decided
+ * with [P3 §7.4](../../../docs/design/workplan/05-p3-implementation.md) decided
  * 2026-08-27: **every row the index holds for the id**, shadowed and
  * tombstoned included, and the projection is **best-effort rather than a
  * contract** — it restates the derived index, whose tables stay an
- * implementation detail ([13 §5](../../docs/design/13-internal-contracts.md)),
+ * implementation detail ([13 §5](../../../docs/design/13-internal-contracts.md)),
  * so after an index schema bump it may return less until this surface
  * catches up.
  *
