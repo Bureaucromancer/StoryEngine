@@ -1,5 +1,17 @@
 # 12 — what the machine cannot check
 
+**Status: historical, and still cited.** The P2-era record, superseded as a
+working list by [26](26-manual-testing.md) on 2026-09-08: §2 is walked through
+that file's sittings A–D and H, and §4 is absorbed into its §9, because a
+should-be-a-test list stranded in a document marked historical is a list nobody
+reads.
+
+**It is not folded, and should not be.** Thirty of the sittings' rows cite this
+document for the *reasoning* behind a step, which is the half a checklist cannot
+carry. §1's anchor reads 1,186 tests and is four phases stale — left alone
+deliberately, because that anchor records when the gate was walked and moving it
+would be a claim nobody made.
+
 The exit gates for [P2](04-p2-implementation.md#4-verification--the-p2-exit-gate),
 [P2A](13-p2a-configuration-surface.md#4-verification--the-p2a-exit-gate) and
 [P2B](14-p2b-provider-configuration.md#4-verification--the-p2b-exit-gate) are

@@ -1,5 +1,13 @@
 # 16 — P2C findings log
 
+**Status: historical, closed to new entries.** [25](25-playable-log.md) is its
+successor and takes anything found from 2026-09-07 onward.
+
+**One obligation is still open and is carried elsewhere:** the Triage table at
+the foot of this file has a heading and no rows, and its fourteen findings still
+need homes. That obligation lives at [26 §10](26-manual-testing.md), not here —
+this file's own rule is that it is not a queue.
+
 **Appended to as things happen; emptied by [P2C.4](15-p2c-first-real-run.md)'s
 triage; kept afterwards rather than deleted.** What a person saw the first time is
 not reconstructible later, and it is the one artifact a second pass cannot

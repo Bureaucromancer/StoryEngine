@@ -202,7 +202,7 @@ describe('every citation says which document it means', () => {
    * number goes to zero there, and this assertion becomes the thing that keeps
    * it there.
    */
-  const NUMERIC_WORKPLAN_CITATIONS = 542;
+  const NUMERIC_WORKPLAN_CITATIONS = 527;
 
   it('cites a work-plan document by name — pinned until the renumber', () => {
     const numeric = numbered

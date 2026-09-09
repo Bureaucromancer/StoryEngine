@@ -1,62 +1,88 @@
-# 27 — The pre-P6 walk: one list, eight sittings
+# 26 — Manual testing, running
 
-**Status: open, and filled in as it is walked.** Opened 2026-09-07 at `854fe64`,
-on branch `p6b`, after [P6B.1](24-p6b-playable.md) prepared P5's gate.
-**Sitting A walked 2026-09-08 — nine of nine PASS**, on a `pnpm dev` install on
-Windows. B onward move to a Docker install, which is why 1.0-alpha 3 exists.
+**Status: standing. This file does not complete.** Opened as a ledger
+2026-09-07 at `bded9f7`, merged with the pre-P6 walk sheet 2026-09-08. It holds
+what a person still owes the project, what they did about it, and what to do
+next — and it keeps holding them, because manual testing runs behind
+implementation by construction and every phase that closes adds to it.
 
-**This is the working sheet [26](26-manual-ledger.md) implies and deliberately
-is not.** That document counts what is owed; this one is what a person actually
-does, in the order that costs least, with a place to write what happened. The
-difference matters because they go stale differently: the ledger is true until
-a phase closes, and this sheet is true for an afternoon.
+**Why one file and not two.** The ledger and the walk sheet each argued that
+*"they go stale differently: a ledger is true until a phase closes, a walk sheet
+is true for an afternoon."* That argument dies the moment the sheet stops
+completing — a never-completing sheet is a second ledger at finer grain, in a
+second place, which is the duplication the ledger opens by naming. **The
+perishable unit is the sitting, not the document.** A walked sitting is struck
+through where it stands and keeps its results; the file that holds sittings is
+true forever.
 
-**Scope: every gate before P6.** P1, P2, P2A, P2B, P2C, P3, P4 and P5 — three
-phase gates of fifteen, fifteen and eighteen steps, P2C's four stages, and
-[12 §2](12-p2-manual-gate.md)'s list, which is itself the residue of three more
-gates. P6's, P6A's and P6B's own gates are **not** here; they are counted at
-[26 §3.1–3.2](26-manual-ledger.md) and walked after.
+It also ends a live duplication: three of the ledger's five outstanding passes
+were already items on the sheet, each citing the other, and the two documents
+kept two gate tables that are two update sites for one fact.
 
----
+**What this file asks of every future phase**, and the reason it exists rather
+than a sweep having been written once:
 
-## 0. What the condensing actually did
+> **When a phase closes, its gate arrives here as sittings, its automated steps
+> go to §5 with the test named, and anything it defers goes to §11 with a name
+> beside it. A gate is walked, or it is deferred with an owner and a reason.
+> There is no third state.**
 
-**Eighty-eight items across eight sittings, and they cover more than
-eighty-eight gate steps.** The list is not shorter than the gates; it is
-*sequenced*, and that is the useful transformation. The ledger's sharpest
-finding was that the walks are not independent — P3 step 12, P4 step 1, P5
-step 6 and PLAYABLE's fourth hypothesis all want *one real library and one long
-session*, and one arrangement answers all four.
+**The intake is mechanical, not a matter of remembering.** Every exit gate in
+this project ships at least one step marked *"Only a person can walk"* — P3, P5,
+P7, P10 and P11 all carry the phrase, and it is always on the step that carries
+the phase's actual claim. That is what to grep for when a phase closes.
 
-Three things happened to the source lists:
-
-- **Duplicates merged.** One fresh install (A1–A8) is eight of
-  [12 §2.1](12-p2-manual-gate.md)'s items, a step of P2's gate, two of P2A's and
-  P2B's first — which is why those four gates were all "walked as far as
-  automation goes" and all stuck at the same place. B1 and B2 then *re-run* the
-  same eight against two endpoints rather than restating them.
-- **Nine items already have their answer**, written into the cell rather than
-  left blank: three `AUTO` with the test named, three `BLOCKED` with what they
-  need and who arranges it, and three settled at [P6B.1](24-p6b-playable.md) as
-  deferred or half-met with the phase that has the rest.
-  [26 §7](26-manual-ledger.md)'s rule — a gate is walked, or deferred with an
-  owner and a reason, and there is no third state — applies to steps as much as
-  to gates. §4 lists the gate steps that never reach this sheet at all, because
-  a test already does them.
-- **Scattered obligations were given a sitting.** [P2C.2](15-p2c-first-real-run.md)
-  added five scenarios that no other document has a home for; they are D18–D20,
-  B6 and B8 rather than a list nobody opens.
-
-**Two things this sheet does not do.** It does not restate a step's reasoning —
-follow the citation, because the reasoning is why the step is worth walking. And
-it does not hold findings: those go to [25](25-playable-log.md) in that file's
-record format, so there is one log rather than two.
+**And the guard, stated here because this is the document most likely to need
+it.** [12 §4](12-p2-manual-gate.md) names the failure a standing manual file
+invites: *"a manual checklist grows every year because nobody wants to say which
+items were never automated."* Two sections exist to bleed items back out — §5,
+which records what a test now covers so nobody walks it again, and §9, which
+holds what *should* be a test and is not. Without both, "manual testing,
+running" becomes "manual testing, accumulating."
 
 ---
 
-## 1. How to write a result
+## 0. Where this stands, 2026-09-08
 
-Six words, and only six, so that a filled sheet can be read at a glance:
+**Thirty-six items walked, forty-five with a result, forty-three still blank**,
+across ten sittings of which three are complete and one is half done. **No gate
+in this project's history has ever been closed by a person.** P1's is closed by
+CI and is the only row in §6 with nothing owed.
+
+The walk so far has produced six findings in [25](25-playable-log.md) and eleven
+graded refinements in [28](28-walkthrough-refinements.md), and its sharpest
+result is one nobody asked for: sitting C ran eleven deliberate breakages,
+passed eleven, and produced **no refinement note at all**, while the sittings
+where nothing went wrong produced five. The app is well built for failure and
+thin for progress.
+
+---
+
+## 1. What to walk next
+
+*Rewritten whenever something is walked or a prerequisite lands. Everything else
+is below; this is the afternoon.*
+
+1. **D11–D20** — needs only the running app and a text editor (R7). D18, D19 and
+   D20 are the three storage scenarios no other document has a home for, and
+   D17 needs a re-check first: it was flagged unperformable, and P5.6 may have
+   made it performable.
+2. **E3–E5, E7–E13** — the fixture arm of import, walkable without the corpus.
+   Only E1, E2 and part of E6 want R1.
+3. **F0–F5, F7–F10, F13, F15, F16** — lore against a seeded install. F0 is the
+   entry point and the walk nobody could do before [P6B.0](24-p6b-playable.md).
+4. **B2 and B8** when a local runtime (R3) is confirmed; **B6** when a second
+   machine (R5) is; **H1 and H2** when there is an ubuntu box (R6).
+
+**Not next, and deliberately:** G, which wants hours and is also
+[P6B.2](24-p6b-playable.md); and I and J, which want a container and a
+two-hundred-turn session respectively.
+
+---
+
+## 2. How to write a result
+
+Seven words, and only seven, so that a filled sheet can be read at a glance:
 
 | Result | Means |
 |---|---|
@@ -76,36 +102,50 @@ some of which are two phases old.
 **Write the result the day you walk it, not afterwards.** A remembered outcome is
 an opinion.
 
+**A blank is not a result.** `BLOCKED` and `DEFERRED` are results — they say what
+the thing needs and who arranges it. An empty cell says only that nobody has
+looked, which is the state this whole file exists to make visible.
+
 ---
 
-## 2. Arranged before the day, longest lead first
+## 3. Standing prerequisites
 
-Nothing here is walkable on the day it is thought of.
+*Not "arranged before the day" — these outlive any one walk, and what each
+unblocks reaches across phases rather than across one sheet.* Ordered by lead
+time, longest first, because that ordering is a property of the prerequisite and
+not of the steps.
 
-| # | What | Wanted by | State |
+**Nothing here is walkable on the day it is thought of.**
+
+| # | What | Unblocks | State |
 |---|---|---|---|
-| **R1** | **A real library somebody else made** — a SillyTavern data directory or a Marinara data root, permissively licensed or your own. The repository has none: `import/fixtures/` holds three synthesised files and one of them says so. | E1, E2, F1, F6 | **Not to hand.** [26 §3.4](26-manual-ledger.md). |
-| **R2** | **A hosted endpoint with a real key.** | B1, C1 | **To hand** — used at A3 on 2026-09-08. |
-| **R3** | **A local runtime** (Ollama, LM Studio, llama.cpp) with one model. | B2, B8, G | — |
-| **R4** | **A non-author for forty-five minutes**, with the README and a URL and nothing else. | A9 | See §3.A's note — this one has partly expired and cannot be recovered by trying harder. |
-| **R5** | **A second machine on the network**, to sign in from. | B6 | — |
-| **R6** | **An ubuntu box or VM.** Everything this project has ever done was verified on Windows. | H1, H2 | — |
-| **R7** | **A full text editor and a file manager** on the machine running the server — not `fs`, not the IDE. | D18 | Trivial, but it is the point of the step. |
+| **R1** | **A real library somebody else made** — a used SillyTavern data directory, a used Marinara install, and a handful of explicitly-permissive lorebooks. None of it is in the repository and none of it can be synthesised. | E1, E2, E6, F1, F6 — and [P4 §3](06-p4-implementation.md) step 1, [P5 §3](07-p5-implementation.md) step 6, PLAYABLE's third hypothesis, and [10 §5](10-testing.md)'s corpus policy, which is a plan rather than a record that it ran | **Not to hand. The longest lead item in the file and the only one that cannot be started by deciding to.** Begin acquiring before G, not after: four obligations read the same shelf. |
+| **R3** | **A local runtime** (Ollama, LM Studio, llama.cpp) with one model. | B2, B8, and G's whole endpoint | Unconfirmed |
+| **R5** | **A second machine on the network**, to sign in from. | B6, and I's step 7 | Unconfirmed |
+| **R6** | **An ubuntu box or VM.** Everything this project has ever verified was verified on Windows. | H1, H2 — and [12 §2.5](12-p2-manual-gate.md), [12 §4.5](12-p2-manual-gate.md), *the platform nobody has watched* | Unconfirmed |
+| **R4** | **A non-author for forty-five minutes**, with the README and a URL and nothing else. | A9 — and [P10 §3](21-p10-implementation.md) step 10, which asks for the same person and says *the phase's whole claim is about that person* | **Partly expired** for A9 and cannot be recovered by trying harder; still live for P10 |
+| **R2** | **A hosted endpoint with a real key.** | B1, C1 | **To hand** — used at A3, 2026-09-08 |
+| **R7** | **A full text editor and a file manager** on the machine running the server — not `fs`, not the IDE. | D18 | To hand. Trivial, and it is the point of the step. |
+| **R8** | **A Docker daemon, an unraid host with a registry credential.** | I | Partly to hand — the first install ran 2026-09-07 |
+| **R9** | **A session two hundred turns deep**, against a book of a few hundred entries. | J | **Only G has ever produced one.** Walk J in the same sitting as G, while one exists — recreating one on purpose is an afternoon, noticing you still have one is free. |
 
 ---
 
-## 3. The sittings
+## 4. The sittings
 
-Ordered so that each one leaves behind what the next needs. **A–D need nothing
-arranged but an endpoint; E and F want R1; G is the long one; H is the other
-platform.**
+**A struck-through heading is a record, not a deletion.** That is how this file
+stays standing: a sitting is walked once, keeps its results in place, and the
+next phase's gate arrives as new sittings below rather than as a new sheet.
 
 Run everything under `pnpm dev:logged` from B onward, so the sittings leave a
-cassette corpus behind rather than a memory — that is
-[26 §5](26-manual-ledger.md)'s first should-be-a-test, and the machinery has
-existed since P4 with **no cassette ever promoted**.
+cassette corpus behind rather than a memory — §9's first item, and the
+machinery has existed since P4 with **no cassette ever promoted**. The runbook
+for that, and the six measured traps that go with it, is
+[17 §2.2–§2.4](17-p2c-brief.md); it is not restated here, and if 17 is ever
+retired the runbook has to move first.
 
----
+*A–H came from the pre-P6 walk and cover every gate before P6. I and J are the
+ledger's outstanding passes, folded in here rather than kept as a second list.*
 
 ### ~~A — Fresh install, first contact~~ Walked 2026-09-08 — *nine of nine PASS*
 
@@ -274,7 +314,7 @@ added that nothing else has a home for.
 | **D11** | **Compare.** Hand-edit the session's own copied preset on disk, drop a block's priority, take the same turn again: the compare view shows exactly what changed, and its address can be pasted into a bug report. | P3 9 | |
 | **D12** | **The replay path is wired** — a committed tape can be handed to a runner and replays. *Not* identical draws; that moved to P5 and then to P6. | P3 10 | |
 | **D13** | **Dry run**, if P3.7 shipped: inspect then send → one record; abandon → nothing sent, nothing charged, and a restart does not commit it. The pending state is visible and the session says it is busy. | P3 11 | |
-| **D14** | **The legibility claim itself.** Somebody who did not build the turn opens the panel on a real turn they did not script and says why it came out that way — without the log, the source, or a JSON pretty-printer. **And its honest counterpart:** at least one turn where the answer is *I could not tell*, written down with what was missing. | P3 12, [26 §3.3](26-manual-ledger.md), PLAYABLE hyp. 4 | |
+| **D14** | **The legibility claim itself.** Somebody who did not build the turn opens the panel on a real turn they did not script and says why it came out that way — without the log, the source, or a JSON pretty-printer. **And its honest counterpart:** at least one turn where the answer is *I could not tell*, written down with what was missing. | P3 12, §6, PLAYABLE hyp. 4 | |
 | **D15** | **Density.** A turn with thirty blocks reads as a table rather than thirty disclosures; nothing that belongs on screen is behind a click for calm's sake; the panel open over Play does not squeeze the transcript into a column nobody can read. | P3 13 | |
 | **D16** | **The phone.** At 375px the same toggle produces a full-height sheet with the same content, the view under it does not scroll horizontally, and the sheet is dismissable one-handed. | P3 14 | |
 | **D17** | **A rejected effect, visible with its reason.** *The step was flagged unperformable* — Scene shipped one step that writes nothing. **Re-check before walking:** P5.6 ships `se.lore.timing` effects and [P6B.1](24-p6b-playable.md) made two of them on one channel distinguishable, so the *rendering* half may now be walkable even if nothing yet proposes a **rejected** one. If it is still unperformable, that is a `DEFERRED` with the phase that ships an effect-producing step. | P3 15 | |
@@ -325,7 +365,7 @@ to everything below.
 | **F3** | Filtering within a book by a key chip, a tag and a folder each narrows the list; the panel's own filters narrow the shelf. | P5 3 | |
 | **F4** | A search phrase occurring in exactly one entry returns **that entry** with a snippet, across books. | P5 4 | |
 | **F5** | An entry is created, edited and deleted through the real write path, and a collapsed section in the editor names its non-default values. | P5 5 | |
-| **F6** | **Open a book you did not author** and judge whether the page reads as a document or as a form. | P5 6 | **BLOCKED** — R1, with lead time. Settled as person-blocked at [P6B.1](24-p6b-playable.md); this is its outcome, not a blank. [26 §3.4](26-manual-ledger.md). |
+| **F6** | **Open a book you did not author** and judge whether the page reads as a document or as a form. | P5 6 | **BLOCKED** — R1, with lead time. Settled as person-blocked at [P6B.1](24-p6b-playable.md); this is its outcome, not a blank. §3, R1. |
 | **F7** | **An imported ST lorebook fires on its keywords in a real session** — entries appear as blocks with `keyword match: "…"` reasons. | P5 7 | |
 | **F8** | **Timing, three cases and they are not the same case.** A sticky entry **counts down in the block list** and says when its window closes; cooldown and ephemeral are legible in the record through their effects, now that two on one channel can be told apart. **`delay` is not** — record that rather than hunting for it; its only trace is a skip reason, and skip reasons reach the preview and never the record. | P5 8 | |
 | **F9** | **Recursion.** An activated entry's text activates another; `preventRecursion` et al. honoured; no runaway at the book's depth limit. **Use a chain of width more than one** — every automated recursion test is width one, which is how [P6B.1](24-p6b-playable.md)'s haystack defect survived. | P5 9 | |
@@ -376,14 +416,44 @@ all three platform-shaped.
 | **H2** | Hand-edit a library file from a Linux editor and watch the panel follow — the watcher half, which is the one with a platform-shaped history. | [12 §2.5](12-p2-manual-gate.md), P3 7 | |
 
 ---
+### I — The container walk — *[P6A §3](23-p6a-alpha-1.md) steps 3–12, and it wants R8*
 
-## 4. Already discharged, and by what
+**Partly walked already, 2026-09-07**, by the first install: the template
+pulled, the container started, and three findings came out of it — a root-owned
+appdata directory, an icon that cannot exist while the repository is private,
+and a setup token nobody could find. All three are fixed.
+
+**What that walk did not cover:** step 7 (a turn from another machine), step 9
+(restart with the volume), step 10 (the stamp refusing an older build), and step
+12 (an unauthenticated pull failing).
+
+**Answers:** whether the artifact this project cuts is installable by somebody
+who is not its author. **Unblocks:** [P10.0](21-p10-implementation.md), which
+re-verifies this path against an artifact it inherits rather than one it built.
+
+### J — The tree walk — *[P6 §3](08-p6-implementation.md) step 1 and 14's clock, and it wants R9*
+
+Step 1 is *branch from a message two hundred turns back, in one action, with
+state at the fork correct.* Step 14's wall-clock half is *reconstruct at that
+depth in a time a person would accept* — deliberately not a CI assertion,
+because a threshold on a busy runner is a flake waiting to happen.
+
+**Do this in the same sitting as G**, while a deep session exists.
+
+**Answers:** whether the snapshot cache earns its complexity under real depth.
+**Unblocks:** [P6 §5](08-p6-implementation.md)'s snapshot-interval question and
+[P8](19-p8-implementation.md)'s cadence sizing, which wants real turn volumes.
+
+---
+
+
+## 5. Already discharged, and by what
 
 Listed so the count is honest. **Nobody walks these.**
 
 | Step | Result | By |
 |---|---|---|
-| **P1's gate** | **AUTO** | The named gate test, run in CI on every push. [26 §1](26-manual-ledger.md)'s only row with nothing owed. |
+| **P1's gate** | **AUTO** | The named gate test, run in CI on every push. §6's only row with nothing owed. |
 | **P4 2** | **AUTO** | `import/fixture-pair.test.ts`, a named CI step: no `empty-source` rows for persona, actor, history or input, no `unknown-slot` rows at all. |
 | **P4 13** | **AUTO** | `import/registries/registries.test.ts` over the two vendored snapshots — every ST directory key and Marinara table maps to a disposition, and a name in neither imports as unrecognised-and-counted. |
 | **P5 14** | **AUTO** | See F14. |
@@ -394,18 +464,70 @@ Listed so the count is honest. **Nobody walks these.**
 
 ---
 
-## 5. Where a finding goes
+---
 
-**[25](25-playable-log.md), in that file's format** — build, endpoint, session,
-**expected before observed**, snapshot. One log, not two: these sittings and
-[P6B.2](24-p6b-playable.md)'s play are the same evidence gathered on different
-days, and splitting them would make the triage read two files and reconcile
-them.
+## 6. Where every gate stands
 
-**Findings from a sitting that arrive as *requests* are graded at
-[28](28-walkthrough-refinements.md)** rather than here — what a person saw is a
-finding, and what they asked for is a proposal, and the two go stale at
-different rates.
+*Anchored 2026-09-08 at `fb646c5`: 2,889 tests across 194 files, green, plus
+`test:gate`, `test:fixture-pair` and `test:docs`. [12 §1](12-p2-manual-gate.md)'s own
+anchor reads 1,186 and is four phases stale — noted rather than edited, because
+that document's anchor is a record of when it was walked and moving it would be
+a claim nobody made.*
+
+| Gate | Steps | Automated | Walked | What is left, and by whom |
+|---|---|---|---|---|
+| **P1** | — | the named gate test | — | Its exit is the CI step, which runs. **Nothing outstanding.** |
+| **P2 / P2A / P2B** | 20 / 17+2 / 11 | 8 / 13 / 9 | **A, B (less B2/B6/B8), C** | [12 §2.3](12-p2-manual-gate.md) the browser under real conditions, and §2.5 both platforms — H |
+| **P2C** | 4 stages | P2C.0 only | **P2C.1**, 2026-09-08 | .2 is A–D, .3 is G, .4 is the triage. The boundary has since been crossed by ordinary use; what was never done is *capture* |
+| **P3** | 15 | most | **steps 1–10**, 2026-09-08, plus one gate correction | D11–D20. Step 12 is PLAYABLE's fourth hypothesis wearing a step number |
+| **P4** | 15 | most | — | E. Step 1 wants R1 |
+| **P5** | 18 | partly | — | F. Step 6 is person-blocked on R1; step 12 is deferred to P7 |
+| **P6** | 14 | steps 2–14 | **unwalked** | J — step 1 and the wall-clock half of 14 |
+| **P6A** | 13 | 1, 2, 13 partly | **steps 3–12 unwalked** | I. Partly walked 2026-09-07 by the first install |
+| **P6B** | 10 | partly | **unwalked** | Step 8 is P5's eighteen walked by a person; steps 9 and 10 are G's |
+| **PLAYABLE** | the four hypotheses | none, by definition | **never run** | G. The fourth survived its first contact at A8 and has not met a long session |
+| **P7 … P11** | 10 / 10 / 15 / 10 / 10 | — | not yet opened | **55 person-walked steps still to arrive.** P7, P10 and P11 each carry a step marked *only a person can walk*, and in each it is the phase's whole claim |
+
+**Two things this table makes plain and no single document did.** Every gate
+from P3 onward is unwalked, and each phase document says so about itself while
+none says it about the sequence. And **the walks are not independent**: P3 step
+12, P4 step 1, P5 step 6, P6 step 1 and PLAYABLE's four hypotheses all want a
+real imported library and a long session played by a person. One arrangement
+answers five obligations.
+
+---
+
+
+## 7. Closing a gate
+
+A gate closes when **every one of its steps has a result** — not when every step
+passes. `BLOCKED` and `DEFERRED` are results; a blank is not.
+
+When one closes, three things happen and the third is the one that gets skipped:
+
+1. The phase document's status line says so, with the date and what was left.
+2. §6's row changes.
+3. **Every `CORRECTION` is written back into the document that owns the step.**
+   The corrections are worth more than the ticks — that is
+   [P2C.4](15-p2c-first-real-run.md)'s claim, made from the one walk this project
+   has actually completed.
+
+---
+
+## 8. Where a finding goes
+
+**Evidence to [25](25-playable-log.md)**, in that file's record format — build,
+endpoint, session, **expected before observed**, snapshot. One log, not two:
+the sittings here and [P6B.2](24-p6b-playable.md)'s play are the same evidence
+gathered on different days, and splitting them would make the triage read two
+files and reconcile them. [16](16-p2c-log.md) is P2C's and is closed to new
+entries; **its fourteen findings still need triage rows**, which is an
+obligation this file carries at §10 rather than leaving inside a log whose own
+rule says it is not a queue.
+
+**Requests to [28](28-walkthrough-refinements.md)**, graded rather than
+scheduled. What a person saw is a finding; what they asked for is a proposal;
+the two go stale at different rates.
 
 **Nothing is fixed because it is written there.** That is the log's own standing
 rule and the reason it stays honest: a finding that has to justify a fix before
@@ -416,29 +538,133 @@ in advance because afterwards every finding argues for its own importance:
 **stops the phase / fixed inside it / a gate correction / polish / a later phase
 or the roadmap.** Nothing is allowed to have no home.
 
+**A pass that produces no written finding produced no finding.** Not a slogan:
+[P2C](15-p2c-first-real-run.md) is the phase that proved it, and the reason its
+log exists is that the first pass's observations were not reconstructible
+afterwards.
+
 ---
 
-## 6. Closing a gate
 
-A gate closes when **every one of its steps has a result** — not when every step
-passes. `BLOCKED` and `DEFERRED` are results; a blank is not.
+## 9. Should be a test, and is not yet
 
-When one closes, three things happen and the third is the one that gets skipped:
+**Absorbed from [12 §4](12-p2-manual-gate.md), which carried five.** A
+should-be-a-test list stranded in a document marked historical is a list nobody
+reads, and this is the section that keeps this file from becoming a checklist
+that only grows. Their state today:
 
-1. The phase document's status line says so, with the date and what was left.
-2. [26 §1](26-manual-ledger.md)'s row changes.
-3. **Every `CORRECTION` is written back into the document that owns the step.**
-   The corrections are worth more than the ticks — that is
-   [P2C.4](15-p2c-first-real-run.md)'s claim, made from the one walk this project
-   has actually completed.
+- **4.1 a recorded transcript tier for the provider adapters** — the machinery
+  landed (`*.live.test.ts`, cassettes into `captures/`, promotion by hand), and
+  **no cassette has ever been promoted**: there is no
+  `packages/server/src/providers/fixtures/`. [P6B §1.6](24-p6b-playable.md)
+  captures during play; promoting is what closes this.
+- **4.2 nobody fuzzes a hand-written file, and every one of them is
+  hand-written** — still open, and it is the one that found six real defects in
+  one pass. The sharpest class in the file.
+- **4.3 two clients on one session, at the DOM tier** — still open. P6's
+  stale-head work made the server half testable and the DOM half is untested.
+- **4.4 the suite is load-sensitive** — still open.
+- **4.5 the ubuntu leg has never been watched** — still open, and now also
+  sitting H.
 
-| Gate | Steps | Sittings that cover it | Walked so far | Closed |
-|---|---|---|---|---|
-| **P1** | — | — (AUTO) | — | **Yes** |
-| **P2 / P2A / P2B** | 20 / 17+2 / 11 | A, B, C, D18–D20, H | **A, B (less B2/B6/B8), C** — [12 §2.1](12-p2-manual-gate.md) entire, §2.2 against one endpoint, §2.3 in part and all of §2.4 | |
-| **P2C** | 4 stages | A9 (.1), A–D (.2), G (.3), §5 (.4) | **P2C.1**, on 2026-09-08 | |
-| **P3** | 15 | D | **steps 1–10**, 2026-09-08, plus one gate correction ([F-04]: the drag handle has never had a height) | |
-| **P4** | 15 | E | | |
-| **P5** | 18 | F | | |
+**What this sweep adds to that list:**
 
-*Sittings walked: **A** (nine of nine), **B** (six of nine; B2, B6 and B8 want a local runtime and a second machine), **C** (eleven of eleven), **D1–D10** — all 2026-09-08. D11–D20 and E–H outstanding. **Thirty-six items have a result; fifty-two do not.***
+- **The seed script had no test until [P6B.0](24-p6b-playable.md)**, and the
+  reason it shipped broken through two phases is that nothing looked at it. Any
+  other dev script in `tools/` is in the same position.
+- **A request body can be built wrong under a green suite.**
+  [P6B.0](24-p6b-playable.md) found `createSession` could send `{name}` alone
+  with both page tests passing, because they mock the function. Every other
+  client call whose body is assembled from optional fields has the same shape
+  and no equivalent test.
+
+
+---
+
+
+## 10. Deferred, with an owner
+
+*The point of this section is that everything in it has a name beside it.
+Anything that loses its owner comes back to §0's rule.*
+
+| Item | Where it was made | Owner | Why deferred |
+|---|---|---|---|
+| The permissive corpus | [P4 §0](06-p4-implementation.md), [P5 §1.6](07-p5-implementation.md) | whoever acquires it; blocks P4 step 1 and P5 step 6 | Person-blocked with lead time. Cannot be synthesised. §3, R1 |
+| **F22's leftover** — the rebuild/watcher divergence over a refused path | [P2 §782](04-p2-implementation.md) | ~~P2.7~~ **nobody: that stage does not exist** | See below. **This is the sweep's sharpest finding.** |
+| P2 gate step 8 / F12 — an editor-page mount rather than a component mount | [P2 §958](04-p2-implementation.md) | unassigned; "unblocked rather than done" | The harness exists now, so it is a test somebody has to write |
+| A killed *process* names no model call | [12 §3.6](12-p2-manual-gate.md) | the suite's one `it.todo`, `recovery.test.ts` | Needs a provisional call in the checkpoint |
+| The record cannot say a block is advisory | [12 §3.6](12-p2-manual-gate.md) | unassigned | `assemble()` drops `Candidate.advisory`; `ModelCall` records no purpose. **[P7](18-p7-implementation.md) makes this expressible or it stays unexpressible** |
+| Two clock-effect constructors disagree; `clockEffect` has no production caller | [12 §3.6](12-p2-manual-gate.md) | unassigned | Dead code with a disagreement in it |
+| A turn carries no money total | [12 §3.6](12-p2-manual-gate.md) | [01 §2](01-work-plan.md)'s day-one list says record cost now, display later | `costOf()` never aggregates. The recording is done; the aggregate is not |
+| `requestId` unbound on job log lines | [12 §3.6](12-p2-manual-gate.md) | deferred **with a written reason** — the model | A turn outlives its request; carrying one means a column, a migration and a meaning |
+| Nightly tier, dependency-licence scan, forward-port check | [10 §6](10-testing.md), [11 §8](11-repo-and-releases.md) | [P11](22-p11-implementation.md) | Beta-gate work; `testing` landed early at alpha.2 and nightly did not |
+| Restore test, upgrade test | [01 §8](01-work-plan.md), [06 E6](../06-open-questions.md) | [P11](22-p11-implementation.md) | "An untested restore is not a backup" — and it is 1.0 scope |
+| Release-line support window; release-branch cut point | [11 §8](11-repo-and-releases.md) | [P11](22-p11-implementation.md) | Cheap to declare now, awkward later; no release line exists yet |
+| The eight polish items | [09](09-polish.md) | unscheduled by design | The file's own house rule: user-facing, bounded, not roadmap |
+
+### 10.1 The dangling owner, which is the finding this sweep exists to have produced
+
+**F22's leftover is owned by `P2.7`, and P2 has stages P2.0 through P2.6.**
+
+The sentence that assigned it says exactly why it was assigned:
+
+> *"**Still open, and now owned by P2.7** — P2.6 opened the same code and did not
+> take it, so leaving it pointed at a closed stage is how it becomes nobody's."*
+
+It was moved off a closed stage and onto a stage that was never created, so it
+became nobody's by the other route. That is [01 §0.5](01-work-plan.md)'s *a bar
+nobody owns is a wish* in miniature, and it is the exact failure
+[18 §0](18-p7-implementation.md) says a skeleton exists to prevent — **a
+deferral nobody collects is a deferral that gets lost.**
+
+**It needs an owner before this file is worth anything**, and the honest
+candidates are two: fold it into [P6B.1](24-p6b-playable.md), which is already
+opening the index and storage code for the `orphan-fts` assertion and the
+migration test; or write it into [P11](22-p11-implementation.md)'s audit as a
+known defect with a test to write. **The recommendation is P6B.1**, because the
+work is in the same file and the alternative is a fifth year of the same
+sentence.
+
+**Taken, and closed 2026-09-07 at `0e228ec` — and it was not the small thing
+the sentence made it sound.** Opening the code found a *live divergence* rather
+than an unreconciled asymmetry: a rebuild refused a folder whose name this build
+will not resolve and counted a silent skip, while the watcher never applied the
+rule at all and **indexed a row pointing at a file no read in this build can
+open** — every read goes back through the same builder, which throws. Indexing
+it was worse than not indexing it.
+
+**Neither the P1 gate nor any unit test could have caught it, and the two
+reasons are why it lasted six phases.** The gate compares what got indexed, and
+the disagreement was about something that did not: it lived in a table the
+comparison never read. And the folder names in question cannot be created on the
+machine this repository is developed on, so a test that made one would be a test
+that never ran here — the seam is the layout instead, which refuses one ordinary
+slug on demand.
+
+Both producers now ask the same function, the refusal is recorded rather than
+counted, a rebuild clears that table like every other stale belief it must not
+preserve, and the snapshot reads it — **an absence has to be in the comparison
+or it is not compared.**
+
+*The general lesson, since this section exists to have produced one:* the
+sentence was six phases old and read like bookkeeping. It was a defect. **A
+deferral nobody collects is not merely lost; it stops being read, and what it
+
+---
+
+## 11. What this file replaced
+
+**The pre-P6 walk sheet is merged into this file and gone.** It was
+`27-pre-p6-walk.md`, and it existed for eight days. Its condensing method survives as §4's shape and is worth restating,
+because it is the technique for turning any newly-closed gate into sittings:
+**merge the duplicates across gates, give the scattered obligations a sitting of
+their own, and pre-fill anything that already has an answer.** The list does not
+get shorter than the gates; it gets *sequenced*, and that is the transformation
+worth doing.
+
+Three documents are now historical and are marked so in place. [12](12-p2-manual-gate.md)
+is the P2-era record: its §2 is walked through sittings A–D and H, its §4 is
+absorbed above, and it stays a cited source because thirty of §4's rows cite it
+for the reasoning behind a step. [16](16-p2c-log.md) is closed to new entries.
+[17](17-p2c-brief.md) is historical as a brief and **permanently live as the
+runbook** — §2.2–§2.4 is the only one in the corpus.

@@ -7,7 +7,7 @@ argue with.
 
 **Its gate is the one gate that owes nothing.** P1 exits through the CI step
 that still runs on every push, which is why it is the single row in
-[26 §1](26-manual-ledger.md) with no person named beside it.
+[26 §1](26-manual-testing.md) with no person named beside it.
 
 *(This status line was written 2026-09-07 at
 [P6B.1](24-p6b-playable.md), in the sweep that found five phase documents

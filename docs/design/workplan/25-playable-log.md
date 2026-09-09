@@ -90,10 +90,10 @@ twenty turns ago.
 Findings go under it in the order they happened, not in order of importance —
 the order they happened is data, and reordering by importance discards it.*
 
-### 2026-09-08 — the pre-P6 walk, sittings A–D — [27](27-pre-p6-walk.md)
+### 2026-09-08 — the pre-P6 walk, sittings A–D — [26](26-manual-testing.md)
 
 *Not [P6B.2](24-p6b-playable.md)'s play. These are the observations from a
-scripted gate walk, kept here because [27 §5](27-pre-p6-walk.md) puts both in one
+scripted gate walk, kept here because [26 §8](26-manual-testing.md) puts both in one
 log: they are the same evidence gathered on different days, and splitting them
 would make the triage read two files and reconcile them.*
 
@@ -170,7 +170,7 @@ snapshot  none
 one.** Already fixed at `71ff7f1` on `feat/tagging_and_search`, together with a
 test that reads the built stylesheet — the gate this bug class has never had.
 [P3 §](05-p3-implementation.md)'s stage record claims a browser walk that cannot
-have happened, and [27](27-pre-p6-walk.md)'s D2 tests that a size *persists*,
+have happened, and [26](26-manual-testing.md)'s D2 tests that a size *persists*,
 never that it can be *set*. See [28 §2.1](28-walkthrough-refinements.md).
 
 #### F-05 — the workbench cannot be pointed at a turn the head has passed

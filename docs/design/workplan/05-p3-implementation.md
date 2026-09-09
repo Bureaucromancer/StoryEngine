@@ -7,7 +7,7 @@ the outstanding P2 record items adopted into P3.0 the same day.*
 **Fifteen gate steps and no record of a walk.** Step 12 — *somebody who did
 not build the turn explains it from the panel* — is PLAYABLE’s fourth
 hypothesis wearing a step number, which is why
-[26 §3.3](26-manual-ledger.md) sequences it immediately after
+[26 §3.3](26-manual-testing.md) sequences it immediately after
 [P6B.2](24-p6b-playable.md) rather than as a pass of its own.
 
 *(This status line was written 2026-09-07 at

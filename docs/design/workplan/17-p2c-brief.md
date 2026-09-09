@@ -1,5 +1,13 @@
 # 17 — P2C, the tester's brief
 
+**Status: historical as a brief, permanently live as the runbook.** §3’s
+scenarios are alpha-era and the file says so itself; §2.2–§2.4 is **the only
+runbook in the corpus** — the reset and seed sequence, the six measured traps,
+and the three capture recipes — and [26 §4](26-manual-testing.md)’s instruction
+to run every sitting under `pnpm dev:logged` is unexecutable without it.
+
+If this file is ever retired, that runbook has to move first.
+
 **What a person needs in front of them on the day, and nothing they can work
 out for themselves.** [P2C](15-p2c-first-real-run.md) says what the phase is
 for and what had to be repaired first; this says what to type, where to look

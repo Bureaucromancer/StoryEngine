@@ -21,7 +21,7 @@ what is actually being asked. What is left is **the walk itself** — eighteen
 steps against HEAD, with each outcome recorded rather than ticked — and **the
 four [AWAITS PLAYABLE] questions**, which want [P6B.2](24-p6b-playable.md). Two
 of the eighteen already have their answers written down: step 6 is
-person-blocked on a corpus with lead time ([26 §3.4](26-manual-ledger.md)), and
+person-blocked on a corpus with lead time ([26 §3.4](26-manual-testing.md)), and
 step 12 is deferred to P7 with the row moved and the receiving document told.
 Neither is a failure and neither is a blank. Audited 2026-08-30 at `09ea758`, re-audited
 2026-08-31 after P4's own audit closed, and re-audited again at `12a28d9` on the
@@ -662,7 +662,7 @@ how they ended is the same failure at one remove.
    permissively-licensed corpus this step was said to be met by does not exist in
    the repository — `import/fixtures/` holds three synthesised files and one of
    them says so. The walker supplies the book. It is counted at
-   [26 §3.4](26-manual-ledger.md) beside [P4 §3](06-p4-implementation.md) step 1,
+   [26 §3.4](26-manual-testing.md) beside [P4 §3](06-p4-implementation.md) step 1,
    which wants the same thing, and the same false claim is corrected there.
 
 **What would have to happen, in the order that costs least.** Settle the four
@@ -2299,7 +2299,7 @@ person-blocked, and that is its outcome rather than a note beside a blank.**
 A walker does not fail it, skip it or fake it with a fixture: the step wants
 a book somebody else organised, the repository has none and cannot make one,
 and the honest entry is *deferred, owner named, reason given*. It waits at
-[26 §3.4](26-manual-ledger.md) with [P4 §3](06-p4-implementation.md) step 1,
+[26 §3.4](26-manual-testing.md) with [P4 §3](06-p4-implementation.md) step 1,
 which wants the same book — one arrangement answers both, which is the
 argument for counting them in one place rather than letting each phase's
 revisit rediscover its own.

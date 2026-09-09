@@ -74,7 +74,8 @@ what this release is for.
 - **The pre-P6 walk is in progress, not finished.** Sitting A — a fresh install
   through to a streamed turn and its record — is walked and passed; B through H
   are outstanding
-  ([27](docs/design/workplan/27-pre-p6-walk.md)). This image exists so the rest
+  ([manual testing](docs/design/workplan/26-manual-testing.md), which that sheet
+  was merged into on 2026-09-08). This image exists so the rest
   of that walk happens against a container rather than a dev server.
 - **No compatibility promise between alpha builds**, unchanged from Alpha 2.
 

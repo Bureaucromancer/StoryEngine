@@ -6,7 +6,7 @@ gate’s closing method written down at `423d9e0`. *Reviewed against
 
 **Eleven gate steps, nine automated, walked as far as automation goes.** The
 rest is [12 §2](12-p2-manual-gate.md)’s list, counted at
-[26 §3.5](26-manual-ledger.md).
+[26 §3.5](26-manual-testing.md).
 
 *(This status line was written 2026-09-07 at
 [P6B.1](24-p6b-playable.md), in the sweep that found five phase documents

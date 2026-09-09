@@ -289,7 +289,7 @@ still empty, which is [P6B.3](#p6b3--triage)'s to notice, not to redo.
 
 *Added 2026-09-07, after §0.1's audit was widened from "why can PLAYABLE not
 run" to "what else was made and never discharged".*
-[26](26-manual-ledger.md) is the ledger it produced and the place the answer
+[26](26-manual-testing.md) is the ledger it produced and the place the answer
 lives; this section is only the part that lands **here**, because it is cheap
 and because this phase is already in the files.
 
@@ -312,7 +312,7 @@ and because this phase is already in the files.
    the list. [P6B.3](#p6b3--triage) already says it takes them.
 4. **[12 §1](12-p2-manual-gate.md)'s anchor reads 1186 tests**, two phases
    stale. Left alone deliberately — an anchor records when a gate was walked and
-   moving it would claim a walk nobody made — but [26 §1](26-manual-ledger.md)
+   moving it would claim a walk nobody made — but [26 §1](26-manual-testing.md)
    re-anchors beside it, which is the honest repair.
 
 **And what it explicitly does not absorb**, so that the choice is visible rather
@@ -320,7 +320,7 @@ than silent: the permissive corpus (person-blocked, and §3 step 6 records it as
 such), the four smaller P2-era defects in
 [12 §3.6](12-p2-manual-gate.md), and the five should-be-tests in
 [12 §4](12-p2-manual-gate.md). Each has a row and an owner in
-[26 §4](26-manual-ledger.md), which is what makes deferring them a decision.
+[26 §4](26-manual-testing.md), which is what makes deferring them a decision.
 
 ### 1.8 The log, and the rule that keeps it honest
 
@@ -432,7 +432,7 @@ because `snapshot` compared what got indexed and the disagreement was about
 what did not. Both producers now ask the same function, the refusal is a
 `file_error` row rather than a number nobody stored, and the snapshot reads that
 table. Its stated owner was `P2.7`, a stage that was never created — which is
-the dangling owner [26 §4.1](26-manual-ledger.md) opened on.
+the dangling owner [26 §4.1](26-manual-testing.md) opened on.
 
 **And step 8's two plumbing complaints, which were cheap and would otherwise
 have failed the walk for a reason the walker could not act on.** `Activation`
@@ -449,7 +449,7 @@ from the stage records that four fifths of P2C never ran.
 mid-walk.** Steps 6, 8, 11 and 12 are amended. Step 6 is **person-blocked** and
 that is its outcome — the book is supplied by the walker or the step is
 deferred, and it is counted with [P4 §3](06-p4-implementation.md) step 1 at
-[26 §3.4](26-manual-ledger.md), which wants the same book. Step 11's
+[26 §3.4](26-manual-testing.md), which wants the same book. Step 11's
 reproduction half is **P6's** and there is no replay entry point to look for.
 Step 12 is **P7's**: [01 §195](01-work-plan.md)'s row moved,
 [P5 §1.4](07-p5-implementation.md) is corrected, and
@@ -526,13 +526,13 @@ findings from P2C.0's smoke run under an empty *Triage* heading. They get homes
 too, or a recorded reason why not.
 
 **And the ledger is updated rather than left to go stale** —
-[26 §1](26-manual-ledger.md) gains P5's and PLAYABLE's rows in their walked
+[26 §1](26-manual-testing.md) gains P5's and PLAYABLE's rows in their walked
 state, and anything this phase defers gains a row with a name beside it in §4.
 That is the file's own standing rule, and this is the first phase that closes
 under it.
 
 *Ends at:* an empty log, six questions answered or re-deferred with reasons,
-[26](26-manual-ledger.md) current, and [P7 §0.1](18-p7-implementation.md) given
+[26](26-manual-testing.md) current, and [P7 §0.1](18-p7-implementation.md) given
 the follow-up it asks for.
 
 ---

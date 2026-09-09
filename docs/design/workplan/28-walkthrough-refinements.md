@@ -2,14 +2,14 @@
 
 **Status: grounded 2026-09-08 against `v1.0.0-alpha.3`, and unscheduled.**
 Eleven notes written by the author while walking sittings A through mid-D of
-[27](27-pre-p6-walk.md). Each was read against the code and the design corpus
+[26](26-manual-testing.md). Each was read against the code and the design corpus
 before being written down here, and **eight of the eleven are not what the note
 says they are.**
 
 **This document does not schedule anything.** It says, for each note, what the
 request actually is, whether the thing already exists, which document owns it,
 and what has to be decided before it can be built. Scheduling is a separate
-decision and [26 §7](26-manual-ledger.md)'s rule applies to it: a thing is
+decision and [26 §7](26-manual-testing.md)'s rule applies to it: a thing is
 owned, or it is deferred with an owner and a reason.
 
 **Findings that are observations rather than requests go to
@@ -107,10 +107,10 @@ invisible in jsdom.*
 > **[P3 §](05-p3-implementation.md)'s stage record claims a browser walk that
 > cannot have happened** — *"open, drag to 484, reload, still open at 484"*. It
 > is uncorrected on both branches. That is a `CORRECTION` in
-> [27](27-pre-p6-walk.md)'s sense and the most valuable thing this note
+> [26](26-manual-testing.md)'s sense and the most valuable thing this note
 > produced.
 >
-> **[27](27-pre-p6-walk.md)'s D2 tests that a size persists, never that it can
+> **[26](26-manual-testing.md)'s D2 tests that a size persists, never that it can
 > be set by pointer.** The next refinement to add a pointer affordance is R2's
 > connection reorder, and it will pass the same way unless the step is written
 > to exercise the pointer.
@@ -217,7 +217,7 @@ could not find them.
 ## 5. What the walk did not produce, and what that means
 
 **Nothing about a narrow viewport**, though three of the eleven assume a wide
-one. [27](27-pre-p6-walk.md)'s D16 is the unwalked step that would have caught
+one. [26](26-manual-testing.md)'s D16 is the unwalked step that would have caught
 it. Each of R1, R3 and R5 needs a sentence about what it means at 375px, or D16
 will fail against work done because of this list. *That is a gap in the
 requests, not in the app.*
